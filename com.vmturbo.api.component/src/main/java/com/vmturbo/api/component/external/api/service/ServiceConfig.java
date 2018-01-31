@@ -16,6 +16,8 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
+
 
 /**
  * Spring Configuration that initializes all the services.
@@ -23,8 +25,8 @@ import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
  * For readability purposes, the services should appear in alphabetical order.
  */
 @Configuration
-@Import({SpringSecurityConfig.class, MapperConfig.class,
-        CommunicationConfig.class, ApiWebsocketConfig.class, ReportingClientConfig.class})
+@Import({SpringSecurityConfig.class, MapperConfig.class, CommunicationConfig.class,
+        ApiWebsocketConfig.class, RepositoryClientConfig.class, ReportingClientConfig.class})
 public class ServiceConfig {
 
     @Value("${targetValidationTimeoutSeconds}")
@@ -32,9 +34,11 @@ public class ServiceConfig {
 
     @Value("${targetValidationPollIntervalSeconds}")
     private Long targetValidationPollIntervalSeconds;
-
     @Value("${initialPlacementTimeoutSeconds}")
     private  Long initialPlacementTimeoutSeconds;
+
+    @Value("${supplyChainFetcherTimeoutSeconds}")
+    private Long supplyChainFetcherTimeoutSeconds;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -44,6 +48,9 @@ public class ServiceConfig {
 
     @Autowired
     private CommunicationConfig communicationConfig;
+
+    @Autowired
+    private RepositoryClientConfig repositoryClientConfig;
 
     @Autowired
     private MapperConfig mapperConfig;
@@ -233,6 +240,7 @@ public class ServiceConfig {
         return new StatsService(communicationConfig.historyRpcService(),
                 communicationConfig.planRpcService(),
                 communicationConfig.repositoryApi(),
+                repositoryClientConfig.repositoryClient(),
                 communicationConfig.groupExpander(),
                 Clock.systemUTC(),
                 targetService(),

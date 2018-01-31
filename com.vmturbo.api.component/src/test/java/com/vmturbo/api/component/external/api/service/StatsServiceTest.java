@@ -60,7 +60,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -71,8 +71,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.reports.db.RelationType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
@@ -91,11 +94,11 @@ public class StatsServiceTest {
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
 
+    private RepositoryClient repositoryClient = Mockito.mock(RepositoryClient.class);
+
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
     private TargetsService targetsService = Mockito.mock(TargetsService.class);
-
-    private GroupServiceBlockingStub groupService;
 
     private Clock mockClock = Mockito.mock(Clock.class);
 
@@ -105,13 +108,13 @@ public class StatsServiceTest {
     private final String oid2 = "2";
     private final ApiId apiId2 = mock(ApiId.class);
 
-    final private static ImmutableList<String> recordList1 = ImmutableList.of(
+    final private static ImmutableList<String> commodityList1 = ImmutableList.of(
                                     "CPU",
                                     "StorageLatency",
                                     "nextStepRoi",
                                     "ApplicationCommodity");
 
-    final private static ImmutableList<String> recordList2 = ImmutableList.of(
+    final private static ImmutableList<String> commodityList2 = ImmutableList.of(
                                     "nextStepRoi",
                                     "currentProfitMargin",
                                     "currentExpenses",
@@ -140,14 +143,14 @@ public class StatsServiceTest {
     public void setUp() throws IOException {
         StatsHistoryServiceBlockingStub statsServiceRpc =
                 StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
-        PlanServiceBlockingStub planRpcService =
+        PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
                 PlanServiceGrpc.newBlockingStub(testServer.getChannel());
 
         groupExpander = Mockito.mock(GroupExpander.class);
-        groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
+        GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
 
         statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
-                groupExpander, mockClock, targetsService, groupService);
+                repositoryClient, groupExpander, mockClock, targetsService, groupService);
 
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
@@ -376,18 +379,95 @@ public class StatsServiceTest {
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Lists.newArrayList(Long.toString(planOid)));
 
-        PlanDTO.PlanInstance planInstance = PlanDTO.PlanInstance.getDefaultInstance();
-
         final PlanId planIdProto = PlanId.newBuilder().setPlanId(planOid).build();
         when(planServiceSpy.getPlan(planIdProto))
-                .thenReturn(PlanDTO.OptionalPlanInstance.getDefaultInstance());
+                .thenReturn(PlanDTO.OptionalPlanInstance.newBuilder()
+                        .setPlanInstance(PlanDTO.PlanInstance.newBuilder()
+                                .setPlanId(planOid)
+                                .setStatus(PlanDTO.PlanInstance.PlanStatus.SUCCEEDED)
+                                .build())
+                        .build());
+        final long oid1 = 1;
+        final String entityName1 = "entity-1";
+        int entityType1 = CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
+        final String date1 = "snapshot-1-date";
+
+        long oid2 = 2;
+        int entityType2 = CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
+        String entityName2 = "entity-2";
+        final String date2 = "snapshot-2-date";
+
+
+        final PlanEntityStats entity1Stats = buildPlanEntityStats(oid1, entityName1,
+                entityType1, date1, commodityList1);
+        final PlanEntityStats entity2Stats = buildPlanEntityStats(oid2, entityName2,
+                entityType2, date2, commodityList2);
+        List<PlanEntityStats> entitStatsToReturn = Lists.newArrayList(
+                entity1Stats,
+                entity2Stats
+        );
+        when(repositoryClient.getPlanStats(any())).thenReturn(entitStatsToReturn.iterator());
 
         // Act
-        statsService.getStatsByUuidsQuery(inputDto);
+        List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);
 
         // Assert
-        verify(planServiceSpy, times(1)).getPlan(planIdProto);
+        verify(planServiceSpy).getPlan(planIdProto);
+        verify(repositoryClient).getPlanStats(any());
 
+        assertThat(result.size(), equalTo(2));
+        final EntityStatsApiDTO resultForEntity1;
+        final EntityStatsApiDTO resultForEntity2;
+        if (result.get(0).getDisplayName().equals(entityName1)) {
+            resultForEntity1 = result.get(0);
+            resultForEntity2 = result.get(1);
+        } else {
+            resultForEntity1 = result.get(1);
+            resultForEntity2 = result.get(0);
+        }
+        testEntityStats(resultForEntity1, oid1, entityName1, commodityList1.size());
+        testEntityStats(resultForEntity2, oid2, entityName2, commodityList2.size());
+    }
+
+    /**
+     * Build a {@link PlanEntityStats} for this test.
+     *
+     * @param uid the uid for the entity
+     * @param entityName a string name for the entity
+     * @param entityType the int entity type
+     * @param date a string representing the date (not interpreted as a date)
+     * @param commodityList a list of commodity names to return; values are not set
+     * @return
+     */
+    private PlanEntityStats buildPlanEntityStats(long uid, String entityName, int entityType, String date, List<String> commodityList) {
+        return PlanEntityStats.newBuilder()
+                    .setPlanEntity(TopologyDTO.TopologyEntityDTO.newBuilder()
+                            .setOid(uid)
+                            .setEntityType(entityType)
+                            .setDisplayName(entityName)
+                            .build())
+                    .setPlanEntityStats(EntityStats.newBuilder()
+                            .addStatSnapshots(StatSnapshot.newBuilder()
+                                    .setSnapshotDate(date)
+                                    .addAllStatRecords(records(commodityList))
+                                    .build())
+                            .build())
+                    .build();
+    }
+
+    /**
+     * Check that the EntityStatsApiDTO has the correct values.
+     *
+     * @param resultForEntity the EntityStatsApiDTO to check
+     * @param uid the id to expect
+     * @param entityName the entity name to expect
+     * @param numStats the number of stats to expect
+     */
+    private void testEntityStats(EntityStatsApiDTO resultForEntity, long uid, String entityName, int numStats) {
+        assertThat(resultForEntity.getDisplayName(), equalTo(entityName));
+        assertThat(resultForEntity.getUuid(), equalTo(Long.toString(uid)));
+        assertThat(resultForEntity.getStats().size(), equalTo(1));
+        assertThat(resultForEntity.getStats().get(0).getStatistics().size(), equalTo(numStats));
     }
 
     @Test
@@ -456,14 +536,14 @@ public class StatsServiceTest {
             if (Long.parseLong(oid1) == entityOid) {
                 // nextStepRoi and ApplicationCommodity will be filtered out.
                 final StatSnapshot stat = StatSnapshot.newBuilder().addAllStatRecords(
-                          records(recordList1))
+                          records(commodityList1))
                           .build();
 
                 responseObserver.onNext(stat);
             } else if (Long.parseLong(oid2) == entityOid) {
                 // All records will be filtered out.
                 final StatSnapshot stat = StatSnapshot.newBuilder().addAllStatRecords(
-                          records(recordList2))
+                          records(commodityList2))
                           .build();
 
                 responseObserver.onNext(stat);

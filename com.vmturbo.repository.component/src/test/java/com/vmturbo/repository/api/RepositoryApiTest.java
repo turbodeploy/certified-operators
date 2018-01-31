@@ -12,9 +12,9 @@ import org.junit.rules.TestName;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.repository.RepositoryNotificationSender;
-import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
 /**

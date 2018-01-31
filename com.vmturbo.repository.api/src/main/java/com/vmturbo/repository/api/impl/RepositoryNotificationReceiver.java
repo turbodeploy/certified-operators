@@ -8,13 +8,14 @@ import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO;
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.AvailableTopology;
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.FailedTopology;
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.repository.api.Repository;
-import com.vmturbo.repository.api.RepositoryDTO.AvailableTopology;
-import com.vmturbo.repository.api.RepositoryDTO.FailedTopology;
-import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.RepositoryListener;
 
 /**
@@ -66,7 +67,7 @@ public class RepositoryNotificationReceiver extends
         }
     }
 
-    private void onFailedProjectedTopology(@Nonnull final FailedTopology topology) {
+    private void onFailedProjectedTopology(@Nonnull final RepositoryNotificationDTO.FailedTopology topology) {
         Objects.requireNonNull(topology);
         for (RepositoryListener listener : listeners) {
             getExecutorService().submit(

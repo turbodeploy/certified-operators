@@ -5,7 +5,9 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class ServiceEntityMapper {
@@ -94,7 +96,7 @@ public class ServiceEntityMapper {
      * @param type The entity type in the TopologyEntityDTO
      * @return     The corresponding entity type string in UI
      */
-    public static String toUIEntityType(@Nonnull final int type) {
+    public static String toUIEntityType(final int type) {
         final UIEntityType uiEntityType = ENTITY_TYPE_MAPPINGS.get(type);
 
         if (uiEntityType == null) {
@@ -111,10 +113,9 @@ public class ServiceEntityMapper {
      * @return The type used in TopologyEntityDTO
      */
     public static int fromUIEntityType(@Nonnull final String uiEntityType) {
-        final int topologyEntityType = ENTITY_TYPE_MAPPINGS.inverse()
+        return ENTITY_TYPE_MAPPINGS.inverse()
                         .getOrDefault(UIEntityType.fromString(uiEntityType),
                                       EntityType.UNKNOWN.getNumber());
-        return topologyEntityType;
     }
 
     /**
@@ -135,4 +136,20 @@ public class ServiceEntityMapper {
             default: return "UNKNOWN";
         }
     }
+
+    /**
+     * Convert a TopolgyEntityDTO to a ServiceEntityApiDTO to return to the REST API.
+     *
+     * @param toplogyEntity the internal {@link TopologyEntityDTO} to convert
+     * @return an {@link ServiceEntityApiDTO} populated from the given topologyEntity
+     */
+    public static ServiceEntityApiDTO toServiceEntityApiDTO(TopologyEntityDTO toplogyEntity) {
+        ServiceEntityApiDTO seDTO = new ServiceEntityApiDTO();
+        seDTO.setDisplayName(toplogyEntity.getDisplayName());
+        seDTO.setState(ServiceEntityMapper.toState(toplogyEntity.getEntityState().getNumber()));
+        seDTO.setClassName(ServiceEntityMapper.toUIEntityType(toplogyEntity.getEntityType()));
+        seDTO.setUuid(String.valueOf(toplogyEntity.getOid()));
+        return seDTO;
+    }
+
 }

@@ -11,18 +11,19 @@ import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
-import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
+import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
 /**
  * Spring configuration for API-related beans
  */
 @Configuration
-@Import({BaseKafkaProducerConfig.class})
+@Import({BaseKafkaProducerConfig.class, RepositoryClientConfig.class})
 public class RepositoryApiConfig {
 
     @Autowired

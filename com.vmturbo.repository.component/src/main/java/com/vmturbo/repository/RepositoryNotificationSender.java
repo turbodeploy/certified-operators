@@ -4,12 +4,12 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.AvailableTopology;
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.FailedTopology;
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.repository.api.RepositoryDTO.AvailableTopology;
-import com.vmturbo.repository.api.RepositoryDTO.FailedTopology;
-import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 
 /**
  * Repository API backend to send repository notifications through.

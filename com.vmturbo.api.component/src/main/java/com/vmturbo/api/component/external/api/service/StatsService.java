@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.toServiceEntityApiDTO;
 import static com.vmturbo.api.component.external.api.mapper.StatsMapper.toStatSnapshotApiDTO;
 import static com.vmturbo.api.component.external.api.mapper.StatsMapper.toStatsSnapshotApiDtoList;
 
@@ -28,6 +29,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -45,12 +47,15 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
-import com.vmturbo.common.protobuf.plan.PlanDTO;
-import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
@@ -58,6 +63,9 @@ import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.repository.api.RepositoryClient;
+
 
 /**
  * Service implementation of Stats
@@ -76,6 +84,8 @@ public class StatsService implements IStatsService {
 
     private final RepositoryApi repositoryApi;
 
+    private final RepositoryClient repositoryClient;
+
     private final GroupExpander groupExpander;
 
     private final GroupServiceBlockingStub groupServiceRpc;
@@ -83,11 +93,12 @@ public class StatsService implements IStatsService {
     private final TargetsService targetsService;
 
     // "headroomVMs" is a constant specified in a query input used for requesting headroom stats
-    private final String HEADROOM_VMS = "headroomVMs";
+    public final String HEADROOM_VMS = "headroomVMs";
 
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
                  @Nonnull final PlanServiceBlockingStub planRpcService,
                  @Nonnull final RepositoryApi repositoryApi,
+                 @Nonnull RepositoryClient repositoryClient,
                  @Nonnull final GroupExpander groupExpander,
                  @Nonnull final Clock clock,
                  @Nonnull final TargetsService targetsService,
@@ -95,6 +106,7 @@ public class StatsService implements IStatsService {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.repositoryClient = repositoryClient;
         this.clock = Objects.requireNonNull(clock);
         this.groupExpander = groupExpander;
         this.targetsService = Objects.requireNonNull(targetsService);
@@ -400,9 +412,10 @@ public class StatsService implements IStatsService {
      *
      * Return Optional.empty() if this request is not for a plan.
      *
-     * @param inputDto the specification of the stats query
-     * @return if a plan scope, then return an optional containing a List of the EntityStatsApiDTO's
-     * for the plan; if not a plan, return Optional/empty();
+     * @param inputDto the filter for the stats to return, including time range, stat names, etc
+     * @return A List of {@link EntityStatsApiDTO}, one for each plan entity, containing the
+     * stats snapshots for that entity, if the request parameters can be satisfied, or
+     * Optional.empty() if the scope ID list is emtpy or the scope cannot be found.
      */
     private Optional<List<EntityStatsApiDTO>> getPlanUuidStats(StatScopesApiInputDTO inputDto) {
         // plan stats request must be the only uuid in the scopes list
@@ -428,11 +441,34 @@ public class StatsService implements IStatsService {
             return Optional.empty();
         }
 
-        // fetch stats for a plan from plan orchestrator
-        // TODO - OM-28024 - for now just return an empty list
-        return Optional.of(Collections.emptyList());
-    }
+        // definitely a plan instance; fetch the plan stats from the Repository client.
+        PlanInstance planInstance = planInstanceOptional.getPlanInstance();
+        final PlanTopologyStatsRequest planStatsRequest = StatsMapper.toPlanTopologyStatsRequest(
+                planInstance, inputDto);
+        final Iterable<RepositoryDTO.PlanEntityStats> planStatsIterable =
+                () -> repositoryClient.getPlanStats(planStatsRequest);
 
+        // return the stats for each entity in the response
+        List<EntityStatsApiDTO> entityStatsList = Lists.newLinkedList();
+        for (RepositoryDTO.PlanEntityStats entityStats : planStatsIterable) {
+            EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+            final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
+            ServiceEntityApiDTO serviceEntityApiDTO = toServiceEntityApiDTO(planEntity);
+            entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
+            entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
+            entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
+                    planEntity.getEntityType()));
+            entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
+            final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
+                    .getStatSnapshotsList()
+                    .stream()
+                    .map(StatsMapper::toStatSnapshotApiDTO)
+                    .collect(Collectors.toList());
+            entityStatsApiDTO.setStats(statSnapshotsList);
+            entityStatsList.add(entityStatsApiDTO);
+        }
+        return Optional.of(entityStatsList);
+    }
     /**
      * Fetch the subset of the full market where the entity matches the given 'relatedType'.
      * Uses the Search service of the Repository API.

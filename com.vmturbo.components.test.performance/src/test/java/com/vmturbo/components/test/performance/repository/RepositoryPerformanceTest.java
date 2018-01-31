@@ -23,6 +23,7 @@ import org.junit.Test;
 import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
@@ -42,7 +43,6 @@ import com.vmturbo.components.test.utilities.component.ServiceHealthCheck.BasicS
 import com.vmturbo.components.test.utilities.utils.TopologyUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.Repository;
-import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;

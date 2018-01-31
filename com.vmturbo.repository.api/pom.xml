@@ -15,6 +15,10 @@
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>common-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>grpc-extensions</artifactId>
         </dependency>
     </dependencies>

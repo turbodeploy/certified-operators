@@ -13,6 +13,8 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
@@ -66,5 +68,10 @@ public class RepositoryClient {
 
             return responseBuilder.build();
         }
+    }
+
+    @Nonnull
+    public Iterator<PlanEntityStats> getPlanStats(@Nonnull PlanTopologyStatsRequest request) {
+        return repositoryService.getPlanTopologyStats(request);
     }
 }

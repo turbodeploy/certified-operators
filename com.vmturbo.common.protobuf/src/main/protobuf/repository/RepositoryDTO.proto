@@ -5,6 +5,7 @@ package repository;
 option java_package = "com.vmturbo.common.protobuf.repository";
 
 import "topology/TopologyDTO.proto";
+import "stats/Stats.proto";
 
 message DeleteTopologyRequest {
     // the id of the topology to delete
@@ -64,14 +65,6 @@ message RetrieveTopologyEntitiesResponse {
     repeated topology.TopologyEntityDTO entities = 1;
 }
 
-service RepositoryService {
-    rpc DeleteTopology(DeleteTopologyRequest) returns (RepositoryOperationResponse);
-    rpc RetrieveTopology(RetrieveTopologyRequest) returns (stream RetrieveTopologyResponse);
-    // Try to get topology entities from Repository, and note that the returned TopologyEntityDTO contains
-    // only partial fields, because some fields not stored at ServiceEntityRepoDTO.
-    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (RetrieveTopologyEntitiesResponse);
-}
-
 enum RepositoryOperationResponseCode {
     // Operation completed successfully
     OK = 1;
@@ -79,4 +72,57 @@ enum RepositoryOperationResponseCode {
     // Operation failed
     FAILED = 2;
 }
+
+// A request to return stats from a plan topology - projected or plan source
+message PlanTopologyStatsRequest {
+    // the ID of the plan topology to fetch stats from
+    optional int64 topology_id = 1;
+
+    // The filter to apply to the stats. If not set, retrieve all stats.
+    optional stats.StatsFilter filter = 2;
+}
+
+// Return the plan stats for an entity. Includes the {@link TopologyEntityDTO} if requested.
+// The stats returned will be from either plan source or plan projected topologies, depending
+// on the topology_id in the {@link PlanTopologyStatsRequest}.
+message PlanEntityStats {
+    // Stats per entity including the Entity definition, if requested
+    optional topology.TopologyEntityDTO plan_entity = 1;
+
+    // the StatsSnapshots from the selected plan source, either plan source or plan projected,
+    // for the given entity
+    optional stats.EntityStats plan_entity_stats = 2;
+}
+
+
+service RepositoryService {
+    rpc DeleteTopology(DeleteTopologyRequest) returns (RepositoryOperationResponse);
+    rpc RetrieveTopology(RetrieveTopologyRequest) returns (stream RetrieveTopologyResponse);
+
+    // Try to get topology entities from Repository, and note that the returned TopologyEntityDTO contains
+    // only partial fields, because some fields not stored at ServiceEntityRepoDTO.
+    rpc RetrieveTopologyEntities(RetrieveTopologyEntitiesRequest) returns (RetrieveTopologyEntitiesResponse);
+
+    // Fetch the stats related to a given plan execution. The request includes a StatsFilter specifying
+    // a startDate and endDate. If the startDate is in the past, then this call will include a
+    // StatsSnapshot containing the stats from the Plan Source topology.
+    //
+    // TODO: fetching from the plan source topology is not yet implemented; the plan source topology
+    // is not yet persisted and so cannot be retrieved.
+    //
+    // If the endDate is in the future, then the responses will include a StatSnapshot with
+    // the stats from the Plan Projected topology.
+    //
+    // The stats in each StatSnapshot returned will be restricted to commodities in the commodity_name
+    // list in the StatsFilter parameter, if any. Otherwise, all stats will be returned.
+    //
+    // The stats in each StatSnapshot returned will be restricted to the entity type specified
+    // in the StatsFilter related_entity_type, if any. Otherwise, stats from entities of all types
+    // will be returned.
+    //
+    // @param PlanStatsRequest the specification of the plan ID and StatsFilter for this query
+    // @returns a sequence of StatSnapshot, including the Plan Topology
+    rpc GetPlanTopologyStats (PlanTopologyStatsRequest) returns (stream PlanEntityStats);
+}
+
 

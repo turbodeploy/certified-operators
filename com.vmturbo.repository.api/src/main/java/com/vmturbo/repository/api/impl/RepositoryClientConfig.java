@@ -16,13 +16,16 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
+import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.repository.api.RepositoryDTO.RepositoryNotification;
 
+/**
+ * Configuration for the Repository gRPC API Client.
+ */
 @Configuration
 @Lazy
 @Import({BaseKafkaConsumerConfig.class})

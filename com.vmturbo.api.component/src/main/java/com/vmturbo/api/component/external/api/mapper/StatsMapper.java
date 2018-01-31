@@ -16,12 +16,16 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
@@ -30,6 +34,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.reports.db.EntityType;
 import com.vmturbo.reports.db.RelationType;
 
 /**
@@ -56,6 +61,8 @@ public class StatsMapper {
      * Convert a protobuf Stats.StatSnapshot to an API DTO StatSnapshotApiDTO.
      *
      * A Snapshot consists of a date, a date range, and a collection of SnapshotRecords.
+     * If the date is not set in the StatSnapshot, then do not return a date in the resulting
+     * StatSnapshotApiDTO.
      *
      * The collection may be zero length.
      *
@@ -66,7 +73,9 @@ public class StatsMapper {
      **/
     public static StatSnapshotApiDTO toStatSnapshotApiDTO(StatSnapshot statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
-        dto.setDate(statSnapshot.getSnapshotDate());
+        if (statSnapshot.hasSnapshotDate()) {
+            dto.setDate(statSnapshot.getSnapshotDate());
+        }
         dto.setStatistics(statSnapshot.getStatRecordsList().stream()
                 .map(StatsMapper::toStatApiDto)
                 .collect(Collectors.toList()));
@@ -277,4 +286,63 @@ public class StatsMapper {
                 .setStats(newPeriodStatsFilter(inputDto))
                 .build();
     }
+
+
+    /**
+     * Format a {@link PlanTopologyStatsRequest} used to fetch stats for a Plan Topology.
+     * The 'startDate' and 'endDate' will determine if the request will be satisfied from
+     * the plan source topology or the projected plan topology.
+     * We also pass along a 'relatedEntityType', if specified, which will be used to limit
+     * the results to the given type.
+     *
+     * @param planInstance the plan instance to request the stats from
+     * @param inputDto a description of what stats to request from this plan, including time range,
+     *                 stats types, etc
+     * @return a request to fetch the plan stats from the Repository
+     */
+    public static @Nonnull
+    PlanTopologyStatsRequest toPlanTopologyStatsRequest(
+            @Nonnull PlanInstance planInstance,
+            @Nonnull StatScopesApiInputDTO inputDto) {
+
+        Stats.StatsFilter.Builder planStatsFilter = Stats.StatsFilter.newBuilder();
+        if (inputDto.getPeriod() != null) {
+            if (inputDto.getPeriod().getStartDate() != null) {
+                planStatsFilter.setStartDate(Long.valueOf(inputDto.getPeriod().getStartDate()));
+            }
+            if (inputDto.getPeriod().getEndDate() != null) {
+                planStatsFilter.setEndDate(Long.valueOf(inputDto.getPeriod().getEndDate()));
+            }
+            if (inputDto.getPeriod().getStatistics() != null) {
+                inputDto.getPeriod().getStatistics().forEach(statApiInputDTO -> {
+                    // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
+                    // and extend the Projected Stats API to serve the additional functionality.
+                    if (statApiInputDTO.getName() != null) {
+                        planStatsFilter.addCommodityName(statApiInputDTO.getName());
+                    }
+                });
+            }
+        }
+        final String relatedType = inputDto.getRelatedType();
+        if (relatedType != null) {
+            planStatsFilter.setRelatedEntityType(normalizeRelatedType(relatedType));
+        }
+
+        return PlanTopologyStatsRequest.newBuilder()
+                .setTopologyId(planInstance.getProjectedTopologyId())
+                .setFilter(planStatsFilter)
+                .build();
+    }
+
+    /**
+     * Handle the special exception where related type "Cluster" is mapped to "PhysicalMachine".
+     *
+     * @param relatedType the input type from the request.
+     * @return the original 'relatedType' except that 'Cluster' is replaced by 'PhysicalMachine'
+     */
+    private static String normalizeRelatedType(String relatedType) {
+        return relatedType.equals(EntityType.CLUSTER.getClsName()) ?
+                EntityType.PHYSICAL_MACHINE.getClsName() : relatedType;
+    }
+
 }

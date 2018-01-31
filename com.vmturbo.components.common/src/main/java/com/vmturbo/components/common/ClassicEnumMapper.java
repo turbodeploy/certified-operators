@@ -1,5 +1,7 @@
 package com.vmturbo.components.common;
 
+import java.util.Map;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -87,7 +89,7 @@ public class ClassicEnumMapper {
      * Mappings between commodityType enum values in SDK DTO's to strings that are stored
      * in Classic OpsManager topology files.
      */
-    private static final ImmutableMap<String, CommodityType> COMMODITY_TYPE_MAPPINGS =
+    public static final ImmutableMap<String, CommodityType> COMMODITY_TYPE_MAPPINGS =
         new ImmutableMap.Builder<String, CommodityType>()
             .put("IOThroughput",                CommodityType.IO_THROUGHPUT)
             .put("NetThroughput",               CommodityType.NET_THROUGHPUT)
@@ -163,4 +165,98 @@ public class ClassicEnumMapper {
 
             .put("UNKNOWN",                 PowerState.POWERSTATE_UNKNOWN)
             .build();
+
+
+    /**
+     * Map from all upcase commodity types to mixed case and associated units.
+     * Note that this is defined in opsmgr/com.vmturbo.reports.db but never used (AFAIK).
+     * We didn't want to include the 'db' project here.
+     **/
+    public  enum CommodityTypeUnits {
+        BALLOONING("Ballooning", "KB"),
+        COOLING("Cooling", "C"),
+        CPU("CPU", "MHz"),
+        CPU_ALLOCATION("CPUAllocation", "MHz"),
+        CPU_PROVISIONED("CPUProvisioned", "MHz"),
+        EXTENT("Extent", ""),
+        FLOW("Flow", "Bytes"),
+        FLOWALLOCATION("FlowAllocation", "Bytes"),
+        IO_THROUGHPUT("IOThroughput", "KByte/sec"),
+        MEM("Mem", "KB"),
+        MEM_ALLOCATION("MemAllocation", "KB"),
+        MEM_PROVISIONED("MemProvisioned", "KB"),
+        NET_THROUGHPUT("NetThroughput", "KByte/sec"),
+        NUM_CPUS("numCPUs", ""),
+        NUM_SOCKETS("numSockets", ""),
+        NUM_CORES("numCores", ""),
+        NUM_VCPUS("numVCPUs", ""),
+        POWER("Power", "W"),
+        PRODUCES("Produces", ""),
+        SPACE("Space", ""),
+        STORAGE_AMOUNT("StorageAmount", "MB"),
+        STORAGE_PROVISIONED("StorageProvisioned", "MB"),
+        STORAGE_ACCESS("StorageAccess", "IOPS"),
+        STORAGE_LATENCY("StorageLatency", "msec"),
+        Q1VCPU("Q1VCPU", "msec"),
+        Q2VCPU("Q2VCPU", "msec"),
+        Q4VCPU("Q4VCPU", "msec"),
+        Q8VCPU("Q8VCPU", "msec"),
+        STORAGEALLOCATION("StorageAllocation", "MB"),
+        SLACOMMODITY("SLACommodity", ""),
+        SWAPPING("Swapping", "Byte/sec"),
+        TRANSACTION("Transaction", "TPS"),
+        VCPU("VCPU", "MHz"),
+        VCPUALLOCATION("VCPUAllocation", "MHz"),
+        VMEM("VMem", "KB"),
+        VMEMALLOCATION("VMemAllocation", "MB"),
+        VSTORAGE("VStorage", "MB"),
+        // Access Commodities
+        CLUSTER("ClusterCommodity", ""),
+        DATASTORE("DatastoreCommodity", ""),
+        NETWORK("NetworkCommodity", ""),
+        SEGMENTATION("SegmentationCommodity", ""),
+        DATACENTER("DataCenterCommodity", ""),
+        DSPM_ACCESS("DSPMAccessCommodity", ""),
+        APPLICATION("ApplicationCommodity", ""),
+        DRS_SEGMENTATION("DrsSegmentationCommodity", ""),
+        STORAGE_CLUSTER("StorageClusterCommodity", ""),
+        VAPP_ACCESS("VAppAccessCommodity", ""),
+        VDC("VDCCommodity", ""),
+        VMPM_ACCESS("VMPMAccessCommodity", ""),
+        // End of Access Commodities
+        UNKNOWN("Unknown", "");
+
+
+        private final String mixedCase;
+        private final String units;
+
+        CommodityTypeUnits(String mixedCase, String units) {
+            this.mixedCase = mixedCase;
+            this.units = units;
+        }
+
+        private String getMixedCase() {
+            return mixedCase;
+        }
+
+        public String getUnits() {
+            return units;
+        }
+
+        public static CommodityTypeUnits fromString(String mixedCaseName) {
+            return COMMODITY_TYPE_UNITS_MAP.get(mixedCaseName);
+        }
+
+        private static final Map<String, CommodityTypeUnits> COMMODITY_TYPE_UNITS_MAP;
+
+        static {
+            ImmutableMap.Builder<String, CommodityTypeUnits> commodityTypeMapBuilder =
+                    new ImmutableMap.Builder<>();
+            for (CommodityTypeUnits t : CommodityTypeUnits.values()) {
+                commodityTypeMapBuilder.put(t.getMixedCase(), t);
+            }
+            COMMODITY_TYPE_UNITS_MAP = commodityTypeMapBuilder.build();
+        }
+    }
+
 }

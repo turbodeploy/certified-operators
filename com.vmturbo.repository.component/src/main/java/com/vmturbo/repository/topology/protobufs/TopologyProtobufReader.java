@@ -56,6 +56,7 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
 
     public List<TopologyDTO.TopologyEntityDTO> nextChunk() {
         BaseDocument doc = topologyCollection.getDocument(String.valueOf(sequenceNumber), BaseDocument.class);
+        logger.debug("...fetch next chunk, doc properties size:  {}", doc.getProperties().size());
         sequenceNumber++;
         return doc.getProperties().values().stream()
             .map(TopologyProtobufReader::parseJson)
@@ -78,6 +79,6 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
 
     private boolean entityMatchesFilter(@Nonnull final TopologyEntityDTO entity) {
         return entityFilter.map(filter -> RepositoryDTOUtil.entityMatchesFilter(entity, filter))
-                .orElse(false);
+                .orElse(true);
     }
 }
