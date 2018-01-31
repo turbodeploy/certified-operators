@@ -5,6 +5,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,11 +16,8 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.ExecutionStatus;
-import com.vmturbo.mediation.common.IProbeProperties;
 import com.vmturbo.mediation.common.ProbeConfigurationLoadException;
 import com.vmturbo.mediation.common.ProbeProperties;
 import com.vmturbo.mediation.common.WorkerLifecycleListener;
@@ -68,7 +67,7 @@ public class MediationComponentMain<A> extends BaseVmtComponent {
     }
 
     @Bean
-    public IProbeProperties<A> probeProperties() throws ProbeConfigurationLoadException {
+    public ProbeProperties<A> probeProperties() throws ProbeConfigurationLoadException {
         return ProbeProperties.parse(probeDirectory);
     }
 

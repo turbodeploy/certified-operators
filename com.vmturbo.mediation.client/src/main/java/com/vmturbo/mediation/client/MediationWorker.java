@@ -3,7 +3,7 @@ package com.vmturbo.mediation.client;
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 
-import com.vmturbo.mediation.common.IProbeProperties;
+import com.vmturbo.mediation.common.ProbeProperties;
 import com.vmturbo.mediation.common.RemoteComposer;
 import com.vmturbo.mediation.common.WorkerLifecycleListener;
 
@@ -13,7 +13,7 @@ import com.vmturbo.mediation.common.WorkerLifecycleListener;
 public class MediationWorker extends RemoteComposer {
 
     public MediationWorker(MediationComponentConfig componentConfig,
-            IProbeProperties<?> probeProperties, WorkerLifecycleListener theComponent,
+            ProbeProperties<?> probeProperties, WorkerLifecycleListener theComponent,
             ExecutorService threadPool, long negotiationTimeoutSec, long keepAliveIntervalSec, long chunkSendDelayMs) {
         super(Collections.singleton(probeProperties), componentConfig, theComponent, threadPool,
                 negotiationTimeoutSec, keepAliveIntervalSec, chunkSendDelayMs);
