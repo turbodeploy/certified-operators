@@ -40,9 +40,9 @@ public final class ShoppingList implements Serializable {
                                      // another supplier.
     private float moveCost_ = 0; // Cost to move this shopping list to another supplier
     private final @NonNull Basket basket_; // The basket for this shopping list
+    private double cost_ = 0; // The cost on the supplier
 
     // Constructors
-
     /**
      * Constructs a new ShoppingList instance with the specified properties.
      *
@@ -283,4 +283,21 @@ public final class ShoppingList implements Serializable {
         return this;
     }
 
+    /**
+     * Get the cost on the supplier of {@code this}.
+     *
+     * @return the cost on the supplier
+     */
+    public double getCost() {
+        return cost_;
+    }
+
+    /**
+     * Set the cost on the supplier of {@code this}.
+     *
+     * @param cost_ cost of the supplier
+     */
+    public void setCost(double cost_) {
+        this.cost_ = cost_;
+    }
 } // end ShoppingList class
