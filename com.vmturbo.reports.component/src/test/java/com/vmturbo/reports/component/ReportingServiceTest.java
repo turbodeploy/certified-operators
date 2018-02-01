@@ -1,7 +1,11 @@
 package com.vmturbo.reports.component;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Iterator;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -14,13 +18,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.Lists;
-
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.reporting.api.ReportListener;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportData;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstance;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
@@ -65,6 +68,9 @@ public class ReportingServiceTest {
     public void testCreateReport() throws Exception {
         final ReportingServiceBlockingStub stub =
                 ReportingServiceGrpc.newBlockingStub(reportingConfig.planGrpcServer().getChannel());
+        final Collection<ReportInstance> initialInstances =
+                Sets.newHashSet(stub.listAllInstances(Empty.getDefaultInstance()));
+        Assert.assertEquals(Collections.emptySet(), initialInstances);
         final ReportTemplate template =
                 stub.listAllTemplates(Empty.getDefaultInstance()).next();
         final ReportInstanceId response = stub.generateReport(GenerateReportRequest.newBuilder()
@@ -81,5 +87,15 @@ public class ReportingServiceTest {
         final ReportData data = stub.getReportData(response);
         Assert.assertTrue(data.getData().size() > 0);
         Assert.assertEquals(ReportOutputFormat.PDF.getLiteral(), data.getFormat());
+
+        final Collection<ReportInstance> resultInstances =
+                Sets.newHashSet(stub.listAllInstances(Empty.getDefaultInstance()));
+        Assert.assertEquals(1, resultInstances.size());
+        final ReportInstance instance = resultInstances.iterator().next();
+        Assert.assertEquals(ReportOutputFormat.PDF.getLiteral(), instance.getFormat());
+        Assert.assertEquals(response.getId(), instance.getId());
+        Assert.assertEquals(template.getId(), instance.getTemplateId());
+        Assert.assertEquals(template.getReportType(), instance.getReportType());
+
     }
 }

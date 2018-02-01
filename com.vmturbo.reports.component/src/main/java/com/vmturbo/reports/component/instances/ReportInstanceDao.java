@@ -1,5 +1,6 @@
 package com.vmturbo.reports.component.instances;
 
+import java.util.Collection;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -22,14 +23,14 @@ public interface ReportInstanceDao {
      * @param reportTemplateId template id to use
      * @param format format of the report instance to create
      * @return dirty record representation
-     * @throws DbException if exception thrown while DB manipulcations
+     * @throws DbException if exception thrown while DB manipulations
      */
     @Nonnull
     ReportInstanceRecord createInstanceRecord(int reportTemplateId,
             @Nonnull ReportOutputFormat format) throws DbException;
 
     /**
-     * Rerutns report instance record, if any. Only retrieves clean (committed) records.
+     * Returns report instance record, if any. Only retrieves clean (committed) records.
      *
      * @param reportInstanceId report instance id to retrieve
      * @return report instance record or empty Optional
@@ -37,4 +38,14 @@ public interface ReportInstanceDao {
      */
     @Nonnull
     Optional<ReportInstance> getInstanceRecord(long reportInstanceId) throws DbException;
+
+    /**
+     * Retrieves all the report instance, that has been successfully generated. Dirty (not
+     * committed) report instances are not fetched within this call.
+     *
+     * @return collection of report instances
+     * @throws DbException if DB exception occurred.
+     */
+    @Nonnull
+    Collection<ReportInstance> getAllInstances() throws DbException;
 }

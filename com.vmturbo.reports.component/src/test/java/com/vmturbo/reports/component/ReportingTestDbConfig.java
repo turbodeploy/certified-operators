@@ -2,6 +2,7 @@ package com.vmturbo.reports.component;
 
 import java.time.Duration;
 
+import javax.annotation.PreDestroy;
 import javax.sql.DataSource;
 
 import org.flywaydb.core.Flyway;
@@ -11,6 +12,8 @@ import org.mariadb.jdbc.MySQLDataSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import com.vmturbo.reports.db.VmtDbException;
+import com.vmturbo.reports.util.SchemaUtil;
 import com.vmturbo.sql.utils.FlywayMigrator;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -54,5 +57,11 @@ public class ReportingTestDbConfig extends TestSQLDatabaseConfig {
                 .withSchemata(new MappedSchema().withInput(ReportingDbConfig.REPORTING_SCHEMA)
                         .withOutput(REPORTING_TEST_SCHEMA));
         return jooqConfiguration;
+    }
+
+    @PreDestroy
+    public void cleanup() {
+        localFlyway().clean();
+        flyway().clean();
     }
 }

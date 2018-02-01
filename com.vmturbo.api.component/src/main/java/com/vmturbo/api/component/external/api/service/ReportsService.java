@@ -3,8 +3,10 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -28,9 +30,11 @@ import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReportsService;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstance;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
@@ -64,8 +68,27 @@ public class ReportsService implements IReportsService {
 
     @Override
     public List<ReportInstanceApiDTO> getInstancesList() throws Exception {
-        // TODO implement OM-28795
-        return Collections.emptyList();
+        final Map<Pair<Integer, Integer>, ReportTemplate> templatesMap = new HashMap<>();
+        final Iterator<ReportTemplate> templates =
+                reportingService.listAllTemplates(Empty.getDefaultInstance());
+        templates.forEachRemaining(template -> templatesMap.put(
+                Pair.create(template.getReportType(), template.getId()), template));
+
+        final List<ReportInstanceApiDTO> result = new ArrayList<>();
+        final Iterator<ReportInstance> reportIterator =
+                reportingService.listAllInstances(Empty.getDefaultInstance());
+        while (reportIterator.hasNext()) {
+            final ReportInstance instance = reportIterator.next();
+            final ReportTemplate template = templatesMap.get(
+                    Pair.create(instance.getReportType(), instance.getTemplateId()));
+            final ReportInstanceApiDTO reportInstance = new ReportInstanceApiDTO();
+            reportInstance.setFilename(template.getFilename());
+            reportInstance.setFormat(Collections.singletonMap(instance.getFormat(),
+                    String.valueOf(instance.getId())));
+            reportInstance.setScope(new BaseApiDTO());
+            result.add(reportInstance);
+        }
+        return result;
     }
 
     @Override

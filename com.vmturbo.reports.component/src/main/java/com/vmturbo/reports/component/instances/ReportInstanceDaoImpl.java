@@ -3,6 +3,7 @@ package com.vmturbo.reports.component.instances;
 import static com.vmturbo.reports.component.db.tables.ReportInstance.REPORT_INSTANCE;
 
 import java.sql.Timestamp;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -107,6 +108,26 @@ public class ReportInstanceDaoImpl implements ReportInstanceDao {
             throw new DbException("Error fetching report instance " + reportInstanceId, e);
         }
         return records.isEmpty() ? Optional.empty() : Optional.of(records.get(0));
+    }
+
+    @Nonnull
+    @Override
+    public Collection<ReportInstance> getAllInstances() throws DbException {
+        logger.debug("Getting all the report instances");
+        final List<ReportInstance> records;
+        try {
+            records = dsl.transactionResult(configuration -> {
+                final DSLContext context = DSL.using(configuration);
+                return context.selectFrom(REPORT_INSTANCE)
+                        .where(REPORT_INSTANCE.COMMITTED.eq(true))
+                        .fetch()
+                        .into(ReportInstance.class);
+            });
+        } catch (DataAccessException e) {
+            throw new DbException("Error fetching report instances", e);
+        }
+        logger.debug("Successfully retrieved {} report instances", records::size);
+        return records;
     }
 
     /**

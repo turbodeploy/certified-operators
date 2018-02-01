@@ -137,6 +137,8 @@ public class ReportingTestConfig {
         IdentityGenerator.initPrefix(0);
         dbConfig.flyway().clean();
         dbConfig.flyway().migrate();
+        localFlyway().clean();
+        localFlyway().migrate();
     }
 
     @Bean

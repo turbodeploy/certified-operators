@@ -4,6 +4,8 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import io.grpc.stub.StreamObserver;
+
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
@@ -13,8 +15,6 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;

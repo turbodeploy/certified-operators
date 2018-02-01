@@ -20,6 +20,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
+import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
@@ -169,7 +170,29 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             }
             responseObserver.onCompleted();
         } catch (DbException e) {
-            logger.error("Failed fetch report templates ", e);
+            logger.error("Failed fetch report templates", e);
+            responseObserver.onError(
+                    new StatusRuntimeException(Status.INTERNAL.withDescription(e.getMessage())));
+        }
+    }
+
+    @Override
+    public void listAllInstances(Empty request,
+            StreamObserver<Reporting.ReportInstance> responseObserver) {
+        try {
+            for (ReportInstance reportInstance : reportInstanceDao.getAllInstances()) {
+                final Reporting.ReportInstance.Builder builder =
+                        Reporting.ReportInstance.newBuilder();
+                builder.setFormat(reportInstance.getOutputFormat().getLiteral());
+                builder.setId(reportInstance.getId());
+                builder.setReportType(ReportType.BIRT_STANDARD.getValue());
+                builder.setTemplateId(reportInstance.getTemplateId());
+                builder.setGenerationTime(reportInstance.getGenerationTime().getTime());
+                responseObserver.onNext(builder.build());
+            }
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            logger.error("Failed fetching all the report instances", e);
             responseObserver.onError(
                     new StatusRuntimeException(Status.INTERNAL.withDescription(e.getMessage())));
         }
