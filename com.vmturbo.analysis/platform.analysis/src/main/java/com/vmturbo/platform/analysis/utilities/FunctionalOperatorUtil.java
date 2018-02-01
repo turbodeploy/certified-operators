@@ -142,8 +142,6 @@ public class FunctionalOperatorUtil {
                                 discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                                                 * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                             }
-                            // The cost of vm placed on a cbtp is the discounted cost
-                            buyer.setCost(discountedCost);
                             // Increase the used value of coupon commodity sold by cbtp accordingly
                             return new double[]{(commSold.getQuantity() + requestedCoupons), 0};
                         };

@@ -31,13 +31,11 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
-import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.ledger.PriceStatement.TraderPriceStatement;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
@@ -338,16 +336,6 @@ public final class AnalysisToProtobuf {
                 logger.info("NPE newSupplier=" + newSupplier.getDebugInfoNeverUseInCode() +
                             " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode());
             }
-            try {
-                @NonNull UnmodifiableEconomy economy = topology.getEconomy();
-                Trader supplier = replaceNewSupplier(move, economy, newSupplier);
-                if (supplier != null) {
-                    newSupplier = supplier;
-                }
-                moveTO.setCost(move.getTarget().getCost());
-            } catch (Exception e) {
-
-            }
             moveTO.setDestination(traderOid.get(newSupplier));
             moveTO = explainMoveAction(move.getSource(), newSupplier, traderOid, move, moveTO,
                                        topology.getEconomy());
@@ -492,33 +480,6 @@ public final class AnalysisToProtobuf {
     }
 
     // Methods for converting CommunicationDTOs.
-
-    /**
-     *
-     * @param move
-     * @param economy
-     * @param newSupplier
-     * @return
-     */
-    private static Trader replaceNewSupplier(Move move, UnmodifiableEconomy economy, Trader newSupplier) {
-        ShoppingList buyer = move.getTarget();
-        // Replace current provider by the possible supplier of the current provider
-        final Set<Entry<ShoppingList, Market>> shoppingListsInMarket =
-                        economy.getMarketsAsBuyer(newSupplier).entrySet();
-        Market market = shoppingListsInMarket.iterator().next().getValue();
-        if (market == null) {
-            return null;
-        }
-        List<Trader> sellers = market.getActiveSellers();
-        List<Trader> mutableSellers = new ArrayList<Trader>();
-        mutableSellers.addAll(sellers);
-        mutableSellers.retainAll(economy.getMarket(buyer).getActiveSellers());
-        // Get cheapest quote, that will be provided by the matching template
-        final QuoteMinimizer minimizer = mutableSellers.stream().collect(
-                        () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
-                        QuoteMinimizer::combine);
-        return minimizer.getBestSeller();
-    }
 
     /**
      * Converts a list of {@link Action}s to an {@link AnalysisResults} message given some
