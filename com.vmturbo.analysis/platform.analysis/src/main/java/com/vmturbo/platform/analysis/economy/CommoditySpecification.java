@@ -38,6 +38,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     private final int baseType_; // must be non-negative.
     private final int qualityLowerBound_; // must be non-negative and less than or equal to qualityUpperBound_.
     private final int qualityUpperBound_; // must be non-negative and greater than or equal to qualityLowerBound_.
+    private final boolean isCloneWithNewType_; // whether the clone of the commoditySpecification should be assigned a new type
     // TODO: (Jun 22, 2016) This field is intended to be temporarily used for debugging in the initial stages of M2. To avoid making drastic change in
     // market2, we use a setter and getter to set and get this field instead of putting it part of the constructor even though it should
     // only be set once and never changed.
@@ -63,6 +64,7 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
         baseType_ = type;
         qualityLowerBound_ = 0;
         qualityUpperBound_ = Integer.MAX_VALUE;
+        isCloneWithNewType_ = false;
     }
 
     /**
@@ -86,8 +88,35 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
         baseType_ = baseType;
         qualityLowerBound_ = qualityLowerBound;
         qualityUpperBound_ = qualityUpperBound;
+        isCloneWithNewType_ = false;
     }
 
+    /**
+     * Constructs a new CommoditySpecification with the given type and quality bounds.
+     *
+     * @param type The type of commodity sold or bought as an int. It may represent e.g. CPU or
+     *             memory but the exact correspondence is kept by an outside source.
+     *             It must be non-negative.
+     * @param qualityLowerBound The lowest quality of this commodity a buyer can accept or a seller
+     *             provide. It must be non-negative and less than or equal to qualityUpperBound.
+     * @param qualityUpperBound The highest quality of this commodity a buyer can accept or a seller
+     *             provide. It must be non-negative and greater than or equal to qualityUpperBound.
+     * @param isCloneWithNewType Whether the commodity specification should be given a new type when
+     *  clone
+     */
+    public CommoditySpecification(int type, int baseType, int qualityLowerBound, int qualityUpperBound,
+                                  boolean isCloneWithNewType) {
+        checkArgument(type >= 0, "type = " + type);
+        checkArgument(0 <= qualityLowerBound, "qualityLowerBound = " + qualityLowerBound);
+        checkArgument(qualityLowerBound <= qualityUpperBound,
+            "qualityLowerBound = " + qualityLowerBound + ", qualityUpperBound = " + qualityUpperBound);
+
+        type_ = type;
+        baseType_ = baseType;
+        qualityLowerBound_ = qualityLowerBound;
+        qualityUpperBound_ = qualityUpperBound;
+        isCloneWithNewType_ = isCloneWithNewType;
+    }
     /**
      * Constructs a new CommoditySpecification with the given type and quality bounds.
      *
@@ -96,9 +125,11 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
      *             provide. It must be non-negative and less than or equal to qualityUpperBound.
      * @param qualityUpperBound The highest quality of this commodity a buyer can accept or a seller
      *             provide. It must be non-negative and greater than or equal to qualityUpperBound.
+     * @param isCloneWithNewType Whether the commodity specification should be given a new type when clone
      */
-    public CommoditySpecification(int baseType, int qualityLowerBound, int qualityUpperBound) {
-        this(newCommTypeID_, baseType, qualityLowerBound, qualityUpperBound);
+    public CommoditySpecification(int baseType, int qualityLowerBound, int qualityUpperBound,
+                                  boolean isCloneWithNewType) {
+        this(newCommTypeID_, baseType, qualityLowerBound, qualityUpperBound, isCloneWithNewType);
         newCommTypeID_--;
     }
 
@@ -149,6 +180,15 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
     @Pure
     public int getQualityUpperBound(@ReadOnly CommoditySpecification this) {
         return qualityUpperBound_;
+    }
+
+    /**
+     * Returns the true if cloning {@this} needs to create a commoditySpecification with new type.
+     *
+     */
+    @Pure
+    public boolean isCloneWithNewType(@ReadOnly CommoditySpecification this) {
+        return isCloneWithNewType_;
     }
 
     /**

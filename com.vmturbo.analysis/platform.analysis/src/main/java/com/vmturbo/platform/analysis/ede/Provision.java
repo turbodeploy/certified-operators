@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -12,7 +11,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
-import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
+import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
@@ -90,7 +89,11 @@ public class Provision {
             allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
                             EconomyConstants.PROVISION_PHASE));
         }
-        for (Market market : economy.getMarkets()) {
+        // copy the markets from economy and use the copy to iterate, because in
+        // the provision logic, we may add new basket which result in new market
+        List<Market> orignalMkts = new ArrayList<>();
+        orignalMkts.addAll(economy.getMarkets());
+        for (Market market : orignalMkts) {
             // if the traders in the market are not eligible for provision, skip this market
             if (!canMarketProvisionSellers(market)) {
                 continue;
@@ -150,10 +153,21 @@ public class Provision {
                                     mostProfitableTrader);
                     actions.add(provisionAction.take());
                     provisionedTrader = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
+                    List<Action> subActions = ((ProvisionBySupply)provisionAction)
+                                    .getSubsequentActions();
+                    actions.addAll(subActions);
                     ledger.addTraderIncomeStatement(provisionedTrader);
+                    subActions.forEach(action -> {
+                        if (action instanceof ProvisionBySupply) {
+                            ledger.addTraderIncomeStatement(((ProvisionBySupply)action)
+                                                            .getProvisionedSeller());
+                        } else if (action instanceof ProvisionByDemand) {
+                            ledger.addTraderIncomeStatement(((ProvisionByDemand)action)
+                                                            .getProvisionedSeller());
+                        }
+                    });
 
                     actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
-
                     if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                     provisionedTrader, pb.getMostProfitableCommRev())) {
                         logger.warn("rollback provisioning of a new trader if the RoI of the "
@@ -174,10 +188,6 @@ public class Provision {
                 allActions.addAll(actions);
             }
         }
-        // TODO: Note that we have to explicitly add the sellers to the new market for this to work properly.
-        // TODO: Update the Economy#populateMarketsWithSellers() to accept a collection and pass in the
-        // market to populate.
-        GuaranteedBuyerHelper.processGuaranteedbuyerInfo(economy);
         return allActions;
     }
 
@@ -219,31 +229,16 @@ public class Provision {
         }
 
         List<ShoppingList> buyers = market.getBuyers();
-        // there is no point in cloning in a market with a single buyer
-        if (buyers.size() == 1) {
+        // there is no point in cloning in a market with a single buyer, and the single buyer
+        // is not a guaranteedbuyer
+        if (buyers.size() == 1 && !buyers.get(0).getBuyer().getSettings().isGuaranteedBuyer()) {
             return false;
         }
 
-        // if all buyers in this market are guaranteedBuyers, it should not cause a clone to happen
-        if (buyers.stream().allMatch(sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())) {
-            return false;
-        }
-
-        // FALSE if there is no active seller that is available for placement with greater than 1
-        // customer shopping in this market who is not a guaranteedBuyer
-        boolean multipleBuyersInSupplier = false;
-        for (Trader seller : market.getActiveSellersAvailableForPlacement()) {
-            if (seller.getCustomers().stream().filter(sl -> buyers.contains(sl) && !sl.getBuyer()
-                            .getSettings().isGuaranteedBuyer()).count() > 1) {
-                multipleBuyersInSupplier = true;
-                break;
-            }
-        }
-        if (!multipleBuyersInSupplier)
-            return false;
-
-        // if none of the buyers in this market are movable, provisioning a seller is not beneficial
-        if (!buyers.stream().anyMatch(shoppingList -> shoppingList.isMovable())) {
+        // if none of the buyers in this market are movable and the immovable buyer is not a
+        // guaranteedbuyer, provisioning a seller is not beneficial
+        if (buyers.stream().allMatch(shoppingList -> !shoppingList.isMovable()
+                                     && !shoppingList.getBuyer().getSettings().isGuaranteedBuyer())) {
             return false;
         }
 
@@ -270,17 +265,19 @@ public class Provision {
         // consider only sellers available for placements. Considering a seller with clonable false
         // is going to fail acceptanceCriteria since none its customers will move
         for (Trader seller : market.getActiveSellersAvailableForPlacement()) {
-            // consider only sellers that have more than 1 non-guaranteedBuyer
             double commRev = ledger.calculateExpRevForTraderAndGetTopRevenue(economy, seller);
-            if (seller.getSettings().isCloneable() && seller.getCustomers().stream().filter(sl ->
-                    !sl.getBuyer().getSettings().isGuaranteedBuyer()).count() > 1) {
+            if (seller.getSettings().isCloneable()) {
                 IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller
                                 .getEconomyIndex());
                 // return the most profitable trader
                 double roiOfTrader = traderIS.getROI();
                 // TODO: evaluate if checking for movable customers earlier is beneficial
+                // clone candidate should either have at least one customer is movable or
+                // all customers that are from guaranteed buyer
                 if ((roiOfTrader > traderIS.getMaxDesiredROI()) && (roiOfTrader > roiOfRichestTrader)
-                                && seller.getCustomers().stream().anyMatch(sl -> sl.isMovable())) {
+                                && (seller.getCustomers().stream().anyMatch(sl -> sl.isMovable())
+                                                || (seller.getCustomers().stream().allMatch(sl ->
+                                                sl.getBuyer().getSettings().isGuaranteedBuyer())))) {
                     mostProfitableTrader = seller;
                     roiOfRichestTrader = roiOfTrader;
                     mostProfitableCommRev = commRev;
@@ -311,14 +308,12 @@ public class Provision {
                                                                 , Trader provisionedTrader
                                                                 , double origMostProfitableCommRev) {
 
-        double newMostProfitableCommRev = ledger.calculateExpRevForTraderAndGetTopRevenue(economy,
-                						mostProfitableTrader);
+        double newMostProfitableCommRev = ledger
+                        .calculateExpRevForTraderAndGetTopRevenue(economy, mostProfitableTrader);
         // check if the RoI of the mostProfitableTrader after cloning is less than before cloning
         // and that at least one nonGuaranteedBuyer has moved into the new host
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
                         .getROI() < origRoI && !provisionedTrader.getCustomers().isEmpty() &&
-                        provisionedTrader.getCustomers().stream().anyMatch(sl -> !sl.getBuyer()
-                                            .getSettings().isGuaranteedBuyer()) &&
                         origMostProfitableCommRev > newMostProfitableCommRev;
     }
 
@@ -335,6 +330,13 @@ public class Provision {
                     Trader provisionedTrader, List<@NonNull Action> actions, Action provisionAction) {
         // remove IncomeStatement from ledger and rollback actions
         if (provisionAction instanceof ProvisionBySupply) {
+            Lists.reverse(((ProvisionBySupply)provisionAction).getSubsequentActions()).forEach(action -> {
+                if (action instanceof ProvisionBySupply) {
+                    ledger.removeTraderIncomeStatement(((ProvisionBySupply)action).getProvisionedSeller());
+                } else if (action instanceof ProvisionByDemand) {
+                    ledger.removeTraderIncomeStatement(((ProvisionByDemand)action).getProvisionedSeller());
+                }
+            });
             ledger.removeTraderIncomeStatement(provisionedTrader);
         }
         Lists.reverse(actions).forEach(axn -> axn.rollback());

@@ -84,6 +84,9 @@ message TraderSettingsTO {
 
     // This field refers to the balance account that the trader associated with
     optional BalanceAccountDTO balance_account = 10;
+
+    // Whether the trader should be forced to clone if its consumer clones
+    optional bool mandatory_supplier = 11;
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm

@@ -16,6 +16,7 @@ import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.actions.Resize;
+import com.vmturbo.platform.analysis.actions.Utility;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -99,13 +100,35 @@ public class ActionClassifier {
     }
 
     /**
-     * Mark Provision actions as non-executable
+     * Mark Provision actions as non-executable if the provision action target is a mandatory supplier
+     * or if the action target consumes only mandatory supplier.
      *
      * @param actions The list of actions to be classified.
      */
     private void markProvisionsNonExecutable(@NonNull List<Action> actions) {
-        actions.stream().filter(a -> a instanceof ProvisionBySupply || a instanceof ProvisionByDemand)
-                        .forEach(p -> p.setExecutable(false));
+        // we will mark provision executable if the provision action target is a mandatory supplier
+        // or if the action target consumes only mandatory supplier
+        for (Action a : actions) {
+            if (a instanceof ProvisionByDemand) {
+                ProvisionByDemand provDemand = (ProvisionByDemand)a;
+                if (provDemand.getActionTarget().getSettings().isMandatorySupplier() || Utility
+                                .isBuyerConsumeOnlyMandatorySeller(provDemand.getActionTarget(),
+                                                                   provDemand.getEconomy())) {
+                    provDemand.setExecutable(true);
+                } else {
+                    provDemand.setExecutable(false);
+                }
+            } else if (a instanceof ProvisionBySupply) {
+                ProvisionBySupply provSupply = (ProvisionBySupply)a;
+                if (provSupply.getActionTarget().getSettings().isMandatorySupplier() || Utility
+                                .isBuyerConsumeOnlyMandatorySeller(provSupply.getActionTarget(),
+                                                                   provSupply.getEconomy())) {
+                    provSupply.setExecutable(true);
+                } else {
+                    provSupply.setExecutable(false);
+                }
+            }
+        }
     }
 
     /**

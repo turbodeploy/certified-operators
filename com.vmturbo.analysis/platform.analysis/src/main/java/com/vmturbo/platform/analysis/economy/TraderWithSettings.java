@@ -28,6 +28,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private boolean suspendable_ = false;
     private boolean cloneable_ = false;
     private boolean guaranteedBuyer_ = false;
+    private boolean isMandatorySupplier_ = false;
     private boolean canAcceptNewCustomers_ = false;
     private boolean isEligibleForResizeDown_ = true;
     private boolean isShopTogether_ = false;
@@ -117,6 +118,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
 
     @Override
     @Pure
+    public boolean isMandatorySupplier(@ReadOnly TraderWithSettings this) {
+        return isMandatorySupplier_;
+    }
+
+    @Override
+    @Pure
     public boolean canAcceptNewCustomers() {
         return canAcceptNewCustomers_;
     }
@@ -181,6 +188,13 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Deterministic
     public @NonNull TraderSettings setGuaranteedBuyer(boolean guaranteedBuyer) {
         guaranteedBuyer_ = guaranteedBuyer;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderSettings setMandatorySupplier(boolean isMandatorySupplier) {
+        isMandatorySupplier_ = isMandatorySupplier;
         return this;
     }
 

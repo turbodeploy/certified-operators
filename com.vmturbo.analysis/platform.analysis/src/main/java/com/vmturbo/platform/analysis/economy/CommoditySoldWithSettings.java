@@ -14,6 +14,7 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
     // Fields for CommoditySoldSettings
     private boolean resizable_ = true;
+    private boolean cloneWithNewType_ = false;
     private double capacityLowerBound_ = 0.0;
     private double capacityUpperBound_ = Double.MAX_VALUE;
     private double capacityIncrement_ = 1;
@@ -79,6 +80,11 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Pure
     public @NonNull @PolyRead PriceFunction getPriceFunction(@PolyRead CommoditySoldWithSettings this) {
         return priceFunction_;
+    }
+
+    @Override
+    public boolean isCloneWithNewType() {
+        return cloneWithNewType_;
     }
 
     @Override
@@ -153,6 +159,12 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     public CommoditySoldSettings setUpdatingFunction(FunctionalOperator updatingFunction) {
         updatingFunction_ = updatingFunction;
+        return this;
+    }
+
+    @Override
+    public @NonNull CommoditySoldSettings setCloneWithNewKey(boolean cloneWithNewType) {
+        cloneWithNewType_ = cloneWithNewType;
         return this;
     }
 

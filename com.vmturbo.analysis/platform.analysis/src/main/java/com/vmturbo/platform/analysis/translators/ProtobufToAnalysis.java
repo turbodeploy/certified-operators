@@ -130,7 +130,7 @@ public final class ProtobufToAnalysis {
      */
     public static @NonNull CommoditySpecification commoditySpecification(@NonNull CommoditySpecificationTO input) {
         return new CommoditySpecification(input.getType(),input.getBaseType(),input.getQualityLowerBound(),
-                       input.getQualityUpperBound()).setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
+                       input.getQualityUpperBound(), input.getCloneWithNewType()).setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
     }
 
     /**
@@ -265,6 +265,7 @@ public final class ProtobufToAnalysis {
         destination.setCanAcceptNewCustomers(source.getCanAcceptNewCustomers());
         destination.setIsEligibleForResizeDown(source.getIsEligibleForResizeDown());
         destination.setIsShopTogether(source.getIsShopTogether());
+        destination.setMandatorySupplier(source.getMandatorySupplier());
         destination.setQuoteFunction(populateQuoteFunction(destination, source.getQuoteFunction()));
         if (source.getQuoteFunction().hasRiskBased() && source.getQuoteFunction().getRiskBased().hasCloudCost()) {
             destination.setCostFunction(

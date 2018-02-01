@@ -2,18 +2,22 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
+
+import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper.BuyerInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -22,6 +26,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.ede.BootstrapSupply;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
@@ -33,7 +38,10 @@ public class ProvisionBySupply extends ActionImpl {
     private final @NonNull Economy economy_;
     private final @NonNull Trader modelSeller_;
     private @Nullable Trader provisionedSeller_;
+    private @NonNull Map<CommoditySpecification, CommoditySpecification> commSoldToReplaceMap_;
     private long oid_;
+    // a list of actions triggered by taking provisionBySupply action
+    private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
     // TODO: may need to add a 'triggering buyer' for debugReason...
 
     // Constructors
@@ -50,6 +58,24 @@ public class ProvisionBySupply extends ActionImpl {
         // is itself a clone, go all the way back to the original modelSeller to simplify action
         // handling by entities outside M2 that are not necessarily aware of cloned traders
         modelSeller_ = economy.getCloneOfTrader(modelSeller);
+        commSoldToReplaceMap_ = new HashMap<>();
+    }
+
+    /**
+     * Constructs a new ProvisionBySupply action with the specified attributes.
+     *
+     * @param economy The economy in which the seller will be provisioned.
+     * @param modelSeller The seller that should be used as a template for the new seller.
+     * @param commToReplaceMap the mapping for commodity specification to new commodity specification
+     */
+    public ProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller,
+                             Map <CommoditySpecification, CommoditySpecification> commToReplaceMap) {
+        economy_ = economy;
+        // provisionBySupply means create an exact copy of modelSeller, in case the modelSeller
+        // is itself a clone, go all the way back to the original modelSeller to simplify action
+        // handling by entities outside M2 that are not necessarily aware of cloned traders
+        modelSeller_ = economy.getCloneOfTrader(modelSeller);
+        commSoldToReplaceMap_ = commToReplaceMap;
     }
     // Methods
 
@@ -81,6 +107,15 @@ public class ProvisionBySupply extends ActionImpl {
         return provisionedSeller_;
     }
 
+    /**
+     * Returns the actions that was triggered after taking {@code this} action
+     * @return a list of actions followed by {@code this}
+     */
+    @Pure
+    public @NonNull List<Action> getSubsequentActions() {
+       return subsequentActions_;
+    }
+
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
         return new StringBuilder().append("<action type=\"provisionBySupply\" modelSeller=\"")
@@ -90,20 +125,18 @@ public class ProvisionBySupply extends ActionImpl {
     @Override
     public @NonNull Action take() {
         super.take();
-        List<ShoppingList> shoppingLists = GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(getEconomy(),
-                                                getModelSeller());
-        // if there is a guaranteed buyer, find the commodities it buys, and for those commodities
-        // create a new CommSpec with a new commodityType. This map returned is used to update the
-        // commodities that the clone sells and what the guaranteedBuyer buys
-        Map<CommoditySpecification, CommoditySpecification> commToReplaceMap =
-                        GuaranteedBuyerHelper.createCommSpecWithNewKeys(shoppingLists);
-        // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone sell
-        // allocation commodities with new keys
-        final Basket basketSold = shoppingLists.size() != 0 ?
-            GuaranteedBuyerHelper.transformBasket(commToReplaceMap, getModelSeller().getBasketSold()) :
-            getModelSeller().getBasketSold();
-        provisionedSeller_ = getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
-                                        basketSold, getModelSeller().getCliques());
+        // a list of shopping list sponsored by guaranteed buyers that consume only the model seller
+        List<ShoppingList> slBetweenModelSellerAndGuaranteedBuyer = GuaranteedBuyerHelper
+                        .findSlsBetweenSellerAndGuaranteedBuyer(getEconomy(), getModelSeller());
+        // a map of each guaranteed buyer to all shopping lists that it sponsors
+        Map<Trader, Set<ShoppingList>> allSlsSponsoredByGuaranteedBuyer = GuaranteedBuyerHelper
+                        .getAllSlsSponsoredByGuaranteedBuyer(getEconomy(),
+                                                             slBetweenModelSellerAndGuaranteedBuyer);
+        provisionedSeller_ = getEconomy()
+                        .addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
+                                                Utility.transformBasket(commSoldToReplaceMap_,
+                                                                        modelSeller_.getBasketSold()),
+                                                getModelSeller().getCliques());
         provisionedSeller_.setCloneOf(modelSeller_);
         // Copy trader settings
         provisionedSeller_.getSettings().setCloneable(getModelSeller().getSettings().isCloneable());
@@ -111,33 +144,80 @@ public class ProvisionBySupply extends ActionImpl {
         provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
+        provisionedSeller_.getSettings().setMandatorySupplier(getModelSeller().getSettings().isMandatorySupplier());
+
+        List<Trader> unPlacedClones = new ArrayList<>();
         // Add basket(s) bought
         for (@NonNull Entry<@NonNull ShoppingList, @NonNull Market> entry
                 : getEconomy().getMarketsAsBuyer(getModelSeller()).entrySet()) {
-            // Note that because the basket bought is coming from a model buyer, this cannot result in the creation
-            // of new markets. If it did, we would have to populate that new market with sellers.
-            ShoppingList shoppingList = getEconomy().addBasketBought(getProvisionedSeller(),
-                entry.getValue().getBasket());
-            if (!entry.getKey().isMovable()) {
-                shoppingList.move(entry.getKey().getSupplier());
-                Move.updateQuantities(getEconomy(), shoppingList, shoppingList.getSupplier(),
-                                FunctionalOperatorUtil.ADD_COMM);
-            }
-
-            // Copy movable attribute
-            shoppingList.setMovable(entry.getKey().isMovable());
-
+            // populate commToReplaceMap with those of the commodities bought by the current
+            // shopping list that requires substitution. Here the new commSpec will be used mainly
+            // for the sl of the provisionedSeller and the basket sold of the provisionedSeller's
+            // supplier
+            Map<CommoditySpecification, CommoditySpecification> commToReplaceMap =
+                            Utility.createCommSpecWithNewKeys(entry.getKey());
+            // replace those of the commodities bought that require substitution
+            Basket provisionedSellerSlBasket = Utility.transformBasket(commToReplaceMap,
+                                                               entry.getKey().getBasket());
+            ShoppingList provisionedSellerSl = getEconomy()
+                            .addBasketBought(getProvisionedSeller(), provisionedSellerSlBasket);
             // Copy quantities bought
+            // TODO: if the model seller has a guaranteed buyer, the quantity bought by the
+            // provisionedSeller may change since we will adjust the quantity of guaranteed buyer
+            // shopping list, which in turns can change the quantity of provisionedSeller commSold
+            // and then affect the quantity bought of raw material, which is the provisionedSellerSl
+            // but we don't have a clear understanding on how to change it so we just copy the same
+            // value for now
             for (int i = 0 ; i < entry.getValue().getBasket().size() ; ++i) {
-                shoppingList.setQuantity(i, entry.getKey().getQuantity(i));
-                shoppingList.setPeakQuantity(i, entry.getKey().getPeakQuantity(i));
+                provisionedSellerSl.setQuantity(i, entry.getKey().getQuantity(i));
+                provisionedSellerSl.setPeakQuantity(i, entry.getKey().getPeakQuantity(i));
             }
+            Trader currentSupplier = entry.getKey().getSupplier();
+            // if the modelSeller has a mandatorySeller as supplier, then clone the supplier to
+            // place the provisionedSeller on it
+            if (currentSupplier != null && currentSupplier.getSettings().isMandatorySupplier()) {
+                ProvisionBySupply cloneMandatorySupplier = new ProvisionBySupply(getEconomy(),
+                                                                                 currentSupplier,
+                                                                                 commToReplaceMap);
+                subsequentActions_.add(cloneMandatorySupplier.take());
+                subsequentActions_.addAll(cloneMandatorySupplier.getSubsequentActions());
+                // move the sl of the provisionedSeller directly to the newly cloned mandotorySeller
+                Trader clonedMandatorySupplier = cloneMandatorySupplier.getProvisionedSeller();
+                provisionedSellerSl.move(clonedMandatorySupplier);
+                Move.updateQuantities(getEconomy(), provisionedSellerSl,
+                                      provisionedSellerSl.getSupplier(),
+                                      FunctionalOperatorUtil.ADD_COMM);
+                unPlacedClones.add(clonedMandatorySupplier);
+            } else if (!entry.getKey().isMovable()) {
+                // place the provisionedSeller on the same supplier as modelSeller
+                provisionedSellerSl.move(entry.getKey().getSupplier());
+                Move.updateQuantities(getEconomy(), provisionedSellerSl,
+                                      provisionedSellerSl.getSupplier(),
+                                      FunctionalOperatorUtil.ADD_COMM);
+            } else {
+                // if the new clone has no mandatorySupplier, and it is movable, add it to
+                // unPlacedClones set and run bootstrap to place it
+                unPlacedClones.add(provisionedSeller_);
+            }
+
+            // Copy movable attribute, it has to be set since bootstrap checks it
+            provisionedSellerSl.setMovable(entry.getKey().isMovable());
+            runBootstrapToPlaceClones(unPlacedClones);
         }
 
         // Update commodities sold
-        for (int i = 0 ; i < getModelSeller().getBasketSold().size() ; ++i) {
+        for (int i = 0 ; i < modelSeller_.getBasketSold().size() ; ++i) {
             // TODO: also copy overhead
-            CommoditySold provCommSold = getProvisionedSeller().getCommoditiesSold().get(i);
+            int indexOfProvisionedSellerCommSold;
+            CommoditySpecification modelCommSpec = modelSeller_.getBasketSold().get(i);
+            if (commSoldToReplaceMap_.containsKey(modelCommSpec)) {
+                indexOfProvisionedSellerCommSold = provisionedSeller_.getBasketSold()
+                                .indexOf(commSoldToReplaceMap_.get(modelCommSpec));
+            } else {
+                indexOfProvisionedSellerCommSold = i;
+            }
+            CommoditySold provCommSold = getProvisionedSeller().getCommoditiesSold()
+                            .get(indexOfProvisionedSellerCommSold);
             CommoditySold modelCommSold = getModelSeller().getCommoditiesSold().get(i);
             // Copy commodity sold attributes
             provCommSold.setCapacity(modelCommSold.getCapacity());
@@ -163,13 +243,19 @@ public class ProvisionBySupply extends ActionImpl {
                modelCommSold.getSettings().getUpdatingFunction());
         }
 
+        // adjust the quantity of provisionedSeller, if it sells economy.getCommsToAdjustOverhead()
+        // keep only the overhead in the commSold, otherwise, set the quantity and peak quantity to 0
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
-        // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
+        // if the trader being cloned is a provider for a guaranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
-        if (shoppingLists.size() != 0) {
-            GuaranteedBuyerHelper.storeGuaranteedbuyerInfo(shoppingLists, provisionedSeller_,
-                                                           commToReplaceMap);
+        if (slBetweenModelSellerAndGuaranteedBuyer.size() != 0) {
+            List<BuyerInfo> guaranteedBuyerInfoList = GuaranteedBuyerHelper
+                            .storeGuaranteedbuyerInfo(slBetweenModelSellerAndGuaranteedBuyer,
+                                                      allSlsSponsoredByGuaranteedBuyer,
+                                                      provisionedSeller_);
+            GuaranteedBuyerHelper.processGuaranteedbuyerInfo(getEconomy(), guaranteedBuyerInfoList);
         }
+
         getProvisionedSeller().setDebugInfoNeverUseInCode(
                 getModelSeller().getDebugInfoNeverUseInCode()
                 + " clone #"
@@ -178,10 +264,57 @@ public class ProvisionBySupply extends ActionImpl {
         return this;
     }
 
+    /**
+     * Run bootstrap logic to place the newly cloned traders, including provisionedSeller and
+     * its supplier.
+     *
+     * @param unPlacedClones a list of cloned traders that are unplaced
+     */
+    private void runBootstrapToPlaceClones(List<Trader> unPlacedClones) {
+        try {
+            List<Action> actions = new ArrayList<>();
+            for (Trader trader : unPlacedClones) {
+                if (trader.getSettings().isShopTogether()) {
+                    actions.addAll(BootstrapSupply
+                                   .shopTogetherBootstrapForIndividualBuyer(getEconomy(), trader));
+                    actions.addAll(BootstrapSupply
+                                              .processCachedShoptogetherSls(getEconomy()));
+                } else {
+                    Set<Entry<ShoppingList, Market>> slByMkt = getEconomy()
+                                    .getMarketsAsBuyer(trader).entrySet();
+                    slByMkt.stream().forEach(e ->  {
+                        actions.addAll(BootstrapSupply
+                                       .nonShopTogetherBootStrapForIndividualBuyer(getEconomy(),
+                                                                                   e.getKey(),
+                                                                                   e.getValue()));
+                        actions.addAll(BootstrapSupply
+                                       .processSlsThatNeedProvBySupply(getEconomy()));
+                    });
+                }
+            }
+            subsequentActions_.addAll(actions);
+        } finally {
+            // we should always clear the slsThatNeedProvBySupply map, even when an exception is
+            // thrown, otherwise the following analysis cycles will be affected
+            BootstrapSupply.slsThatNeedProvBySupply.clear();
+        }
+    }
+
     @Override
     public @NonNull Action rollback() {
         super.rollback();
+        GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
+                                                                    provisionedSeller_);
         getEconomy().removeTrader(provisionedSeller_);
+        getSubsequentActions().forEach(a -> {
+            if (a instanceof ProvisionBySupply) {
+                getEconomy().removeTrader(((ProvisionBySupply)a).getProvisionedSeller());
+            } else if (a instanceof ProvisionByDemand) {
+                getEconomy().removeTrader(((ProvisionByDemand)a).getProvisionedSeller());
+            }
+        });
+        commSoldToReplaceMap_.clear();
+        subsequentActions_.clear();
         provisionedSeller_ = null;
 
         return this;
@@ -262,4 +395,5 @@ public class ProvisionBySupply extends ActionImpl {
     public ActionType getType() {
         return ActionType.PROVISION_BY_SUPPLY;
     }
+
 } // end ProvisionBySupply class

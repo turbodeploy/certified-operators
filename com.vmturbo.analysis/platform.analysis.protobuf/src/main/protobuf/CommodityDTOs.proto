@@ -28,6 +28,9 @@ message CommoditySpecificationTO {
 
     // The field contains info about commodity's eclass and key, it is used for debugging only
     optional string debug_info_never_use_in_code = 5;
+
+    // If clone the commodity, whether new type should be given to the clone.
+    optional bool clone_with_new_type = 6;
 }
 
 // A commodity that is bought or needs to be bought by a particular buyer from a particular seller
@@ -68,6 +71,7 @@ message CommoditySoldSettingsTO {
 
     // A function from comm sold to the method used to update its quantity.
     optional UpdatingFunctionTO update_function = 7;
+
 }
 
 // A commodity sold by a single trader. It includes the quantity(s) sold and a number of settings.

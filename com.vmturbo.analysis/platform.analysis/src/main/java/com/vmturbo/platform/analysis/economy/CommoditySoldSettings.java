@@ -85,6 +85,12 @@ public interface CommoditySoldSettings {
     @NonNull @PolyRead PriceFunction getPriceFunction(@PolyRead CommoditySoldSettings this);
 
     /**
+     * Returns the value of the <b>cloneWithNewType</b> field.
+     *
+     */
+    boolean isCloneWithNewType();
+
+    /**
      * Sets the value of the <b>resizable</b> field.
      *
      * <p>
@@ -206,5 +212,13 @@ public interface CommoditySoldSettings {
      */
     @Pure
     @NonNull @PolyRead FunctionalOperator getUpdatingFunction(@PolyRead CommoditySoldSettings this);
+
+    /**
+     * Sets the value of the <b>cloneWithNewKey</b> field.
+     *
+     * @param cloneWithNewKey the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull CommoditySoldSettings setCloneWithNewKey(boolean cloneWithNewKey);
 
 } // end CommoditySoldSettings interface

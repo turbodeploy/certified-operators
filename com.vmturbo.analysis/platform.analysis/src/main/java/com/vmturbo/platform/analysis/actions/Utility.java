@@ -1,9 +1,15 @@
 package com.vmturbo.platform.analysis.actions;
 
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Function;
 
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -33,10 +39,10 @@ public final class Utility {
     }
 
     /**
-     * For every commodity sold by a newly provisioned seller which may incur overhead, initialize 
+     * For every commodity sold by a newly provisioned seller which may incur overhead, initialize
      * the used value to a computed overhead. Commodity overhead is computed through the model seller
      * by subtracting the quantities bought by all its buyers from the total quantity if is selling
-     * 
+     *
      * @param modelSeller this is the {@link Trader} that the new clone is based out off
      * @param provisionedSeller is the newly cloned {@link Trader}
      * @param economy that the Traders are a part of
@@ -61,5 +67,80 @@ public final class Utility {
             soldIndex++;
         }
     }
-    
+
+    /**
+     * Check if a given trader has only mandatory sellers as suppliers.
+     *
+     * @param trader the trader
+     * @param economy the economy the trader is in
+     * @return returns true if a given trader has only mandatory sellers as suppliers
+     */
+    public static @NonNull boolean isBuyerConsumeOnlyMandatorySeller(@NonNull Trader trader,
+                                                                         @NonNull Economy economy) {
+        for (@NonNull ShoppingList shoppingList : economy.getMarketsAsBuyer(trader).keySet()) {
+            if (shoppingList.getSupplier() != null && !shoppingList.getSupplier()
+                            .getSettings().isMandatorySupplier()) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Creates a map of newly generated {@link CommoditySpecification}s that are sold
+     * by the clone in place of the commodities sold by the modelSeller
+     *
+     * @param shoppingList shopping list who may be cloned
+     * @return a map where the key and values are a {@link CommoditySpecification}s with same
+     *              "baseType" but different "commodityType"
+     */
+    public static Map<CommoditySpecification, CommoditySpecification>
+                            createCommSpecWithNewKeys (ShoppingList sl) {
+        Map<CommoditySpecification, CommoditySpecification> newCommSoldMap = new HashMap<>();
+        // Note: we start assign type based from Integer.MAX_VALUE and keep decrementing from this
+        Iterator<@NonNull @ReadOnly CommoditySpecification> iter = sl.getBasket().iterator();
+        while(iter.hasNext()) {
+            CommoditySpecification cs = iter.next();
+            if (!newCommSoldMap.containsKey(cs) && cs.isCloneWithNewType()) {
+                // change commType and add commSpecs into the basket
+                newCommSoldMap.put(cs, new CommoditySpecification(cs.getBaseType(),
+                                                                  cs.getQualityLowerBound(),
+                                                                  cs.getQualityUpperBound(),
+                                                                  cs.isCloneWithNewType()));
+            }
+        }
+        return newCommSoldMap;
+    }
+
+    /**
+     * A helper method to create a new {@link Basket} containing all the
+     * {@link CommoditySpecification}s present in origBasketSold except the ones present in
+     * commToReplaceMap that are to be replaced by the new ones with unique commodityType (that
+     * represents new key)
+     *
+     * <p>
+     *  There may be a new market being created in economy due to the new basket.
+     * </p>
+     *
+     * @param commToReplaceMap is a map where the key is a {@link CommoditySpecification} with
+     *  a "commodityType" that need to be replaced by the new {@link CommoditySpecification}
+     *  represented by the corresponding value.
+     * @param origBasket original basket bought or sold
+     * @return a new {@link Basket} that contains the commodities that are replaced based on
+     *  commToReplaceMap
+     */
+    public static Basket transformBasket(Map<CommoditySpecification, CommoditySpecification>
+                                         commToReplaceMap, Basket origBasket) {
+        // replacing the old commSpecs with the ones in the commToReplaceMap. eg application
+        // commodity should be replaced with a new type when cloning the sl or seller contains an
+        // application commodity
+        Basket newBasket = new Basket(origBasket);
+        for (Entry<CommoditySpecification, CommoditySpecification> entry : commToReplaceMap
+                        .entrySet()) {
+            newBasket = newBasket.remove(entry.getKey());
+            newBasket = newBasket.add(entry.getValue());
+        }
+        return newBasket;
+    }
 } // end Utility class

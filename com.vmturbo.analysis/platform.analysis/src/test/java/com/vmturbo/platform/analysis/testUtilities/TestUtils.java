@@ -10,6 +10,7 @@ import java.util.Map;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
@@ -28,6 +29,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBu
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceLimitation;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
@@ -43,6 +45,8 @@ public class TestUtils {
     public static final int VDC_TYPE = 3;
     public static final int APP_TYPE = 4;
     public static final int IOPS_TYPE = 5;
+    public static final int CONTAINER_TYPE = 6;
+    public static final int VAPP_TYPE = 7;
 
     // CommoditySpecifications to use in tests
     public static final CommoditySpecification CPU = new CommoditySpecification(0);
@@ -54,6 +58,7 @@ public class TestUtils {
     public static final CommoditySpecification VMEM = new CommoditySpecification(6);
     public static final CommoditySpecification COST_COMMODITY = new CommoditySpecification(7);
     public static final CommoditySpecification IOPS = new CommoditySpecification(8);
+    public static final CommoditySpecification TRANSACTION = new CommoditySpecification(9);
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
@@ -316,5 +321,15 @@ public class TestUtils {
                                                .setMinCapacity(1).build()).build())
                         .build();
         return CostFunctionFactory.createCostFunction(costDTO);
+    }
+
+    public static void moveSlOnSupplier(Economy e, ShoppingList sl, Trader supplier, double[] quantities) {
+        for (int i = 0; i < quantities.length ; i++) {
+            sl.setQuantity(i, quantities[i]);
+            sl.setPeakQuantity(i, quantities[i]);
+        }
+        sl.move(supplier);
+        sl.setMovable(true);
+        Move.updateQuantities(e, sl, supplier, FunctionalOperatorUtil.ADD_COMM);
     }
 }

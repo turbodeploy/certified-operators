@@ -387,14 +387,21 @@ public final class AnalysisToProtobuf {
                 .keySet()
                 .stream()
                 .forEach(topology::addProvisionedShoppingList);
+            // if the provisionedSeller has a guaranteedbuyer, there is a new sl from
+            // guaranteedbuyer to provisionedSeller needs to be added to
+            // topology.shoppingListOids_
+            provDemand.getProvisionedSeller().getCustomers().stream().filter(sl ->
+                            sl.getBuyer().getSettings().isGuaranteedBuyer())
+                            .forEach(topology::addProvisionedShoppingList);
             // send commodity to new capacity map to legacy market so that newly provisioned trader
             // gets the correct capacity
             provDemand.getCommodityNewCapacityMap().forEach((key, value) -> provDemandTO
                             .addCommodityNewCapacityEntry(CommodityNewCapacityEntry.newBuilder()
                                             .setCommodityBaseType(key)
                                             .setNewCapacity(value.floatValue()).build()));
-            // find the sellers(excluding the newly provisioned one) that can sell to the model buyer,
-            // we will use it later to compute the maximum amount that the model buyer could get
+            // find the sellers(excluding the newly provisioned one) that can sell to the model
+            // buyer, we will use it later to compute the maximum amount that the model buyer
+            // could get
             List<Trader> sellers = new ArrayList<>();
             provDemand.getEconomy().getMarket(provDemand.getModelBuyer()).getActiveSellers()
                 .forEach(s -> {if (!s.isClone() && s.getSettings().isCloneable()) {sellers.add(s);}});
@@ -437,6 +444,11 @@ public final class AnalysisToProtobuf {
                 .keySet()
                 .stream()
                 .forEach(topology::addProvisionedShoppingList);
+            // if the provisionedSeller has a guaranteedbuyer, there is a new sl from guaranteedbuyer
+            // to provisionedSeller needs to be added to topology.shoppingListOids_
+            provSupply.getProvisionedSeller().getCustomers().stream().filter(sl ->
+                            sl.getBuyer().getSettings().isGuaranteedBuyer())
+                            .forEach(topology::addProvisionedShoppingList);
             builder.setProvisionBySupply(provSupplyTO);
         } else if (input instanceof Resize) {
             Resize resize = (Resize)input;

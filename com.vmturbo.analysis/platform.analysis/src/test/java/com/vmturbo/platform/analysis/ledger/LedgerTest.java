@@ -238,7 +238,7 @@ public class LedgerTest {
     private List<CommoditySpecification> createCommodities(int numOfComm){
         Random rand = new Random();
         return IntStream.range(0, numOfComm)
-                        .mapToObj(idx -> new CommoditySpecification(idx, 0, rand.nextInt(100000) + 10000))
+                        .mapToObj(idx -> new CommoditySpecification(idx, 0, rand.nextInt(100000) + 10000, false))
                         .collect(Collectors.toCollection(() -> new ArrayList<CommoditySpecification>()));
     }
 
@@ -457,9 +457,9 @@ public class LedgerTest {
         Economy economy = new Economy();
 
         List<CommoditySpecification> commSpecSold = new ArrayList<>();
-        commSpecSold.add(new CommoditySpecification(0, 0, 10));
-        commSpecSold.add(new CommoditySpecification(1, 0, 20));
-        commSpecSold.add(new CommoditySpecification(2, 0, 5));
+        commSpecSold.add(new CommoditySpecification(0, 0, 10, false));
+        commSpecSold.add(new CommoditySpecification(1, 0, 20, false));
+        commSpecSold.add(new CommoditySpecification(2, 0, 5, false));
 
         Basket basketSold = new Basket(commSpecSold);
 
@@ -508,9 +508,9 @@ public class LedgerTest {
 
         //2.  Test some commodities over max desired utilization
         commSpecSold.clear();
-        commSpecSold.add(new CommoditySpecification(0, 4, 10));
-        commSpecSold.add(new CommoditySpecification(1, 10, 20));
-        commSpecSold.add(new CommoditySpecification(2, 5, 5));
+        commSpecSold.add(new CommoditySpecification(0, 4, 10, false));
+        commSpecSold.add(new CommoditySpecification(1, 10, 20, false));
+        commSpecSold.add(new CommoditySpecification(2, 5, 5, false));
 
         basketSold = new Basket(commSpecSold);
 

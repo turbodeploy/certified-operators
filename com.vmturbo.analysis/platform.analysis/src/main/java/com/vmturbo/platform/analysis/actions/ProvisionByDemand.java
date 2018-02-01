@@ -5,6 +5,7 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -14,6 +15,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
+
+import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper.BuyerInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
@@ -115,18 +118,13 @@ public class ProvisionByDemand extends ActionImpl {
     @Override
     public @NonNull Action take() {
         super.take();
-        List<ShoppingList> shoppingLists = GuaranteedBuyerHelper.findShoppingListForGuaranteedBuyer(
-                                            getEconomy(), getModelSeller());
-        // if there is a guaranteed buyer, find the commodities it buys, and for those commodities
-        // create a new CommSpec with a new commodityType. This map returned is used to update the
-        // commodities that the clone sells and what the guaranteedBuyer buys
-        Map<CommoditySpecification, CommoditySpecification> newCommSpecMap = GuaranteedBuyerHelper
-                        .createCommSpecWithNewKeys(shoppingLists);
-        // use the commToReplaceMap to transform the basket that the clone sells. eg, make the clone
-        // allocation commodities with new keys
-        Basket basketSold = shoppingLists.size() != 0 ? GuaranteedBuyerHelper.transformBasket(
-                            newCommSpecMap, getModelSeller().getBasketSold()) : getModelSeller()
-                                .getBasketSold();
+        // a list of shopping list sponsored by guaranteed buyers that consume only the model seller
+        List<ShoppingList> guaranteedBuyerSlsOnModelSeller = GuaranteedBuyerHelper
+                        .findSlsBetweenSellerAndGuaranteedBuyer(getEconomy(), getModelSeller());
+        // a map of each guaranteed buyer to all shopping lists that it sponsors
+        Map<Trader, Set<ShoppingList>> allSlsSponsoredByGuaranteedBuyer = GuaranteedBuyerHelper
+                        .getAllSlsSponsoredByGuaranteedBuyer(getEconomy(), guaranteedBuyerSlsOnModelSeller);
+        Basket basketSold = getModelSeller().getBasketSold();
         provisionedSeller_ = getEconomy().addTraderByModelSeller(getModelSeller(), TraderState.ACTIVE,
                                         basketSold, getModelSeller().getCliques());
         provisionedSeller_.setCloneOf(modelSeller_);
@@ -135,8 +133,11 @@ public class ProvisionByDemand extends ActionImpl {
         provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
+        provisionedSeller_.getSettings().setMandatorySupplier(getModelSeller().getSettings().isMandatorySupplier());
 
         // adding commodities to be bought by the provisionedSeller and resizing them
+        // TODO: we don't have a case for provisionByDemand a trader with mandatory seller as supplier
+        // maybe we need to handle it in future
         getEconomy().getMarketsAsBuyer(modelSeller_).keySet().forEach(shoppingList -> {
             // Note that because we are cloning, this does not require that we populate a new market
             // with sellers. There must be an existing market for sellers.
@@ -210,9 +211,11 @@ public class ProvisionByDemand extends ActionImpl {
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
         // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
-        if (shoppingLists.size() != 0) {
-            GuaranteedBuyerHelper.storeGuaranteedbuyerInfo(shoppingLists, provisionedSeller_,
-                                                           newCommSpecMap);
+        if (guaranteedBuyerSlsOnModelSeller.size() != 0) {
+            List<BuyerInfo> guaranteedBuyerInfoList = GuaranteedBuyerHelper
+                            .storeGuaranteedbuyerInfo(guaranteedBuyerSlsOnModelSeller, allSlsSponsoredByGuaranteedBuyer,
+                                                      provisionedSeller_);
+            GuaranteedBuyerHelper.processGuaranteedbuyerInfo(getEconomy(), guaranteedBuyerInfoList);
         }
         getProvisionedSeller().setDebugInfoNeverUseInCode(
             getModelSeller().getDebugInfoNeverUseInCode()
@@ -228,6 +231,7 @@ public class ProvisionByDemand extends ActionImpl {
     @Override
     public @NonNull Action rollback() {
         super.rollback();
+        GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(), provisionedSeller_);
         getEconomy().removeTrader(provisionedSeller_);
         provisionedSeller_ = null;
         commodityNewCapacityMap_.clear();

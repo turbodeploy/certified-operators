@@ -66,6 +66,11 @@ public interface TraderSettings {
     boolean isShopTogether();
 
     /**
+     * Whether the associated {@link Trader} should be forced to clone if its consumer clones.
+     */
+    boolean isMandatorySupplier();
+
+    /**
      * Returns the associated {@link CostFunction} if there is any.
      */
     CostFunction getCostFunction();
@@ -179,6 +184,18 @@ public interface TraderSettings {
      */
     @NonNull
     TraderSettings setIsShopTogether(boolean isShopTogether);
+
+    /**
+     * Sets the value of the <b>mandatorySupplier</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param mandatorySupplier the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setMandatorySupplier(boolean mandatorySupplier);
 
     /**
      * Sets the {@link CostFunction} for a trader.
