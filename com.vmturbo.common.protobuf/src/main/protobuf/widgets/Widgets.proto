@@ -1,0 +1,160 @@
+syntax = "proto2";
+package widgets;
+
+option java_package = "com.vmturbo.common.protobuf.widgets";
+
+// The structure to describe a Widgetset. It is identified by an oid, and described by a
+// category and scope_type. There's a start_period and end_period used for TBD.
+// A Widgetset represents a visual panel consisting of a number of widgets layed out in a
+// packed format. The UI predefines several widgetsets, and the user may create any number of
+// 'Dashboard's, where each is a widgetset.
+// Currently the UI only retrieves/stores an entire widgetset. There are no API calls to
+// modify some of the fields, i.e. add/remove/modify individual widgets.
+// The widgets are stored as an uninterpreted String - the server has no need to access the
+// internal fields. See below for an example.
+// Note that each Widgetset has an owner. Currently only the owner may fetch or update
+// a widgetset.
+message Widgetset {
+
+    // the unique id for this widgetset
+    optional int64 oid = 1;
+
+    // the owner id of the widgetset; limits access unless 'shared_with_all_users' is true
+    optional int64 owner_oid = 2;
+
+    // unused by the server; saved/restored on behalf of the UI
+    optional string category = 5;
+
+    // the scope attached to this widget
+    optional string scope = 9;
+
+    // the type of the scope, used in search, e.g. Application, Cloud_Database, Cloud_Group_Storage,
+    // Group_PhysicalMachine, Group_ServiceEntity, Hybrid_Market, Market, Onprem_Application, etc.
+    optional string scope_type = 13;
+
+    // should this widget be readable by all users
+    optional bool shared_with_all_users = 25;
+
+    // Store the body of the widget definition as a String, for now. In legacy there are several
+    // further levels of sub-objects: WidgetApiDTO -> WidgetElementApiDTO -> StatApiInputDTO -> ...
+    // The server code needs no access to these inner objects, so a string will suffice.
+    optional string widgets = 29;
+}
+
+// Fetch Widgetset based on the given search criteria.
+message GetWidgetsetListRequest {
+
+    // what categories of widgetset to include in the result
+    repeated string categories = 1;
+
+    // what scope type to include in the result
+    optional string scope_type = 2;
+}
+
+// Fetch a single widgetset given the oid.
+message GetWidgetsetRequest {
+
+    // the unique id of the widgetset to request
+    optional int64 oid = 1;
+}
+
+// Add a new widgetset to the system; return the newly created widgetset with the oid populated.
+message CreateWidgetsetRequest {
+
+    // the widgetset dto to add; the oid will be ignored on input and set to a new value on return
+    optional Widgetset widgetset_dto = 1;
+}
+
+// Alter an existing widgetset; the oid of the update value will be used to
+// identify which item to alter.
+message UpdateWidgetsetRequest {
+
+    // the widgetset to update; the OID in the input is used to identify which object to update
+    optional Widgetset widgetset_dto = 1;
+}
+
+// Remove a widgetset from the system given the oid.
+message DeleteWidgetsetRequest {
+
+    // the oid of a widgetset to delete from the system
+    required int64 oid = 1;
+}
+
+service WidgetsetsService {
+
+    // Return all Widgetset that match the given request
+    rpc GetWidgetsetList (GetWidgetsetListRequest) returns (stream Widgetset);
+
+    // Return a given Widgetset given the oid.
+    rpc GetWidgetset (GetWidgetsetRequest) returns (Widgetset);
+
+    // Add a new Widgetset to the system.
+    rpc CreateWidgetset (CreateWidgetsetRequest) returns (Widgetset);
+
+    // Update the fields of an existing Widgetset.
+    rpc UpdateWidgetset (UpdateWidgetsetRequest) returns (Widgetset);
+
+    // Remove a widgetset from the system given its oid.
+    rpc DeleteWidgetset (DeleteWidgetsetRequest) returns (Widgetset);
+
+}
+
+//Sample Widgetset with one 'Commodities' widget. Widgetsets will typically be comprised of many
+// widgets. The 'widgets' field is saved/restored as a string, i.e. not interpreted by the server.
+//{
+//  "category": "CUSTOM",
+//  "displayName": "Test",
+//  "isSharedWithAllUsers": false,
+//  "scope": "Market",
+//  "scopeType": "Hybrid_Market",
+//  "uuid": "353787413702880",
+//  "widgets": [
+//    {
+//      "column": 0,
+//      "displayName": "COMMODITIES_WIDGET_TITLE",
+//      "row": 0,
+//      "scope": {
+//        "className": "Market",
+//        "displayName": "Global Environment",
+//        "environmentType": "HYBRID",
+//        "state": "SUCCEEDED",
+//        "stateProgress": 100,
+//        "uuid": "Market"
+//      },
+//      "sizeColumns": 6,
+//      "sizeRows": 8,
+//      "type": "commods",
+//      "widgetElements": [
+//        {
+//          "column": 0,
+//          "properties": {
+//            "current": true,
+//            "directive": "commodity-summary",
+//            "future": true,
+//            "show": true,
+//            "showCapacity": true
+//          },
+//          "row": 0,
+//          "type": "SUMMARY"
+//        },
+//        {
+//          "column": 1,
+//          "properties": {
+//            "chartType": "Line Chart",
+//            "directive": "commodity-chart",
+//            "displayParamName": "Mem",
+//            "overrideScope": false,
+//            "show": true,
+//            "showCapacity": false,
+//            "showPeaks": false,
+//            "showUtilization": true,
+//            "widgetScopeEnvironmentType": "HYBRID",
+//            "widgetScopeName": "Global Environment"
+//          },
+//          "row": 0,
+//          "type": "CHART"
+//        }
+//      ]
+//    }
+//  ]
+//}
