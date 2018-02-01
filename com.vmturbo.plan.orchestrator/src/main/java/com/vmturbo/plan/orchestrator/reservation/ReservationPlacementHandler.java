@@ -202,6 +202,8 @@ public class ReservationPlacementHandler {
         }
         final TopologyEntityDTO topologyEntityDTO = entityIdToEntityMap.get(entityId);
         final List<Long> providerIds = topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
+                // projected topology entity could be unplaced which has no provider id.
+                .filter(CommoditiesBoughtFromProvider::hasProviderId)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toList());
         for (long providerId : providerIds) {

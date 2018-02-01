@@ -1,10 +1,10 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
@@ -61,6 +62,9 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 
 /**
@@ -316,11 +320,15 @@ public class ReservationsService implements IReservationsService {
      * @param planId id of initial placement plan.
      * @return a list of {@link PlacementInfo}.
      */
-    private List<PlacementInfo> getPlacementResults(final long planId) {
+    @VisibleForTesting
+    List<PlacementInfo> getPlacementResults(final long planId) {
         final Iterable<ActionOrchestratorAction> response = () ->
                 actionOrchestratorService.getAllActions(FilteredActionRequest.newBuilder()
                         .setTopologyContextId(planId)
                         .build());
+        // Because some reservation instance could be unplaced, they are also movable, it needs to
+        // filter out those instances' move action.
+        final Set<Long> reservationEntityIds = getReservationReservedEntityIds();
         final Multimap<Long, Long> entityToProviders = ArrayListMultimap.create();
         StreamSupport.stream(response.spliterator(), false)
                 .map(ActionOrchestratorAction::getActionSpec)
@@ -328,6 +336,7 @@ public class ReservationsService implements IReservationsService {
                 .map(Action::getInfo)
                 .filter(actionInfo -> actionInfo.getActionTypeCase().equals(ActionTypeCase.MOVE))
                 .map(ActionInfo::getMove)
+                .filter(move -> !reservationEntityIds.contains(move.getTargetId()))
                 .forEach(move -> entityToProviders.put(move.getTargetId(), move.getDestinationId()));
         final List<PlacementInfo> placementInfos = createPlacementInfos(entityToProviders);
         return placementInfos;
@@ -342,5 +351,27 @@ public class ReservationsService implements IReservationsService {
                     placementInfoList.add(placementInfo);
                 });
         return placementInfoList;
+    }
+
+    /**
+     * Get current reserved entities from reservation service. Because for reserved entities, it
+     * could be unplaced and movable. For initial process results, it needs to filter out reserved
+     * entities in order to get correct placement results.
+     *
+     * @return a Set of reserved entities ids.
+     */
+    private Set<Long> getReservationReservedEntityIds() {
+        final Iterable<Reservation> reservations = () ->
+                reservationService.getReservationByStatus(GetReservationByStatusRequest.newBuilder()
+                        .setStatus(ReservationStatus.RESERVED)
+                        .build());
+        return StreamSupport.stream(reservations.spliterator(), false)
+                .map(Reservation::getReservationTemplateCollection)
+                .map(ReservationTemplateCollection::getReservationTemplateList)
+                .flatMap(List::stream)
+                .map(ReservationTemplate::getReservationInstanceList)
+                .flatMap(List::stream)
+                .map(ReservationInstance::getEntityId)
+                .collect(Collectors.toSet());
     }
 }

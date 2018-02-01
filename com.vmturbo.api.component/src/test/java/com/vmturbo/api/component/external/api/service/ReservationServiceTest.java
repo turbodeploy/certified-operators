@@ -2,17 +2,30 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.enums.ReservationAction.PLACEMENT;
 import static com.vmturbo.api.enums.ReservationAction.RESERVATION;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.List;
 
 import org.assertj.core.util.Lists;
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
+import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.InitialPlacement;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -24,9 +37,14 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -106,7 +124,7 @@ public class ReservationServiceTest {
                 .getPlan(PlanId.newBuilder()
                         .setPlanId(123L)
                         .build());
-        Assert.assertEquals(2L, (int)result.getCount());
+        assertEquals(2L, (int)result.getCount());
     }
 
     @Test
@@ -128,6 +146,69 @@ public class ReservationServiceTest {
                         demandApiInputDTO);
         Mockito.verify(reservationServiceMole, Mockito.times(1))
                 .createReservation(Mockito.any(), Mockito.any());
-        Assert.assertEquals(2L, (int)result.getCount());
+        assertEquals(2L, (int)result.getCount());
+    }
+
+    @Test
+    public void testGetPlacementResults() {
+        final long planId = 123L;
+        final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
+                .setTopologyContextId(planId)
+                .build();
+        final ActionOrchestratorAction placementMoveAction = ActionOrchestratorAction.newBuilder()
+                .setActionId(1L)
+                .setActionSpec(ActionSpec.newBuilder()
+                        .setRecommendation(Action.newBuilder()
+                                .setId(90)
+                                .setImportance(10.0)
+                                .setExplanation(Explanation.newBuilder()
+                                        .setMove(MoveExplanation.newBuilder()
+                                                .setInitialPlacement(
+                                                        InitialPlacement.getDefaultInstance())))
+                                .setInfo(ActionInfo.newBuilder()
+                                        .setMove(Move.newBuilder()
+                                                .setTargetId(111L)
+                                                .setSourceId(0L)
+                                                .setDestinationId(78910)))))
+                .build();
+        final ActionOrchestratorAction reservationMoveAction = ActionOrchestratorAction.newBuilder()
+                .setActionId(2L)
+                .setActionSpec(ActionSpec.newBuilder()
+                        .setRecommendation(Action.newBuilder()
+                                .setId(91)
+                                .setImportance(11.0)
+                                .setExplanation(Explanation.newBuilder()
+                                        .setMove(MoveExplanation.newBuilder()
+                                                .setInitialPlacement(
+                                                        InitialPlacement.getDefaultInstance())))
+                                .setInfo(ActionInfo.newBuilder()
+                                        .setMove(Move.newBuilder()
+                                                .setTargetId(222L)
+                                                .setSourceId(0L)
+                                                .setDestinationId(78911)))))
+                .build();
+        Mockito.when(actionsServiceMole.getAllActions(actionRequest))
+                .thenReturn(Lists.newArrayList(placementMoveAction, reservationMoveAction));
+        final GetReservationByStatusRequest reservationRequest = GetReservationByStatusRequest.newBuilder()
+                .setStatus(ReservationStatus.RESERVED)
+                .build();
+        final Reservation reservation = Reservation.newBuilder()
+                .setId(333L)
+                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                        .addReservationTemplate(ReservationTemplate.newBuilder()
+                                .addReservationInstance(ReservationInstance.newBuilder()
+                                        .setEntityId(222L))))
+                .setName("test-reservation")
+                .build();
+        Mockito.when(reservationServiceMole.getReservationByStatus(reservationRequest))
+                .thenReturn(Lists.newArrayList(reservation));
+        final List<PlacementInfo> placementInfos = reservationsService.getPlacementResults(planId);
+        assertEquals(1, placementInfos.size());
+        assertEquals(111L, placementInfos.get(0).getEntityId());
+        assertEquals(1L, placementInfos.get(0).getProviderIds().size());
+        assertTrue(placementInfos.stream()
+                .map(PlacementInfo::getProviderIds)
+                .flatMap(List::stream)
+                .allMatch(providerId -> providerId.equals(78910L)));
     }
 }

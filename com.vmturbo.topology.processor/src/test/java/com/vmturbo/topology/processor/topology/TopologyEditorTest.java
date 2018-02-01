@@ -77,6 +77,26 @@ public class TopologyEditorTest {
                 .build())
     );
 
+    private final static TopologyEntity.Builder unplacedVm = TopologyEntityUtils.topologyEntityBuilder(
+            TopologyEntityDTO.newBuilder()
+                    .setOid(vmId)
+                    .setDisplayName("UNPLACED-VM")
+                    .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(MEM)
+                                    .setUsed(USED).build())
+                            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(CPU)
+                                    .setUsed(USED).build())
+                            .build())
+                    .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                            .setProviderId(stId)
+                            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(LATENCY)
+                                    .setUsed(USED).build())
+                            .addCommodityBought(CommodityBoughtDTO.newBuilder().setCommodityType(IOPS)
+                                    .setUsed(USED).build())
+                            .build())
+    );
+
     private final static TopologyEntity.Builder pm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
             .setOid(pmId)
@@ -218,6 +238,44 @@ public class TopologyEditorTest {
         Assert.assertEquals(100, storageSoldCommodities.get(0).getUsed(), 0);
         Assert.assertEquals(100, storageSoldCommodities.get(1).getUsed(), 0);
     }
+
+    @Test
+    public void testEditTopologyChangeUtilizationWithUnplacedVM() {
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(
+                unplacedVm.getOid(), unplacedVm,
+                pm.getOid(), pm,
+                st.getOid(), st
+        );
+        final List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder().setPlanChanges(
+                PlanChanges.newBuilder().setUtilizationLevel(
+                        UtilizationLevel.newBuilder().setPercentage(50).build()
+                ).build()
+        ).build());
+        topologyEditor.editTopology(topology, changes);
+        final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
+                .getEntityBuilder()
+                .getCommoditiesBoughtFromProvidersList().stream()
+                .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+        Assert.assertEquals(150, vmCommodities.get(0).getUsed(), 0);
+        Assert.assertEquals(150, vmCommodities.get(1).getUsed(), 0);
+        Assert.assertEquals(USED, vmCommodities.get(2).getUsed(), 0);
+        Assert.assertEquals(USED, vmCommodities.get(3).getUsed(), 0);
+
+        final List<CommoditySoldDTO> pmSoldCommodities = topology.get(pmId)
+                .getEntityBuilder()
+                .getCommoditySoldListList();
+        Assert.assertEquals(USED, pmSoldCommodities.get(0).getUsed(), 0);
+        Assert.assertEquals(USED, pmSoldCommodities.get(1).getUsed(), 0);
+
+        final List<CommoditySoldDTO> storageSoldCommodities = topology.get(stId)
+                .getEntityBuilder()
+                .getCommoditySoldListList();
+        Assert.assertEquals(USED, storageSoldCommodities.get(0).getUsed(), 0);
+        Assert.assertEquals(USED, storageSoldCommodities.get(1).getUsed(), 0);
+    }
+
 
     @Test
     public void testTopologyReplace() {

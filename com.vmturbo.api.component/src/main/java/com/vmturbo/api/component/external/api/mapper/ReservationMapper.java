@@ -175,8 +175,13 @@ public class ReservationMapper {
         DemandReservationApiDTO reservationApiDTO = generateDemandReservationApiDTO(topologyAddition);
         final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
         for (PlacementInfo placementInfo : placementInfos) {
-            demandEntityInfoDTOS.add(
-                    generateDemandEntityInfoDTO(placementInfo, template, serviceEntityMap));
+            try {
+                demandEntityInfoDTOS.add(
+                        generateDemandEntityInfoDTO(placementInfo, template, serviceEntityMap));
+            } catch (ProviderIdNotRecognizedException e) {
+                logger.error("Initial placement failed: " + e.getMessage());
+                throw  new UnknownObjectException("Initial placement failed.");
+            }
         }
         reservationApiDTO.setDemandEntities(demandEntityInfoDTOS);
         return reservationApiDTO;
@@ -204,8 +209,14 @@ public class ReservationMapper {
         // reservation, it is ok to only pick the first one.
         Optional<ReservationTemplate> reservationTemplate = reservationTemplates.stream().findFirst();
         if (reservationTemplate.isPresent()) {
-            convertToDemandEntityDTO(reservationTemplate.get(),
-                    reservationApiDTO);
+            try {
+                convertToDemandEntityDTO(reservationTemplate.get(),
+                        reservationApiDTO);
+            } catch (ProviderIdNotRecognizedException e) {
+                // If there are providerId not found, it means this reservation is unplaced.
+                logger.info("Reservation {} is unplaced: {}", reservation.getId(),
+                        e.getMessage());
+            }
         }
         return reservationApiDTO;
     }
@@ -216,10 +227,11 @@ public class ReservationMapper {
      * @param reservationTemplate {@link ReservationTemplate} contains placement information by template.
      * @param reservationApiDTO {@link DemandReservationApiDTO}
      * @throws UnknownObjectException if there are any unknown objects.
+     * @throws ProviderIdNotRecognizedException if there are provider id is not exist.
      */
     private void convertToDemandEntityDTO(@Nonnull final ReservationTemplate reservationTemplate,
                                           @Nonnull final DemandReservationApiDTO reservationApiDTO)
-            throws UnknownObjectException{
+            throws UnknownObjectException, ProviderIdNotRecognizedException {
         reservationApiDTO.setCount(Math.toIntExact(reservationTemplate.getCount()));
         //TODO: need to make sure templates are always available, if templates are deleted, need to
         // mark Reservation not available or also delete related reservations.
@@ -398,7 +410,7 @@ public class ReservationMapper {
             @Nonnull final PlacementInfo placementInfo,
             @Nonnull final Template template,
             @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
-            throws UnknownObjectException {
+            throws UnknownObjectException, ProviderIdNotRecognizedException {
         DemandEntityInfoDTO demandEntityInfoDTO = new DemandEntityInfoDTO();
         demandEntityInfoDTO.setTemplate(generateTemplateBaseApiDTO(template));
         PlacementInfoDTO placementInfoApiDTO =
@@ -419,7 +431,7 @@ public class ReservationMapper {
     private PlacementInfoDTO createPlacementInfoDTO(
             @Nonnull final PlacementInfo placementInfo,
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap)
-            throws UnknownObjectException {
+            throws UnknownObjectException, ProviderIdNotRecognizedException {
         PlacementInfoDTO placementInfoApiDTO = new PlacementInfoDTO();
         for (long providerId : placementInfo.getProviderIds()) {
             addResourcesApiDTO(providerId,
@@ -436,25 +448,26 @@ public class ReservationMapper {
      * @param providerId oid of provider.
      * @param serviceEntityApiDTOMap a Map which key is oid, value is {@link ServiceEntityApiDTO}.
      * @param placementInfoApiDTO {@link PlacementInfoDTO}.
-     * @throws UnknownObjectException
+     * @throws UnknownObjectException if there are entity types are not support.
+     * @throws ProviderIdNotRecognizedException if there are provider id is not exist.
      */
     private void addResourcesApiDTO(final long providerId,
                                     @Nonnull Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap,
                                     @Nonnull PlacementInfoDTO placementInfoApiDTO)
-            throws UnknownObjectException {
-        ServiceEntityApiDTO serviceEntityApiDTO = Optional.ofNullable(serviceEntityApiDTOMap.get(providerId))
-                .orElseThrow(() -> {
-                    logger.error("Can not found service entity for oid: " + providerId);
-                    return new UnknownObjectException("Initial placement failed");
-                });
-        final int entityType = ServiceEntityMapper.fromUIEntityType(serviceEntityApiDTO.getClassName());
+            throws UnknownObjectException, ProviderIdNotRecognizedException {
+        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional.ofNullable(serviceEntityApiDTOMap.get(providerId));
+        // if entity id is not present, it means this reservation is unplaced.
+        if (!serviceEntityApiDTO.isPresent()) {
+            throw  new ProviderIdNotRecognizedException(providerId);
+        }
+        final int entityType = ServiceEntityMapper.fromUIEntityType(serviceEntityApiDTO.get().getClassName());
         switch (entityType) {
             case EntityType.PHYSICAL_MACHINE_VALUE:
                 final List<ResourceApiDTO> computeResources =
                         placementInfoApiDTO.getComputeResources() != null ?
                                 placementInfoApiDTO.getComputeResources() :
                                 new ArrayList<>();
-                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO));
+                computeResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get()));
                 placementInfoApiDTO.setComputeResources(computeResources);
                 break;
             case EntityType.STORAGE_VALUE:
@@ -462,7 +475,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getStorageResources() != null ?
                                 placementInfoApiDTO.getStorageResources() :
                                 new ArrayList<>();
-                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO));
+                storageResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get()));
                 placementInfoApiDTO.setStorageResources(storageResources);
                 break;
             case EntityType.NETWORK_VALUE:
@@ -470,7 +483,7 @@ public class ReservationMapper {
                         placementInfoApiDTO.getNetworkResources() != null ?
                                 placementInfoApiDTO.getNetworkResources() :
                                 new ArrayList<>();
-                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO));
+                networkResources.add(generateResourcesApiDTO(serviceEntityApiDTO.get()));
                 placementInfoApiDTO.setNetworkResources(networkResources);
                 break;
             default:
@@ -509,6 +522,15 @@ public class ReservationMapper {
 
         public List<Long> getProviderIds() {
             return this.providerIds;
+        }
+    }
+
+    /**
+     * A exception represents provider id is not recognized in current topology.
+     */
+    private static class ProviderIdNotRecognizedException extends Exception {
+        public ProviderIdNotRecognizedException(@Nonnull final long id) {
+            super("Provider Id: " + id + " not found.");
         }
     }
 }

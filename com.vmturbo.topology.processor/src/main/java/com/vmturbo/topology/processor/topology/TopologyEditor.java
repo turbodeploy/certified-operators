@@ -113,8 +113,8 @@ public class TopologyEditor {
                     logger.warn("Unimplemented handling for topology removal with {}",
                             replace.getEntityOrGroupRemovalIdCase());
                 }
-
-            } else if (change.hasPlanChanges()) {
+            // only change utilization when plan changes have utilization level message.
+            } else if (change.hasPlanChanges() && change.getPlanChanges().hasUtilizationLevel()) {
                 final UtilizationLevel utilizationLevel =
                         change.getPlanChanges().getUtilizationLevel();
                 changeUtilization(topology, utilizationLevel.getPercentage());
@@ -194,10 +194,11 @@ public class TopologyEditor {
                 final double changedUtilization = increaseByPercent(commodity.getUsed(), percentage);
                 changedCommodities.add(CommodityBoughtDTO.newBuilder(commodity)
                         .setUsed(changedUtilization).build());
-
-                increaseCommoditySoldByProvider(topology, providerCommodities.getProviderId(),
-                        vm.getOid(), commodityType, percentage);
-
+                // increase provider's commodity sold utilization only when it has provider
+                if (providerCommodities.hasProviderId()) {
+                    increaseCommoditySoldByProvider(topology, providerCommodities.getProviderId(),
+                            vm.getOid(), commodityType, percentage);
+                }
             } else {
                 changedCommodities.add(commodity);
             }
