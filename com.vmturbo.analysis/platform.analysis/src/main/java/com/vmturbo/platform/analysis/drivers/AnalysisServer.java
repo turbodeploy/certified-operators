@@ -317,7 +317,7 @@ public class AnalysisServer implements AutoCloseable {
             // with analysis_failed=true
             logger.error("Encounter invalid data during topology analysis", error);
             StatsUtils statsUtils = new StatsUtils("m2stats-" + instInfo.getMarketName(), true);
-            statsUtils.write("Encounter invalid date during topology analysis: " + error + "\n",
+            statsUtils.write("Encounter invalid data during topology analysis: " + error + "\n",
                             true);
             // since running analysis throws exceptions, we send a failure
             // message with topology id back to notify ops manager
