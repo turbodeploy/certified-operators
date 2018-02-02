@@ -9,13 +9,14 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.stitching.poststitching.CpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuProvisionedPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.DiskArrayStorageProvisionedPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.MemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.MemoryProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageControllerLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageEntityLatencyPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.DiskArrayStorageProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
 
 /**
@@ -46,7 +47,8 @@ public class PostStitchingOperationLibrary {
             new DiskArrayLatencyPostStitchingOperation(),
             new DiskArrayStorageProvisionedPostStitchingOperation(),
             new StorageEntityStorageProvisionedPostStitchingOperation(),
-            new LogicalPoolStorageProvisionedPostStitchingOperation()
+            new LogicalPoolStorageProvisionedPostStitchingOperation(),
+            new MemoryAllocationPostStitchingOperation()
         );
     }
 

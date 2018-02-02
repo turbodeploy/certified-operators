@@ -13,13 +13,19 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import com.google.common.collect.ImmutableList;
 
@@ -34,32 +40,57 @@ import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
-public class CpuAllocationPostStitchingOpTest {
+@RunWith(Parameterized.class)
+public class AllocationPostStitchingOpTest {
+
+    @Parameters
+    public static Collection<Object[]> data() {
+        return Arrays.asList(new Object[][] {
+            {new CpuAllocationPostStitchingOperation(), CommodityType.CPU,
+                CommodityType.CPU_ALLOCATION, EntitySettingSpecs.CpuOverprovisionedPercentage},
+            {new MemoryAllocationPostStitchingOperation(), CommodityType.MEM,
+                CommodityType.MEM_ALLOCATION, EntitySettingSpecs.MemoryOverprovisionedPercentage}
+        });
+    }
+
+    private final OverprovisionCapacityPostStitchingOperation operation;
+
+    private final float overprovisionPercentage = 150;
+    private final EntitySettingSpecs overprovisionSettingType;
+    private final CommoditySoldDTO sourceCommodity;
+    private final CommodityType sourceCommodityType;
+
+    private final double sourceCapacity = 250;
+
+    private final CommoditySoldDTO originalAllocationCommodity;
+    private final double expectedAllocationCapacity = sourceCapacity * overprovisionPercentage / 100;
+    private final CommodityType allocationCommodityType;
+
+    private final List<CommoditySoldDTO> requiredCommodities;
+    private final List<CommoditySoldDTO> expectedCommodities;
 
 
-    private final CpuAllocationPostStitchingOperation operation =
-        new CpuAllocationPostStitchingOperation();
+    public AllocationPostStitchingOpTest(@Nonnull final OverprovisionCapacityPostStitchingOperation op,
+                                         @Nonnull final CommodityType sourceType,
+                                         @Nonnull final CommodityType allocationType,
+                                         @Nonnull final EntitySettingSpecs settingType) {
+        this.operation = op;
+        this.sourceCommodityType = sourceType;
+        this.sourceCommodity = makeCommoditySold(sourceCommodityType, sourceCapacity);
+        this.allocationCommodityType = allocationType;
+        this.originalAllocationCommodity = makeCommoditySold(allocationCommodityType);
+
+        this.overprovisionSettingType = settingType;
+
+        this.requiredCommodities =
+            ImmutableList.of(originalAllocationCommodity, sourceCommodity, irrelevantCommodity);
+        this.expectedCommodities = ImmutableList.of(sourceCommodity, irrelevantCommodity,
+            makeCommoditySold(allocationCommodityType, expectedAllocationCapacity));
+    }
+
     private EntityChangesBuilder<TopologyEntity> resultBuilder;
 
     private final CommoditySoldDTO irrelevantCommodity = makeCommoditySold(CommodityType.BALLOONING);
-
-    private final float overprovisionPercentage = 150;
-
-
-    private final double sourceCapacity = 250;
-    private final CommoditySoldDTO cpuCommodity = makeCommoditySold(CommodityType.CPU, sourceCapacity);
-
-    private final CommoditySoldDTO originalAllocationCommodity = makeCommoditySold(CommodityType.CPU_ALLOCATION);
-    private final double expectedAllocationCapacity = sourceCapacity * overprovisionPercentage / 100;
-
-
-    private final List<CommoditySoldDTO> requiredCommodities = ImmutableList.of(originalAllocationCommodity, cpuCommodity, irrelevantCommodity);
-    private final List<CommoditySoldDTO> expectedCommodities = ImmutableList.of(cpuCommodity, irrelevantCommodity,
-        makeCommoditySold(CommodityType.CPU_ALLOCATION, expectedAllocationCapacity));
-
-
-
-
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
 
     @Before
@@ -67,7 +98,7 @@ public class CpuAllocationPostStitchingOpTest {
         resultBuilder = new UnitTestResultBuilder();
 
         final Setting overprovisionSetting = makeNumericSetting(overprovisionPercentage);
-        when(settingsMock.getEntitySetting(any(TopologyEntity.class), eq(EntitySettingSpecs.CpuOverprovisionedPercentage)))
+        when(settingsMock.getEntitySetting(any(TopologyEntity.class), eq(overprovisionSettingType)))
             .thenReturn(Optional.of(overprovisionSetting));
 
     }
@@ -95,7 +126,7 @@ public class CpuAllocationPostStitchingOpTest {
     @Test
     public void testNoSettings() {
         when(settingsMock.getEntitySetting(any(TopologyEntity.class),
-            eq(EntitySettingSpecs.CpuOverprovisionedPercentage))).thenReturn(Optional.empty());
+            eq(overprovisionSettingType))).thenReturn(Optional.empty());
 
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
 
@@ -127,7 +158,7 @@ public class CpuAllocationPostStitchingOpTest {
     @Test
     public void testNoAllocationCommodity() {
 
-        final List<CommoditySoldDTO> origCommodities = Arrays.asList(cpuCommodity, irrelevantCommodity);
+        final List<CommoditySoldDTO> origCommodities = Arrays.asList(sourceCommodity, irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
         final TopologicalChangelog result =
@@ -140,9 +171,9 @@ public class CpuAllocationPostStitchingOpTest {
     @Test
     public void testAllocationCommodityWithCapacity() {
 
-        final CommoditySoldDTO preloadedAllocation = makeCommoditySold(CommodityType.CPU_ALLOCATION, 99);
+        final CommoditySoldDTO preloadedAllocation = makeCommoditySold(allocationCommodityType, 99);
         final List<CommoditySoldDTO> origCommodities =
-            Arrays.asList(cpuCommodity, irrelevantCommodity, preloadedAllocation);
+            Arrays.asList(sourceCommodity, irrelevantCommodity, preloadedAllocation);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
         final TopologicalChangelog result =
@@ -158,11 +189,11 @@ public class CpuAllocationPostStitchingOpTest {
         final String key1 = "abc";
         final String key2 = "xyz";
 
-        final CommoditySoldDTO allocationWithKey = makeCommoditySold(CommodityType.CPU_ALLOCATION, key1);
-        final CommoditySoldDTO cpuWithKey = makeCommoditySold(CommodityType.CPU, sourceCapacity, key2);
+        final CommoditySoldDTO allocationWithKey = makeCommoditySold(allocationCommodityType, key1);
+        final CommoditySoldDTO sourceWithKey = makeCommoditySold(sourceCommodityType, sourceCapacity, key2);
 
         final List<CommoditySoldDTO> origCommodities =
-            Arrays.asList(cpuWithKey, irrelevantCommodity, allocationWithKey);
+            Arrays.asList(sourceWithKey, irrelevantCommodity, allocationWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
         final TopologicalChangelog result =
@@ -177,10 +208,10 @@ public class CpuAllocationPostStitchingOpTest {
 
         final String key = "abc";
 
-        final CommoditySoldDTO allocationWithKey = makeCommoditySold(CommodityType.CPU_ALLOCATION, key);
+        final CommoditySoldDTO allocationWithKey = makeCommoditySold(allocationCommodityType, key);
 
         final List<CommoditySoldDTO> origCommodities =
-            Arrays.asList(cpuCommodity, irrelevantCommodity, allocationWithKey);
+            Arrays.asList(sourceCommodity, irrelevantCommodity, allocationWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
         final TopologicalChangelog result =
@@ -194,7 +225,7 @@ public class CpuAllocationPostStitchingOpTest {
     public void testDuplicateCommodities() {
 
         final List<CommoditySoldDTO> origCommodities = new ArrayList<>();
-        final CommoditySoldDTO duplicateCommodity = makeCommoditySold(CommodityType.CPU, sourceCapacity);
+        final CommoditySoldDTO duplicateCommodity = makeCommoditySold(sourceCommodityType, sourceCapacity);
         origCommodities.addAll(requiredCommodities);
         origCommodities.add(duplicateCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
@@ -206,7 +237,7 @@ public class CpuAllocationPostStitchingOpTest {
             fail();
         } catch (IllegalStateException e) {
             assertEquals(e.getMessage(), "Found multiple commodities of type " +
-                CommodityType.CPU +" with key "+ duplicateCommodity.getCommodityType().getKey() +
+                sourceCommodityType +" with key "+ duplicateCommodity.getCommodityType().getKey() +
                 " in entity 0");
         }
     }
@@ -231,11 +262,11 @@ public class CpuAllocationPostStitchingOpTest {
     public void testHappyPathWithKeys() {
 
         final String key = "abcdefghij";
-        final CommoditySoldDTO cpuCommodityWithKey =
-            makeCommoditySold(CommodityType.CPU, sourceCapacity, key);
+        final CommoditySoldDTO sourceCommodityWithKey =
+            makeCommoditySold(sourceCommodityType, sourceCapacity, key);
 
         final List<CommoditySoldDTO> origCommodities = Arrays.asList(irrelevantCommodity,
-            makeCommoditySold(CommodityType.CPU_ALLOCATION, key), cpuCommodityWithKey);
+            makeCommoditySold(allocationCommodityType, key), sourceCommodityWithKey);
 
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
@@ -246,8 +277,8 @@ public class CpuAllocationPostStitchingOpTest {
         final List<CommoditySoldDTO> actualCommodities =
             testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
         final List<CommoditySoldDTO> expectedCommodities = Arrays.asList(irrelevantCommodity,
-            makeCommoditySold(CommodityType.CPU_ALLOCATION, expectedAllocationCapacity, key),
-            cpuCommodityWithKey);
+            makeCommoditySold(allocationCommodityType, expectedAllocationCapacity, key),
+            sourceCommodityWithKey);
 
         assertTrue(expectedCommodities.containsAll(actualCommodities));
         assertTrue(actualCommodities.containsAll(expectedCommodities));
@@ -259,17 +290,17 @@ public class CpuAllocationPostStitchingOpTest {
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
 
         final double secondCapacity = 500;
-        final CommoditySoldDTO secondSourceCommodity = makeCommoditySold(CommodityType.CPU, secondCapacity);
+        final CommoditySoldDTO secondSourceCommodity = makeCommoditySold(sourceCommodityType, secondCapacity);
         final TopologyEntity secondTestTE =
             makeTopologyEntity(Arrays.asList(secondSourceCommodity, originalAllocationCommodity));
 
         final List<CommoditySoldDTO> thirdCommodityList =
-            Arrays.asList(cpuCommodity, irrelevantCommodity);
+            Arrays.asList(sourceCommodity, irrelevantCommodity);
         final TopologyEntity thirdTestTE = makeTopologyEntity(thirdCommodityList);
 
-        final CommoditySoldDTO commodityWithCapacity = makeCommoditySold(CommodityType.CPU_ALLOCATION, 4);
+        final CommoditySoldDTO commodityWithCapacity = makeCommoditySold(allocationCommodityType, 4);
         final List<CommoditySoldDTO> fourthCommodityList =
-            Arrays.asList(cpuCommodity, commodityWithCapacity, irrelevantCommodity);
+            Arrays.asList(sourceCommodity, commodityWithCapacity, irrelevantCommodity);
         final TopologyEntity fourthTestTE = makeTopologyEntity(fourthCommodityList);
 
         final TopologicalChangelog result = operation.performOperation(Stream.of(testTE,
@@ -282,7 +313,7 @@ public class CpuAllocationPostStitchingOpTest {
         assertTrue(expectedCommodities.containsAll(firstResult));
 
         final List<CommoditySoldDTO> secondExpectedResult = Arrays.asList(secondSourceCommodity,
-            makeCommoditySold(CommodityType.CPU_ALLOCATION, secondCapacity * overprovisionPercentage / 100));
+            makeCommoditySold(allocationCommodityType, secondCapacity * overprovisionPercentage / 100));
         assertEquals(secondTestTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
             secondExpectedResult);
 
