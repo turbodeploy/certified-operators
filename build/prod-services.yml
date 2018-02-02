@@ -61,6 +61,8 @@ services:
       - mysql_log:/var/log
       - mysql_var:/var/run
     restart: always
+    environment:
+        DB_MEM_PCT_FOR_BUFFER_POOL: ${DB_MEM_PCT_FOR_BUFFER_POOL}
 
   zoo1-prod:
     extends:

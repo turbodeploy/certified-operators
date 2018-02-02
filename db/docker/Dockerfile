@@ -9,6 +9,8 @@ rm -rf /var/run/mysqld && rm -rf /var/lib/mysql
 # The files are copied as root.
 COPY entrypoint.sh /
 COPY my.cnf /etc/mysql/
+COPY change_buffer_pool_size.sh /
+RUN chmod 755 /change_buffer_pool_size.sh
 
 # rsyslog
 ADD rsyslog.conf /etc
