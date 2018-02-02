@@ -113,6 +113,7 @@ public class DockerEnvironment {
             .put("MEDIATION_COMPELLENT_DEBUG_PORT", "8000")
             // MEMORY LIMITS and XMX Settings
             .put("DB_MEM_LIMIT_MB", "2048")
+            .put("DB_MEM_PCT_FOR_BUFFER_POOL", "80")
             .put("ARANGODB_MEM_LIMIT_MB", "1024")
             .put("AUTH_MEM_LIMIT_MB", "768")
             .put("AUTH_XMX_MB", "512")
