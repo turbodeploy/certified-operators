@@ -10,6 +10,7 @@ import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -695,6 +696,30 @@ public class Action implements ActionView {
 
         final ActionDTO.Action recommendation;
 
+        public long getActionPlanId() {
+            return actionPlanId;
+        }
+
+        public ActionDTO.Action getRecommendation() {
+            return recommendation;
+        }
+
+        public LocalDateTime getRecommendationTime() {
+            return recommendationTime;
+        }
+
+        public ActionDecision getActionDecision() {
+            return actionDecision;
+        }
+
+        public ExecutionStep getExecutionStep() {
+            return executionStep;
+        }
+
+        public ActionState getCurrentState() {
+            return currentState;
+        }
+
         final LocalDateTime recommendationTime;
 
         final ActionDecision actionDecision;
@@ -705,7 +730,7 @@ public class Action implements ActionView {
 
         final ActionTranslation actionTranslation;
 
-        SerializationState(@Nonnull final Action action) {
+        public SerializationState(@Nonnull final Action action) {
             this.actionPlanId = action.actionPlanId;
             this.recommendation = action.recommendation;
             this.recommendationTime = action.recommendationTime;
@@ -713,6 +738,22 @@ public class Action implements ActionView {
             this.executionStep = action.executableStep.map(ExecutableStep::getExecutionStep).orElse(null);
             this.currentState = action.stateMachine.getState();
             this.actionTranslation = action.actionTranslation;
+        }
+
+        public SerializationState(final long actionPlanId,
+                                  @Nonnull ActionDTO.Action recommendation,
+                                  @Nonnull LocalDateTime recommendationTime,
+                                  @Nullable ActionDecision decision,
+                                  @Nullable ExecutionStep executableStep,
+                                  @Nonnull ActionState actionState,
+                                  @Nonnull ActionTranslation actionTranslation) {
+            this.actionPlanId = actionPlanId;
+            this.recommendation = recommendation;
+            this.recommendationTime = recommendationTime;
+            this.actionDecision = decision;
+            this.executionStep = executableStep;
+            this.currentState = actionState;
+            this.actionTranslation = actionTranslation;
         }
     }
 }

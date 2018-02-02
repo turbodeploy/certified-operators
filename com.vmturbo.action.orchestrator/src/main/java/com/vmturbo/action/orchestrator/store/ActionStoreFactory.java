@@ -8,6 +8,7 @@ import org.jooq.DSLContext;
 
 import io.grpc.Channel;
 
+import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
@@ -91,7 +92,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
             final ActionExecutor actionExecutor = new ActionExecutor(topologyProcessorChannel,
                     new ActionTargetByProbeCategoryResolver(topologyProcessor, actionCapabilitiesStore));
             return new LiveActionStore(actionFactory, topologyContextId,
-                    new ActionSupportResolver(actionCapabilitiesStore, actionExecutor), entitySettingsCache);
+                    new ActionSupportResolver(actionCapabilitiesStore, actionExecutor), entitySettingsCache,
+                    new ActionHistoryDaoImpl(databaseDslContext));
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);
         }

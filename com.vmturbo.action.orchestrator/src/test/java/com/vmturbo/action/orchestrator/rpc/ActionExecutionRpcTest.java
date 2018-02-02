@@ -26,6 +26,7 @@ import org.mockito.Mockito;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
@@ -63,6 +64,8 @@ public class ActionExecutionRpcTest {
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
+    private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader);
 
@@ -99,7 +102,7 @@ public class ActionExecutionRpcTest {
         when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
         actionStoreSpy =
                 Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                        filter, entitySettingsCache));
+                        filter, entitySettingsCache, actionHistoryDao));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);

@@ -50,6 +50,7 @@ import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorComponent;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
@@ -136,6 +137,8 @@ public class ActionExecutionSecureRpcTest {
     private JWTAuthorizationToken token;
     private Server secureGrpcServer;
     private ManagedChannel channel;
+    private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -221,7 +224,7 @@ public class ActionExecutionSecureRpcTest {
 
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                filter, entitySettingsCache));
+                filter, entitySettingsCache, actionHistoryDao));
         when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());

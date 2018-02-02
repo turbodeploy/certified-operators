@@ -35,6 +35,7 @@ import io.grpc.Status;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
@@ -64,6 +65,9 @@ public class LiveActionStoreTest {
     private final long hostB = 0xB;
     private final long hostC = 0xC;
     private final long hostD = 0xD;
+
+    private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -112,7 +116,7 @@ public class LiveActionStoreTest {
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, filter,
-                entitySettingsCache);
+                entitySettingsCache, actionHistoryDao);
         when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
 
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
@@ -183,7 +187,7 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, filter,
-                        entitySettingsCache);
+                        entitySettingsCache, actionHistoryDao);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
 
@@ -355,6 +359,26 @@ public class LiveActionStoreTest {
                 .map(spec -> spec.getRecommendation().getId())
                 .collect(Collectors.toList()),
             containsInAnyOrder(firstMove.getId(), secondMove.getId()));
+    }
+
+    @Test
+    public void testGetActionViews() throws Exception {
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
+        ActionDTO.Action.Builder secondMove = move(vm1, hostA, hostB);
+
+        ActionPlan plan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(firstPlanId)
+                .addAction(firstMove)
+                .addAction(secondMove)
+                .build();
+
+        actionStore.populateRecommendedActions(plan);
+        assertThat(actionStore.getActionViews().values().stream()
+                        .map(spec -> spec.getRecommendation().getId())
+                        .collect(Collectors.toList()),
+                containsInAnyOrder(firstMove.getId(), secondMove.getId()));
+        verify(actionHistoryDao).getAllActionHistory();
     }
 
     @Test

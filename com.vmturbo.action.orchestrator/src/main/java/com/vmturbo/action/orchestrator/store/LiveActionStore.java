@@ -1,6 +1,5 @@
 package com.vmturbo.action.orchestrator.store;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,32 +25,23 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.StatusRuntimeException;
-
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
 /**
  * {@inheritDoc}
  *
- * Stores actions entirely in memory with no persistence.
+ * Stores actions mainly in memory except executed (SUCCEEDED and FAILED) actions
  * For use with actions from the live market (sometimes also called "real time").
  */
 @ThreadSafe
@@ -70,6 +60,8 @@ public class LiveActionStore implements ActionStore {
     private final EntitySeverityCache severityCache;
 
     private final EntitySettingsCache entitySettingsCache;
+
+    private final ActionHistoryDao actionHistoryDao;
 
     private static final DataMetricSummary ACTION_COUNTS_SUMMARY = DataMetricSummary.builder()
         .withName("ao_live_action_counts")
@@ -106,12 +98,14 @@ public class LiveActionStore implements ActionStore {
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
                            @Nonnull final ActionSupportResolver actionSupportResolver,
-                           @Nonnull final EntitySettingsCache entitySettingsCache) {
+                           @Nonnull final EntitySettingsCache entitySettingsCache,
+                           @Nonnull final ActionHistoryDao actionHistoryDao) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
         this.actionSupportResolver = actionSupportResolver;
         this.entitySettingsCache = entitySettingsCache;
+        this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
     }
 
     /**
@@ -345,10 +339,26 @@ public class LiveActionStore implements ActionStore {
             .map(Function.identity());
     }
 
+
+    /**
+     * SUCCEEDED and FAILED {@link Action} are from DB.
+     * All other {@link Action} are from actions map.
+     *
+     * @return merged actions
+     */
     @Nonnull
     @Override
     public Map<Long, ActionView> getActionViews() {
-        return Collections.unmodifiableMap(new HashMap<>(actions));
+        List <Action> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
+        List<Action> otherActionList = actions.values().stream()
+                .filter(action -> !isSucceededorFailed(action))
+                .collect(Collectors.toList());
+        List <Action> combinedActionList = Stream.of(succeededOrFailedActionList, otherActionList)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
+        Map <Long, Action> combinedActionMap = combinedActionList.stream()
+                .collect(Collectors.toMap(Action::getId, Function.identity()));
+        return Collections.unmodifiableMap(combinedActionMap);
     }
 
     @Override
@@ -398,5 +408,10 @@ public class LiveActionStore implements ActionStore {
     private boolean isAcceptedAndIncomplete(@Nonnull final Action action) {
         final ActionState state = action.getState();
         return (state == ActionState.QUEUED || state == ActionState.IN_PROGRESS);
+    }
+
+    private boolean isSucceededorFailed(@Nonnull final Action action) {
+        final ActionState state = action.getState();
+        return (state == ActionState.SUCCEEDED || state == ActionState.FAILED);
     }
 }

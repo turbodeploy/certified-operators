@@ -129,6 +129,14 @@
                                     <name>com.vmturbo.common.protobuf.action.ActionDTO.Action</name>
                                     <converter>com.vmturbo.action.orchestrator.store.MarketActionConverter</converter>
                                 </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision</name>
+                                    <converter>com.vmturbo.action.orchestrator.store.ActionDecisionConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep</name>
+                                    <converter>com.vmturbo.action.orchestrator.store.ExecutionStepConverter</converter>
+                                </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
@@ -143,6 +151,18 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.action.ActionDTO.Action</name>
                                     <expression>.*\.market_action\.recommendation</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.action.ActionDTO.Action</name>
+                                    <expression>.*\.action_history\.recommendation</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision</name>
+                                    <expression>.*\.action_history\.action_decision</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep</name>
+                                    <expression>.*\.action_history\.execution_step</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

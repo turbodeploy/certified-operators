@@ -15,8 +15,10 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -41,9 +43,10 @@ public class ActionStateUpdaterTest {
     private final ActionStorehouse actionStorehouse = mock(ActionStorehouse.class);
     private final ActionStore actionStore = mock(ActionStore.class);
     private final ActionOrchestratorNotificationSender notificationSender = mock(ActionOrchestratorNotificationSender.class);
+    private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
     private final long realtimeTopologyContextId = 0;
     private final ActionStateUpdater actionStateUpdater =
-        new ActionStateUpdater(actionStorehouse, notificationSender, realtimeTopologyContextId);
+        new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,  realtimeTopologyContextId);
 
     private final long actionId = 123456;
     private final long notFoundId = 99999;
@@ -111,6 +114,14 @@ public class ActionStateUpdaterTest {
         assertEquals(ActionState.SUCCEEDED, testAction.getState());
         assertEquals(Status.SUCCESS, testAction.getExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionSuccess(success);
+        SerializationState serializedAction = new SerializationState(testAction);
+        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
+                recommendation,
+                realtimeTopologyContextId,
+                serializedAction.getRecommendationTime(),
+                serializedAction.getActionDecision(),
+                serializedAction.getExecutionStep(),
+                serializedAction.getCurrentState().getNumber());
     }
 
 
@@ -136,6 +147,14 @@ public class ActionStateUpdaterTest {
         assertEquals(ActionState.FAILED, testAction.getState());
         assertEquals(Status.FAILED, testAction.getExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionFailure(failure);
+        SerializationState serializedAction = new SerializationState(testAction);
+        verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
+                recommendation,
+                realtimeTopologyContextId,
+                serializedAction.getRecommendationTime(),
+                serializedAction.getActionDecision(),
+                serializedAction.getExecutionStep(),
+                serializedAction.getCurrentState().getNumber());
     }
 
     @Test

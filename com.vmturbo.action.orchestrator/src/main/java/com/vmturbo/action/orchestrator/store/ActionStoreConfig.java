@@ -11,6 +11,8 @@ import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConvert
 import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
@@ -107,5 +109,10 @@ public class ActionStoreConfig {
     public ActionStorehouse actionStorehouse() {
         return new ActionStorehouse(actionStoreFactory(), automatedActionExecutor(),
                 actionStoreLoader());
+    }
+
+    @Bean
+    public ActionHistoryDao actionHistory() {
+        return new ActionHistoryDaoImpl(databaseConfig.dsl());
     }
 }

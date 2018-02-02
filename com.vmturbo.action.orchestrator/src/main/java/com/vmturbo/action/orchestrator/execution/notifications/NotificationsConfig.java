@@ -31,6 +31,7 @@ public class NotificationsConfig {
         final ActionExecutionListener executionListener = new ActionStateUpdater(
             actionStoreConfig.actionStorehouse(),
             apiConfig.actionOrchestratorNotificationSender(),
+            actionStoreConfig.actionHistory(),
             globalConfig.realtimeTopologyContextId()
         );
 
