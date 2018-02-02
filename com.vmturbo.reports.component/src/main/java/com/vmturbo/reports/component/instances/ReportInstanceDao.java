@@ -6,6 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
+import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.sql.utils.DbException;
 
@@ -20,13 +21,14 @@ public interface ReportInstanceDao {
      * newly created reporting instance id. Report instance is created as a dirty record in the
      * database and should be committed in order to make it visible to the users.
      *
+     * @param reportType report type to query instances for
      * @param reportTemplateId template id to use
      * @param format format of the report instance to create
      * @return dirty record representation
      * @throws DbException if exception thrown while DB manipulations
      */
     @Nonnull
-    ReportInstanceRecord createInstanceRecord(int reportTemplateId,
+    ReportInstanceRecord createInstanceRecord(@Nonnull ReportType reportType, int reportTemplateId,
             @Nonnull ReportOutputFormat format) throws DbException;
 
     /**
@@ -48,4 +50,16 @@ public interface ReportInstanceDao {
      */
     @Nonnull
     Collection<ReportInstance> getAllInstances() throws DbException;
+
+    /**
+     * Retrieves all the finished (clean) report instances, referring to the specified template.
+     *
+     * @param reportType report type to query instances for
+     * @param templateId template Id to fetch report instances for
+     * @return collection of report instances
+     * @throws DbException if DB exception occurred.
+     */
+    @Nonnull
+    Collection<ReportInstance> getInstancesByTemplate(@Nonnull ReportType reportType,
+            int templateId) throws DbException;
 }

@@ -17,6 +17,7 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
+import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.sql.utils.DbException;
@@ -31,7 +32,7 @@ public class ReportInstanceDaoImpl implements ReportInstanceDao {
     private final DSLContext dsl;
 
     /**
-     * Consctucts the DAO based on the specified Jooq context.
+     * Constructs the DAO based on the specified Jooq context.
      *
      * @param dsl Jooq context to use
      */
@@ -41,14 +42,16 @@ public class ReportInstanceDaoImpl implements ReportInstanceDao {
 
     @Nonnull
     @Override
-    public ReportInstanceRecord createInstanceRecord(int reportTemplateId,
+    public ReportInstanceRecord createInstanceRecord(@Nonnull ReportType reportType, int reportTemplateId,
             @Nonnull ReportOutputFormat format) throws DbException {
+        Objects.requireNonNull(reportType);
+        Objects.requireNonNull(format);
         final long reportId = IdentityGenerator.next();
         logger.debug("Creating new report instance record {} for template {}", reportId,
                 reportTemplateId);
         final Timestamp curTime = new Timestamp(System.currentTimeMillis());
         final ReportInstance instance =
-                new ReportInstance(reportId, curTime, reportTemplateId, false, format);
+                new ReportInstance(reportId, curTime, reportTemplateId, false, format, reportType);
         try {
             dsl.newRecord(REPORT_INSTANCE, instance).store();
         } catch (DataAccessException e) {
@@ -127,6 +130,31 @@ public class ReportInstanceDaoImpl implements ReportInstanceDao {
             throw new DbException("Error fetching report instances", e);
         }
         logger.debug("Successfully retrieved {} report instances", records::size);
+        return records;
+    }
+
+    @Nonnull
+    @Override
+    public Collection<ReportInstance> getInstancesByTemplate(@Nonnull ReportType reportType,
+            int templateId) throws DbException {
+        Objects.requireNonNull(reportType);
+        logger.debug("Getting all the report instances for template {}", templateId);
+        final List<ReportInstance> records;
+        try {
+            records = dsl.transactionResult(configuration -> {
+                final DSLContext context = DSL.using(configuration);
+                return context.selectFrom(REPORT_INSTANCE)
+                        .where(REPORT_INSTANCE.COMMITTED.eq(true)
+                                .and(REPORT_INSTANCE.TEMPLATE_ID.eq(templateId)
+                                        .and(REPORT_INSTANCE.REPORT_TYPE.eq(reportType))))
+                        .fetch()
+                        .into(ReportInstance.class);
+            });
+        } catch (DataAccessException e) {
+            throw new DbException("Error fetching report instances for template " + templateId, e);
+        }
+        logger.debug("Successfully retrieved {} report instances for template {}", records::size,
+                () -> templateId);
         return records;
     }
 

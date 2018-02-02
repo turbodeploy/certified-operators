@@ -25,8 +25,12 @@ import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
 import com.vmturbo.reports.component.schedules.ScheduleDAOimpl;
+import com.vmturbo.reports.component.templates.OnDemandTemplatesDao;
+import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.reports.component.templates.TemplatesDao;
-import com.vmturbo.reports.component.templates.TemplatesDaoImpl;
+import com.vmturbo.reports.component.templates.StandardTemplatesDaoImpl;
+import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
+import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
 
 /**
  * Spring beans configuration for running reporting.
@@ -65,8 +69,9 @@ public class ReportingConfig {
     @Bean
     public ReportingServiceRpc reportingService() {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
-        return new ReportingServiceRpc(componentReportRunner(), templatesDao(), reportInstanceDao(),
-                scheduleDAO(), reportOutputDir, threadPool(), notificationSender());
+        return new ReportingServiceRpc(componentReportRunner(), templatesOrganizer(),
+                reportInstanceDao(), scheduleDAO(), reportOutputDir, threadPool(),
+                notificationSender());
     }
 
     @Bean
@@ -76,8 +81,18 @@ public class ReportingConfig {
     }
 
     @Bean
-    public TemplatesDao templatesDao() {
-        return new TemplatesDaoImpl(dbConfig.dsl());
+    public TemplatesOrganizer templatesOrganizer() {
+        return new TemplatesOrganizer(standardTemplatesDao(), onDemandReportsTemplatesDao());
+    }
+
+    @Bean
+    public TemplatesDao<StandardReportsRecord> standardTemplatesDao() {
+        return new StandardTemplatesDaoImpl(dbConfig.dsl());
+    }
+
+    @Bean
+    public TemplatesDao<OnDemandReportsRecord> onDemandReportsTemplatesDao() {
+        return new OnDemandTemplatesDao(dbConfig.dsl());
     }
 
     @Bean

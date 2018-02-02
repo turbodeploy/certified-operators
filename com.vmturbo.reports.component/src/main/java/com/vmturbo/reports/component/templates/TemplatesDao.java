@@ -10,8 +10,10 @@ import com.vmturbo.sql.utils.DbException;
 
 /**
  * Data access object for reporting templates.
+ *
+ * @param <T> type of report templates to retrieve
  */
-public interface TemplatesDao {
+public interface TemplatesDao<T> {
 
     /**
      * Returns a collection of all the existing standard report templates.
@@ -20,7 +22,7 @@ public interface TemplatesDao {
      * @throws DbException if DB operation failed
      */
     @Nonnull
-    Collection<StandardReportsRecord> getAllReports() throws DbException;
+    Collection<T> getAllTemplates() throws DbException;
 
     /**
      * Retrieves a report template record from the DB for the specified id, or nothing.
@@ -30,5 +32,5 @@ public interface TemplatesDao {
      * @throws DbException if DB operation failed
      */
     @Nonnull
-    Optional<StandardReportsRecord> getTemplateById(int templateId) throws DbException;
+    Optional<T> getTemplateById(int templateId) throws DbException;
 }

@@ -663,7 +663,11 @@
                             <customTypes>
                                 <customType>
                                     <name>com.vmturbo.api.enums.ReportOutputFormat</name>
-                                    <converter>com.vmturbo.reports.component.instances.ReportOutputTypeConverter</converter>
+                                    <converter>com.vmturbo.reports.component.db.converters.ReportOutputTypeConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.api.enums.ReportType</name>
+                                    <converter>com.vmturbo.reports.component.db.converters.ReportTypeConverter</converter>
                                 </customType>
                             </customTypes>
                             <forcedTypes>
@@ -674,6 +678,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.api.enums.ReportOutputFormat</name>
                                     <expression>.*\.report_instance\.output_format</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.api.enums.ReportType</name>
+                                    <expression>.*\.report_instance\.report_type</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

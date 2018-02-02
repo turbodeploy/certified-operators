@@ -1,4 +1,6 @@
-package com.vmturbo.reports.component.instances;
+package com.vmturbo.reports.component.db.converters;
+
+import javax.annotation.Nullable;
 
 import org.jooq.Converter;
 
@@ -10,11 +12,13 @@ import com.vmturbo.api.enums.ReportOutputFormat;
 public class ReportOutputTypeConverter implements Converter<String, ReportOutputFormat> {
 
     @Override
+    @Nullable
     public String to(ReportOutputFormat userObject) {
         return userObject.getLiteral();
     }
 
     @Override
+    @Nullable
     public ReportOutputFormat from(String databaseObject) {
         return ReportOutputFormat.get(databaseObject);
     }

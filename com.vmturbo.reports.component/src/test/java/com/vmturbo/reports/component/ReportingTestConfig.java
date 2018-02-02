@@ -34,8 +34,11 @@ import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
 import com.vmturbo.reports.component.schedules.ScheduleDAOimpl;
+import com.vmturbo.reports.component.templates.OnDemandTemplatesDao;
+import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.reports.component.templates.TemplatesDao;
-import com.vmturbo.reports.component.templates.TemplatesDaoImpl;
+import com.vmturbo.reports.component.templates.StandardTemplatesDaoImpl;
+import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
 import com.vmturbo.sql.utils.FlywayMigrator;
 
 /**
@@ -85,7 +88,7 @@ public class ReportingTestConfig {
 
     @Bean
     protected ReportingServiceImplBase reportingService() {
-        return new ReportingServiceRpc(reportRunner(), templatesDao(), reportInstanceDao(), scheduleDAO(),
+        return new ReportingServiceRpc(reportRunner(), templatesController(), reportInstanceDao(), scheduleDAO(),
                 reportsOutputDir(), Executors.newCachedThreadPool(), notificationSender());
     }
 
@@ -110,8 +113,18 @@ public class ReportingTestConfig {
     }
 
     @Bean
-    public TemplatesDao templatesDao() {
-        return new TemplatesDaoImpl(dbConfig.dsl());
+    public TemplatesOrganizer templatesController() {
+        return new TemplatesOrganizer(standardTemplatesDao(), onDemandTemplatesDao());
+    }
+
+    @Bean
+    public TemplatesDao standardTemplatesDao() {
+        return new StandardTemplatesDaoImpl(dbConfig.dsl());
+    }
+
+    @Bean
+    public TemplatesDao<OnDemandReportsRecord> onDemandTemplatesDao() {
+        return new OnDemandTemplatesDao(dbConfig.dsl());
     }
 
     @Bean

@@ -17,15 +17,17 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
+import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
-import com.vmturbo.reports.component.templates.TemplatesDao;
-import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
+import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -40,11 +42,11 @@ public class ReportingServiceReportGenerationTest {
     @Rule
     public TemporaryFolder tmpFolder = new TemporaryFolder();
 
-    private TemplatesDao templatesDao;
+    private TemplatesOrganizer templatesOrganizer;
     private ReportInstanceDao instancesDao;
     private ScheduleDAO scheduleDAO;
     private ComponentReportRunner reportRunner;
-    private StandardReportsRecord reportTemplate;
+    private ReportTemplate reportTemplate;
     private ReportInstanceRecord dirtyRecord;
     private GenerateReportRequest request;
     private StreamObserver<ReportInstanceId> observer;
@@ -54,23 +56,29 @@ public class ReportingServiceReportGenerationTest {
 
     @Before
     public void init() throws Exception {
-        reportTemplate = new StandardReportsRecord();
-        reportTemplate.setId(100);
-        reportTemplate.setFilename("some-file-name");
+        reportTemplate = ReportTemplate.newBuilder()
+                .setReportType(1)
+                .setId(100)
+                .setFilename("hogwarts-faculties")
+                .setDescription("Faculties of Hogwarts School of Whitchcraft and Wizardry")
+                .build();
         request = GenerateReportRequest.newBuilder()
                 .setFormat(ReportOutputFormat.PDF.getLiteral())
-                .setReportId(reportTemplate.getId())
+                .setTemplate(ReportTemplateId.newBuilder()
+                        .setReportType(1)
+                        .setId(reportTemplate.getId()))
                 .build();
 
-        templatesDao = Mockito.mock(TemplatesDao.class);
-        Mockito.when(templatesDao.getTemplateById(Mockito.anyInt()))
-                .thenReturn(Optional.of(reportTemplate));
+        templatesOrganizer = Mockito.mock(TemplatesOrganizer.class);
+        Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
+                Mockito.anyInt())).thenReturn(Optional.of(reportTemplate));
         reportRunner = Mockito.mock(ComponentReportRunner.class);
         dirtyRecord = Mockito.mock(ReportInstanceRecord.class);
         Mockito.when(dirtyRecord.getId()).thenReturn(200L);
         instancesDao = Mockito.mock(ReportInstanceDao.class);
-        Mockito.when(instancesDao.createInstanceRecord(Mockito.anyInt(),
-                Mockito.any(ReportOutputFormat.class))).thenReturn(dirtyRecord);
+        Mockito.when(
+                instancesDao.createInstanceRecord(Mockito.any(ReportType.class), Mockito.anyInt(),
+                        Mockito.any(ReportOutputFormat.class))).thenReturn(dirtyRecord);
         scheduleDAO = Mockito.mock(ScheduleDAO.class);
 
         observer = (StreamObserver<ReportInstanceId>)Mockito.mock(StreamObserver.class);
@@ -78,7 +86,7 @@ public class ReportingServiceReportGenerationTest {
         notificationSender = Mockito.mock(ReportNotificationSender.class);
         threadPool = Executors.newCachedThreadPool();
 
-        reportingServer = new ReportingServiceRpc(reportRunner, templatesDao, instancesDao, scheduleDAO,
+        reportingServer = new ReportingServiceRpc(reportRunner, templatesOrganizer, instancesDao, scheduleDAO,
                 tmpFolder.newFolder(), threadPool,  notificationSender);
     }
 
@@ -114,7 +122,8 @@ public class ReportingServiceReportGenerationTest {
      */
     @Test
     public void testNoTemplate() throws Exception {
-        Mockito.when(templatesDao.getTemplateById(Mockito.anyInt())).thenReturn(Optional.empty());
+        Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
+                Mockito.anyInt())).thenReturn(Optional.empty());
         reportingServer.generateReport(request, observer);
         Assert.assertThat(expectSyncFailure().getMessage(),
                 CoreMatchers.containsString("Could not find report template by id"));
@@ -127,8 +136,8 @@ public class ReportingServiceReportGenerationTest {
      */
     @Test
     public void testDbErrorFromTemplate() throws Exception {
-        Mockito.when(templatesDao.getTemplateById(Mockito.anyInt()))
-                .thenThrow(new DbException(EXCEPTION_MESSAGE));
+        Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
+                Mockito.anyInt())).thenThrow(new DbException(EXCEPTION_MESSAGE));
         reportingServer.generateReport(request, observer);
         Assert.assertThat(expectSyncFailure().getMessage(),
                 CoreMatchers.containsString(EXCEPTION_MESSAGE));
@@ -141,8 +150,9 @@ public class ReportingServiceReportGenerationTest {
      */
     @Test
     public void testDbErrorFromInstances() throws Exception {
-        Mockito.when(instancesDao.createInstanceRecord(Mockito.anyInt(), Mockito.any()))
-                .thenThrow(new DbException(EXCEPTION_MESSAGE));
+        Mockito.when(
+                instancesDao.createInstanceRecord(Mockito.any(ReportType.class), Mockito.anyInt(),
+                        Mockito.any())).thenThrow(new DbException(EXCEPTION_MESSAGE));
         reportingServer.generateReport(request, observer);
         Assert.assertThat(expectSyncFailure().getMessage(),
                 CoreMatchers.containsString(EXCEPTION_MESSAGE));

@@ -9,7 +9,7 @@ message GenerateReportRequest {
     // This is an literal value from ReportOutputFormat enum
     required string format = 1;
     // ID of the report to generate
-    required int32 report_id = 2;
+    required ReportTemplateId template = 2;
     // Parameters for the report
     map<string, string> parameters = 3;
 }
@@ -38,6 +38,14 @@ message ReportTemplate {
     optional int32 day_type = 9;
 }
 
+// Represents report template - a link to real report template
+message ReportTemplateId {
+    // Id of the template
+    required int32 id = 1;
+    // Report type for this template
+    required int32 report_type = 2;
+}
+
 // Represents reporting response - an internal link to a report instance record
 message ReportInstanceId {
     // Path to the file in the server, where generated report is stored
@@ -49,13 +57,11 @@ message ReportInstance {
     // Id of the report instance
     required int64 id = 1;
     // Template id
-    required int32 template_id = 2;
-    // Report type id
-    required int32 report_type = 3;
+    required ReportTemplateId template = 2;
     // Refers tp RreportOurputFormat
-    required string format = 4;
+    required string format = 3;
     // Timestamp when the report generation started
-    required int64 generation_time = 5;
+    required int64 generation_time = 4;
 }
 
 // Input type for Delete schedule and Get schedule methods
@@ -128,6 +134,8 @@ service ReportingService {
     rpc GetReportData (ReportInstanceId) returns (ReportData);
     // Lists all the instances available in the appliance
     rpc ListAllInstances (Empty) returns (stream ReportInstance);
+    // Lists all the report instances, created for the spcified report template
+    rpc GetInstancesByTemplate (ReportTemplateId) returns (stream ReportInstance);
     // Create and store schedule to db
     rpc AddSchedule (ScheduleInfo) returns (ScheduleDTO);
     // Get all stored schedules

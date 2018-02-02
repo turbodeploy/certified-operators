@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
+import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
 import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
 
 /**
@@ -16,7 +17,7 @@ public class TemplateConverter {
     private TemplateConverter() {}
 
     /**
-     * Converts report template from DB representation into protobuf.
+     * Converts standard report template from DB representation into protobuf.
      *
      * @param src source data from the DB
      * @return protobuf representation
@@ -35,6 +36,26 @@ public class TemplateConverter {
         Optional.ofNullable(src.getDayType())
                 .ifPresent(dayOfWeek -> builder.setDayType(dayOfWeek.ordinal()));
         builder.setReportType(ReportType.BIRT_STANDARD.getValue());
+        return builder.build();
+    }
+
+
+    /**
+     * Converts on demand report template from DB representation into protobuf.
+     *
+     * @param src source data from the DB
+     * @return protobuf representation
+     */
+    @Nonnull
+    public static ReportTemplate convert(@Nonnull OnDemandReportsRecord src) {
+        final ReportTemplate.Builder builder = ReportTemplate.newBuilder();
+        builder.setId(src.getId());
+        Optional.ofNullable(src.getFilename()).ifPresent(builder::setFilename);
+        Optional.ofNullable(src.getTitle()).ifPresent(builder::setTitle);
+        Optional.ofNullable(src.getCategory()).ifPresent(builder::setCategory);
+        Optional.ofNullable(src.getShortDesc()).ifPresent(builder::setShortDescription);
+        builder.setDescription(src.getDescription());
+        builder.setReportType(ReportType.BIRT_ON_DEMAND.getValue());
         return builder.build();
     }
 }

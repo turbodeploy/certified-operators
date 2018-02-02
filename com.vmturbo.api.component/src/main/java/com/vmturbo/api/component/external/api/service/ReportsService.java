@@ -30,18 +30,18 @@ import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReportsService;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstance;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
 
 /**
  * Service implementation of Reports.
- **/
+ */
 public class ReportsService implements IReportsService {
 
     private final Logger logger = LogManager.getLogger(getClass());
@@ -68,19 +68,20 @@ public class ReportsService implements IReportsService {
 
     @Override
     public List<ReportInstanceApiDTO> getInstancesList() throws Exception {
-        final Map<Pair<Integer, Integer>, ReportTemplate> templatesMap = new HashMap<>();
+        final Map<ReportTemplateId, ReportTemplate> templatesMap = new HashMap<>();
         final Iterator<ReportTemplate> templates =
                 reportingService.listAllTemplates(Empty.getDefaultInstance());
-        templates.forEachRemaining(template -> templatesMap.put(
-                Pair.create(template.getReportType(), template.getId()), template));
+        templates.forEachRemaining(template -> templatesMap.put(ReportTemplateId.newBuilder()
+                .setReportType(template.getReportType())
+                .setId(template.getId())
+                .build(), template));
 
         final List<ReportInstanceApiDTO> result = new ArrayList<>();
         final Iterator<ReportInstance> reportIterator =
                 reportingService.listAllInstances(Empty.getDefaultInstance());
         while (reportIterator.hasNext()) {
             final ReportInstance instance = reportIterator.next();
-            final ReportTemplate template = templatesMap.get(
-                    Pair.create(instance.getReportType(), instance.getTemplateId()));
+            final ReportTemplate template = templatesMap.get(instance.getTemplate());
             final ReportInstanceApiDTO reportInstance = new ReportInstanceApiDTO();
             reportInstance.setFilename(template.getFilename());
             reportInstance.setFormat(Collections.singletonMap(instance.getFormat(),
@@ -145,7 +146,9 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public List<ReportInstanceApiDTO> getReportTemplateInstanceList(final String s, final String s1, final String s2, final boolean b) throws Exception {
+    public List<ReportInstanceApiDTO> getReportTemplateInstanceList(final String templateId,
+            final String startTime, final String endTime, final boolean exteractZip)
+            throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -163,17 +166,16 @@ public class ReportsService implements IReportsService {
         logger.debug("Report generation requested for template {} and format {} with attributes {}",
                 templateApiId::toString, reportApiRequest::getFormat,
                 reportApiRequest::getAttributes);
-        final int templateId = getReportTemplateId(templateApiId);
-        final ReportType reportType = getReportType(templateApiId);
+        final ReportTemplateId templateId = getReportTemplateId(templateApiId);
         final GenerateReportRequest.Builder builder =
-                GenerateReportRequest.newBuilder().setReportId(templateId);
+                GenerateReportRequest.newBuilder().setTemplate(templateId);
         builder.setFormat(reportApiRequest.getFormat().getLiteral());
         // TODO add attributes, as soon as we face at least one real use case
         final ReportInstanceId response = reportingService.generateReport(builder.build());
         final ReportInstanceApiDTO result = new ReportInstanceApiDTO();
         result.setFilename(Long.toString(response.getId()));
-        result.setReportType(reportType);
-        result.setTemplateId(reportType.getValue(), templateId);
+        result.setReportType(ReportType.get(templateId.getReportType()));
+        result.setTemplateId(templateId.getReportType(), templateId.getId());
         result.setUserName(reportApiRequest.getUserName());
         result.setScope(new BaseApiDTO());
         logger.trace("Report generation triggered successfully into file {}", result::getFilename);
@@ -187,12 +189,11 @@ public class ReportsService implements IReportsService {
 
     @Override
     public List<ReportScheduleApiDTO> getReportTemplateScheduleList(final String reportTypeAndTemplateId) {
-        final int reportType = getReportType(reportTypeAndTemplateId).getValue();
-        final int templateId = getReportTemplateId(reportTypeAndTemplateId);
+        final ReportTemplateId templateId = getReportTemplateId(reportTypeAndTemplateId);
         final Reporting.GetSchedulesByRequest request = Reporting.GetSchedulesByRequest
                         .newBuilder()
-                        .setReportType(reportType)
-                        .setTemplateId(templateId)
+                        .setReportType(templateId.getReportType())
+                        .setTemplateId(templateId.getId())
                         .build();
         final List<ReportScheduleApiDTO> scheduleApiDTOS = new ArrayList<>();
         reportingService.getSchedulesBy(request).forEachRemaining(
@@ -210,15 +211,22 @@ public class ReportsService implements IReportsService {
         return toReportScheduleApiDTO(scheduleDTO);
     }
 
+    /**
+     * Converts schedule into protobuf representation
+     *
+     * @param restTemplateId template id
+     * @param reportScheduleApiInputDTO schedule REST representation
+     * @return protobuf representation
+     */
     @Nonnull
-    private Reporting.ScheduleInfo toScheduleInfo(String s, @Nonnull ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
-        final int reportType = getReportType(s).getValue();
-        final int reportTemplateId = getReportTemplateId(s);
+    private Reporting.ScheduleInfo toScheduleInfo(@Nonnull String restTemplateId,
+            @Nonnull ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
+        final ReportTemplateId templateId = getReportTemplateId(restTemplateId);
         final List<String> emails = Arrays.asList(reportScheduleApiInputDTO.getEmail().split(","));
         emails.forEach(String::trim);
         final Reporting.ScheduleInfo.Builder infoBuilder = Reporting.ScheduleInfo.newBuilder()
-                .setReportType(reportType)
-                .setTemplateId(reportTemplateId)
+                .setReportType(templateId.getReportType())
+                .setTemplateId(templateId.getId())
                 .setDayOfWeek(reportScheduleApiInputDTO.getDow().getName())
                 .setFormat(reportScheduleApiInputDTO.getFormat().getLiteral())
                 .setPeriod(reportScheduleApiInputDTO.getPeriod().getName())
@@ -309,55 +317,47 @@ public class ReportsService implements IReportsService {
     }
 
     /**
-     * Extracts report templated id from the UI supplied Id. In the UI report template is combined
-     * in form (reportType)_(templateId).
+     * Extracts report templated id and report type from the UI supplied Id. In the UI report
+     * template is combined in form (reportType)_(templateId).
      *
      * @param reportApiId UI supplied Id.
-     * @return internal report template id.
+     * @return report template ID protobuf representation
      */
-    private int getReportTemplateId(@Nonnull String reportApiId) {
+    @Nonnull
+    private ReportTemplateId getReportTemplateId(@Nonnull String reportApiId) {
         final String[] parts = reportApiId.split("_");
         if (parts.length != 2) {
             throw new IllegalArgumentException(
                     "Report id is malformed. Should be <reportType>_<id>. but is " + reportApiId);
         }
         final String reportIdString = parts[1];
+        final int templateId;
         if (!StringUtils.isNumeric(reportIdString)) {
             throw new IllegalArgumentException(
                     "Report id is not parsable: " + reportIdString + " from report id request " +
                             reportApiId);
         } else {
-            return Integer.valueOf(parts[1]);
-        }
-    }
-
-    /**
-     * Extracts report templated id from the UI supplied Id. In the UI report template is combined
-     * in form (reportType)_(templateId).
-     *
-     * @param reportApiId UI supplied Id.
-     * @return internal report template id.
-     */
-    @Nonnull
-    private ReportType getReportType(@Nonnull String reportApiId) {
-        final String[] parts = reportApiId.split("_");
-        if (parts.length != 2) {
-            throw new IllegalArgumentException(
-                    "Report id is malformed. Should be <reportType>_<id>. but is " + reportApiId);
+            templateId = Integer.valueOf(parts[1]);
         }
         final String reportTypeString = parts[0];
+        final ReportType reportType;
         if (!StringUtils.isNumeric(reportTypeString)) {
-            throw new IllegalArgumentException(
-                    "Report type is not parsable: " + reportTypeString + " from report id request " +
-                            reportApiId);
+            throw new IllegalArgumentException("Report type is not parsable: " + reportTypeString +
+                    " from report id request " + reportApiId);
         } else {
+            // This conversion is used only to ensure, that input report type, arrived from REST api
+            // is correct. Really, the enum value is not required
             final ReportType result = ReportType.get(Integer.valueOf(reportTypeString));
             if (result == null) {
                 throw new IllegalArgumentException(
                         "Could not find ReportType by id " + reportTypeString);
             } else {
-                return result;
+                reportType = result;
             }
         }
+        return ReportTemplateId.newBuilder()
+                .setId(templateId)
+                .setReportType(reportType.getValue())
+                .build();
     }
 }

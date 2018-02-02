@@ -10,14 +10,14 @@ import java.util.concurrent.Executor;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.protobuf.ByteString;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
@@ -28,17 +28,17 @@ import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportData;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
 import com.vmturbo.reports.component.ComponentReportRunner;
 import com.vmturbo.reports.component.ReportRequest;
 import com.vmturbo.reports.component.ReportingException;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
+import com.vmturbo.reports.component.instances.ReportInstanceConverter;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
-import com.vmturbo.reports.component.templates.TemplateConverter;
-import com.vmturbo.reports.component.templates.TemplatesDao;
-import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
+import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -55,7 +55,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
      */
     private final Logger logger = LogManager.getLogger();
 
-    private final TemplatesDao templatesDao;
+    private final TemplatesOrganizer templatesOrganizer;
     private final ReportInstanceDao reportInstanceDao;
     private final ScheduleDAO scheduleDAO;
 
@@ -67,7 +67,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
      * Creates reporting GRPC service.
      *
      * @param reportRunner report runner to use
-     * @param templatesDao DAO resposible for template-related queries
+     * @param templatesOrganizer DAO resposible for template-related queries
      * @param reportInstanceDao DAO for accessing report instances records in the DB
      * @param scheduleDAO DAO for accessing to schedules in the DB
      * @param outputDirectory directory to put generated report files into
@@ -75,11 +75,12 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
      * @param notificationSender notification sender to broadcast report generation results
      */
     public ReportingServiceRpc(@Nonnull ComponentReportRunner reportRunner,
-            @Nonnull TemplatesDao templatesDao, @Nonnull ReportInstanceDao reportInstanceDao,
-            @Nonnull ScheduleDAO scheduleDAO, @Nonnull File outputDirectory, @Nonnull Executor executor,
+            @Nonnull TemplatesOrganizer templatesOrganizer,
+            @Nonnull ReportInstanceDao reportInstanceDao, @Nonnull ScheduleDAO scheduleDAO,
+            @Nonnull File outputDirectory, @Nonnull Executor executor,
             @Nonnull ReportNotificationSender notificationSender) {
         this.reportRunner = Objects.requireNonNull(reportRunner);
-        this.templatesDao = Objects.requireNonNull(templatesDao);
+        this.templatesOrganizer = Objects.requireNonNull(templatesOrganizer);
         this.reportInstanceDao = Objects.requireNonNull(reportInstanceDao);
         this.scheduleDAO = scheduleDAO;
         this.outputDirectory = Objects.requireNonNull(outputDirectory);
@@ -101,16 +102,18 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     public void generateReport(GenerateReportRequest request,
             StreamObserver<ReportInstanceId> responseObserver) {
         try {
-            final StandardReportsRecord template =
-                    templatesDao.getTemplateById(request.getReportId())
+            final ReportTemplateId templateId = request.getTemplate();
+            final ReportType reportType = ReportType.get(templateId.getReportType());
+            final ReportTemplate template =
+                    templatesOrganizer.getTemplateById(reportType, templateId.getId())
                             .orElseThrow(() -> new ReportingException(
                                     "Could not find report template by id " +
-                                            request.getReportId()));
+                                            templateId.getId()));
             final String reportPath = "/VmtReports/" + template.getFilename() + ".rptdesign";
             final ReportOutputFormat format =
                     Objects.requireNonNull(ReportOutputFormat.get(request.getFormat()));
             final ReportInstanceRecord reportInstance =
-                    reportInstanceDao.createInstanceRecord(request.getReportId(), format);
+                    reportInstanceDao.createInstanceRecord(reportType, templateId.getId(), format);
             final ReportRequest report =
                     new ReportRequest(reportPath, format, request.getParametersMap());
             final File file = new File(outputDirectory, Long.toString(reportInstance.getId()));
@@ -120,7 +123,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             responseObserver.onNext(resultBuilder.build());
             responseObserver.onCompleted();
         } catch (ReportingException | DbException e) {
-            logger.error("Failed to generate report " + request.getReportId(), e);
+            logger.error("Failed to generate report " + request.getTemplate().getId(), e);
             responseObserver.onError(
                     new StatusRuntimeException(Status.INTERNAL.withDescription(e.getMessage())));
         }
@@ -165,9 +168,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     public void listAllTemplates(Empty request,
             StreamObserver<ReportTemplate> responseObserver) {
         try {
-            for (StandardReportsRecord report : templatesDao.getAllReports()) {
-                responseObserver.onNext(TemplateConverter.convert(report));
-            }
+            templatesOrganizer.getAllTemplates().forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (DbException e) {
             logger.error("Failed fetch report templates", e);
@@ -180,19 +181,32 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     public void listAllInstances(Empty request,
             StreamObserver<Reporting.ReportInstance> responseObserver) {
         try {
-            for (ReportInstance reportInstance : reportInstanceDao.getAllInstances()) {
-                final Reporting.ReportInstance.Builder builder =
-                        Reporting.ReportInstance.newBuilder();
-                builder.setFormat(reportInstance.getOutputFormat().getLiteral());
-                builder.setId(reportInstance.getId());
-                builder.setReportType(ReportType.BIRT_STANDARD.getValue());
-                builder.setTemplateId(reportInstance.getTemplateId());
-                builder.setGenerationTime(reportInstance.getGenerationTime().getTime());
-                responseObserver.onNext(builder.build());
-            }
+            reportInstanceDao.getAllInstances()
+                    .stream()
+                    .map(ReportInstanceConverter::convert)
+                    .forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (DbException e) {
             logger.error("Failed fetching all the report instances", e);
+            responseObserver.onError(
+                    new StatusRuntimeException(Status.INTERNAL.withDescription(e.getMessage())));
+        }
+    }
+
+    @Override
+    public void getInstancesByTemplate(ReportTemplateId request,
+            StreamObserver<Reporting.ReportInstance> responseObserver) {
+        try {
+            final ReportType reportType = ReportType.get(request.getReportType());
+            reportInstanceDao.getInstancesByTemplate(reportType, request.getId())
+                    .stream()
+                    .map(ReportInstanceConverter::convert)
+                    .forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        } catch (DbException e) {
+            logger.error(
+                    "Failed fetching report instances for template " + request.getReportType() +
+                            '-' + request.getId(), e);
             responseObserver.onError(
                     new StatusRuntimeException(Status.INTERNAL.withDescription(e.getMessage())));
         }
@@ -212,8 +226,8 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             final ReportInstance instance = reportInstanceDao.getInstanceRecord(request.getId())
                     .orElseThrow(() -> new ReportingException(
                             "Report instance not found by id " + request.getId()));
-            final StandardReportsRecord template =
-                    templatesDao.getTemplateById(instance.getTemplateId())
+            final ReportTemplate template =
+                    templatesOrganizer.getTemplateById(instance.getReportType(), instance.getTemplateId())
                             .orElseThrow(() -> new ReportingException(
                                     "Template " + instance.getTemplateId() +
                                             " not found for report " + request.getId()));
