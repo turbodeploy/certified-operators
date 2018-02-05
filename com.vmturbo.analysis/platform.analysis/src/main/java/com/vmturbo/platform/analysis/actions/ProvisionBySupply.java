@@ -271,33 +271,31 @@ public class ProvisionBySupply extends ActionImpl {
      * @param unPlacedClones a list of cloned traders that are unplaced
      */
     private void runBootstrapToPlaceClones(List<Trader> unPlacedClones) {
-        try {
-            List<Action> actions = new ArrayList<>();
-            for (Trader trader : unPlacedClones) {
-                if (trader.getSettings().isShopTogether()) {
+        List<Action> actions = new ArrayList<>();
+        for (Trader trader : unPlacedClones) {
+            // for each trader, we create a map to hold the sl may require provisions
+            Map<ShoppingList, Long> slsThatNeedProvBySupply = new HashMap<>();
+            if (trader.getSettings().isShopTogether()) {
+                actions.addAll(BootstrapSupply
+                               .shopTogetherBootstrapForIndividualBuyer(getEconomy(), trader,
+                                                                        slsThatNeedProvBySupply));
+                actions.addAll(BootstrapSupply
+                               .processCachedShoptogetherSls(getEconomy(), slsThatNeedProvBySupply));
+            } else {
+                Set<Entry<ShoppingList, Market>> slByMkt = getEconomy()
+                                .getMarketsAsBuyer(trader).entrySet();
+                slByMkt.stream().forEach(e ->  {
                     actions.addAll(BootstrapSupply
-                                   .shopTogetherBootstrapForIndividualBuyer(getEconomy(), trader));
-                    actions.addAll(BootstrapSupply
-                                              .processCachedShoptogetherSls(getEconomy()));
-                } else {
-                    Set<Entry<ShoppingList, Market>> slByMkt = getEconomy()
-                                    .getMarketsAsBuyer(trader).entrySet();
-                    slByMkt.stream().forEach(e ->  {
-                        actions.addAll(BootstrapSupply
-                                       .nonShopTogetherBootStrapForIndividualBuyer(getEconomy(),
-                                                                                   e.getKey(),
-                                                                                   e.getValue()));
-                        actions.addAll(BootstrapSupply
-                                       .processSlsThatNeedProvBySupply(getEconomy()));
-                    });
-                }
+                                   .nonShopTogetherBootStrapForIndividualBuyer(getEconomy(),
+                                                                               e.getKey(),
+                                                                               e.getValue(),
+                                                                               slsThatNeedProvBySupply));
+                    actions.addAll(BootstrapSupply.processSlsThatNeedProvBySupply(getEconomy(),
+                                                                   slsThatNeedProvBySupply));
+                });
             }
-            subsequentActions_.addAll(actions);
-        } finally {
-            // we should always clear the slsThatNeedProvBySupply map, even when an exception is
-            // thrown, otherwise the following analysis cycles will be affected
-            BootstrapSupply.slsThatNeedProvBySupply.clear();
         }
+        subsequentActions_.addAll(actions);
     }
 
     @Override

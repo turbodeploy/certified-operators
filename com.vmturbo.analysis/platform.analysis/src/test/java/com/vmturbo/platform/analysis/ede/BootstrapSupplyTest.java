@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.Function;
@@ -52,7 +53,8 @@ public class BootstrapSupplyTest {
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList =
-                        BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm1);
+                        BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm1,
+                                                                                new HashMap<>());
 
         assertTrue(bootStrapActionList.size() == 1);
         Action compoundMove = bootStrapActionList.get(0);
@@ -82,7 +84,8 @@ public class BootstrapSupplyTest {
         economy.populateMarketsWithSellers();
 
         List<Action> bootStrapActionList =
-                        BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm1);
+                        BootstrapSupply.shopTogetherBootstrapForIndividualBuyer(economy, vm1,
+                                                                                new HashMap<>());
 
         assertTrue(bootStrapActionList.size() == 2);
         assertEquals(ActionType.PROVISION_BY_DEMAND, bootStrapActionList.get(0).getType());
