@@ -471,6 +471,16 @@ public class CostFunctionFactory {
                         QuoteMinimizer::combine);
         Trader matchingTP = minimizer.getBestSeller();
 
+        // matchingTP is becoming null because minimizer has no best seller.
+        // This can happen in 2 cases,
+        // 1) when the budget of a business account is too low and then the quote in
+        // budgetDepletionRiskBasedQuoteFunction is infinity
+        // 2) when none of the mutableSellers can fit the buyer
+        // so when it gets here, minimizer has no best seller.
+        if (matchingTP == null) {
+            return Double.POSITIVE_INFINITY;
+        }
+
         // The capacity of a coupon commodity sold by a template provider reflects the number of
         // coupons associated with the template it represents. This number is the requested amount
         // of coupons by a matching vm.
