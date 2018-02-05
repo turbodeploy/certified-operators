@@ -34,7 +34,6 @@ import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
-import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 

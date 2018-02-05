@@ -54,7 +54,7 @@ public class HistoryPlanPerformanceTest extends HistoryPerformanceTest {
                 .withConfiguration("topologyProcessorHost", ComponentUtils.getDockerHostRoute())
                 .withConfiguration("marketHost", ComponentUtils.getDockerHostRoute())
                 .withMemLimit(2, MetricPrefix.GIGA)
-                .withHealthCheckTimeoutMinutes(10)
+                .withHealthCheckTimeoutMinutes(15)
                 .logsToLogger(logger)))
         .withoutStubs()
         .scrapeClusterAndLocalMetricsToInflux();

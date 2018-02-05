@@ -62,7 +62,7 @@ public class ComponentCluster {
 
     private static final String PERF_TEST_PROJECT_NAME = "perftest";
 
-    public static final int DEFAULT_HEALTH_CHECK_WAIT_MINUTES = 5;
+    public static final int DEFAULT_HEALTH_CHECK_WAIT_MINUTES = 8;
 
     private static final Logger logger = LogManager.getLogger();
 

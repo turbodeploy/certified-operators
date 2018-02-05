@@ -3,7 +3,9 @@ package com.vmturbo.components.test.utilities.component;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Duration;
 
 import org.junit.Rule;
@@ -35,7 +37,12 @@ public class ServiceHealthCheckTest {
     @Test
     public void testWaitUntilReadyTimesOut() throws Exception {
         final Container container = mock(Container.class);
-        final ServiceHealthCheck healthCheck = spy(new BasicServiceHealthCheck());
+        final Clock clock = mock(Clock.class);
+        when(clock.millis())
+            .thenReturn(1000L)
+            .thenReturn(2000L);
+
+        final ServiceHealthCheck healthCheck = spy(new BasicServiceHealthCheck(clock));
         doReturn(SuccessOrFailure.failure("not ready")).when(healthCheck).isHealthy(container);
 
         expectedException.expect(ContainerUnreadyException.class);

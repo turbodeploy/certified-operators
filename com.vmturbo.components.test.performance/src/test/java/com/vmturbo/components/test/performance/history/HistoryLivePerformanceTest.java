@@ -55,7 +55,7 @@ public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
                     .withConfiguration("writeTopologyChunkSize", "1000") // default is 100
                     .withConfiguration("migrationTimeoutSeconds", "900") // 15 mins
                 .withMemLimit(2048, MetricPrefix.MEGA)
-                .withHealthCheckTimeoutMinutes(10)
+                .withHealthCheckTimeoutMinutes(15)
                 .logsToLogger(logger)))
         .withoutStubs()
         .scrapeClusterAndLocalMetricsToInflux();

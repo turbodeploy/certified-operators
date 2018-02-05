@@ -1,10 +1,13 @@
 package com.vmturbo.components.test.utilities.component;
 
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Duration;
+import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.palantir.docker.compose.connection.Container;
 import com.palantir.docker.compose.connection.State;
 import com.palantir.docker.compose.connection.waiting.SuccessOrFailure;
@@ -20,6 +23,17 @@ public abstract class ServiceHealthCheck {
      * How frequently to poll a component's health.
      */
     private static final long POLL_INTERVAL_MILLIS = 100;
+
+    private final Clock waitClock;
+
+    public ServiceHealthCheck() {
+        this(Clock.systemUTC());
+    }
+
+    @VisibleForTesting
+    ServiceHealthCheck(@Nonnull final Clock clock) {
+        this.waitClock = Objects.requireNonNull(clock);
+    }
 
     /**
      * Check if a service is healthy.
@@ -47,11 +61,11 @@ public abstract class ServiceHealthCheck {
      */
     public void waitUntilReady(@Nonnull final Container container, @Nonnull final Duration timeout)
         throws InterruptedException, ContainerUnreadyException {
-        Duration elapsed = Duration.ofMillis(0);
 
+        final long waitStartTime = waitClock.millis();
         while (isHealthy(container).failed()) {
             Thread.sleep(POLL_INTERVAL_MILLIS);
-            elapsed = elapsed.plus(Duration.ofMillis(POLL_INTERVAL_MILLIS));
+            final Duration elapsed = Duration.ofMillis(waitClock.millis() - waitStartTime);
 
             if (elapsed.compareTo(timeout) > 0) {
                 throw new ContainerUnreadyException("Container " + container.getContainerName() +
@@ -98,6 +112,22 @@ public abstract class ServiceHealthCheck {
      * If it is not down, the health check reports success.
      */
     public static class BasicServiceHealthCheck extends ServiceHealthCheck {
+
+        /**
+         * Create a new {@link BasicServiceHealthCheck}.
+         */
+        public BasicServiceHealthCheck() {
+
+        }
+
+        /**
+         * Create a new {@link BasicServiceHealthCheck} using the given clock for timing out failed health checks.
+         */
+        @VisibleForTesting
+        BasicServiceHealthCheck(@Nonnull final Clock waitClock) {
+            super(waitClock);
+        }
+
         @Override
         public SuccessOrFailure isHealthy(@Nonnull Container container)
             throws ContainerUnreadyException, InterruptedException {
