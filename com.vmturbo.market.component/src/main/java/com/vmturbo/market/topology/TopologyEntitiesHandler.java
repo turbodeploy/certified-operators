@@ -27,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -134,7 +135,7 @@ public class TopologyEntitiesHandler {
                     + Long.toString(topologyInfo.getTopologyContextId()) + "-"
                     + Long.toString(topologyInfo.getTopologyId());
             actions = ede.generateActions(economy, true,
-                    true, true, true, true, marketId, isRealtime);
+                    true, true, true, true, marketId, isRealtime, SuspensionsThrottlingConfig.DEFAULT);
         }
         final long stop = System.nanoTime();
 
