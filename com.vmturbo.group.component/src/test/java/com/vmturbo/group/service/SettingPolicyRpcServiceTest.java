@@ -313,7 +313,7 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onCompleted();
 
         assertEquals(DeleteSettingPolicyResponse.getDefaultInstance(), responseCaptor.getValue());
-        verify(settingStore).deleteSettingPolicy(eq(id));
+        verify(settingStore).deleteSettingPolicy(eq(id), eq(true));
     }
 
     @Test
@@ -321,7 +321,7 @@ public class SettingPolicyRpcServiceTest {
         final long id = 7;
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.deleteSettingPolicy(eq(id)))
+        when(settingStore.deleteSettingPolicy(eq(id), eq(true)))
             .thenThrow(new SettingPolicyNotFoundException(id));
         service.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
                 .setId(id)
@@ -342,7 +342,7 @@ public class SettingPolicyRpcServiceTest {
         final String error = "ERRORMSG";
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.deleteSettingPolicy(eq(id)))
+        when(settingStore.deleteSettingPolicy(eq(id), eq(true)))
                 .thenThrow(new InvalidSettingPolicyException(error));
         service.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
                 .setId(id)

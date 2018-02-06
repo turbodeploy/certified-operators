@@ -606,6 +606,7 @@ public class SettingsMapper {
             apiDto.setEntityType(ServiceEntityMapper.toUIEntityType(info.getEntityType()));
             apiDto.setDisabled(!info.getEnabled());
             apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
+            apiDto.setReadOnly(settingPolicy.getSettingPolicyType().equals(Type.DISCOVERED));
 
             if (info.hasScope()) {
                 apiDto.setScopes(info.getScope().getGroupsList().stream()

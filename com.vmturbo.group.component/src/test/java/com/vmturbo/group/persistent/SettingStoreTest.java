@@ -257,10 +257,16 @@ public class SettingStoreTest {
                 policy.getInfo().toBuilder().setName("blah").build());
     }
 
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testUpdateDiscoveredSettingPolicyFail() throws Exception {
+        final SettingPolicy policy = settingStore.createDiscoveredSettingPolicy(info);
+        settingStore.updateSettingPolicy(policy.getId(), policy.getInfo());
+    }
+
     @Test
     public void testDeleteSettingPolicy() throws Exception {
         final SettingPolicy policy = settingStore.createUserSettingPolicy(info);
-        final SettingPolicy deletedPolicy = settingStore.deleteSettingPolicy(policy.getId());
+        final SettingPolicy deletedPolicy = settingStore.deleteSettingPolicy(policy.getId(), true);
         assertEquals(policy, deletedPolicy);
         assertFalse(settingStore.getSettingPolicy(policy.getId()).isPresent());
     }
@@ -268,12 +274,26 @@ public class SettingStoreTest {
     @Test(expected = InvalidSettingPolicyException.class)
     public void testDeleteDefaultFail() throws Exception {
         final SettingPolicy policy = settingStore.createDefaultSettingPolicy(info);
-        settingStore.deleteSettingPolicy(policy.getId());
+        settingStore.deleteSettingPolicy(policy.getId(), true);
+    }
+
+    @Test(expected = InvalidSettingPolicyException.class)
+    public void testDeleteDiscoveredFailWhenByUser() throws Exception {
+        final SettingPolicy policy = settingStore.createDiscoveredSettingPolicy(info);
+        settingStore.deleteSettingPolicy(policy.getId(), true);
+    }
+
+    public void testDeleteDiscoveredSuccessWhenNotByUser() throws Exception {
+        final SettingPolicy policy = settingStore.createDiscoveredSettingPolicy(info);
+        assertTrue(settingStore.getSettingPolicy(policy.getId()).isPresent());
+
+        settingStore.deleteSettingPolicy(policy.getId(), false);
+        assertFalse(settingStore.getSettingPolicy(policy.getId()).isPresent());
     }
 
     @Test(expected = SettingPolicyNotFoundException.class)
     public void testDeleteNotFound() throws Exception {
-        settingStore.deleteSettingPolicy(77);
+        settingStore.deleteSettingPolicy(77, true);
     }
 
     @Test

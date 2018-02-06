@@ -138,7 +138,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         try {
             logger.info("Attempting to delete setting policy {}...", request.getId());
-            settingStore.deleteSettingPolicy(request.getId());
+            settingStore.deleteSettingPolicy(request.getId(), true);
             logger.info("Deleted setting policy: {}", request.getId());
             responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
             responseObserver.onCompleted();

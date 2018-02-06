@@ -175,6 +175,26 @@ public class SettingStore {
     }
 
     /**
+     * Persist a new discovered {@link SettingPolicy} in the {@link SettingStore} based on the info in the
+     * {@link SettingPolicyInfo}.
+     * Note that setting policies must have unique names.
+     *
+     * @param settingPolicyInfo The info to be applied to the SettingPolicy.
+     * @return A SettingPolicy whose info matches the input {@link SettingPolicyInfo}.
+     * An ID will be assigned to this policy.
+     * @throws InvalidSettingPolicyException If the input setting policy is not valid.
+     * @throws DuplicateNameException If there is already a setting policy with the same name as
+     * the input setting policy.
+     * @throws DataAccessException If there is another problem connecting to the database.
+     */
+    @Nonnull
+    public SettingProto.SettingPolicy createDiscoveredSettingPolicy(
+            @Nonnull final SettingPolicyInfo settingPolicyInfo)
+            throws InvalidSettingPolicyException, DuplicateNameException {
+        return internalCreateSettingPolicy(settingPolicyInfo, Type.DISCOVERED);
+    }
+
+    /**
      * Update an existing setting policy in the {@link SettingStore}, overwriting the
      * existing {@link SettingPolicyInfo} with a new one.
      *
@@ -239,6 +259,11 @@ public class SettingStore {
                     }
                 }
 
+                if (type.equals(Type.DISCOVERED)) {
+                    throw new InvalidSettingPolicyException("Illegal attempt to modify a " +
+                        "discovered setting policy.");
+                }
+
                 record.setEntityType(newInfo.getEntityType());
                 record.setName(newInfo.getName());
                 record.setSettingPolicyData(newInfo);
@@ -271,12 +296,16 @@ public class SettingStore {
      * Delete a setting policy.
      *
      * @param id The ID of the setting policy to delete.
+     * @param initializedByUser true if initiated by user, false if initiated by some part of the system (ie. a
+     *                          {@link TargetSettingPolicyUpdate}.
      * @return The deleted {@link SettingProto.SettingPolicy}.
      * @throws SettingPolicyNotFoundException If the setting policy does not exist.
-     * @throws InvalidSettingPolicyException If the setting policy is a DEFAULT policy.
+     * @throws InvalidSettingPolicyException If the setting policy is a DEFAULT policy or it is a user update
+     *                                       attempting to delete a DISCOVERED policy.
      */
     @Nonnull
-    public SettingProto.SettingPolicy deleteSettingPolicy(final long id)
+    public SettingProto.SettingPolicy deleteSettingPolicy(final long id,
+                                                          boolean initializedByUser)
             throws SettingPolicyNotFoundException, InvalidSettingPolicyException {
         try {
             return dslContext.transactionResult(configuration -> {
@@ -289,7 +318,10 @@ public class SettingStore {
                 }
 
                 if (record.getPolicyType().equals(SettingPolicyPolicyType.default_)) {
-                    throw new InvalidSettingPolicyException("Cannot delete default policies.");
+                    throw new InvalidSettingPolicyException("Cannot delete default setting policies.");
+                } else if (record.getPolicyType().equals(SettingPolicyPolicyType.discovered)
+                    && initializedByUser) {
+                    throw new InvalidSettingPolicyException("Cannot delete discovered setting policies.");
                 }
 
                 final int modifiedRecords = record.delete();
@@ -409,7 +441,7 @@ public class SettingStore {
 
     private void deleteSettingPolicyForTargetUpdate(final long settingPolicyId) throws DatabaseException {
         try {
-            deleteSettingPolicy(settingPolicyId);
+            deleteSettingPolicy(settingPolicyId, false);
         } catch (SettingPolicyNotFoundException | InvalidSettingPolicyException e) {
             throw new DatabaseException(
                 "Unable to delete discovered setting policy with id " + settingPolicyId, e);
