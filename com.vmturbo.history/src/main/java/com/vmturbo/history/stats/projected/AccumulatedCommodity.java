@@ -165,6 +165,35 @@ abstract class AccumulatedCommodity {
     }
 
     /**
+     * Information about a single calculated commodity across some number of
+     * entities in the topology.
+     */
+    static class AccumulatedCalculatedCommodity extends AccumulatedCommodity {
+
+        AccumulatedCalculatedCommodity(@Nonnull final String commodityName) {
+            super(commodityName);
+        }
+
+        /**
+         * Record a commodity calculated based on attributes of some entity in the topology.
+         *
+         * @param value The value for this attribute commodity
+         */
+        void recordAttributeCommodity(@Nonnull final double value) {
+            recordUsed(value);
+            recordPeak(value);
+            recordCapacity(value);
+        }
+
+        @Nonnull
+        @Override
+        protected StatRecord finalizeStatRecord(@Nonnull final StatRecord.Builder builder) {
+            builder.setRelation(RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral());
+            return builder.build();
+        }
+    }
+
+    /**
      * A utility class to accumulate values and keep track of the min, max, total and average.
      */
     @VisibleForTesting

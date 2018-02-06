@@ -1,6 +1,5 @@
 package com.vmturbo.history.stats.projected;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
@@ -13,12 +12,14 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedCalculatedCommodity;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 
@@ -49,12 +50,10 @@ public class ProjectedStatsStore {
     private final Object topologyCommoditiesLock = new Object();
 
     /**
-     * (entity ID) -> (projected price index in the latest received topology).
+     * Map from (entity ID) -> (projected price index in the latest received topology).
+     * This map is replaced, in entirety, when a new PriceIndex payload is received.
      */
-    @GuardedBy("priceIndexLock")
-    private Map<Long, Double> priceIndexMap = new HashMap<>();
-
-    private final Object priceIndexLock = new Object();
+    private volatile ImmutableMap<Long, Double> priceIndexMap = ImmutableMap.of();
 
     public ProjectedStatsStore() {
         this(TopologyCommoditiesSnapshot.newFactory());
@@ -67,9 +66,7 @@ public class ProjectedStatsStore {
 
     @VisibleForTesting
     Optional<Double> getPriceIndex(final long entityId) {
-        synchronized (priceIndexLock) {
-            return Optional.ofNullable(priceIndexMap.get(entityId));
-        }
+        return Optional.ofNullable(priceIndexMap.get(entityId));
     }
 
     /**
@@ -101,20 +98,40 @@ public class ProjectedStatsStore {
     public Optional<StatSnapshot> getStatSnapshotForEntities(@Nonnull final Set<Long> targetEntities,
                                                              @Nonnull final Set<String> commodityNames) {
 
+        // capture the current topologyCommodities object; new topologies replace the entire object
         final TopologyCommoditiesSnapshot targetCommodities;
         synchronized(topologyCommoditiesLock) {
             targetCommodities = topologyCommodities;
         }
-
         if (targetCommodities == null) {
             return Optional.empty();
         }
 
+        // capture the current priceIndexMap; new priceIndexMessages replace the entire map
+        final Map<Long, Double> priceIndexSnapshot = priceIndexMap;
+
+        // accumulate 'standard' and 'count' stats
         StatSnapshot.Builder builder = StatSnapshot.newBuilder();
         targetCommodities
             .getRecords(commodityNames, targetEntities)
             .forEach(builder::addStatRecords);
 
+        // accumulate 'priceIndex' stats if requested, since they are accumulated separately
+        if (commodityNames.contains(PRICE_INDEX_NAME)) {
+                targetEntities.stream()
+                        .filter(priceIndexSnapshot::containsKey)
+                        .map(entityOid -> {
+                            AccumulatedCalculatedCommodity priceIndexCommodity =
+                                    new AccumulatedCalculatedCommodity(PRICE_INDEX_NAME);
+                            priceIndexCommodity.recordAttributeCommodity(priceIndexSnapshot
+                                    .get(entityOid)
+                                    .floatValue());
+                            return priceIndexCommodity.toStatRecord();
+                        })
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .forEach(builder::addStatRecords);
+        }
         return Optional.of(builder.build());
     }
 
@@ -136,13 +153,16 @@ public class ProjectedStatsStore {
         return newCommodities.getTopologySize();
     }
 
+    /**
+     * Replace the 'priceIndexMap' in its entirety when a new PriceIndexMessage payload is received.
+     *
+     * @param priceIndex the {@link PriceIndexMessage} with the priceIndex values for each SE OID
+     */
     public void updateProjectedPriceIndex(@Nonnull final PriceIndexMessage priceIndex) {
-        synchronized (priceIndexLock) {
-            priceIndexMap = priceIndex.getPayloadList().stream()
-                    .collect(Collectors.toMap(
-                            PriceIndexMessagePayload::getOid,
-                            PriceIndexMessagePayload::getPriceindexProjected));
-        }
+        priceIndexMap = ImmutableMap.copyOf(priceIndex.getPayloadList().stream()
+                .collect(Collectors.toMap(
+                        PriceIndexMessagePayload::getOid,
+                        PriceIndexMessagePayload::getPriceindexProjected)));
     }
 
 

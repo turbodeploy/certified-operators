@@ -116,6 +116,7 @@ class TopologyCommoditiesSnapshot {
         } else if (commodityName.equals("priceIndex")) {
             // Price index requests are actually handled separately, because the price
             // index doesn't come in as part of the topology.
+            // TODO: handle the Price Index in the snapshot, e.g. by creating PriceIndexInfo class
             return Collections.emptyList();
         } else {
             // This is probably a "regular" commodity.

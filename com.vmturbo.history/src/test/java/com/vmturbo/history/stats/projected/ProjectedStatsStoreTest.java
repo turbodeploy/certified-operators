@@ -123,4 +123,16 @@ public class ProjectedStatsStoreTest {
 
         assertEquals(Double.valueOf(10), store.getPriceIndex(1).get());
     }
+
+    @Test
+    public void testPriceIndexAbsent() {
+        store.updateProjectedPriceIndex(PriceIndexMessage.newBuilder()
+            .addPayload(PriceIndexMessagePayload.newBuilder()
+                .setOid(1)
+                .setPriceindexCurrent(1)
+                .setPriceindexProjected(10))
+            .build());
+
+        assertFalse(store.getPriceIndex(2).isPresent());
+    }
 }
