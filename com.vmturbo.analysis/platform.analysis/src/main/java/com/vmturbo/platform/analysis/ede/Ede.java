@@ -53,27 +53,27 @@ public final class Ede {
      * Generate Actions.
      *
      * Add 'collapse' argument
-     * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean)}
+     * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, String)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, String mktName) {
         return generateActions(economy, classifyActions, isProvision, isSuspension,
-                               isResize, false, mktName);
+                               isResize, false, false, mktName);
     }
 
     /** Generate Actions.
      *
-     * Add 'collapse' argument
-     * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, String)}
+     * Add 'collapse' and 'replay' argument
+     * @see {@link #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, String)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                                                           boolean classifyActions,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize) {
         return generateActions(economy, classifyActions, isProvision, isSuspension,
-                               isResize, false, "unspecified|");
+                               isResize, false, false, "unspecified|");
     }
 
     /**
@@ -95,7 +95,7 @@ public final class Ede {
                                                           boolean isSuspension,
                                                           boolean isResize, boolean collapse) {
         return generateActions(economy, classifyActions, isProvision, isSuspension,
-                               isResize, collapse, "unspecified|");
+                               isResize, collapse, false, "unspecified|");
     }
 
     /**
@@ -107,6 +107,7 @@ public final class Ede {
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
      * @param collapse whether to collapse the returned list of actions.
+     * @param isReplay True if we want to run replay algorithm and false otherwise
      * @param mktData contains the market name and any stats to be written to the row
      *          delimited by "|"
      * @return A list of actions suggested by the economic decisions engine.
@@ -114,9 +115,8 @@ public final class Ede {
      * @see {@link Action#collapsed(List)}
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                                                          boolean classifyActions,
-                                                          boolean isProvision, boolean isSuspension,
-                                                          boolean isResize, boolean collapse, String mktData) {
+                    boolean classifyActions, boolean isProvision, boolean isSuspension,
+                    boolean isResize, boolean collapse, boolean isReplay, String mktData) {
         String analysisLabel = "Analysis ";
         logger.info(analysisLabel + "Started.");
         @NonNull List<Action> actions = new ArrayList<>();
@@ -163,7 +163,7 @@ public final class Ede {
 
         Ledger ledger = new Ledger(economy);
 
-        if (getReplayActions() != null) {
+        if (isReplay && getReplayActions() != null) {
             getReplayActions().replayActions(economy, ledger);
             actions.addAll(getReplayActions().getActions());
             logger.info(actionStats.phaseLogEntry("replaying"));
@@ -296,17 +296,19 @@ public final class Ede {
                                                           SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
         Suspension.setSuspensionsThrottlingConfig(suspensionsThrottlingConfig);
         @NonNull List<Action> actions = new ArrayList<>();
+        // only run replay in first sub round for realTime market.
+        boolean isReplay = true;
         if (isRealTime) {
             // run a round of analysis without provisions.
             actions.addAll(generateActions(economy, classifyActions, false, isSuspension,
-                            isResize, collapse, mktData));
+                            isResize, collapse, isReplay, mktData));
 
             // run another round of analysis on the new state of the economy with provisions enabled
             // and resize disabled. We add only the provision recommendations to the list of actions generated.
             // We neglect suspensions since there might be associated moves that we dont want to include
             if (isProvision) {
                 actions.addAll(generateActions(economy, classifyActions, isProvision,
-                                isSuspension, false, collapse, mktData).stream()
+                                isSuspension, false, collapse, !isReplay, mktData).stream()
                                 .filter(action -> (action instanceof ProvisionByDemand ||
                                                 action instanceof ProvisionBySupply ||
                                                 action instanceof Activate))
@@ -314,7 +316,7 @@ public final class Ede {
             }
         } else {
             actions.addAll(generateActions(economy, classifyActions, isProvision,
-                            isSuspension, isResize, collapse, mktData));
+                            isSuspension, isResize, collapse, !isReplay, mktData));
         }
 
         return actions;
