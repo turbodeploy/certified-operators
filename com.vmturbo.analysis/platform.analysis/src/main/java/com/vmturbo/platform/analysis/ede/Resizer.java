@@ -153,7 +153,8 @@ public class Resizer {
             // if we do not specify a raw material, then we impose no restriction on the value
             // we resize to (regarding to what the seller can provide)
             double remaining = rawMaterial == null ? Double.MAX_VALUE :
-                                    rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity();
+                            commoditySold.getSettings().getUtilizationUpperBound() *
+                                (rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity());
             if (remaining > 0) {
                 if (remaining < proposedIncrement) {
                     int floorNumIncrements = (int) Math.floor(remaining / capacityIncrement);
