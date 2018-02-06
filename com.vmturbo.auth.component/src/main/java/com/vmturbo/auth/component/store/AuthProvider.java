@@ -34,6 +34,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+import com.vmturbo.api.enums.UserRole;
 import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
@@ -42,6 +43,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.component.store.ad.ADUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.crypto.CryptoFacility;
@@ -756,6 +758,12 @@ public class AuthProvider {
             return false;
         }
 
+        // Don't allow removing the last local admin user.
+        if (isRemovingLastLocalAdminUser(infoFound, users)) {
+            logger_.error("AUDIT::Don't allow to remove last local admin user: " + uuid);
+            return false;
+        }
+
         try {
             removeKVKey(composeUserInfoKey(infoFound.provider, infoFound.userName));
             logger_.info("AUDIT::SUCCESS: Success removing user: " + uuid);
@@ -1075,5 +1083,28 @@ public class AuthProvider {
         List<String> roles;
 
         boolean unlocked;
+    }
+
+    /**
+     * Test if there is only one local admin user.
+     *
+     * @param users the list of user
+     * @return true if there is only one local user has ADMINISTRATOR role.
+     */
+    private boolean isRemovingLastLocalAdminUser(UserInfo userInfo, final Map<String, String> users) {
+        if (userInfo.roles.contains(UserRole.ADMINISTRATOR.name()) // the user the admin user
+                && userInfo.provider.equals(PROVIDER.LOCAL)) { // the provider is local
+            List<UserInfo> userInfoList = new ArrayList<>();
+            for (String jsonData : users.values()) {
+                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
+                userInfoList.add(info);
+            }
+            long administratorCount = userInfoList.stream()
+                    .filter(user -> user.provider.equals(PROVIDER.LOCAL)
+                            && user.roles.contains(UserRole.ADMINISTRATOR.name()))
+                    .count();
+            return administratorCount == 1;
+        }
+        return false;
     }
 }

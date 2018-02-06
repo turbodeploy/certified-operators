@@ -368,22 +368,34 @@ public class RestTest {
     public void testDelete() throws Exception {
         logon("ADMINISTRATOR");
         String result = mockMvc.perform(postAdd(3))
-                               .andReturn().getResponse().getContentAsString();
+                .andReturn().getResponse().getContentAsString();
         Assert.assertEquals("users://user3", result);
+        // Create another local admin user
+        mockMvc.perform(postAdd(4))
+                .andReturn().getResponse().getContentAsString();
 
+        // delete the first admin user
         mockMvc.perform(delete("/users/remove/user3")
-                                .accept(RET_TYPE))
-               .andExpect(status().isOk())
-               .andReturn().getResponse()
-               .getContentAsString();
+                .accept(RET_TYPE))
+                .andExpect(status().isOk())
+                .andReturn().getResponse()
+                .getContentAsString();
 
         // Authenticate against the original user.
         // We throw the SecurityException in our implementation, and the NestedServletException
         // will contain it.
         mockMvc.perform(get("/users/authenticate/user3/password3")
-                                .accept(RET_TYPE)).andExpect(status().isForbidden());
+                .accept(RET_TYPE)).andExpect(status().isForbidden());
+
+        // Delete the last admin user. We throw the SecurityException in our implementation.
+        mockMvc.perform(delete("/users/remove/user3")
+                .accept(RET_TYPE))
+                .andExpect(status().isForbidden())
+                .andReturn().getResponse()
+                .getContentAsString();
         SecurityContextHolder.getContext().setAuthentication(null);
     }
+
 
     @Test
     public void testLock() throws Exception {
