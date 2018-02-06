@@ -32,6 +32,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
@@ -231,8 +232,12 @@ public class ReplayActions {
                 Suspension.makeCoSellersNonSuspendable(economy, newTrader);
                 if (newTrader != null && newTrader.getSettings().isSuspendable()
                             && newTrader.getState().isActive()) {
-                suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader,
-                                economy, ledger));
+                    if (Suspension.getSuspensionsthrottlingconfig() == SuspensionsThrottlingConfig.CLUSTER) {
+                        Suspension.makeCoSellersNonSuspendable(economy, newTrader);
+                    }
+                    suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader,
+                                                                                        economy,
+                                                                                        ledger));
                 }
             }
         }

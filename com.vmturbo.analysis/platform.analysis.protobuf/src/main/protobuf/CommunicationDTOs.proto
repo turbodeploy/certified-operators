@@ -41,6 +41,11 @@ message StartDiscoveredTopology {
 message ForcePlanStop {
 }
 
+enum SuspensionsThrottlingConfig {
+    DEFAULT = 0; // Default M2 Suspension behavior.
+    CLUSTER = 1; // One suspension per cluster or storage cluster.
+}
+
 // The intention is that the Analysis server will keep information in a staging area and atomically
 // replace the old real-time topology with the new when it receives the EndDiscoveredTopology
 // message. That way the Analysis server will have a valid topology at any time.
@@ -99,6 +104,10 @@ message EndDiscoveredTopology {
     optional bool enableResize = 6;
     // specifies what commodities to allow overhead for in clones
     repeated CommoditySpecificationTO commToAllowOverheadInClone = 7;
+    // This field specifies if moves throttling is enabled
+    optional bool movesThrottling = 8 [default = false];
+    // This field specifies the suspensions throttling behavior
+    optional SuspensionsThrottlingConfig suspensionsThrottlingConfig = 9 [default = DEFAULT];
 }
 
 // A compound message to encapsulate any one of command messages.

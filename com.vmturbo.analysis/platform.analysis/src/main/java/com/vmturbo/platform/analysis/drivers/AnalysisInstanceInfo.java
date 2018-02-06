@@ -1,5 +1,6 @@
 package com.vmturbo.platform.analysis.drivers;
 
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
@@ -31,6 +32,10 @@ public class AnalysisInstanceInfo {
     private String marketData_;
     // true if this run of analysis is for RT
     private boolean isRealTime;
+    // true if moves throttling is enabled
+    private boolean isMovesThrottling;
+    // suspension throttling config
+    private SuspensionsThrottlingConfig suspensionsThrottlingConfig;
 
     /**
      * Sets the boolean which indicates if action classification is needed.
@@ -190,5 +195,21 @@ public class AnalysisInstanceInfo {
      */
     public void setRealTime(boolean isRealTime) {
         this.isRealTime = isRealTime;
+    }
+
+    public boolean isMovesThrottling() {
+        return isMovesThrottling;
+    }
+
+    public void setMovesThrottling(boolean isMovesThrottling) {
+        this.isMovesThrottling = isMovesThrottling;
+    }
+
+    public SuspensionsThrottlingConfig getSuspensionsThrottlingConfig() {
+        return suspensionsThrottlingConfig;
+    }
+
+    public void setSuspensionsThrottlingConfig(SuspensionsThrottlingConfig suspensionsThrottligConfig) {
+        this.suspensionsThrottlingConfig = suspensionsThrottligConfig;
     }
 }

@@ -23,6 +23,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 public class Suspension {
 
@@ -34,16 +35,19 @@ public class Suspension {
     // this trader can not move out of it. So it should not be selected again because there will
     // always be some customers staying on it.
     private @NonNull Set<@NonNull Trader> unprofitableSellersCouldNotSuspend =
-                    new HashSet<@NonNull Trader>();
+                                                                             new HashSet<@NonNull Trader>();
     private Ledger ledger_;
 
     private PriorityQueue<Trader> suspensionCandidateHeap_ = new PriorityQueue<>((t1, t2) -> {
         IncomeStatement is1 = ledger_.getTraderIncomeStatements().get(t1.getEconomyIndex());
         IncomeStatement is2 = ledger_.getTraderIncomeStatements().get(t2.getEconomyIndex());
-        double c1 = is1.getROI()/is1.getMinDesiredROI();
-        double c2 = is2.getROI()/is2.getMinDesiredROI();
+        double c1 = is1.getROI() / is1.getMinDesiredROI();
+        double c2 = is2.getROI() / is2.getMinDesiredROI();
         return c1 > c2 ? 1 : c1 == c2 ? 0 : -1;
     });
+
+    private static SuspensionsThrottlingConfig suspensionsThrottlingConfig =
+                                                                                 SuspensionsThrottlingConfig.DEFAULT;
 
     /**
      * Return a list of recommendations to optimize the suspension of all eligible traders in the
@@ -61,14 +65,16 @@ public class Suspension {
      * @return list of deactivate and move actions
      */
     public @NonNull List<@NonNull Action> suspensionDecisions(@NonNull Economy economy,
-                    @NonNull Ledger ledger, Ede ede) {
+                                                              @NonNull Ledger ledger, Ede ede) {
         List<@NonNull Action> allActions = new ArrayList<>();
-        int round=0;
+        int round = 0;
         // suspend entities that arent sellers in any market
         for (Trader seller : economy.getTraders()) {
-            if (seller.getSettings().isSuspendable() && seller.getState().isActive() &&
-                            seller.getCustomers().isEmpty() &&
-                            economy.getMarketsAsSeller(seller).isEmpty()) {
+            if (seller.getSettings().isSuspendable() && seller.getState().isActive()
+                &&
+                seller.getCustomers().isEmpty()
+                &&
+                economy.getMarketsAsSeller(seller).isEmpty()) {
                 suspendTrader(economy, null, seller, allActions);
             }
         }
@@ -76,7 +82,7 @@ public class Suspension {
         // when buyers in a different market make room. In order to enable this, we retry suspensions
         // after a round of economy-wide placements. We do this a third time for better packing as
         // placements is the only expense here
-        while(round < 3) {
+        while (round < 3) {
             ledger.calculateExpRevForTradersInEconomy(economy);
             // adjust utilThreshold to maxDesiredUtil*utilTh of the seller. Thereby preventing moves
             // that force utilization to exceed maxDesiredUtil*utilTh
@@ -97,17 +103,21 @@ public class Suspension {
                 }
                 List<Trader> suspensionCandidates = new ArrayList<>();
                 // suspensionCandidates can be only activeSellers that canAcceptNewCustomers that are suspendable
-                suspensionCandidates.addAll(market.getActiveSellersAvailableForPlacement().stream().filter(
-                                t -> t.getSettings().isSuspendable()).collect(Collectors.toList()));
+                suspensionCandidates.addAll(market.getActiveSellersAvailableForPlacement().stream()
+                                            .filter(t -> t.getSettings().isSuspendable())
+                                                .collect(Collectors.toList()));
                 for (Trader seller : suspensionCandidates) {
                     if (seller.getCustomers().isEmpty()) {
                         suspendTrader(economy, market, seller, allActions);
                         continue;
                     }
-                    IncomeStatement incomeStmt = ledger.getTraderIncomeStatements().get(seller.getEconomyIndex());
-                    if (!suspensionCandidateHeap_.contains(seller) && !soleProviders.contains(seller)
-                                    && (incomeStmt.getROI() < (incomeStmt.getMinDesiredROI() +
-                                                    incomeStmt.getMaxDesiredROI())/2)) {
+                    IncomeStatement incomeStmt = ledger.getTraderIncomeStatements()
+                                    .get(seller.getEconomyIndex());
+                    if (!suspensionCandidateHeap_.contains(seller)
+                        && !soleProviders.contains(seller)
+                        && (incomeStmt.getROI() < (incomeStmt.getMinDesiredROI() +
+                                                   incomeStmt.getMaxDesiredROI())
+                                                  / 2)) {
                         suspensionCandidateHeap_.offer(seller);
                     }
                 }
@@ -123,7 +133,7 @@ public class Suspension {
 
             // run economy wide placements after every round of suspension
             allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                            EconomyConstants.SUPPLY_PHASE));
+                                                                  EconomyConstants.SUPPLY_PHASE));
             round++;
         }
         return allActions;
@@ -154,8 +164,10 @@ public class Suspension {
         if (market != null) {
             // perform placement on just the customers on the suspensionCandidate
             suspendActions.addAll(
-                            Placement.runPlacementsTillConverge(economy, customersOfSuspCandidate,
-                                            ledger, true, EconomyConstants.SUSPENSION_PHASE));
+                                  Placement.runPlacementsTillConverge(economy,
+                                                                      customersOfSuspCandidate,
+                                                                      ledger, true,
+                                                                      EconomyConstants.SUSPENSION_PHASE));
         }
 
         // rollback actions if the trader still has customers
@@ -163,11 +175,9 @@ public class Suspension {
             Lists.reverse(suspendActions).forEach(axn -> axn.rollback());
             return new ArrayList<>();
         } else {
-            // get Markets susp candidate sells in, although INACTIVE
-            // disable suspension of all other traders in markets where deactivated trader
-            // is a seller including inactive sellers as they may have been picked in the
-            // previous round
-            makeCoSellersNonSuspendable(economy, trader);
+            if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
+                makeCoSellersNonSuspendable(economy, trader);
+            }
         }
         return suspendActions;
     }
@@ -179,7 +189,7 @@ public class Suspension {
      * @param update - set threshold to maxDesiredUtil*utilThreshold if true or reset to original value if false
      */
     @VisibleForTesting
-    void adjustUtilThreshold (Economy economy, boolean update) {
+    void adjustUtilThreshold(Economy economy, boolean update) {
         if (update) {
             for (Trader seller : economy.getTraders()) {
                 double util = seller.getSettings().getMaxDesiredUtil();
@@ -189,7 +199,7 @@ public class Suspension {
                     double priceAtMaxUtil = pf.unitPrice(util * utilThreshold, null, seller, cs, economy);
                     // skip if step and constant priceFns
                     if (!((priceAtMaxUtil == pf.unitPrice(0.0, null, seller, cs, economy)) ||
-                                    (priceAtMaxUtil == pf.unitPrice(1.0, null, seller, cs, economy)))) {
+                          (priceAtMaxUtil == pf.unitPrice(1.0, null, seller, cs, economy)))) {
                         cs.getSettings().setUtilizationUpperBound(util * utilThreshold);
                     }
                 }
@@ -213,7 +223,7 @@ public class Suspension {
      * @param actions - a list that the suspend action would be added to
      */
     public void suspendTrader(Economy economy, Market market, Trader traderToSuspend,
-                        List<@NonNull Action> actions) {
+                              List<@NonNull Action> actions) {
         Deactivate deactivateAction = new Deactivate(economy, traderToSuspend, market);
         actions.add(deactivateAction.take());
         return;
@@ -231,7 +241,9 @@ public class Suspension {
             // and it has some customers which are not the shoppinglists from guaranteed buyers
             if (marketsAsSeller.stream().anyMatch((m) -> m.getActiveSellersAvailableForPlacement()
                             .size() == 1 && m.getBuyers().stream().anyMatch(
-                                        sl -> !sl.getBuyer().getSettings().isGuaranteedBuyer()))) {
+                                                                            sl -> !sl.getBuyer()
+                                                                                            .getSettings()
+                                                                                            .isGuaranteedBuyer()))) {
                 soleProviders.add(trader);
             }
         }
@@ -250,6 +262,15 @@ public class Suspension {
         return soleProviders;
     }
 
+    /**
+     * Make co-sellers of suspension candidate inactive.
+     * get Markets susp candidate sells in, although INACTIVE
+     * disable suspension of all other traders in markets where deactivated trader
+     * is a seller including inactive sellers as they may have been picked in the
+     * previous round
+     * @param economy The economy trader participates in.
+     * @param trader The trader, which is the suspension candidate picked.
+     */
     protected static void makeCoSellersNonSuspendable(Economy economy, Trader trader) {
         final Trader picked = trader;
         for (Market mktAsSeller : economy.getMarketsAsSeller(trader)) {
@@ -260,4 +281,11 @@ public class Suspension {
         }
     }
 
+    public static SuspensionsThrottlingConfig getSuspensionsthrottlingconfig() {
+        return suspensionsThrottlingConfig;
+    }
+
+    public static void setSuspensionsThrottlingConfig(SuspensionsThrottlingConfig suspensionsThrottligConfig) {
+        suspensionsThrottlingConfig = suspensionsThrottligConfig;
+    }
 }

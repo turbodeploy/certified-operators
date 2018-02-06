@@ -22,6 +22,7 @@ import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.ActionStats;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
@@ -291,7 +292,9 @@ public final class Ede {
                                                           boolean classifyActions,
                                                           boolean isProvision, boolean isSuspension,
                                                           boolean isResize, boolean collapse,
-                                                          String mktData, boolean isRealTime) {
+                                                          String mktData, boolean isRealTime,
+                                                          SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
+        Suspension.setSuspensionsThrottlingConfig(suspensionsThrottlingConfig);
         @NonNull List<Action> actions = new ArrayList<>();
         if (isRealTime) {
             // run a round of analysis without provisions.

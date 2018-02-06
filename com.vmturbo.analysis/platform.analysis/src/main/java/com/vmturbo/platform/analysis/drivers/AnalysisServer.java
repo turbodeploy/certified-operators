@@ -204,6 +204,8 @@ public class AnalysisServer implements AutoCloseable {
         }
         instInfoAfterDisc.setMarketName(message.getMarketName());
         instInfoAfterDisc.setMarketData(message.getMarketData());
+        instInfoAfterDisc.setMovesThrottling(endDiscMsg.getMovesThrottling());
+        instInfoAfterDisc.setSuspensionsThrottlingConfig(endDiscMsg.getSuspensionsThrottlingConfig());
     }
 
     /**
@@ -363,7 +365,8 @@ public class AnalysisServer implements AutoCloseable {
             }
             actions = ede.generateActions(economy, instInfo.isClassifyActions(),
                             instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
-                            instInfo.isResizeEnabled(), true, mktData, instInfo.isRealTime());
+                            instInfo.isResizeEnabled(), true, mktData, instInfo.isRealTime(),
+                            instInfo.getSuspensionsThrottlingConfig());
             long stop = System.nanoTime();
             results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
                             lastComplete.getShoppingListOids(), stop - start, lastComplete,
