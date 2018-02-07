@@ -116,7 +116,9 @@ public class ServiceConfig {
                 mapperConfig.actionSpecMapper(),
                 mapperConfig.groupMapper(),
                 communicationConfig.repositoryApi(),
-                communicationConfig.getRealtimeTopologyContextId());
+                communicationConfig.getRealtimeTopologyContextId(),
+                mapperConfig.settingManagerMappingLoader().getMapping(),
+                communicationConfig.templateServiceBlockingStub());
     }
 
     @Bean

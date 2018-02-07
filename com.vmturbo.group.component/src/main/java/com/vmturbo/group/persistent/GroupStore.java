@@ -217,6 +217,39 @@ public class GroupStore {
     }
 
     /**
+     * Updates the cluster headroom template ID of a given cluster.
+     *
+     * @param group_id The Group ID of the cluster.
+     * @param clusterHeadroomTemplateId The cluster headroom template ID.
+     * @return The updated {@link Group} object.
+     * @throws GroupNotFoundException If the group is not found.
+     * @throws GroupNotClusterException IOf the group is not a cluster.
+     * @throws DatabaseException If there is an error reading from or writing to the database.
+     */
+    @Nonnull
+    public Group updateClusterHeadroomTemplate(@Nonnull final long group_id,
+                                               @Nonnull final long clusterHeadroomTemplateId)
+            throws GroupNotFoundException, GroupNotClusterException, DatabaseException {
+        final Optional<Group> existingGroupOpt = get(group_id);
+        if (existingGroupOpt.isPresent()) {
+            final Group existingGroup = existingGroupOpt.get();
+            if (!existingGroup.hasCluster()) {
+                throw new GroupNotClusterException(existingGroup.getId());
+            }
+            final ClusterInfo newClusterInfo = existingGroup.getCluster().toBuilder()
+                    .setClusterHeadroomTemplateId(clusterHeadroomTemplateId)
+                    .build();
+            final Group newGroup = existingGroup.toBuilder()
+                    .setCluster(newClusterInfo)
+                    .build();
+            store(newGroup);
+            return newGroup;
+        } else {
+            throw new GroupNotFoundException(group_id);
+        }
+    }
+
+    /**
      * Delete an existing group created via {@link GroupStore#newUserGroup(GroupInfo)}.
      *
      * @param id The id of the group to delete.
@@ -353,6 +386,13 @@ public class GroupStore {
         private DuplicateGroupException(@Nonnull final GroupInfo duplicateGroup) {
             super("Cannot create group with name " + duplicateGroup.getName()
                 + " because a group with the same name already exists.");
+        }
+    }
+
+    public static class GroupNotClusterException extends Exception {
+        private GroupNotClusterException(final long group_id) {
+            super("Group " + group_id
+                    + " is not a cluster. Cannot update cluster headroom template for this group.");
         }
     }
 }

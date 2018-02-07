@@ -130,6 +130,10 @@ message ClusterInfo {
 
     // The entities belonging to the cluster.
     optional StaticGroupMembers members = 3;
+
+    // The template ID that the headroom plan will use.
+    // If it is empty, the default plan will be used.
+    optional int64 cluster_headroom_template_id = 4;
 }
 
 
@@ -313,6 +317,18 @@ message CreateTempGroupResponse {
     optional Group group = 1;
 }
 
+// Request for udpating the cluster headroom template ID of a cluster.
+// The group_id must reference a group that is a cluster.
+message UpdateClusterHeadroomTemplateRequest {
+    optional int64 group_id = 1;
+    optional int64 cluster_headroom_template_id = 2;
+}
+
+message UpdateClusterHeadroomTemplateResponse {
+    // The group with with udpated cluster headroom template ID
+    optional Group updated_group = 1;
+}
+
 // A service responsible for group operations.
 service GroupService {
     // Create a group
@@ -331,6 +347,10 @@ service GroupService {
     // Returns INVALID_ARGUMENT if the group is a discovered group (origin == DISCOVERED), since
     // users cannot modify discovered groups.
     rpc UpdateGroup(UpdateGroupRequest) returns (UpdateGroupResponse);
+
+    // Update the cluster headroom template ID of a cluster.
+    rpc UpdateClusterHeadroomTemplate(UpdateClusterHeadroomTemplateRequest)
+    returns (UpdateClusterHeadroomTemplateResponse);
 
     // Delete a group
     //

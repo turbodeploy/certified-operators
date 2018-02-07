@@ -179,4 +179,12 @@ public class TemplateDaoImplTest {
                 .findFirst().get();
         assertThat(memSizeValue, is("1024.0"));
     }
+
+    @Test
+    public void testGetTemplateByName() throws Exception {
+        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json");
+        List<Template> result = templatesDao.getTemplatesByName("testVM");
+        assertEquals(1, result.size());
+        assertEquals("testVM", result.get(0).getTemplateInfo().getName());
+    }
 }

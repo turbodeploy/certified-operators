@@ -21,6 +21,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplatesByTargetReque
 import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByTypeRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -208,6 +209,36 @@ public class TemplatesRpcService extends TemplateServiceImplBase {
             responseObserver.onError(Status.INTERNAL
                 .withDescription("Failed to get templates.")
                 .asException());
+        }
+    }
+
+    /**
+     * Gets templates by template name.
+     *
+     * @param request The request that contains the template name.
+     * @param responseObserver response observer
+     */
+    @Override
+    public void getTemplatesByName(final GetTemplatesByNameRequest request,
+                                   final StreamObserver<Template> responseObserver) {
+        if (!request.hasTemplateName()) {
+            logger.error("Failed to get templates because template name is missing in the request.");
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Get template by name must have a template name in the request.")
+                    .asException());
+            return;
+        }
+
+        try {
+            for (Template template : templatesDao.getTemplatesByName(request.getTemplateName())) {
+                responseObserver.onNext(template);
+            }
+            responseObserver.onCompleted();
+        } catch (DataAccessException e) {
+            logger.error("Database error occurred while getting templates by name.", e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription("Database error occurred while getting templates by name.")
+                    .asException());
         }
     }
 }

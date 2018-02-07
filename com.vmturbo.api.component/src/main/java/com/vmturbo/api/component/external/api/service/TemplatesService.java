@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecByEntityTypeRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateSpecsRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByTypeRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -90,7 +91,7 @@ public class TemplatesService implements ITemplatesService {
     }
 
     /**
-     * Get templates by template id or entity type.
+     * Get templates by template id, entity type, or template name.
      *
      * @param uuidOrType id of template or entity type.
      * @return list of {@link TemplateApiDTO}.
@@ -114,15 +115,23 @@ public class TemplatesService implements ITemplatesService {
                     .map(template -> templateMapper.mapToTemplateApiDTO(template, templateSpec))
                     .collect(Collectors.toList());
             }
-            else {
-                // if it is not entity type, then it will be uuid.
+            else if (isLongType(uuidOrType)){
+                // The search key is not a valid entity type.  Try to search by UUID if it is a number.
                 final Template template = getTemplateById(Long.valueOf(uuidOrType));
                 TemplateSpec templateSpec = getTemplateSpecById(template.getTemplateInfo().getTemplateSpecId());
                 return Lists.newArrayList(templateMapper.mapToTemplateApiDTO(template, templateSpec));
             }
+            else {
+                // Try to search by template name.
+                templateService.getTemplatesByName(GetTemplatesByNameRequest.newBuilder()
+                        .setTemplateName(uuidOrType)
+                        .build());
+                return Lists.newArrayList();
+            }
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
-                throw new UnknownObjectException(e.getStatus().getDescription());
+                throw new UnknownObjectException("The search criterion is not a valid template " +
+                        "UUID, template name or entity type: " + uuidOrType);
             }
             else {
                 throw e;
@@ -293,13 +302,7 @@ public class TemplatesService implements ITemplatesService {
         else if (uuidOrType.equals(ParamStrings.STORAGE)) {
             return Optional.of(EntityType.STORAGE.getNumber());
         }
-        else if (isLongType(uuidOrType)) {
-            return Optional.empty();
-        }
-        else {
-            logger.error("Entity type {} is not supported yet.", uuidOrType);
-            throw new NotImplementedException(uuidOrType + " type is not supported yet.");
-        }
+        return Optional.empty();
     }
 
     private boolean isLongType(String type) {

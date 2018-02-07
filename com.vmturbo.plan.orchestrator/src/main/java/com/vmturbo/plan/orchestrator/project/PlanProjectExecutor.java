@@ -2,6 +2,7 @@ package com.vmturbo.plan.orchestrator.project;
 
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -9,13 +10,17 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -132,6 +137,9 @@ public class PlanProjectExecutor {
         groupRpcService.getGroups(
                 GroupDTO.GetGroupsRequest.newBuilder()
                         .setTypeFilter(GroupDTO.Group.Type.CLUSTER)
+                        .setClusterFilter(ClusterFilter.newBuilder()
+                                .setTypeFilter(ClusterInfo.Type.COMPUTE)
+                                .build())
                         .build()).forEachRemaining(clusters::add);
 
         logger.info("Running plan project on {} clusters.", clusters.size());
@@ -192,7 +200,8 @@ public class PlanProjectExecutor {
      * @return a plan instance
      * @throws IntegrityException
      */
-    private PlanInstance createClusterPlanInstance(final Group cluster,
+    @VisibleForTesting
+    PlanInstance createClusterPlanInstance(final Group cluster,
                                                    @Nonnull final PlanProjectScenario planProjectScenario,
                                                    @Nonnull final PlanProjectType type)
             throws IntegrityException {
@@ -210,9 +219,31 @@ public class PlanProjectExecutor {
             // TODO (roman, Dec 5 2017): Project-type-specific logic should not be in the main
             // executor class. We should refactor this to separate the general and type-specific
             // processing steps.
-            final Template headroomTemplate = templatesDao.getTemplatesByName("headroomVM").stream()
-                .filter(template -> template.getType().equals(Type.SYSTEM))
-                .findFirst().orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
+            Template headroomTemplate = null;
+            boolean changeTemplateToDefaultTemplate = false;
+            if (cluster.hasCluster() && cluster.getCluster().hasClusterHeadroomTemplateId()) {
+                Optional<Template> clusterTemplate = templatesDao.getTemplate(
+                        cluster.getCluster().getClusterHeadroomTemplateId());
+                if (clusterTemplate.isPresent()) {
+                    headroomTemplate = clusterTemplate.get();
+                } else {
+                    // A headroom template ID is set in cluster object, but a template with that ID
+                    // is not found.  In this case, use the system default template instead.
+                    changeTemplateToDefaultTemplate = true;
+                }
+            }
+            if (headroomTemplate == null) {
+                headroomTemplate = templatesDao.getTemplatesByName("headroomVM").stream()
+                        .filter(template -> template.getType().equals(Type.SYSTEM))
+                        .findFirst()
+                        .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
+                if (changeTemplateToDefaultTemplate) {
+                    groupRpcService.updateClusterHeadroomTemplate(
+                            UpdateClusterHeadroomTemplateRequest.newBuilder()
+                                    .setClusterHeadroomTemplateId(headroomTemplate.getId())
+                                    .build());
+                }
+            }
             scenarioInfoBuilder.addChanges(ScenarioChange.newBuilder()
                 .setTopologyAddition(TopologyAddition.newBuilder()
                     .setAdditionCount(getNumClonesToAddForCluster(cluster))

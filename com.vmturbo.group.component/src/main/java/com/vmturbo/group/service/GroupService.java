@@ -31,6 +31,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
@@ -41,6 +43,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.group.persistent.DatabaseException;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.GroupStore.DuplicateGroupException;
+import com.vmturbo.group.persistent.GroupStore.GroupNotClusterException;
 import com.vmturbo.group.persistent.GroupStore.GroupNotFoundException;
 import com.vmturbo.group.persistent.GroupStore.ImmutableUpdateException;
 import com.vmturbo.group.persistent.PolicyStore;
@@ -199,6 +202,52 @@ public class GroupService extends GroupServiceImplBase {
             responseObserver.onError(Status.INTERNAL
                     .withDescription(e.getLocalizedMessage()).asException());
         }
+    }
+
+    /**
+     * Update the cluster headroom template ID for a cluster.
+     *
+     * @param request The request object contains the Group ID and the template ID.
+     * @param responseObserver response observer
+     */
+    @Override
+    public void updateClusterHeadroomTemplate(final UpdateClusterHeadroomTemplateRequest request,
+                                              final StreamObserver<UpdateClusterHeadroomTemplateResponse> responseObserver) {
+        if (!request.hasGroupId() || !request.hasClusterHeadroomTemplateId()) {
+            final String errMsg = "Group ID or cluster headroom template ID is missing.";
+            logger.error(errMsg);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(errMsg).asRuntimeException());
+            return;
+        }
+
+        logger.info("Updating cluster headroom template ID for group {}", request.getGroupId());
+
+        try {
+            Group updatedGroup = groupStore.updateClusterHeadroomTemplate(request.getGroupId(),
+                    request.getClusterHeadroomTemplateId());
+            final UpdateClusterHeadroomTemplateResponse response =
+                    UpdateClusterHeadroomTemplateResponse.newBuilder()
+                            .setUpdatedGroup(updatedGroup)
+                            .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (GroupNotFoundException e) {
+            logger.error("Failed to update group {} because it doesn't exist.",
+                    request.getGroupId(), e.getLocalizedMessage());
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getLocalizedMessage()).asException());
+        } catch (GroupNotClusterException e) {
+            logger.error("Failed to update cluster headroom template ID for group {} because " +
+                    "this group is not a cluster. ");
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription(e.getLocalizedMessage()).asException());
+        } catch (DatabaseException e) {
+            logger.error("Failed to update group " + request.getGroupId(), e);
+            responseObserver.onError(Status.INTERNAL
+                    .withDescription(e.getLocalizedMessage()).asException());
+        }
+
+        super.updateClusterHeadroomTemplate(request, responseObserver);
     }
 
     @Override

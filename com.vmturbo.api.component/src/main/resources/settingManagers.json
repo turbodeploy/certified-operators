@@ -105,6 +105,13 @@
         "smtpPassword",
         "smtpEncryption"
       ]
+    },
+    "capacityplandatamanager": {
+      "displayName": "Cluster Capacity",
+      "defaultCategory": "Workload",
+      "settings": [
+        "templateName"
+      ]
     }
   }
 }

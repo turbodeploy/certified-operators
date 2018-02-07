@@ -219,6 +219,11 @@ message GetTemplatesByIdsRequest {
     repeated int64 template_ids = 1;
 }
 
+// Request for getting templates by name.
+message GetTemplatesByNameRequest {
+    optional string template_name = 1;
+}
+
 service TemplateService {
     // Delete discovered templates by target id.
     rpc DeleteTemplatesByTarget (DeleteTemplatesByTargetRequest) returns (stream Template);
@@ -243,6 +248,9 @@ service TemplateService {
 
     // Get a list of Templates by Ids
     rpc GetTemplatesByIds(GetTemplatesByIdsRequest) returns (stream Template);
+
+    // Get a list of templates by name
+    rpc GetTemplatesByName(GetTemplatesByNameRequest) returns (stream Template);
 }
 
 // Get all template specs

@@ -2,7 +2,10 @@ package com.vmturbo.plan.orchestrator.templates;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
@@ -14,10 +17,13 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.Sets;
 
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.common.protobuf.plan.TemplateDTO.CreateTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
@@ -31,7 +37,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
  */
 public class TemplatesRpcTest {
 
-    private TemplatesDao templatesDao = Mockito.mock(TemplatesDao.class);
+    private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
     private TemplatesRpcService templatesRpcService = new TemplatesRpcService(templatesDao);
 
@@ -44,7 +50,7 @@ public class TemplatesRpcTest {
 
     @Before
     public void init() throws Exception {
-        templateSpecParser = Mockito.mock(TemplateSpecParser.class);
+        templateSpecParser = mock(TemplateSpecParser.class);
         templateServiceBlockingStub = TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
@@ -119,4 +125,20 @@ public class TemplatesRpcTest {
         assertEquals(result, template);
     }
 
+    @Test
+    public void testGetTemplatesByName() throws Exception {
+        String templateName = "templateName";
+        Mockito.when(templatesDao.getTemplatesByName(templateName))
+                .thenReturn(Arrays.asList(Template.getDefaultInstance()));
+
+        GetTemplatesByNameRequest request = GetTemplatesByNameRequest.newBuilder()
+                .setTemplateName(templateName)
+                .build();
+        StreamObserver<Template> observer =
+                (StreamObserver<Template>)mock(StreamObserver.class);
+        templatesRpcService.getTemplatesByName(request, observer);
+
+        Mockito.verify(observer).onNext(any(Template.class));
+        Mockito.verify(observer).onCompleted();
+    }
 }

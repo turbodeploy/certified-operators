@@ -1,8 +1,11 @@
-package com.vmturbo.plan.orchestrator.scheduled;
+package com.vmturbo.plan.orchestrator.project;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -10,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -19,16 +23,20 @@ import org.mockito.Mockito;
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo.PlanProjectScenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTOMoles;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
@@ -80,15 +88,15 @@ public class PlanProjectExecutorTest {
         groupList.add(GroupDTO.Group.newBuilder()
                 .setId(100)
                 .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder().setClusterType(ClusterInfo.Type.COMPUTE))
                 .build());
         groupList.add(GroupDTO.Group.newBuilder()
                 .setId(101)
                 .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder().setClusterType(ClusterInfo.Type.COMPUTE))
                 .build());
 
-        when(groupServiceMole.getGroups(eq(GroupDTO.GetGroupsRequest.newBuilder()
-                .setTypeFilter(GroupDTO.Group.Type.CLUSTER)
-                .build())))
+        when(groupServiceMole.getGroups(any(GroupDTO.GetGroupsRequest.class)))
                 .thenReturn(groupList);
 
         when(planDao.createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM)))
@@ -102,6 +110,82 @@ public class PlanProjectExecutorTest {
         // 2 clusters, with 2 scenarios each.  So there are 4 plan instances created.
         verify(planDao, Mockito.times(4)).
                 createPlanInstance(any(Scenario.class), eq(PlanProjectType.CLUSTER_HEADROOM));
+    }
+
+    /**
+     * When calling createPlanInstanceWithClusterHeadroomTemplate and the group has a headroom
+     * template ID configured, and the template with that ID does exist, this template
+     * will be used for execution.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testCreatePlanInstanceWithClusterHeadroomTemplate() throws Exception {
+        long headroomTempalteId = 3333;
+        Group groupWithHeadroomTemplateId = Group.newBuilder()
+                .setId(12345)
+                .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
+                        .setClusterHeadroomTemplateId(headroomTempalteId)
+                        .build())
+                .build();
+
+        when(templatesDao.getTemplate(headroomTempalteId)).thenReturn(Optional.of(Template.getDefaultInstance()));
+
+        planProjectExecutor.createClusterPlanInstance(groupWithHeadroomTemplateId,
+                PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
+        verify(templatesDao).getTemplate(anyLong());
+        verify(templatesDao, never()).getTemplatesByName("headroomVM");
+    }
+
+    /**
+     * When calling createPlanInstanceWithClusterHeadroomTemplate and the group has a headroom
+     * template ID configured, but the template with that ID does not exist, the default
+     * headroom template will be used for execution. The headroom template ID of the group will
+     * also be updated.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testCreatePlanInstanceWithClusterHeadroomTemplateNotFound() throws Exception {
+        long headroomTempalteId = 3333;
+        Group groupWithHeadroomTemplateId = Group.newBuilder()
+                .setId(12345)
+                .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
+                        .setClusterHeadroomTemplateId(headroomTempalteId)
+                        .build())
+                .build();
+
+        when(templatesDao.getTemplate(headroomTempalteId)).thenReturn(Optional.empty());
+
+        planProjectExecutor.createClusterPlanInstance(groupWithHeadroomTemplateId,
+                PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
+        verify(templatesDao).getTemplate(anyLong());
+        verify(templatesDao).getTemplatesByName("headroomVM");
+        verify(groupServiceMole).updateClusterHeadroomTemplate(any(UpdateClusterHeadroomTemplateRequest.class));
+    }
+
+    /**
+     * When calling createPlanInstanceWithClusterHeadroomTemplate, and the group does not have
+     * a headroom plan ID. In this case, use the default headroom template.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testCreatePlanInstanceWithoutClusterHeadroomTemplate() throws Exception {
+        long headroomTempalteId = 3333;
+        Group groupWithHeadroomTemplateId = Group.newBuilder()
+                .setId(12345)
+                .setType(Group.Type.CLUSTER)
+                .setCluster(ClusterInfo.newBuilder()
+                        .build())
+                .build();
+
+        planProjectExecutor.createClusterPlanInstance(groupWithHeadroomTemplateId,
+                PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
+        verify(templatesDao, never()).getTemplate(anyLong());
+        verify(templatesDao).getTemplatesByName("headroomVM");
     }
 
     /**

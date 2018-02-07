@@ -4,10 +4,14 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +20,8 @@ import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -26,8 +32,10 @@ import io.grpc.Status;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -35,14 +43,22 @@ import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
+import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class GroupsServiceTest {
@@ -68,13 +84,18 @@ public class GroupsServiceTest {
     @Mock
     private Channel channelMock;
 
+    @Captor
+    private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
+
     private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
+
+    private TemplateServiceMole templateServiceSpy = spy(new TemplateServiceMole());
 
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceSpy);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy);
 
     @Before
     public void init() throws Exception {
@@ -90,7 +111,9 @@ public class GroupsServiceTest {
                 actionSpecMapper,
                 groupMapper,
                 repositoryApi,
-                realtimeTopologyContextId);
+                realtimeTopologyContextId,
+                mock(SettingsManagerMapping.class),
+                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()));
 
         groupFilterApiDTO.setFilterType(GROUP_FILTER_TYPE);
         groupFilterApiDTO.setExpVal(GROUP_TEST_PATTERN);
@@ -156,6 +179,54 @@ public class GroupsServiceTest {
 
         final GroupApiDTO retGroup = groupsService.getGroupByUuid("1", false);
         assertEquals(apiGroup.getDisplayName(), retGroup.getDisplayName());
+    }
+
+    /**
+     * If the uuid is "GROUP-PhysicalMachineByCluster", return a GroupApiDTO object with the
+     * same UUID.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetGroupByClusterHeadroomUuid() throws Exception {
+        String clusterHeadroomGroupUuid = "GROUP-PhysicalMachineByCluster";
+        final GroupApiDTO retGroup = groupsService.getGroupByUuid(clusterHeadroomGroupUuid,
+                false);
+
+        assertEquals(clusterHeadroomGroupUuid, retGroup.getUuid());
+    }
+
+    @Test
+    public void testGetClustersByClusterHeadroomGroupUuid() throws Exception {
+        String clusterHeadroomGroupUuid = "GROUP-PhysicalMachineByCluster";
+        groupsService.getMembersByGroupUuid(clusterHeadroomGroupUuid);
+        verify(groupServiceSpy).getGroups(getGroupsRequestCaptor.capture());
+        GetGroupsRequest request = getGroupsRequestCaptor.getValue();
+        assertEquals(Type.CLUSTER, request.getTypeFilter());
+    }
+
+    @Test
+    public void testPutSettingByUuidAndName() throws Exception {
+        String groupUuid = "1234";
+        String templateId = "3333";
+
+        SettingApiInputDTO setting = new SettingApiInputDTO();
+        setting.setValue(templateId);
+
+        Template template = Template.newBuilder()
+                .setId(Long.parseLong(templateId))
+                .setType(Template.Type.SYSTEM)
+                .setTemplateInfo(TemplateInfo.newBuilder()
+                        .setName("template name"))
+                .build();
+        when(templateServiceSpy.getTemplatesByName(any(GetTemplatesByNameRequest.class)))
+                .thenReturn(Arrays.asList(template));
+        groupsService.putSettingByUuidAndName(groupUuid, "capacityplandatamanager",
+                "templateName", setting);
+        verify(groupServiceSpy).updateClusterHeadroomTemplate(UpdateClusterHeadroomTemplateRequest.newBuilder()
+                .setGroupId(Long.parseLong(groupUuid))
+                .setClusterHeadroomTemplateId(Long.parseLong(setting.getValue()))
+                .build());
     }
 
     @Test(expected = UnknownObjectException.class)

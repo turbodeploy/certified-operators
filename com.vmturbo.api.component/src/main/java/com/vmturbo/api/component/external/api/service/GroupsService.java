@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -28,6 +29,10 @@ import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequ
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
+import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -46,6 +51,8 @@ import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
@@ -73,9 +80,15 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByNameRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 
 /**
  * Service implementation of Groups functionality.
@@ -87,6 +100,11 @@ public class GroupsService implements IGroupsService {
 
     private static final String USER_GROUPS = "GROUP-MyGroups";
 
+    private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
+    private static final String CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME = "headroomVM";
+    private static final String CLUSTER_HEADROOM_SETTINGS_MANAGER = "capacityplandatamanager";
+    private static final String CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID = "templateName";
+
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
     private final GroupServiceBlockingStub groupServiceRpc;
@@ -94,6 +112,10 @@ public class GroupsService implements IGroupsService {
     private final ActionSpecMapper actionSpecMapper;
 
     private final GroupMapper groupMapper;
+
+    private final SettingsManagerMapping settingsManagerMapping;
+
+    private final TemplateServiceBlockingStub templateService;
 
     private final RepositoryApi repositoryApi;
 
@@ -106,13 +128,17 @@ public class GroupsService implements IGroupsService {
                          @Nonnull final ActionSpecMapper actionSpecMapper,
                          @Nonnull final GroupMapper groupMapper,
                          @Nonnull final RepositoryApi repositoryApi,
-                         final long realtimeTopologyContextId) {
+                         final long realtimeTopologyContextId,
+                         @Nonnull final SettingsManagerMapping settingsManagerMapping,
+                         @Nonnull final TemplateServiceBlockingStub templateService) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
+        this.templateService = templateService;
     }
 
     @Override
@@ -126,6 +152,22 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public GroupApiDTO getGroupByUuid(String uuid, boolean includeAspects) throws UnknownObjectException {
+        // The "Nightly Plan Configuration" UI calls this API to populate the list of clusters and
+        // their associated templates. The UI uses the uuid "GROUP-PhysicalMachineByCluster" with
+        // request.  This UUID is defined in the context of version 6.1 implementation.
+        // In order to reuse UI as is, we decided to handle this use case as a special case.
+        // If the uuid equals "GROUP-PhysicalMachineByCluster", return a group with the same UUID.
+        // The logic to get a list of clusters in in method getMembersByGroupUuid.
+        if (uuid.equals(CLUSTER_HEADROOM_GROUP_UUID)) {
+            final GroupApiDTO outputDTO = new GroupApiDTO();
+            outputDTO.setClassName("Group");
+            outputDTO.setDisplayName("Physical Machines by PM Cluster");
+            outputDTO.setGroupType(ServiceEntityMapper.toUIEntityType(Type.CLUSTER.getNumber()));
+            outputDTO.setUuid(CLUSTER_HEADROOM_GROUP_UUID);
+            outputDTO.setEnvironmentType(EnvironmentType.ONPREM);
+            return outputDTO;
+        }
+
         final long id = Long.parseLong(uuid);
 
         // TODO (roman, Aug 3, 2017): It's inconvenient that the UI/API knows
@@ -221,12 +263,150 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<SettingsManagerApiDTO> getSettingsByGroupUuid(String uuid, boolean includePolicies) throws Exception {
-        // TODO: OM-23672
-        return new ArrayList<>();
+        Long groupId = null;
+
+        try {
+            groupId = Long.parseLong(uuid);
+        } catch (NumberFormatException e) {
+            // UUID is not a number.
+            // FIXME There is a UI bug that sends in "GROUP-PhysicalMachineByCluster". (OM-30275)
+            // If value is "GROUP-PhysicalMachineByCluster", ignore the request by returning an empty array.
+            // Otherwise, throw exception.
+            if (CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
+                return new ArrayList<>();
+            } else {
+                throw new IllegalArgumentException("Cluster uuid is invalid: " + uuid, e);
+            }
+        }
+
+        Group group = groupServiceRpc.getGroup(GroupID.newBuilder()
+                .setId(groupId)
+                .build()).getGroup();
+
+        if (group.getType().equals(Type.CLUSTER)) {
+            // Group is a cluster.  Return the cluster headroom template as a setting, wrapped in
+            // the SettingsManagerApiDTO data structure.
+            SettingsManagerInfo managerInfo = settingsManagerMapping
+                    .getManagerInfo(CLUSTER_HEADROOM_SETTINGS_MANAGER)
+                    .orElseThrow(() -> new UnknownObjectException("Settings manager with uuid "
+                            + uuid + " is not found."));
+
+            return getHeadroomSettingsMangerApiDTO(managerInfo, getTemplateSetting(group));
+        } else {
+            // TODO: OM-23672
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * Populate the SettingsManagerApiDTO object with data from managerInfo and the template setting.
+     *
+     * @param managerInfo manager info object
+     * @param templateSetting Settings object that contains the template ID
+     * @return
+     */
+    @Nonnull
+    private List<SettingsManagerApiDTO> getHeadroomSettingsMangerApiDTO(
+            @Nonnull SettingsManagerInfo managerInfo,
+            @Nonnull SettingApiDTO templateSetting) {
+        final SettingsManagerApiDTO settingsManager = new SettingsManagerApiDTO();
+        settingsManager.setUuid(CLUSTER_HEADROOM_SETTINGS_MANAGER);
+        settingsManager.setDisplayName(managerInfo.getDisplayName());
+        settingsManager.setCategory(managerInfo.getDefaultCategory());
+        settingsManager.setSettings(Arrays.asList(templateSetting));
+        return Arrays.asList(settingsManager);
+    }
+
+    /**
+     * Gets the template ID and name from the template service, and return the values in a
+     * SettingsApiDTO object.
+     *
+     * @param group the Group object for which the headroom template is to be found.
+     * @return the VM headroom template information of the given cluster.
+     * @throws UnknownObjectException No headroom template found for this group.
+     */
+    @Nonnull
+    private SettingApiDTO getTemplateSetting(@Nonnull Group group) throws UnknownObjectException {
+        Template headroomTemplate = null;
+
+        // Get the headroom template with the ID in ClusterInfo if available.
+        if (group.hasCluster() && group.getCluster().hasClusterHeadroomTemplateId()) {
+            Optional<Template> headroomTemplateOpt = getClusterHeadroomTemplate(
+                    group.getCluster().getClusterHeadroomTemplateId());
+            if (headroomTemplateOpt.isPresent()) {
+                headroomTemplate = headroomTemplateOpt.get();
+            }
+        }
+        // If the headroom template ID is not set in clusterInfo, or the template with the ID is
+        // not found, get the default headroom template.
+        if (headroomTemplate == null) {
+            Iterable<Template> templateIter = () -> templateService.getTemplatesByName(
+                    GetTemplatesByNameRequest.newBuilder()
+                            .setTemplateName(CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME)
+                            .build());
+            headroomTemplate = StreamSupport.stream(templateIter.spliterator(), false)
+                    .filter(template -> template.getType().equals(Template.Type.SYSTEM))
+                    .findFirst()
+                    .orElseThrow(() -> new UnknownObjectException("No system headroom VM found!"));
+        }
+
+        String templateName = headroomTemplate.getTemplateInfo().getName();
+        String templateId = Long.toString(headroomTemplate.getId());
+
+        SettingApiDTO setting = new SettingApiDTO();
+        setting.setUuid(CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID);
+        setting.setValue(templateId);
+        setting.setValueDisplayName(templateName);
+        setting.setValueType(InputValueType.STRING);
+        setting.setEntityType(UIEntityType.PHYSICAL_MACHINE.getValue());
+
+        return setting;
+    }
+
+    /**
+     * Gets the template with the given template ID.
+     *
+     * @param templateId template ID
+     * @return the Template if found. Otherwise, return an empty Optional object.
+     */
+    private Optional<Template> getClusterHeadroomTemplate(Long templateId) {
+        try {
+            return Optional.of(templateService.getTemplate(GetTemplateRequest.newBuilder()
+                    .setTemplateId(templateId)
+                    .build()));
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
+                // return empty to indicate that the system headroom plan should be used.
+                return Optional.empty();
+            } else {
+                throw e;
+            }
+        }
     }
 
     @Override
-    public SettingApiDTO putSettingByUuidAndName(String groupUuid, String settingUuid, String name, SettingApiInputDTO setting) throws Exception {
+    public SettingApiDTO putSettingByUuidAndName(String groupUuid,
+                                                 String managerName,
+                                                 String settingUuid,
+                                                 SettingApiInputDTO setting)
+            throws Exception {
+        // Update the cluster headroom template ID
+        if (settingUuid.equals(CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID) &&
+                managerName.equals(CLUSTER_HEADROOM_SETTINGS_MANAGER)) {
+            try {
+                UpdateClusterHeadroomTemplateResponse response =
+                        groupServiceRpc.updateClusterHeadroomTemplate(
+                                UpdateClusterHeadroomTemplateRequest.newBuilder()
+                                        .setGroupId(Long.parseLong(groupUuid))
+                                        .setClusterHeadroomTemplateId(Long.parseLong(setting.getValue()))
+                                        .build());
+                return getTemplateSetting(response.getUpdatedGroup());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Invalid group ID or cluster headroom template ID");
+            }
+        }
+
+        // The implementation for updating settings other than cluster headroom template is not available.
         throw ApiUtils.notImplementedInXL();
     }
 
@@ -362,7 +542,18 @@ public class GroupsService implements IGroupsService {
 
     @Override
     public List<?> getMembersByGroupUuid(String uuid) throws UnknownObjectException {
-        if (USER_GROUPS.equals(uuid)) { // Get all user-created groups
+        if (CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
+            List<GroupApiDTO> groupOfClusters = getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                    .setTypeFilter(Type.CLUSTER)
+                    .setClusterFilter(ClusterFilter.newBuilder()
+                            .setTypeFilter(ClusterInfo.Type.COMPUTE)
+                            .build())
+                    .build());
+            // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
+            // with classname "Group" This line can be removed when bug OM-30381 is fixed.
+            groupOfClusters.forEach(cluster -> cluster.setClassName("Group"));
+            return groupOfClusters;
+        } else if (USER_GROUPS.equals(uuid)) { // Get all user-created groups
             return getGroupApiDTOS(GetGroupsRequest.newBuilder()
                     .setTypeFilter(Group.Type.GROUP)
                     .setOriginFilter(Origin.USER)

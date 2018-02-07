@@ -39,6 +39,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
@@ -536,6 +538,26 @@ public class GroupServiceTest {
         verify(mockObserver).onError(any(IllegalArgumentException.class));
         verify(mockObserver, never()).onNext(any(GroupDTO.GetMembersResponse.class));
         verify(mockObserver, never()).onCompleted();
+    }
+
+    @Test
+    public void testUpdateClusterHeadroomTemplate() throws Exception {
+        long groupId = 1111L;
+        long templateId = 2222L;
+
+        given(groupStore.updateClusterHeadroomTemplate(groupId, templateId))
+                .willReturn(Group.getDefaultInstance());
+
+        UpdateClusterHeadroomTemplateRequest request = UpdateClusterHeadroomTemplateRequest.newBuilder()
+                .setGroupId(groupId)
+                .setClusterHeadroomTemplateId(templateId)
+                .build();
+        StreamObserver<UpdateClusterHeadroomTemplateResponse> observer =
+                (StreamObserver<UpdateClusterHeadroomTemplateResponse>)mock(StreamObserver.class);
+        groupService.updateClusterHeadroomTemplate(request, observer);
+
+        verify(observer).onNext(any(UpdateClusterHeadroomTemplateResponse.class));
+        verify(observer).onCompleted();
     }
 
     private void givenSearchHanderWillReturn(final List<Long> oids) {
