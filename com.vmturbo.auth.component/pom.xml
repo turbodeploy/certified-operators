@@ -168,6 +168,7 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
         </dependency>
+
         <!--  Gson: Java to Json conversion -->
         <dependency>
             <groupId>com.google.code.gson</groupId>
@@ -205,6 +206,16 @@
         </dependency>
 
         <!-- test dependencies -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>components-test-utilities</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>auth-test</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>

@@ -247,5 +247,10 @@
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>auth-test</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 </project>

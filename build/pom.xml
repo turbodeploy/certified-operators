@@ -170,6 +170,7 @@
             <modules>
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
+                <module>../com.vmturbo.auth.test</module>
             </modules>
         </profile>
 
@@ -362,6 +363,7 @@
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
+                <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.grpc.extensions</module>
@@ -454,6 +456,7 @@
                 <!-- The meat of the XL code, and the platform components. -->
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.auth.component</module>
+                <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.grpc.extensions</module>
@@ -1101,6 +1104,12 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>components-test-utilities</artifactId>
+                <version>${project.version}</version>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>auth-test</artifactId>
                 <version>${project.version}</version>
                 <scope>test</scope>
             </dependency>

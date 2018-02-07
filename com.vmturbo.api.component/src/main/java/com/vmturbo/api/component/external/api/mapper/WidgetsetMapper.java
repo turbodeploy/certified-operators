@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 
 import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
+import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.Widgetset;
 import com.vmturbo.components.api.ComponentGsonFactory;
 
@@ -31,33 +32,36 @@ public class WidgetsetMapper {
                 throw new IllegalArgumentException("Invalid uuid " + widgetsetApiDTO.getUuid());
             }
         }
+        // populate the WidgetsetInfo for this Widgetset
+        Widgets.WidgetsetInfo.Builder infoBuilder = Widgets.WidgetsetInfo.newBuilder();
         if (widgetsetApiDTO.getUsername() == null) {
-            throw new IllegalArgumentException("Username for a widgetset " +
+            throw new IllegalArgumentException("Owner uuid for a widgetset " +
                     widgetsetApiDTO.getUuid() + " must not be empty");
         }
         try {
-            answer.setOwnerOid(Long.valueOf(widgetsetApiDTO.getUsername()));
+            infoBuilder.setOwnerOid(Long.valueOf(widgetsetApiDTO.getUsername()));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid owner uuid " +
                     widgetsetApiDTO.getUsername());
         }
         if (widgetsetApiDTO.getCategory() != null) {
-            answer.setCategory(widgetsetApiDTO.getCategory());
+            infoBuilder.setCategory(widgetsetApiDTO.getCategory());
         }
         if (widgetsetApiDTO.getScope() != null) {
-            answer.setScope(widgetsetApiDTO.getScope());
+            infoBuilder.setScope(widgetsetApiDTO.getScope());
         }
         if (widgetsetApiDTO.getScopeType() != null) {
-            answer.setScopeType(widgetsetApiDTO.getScopeType());
+            infoBuilder.setScopeType(widgetsetApiDTO.getScopeType());
         }
-        answer.setSharedWithAllUsers(widgetsetApiDTO.isSharedWithAllUsers());
+        infoBuilder.setSharedWithAllUsers(widgetsetApiDTO.isSharedWithAllUsers());
         if (widgetsetApiDTO.getWidgets() == null) {
             throw new IllegalArgumentException("widgets definiton for " + widgetsetApiDTO.getUuid() +
-                    "is null.");
+                     "is null.");
         }
         Gson gson = new Gson();
         String widgetsString = gson.toJson(widgetsetApiDTO.getWidgets());
-        answer.setWidgets(widgetsString);
+        infoBuilder.setWidgets(widgetsString);
+        answer.setInfo(infoBuilder.build());
 
         return answer.build();
     }
@@ -72,30 +76,33 @@ public class WidgetsetMapper {
         if (widgetset.hasOid()) {
             answer.setUuid(Long.toString(widgetset.getOid()));
         }
-        if (!widgetset.hasOwnerOid()) {
+        if (!widgetset.getInfo().hasOwnerOid()) {
             throw new IllegalArgumentException("Owner OID for a widgetset " +
                     widgetset.getOid() + " must not be empty");
         }
         answer.setUuid(Long.toString(widgetset.getOid()));
-        if (widgetset.hasOwnerOid()) {
-            answer.setUsername(Long.toString(widgetset.getOwnerOid()));
+        if (widgetset.hasInfo()) {
+            Widgets.WidgetsetInfo widgetsetInfo = widgetset.getInfo();
+            if (widgetsetInfo.hasOwnerOid()) {
+                answer.setUsername(Long.toString(widgetsetInfo.getOwnerOid()));
+            }
+            if (widgetsetInfo.hasCategory()) {
+                answer.setCategory(widgetsetInfo.getCategory());
+            }
+            if (widgetsetInfo.hasScope()) {
+                answer.setScope(widgetsetInfo.getScope());
+            }
+            if (widgetsetInfo.hasScopeType()) {
+                answer.setScopeType(widgetsetInfo.getScopeType());
+            }
+            answer.setSharedWithAllUsers(widgetsetInfo.getSharedWithAllUsers());
+            if (!widgetsetInfo.hasWidgets()) {
+                throw new IllegalArgumentException("widgets definiton for widgetset " +
+                        widgetset.getOid() + " is empty.");
+            }
+            WidgetApiDTO[] widgets = GSON.fromJson(widgetsetInfo.getWidgets(), WidgetApiDTO[].class);
+            answer.setWidgets(Arrays.asList(widgets));
         }
-        if (widgetset.hasCategory()) {
-            answer.setCategory(widgetset.getCategory());
-        }
-        if (widgetset.hasScope()) {
-            answer.setScope(widgetset.getScope());
-        }
-        if (widgetset.hasScopeType()) {
-            answer.setScopeType(widgetset.getScopeType());
-        }
-        answer.setSharedWithAllUsers(widgetset.getSharedWithAllUsers());
-        if (!widgetset.hasWidgets()) {
-            throw new IllegalArgumentException("widgets definiton for " + widgetset.getOid() +
-                    "is null.");
-        }
-        WidgetApiDTO[] widgets = GSON.fromJson(widgetset.getWidgets(), WidgetApiDTO[].class);
-        answer.setWidgets(Arrays.asList(widgets));
 
         return answer;
     }

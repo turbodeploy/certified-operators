@@ -3,42 +3,53 @@ package widgets;
 
 option java_package = "com.vmturbo.common.protobuf.widgets";
 
-// The structure to describe a Widgetset. It is identified by an oid, and described by a
-// category and scope_type. There's a start_period and end_period used for TBD.
-// A Widgetset represents a visual panel consisting of a number of widgets layed out in a
-// packed format. The UI predefines several widgetsets, and the user may create any number of
-// 'Dashboard's, where each is a widgetset.
-// Currently the UI only retrieves/stores an entire widgetset. There are no API calls to
-// modify some of the fields, i.e. add/remove/modify individual widgets.
-// The widgets are stored as an uninterpreted String - the server has no need to access the
-// internal fields. See below for an example.
-// Note that each Widgetset has an owner. Currently only the owner may fetch or update
-// a widgetset.
+// A Widgetset consists of a WidgetsetInfo plus a unique id
 message Widgetset {
 
     // the unique id for this widgetset
     optional int64 oid = 1;
 
+    // the data that
+    optional WidgetsetInfo info = 2;
+
+}
+
+// The structure to describe the info for a Widgetset. It is identified by an oid, and described by
+// a category and scope_type. There's a start_period and end_period used for TBD.
+//
+// A Widgetset represents a visual panel consisting of a number of widgets layed out in a
+// packed format. The UI predefines several widgetsets, and the user may create any number of
+// 'Dashboard's, where each is a widgetset.
+//
+// Currently the UI only retrieves/stores an entire widgetset. There are no API calls to
+// modify some of the fields, i.e. add/remove/modify individual widgets.
+// The widgets are stored as an uninterpreted String - the server has no need to access the
+// internal fields. See below for an example.
+//
+// Note that each Widgetset has an owner. Currently only the owner may fetch or update
+// a widgetset.
+message WidgetsetInfo {
+
     // the owner id of the widgetset; limits access unless 'shared_with_all_users' is true
-    optional int64 owner_oid = 2;
+    optional int64 owner_oid = 1;
 
     // unused by the server; saved/restored on behalf of the UI
-    optional string category = 5;
+    optional string category = 2;
 
     // the scope attached to this widget
-    optional string scope = 9;
+    optional string scope = 3;
 
     // the type of the scope, used in search, e.g. Application, Cloud_Database, Cloud_Group_Storage,
     // Group_PhysicalMachine, Group_ServiceEntity, Hybrid_Market, Market, Onprem_Application, etc.
-    optional string scope_type = 13;
+    optional string scope_type = 4;
 
     // should this widget be readable by all users
-    optional bool shared_with_all_users = 25;
+    optional bool shared_with_all_users = 5;
 
     // Store the body of the widget definition as a String, for now. In legacy there are several
     // further levels of sub-objects: WidgetApiDTO -> WidgetElementApiDTO -> StatApiInputDTO -> ...
     // The server code needs no access to these inner objects, so a string will suffice.
-    optional string widgets = 29;
+    optional string widgets = 6;
 }
 
 // Fetch Widgetset based on the given search criteria.
@@ -61,16 +72,19 @@ message GetWidgetsetRequest {
 // Add a new widgetset to the system; return the newly created widgetset with the oid populated.
 message CreateWidgetsetRequest {
 
-    // the widgetset dto to add; the oid will be ignored on input and set to a new value on return
-    optional Widgetset widgetset_dto = 1;
+    // the widgetset info describing the object to create
+    optional WidgetsetInfo widgetset_info = 1;
 }
 
 // Alter an existing widgetset; the oid of the update value will be used to
 // identify which item to alter.
 message UpdateWidgetsetRequest {
 
-    // the widgetset to update; the OID in the input is used to identify which object to update
-    optional Widgetset widgetset_dto = 1;
+    // the unique OID of the widgetset to update
+    optional int64 oid = 1;
+
+    // the widgetset info to update the existing widgetset with
+    optional WidgetsetInfo widgetset_info = 2;
 }
 
 // Remove a widgetset from the system given the oid.
