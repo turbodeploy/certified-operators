@@ -57,16 +57,13 @@ public class ReportingServiceReportGenerationTest {
     @Before
     public void init() throws Exception {
         reportTemplate = ReportTemplate.newBuilder()
-                .setReportType(1)
-                .setId(100)
+                .setId(ReportTemplateId.newBuilder().setReportType(1).setId(100).build())
                 .setFilename("hogwarts-faculties")
                 .setDescription("Faculties of Hogwarts School of Whitchcraft and Wizardry")
                 .build();
         request = GenerateReportRequest.newBuilder()
                 .setFormat(ReportOutputFormat.PDF.getLiteral())
-                .setTemplate(ReportTemplateId.newBuilder()
-                        .setReportType(1)
-                        .setId(reportTemplate.getId()))
+                .setTemplate(reportTemplate.getId())
                 .build();
 
         templatesOrganizer = Mockito.mock(TemplatesOrganizer.class);

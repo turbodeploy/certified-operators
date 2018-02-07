@@ -2,11 +2,8 @@ package com.vmturbo.reports.component;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.stream.Collectors;
-
-import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -64,28 +61,35 @@ public class ReportingServiceTest {
         final Collection<ReportTemplate> templates = Lists.newArrayList(templatesIterator);
         Assert.assertFalse(templates.isEmpty());
         Assert.assertEquals(Sets.newHashSet(ReportType.BIRT_STANDARD.getValue(),
-                ReportType.BIRT_ON_DEMAND.getValue()),
-                templates.stream().map(ReportTemplate::getReportType).collect(Collectors.toSet()));
+                ReportType.BIRT_ON_DEMAND.getValue()), templates.stream()
+                .map(ReportTemplate::getId)
+                .map(ReportTemplateId::getReportType)
+                .collect(Collectors.toSet()));
         final int standardTemplateId = templates.stream()
-                .filter(reportTemplate -> reportTemplate.getReportType() ==
+                .filter(reportTemplate -> reportTemplate.getId().getReportType() ==
                         ReportType.BIRT_STANDARD.getValue())
                 .findFirst()
                 .get()
-                .getId();
+                .getId().getId();
         final ReportTemplate standardTemplate = reportingConfig.templatesController()
-                .getTemplateById(ReportType.BIRT_STANDARD, standardTemplateId).get();
-        Assert.assertEquals(ReportType.BIRT_STANDARD.getValue(), standardTemplate.getReportType());
-        Assert.assertEquals(standardTemplateId, standardTemplate.getId());
+                .getTemplateById(ReportType.BIRT_STANDARD, standardTemplateId)
+                .get();
+        Assert.assertEquals(ReportType.BIRT_STANDARD.getValue(),
+                standardTemplate.getId().getReportType());
+        Assert.assertEquals(standardTemplateId, standardTemplate.getId().getId());
         final int onDemandTemplateId = templates.stream()
-                .filter(reportTemplate -> reportTemplate.getReportType() ==
+                .filter(reportTemplate -> reportTemplate.getId().getReportType() ==
                         ReportType.BIRT_ON_DEMAND.getValue())
                 .findFirst()
                 .get()
+                .getId()
                 .getId();
         final ReportTemplate onDemandTemplate = reportingConfig.templatesController()
-                .getTemplateById(ReportType.BIRT_ON_DEMAND, onDemandTemplateId).get();
-        Assert.assertEquals(ReportType.BIRT_ON_DEMAND.getValue(), onDemandTemplate.getReportType());
-        Assert.assertEquals(onDemandTemplateId, onDemandTemplate.getId());
+                .getTemplateById(ReportType.BIRT_ON_DEMAND, onDemandTemplateId)
+                .get();
+        Assert.assertEquals(ReportType.BIRT_ON_DEMAND.getValue(),
+                onDemandTemplate.getId().getReportType());
+        Assert.assertEquals(onDemandTemplateId, onDemandTemplate.getId().getId());
     }
 
     /**
@@ -103,9 +107,7 @@ public class ReportingServiceTest {
         final ReportTemplate template = stub.listAllTemplates(Empty.getDefaultInstance()).next();
         final ReportInstanceId response = stub.generateReport(GenerateReportRequest.newBuilder()
                 .setFormat(ReportOutputFormat.PDF.getLiteral())
-                .setTemplate(ReportTemplateId.newBuilder()
-                        .setId(template.getId())
-                        .setReportType(ReportType.BIRT_STANDARD.getValue()))
+                .setTemplate(template.getId())
                 .build());
         Assert.assertTrue(response.getId() > 0);
         final ReportListener listener = Mockito.mock(ReportListener.class);
@@ -125,14 +127,10 @@ public class ReportingServiceTest {
         final ReportInstance instance = resultInstances.iterator().next();
         Assert.assertEquals(ReportOutputFormat.PDF.getLiteral(), instance.getFormat());
         Assert.assertEquals(response.getId(), instance.getId());
-        Assert.assertEquals(template.getId(), instance.getTemplate().getId());
-        Assert.assertEquals(template.getReportType(), instance.getTemplate().getReportType());
+        Assert.assertEquals(template.getId(), instance.getTemplate());
 
-        final Collection<ReportInstance> templateInstances = Sets.newHashSet(
-                stub.getInstancesByTemplate(ReportTemplateId.newBuilder()
-                        .setId(template.getId())
-                        .setReportType(ReportType.BIRT_STANDARD.getValue())
-                        .build()));
+        final Collection<ReportInstance> templateInstances =
+                Sets.newHashSet(stub.getInstancesByTemplate(template.getId()));
         Assert.assertEquals(1, templateInstances.size());
         Assert.assertEquals(instance, templateInstances.iterator().next());
 

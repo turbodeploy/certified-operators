@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
 import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
 
@@ -25,7 +26,9 @@ public class TemplateConverter {
     @Nonnull
     public static ReportTemplate convert(@Nonnull StandardReportsRecord src) {
         final ReportTemplate.Builder builder = ReportTemplate.newBuilder();
-        builder.setId(src.getId());
+        builder.setId(ReportTemplateId.newBuilder()
+                .setId(src.getId())
+                .setReportType(ReportType.BIRT_STANDARD.getValue()));
         Optional.ofNullable(src.getFilename()).ifPresent(builder::setFilename);
         Optional.ofNullable(src.getTitle()).ifPresent(builder::setTitle);
         Optional.ofNullable(src.getCategory()).ifPresent(builder::setCategory);
@@ -35,10 +38,8 @@ public class TemplateConverter {
                 .ifPresent(period -> builder.setPeriod(period.ordinal()));
         Optional.ofNullable(src.getDayType())
                 .ifPresent(dayOfWeek -> builder.setDayType(dayOfWeek.ordinal()));
-        builder.setReportType(ReportType.BIRT_STANDARD.getValue());
         return builder.build();
     }
-
 
     /**
      * Converts on demand report template from DB representation into protobuf.
@@ -49,13 +50,14 @@ public class TemplateConverter {
     @Nonnull
     public static ReportTemplate convert(@Nonnull OnDemandReportsRecord src) {
         final ReportTemplate.Builder builder = ReportTemplate.newBuilder();
-        builder.setId(src.getId());
+        builder.setId(ReportTemplateId.newBuilder()
+                .setId(src.getId())
+                .setReportType(ReportType.BIRT_ON_DEMAND.getValue()));
         Optional.ofNullable(src.getFilename()).ifPresent(builder::setFilename);
         Optional.ofNullable(src.getTitle()).ifPresent(builder::setTitle);
         Optional.ofNullable(src.getCategory()).ifPresent(builder::setCategory);
         Optional.ofNullable(src.getShortDesc()).ifPresent(builder::setShortDescription);
         builder.setDescription(src.getDescription());
-        builder.setReportType(ReportType.BIRT_ON_DEMAND.getValue());
         return builder.build();
     }
 }

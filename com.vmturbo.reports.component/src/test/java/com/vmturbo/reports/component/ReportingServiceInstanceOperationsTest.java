@@ -57,8 +57,7 @@ public class ReportingServiceInstanceOperationsTest {
     @Before
     public void init() throws Exception {
         final ReportTemplate reportTemplate = ReportTemplate.newBuilder()
-                .setId(100)
-                .setReportType(1)
+                .setId(ReportTemplateId.newBuilder().setId(100).setReportType(1))
                 .setFilename("hogwarts-faculties")
                 .setDescription("Faculties of Hogwarts School of Whitchcraft and Wizardry")
                 .build();

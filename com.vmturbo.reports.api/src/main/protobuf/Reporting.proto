@@ -16,10 +16,8 @@ message GenerateReportRequest {
 
 // Report template
 message ReportTemplate {
-    // Id of the report (represents id in the DB)
-    required int32 id = 1;
-    // Report type. Reffers to ReportType enumeration
-    required int32 report_type = 2;
+    // Id of the report
+    required ReportTemplateId id = 1;
     // File name to be used for this report
     // TODO decide, whether we need this field in UI at all.
     optional string filename = 3;

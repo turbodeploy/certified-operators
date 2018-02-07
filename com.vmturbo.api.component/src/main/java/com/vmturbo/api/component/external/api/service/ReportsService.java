@@ -1,12 +1,12 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
@@ -30,6 +30,7 @@ import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReportsService;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
@@ -67,29 +68,28 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public List<ReportInstanceApiDTO> getInstancesList() throws Exception {
-        final Map<ReportTemplateId, ReportTemplate> templatesMap = new HashMap<>();
-        final Iterator<ReportTemplate> templates =
-                reportingService.listAllTemplates(Empty.getDefaultInstance());
-        templates.forEachRemaining(template -> templatesMap.put(ReportTemplateId.newBuilder()
-                .setReportType(template.getReportType())
-                .setId(template.getId())
-                .build(), template));
-
+    public List<ReportInstanceApiDTO> getInstancesList() {
         final List<ReportInstanceApiDTO> result = new ArrayList<>();
         final Iterator<ReportInstance> reportIterator =
                 reportingService.listAllInstances(Empty.getDefaultInstance());
         while (reportIterator.hasNext()) {
             final ReportInstance instance = reportIterator.next();
-            final ReportTemplate template = templatesMap.get(instance.getTemplate());
-            final ReportInstanceApiDTO reportInstance = new ReportInstanceApiDTO();
-            reportInstance.setFilename(template.getFilename());
-            reportInstance.setFormat(Collections.singletonMap(instance.getFormat(),
-                    String.valueOf(instance.getId())));
-            reportInstance.setScope(new BaseApiDTO());
-            result.add(reportInstance);
+            result.add(convert(instance));
         }
         return result;
+    }
+
+    @Nonnull
+    private static ReportInstanceApiDTO convert(@Nonnull ReportInstance instance) {
+        final ReportInstanceApiDTO reportInstance = new ReportInstanceApiDTO();
+        reportInstance.setFilename(createFakeFilename(instance.getTemplate()));
+        reportInstance.setFormat(
+                Collections.singletonMap(instance.getFormat(), String.valueOf(instance.getId())));
+        reportInstance.setScope(new BaseApiDTO());
+        reportInstance.setTimestamp(
+                DateTimeUtil.formatDate(new Date(instance.getGenerationTime())));
+        reportInstance.setUrl("output%3D" + instance.getId());
+        return reportInstance;
     }
 
     @Override
@@ -146,10 +146,18 @@ public class ReportsService implements IReportsService {
     }
 
     @Override
-    public List<ReportInstanceApiDTO> getReportTemplateInstanceList(final String templateId,
-            final String startTime, final String endTime, final boolean exteractZip)
-            throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public List<ReportInstanceApiDTO> getReportTemplateInstanceList(
+            final @Nonnull String templateApiId, final @Nonnull Instant startTime,
+            final @Nonnull Instant endTime, final boolean exteractZip) {
+        logger.debug("Retrieving report instances for template {}", templateApiId);
+        final ReportTemplateId templateId = getReportTemplateId(templateApiId);
+        final Iterator<ReportInstance> iterator = reportingService.getInstancesByTemplate(templateId);
+        final List<ReportInstanceApiDTO> result = new ArrayList<>();
+        while (iterator.hasNext()) {
+            final ReportInstance instance = iterator.next();
+            result.add(convert(instance));
+        }
+        return result;
     }
 
     /**
@@ -296,14 +304,14 @@ public class ReportsService implements IReportsService {
      * Converts reporting template from Protobuf representation into REST API representation.
      *
      * @param src protobuf representation
-     * @return REST API reporesentation
+     * @return REST API representation
      */
     @Nonnull
     private static ReportApiDTO convert(@Nonnull ReportTemplate src) {
         final ReportApiDTO dst = new ReportApiDTO();
-        dst.setTemplateID(src.getReportType(), src.getId());
-        dst.setReportType(src.getReportType());
-        dst.setFileName(src.getFilename());
+        dst.setTemplateID(src.getId().getReportType(), src.getId().getId());
+        dst.setReportType(src.getId().getReportType());
+        dst.setFileName(createFakeFilename(src.getId()));
         dst.setTitle(src.getTitle());
         dst.setCategory(src.getCategory());
         dst.setDescription(src.getDescription());
@@ -359,5 +367,16 @@ public class ReportsService implements IReportsService {
                 .setId(templateId)
                 .setReportType(reportType.getValue())
                 .build();
+    }
+
+    /**
+     * File name was used in UI in order to identify the report template. We do not support this
+     * data in XL, so we form a fake filename, unique to each report template.
+     *
+     * @param templateId report template id
+     * @return string representation of templates
+     */
+    private static String createFakeFilename(@Nonnull ReportTemplateId templateId) {
+        return Integer.toString(templateId.getReportType()) + '-' + templateId.getId();
     }
 }

@@ -226,11 +226,6 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             final ReportInstance instance = reportInstanceDao.getInstanceRecord(request.getId())
                     .orElseThrow(() -> new ReportingException(
                             "Report instance not found by id " + request.getId()));
-            final ReportTemplate template =
-                    templatesOrganizer.getTemplateById(instance.getReportType(), instance.getTemplateId())
-                            .orElseThrow(() -> new ReportingException(
-                                    "Template " + instance.getTemplateId() +
-                                            " not found for report " + request.getId()));
             final ReportOutputFormat format = instance.getOutputFormat();
             final File reportFile = new File(outputDirectory, instance.getId().toString());
             final ByteString data;
