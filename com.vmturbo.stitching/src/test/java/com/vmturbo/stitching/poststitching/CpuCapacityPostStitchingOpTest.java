@@ -54,24 +54,16 @@ public class CpuCapacityPostStitchingOpTest {
     public void testNoCommodities() {
 
         final TopologyEntity entity = makeTopologyEntity(Collections.emptyList(), Collections.emptyMap());
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(entity.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-            Collections.emptyList());
+        operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
     public void testNoCpuCommodity() {
         final List<CommoditySoldDTO> commodities = Collections.singletonList(makeCommoditySold(CommodityType.BALLOONING));
         final TopologyEntity entity = makeTopologyEntity(commodities, Collections.emptyMap());
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(entity.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-            commodities);
+        operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -79,12 +71,8 @@ public class CpuCapacityPostStitchingOpTest {
 
         final List<CommoditySoldDTO> commodities = Collections.singletonList(makeCommoditySold(CommodityType.CPU, 255));
         final TopologyEntity entity = makeTopologyEntity(commodities, Collections.emptyMap());
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(entity.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-            commodities);
+        operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -93,12 +81,8 @@ public class CpuCapacityPostStitchingOpTest {
 
         final List<CommoditySoldDTO> commodities = Collections.singletonList(makeCommoditySold(CommodityType.CPU));
         final TopologyEntity entity = makeTopologyEntity(commodities, propsMap);
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(entity.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-            commodities);
+        operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -107,12 +91,8 @@ public class CpuCapacityPostStitchingOpTest {
 
         final List<CommoditySoldDTO> commodities = Collections.singletonList(makeCommoditySold(CommodityType.CPU));
         final TopologyEntity entity = makeTopologyEntity(commodities, propsMap);
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(entity.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-            commodities);
+        operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -121,12 +101,8 @@ public class CpuCapacityPostStitchingOpTest {
 
         final List<CommoditySoldDTO> commodities = Collections.singletonList(makeCommoditySold(CommodityType.CPU));
         final TopologyEntity entity = makeTopologyEntity(commodities, propsMap);
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(entity.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-            commodities);
+        operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test

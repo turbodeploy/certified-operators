@@ -3,7 +3,6 @@ package com.vmturbo.stitching.poststitching;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommoditySold;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeNumericSetting;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeTopologyEntity;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -90,13 +89,8 @@ public class StorageLatencyPostStitchingOpTest {
     public void testNoCommodities() {
         final TopologyEntity testTE = makeTopologyEntity(Collections.emptyList());
 
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-            Collections.emptyList());
-
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -106,11 +100,8 @@ public class StorageLatencyPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(startingList);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), startingList);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
 
@@ -121,11 +112,9 @@ public class StorageLatencyPostStitchingOpTest {
         final List<CommoditySoldDTO> origCommodities = Collections.singletonList(irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
 
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
     }
 
     @Test
@@ -136,11 +125,8 @@ public class StorageLatencyPostStitchingOpTest {
                 Arrays.asList(preloaded, irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test

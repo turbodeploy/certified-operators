@@ -41,12 +41,12 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 @RunWith(Parameterized.class)
-public class AllocationPostStitchingOpTest {
+public class PmAllocationPostStitchingOpTest {
 
     @Parameters
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][] {
-            {new CpuAllocationPostStitchingOperation(), CommodityType.CPU,
+            {new PmCpuAllocationPostStitchingOperation(), CommodityType.CPU,
                 CommodityType.CPU_ALLOCATION, EntitySettingSpecs.CpuOverprovisionedPercentage},
             {new MemoryAllocationPostStitchingOperation(), CommodityType.MEM,
                 CommodityType.MEM_ALLOCATION, EntitySettingSpecs.MemoryOverprovisionedPercentage}
@@ -70,10 +70,10 @@ public class AllocationPostStitchingOpTest {
     private final List<CommoditySoldDTO> expectedCommodities;
 
 
-    public AllocationPostStitchingOpTest(@Nonnull final OverprovisionCapacityPostStitchingOperation op,
-                                         @Nonnull final CommodityType sourceType,
-                                         @Nonnull final CommodityType allocationType,
-                                         @Nonnull final EntitySettingSpecs settingType) {
+    public PmAllocationPostStitchingOpTest(@Nonnull final OverprovisionCapacityPostStitchingOperation op,
+                                           @Nonnull final CommodityType sourceType,
+                                           @Nonnull final CommodityType allocationType,
+                                           @Nonnull final EntitySettingSpecs settingType) {
         this.operation = op;
         this.sourceCommodityType = sourceType;
         this.sourceCommodity = makeCommoditySold(sourceCommodityType, sourceCapacity);
@@ -113,14 +113,8 @@ public class AllocationPostStitchingOpTest {
     @Test
     public void testNoCommodities() {
         final TopologyEntity testTE = makeTopologyEntity(Collections.emptyList());
-
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-            Collections.emptyList());
-
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -129,12 +123,8 @@ public class AllocationPostStitchingOpTest {
             eq(overprovisionSettingType))).thenReturn(Optional.empty());
 
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
-
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), requiredCommodities);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -144,15 +134,8 @@ public class AllocationPostStitchingOpTest {
             Arrays.asList(originalAllocationCommodity, irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        final List<CommoditySoldDTO> resultCommodities =
-            testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
-
-        assertTrue(origCommodities.containsAll(resultCommodities));
-        assertTrue(resultCommodities.containsAll(origCommodities));
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -161,11 +144,8 @@ public class AllocationPostStitchingOpTest {
         final List<CommoditySoldDTO> origCommodities = Arrays.asList(sourceCommodity, irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -176,11 +156,8 @@ public class AllocationPostStitchingOpTest {
             Arrays.asList(sourceCommodity, irrelevantCommodity, preloadedAllocation);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -196,11 +173,8 @@ public class AllocationPostStitchingOpTest {
             Arrays.asList(sourceWithKey, irrelevantCommodity, allocationWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -214,11 +188,8 @@ public class AllocationPostStitchingOpTest {
             Arrays.asList(sourceCommodity, irrelevantCommodity, allocationWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test

@@ -17,7 +17,7 @@ import com.vmturbo.stitching.TopologyEntity;
  * and a setting for CPU overprovisioned percentage, then the CPU Allocation commodity's capacity
  * is set to the CPU commodity capacity multiplied by the overprovisioned percentage.
  */
-public class CpuAllocationPostStitchingOperation extends OverprovisionCapacityPostStitchingOperation {
+public class PmCpuAllocationPostStitchingOperation extends OverprovisionCapacityPostStitchingOperation {
 
     @Nonnull
     @Override
@@ -25,7 +25,7 @@ public class CpuAllocationPostStitchingOperation extends OverprovisionCapacityPo
         return stitchingScopeFactory.entityTypeScope(EntityType.PHYSICAL_MACHINE);
     }
 
-    public CpuAllocationPostStitchingOperation() {
+    public PmCpuAllocationPostStitchingOperation() {
         super(EntitySettingSpecs.CpuOverprovisionedPercentage, CommodityType.CPU,
             CommodityType.CPU_ALLOCATION);
     }

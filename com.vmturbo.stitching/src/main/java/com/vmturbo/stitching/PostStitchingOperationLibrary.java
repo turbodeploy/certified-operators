@@ -6,11 +6,11 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.stitching.poststitching.CpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.MemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.MemoryProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.PmCpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageControllerLatencyPostStitchingOperation;
@@ -18,6 +18,7 @@ import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.DiskArrayStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.VirtualDatacenterCpuAllocationPostStitchingOperation;
 
 /**
  * A library of {@link PostStitchingOperation}s. Maintains the known topology preStitching operations
@@ -33,14 +34,15 @@ public class PostStitchingOperationLibrary {
      * Create a new calculation library.
      * Note: these operations are executed in order. For now the only reason it matters is because
      * CpuCapacityPostStitchingOperation must be executed before CpuProvisionedPostStitchingOperation
-     * and CpuAllocationPostStitchingOperation.
+     * and PmCpuAllocationPostStitchingOperation.
      */
     public PostStitchingOperationLibrary() {
         postStitchingOperations = ImmutableList.of(
             new MemoryProvisionedPostStitchingOperation(),
             new CpuCapacityPostStitchingOperation(),
             new CpuProvisionedPostStitchingOperation(),
-            new CpuAllocationPostStitchingOperation(),
+            new PmCpuAllocationPostStitchingOperation(),
+            new VirtualDatacenterCpuAllocationPostStitchingOperation(),
             new StorageControllerLatencyPostStitchingOperation(),
             new StorageEntityLatencyPostStitchingOperation(),
             new LogicalPoolLatencyPostStitchingOperation(),

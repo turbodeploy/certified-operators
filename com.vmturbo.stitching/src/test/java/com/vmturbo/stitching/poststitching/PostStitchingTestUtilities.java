@@ -9,8 +9,10 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
@@ -64,6 +66,27 @@ class PostStitchingTestUtilities {
             .build();
     }
 
+    static TopologyEntity makeTopologyEntity(final int entityType,
+                                             @Nonnull final List<CommoditySoldDTO> commoditiesSold,
+                                             @Nonnull final List<CommodityBoughtDTO> commoditiesBought,
+                                             @Nonnull final List<TopologyEntity.Builder> providers) {
+        final TopologyEntity.Builder builder = makeTopologyEntityBuilder(entityType, commoditiesSold, commoditiesBought);
+        providers.forEach(builder::addProvider);
+        return builder.build();
+    }
+
+    static TopologyEntity.Builder makeTopologyEntityBuilder(final int entityType,
+                                                            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
+                                                            @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
+        return TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setEntityType(entityType)
+                .addAllCommoditySoldList(commoditiesSold)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addAllCommodityBought(commoditiesBought)
+                ));
+    }
+
     static TopologyEntity makeTopologyEntity(@Nonnull final List<CommoditySoldDTO> commoditiesSold,
                                              @Nonnull final Map<String, String> propertyMap) {
         return TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
@@ -94,6 +117,22 @@ class PostStitchingTestUtilities {
             .setCapacity(capacity)
             .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                 .setKey(key)
+                .setType(type.getNumber()))
+            .build();
+    }
+
+    static CommodityBoughtDTO makeCommodityBought(@Nonnull final CommodityType type,
+                                              @Nonnull final String key) {
+        return CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .setKey(key)
+                .setType(type.getNumber()))
+            .build();
+    }
+
+    static CommodityBoughtDTO makeCommodityBought(@Nonnull final CommodityType type) {
+        return CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                 .setType(type.getNumber()))
             .build();
     }

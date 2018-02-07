@@ -106,13 +106,8 @@ public class StorageProvisionedPostStitchingOpTest {
     public void testNoCommodities() {
         final TopologyEntity testTE = makeTopologyEntity(Collections.emptyList());
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-                Collections.emptyList());
-
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -122,11 +117,8 @@ public class StorageProvisionedPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), requiredCommodities);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -136,15 +128,8 @@ public class StorageProvisionedPostStitchingOpTest {
                 Arrays.asList(emptyProvisionedCommodity, irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
-
-        final List<CommoditySoldDTO> resultCommodities =
-                testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
-
-        assertTrue(origCommodities.containsAll(resultCommodities));
-        assertTrue(resultCommodities.containsAll(origCommodities));
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
@@ -153,11 +138,9 @@ public class StorageProvisionedPostStitchingOpTest {
         final List<CommoditySoldDTO> origCommodities = Arrays.asList(amountCommodity, irrelevantCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
 
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
     }
 
     @Test
@@ -168,11 +151,9 @@ public class StorageProvisionedPostStitchingOpTest {
                 Arrays.asList(amountCommodity, irrelevantCommodity, preloadedProvisioned);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
 
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
     }
 
     @Test
@@ -188,11 +169,9 @@ public class StorageProvisionedPostStitchingOpTest {
                 Arrays.asList(sourceWithKey, irrelevantCommodity, provisionedWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
 
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
     }
 
     @Test
@@ -206,11 +185,9 @@ public class StorageProvisionedPostStitchingOpTest {
                 Arrays.asList(amountCommodity, irrelevantCommodity, provisionedWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
 
-        assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), origCommodities);
     }
 
     @Test
