@@ -40,7 +40,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -1141,11 +1140,11 @@ public class TopologyConverter {
         }
     }
 
-    private Provision interpretProvisionByDemand(ProvisionByDemandTO provisionByDemandTO) {
+    private ActionDTO.Provision interpretProvisionByDemand(
+                    @Nonnull final ProvisionByDemandTO provisionByDemandTO) {
         return ActionDTO.Provision.newBuilder()
-                        .setEntityToCloneId(provisionByDemandTO.getModelBuyer())
-                        .setProvisionedSeller(
-                            provisionByDemandTO.getProvisionedSeller()).build();
+                .setEntityToCloneId(provisionByDemandTO.getModelSeller())
+                .setProvisionedSeller(provisionByDemandTO.getProvisionedSeller()).build();
     }
 
     private Explanation interpretExplanation(ActionTO actionTO) {
@@ -1323,8 +1322,8 @@ public class TopologyConverter {
     private ActionDTO.Provision interpretProvisionBySupply(
                     @Nonnull final ProvisionBySupplyTO provisionBySupplyTO) {
         return ActionDTO.Provision.newBuilder()
-            .setEntityToCloneId(provisionBySupplyTO.getModelSeller())
-            .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller()).build();
+                .setEntityToCloneId(provisionBySupplyTO.getModelSeller())
+                .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller()).build();
     }
 
     @Nonnull
