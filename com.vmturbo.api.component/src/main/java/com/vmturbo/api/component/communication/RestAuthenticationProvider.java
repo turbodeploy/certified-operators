@@ -1,5 +1,8 @@
 package com.vmturbo.api.component.communication;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -115,7 +118,10 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
                                               final @Nonnull String remoteIpAdress)
             throws AuthenticationException {
         final String authRequest = newUriBuilder()
-                .pathSegment(userName, password, remoteIpAdress)
+                .pathSegment(
+                        encodeValue(userName),
+                        encodeValue(password),
+                        remoteIpAdress)
                 .build()
                 .toUriString();
         ResponseEntity<String> result;
@@ -181,5 +187,20 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
     @Override
     public boolean supports(Class<?> authentication) {
         return authentication.equals(UsernamePasswordAuthenticationToken.class);
+    }
+
+    /**
+     * Encode value based on UTF_8.
+     *
+     * @param value original string
+     * @return encoded value
+     */
+    private String encodeValue(String value) {
+        try {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8.toString());
+        } catch (UnsupportedEncodingException e) {
+            logger.error(e.getMessage());
+            return value; // will try the original value.
+        }
     }
 }

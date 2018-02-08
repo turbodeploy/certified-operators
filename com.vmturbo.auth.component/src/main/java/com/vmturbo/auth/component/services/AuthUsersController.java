@@ -137,8 +137,8 @@ public class AuthUsersController {
                     required = true)
             @PathVariable("ipaddress") String ipAddress)
             throws Exception {
-        return targetStore_.authenticate(userName, URLDecoder.decode(password, "UTF-8"), ipAddress)
-                           .getCompactRepresentation();
+        return targetStore_.authenticate(URLDecoder.decode(userName, "UTF-8"),
+                URLDecoder.decode(password, "UTF-8"), ipAddress).getCompactRepresentation();
     }
 
     /**
