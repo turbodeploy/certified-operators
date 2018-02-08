@@ -11,13 +11,18 @@ if [ ! -d "/var/run/mysqld" ]; then
     mkdir -p /var/run/mysqld 2>&1 | logger -u /tmp/log.sock
 fi
 
+copy_mysql_default_conf_file () {
+    echo "Copying default DB config. file from $DEFAULT_MYSQL_CONF to $MYSQL_CONF" | logger --tag mariadb -u /tmp/log.sock
+    cp $DEFAULT_MYSQL_CONF $MYSQL_CONF 2>&1 | logger --tag mariadb -u /tmp/log.sock
+}
+
 if [ ! -d "/var/lib/mysql/mysql" ]; then
 
     echo "Initializing mariadb " | logger --tag mariadb -u /tmp/log.sock
 
     /usr/bin/mysql_install_db --user=mysql --datadir=/var/lib/mysql --defaults-file=$DEFAULT_MYSQL_CONF --basedir=/usr 2>&1 | logger --tag mariadb -u /tmp/log.sock
 
-    cp $DEFAULT_MYSQL_CONF $MYSQL_CONF 2>&1 | logger --tag mariadb -u /tmp/log.sock
+    copy_mysql_default_conf_file
 
     # Start mysqld in background
     /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql --skip-networking 2>&1 | logger --tag mariadb -u /tmp/log.sock &
@@ -48,6 +53,12 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
     echo '+++ MariaDB init process successful.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
 fi
 
+# The mysql conf is copied to the $MYSQL_CONF location during DB initilization.
+# But if it is missing(maybe due to upgrade or the file was deleted), then copy it from
+# the default location.
+if [ ! -f $MYSQL_CONF ]; then
+    copy_mysql_default_conf_file
+fi
 /change_buffer_pool_size.sh $MYSQL_CONF  2>&1 | logger --tag mariadb -u /tmp/log.sock
 exec /usr/sbin/mysqld --defaults-file=$MYSQL_CONF --user=mysql --datadir=/var/lib/mysql --lc-messages-dir=/usr/share/mysql 2>&1 | logger --tag mariadb -u /tmp/log.sock
 
