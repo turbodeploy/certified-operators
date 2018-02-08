@@ -310,6 +310,7 @@
                             <locations>
                                 <location>com.vmturbo.group</location>
                                 <location>com.vmturbo.common.protobuf.group</location>
+                                <location>com.vmturbo.common.protobuf.setting</location>
                                 <location>com.vmturbo.components.common</location>
                             </locations>
                         </apiSource>

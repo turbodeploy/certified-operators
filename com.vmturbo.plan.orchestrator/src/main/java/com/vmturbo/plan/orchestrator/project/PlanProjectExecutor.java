@@ -1,6 +1,9 @@
 package com.vmturbo.plan.orchestrator.project;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -35,9 +38,14 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
+import com.vmturbo.plan.orchestrator.plan.PlanInstanceQueue;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanPostProcessor;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
@@ -63,6 +71,10 @@ public class PlanProjectExecutor {
     private final Channel groupChannel;
 
     private final GroupServiceGrpc.GroupServiceBlockingStub groupRpcService;
+
+    private final SettingServiceBlockingStub settingService;
+
+    private final PlanInstanceQueue planInstanceQueue;
 
     /**
      * The number of clones to add to a cluster headroom plan for every host that's
@@ -90,7 +102,8 @@ public class PlanProjectExecutor {
                                @Nonnull final ProjectPlanPostProcessorRegistry projectPlanPostProcessorRegistry,
                                @Nonnull final Channel repositoryChannel,
                                @Nonnull final TemplatesDao templatesDao,
-                               @Nonnull final Channel historyChannel) {
+                               @Nonnull final Channel historyChannel,
+                               @Nonnull final PlanInstanceQueue planInstanceQueue) {
         this.groupChannel = Objects.requireNonNull(groupChannel);
         this.planService = Objects.requireNonNull(planRpcService);
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(projectPlanPostProcessorRegistry);
@@ -98,8 +111,10 @@ public class PlanProjectExecutor {
         this.planDao = Objects.requireNonNull(planDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.historyChannel = Objects.requireNonNull(historyChannel);
+        this.planInstanceQueue = Objects.requireNonNull(planInstanceQueue);
 
         groupRpcService = GroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
+        settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
     }
 
     /**
@@ -131,8 +146,8 @@ public class PlanProjectExecutor {
      * @param planProject
      */
     private void runPlanInstancePerCluster(PlanProject planProject) {
+        Set<Group> clusters = new HashSet<>();
 
-        final Set<Group> clusters = new HashSet<>();
         // get all cluster group IDs from the topology
         groupRpcService.getGroups(
                 GroupDTO.GetGroupsRequest.newBuilder()
@@ -142,11 +157,14 @@ public class PlanProjectExecutor {
                                 .build())
                         .build()).forEachRemaining(clusters::add);
 
+        // Limit the number of clusters for each run.
+        clusters = restrictNumberOfClusters(clusters);
+
         logger.info("Running plan project on {} clusters.", clusters.size());
 
         // Create one plan project instance per cluster per Scenario.
-        // Total number of plan project instance to be created equals number of clusters times number of
-        // scenarios in the plan project.
+        // Total number of plan project instance to be created equals number of clusters times
+        // number of scenarios in the plan project.
         clusters.forEach(cluster -> {
             for (PlanProjectScenario scenario : planProject.getPlanProjectInfo().getScenariosList()) {
                 // Create plan instance
@@ -189,6 +207,40 @@ public class PlanProjectExecutor {
                 runPlanInstance(planInstance);
             }
         });
+    }
+
+    /**
+     * The global setting "MaxPlanInstancesPerPlan" specifies the maximum number of cluster
+     * a project plan can analyse on each execution.  For example, if there are 100 clusters
+     * and this settings is set at 20, only 20 project instances will be created.
+     * If the max number is exceeded, the list of clusters is first randomized, and a subset
+     * of the list will be returned.
+     * It is a simple algorithm that can achieve a level of "fairness" to this function.
+     * i.e. we won't always analyse the same clusters on every run.
+     * TODO Provide algorithms that ensure all clusters are cycled through in subsequent executions
+     * of the plan project. Additional information may be required to achieve this goal.
+     *
+     * @param clusters
+     * @return
+     */
+    @VisibleForTesting
+    Set<Group> restrictNumberOfClusters(Set<Group> clusters) {
+        Float maxPlanInstancesPerPlan = settingService.getGlobalSetting(
+                GetSingleGlobalSettingRequest.newBuilder()
+                        .setSettingSpecName(GlobalSettingSpecs.MaxPlanInstancesPerPlan
+                                .getSettingName())
+                        .build())
+                .getNumericSettingValue()
+                .getValue();
+
+        if (clusters.size() <= maxPlanInstancesPerPlan) {
+            return clusters;
+        }
+
+        List<Group> clustersAsList = new ArrayList(clusters);
+        Collections.shuffle(clustersAsList);
+        clustersAsList = clustersAsList.subList(0, maxPlanInstancesPerPlan.intValue());
+        return new HashSet<>(clustersAsList);
     }
 
     /**
@@ -267,20 +319,20 @@ public class PlanProjectExecutor {
         planService.runPlan(PlanId.newBuilder()
                 .setPlanId(planInstance.getPlanId())
                 .build(), new StreamObserver<PlanInstance>() {
-                    @Override
-                    public void onNext(PlanInstance value) {
-                    }
+            @Override
+            public void onNext(PlanInstance value) {
+            }
 
-                    @Override
-                    public void onError(Throwable t) {
-                        logger.error("Error occurred while executing plan {}.",
-                                planInstance.getPlanId());
-                    }
+            @Override
+            public void onError(Throwable t) {
+                logger.error("Error occurred while executing plan {}.",
+                        planInstance.getPlanId());
+            }
 
-                    @Override
-                    public void onCompleted() {
-                    }
-                });
+            @Override
+            public void onCompleted() {
+            }
+        });
     }
 
     private int getNumClonesToAddForCluster(@Nonnull final Group cluster) {

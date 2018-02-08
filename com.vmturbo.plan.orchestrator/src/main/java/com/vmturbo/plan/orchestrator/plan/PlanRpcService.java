@@ -123,30 +123,27 @@ public class PlanRpcService extends PlanServiceImplBase {
             // caller may get the status change notification before getting the response
             // from this RPC. For now it's benign because we also return
             // the instance.
-            final PlanInstance queuedInstance = planDao.updatePlanInstance(planId, builder -> {
-                builder.setStatus(PlanStatus.QUEUED);
-                builder.setStartTime(System.currentTimeMillis());
-            });
-
-            final StartAnalysisRequest.Builder builder = StartAnalysisRequest.newBuilder();
-            builder.setPlanId(planId);
-            if (queuedInstance.hasTopologyId()) {
-                builder.setTopologyId(queuedInstance.getTopologyId());
-            }
-            if (queuedInstance.hasScenario()) {
-                ScenarioInfo scenarioInfo = queuedInstance.getScenario().getScenarioInfo();
-                builder.addAllScenarioChange(scenarioInfo.getChangesList());
-                if (scenarioInfo.hasScope()) {
-                    builder.setPlanScope(scenarioInfo.getScope());
+            planDao.queuePlanInstance(planId).ifPresent(queuedInstance -> {
+                final StartAnalysisRequest.Builder builder = StartAnalysisRequest.newBuilder();
+                builder.setPlanId(planId);
+                if (queuedInstance.hasTopologyId()) {
+                    builder.setTopologyId(queuedInstance.getTopologyId());
                 }
-            }
+                if (queuedInstance.hasScenario()) {
+                    ScenarioInfo scenarioInfo = queuedInstance.getScenario().getScenarioInfo();
+                    builder.addAllScenarioChange(scenarioInfo.getChangesList());
+                    if (scenarioInfo.hasScope()) {
+                        builder.setPlanScope(scenarioInfo.getScope());
+                    }
+                }
 
-            builder.setPlanType(queuedInstance.getProjectType());
+                builder.setPlanType(queuedInstance.getProjectType());
 
-            startAnalysis(builder.build());
+                startAnalysis(builder.build());
 
-            responseObserver.onNext(queuedInstance);
-            responseObserver.onCompleted();
+                responseObserver.onNext(queuedInstance);
+                responseObserver.onCompleted();
+            });
         } catch (NoSuchObjectException e) {
             logger.warn("Plan not found while requested to trigger: " + request, e);
             responseObserver.onError(

@@ -1,5 +1,7 @@
 package com.vmturbo.plan.orchestrator.project;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
@@ -12,7 +14,9 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import org.junit.Before;
@@ -37,12 +41,16 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
+import com.vmturbo.plan.orchestrator.plan.PlanInstanceQueue;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
-import com.vmturbo.plan.orchestrator.project.PlanProjectExecutor;
-import com.vmturbo.plan.orchestrator.project.ProjectPlanPostProcessorRegistry;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
 /**
@@ -56,8 +64,10 @@ public class PlanProjectExecutorTest {
 
     private GroupDTOMoles.GroupServiceMole groupServiceMole = spy(new GroupDTOMoles.GroupServiceMole());
 
+    private SettingProtoMoles.SettingServiceMole settingServiceMole = spy(new SettingServiceMole());
+
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceMole, settingServiceMole);
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
@@ -68,8 +78,10 @@ public class PlanProjectExecutorTest {
         PlanRpcService planRpcService = mock(PlanRpcService.class);
         Channel repositoryChannel = mock(Channel.class);
         Channel historyChannel = mock(Channel.class);
+        PlanInstanceQueue planInstanceQueue = mock(PlanInstanceQueue.class);
         planProjectExecutor = new PlanProjectExecutor(planDao, grpcServer.getChannel(),
-                planRpcService, registry, repositoryChannel, templatesDao, historyChannel);
+                planRpcService, registry, repositoryChannel, templatesDao, historyChannel,
+                planInstanceQueue);
         when(templatesDao.getTemplatesByName("headroomVM"))
             .thenReturn(Collections.singletonList(Template.newBuilder()
                     .setId(7L)
@@ -103,6 +115,14 @@ public class PlanProjectExecutorTest {
                 .thenReturn(PlanDTO.PlanInstance.newBuilder()
                         .setPlanId(IdentityGenerator.next())
                         .setStatus(PlanStatus.READY)
+                        .build());
+
+        // Set maxPlanInstancesPerPlan to 10
+        when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
+                .thenReturn(Setting.newBuilder()
+                        .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                .setValue(10)
+                                .build())
                         .build());
 
         planProjectExecutor.executePlan(planProject);
@@ -222,5 +242,60 @@ public class PlanProjectExecutorTest {
                 .setPlanProjectInfo(planProjectInfo)
                 .build();
         return planProject;
+    }
+
+    @Test
+    public void testRestrictNumberOfClustersMoreThanMax() throws Exception {
+        int numberOfClusters = 100;
+        Float maxNumberOfClusters = 20F;
+        when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
+                .thenReturn(Setting.newBuilder()
+                        .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                .setValue(maxNumberOfClusters)
+                                .build())
+                        .build());
+        Set<Group> groupSet1 = new HashSet<>();
+        for (int i = 0; i < numberOfClusters; i++) {
+            Group group = Group.newBuilder()
+                    .setId(i)
+                    .build();
+            groupSet1.add(group);
+        }
+        groupSet1 = planProjectExecutor.restrictNumberOfClusters(groupSet1);
+
+        assertEquals(maxNumberOfClusters.intValue(), groupSet1.size());
+    }
+
+    @Test
+    public void testRestrictNumberOfClustersLessThanMax() throws Exception {
+        int numberOfClusters = 15;
+        Float maxNumberOfClusters = 20F;
+        when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
+                .thenReturn(Setting.newBuilder()
+                        .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                .setValue(maxNumberOfClusters)
+                                .build())
+                        .build());
+        Set<Group> groupSet1 = new HashSet<>();
+        for (int i = 0; i < numberOfClusters; i++) {
+            Group group = Group.newBuilder()
+                    .setId(i)
+                    .build();
+            groupSet1.add(group);
+        }
+        groupSet1 = planProjectExecutor.restrictNumberOfClusters(groupSet1);
+
+        Set<Group> groupSet2 = new HashSet<>();
+        for (int i = 0; i < numberOfClusters; i++) {
+            Group group = Group.newBuilder()
+                    .setId(i)
+                    .build();
+            groupSet2.add(group);
+        }
+        groupSet2 = planProjectExecutor.restrictNumberOfClusters(groupSet2);
+
+        assertTrue(groupSet1.containsAll(groupSet2));
+        assertEquals(numberOfClusters, groupSet1.size());
+        assertEquals(numberOfClusters, groupSet2.size());
     }
 }

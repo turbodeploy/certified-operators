@@ -78,6 +78,7 @@ public class PlanProjectConfig {
                 planProjectRuntime(),
                 repositoryClientConfig.repositoryChannel(),
                 templatesConfig.templatesDao(),
-                historyClientConfig.historyChannel());
+                historyClientConfig.historyChannel(),
+                planConfig.planInstanceQueue());
     }
 }

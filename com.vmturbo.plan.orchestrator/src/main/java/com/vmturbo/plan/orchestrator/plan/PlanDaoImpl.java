@@ -26,6 +26,7 @@ import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.grpc.Channel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
@@ -40,9 +41,13 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
 import com.vmturbo.plan.orchestrator.plan.PlanStatusListener.PlanStatusListenerException;
@@ -80,6 +85,8 @@ public class PlanDaoImpl implements PlanDao {
 
     private final Object listenerLock = new Object();
 
+    private final SettingServiceBlockingStub settingService;
+
     @GuardedBy("listenerLock")
     private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
 
@@ -92,13 +99,15 @@ public class PlanDaoImpl implements PlanDao {
      * @param statsClient gRPC client for the stats/history component
      */
     public PlanDaoImpl(@Nonnull final DSLContext dsl,
-            @Nonnull final RepositoryClient repositoryClient,
-            @Nonnull final ActionsServiceBlockingStub actionOrchestratorClient,
-            @Nonnull final StatsHistoryServiceBlockingStub statsClient) {
+                       @Nonnull final RepositoryClient repositoryClient,
+                       @Nonnull final ActionsServiceBlockingStub actionOrchestratorClient,
+                       @Nonnull final StatsHistoryServiceBlockingStub statsClient,
+                       @Nonnull final Channel groupChannel) {
         this.dsl = Objects.requireNonNull(dsl);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.actionOrchestratorClient = Objects.requireNonNull(actionOrchestratorClient);
         this.statsClient = Objects.requireNonNull(statsClient);
+        this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
     }
 
     @Override
@@ -126,7 +135,8 @@ public class PlanDaoImpl implements PlanDao {
         checkPlanConsistency(plan);
 
         final LocalDateTime curTime = LocalDateTime.now();
-        final PlanInstance dbRecord = new PlanInstance(plan.getPlanId(), curTime, curTime, plan);
+        final PlanInstance dbRecord = new PlanInstance(plan.getPlanId(), curTime, curTime, plan,
+                plan.getProjectType().name(), PlanStatus.READY.name());
         dsl.newRecord(PLAN_INSTANCE, dbRecord).store();
         return plan;
     }
@@ -150,7 +160,8 @@ public class PlanDaoImpl implements PlanDao {
 
         final LocalDateTime curTime = LocalDateTime.now();
         final PlanInstance dbRecord =
-                new PlanInstance(planInstance.getPlanId(), curTime, curTime, planInstance);
+                new PlanInstance(planInstance.getPlanId(), curTime, curTime, planInstance,
+                        planProjectType.name(), PlanStatus.READY.name());
         dsl.newRecord(PLAN_INSTANCE, dbRecord).store();
         return planInstance;
     }
@@ -339,6 +350,7 @@ public class PlanDaoImpl implements PlanDao {
                 final int numRows = context.update(PLAN_INSTANCE)
                         .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
                         .set(PLAN_INSTANCE.PLAN_INSTANCE_, planInstance)
+                        .set(PLAN_INSTANCE.STATUS, planInstance.getStatus().name())
                         .where(PLAN_INSTANCE.ID.eq(planId))
                         .execute();
                 if (numRows == 0) {
@@ -391,6 +403,171 @@ public class PlanDaoImpl implements PlanDao {
         return records.stream()
             .map(PlanInstance::getPlanInstance)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Integer getNumberOfRunningPlanInstances() {
+        return dsl.selectCount()
+                .from(PLAN_INSTANCE)
+                .where(PLAN_INSTANCE.STATUS.notIn(
+                        PlanStatus.READY.name(),
+                        PlanStatus.SUCCEEDED.name(),
+                        PlanStatus.FAILED.name()))
+                .and(PLAN_INSTANCE.STATUS.isNotNull())
+                .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.USER.name()))
+                .fetchOne()
+                .into(Integer.class);
+    }
+
+    /**
+     * Check if the maximum number of concurrent plan instances has been exceeded.
+     *
+     * @return true if max number of concurrent plan instances has not reached, false otherwise.
+     */
+    private boolean isPlanExecutionCapacityAvailable(DSLContext dslContext) {
+        // get maximum number of concurrent plan instance allowed
+        float maxNumOfRunningInstances = settingService.getGlobalSetting(GetSingleGlobalSettingRequest.newBuilder()
+                .setSettingSpecName(GlobalSettingSpecs.MaxConcurrentPlanInstances
+                        .getSettingName())
+                .build())
+                .getNumericSettingValue()
+                .getValue();
+
+        // get number of running plan instances
+        Integer numRunningInstances = getNumberOfRunningPlanInstances();
+
+        return numRunningInstances < maxNumOfRunningInstances;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<PlanDTO.PlanInstance> queueNextPlanInstance() {
+        // Run this logic in a transaction.
+        return dsl.transactionResult(configuration -> {
+            final DSLContext context = DSL.using(configuration);
+
+            // Proceed only if the maximum number of concurrent plan instances have not been exceeded
+            if (isPlanExecutionCapacityAvailable(context)) {
+                // Select the instance record that is in READY state and has the oldest creation time
+                // Call "forUpdate()" to lock the record for subsequent update.
+                final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
+                        .where(PLAN_INSTANCE.STATUS.eq(PlanStatus.READY.name()))
+                        .orderBy(PLAN_INSTANCE.CREATE_TIME.asc())
+                        .limit(1)
+                        .forUpdate()
+                        .fetchOne();
+                if (planInstanceRecord == null) {
+                    // No plan instance in READY state.
+                    return Optional.empty();
+                } else {
+                    // Update the plan instance with the "QUEUED" status.
+                    return Optional.of(setQueuedStatus(context, planInstanceRecord));
+                }
+            } else {
+                return Optional.empty();
+            }
+        });
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<PlanDTO.PlanInstance> queuePlanInstance(final long planId)
+            throws IntegrityException, NoSuchObjectException {
+        PlanDTO.PlanInstance planInstance = getPlanInstance(planId)
+                .orElseThrow(() -> noSuchObjectException(planId));
+        boolean isUserPlan = planInstance.getProjectType().equals(PlanProjectType.USER);
+
+        if (planInstance.getStatus().equals(PlanStatus.QUEUED)) {
+            return Optional.of(planInstance);
+        }
+
+        try {
+            // Run this logic in a transaction.
+            return dsl.transactionResult(configuration -> {
+                final DSLContext context = DSL.using(configuration);
+
+                // Proceed only if the maximum number of concurrent plan instances have not been exceeded
+                if (isUserPlan || isPlanExecutionCapacityAvailable(context)) {
+                    // Select the instance record that is in READY state and has the given ID.
+                    // Call "forUpdate()" to lock the record for subsequent update.
+                    final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
+                            .where(PLAN_INSTANCE.ID.eq(planId))
+                            .forUpdate()
+                            .fetchOne();
+                    if (planInstanceRecord == null) {
+                        // No plan instance found with the give plan ID
+                        throw new NoSuchObjectException(
+                                "Plan with id " + planId + " does not exist");
+                    } else if (planInstanceRecord.get(PLAN_INSTANCE.STATUS).equals(PlanStatus.QUEUED.name())) {
+                        return Optional.of(planInstanceRecord.getPlanInstance());
+                    } else if (planInstanceRecord.get(PLAN_INSTANCE.STATUS).equals(PlanStatus.READY.name())) {
+                        return Optional.of(setQueuedStatus(context, planInstanceRecord));
+                    } else {
+                        // Plan instance exists, but it has already started execution.
+                        return Optional.empty();
+                    }
+                } else {
+                    return Optional.empty();
+                }
+            });
+        } catch (DataAccessException e) {
+            if (e.getCause() instanceof NoSuchObjectException) {
+                throw (NoSuchObjectException) e.getCause();
+            } else if (e.getCause() instanceof IntegrityException) {
+                throw (IntegrityException) e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Given a plan instance database record, set the status column to the "QUEUED" status.
+     * Update the serialized protobuf object with the new status and sets the start time.
+     * Also notify plan status listeners of the changed status.
+     * Run this method in the transaction where the planInstanceRecord is retrieved.
+     *
+     * @param context  DSL Context
+     * @param planInstanceRecord plan instance database record
+     * @return the protobuf object of the updated plan instance
+     * @throws IntegrityException if the protobuf object fails consistency check.
+     */
+    private PlanDTO.PlanInstance setQueuedStatus(DSLContext context, PlanInstanceRecord planInstanceRecord)
+            throws IntegrityException {
+        // Update the plan instance with the "QUEUED" status.
+        long planId = planInstanceRecord.get(PLAN_INSTANCE.ID);
+        PlanDTO.PlanInstance originalInst = planInstanceRecord.into(PlanInstance.class)
+                .getPlanInstance();
+        PlanDTO.PlanInstance updatedInst = PlanDTO.PlanInstance.newBuilder(originalInst)
+                .setStatus(PlanStatus.QUEUED)
+                .setStartTime(System.currentTimeMillis())
+                .build();
+        checkPlanConsistency(updatedInst);
+        context.update(PLAN_INSTANCE)
+                .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
+                .set(PLAN_INSTANCE.PLAN_INSTANCE_, updatedInst)
+                .set(PLAN_INSTANCE.STATUS, updatedInst.getStatus().name())
+                .where(PLAN_INSTANCE.ID.eq(planId))
+                .execute();
+
+        synchronized (listenerLock) {
+            for (final PlanStatusListener listener : planStatusListeners) {
+                try {
+                    listener.onPlanStatusChanged(updatedInst);
+                } catch (PlanStatusListenerException e) {
+                    logger.error("Error sending plan update notification for plan " +
+                            planId, e);
+                }
+            }
+        }
+        return updatedInst;
     }
 
     /**

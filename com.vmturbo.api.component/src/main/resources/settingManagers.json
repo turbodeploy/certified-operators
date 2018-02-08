@@ -112,6 +112,14 @@
       "settings": [
         "templateName"
       ]
+    },
+    "clusterHeadroomConfig": {
+      "displayName": "Cluster Headroom Configuration",
+      "defaultCategory": "Workload",
+      "settings": [
+        "maxConcurrentPlanInstances",
+        "maxPlanInstancesPerPlan"
+      ]
     }
   }
 }

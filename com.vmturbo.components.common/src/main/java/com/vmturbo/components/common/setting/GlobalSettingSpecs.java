@@ -90,6 +90,14 @@ public enum GlobalSettingSpecs {
 
     PlanRetentionDays("planRetentionDays", "Saved plans [Days]",
             numeric(15f/*min*/, 365f/*max*/, 30f/*default*/),
+            Collections.emptyList()),
+
+    MaxConcurrentPlanInstances("maxConcurrentPlanInstances", "Maximum Number of Plan Instances Allowed To Run Concurrently",
+            numeric(1f/*min*/, 1000f/*max*/, 2f/*default*/),
+            Collections.emptyList()),
+
+    MaxPlanInstancesPerPlan("maxPlanInstancesPerPlan", "Maximum Number of Plan Instances Per Plan",
+            numeric(1f/*min*/, 10000f/*max*/, 10f/*default*/),
             Collections.emptyList());
 
     /**

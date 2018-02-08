@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationR
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole;
@@ -110,8 +111,8 @@ public class PlanTestConfig {
     }
 
     public static final RepositoryOperationResponse OK = RepositoryOperationResponse.newBuilder()
-                    .setResponseCode(RepositoryOperationResponseCode.OK)
-                    .build();
+            .setResponseCode(RepositoryOperationResponseCode.OK)
+            .build();
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService startAnalysisThreadPool() {
@@ -125,8 +126,8 @@ public class PlanTestConfig {
     public RepositoryClient repositoryClient() {
         RepositoryClient reposOkClient = Mockito.mock(RepositoryClient.class);
         Mockito
-            .when(reposOkClient.deleteTopology(Mockito.anyLong(), Mockito.anyLong()))
-            .thenReturn(OK);
+                .when(reposOkClient.deleteTopology(Mockito.anyLong(), Mockito.anyLong()))
+                .thenReturn(OK);
 
         return reposOkClient;
     }
@@ -140,14 +141,30 @@ public class PlanTestConfig {
     @Bean
     public StatsHistoryServiceBlockingStub statsServiceClient() {
         return StatsHistoryServiceGrpc.newBlockingStub(
-                    Mockito.mock(Channel.class));
+                Mockito.mock(Channel.class));
+    }
+
+    @Bean
+    public SettingServiceMole settingServer() {
+        return Mockito.spy(new SettingServiceMole());
+    }
+
+    @Bean
+    protected GrpcTestServer settingGrpcServer() {
+        final GrpcTestServer server = GrpcTestServer.newServer(settingServer());
+        try {
+            server.start();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return server;
     }
 
     @Bean
     public PlanDao planDao() {
         return Mockito.spy(
                 new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
-                        actionServiceClient(), statsServiceClient()));
+                        actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel()));
     }
 
     @Bean

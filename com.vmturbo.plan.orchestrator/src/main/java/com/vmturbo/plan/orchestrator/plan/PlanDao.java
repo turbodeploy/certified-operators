@@ -107,7 +107,34 @@ public interface PlanDao {
      *  @param expirationDate Return all the plans which are older than this date.
      *  @param batchSize Limit the number of returned entries to batchSize.
      *  @return Return the list of expired plans.
-     *  @throws DataAccessException Exceptionw while accessing the database.
      */
     List<PlanInstance> getOldPlans(LocalDateTime expirationDate, int batchSize);
+
+    /**
+     * Get the number of plan instances that are currently under execution.
+     *
+     * @return number of plan instances that are currently under execution
+     */
+    Integer getNumberOfRunningPlanInstances();
+
+    /**
+     * Set the status of the oldest plan instance that is in READY state to QUEUED state,
+     * if one exists.
+     *
+     * @return the plan instance that had just been queued, if any
+     */
+    Optional<PlanInstance> queueNextPlanInstance();
+
+    /**
+     * Set the status of the plan instance to QUEUED if and only if the plan instance with the
+     * given ID exists and its status is READY.
+     *
+     * @param planId Plan instance ID
+     * @return The plan instance with the updated status or an empty value if the update criteria
+     *         are not met.
+     * @throws IntegrityException if the plan instance does not pass the integrity check
+     * @throws NoSuchObjectException if a plan instance with the give ID does not exist
+     */
+    Optional<PlanInstance> queuePlanInstance(long planId)
+            throws IntegrityException, NoSuchObjectException;
 }

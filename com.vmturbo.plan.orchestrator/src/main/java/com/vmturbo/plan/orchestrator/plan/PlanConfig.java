@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestrator;
@@ -28,11 +29,10 @@ import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceB
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
-import com.vmturbo.plan.orchestrator.reservation.ReservationDao;
-import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
@@ -44,7 +44,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Import({SQLDatabaseConfig.class, RepositoryClientConfig.class,
         ActionOrchestratorClientConfig.class, HistoryClientConfig.class,
         RepositoryClientConfig.class, TopologyProcessorClientConfig.class,
-        BaseKafkaProducerConfig.class, ReservationConfig.class})
+        BaseKafkaProducerConfig.class, ReservationConfig.class,
+        GroupClientConfig.class})
 public class PlanConfig {
 
     @Value("${realtimeTopologyContextId}")
@@ -71,12 +72,16 @@ public class PlanConfig {
     @Autowired
     private ReservationConfig reservationConfig;
 
+    @Autowired
+    private GroupClientConfig groupClientConfig;
+
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(),
             repositoryClientConfig.repositoryClient(),
             actionsRpcService(),
-            statsRpcService());
+            statsRpcService(),
+            groupClientConfig.groupChannel());
     }
 
     @Bean
@@ -160,5 +165,18 @@ public class PlanConfig {
         // the topology processor, since the construction and broadcast
         // of topologies is expensive and we already have issues with OOM crashes.
         return Executors.newSingleThreadExecutor(threadFactory);
+    }
+
+    @Bean
+    public PlanInstanceQueue planInstanceQueue() {
+        return new PlanInstanceQueue(planDao(), planService());
+    }
+
+    @Bean
+    public PlanInstanceCompletionListener planInstanceCompletionListener() {
+        final PlanInstanceCompletionListener listener =
+                new PlanInstanceCompletionListener(planInstanceQueue());
+        planDao().addStatusListener(listener);
+        return listener;
     }
 }
