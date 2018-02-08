@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -25,7 +26,8 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 @EnableAutoConfiguration
 @EnableDiscoveryClient
 @ComponentScan({"com.vmturbo.auth.component.services", "com.vmturbo.auth.component.store"})
-@Import({AuthRESTSecurityConfig.class, AuthDBConfig.class, SpringSecurityConfig.class})
+@Import({AuthRESTSecurityConfig.class, AuthDBConfig.class, SpringSecurityConfig.class,
+        WidgetsetConfig.class})
 public class AuthComponent extends BaseVmtComponent {
     /**
      * The logger.

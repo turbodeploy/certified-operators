@@ -32,17 +32,17 @@ public class WidgetsetMapper {
                 throw new IllegalArgumentException("Invalid uuid " + widgetsetApiDTO.getUuid());
             }
         }
+        try {
+            answer.setOwnerOid(Long.valueOf(widgetsetApiDTO.getUsername()));
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid owner uuid " +
+                    widgetsetApiDTO.getUsername());
+        }
         // populate the WidgetsetInfo for this Widgetset
         Widgets.WidgetsetInfo.Builder infoBuilder = Widgets.WidgetsetInfo.newBuilder();
         if (widgetsetApiDTO.getUsername() == null) {
             throw new IllegalArgumentException("Owner uuid for a widgetset " +
                     widgetsetApiDTO.getUuid() + " must not be empty");
-        }
-        try {
-            infoBuilder.setOwnerOid(Long.valueOf(widgetsetApiDTO.getUsername()));
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid owner uuid " +
-                    widgetsetApiDTO.getUsername());
         }
         if (widgetsetApiDTO.getCategory() != null) {
             infoBuilder.setCategory(widgetsetApiDTO.getCategory());
@@ -76,16 +76,14 @@ public class WidgetsetMapper {
         if (widgetset.hasOid()) {
             answer.setUuid(Long.toString(widgetset.getOid()));
         }
-        if (!widgetset.getInfo().hasOwnerOid()) {
+        if (!widgetset.hasOwnerOid()) {
             throw new IllegalArgumentException("Owner OID for a widgetset " +
                     widgetset.getOid() + " must not be empty");
         }
+        answer.setUsername(Long.toString(widgetset.getOwnerOid()));
         answer.setUuid(Long.toString(widgetset.getOid()));
         if (widgetset.hasInfo()) {
             Widgets.WidgetsetInfo widgetsetInfo = widgetset.getInfo();
-            if (widgetsetInfo.hasOwnerOid()) {
-                answer.setUsername(Long.toString(widgetsetInfo.getOwnerOid()));
-            }
             if (widgetsetInfo.hasCategory()) {
                 answer.setCategory(widgetsetInfo.getCategory());
             }

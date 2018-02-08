@@ -4,6 +4,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
+import org.jooq.exception.DataAccessException;
 import org.jooq.exception.InvalidResultException;
 import org.jooq.exception.NoDataFoundException;
 import org.jooq.exception.TooManyRowsException;
@@ -19,7 +20,7 @@ public interface IWidgetsetStore {
      * @param queryUserOid the OID of the user making this request
      * @param widgetsetInfo the {@link WidgetsetInfo} to persist
      * @return the {@link Widgetset} as persisted, populated with the newly generated unique OID
-     * @throws TooManyRowsException if a widgetset with the given OID exists; an internal error
+     * @throws DataAccessException if a widgetset with the given OID exists; an internal error
      * @throws InvalidResultException if the new record is not inserted; an internal error
      */
     Widgetset createWidgetSet(long queryUserOid, WidgetsetInfo widgetsetInfo);
@@ -73,6 +74,6 @@ public interface IWidgetsetStore {
      * @throws InvalidResultException if the row is not actually deleted - represents an internal
      * error and should never happen
      */
-    Optional<Widgetset> delete(long queryUserOid, long oid) throws NoDataFoundException;
+    Optional<Widgetset> delete(long queryUserOid, long oid) throws InvalidResultException;
 
 }

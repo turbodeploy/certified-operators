@@ -3,21 +3,24 @@ package widgets;
 
 option java_package = "com.vmturbo.common.protobuf.widgets";
 
-// A Widgetset consists of a WidgetsetInfo plus a unique id
+// A Widgetset consists of a WidgetsetInfo plus a unique id and the OID of the owning user
 message Widgetset {
 
     // the unique id for this widgetset
     optional int64 oid = 1;
 
+    // the owner id of the widgetset; limits access unless 'shared_with_all_users' is true
+    optional int64 owner_oid = 2;
+
     // the data that
-    optional WidgetsetInfo info = 2;
+    optional WidgetsetInfo info = 3;
 
 }
 
 // The structure to describe the info for a Widgetset. It is identified by an oid, and described by
 // a category and scope_type. There's a start_period and end_period used for TBD.
 //
-// A Widgetset represents a visual panel consisting of a number of widgets layed out in a
+// A WidgetsetInfo represents a visual panel consisting of a number of widgets layed out in a
 // packed format. The UI predefines several widgetsets, and the user may create any number of
 // 'Dashboard's, where each is a widgetset.
 //
@@ -29,9 +32,6 @@ message Widgetset {
 // Note that each Widgetset has an owner. Currently only the owner may fetch or update
 // a widgetset.
 message WidgetsetInfo {
-
-    // the owner id of the widgetset; limits access unless 'shared_with_all_users' is true
-    optional int64 owner_oid = 1;
 
     // unused by the server; saved/restored on behalf of the UI
     optional string category = 2;

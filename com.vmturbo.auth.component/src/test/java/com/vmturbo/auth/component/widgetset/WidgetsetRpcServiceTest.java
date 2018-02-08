@@ -48,17 +48,20 @@ public class WidgetsetRpcServiceTest {
 
 
     static final WidgetsetInfo WIDGETSET_1_INFO = WidgetsetInfo.newBuilder()
-            .setOwnerOid(100)
+            .setWidgets("{}")
             .build();
     public static final Widgetset WIDGETSET_1 = Widgetset.newBuilder()
             .setOid(1)
+            .setOwnerOid(100)
             .setInfo(WIDGETSET_1_INFO)
+            .build();
+    public static final WidgetsetInfo WIDGETSET_2_INFO = WidgetsetInfo.newBuilder()
+            .setWidgets("{}")
             .build();
     public static final Widgetset WIDGETSET_2 = Widgetset.newBuilder()
             .setOid(2)
-            .setInfo(WidgetsetInfo.newBuilder()
-                    .setOwnerOid(100)
-                    .build())
+            .setOwnerOid(100)
+            .setInfo(WIDGETSET_2_INFO)
             .build();
 
     private static final List<Widgetset> WIDGETSETS = Lists.newArrayList(

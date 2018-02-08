@@ -208,11 +208,6 @@
         <!-- test dependencies -->
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>components-test-utilities</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>auth-test</artifactId>
             <scope>test</scope>
         </dependency>
