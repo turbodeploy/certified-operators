@@ -27,6 +27,7 @@ import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
+import com.vmturbo.reports.component.templates.TemplateWrapper;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.DbException;
 
@@ -58,9 +59,12 @@ public class ReportingServiceReportGenerationTest {
     public void init() throws Exception {
         reportTemplate = ReportTemplate.newBuilder()
                 .setId(ReportTemplateId.newBuilder().setReportType(1).setId(100).build())
-                .setFilename("hogwarts-faculties")
                 .setDescription("Faculties of Hogwarts School of Whitchcraft and Wizardry")
                 .build();
+        final TemplateWrapper wrapper = Mockito.mock(TemplateWrapper.class);
+        Mockito.when(wrapper.toProtobuf()).thenReturn(reportTemplate);
+        Mockito.when(wrapper.getTemplateFile()).thenReturn("hogwarts-faculties");
+
         request = GenerateReportRequest.newBuilder()
                 .setFormat(ReportOutputFormat.PDF.getLiteral())
                 .setTemplate(reportTemplate.getId())
@@ -68,7 +72,7 @@ public class ReportingServiceReportGenerationTest {
 
         templatesOrganizer = Mockito.mock(TemplatesOrganizer.class);
         Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
-                Mockito.anyInt())).thenReturn(Optional.of(reportTemplate));
+                Mockito.anyInt())).thenReturn(Optional.of(wrapper));
         reportRunner = Mockito.mock(ComponentReportRunner.class);
         dirtyRecord = Mockito.mock(ReportInstanceRecord.class);
         Mockito.when(dirtyRecord.getId()).thenReturn(200L);

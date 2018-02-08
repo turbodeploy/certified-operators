@@ -38,6 +38,7 @@ import com.vmturbo.reports.component.instances.ReportInstanceConverter;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
+import com.vmturbo.reports.component.templates.TemplateWrapper;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.DbException;
 
@@ -104,18 +105,17 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
         try {
             final ReportTemplateId templateId = request.getTemplate();
             final ReportType reportType = ReportType.get(templateId.getReportType());
-            final ReportTemplate template =
+            final TemplateWrapper template =
                     templatesOrganizer.getTemplateById(reportType, templateId.getId())
                             .orElseThrow(() -> new ReportingException(
                                     "Could not find report template by id " +
                                             templateId.getId()));
-            final String reportPath = "/VmtReports/" + template.getFilename() + ".rptdesign";
             final ReportOutputFormat format =
                     Objects.requireNonNull(ReportOutputFormat.get(request.getFormat()));
             final ReportInstanceRecord reportInstance =
                     reportInstanceDao.createInstanceRecord(reportType, templateId.getId(), format);
-            final ReportRequest report =
-                    new ReportRequest(reportPath, format, request.getParametersMap());
+            final ReportRequest report = new ReportRequest(template.getTemplateFile(), format,
+                    request.getParametersMap());
             final File file = new File(outputDirectory, Long.toString(reportInstance.getId()));
             executor.execute(() -> generateReportInternal(report, file, reportInstance));
             final ReportInstanceId.Builder resultBuilder = ReportInstanceId.newBuilder();
@@ -168,7 +168,10 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     public void listAllTemplates(Empty request,
             StreamObserver<ReportTemplate> responseObserver) {
         try {
-            templatesOrganizer.getAllTemplates().forEach(responseObserver::onNext);
+            templatesOrganizer.getAllTemplates()
+                    .stream()
+                    .map(TemplateWrapper::toProtobuf)
+                    .forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (DbException e) {
             logger.error("Failed fetch report templates", e);

@@ -18,22 +18,19 @@ message GenerateReportRequest {
 message ReportTemplate {
     // Id of the report
     required ReportTemplateId id = 1;
-    // File name to be used for this report
-    // TODO decide, whether we need this field in UI at all.
-    optional string filename = 3;
     // Title of the report
-    optional string title = 4;
+    optional string title = 2;
     // Category of the report
-    optional string category = 5;
+    optional string category = 3;
     // Short description of the report
-    optional string short_description = 6;
+    optional string short_description = 4;
     // Full description of the report
-    required string description = 7;
+    required string description = 5;
     // Type of recurrency period
     // These 2 numbers represents ordinal in appropriate enums.
-    optional int32 period = 8;
+    optional int32 period = 6;
     // Day of recurrency
-    optional int32 day_type = 9;
+    optional int32 day_type = 7;
 }
 
 // Represents report template - a link to real report template

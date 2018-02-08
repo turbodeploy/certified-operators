@@ -71,9 +71,10 @@ public class ReportingServiceTest {
                 .findFirst()
                 .get()
                 .getId().getId();
-        final ReportTemplate standardTemplate = reportingConfig.templatesController()
+        final ReportTemplate standardTemplate = reportingConfig.templatesOrganizer()
                 .getTemplateById(ReportType.BIRT_STANDARD, standardTemplateId)
-                .get();
+                .get()
+                .toProtobuf();
         Assert.assertEquals(ReportType.BIRT_STANDARD.getValue(),
                 standardTemplate.getId().getReportType());
         Assert.assertEquals(standardTemplateId, standardTemplate.getId().getId());
@@ -84,9 +85,10 @@ public class ReportingServiceTest {
                 .get()
                 .getId()
                 .getId();
-        final ReportTemplate onDemandTemplate = reportingConfig.templatesController()
+        final ReportTemplate onDemandTemplate = reportingConfig.templatesOrganizer()
                 .getTemplateById(ReportType.BIRT_ON_DEMAND, onDemandTemplateId)
-                .get();
+                .get()
+                .toProtobuf();
         Assert.assertEquals(ReportType.BIRT_ON_DEMAND.getValue(),
                 onDemandTemplate.getId().getReportType());
         Assert.assertEquals(onDemandTemplateId, onDemandTemplate.getId().getId());

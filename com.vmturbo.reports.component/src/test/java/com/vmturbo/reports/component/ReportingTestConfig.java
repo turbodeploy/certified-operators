@@ -88,7 +88,7 @@ public class ReportingTestConfig {
 
     @Bean
     protected ReportingServiceImplBase reportingService() {
-        return new ReportingServiceRpc(reportRunner(), templatesController(), reportInstanceDao(), scheduleDAO(),
+        return new ReportingServiceRpc(reportRunner(), templatesOrganizer(), reportInstanceDao(), scheduleDAO(),
                 reportsOutputDir(), Executors.newCachedThreadPool(), notificationSender());
     }
 
@@ -113,7 +113,7 @@ public class ReportingTestConfig {
     }
 
     @Bean
-    public TemplatesOrganizer templatesController() {
+    public TemplatesOrganizer templatesOrganizer() {
         return new TemplatesOrganizer(standardTemplatesDao(), onDemandTemplatesDao());
     }
 

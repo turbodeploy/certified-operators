@@ -31,6 +31,7 @@ import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
+import com.vmturbo.reports.component.templates.TemplateWrapper;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.DbException;
 
@@ -58,9 +59,11 @@ public class ReportingServiceInstanceOperationsTest {
     public void init() throws Exception {
         final ReportTemplate reportTemplate = ReportTemplate.newBuilder()
                 .setId(ReportTemplateId.newBuilder().setId(100).setReportType(1))
-                .setFilename("hogwarts-faculties")
                 .setDescription("Faculties of Hogwarts School of Whitchcraft and Wizardry")
                 .build();
+        final TemplateWrapper wrapper = Mockito.mock(TemplateWrapper.class);
+        Mockito.when(wrapper.toProtobuf()).thenReturn(reportTemplate);
+        Mockito.when(wrapper.getTemplateFile()).thenReturn("hogwarts-faculties");
 
         reportInstance1 = new ReportInstance();
         reportInstance1.setId(1L);
@@ -78,7 +81,7 @@ public class ReportingServiceInstanceOperationsTest {
 
         final TemplatesOrganizer templatesOrganizer = Mockito.mock(TemplatesOrganizer.class);
         Mockito.when(templatesOrganizer.getTemplateById(Mockito.any(ReportType.class),
-                Mockito.anyInt())).thenReturn(Optional.of(reportTemplate));
+                Mockito.anyInt())).thenReturn(Optional.of(wrapper));
         final ComponentReportRunner reportRunner = Mockito.mock(ComponentReportRunner.class);
         instancesDao = Mockito.mock(ReportInstanceDao.class);
         final ScheduleDAO scheduleDAO = Mockito.mock(ScheduleDAO.class);

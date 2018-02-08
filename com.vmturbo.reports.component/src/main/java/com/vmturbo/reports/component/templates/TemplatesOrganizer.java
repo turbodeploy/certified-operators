@@ -13,7 +13,6 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.enums.ReportType;
-import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
 import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
 import com.vmturbo.sql.utils.DbException;
@@ -27,14 +26,20 @@ public class TemplatesOrganizer {
 
     private final Map<ReportType, TemplateSource<?>> templateSourceMap;
 
+    /**
+     * Constructs templates orginuzer with spme soecific templates DAOs.
+     *
+     * @param standardTemplatesDao DAO to access standard reports
+     * @param onDemandTemplatesDao DAO to access on-demand reports
+     */
     public TemplatesOrganizer(@Nonnull TemplatesDao<StandardReportsRecord> standardTemplatesDao,
             @Nonnull TemplatesDao<OnDemandReportsRecord> onDemandTemplatesDao) {
         final ImmutableMap.Builder<ReportType, TemplateSource<?>> builder =
                 new ImmutableMap.Builder<>();
         builder.put(ReportType.BIRT_STANDARD,
-                new TemplateSource<>(standardTemplatesDao, TemplateConverter::convert));
+                new TemplateSource<>(standardTemplatesDao, StandardTemplateWrapper::new));
         builder.put(ReportType.BIRT_ON_DEMAND,
-                new TemplateSource<>(onDemandTemplatesDao, TemplateConverter::convert));
+                new TemplateSource<>(onDemandTemplatesDao, OnDemandTemplateWrapper::new));
         templateSourceMap = builder.build();
     }
 
@@ -45,10 +50,10 @@ public class TemplatesOrganizer {
      * @throws DbException if DB operation failed
      */
     @Nonnull
-    public Collection<ReportTemplate> getAllTemplates() throws DbException {
-        final Collection<ReportTemplate> result = new ArrayList<>();
+    public Collection<TemplateWrapper> getAllTemplates() throws DbException {
+        final Collection<TemplateWrapper> result = new ArrayList<>();
         for (TemplateSource<?> templateSource : templateSourceMap.values()) {
-            result.addAll(getAllTemplages(templateSource));
+            result.addAll(getAllTemplates(templateSource));
         }
         return result;
     }
@@ -61,7 +66,7 @@ public class TemplatesOrganizer {
      * @return collection of protobuf representation of report templates
      * @throws DbException if DB exception occurs.
      */
-    private static <T> Collection<ReportTemplate> getAllTemplages(
+    private static <T> Collection<TemplateWrapper> getAllTemplates(
             @Nonnull TemplateSource<T> templateSource) throws DbException {
         return templateSource.getTemplateDao()
                 .getAllTemplates()
@@ -79,7 +84,7 @@ public class TemplatesOrganizer {
      * @throws DbException if DB operation failed
      */
     @Nonnull
-    public Optional<ReportTemplate> getTemplateById(@Nonnull ReportType reportType, int templateId)
+    public Optional<TemplateWrapper> getTemplateById(@Nonnull ReportType reportType, int templateId)
             throws DbException {
         final TemplateSource<?> templateSource = templateSourceMap.get(reportType);
         if (templateSource == null) {
@@ -89,7 +94,7 @@ public class TemplatesOrganizer {
         }
     }
 
-    private <T> Optional<ReportTemplate> getTemplateById(@Nonnull TemplateSource<T> templateSource,
+    private <T> Optional<TemplateWrapper> getTemplateById(@Nonnull TemplateSource<T> templateSource,
             int templateId) throws DbException {
         return templateSource.getTemplateDao()
                 .getTemplateById(templateId)
@@ -102,21 +107,23 @@ public class TemplatesOrganizer {
      *
      * @param <T> type of DB records this source is pointing to
      */
-    private static class TemplateSource<T> {
+    private class TemplateSource<T> {
         private final TemplatesDao<T> templateDao;
-        private final Function<T, ReportTemplate> converter;
+        private final Function<T, TemplateWrapper> converter;
 
         TemplateSource(@Nonnull TemplatesDao<T> templateDao,
-                @Nonnull Function<T, ReportTemplate> converter) {
+                @Nonnull Function<T, TemplateWrapper> converter) {
             this.templateDao = Objects.requireNonNull(templateDao);
             this.converter = Objects.requireNonNull(converter);
         }
 
+        @Nonnull
         public TemplatesDao<T> getTemplateDao() {
             return templateDao;
         }
 
-        public Function<T, ReportTemplate> getConverter() {
+        @Nonnull
+        public Function<T, TemplateWrapper> getConverter() {
             return converter;
         }
     }
