@@ -6,7 +6,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Executor;
 
 import javax.annotation.Nonnull;
 
@@ -21,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
@@ -30,14 +28,12 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
-import com.vmturbo.reports.component.ComponentReportRunner;
-import com.vmturbo.reports.component.ReportRequest;
 import com.vmturbo.reports.component.ReportingException;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.reports.component.instances.ReportInstanceConverter;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
-import com.vmturbo.reports.component.instances.ReportInstanceRecord;
-import com.vmturbo.reports.component.schedules.ScheduleDAO;
+import com.vmturbo.reports.component.instances.ReportsGenerator;
+import com.vmturbo.reports.component.schedules.Scheduler;
 import com.vmturbo.reports.component.templates.TemplateWrapper;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.DbException;
@@ -48,45 +44,32 @@ import com.vmturbo.sql.utils.DbException;
 public class ReportingServiceRpc extends ReportingServiceImplBase {
 
     /**
-     * Report runner to use for reports generation.
-     */
-    private final ComponentReportRunner reportRunner;
-    /**
      * Logger to use.
      */
     private final Logger logger = LogManager.getLogger();
 
     private final TemplatesOrganizer templatesOrganizer;
     private final ReportInstanceDao reportInstanceDao;
-    private final ScheduleDAO scheduleDAO;
-
+    private final ReportsGenerator reportsGenerator;
     private final File outputDirectory;
-    private final Executor executor;
-    private final ReportNotificationSender notificationSender;
+    private final Scheduler scheduler;
 
     /**
      * Creates reporting GRPC service.
      *
-     * @param reportRunner report runner to use
      * @param templatesOrganizer DAO resposible for template-related queries
      * @param reportInstanceDao DAO for accessing report instances records in the DB
-     * @param scheduleDAO DAO for accessing to schedules in the DB
      * @param outputDirectory directory to put generated report files into
-     * @param executor thead pool to be used for report generation (they are asynchronous)
-     * @param notificationSender notification sender to broadcast report generation results
      */
-    public ReportingServiceRpc(@Nonnull ComponentReportRunner reportRunner,
-            @Nonnull TemplatesOrganizer templatesOrganizer,
-            @Nonnull ReportInstanceDao reportInstanceDao, @Nonnull ScheduleDAO scheduleDAO,
-            @Nonnull File outputDirectory, @Nonnull Executor executor,
-            @Nonnull ReportNotificationSender notificationSender) {
-        this.reportRunner = Objects.requireNonNull(reportRunner);
+    public ReportingServiceRpc(@Nonnull TemplatesOrganizer templatesOrganizer,
+            @Nonnull ReportInstanceDao reportInstanceDao, @Nonnull File outputDirectory,
+                    @Nonnull ReportsGenerator reportsGenerator,
+            @Nonnull Scheduler scheduler) {
         this.templatesOrganizer = Objects.requireNonNull(templatesOrganizer);
         this.reportInstanceDao = Objects.requireNonNull(reportInstanceDao);
-        this.scheduleDAO = scheduleDAO;
         this.outputDirectory = Objects.requireNonNull(outputDirectory);
-        this.executor = Objects.requireNonNull(executor);
-        this.notificationSender = Objects.requireNonNull(notificationSender);
+        this.reportsGenerator = Objects.requireNonNull(reportsGenerator);
+        this.scheduler = Objects.requireNonNull(scheduler);
     }
 
     /**
@@ -103,64 +86,12 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     public void generateReport(GenerateReportRequest request,
             StreamObserver<ReportInstanceId> responseObserver) {
         try {
-            final ReportTemplateId templateId = request.getTemplate();
-            final ReportType reportType = ReportType.get(templateId.getReportType());
-            final TemplateWrapper template =
-                    templatesOrganizer.getTemplateById(reportType, templateId.getId())
-                            .orElseThrow(() -> new ReportingException(
-                                    "Could not find report template by id " +
-                                            templateId.getId()));
-            final ReportOutputFormat format =
-                    Objects.requireNonNull(ReportOutputFormat.get(request.getFormat()));
-            final ReportInstanceRecord reportInstance =
-                    reportInstanceDao.createInstanceRecord(reportType, templateId.getId(), format);
-            final ReportRequest report = new ReportRequest(template.getTemplateFile(), format,
-                    request.getParametersMap());
-            final File file = new File(outputDirectory, Long.toString(reportInstance.getId()));
-            executor.execute(() -> generateReportInternal(report, file, reportInstance));
-            final ReportInstanceId.Builder resultBuilder = ReportInstanceId.newBuilder();
-            resultBuilder.setId(reportInstance.getId());
-            responseObserver.onNext(resultBuilder.build());
+            responseObserver.onNext(reportsGenerator.generateReport(request));
             responseObserver.onCompleted();
         } catch (ReportingException | DbException e) {
             logger.error("Failed to generate report " + request.getTemplate().getId(), e);
             responseObserver.onError(
                     new StatusRuntimeException(Status.INTERNAL.withDescription(e.getMessage())));
-        }
-    }
-
-    /**
-     * Method performes report generation, wrapping all the exceptions. It is designed to be the top
-     * method called in a thread (it is catching {@link InterruptedException});
-     *
-     * @param reportRequest report request to generate
-     * @param outputFile file to put generated report into
-     * @param reportInstance report instance record from the DB
-     */
-    private void generateReportInternal(@Nonnull ReportRequest reportRequest, @Nonnull File outputFile,
-            @Nonnull ReportInstanceRecord reportInstance) {
-        try {
-            try {
-                try {
-                    reportRunner.createReport(reportRequest, outputFile);
-                    reportInstance.commit();
-                    notificationSender.notifyReportGenerated(reportInstance.getId());
-                } catch (ReportingException e) {
-                    logger.warn(
-                            "Error generating a report {}. Removing report record from the DB...",
-                            reportInstance.getId());
-                    reportInstance.rollback();
-                    throw e;
-                }
-            } catch (DbException | ReportingException e) {
-                notificationSender.notifyReportGenerationFailed(reportInstance.getId(),
-                        e.getMessage());
-            }
-        } catch (InterruptedException e) {
-            logger.info("Generating a report " + reportInstance.getId() + " interrupted", e);
-        } catch (CommunicationException e) {
-            logger.error("Could not send notification about report " + reportInstance.getId() +
-                    " generation", e);
         }
     }
 
@@ -254,20 +185,21 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
 
     @Override
     public void addSchedule(Reporting.ScheduleInfo scheduleInfo,
-                            StreamObserver<Reporting.ScheduleDTO> responseObserver) {
+                    StreamObserver<Reporting.ScheduleDTO> responseObserver) {
         try {
-            final Reporting.ScheduleDTO scheduleDTO = scheduleDAO.addSchedule(scheduleInfo);
+            final Reporting.ScheduleDTO scheduleDTO = scheduler.addSchedule(scheduleInfo);
             responseObserver.onNext(scheduleDTO);
             responseObserver.onCompleted();
         } catch (DbException e) {
-            responseObserver.onError(new StatusRuntimeException(Status.ABORTED.withDescription(e.getMessage())));
+            responseObserver.onError(new StatusRuntimeException(
+                            Status.ABORTED.withDescription(e.getMessage())));
         }
     }
 
     @Override
     public void getAllSchedules(Reporting.Empty empty, StreamObserver<Reporting.ScheduleDTO> responseObserver) {
         try {
-            final Set<Reporting.ScheduleDTO> allSchedules = scheduleDAO.getAllSchedules();
+            final Set<Reporting.ScheduleDTO> allSchedules = scheduler.getAllSchedules();
             allSchedules.forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (DbException e) {
@@ -278,7 +210,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     @Override
     public void deleteSchedule(Reporting.ScheduleId id, StreamObserver<Empty> responseObserver) {
         try {
-            scheduleDAO.deleteSchedule(id.getId());
+            scheduler.deleteSchedule(id.getId());
             responseObserver.onNext(Empty.newBuilder().build());
             responseObserver.onCompleted();
         } catch (DbException e) {
@@ -290,7 +222,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     public void editSchedule(Reporting.ScheduleDTO scheduleDTO,
                     StreamObserver<Reporting.ScheduleDTO> responseObserver) {
         try {
-            scheduleDAO.editSchedule(scheduleDTO);
+            scheduler.editSchedule(scheduleDTO);
             responseObserver.onNext(scheduleDTO);
             responseObserver.onCompleted();
         } catch (DbException e) {
@@ -301,7 +233,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
     @Override
     public void getSchedule(Reporting.ScheduleId id, StreamObserver<Reporting.ScheduleDTO> responseObserver) {
         try {
-            final Reporting.ScheduleDTO schedule = scheduleDAO.getSchedule(id.getId());
+            final Reporting.ScheduleDTO schedule = scheduler.getSchedule(id.getId());
             responseObserver.onNext(schedule);
             responseObserver.onCompleted();
         } catch (DbException e) {
@@ -316,7 +248,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             final int reportType = request.getReportType();
             final int templateId = request.getTemplateId();
             final Set<Reporting.ScheduleDTO> scheduleDTOS =
-                            scheduleDAO.getSchedulesBy(reportType, templateId);
+                            scheduler.getSchedulesBy(reportType, templateId);
             scheduleDTOS.forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (DbException e) {

@@ -543,6 +543,10 @@
             <artifactId>Tidy</artifactId>
             <version>1</version>
         </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
 
     </dependencies>
     <build>
@@ -682,6 +686,18 @@
                                 <forcedType>
                                     <name>com.vmturbo.api.enums.ReportType</name>
                                     <expression>.*\.report_instance\.report_type</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.api.enums.ReportType</name>
+                                    <expression>.*\.schedule\.report_type</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>int</name>
+                                    <expression>.*\.schedule\.day_of_month</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>boolean</name>
+                                    <expression>.*\.schedule\.show_charts</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

@@ -2,8 +2,10 @@ package com.vmturbo.reports.component;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Properties;
+import java.util.Timer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,8 +34,10 @@ import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
+import com.vmturbo.reports.component.instances.ReportsGenerator;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
 import com.vmturbo.reports.component.schedules.ScheduleDAOimpl;
+import com.vmturbo.reports.component.schedules.Scheduler;
 import com.vmturbo.reports.component.templates.OnDemandTemplatesDao;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.reports.component.templates.TemplatesDao;
@@ -88,8 +92,19 @@ public class ReportingTestConfig {
 
     @Bean
     protected ReportingServiceImplBase reportingService() {
-        return new ReportingServiceRpc(reportRunner(), templatesOrganizer(), reportInstanceDao(), scheduleDAO(),
-                reportsOutputDir(), Executors.newCachedThreadPool(), notificationSender());
+        return new ReportingServiceRpc(templatesOrganizer(), reportInstanceDao(),
+                reportsOutputDir(), reportsGenerator(), scheduler());
+    }
+
+    @Bean
+    public ReportsGenerator reportsGenerator() {
+        return new ReportsGenerator(reportRunner(), templatesOrganizer(), reportInstanceDao(),
+                        reportsOutputDir(), threadPool(), notificationSender());
+    }
+
+    @Bean public Scheduler scheduler() {
+        return new Scheduler(reportsGenerator(), scheduleDAO(), 1,
+                        Clock.systemDefaultZone(), new Timer("scheduledReportsGeneration"));
     }
 
     @Bean

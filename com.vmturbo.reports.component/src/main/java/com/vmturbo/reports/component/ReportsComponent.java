@@ -46,6 +46,7 @@ public class ReportsComponent extends BaseVmtComponent {
     private void setup() {
         // add kafka producer health check
         getHealthMonitor().addHealthCheck(reportingConfig.kafkaHealthMonitor());
+        reportingConfig.scheduler().scheduleAllReportsGeneration();
     }
 
     public static void main(String[] args) {

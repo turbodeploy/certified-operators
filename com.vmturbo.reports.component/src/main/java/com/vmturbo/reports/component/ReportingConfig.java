@@ -1,6 +1,8 @@
 package com.vmturbo.reports.component;
 
 import java.io.File;
+import java.time.Clock;
+import java.util.Timer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -23,8 +25,10 @@ import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
+import com.vmturbo.reports.component.instances.ReportsGenerator;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
 import com.vmturbo.reports.component.schedules.ScheduleDAOimpl;
+import com.vmturbo.reports.component.schedules.Scheduler;
 import com.vmturbo.reports.component.templates.OnDemandTemplatesDao;
 import com.vmturbo.reports.component.templates.StandardTemplatesDaoImpl;
 import com.vmturbo.reports.component.templates.TemplatesDao;
@@ -51,6 +55,12 @@ public class ReportingConfig {
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
 
+    /**
+     * Time when scheduled reports should be generated.
+     */
+    @Value("${scheduledReportsGenerationTime}")
+    private int scheduledReportsGenerationTime;
+
     @Bean
     public ComponentReportRunner componentReportRunner() {
         try {
@@ -69,9 +79,20 @@ public class ReportingConfig {
     @Bean
     public ReportingServiceRpc reportingService() {
         IdentityGenerator.initPrefix(identityGeneratorPrefix);
-        return new ReportingServiceRpc(componentReportRunner(), templatesOrganizer(),
-                reportInstanceDao(), scheduleDAO(), reportOutputDir, threadPool(),
-                notificationSender());
+        return new ReportingServiceRpc(templatesOrganizer(),
+                reportInstanceDao(), reportOutputDir, reportsGenerator(), scheduler());
+    }
+
+    @Bean
+    public ReportsGenerator reportsGenerator() {
+        return new ReportsGenerator(componentReportRunner(), templatesOrganizer(), reportInstanceDao(),
+                        reportOutputDir, threadPool(), notificationSender());
+    }
+
+    @Bean
+    public Scheduler scheduler() {
+        return new Scheduler(reportsGenerator(), scheduleDAO(), scheduledReportsGenerationTime,
+                        Clock.systemDefaultZone(), new Timer("scheduledReportsGeneration"));
     }
 
     @Bean

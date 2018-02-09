@@ -230,16 +230,19 @@ public class ReportsService implements IReportsService {
     private Reporting.ScheduleInfo toScheduleInfo(@Nonnull String restTemplateId,
             @Nonnull ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
         final ReportTemplateId templateId = getReportTemplateId(restTemplateId);
-        final List<String> emails = Arrays.asList(reportScheduleApiInputDTO.getEmail().split(","));
-        emails.forEach(String::trim);
+
         final Reporting.ScheduleInfo.Builder infoBuilder = Reporting.ScheduleInfo.newBuilder()
                 .setReportType(templateId.getReportType())
                 .setTemplateId(templateId.getId())
                 .setDayOfWeek(reportScheduleApiInputDTO.getDow().getName())
                 .setFormat(reportScheduleApiInputDTO.getFormat().getLiteral())
                 .setPeriod(reportScheduleApiInputDTO.getPeriod().getName())
-                .setShowCharts(reportScheduleApiInputDTO.isShowCharts())
-                .addAllSubscribersEmails(emails);
+                .setShowCharts(reportScheduleApiInputDTO.isShowCharts());
+        if (reportScheduleApiInputDTO.getEmail() != null) {
+            infoBuilder.addAllSubscribersEmails(Arrays.stream(reportScheduleApiInputDTO.getEmail().split(","))
+                            .map(String::trim)
+                            .collect(Collectors.toList()));
+        }
         if (reportScheduleApiInputDTO.getScope() != null) {
             infoBuilder.setScopeOid(reportScheduleApiInputDTO.getScope());
         }

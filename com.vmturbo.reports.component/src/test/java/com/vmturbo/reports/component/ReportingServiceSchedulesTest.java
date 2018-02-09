@@ -30,7 +30,7 @@ import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(loader = AnnotationConfigContextLoader.class,
                 classes = {ReportingTestConfig.class})
-@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_EACH_TEST_METHOD)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.BEFORE_CLASS)
 public class ReportingServiceSchedulesTest {
 
     @Autowired
@@ -41,12 +41,11 @@ public class ReportingServiceSchedulesTest {
     private DSLContext dslContext;
 
     private static final Reporting.ScheduleInfo TEST_SCHEDULE_INFO = buildScheduleInfo(
-                    "123", "Sunday", "PDF", "Weekly", 1,
+                    "123", "Sun", "PDF", "Weekly", 1,
                     19, true, ImmutableList.of("a@a.com", "b@b.com"));
 
     @Before
     public void init() throws IOException {
-        reportingConfig.init();
         reportingService = ReportingServiceGrpc.newBlockingStub(reportingConfig.planGrpcServer().getChannel());
         dslContext = reportingConfig.dslContext();
         clearAllTables();
@@ -132,11 +131,12 @@ public class ReportingServiceSchedulesTest {
                         .setTemplateId(templateId)
                         .setShowCharts(showCharts)
                         .addAllSubscribersEmails(emails)
+                        .setDayOfMonth(2)
                         .build();
     }
 
     private void clearAllTables() {
-        dslContext.deleteFrom(SCHEDULE).execute();
-        dslContext.deleteFrom(SCHEDULE_SUBSCRIBERS).execute();
+        com.vmturbo.reports.component.db.Reporting.REPORTING.getTables()
+                        .forEach(table -> dslContext.deleteFrom(table).execute());
     }
 }

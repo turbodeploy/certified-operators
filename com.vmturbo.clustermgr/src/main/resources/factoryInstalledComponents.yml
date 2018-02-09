@@ -241,3 +241,4 @@ reporting:
   dbSchemaName: 'vmtdb'
   <<: *auth_conn_info
   identityGeneratorPrefix: 8
+  scheduledReportsGenerationTime: 1

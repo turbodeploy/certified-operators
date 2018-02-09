@@ -1,5 +1,6 @@
 package com.vmturbo.reports.component;
 
+import java.io.File;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -15,6 +16,7 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.mockito.internal.exceptions.MockitoLimitations;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
@@ -26,8 +28,10 @@ import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
+import com.vmturbo.reports.component.instances.ReportsGenerator;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
 import com.vmturbo.reports.component.templates.TemplateWrapper;
+import com.vmturbo.reports.component.schedules.Scheduler;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.DbException;
 
@@ -54,6 +58,7 @@ public class ReportingServiceReportGenerationTest {
     private ReportingServiceRpc reportingServer;
     private ReportNotificationSender notificationSender;
     private ExecutorService threadPool;
+    private ReportsGenerator reportsGenerator;
 
     @Before
     public void init() throws Exception {
@@ -87,8 +92,11 @@ public class ReportingServiceReportGenerationTest {
         notificationSender = Mockito.mock(ReportNotificationSender.class);
         threadPool = Executors.newCachedThreadPool();
 
-        reportingServer = new ReportingServiceRpc(reportRunner, templatesOrganizer, instancesDao, scheduleDAO,
-                tmpFolder.newFolder(), threadPool,  notificationSender);
+        final File outputDir = tmpFolder.newFolder();
+        reportsGenerator = new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao,
+                        outputDir, threadPool, notificationSender);
+        reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
+                        outputDir, reportsGenerator, Mockito.mock(Scheduler.class));
     }
 
     @After

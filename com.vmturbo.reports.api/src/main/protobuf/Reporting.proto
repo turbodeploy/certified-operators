@@ -88,6 +88,8 @@ message ScheduleInfo {
     required int32 template_id = 9;
     // emails to send scheduled report
     repeated string subscribers_emails = 10;
+    // Day when monthly report should be generated
+    optional int32 dayOfMonth = 11;
 }
 
 // Request param for getting schedule by report type and template id

@@ -3,6 +3,7 @@ package com.vmturbo.reports.component.schedules;
 import static com.vmturbo.reports.component.db.tables.Schedule.SCHEDULE;
 import static com.vmturbo.reports.component.db.tables.ScheduleSubscribers.SCHEDULE_SUBSCRIBERS;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -16,6 +17,7 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reports.component.db.tables.pojos.Schedule;
@@ -48,14 +50,7 @@ public class ScheduleDAOimpl implements ScheduleDAO {
     public Reporting.ScheduleDTO addSchedule(@Nonnull Reporting.ScheduleInfo scheduleInfo)
                     throws DbException {
         final long scheduleId = IdentityGenerator.next();
-        final Schedule schedule = new Schedule(
-                scheduleId, scheduleInfo.getDayOfWeek(),
-                scheduleInfo.getFormat(),
-                scheduleInfo.getPeriod(),
-                (short) scheduleInfo.getReportType(),
-                scheduleInfo.getScopeOid(),
-                (byte) (scheduleInfo.getShowCharts() ? 1 : 0),
-                scheduleInfo.getTemplateId());
+        final Schedule schedule = toPojoSchedule(scheduleInfo, scheduleId);
         try {
             storeSchedule(scheduleInfo, schedule);
         } catch (DataAccessException e) {
@@ -63,6 +58,21 @@ public class ScheduleDAOimpl implements ScheduleDAO {
             throw new DbException(message, e);
         }
         return Reporting.ScheduleDTO.newBuilder().setId(scheduleId).setScheduleInfo(scheduleInfo).build();
+    }
+
+    @Nonnull
+    private Schedule toPojoSchedule(@Nonnull Reporting.ScheduleInfo scheduleInfo, long scheduleId) {
+        return new Schedule(
+                        scheduleId, scheduleInfo.getDayOfWeek(),
+                        scheduleInfo.getFormat(),
+                        scheduleInfo.getPeriod(),
+                        ReportType.get(scheduleInfo.getReportType()),
+                        scheduleInfo.getScopeOid(),
+                        (scheduleInfo.getShowCharts()),
+                        scheduleInfo.getTemplateId(),
+                        scheduleInfo.hasDayOfMonth()
+                                        ? scheduleInfo.getDayOfMonth()
+                                        : LocalDateTime.now().getDayOfMonth());
     }
 
     private void storeSchedule(@Nonnull Reporting.ScheduleInfo scheduleInfo, Schedule schedule) {
@@ -125,12 +135,12 @@ public class ScheduleDAOimpl implements ScheduleDAO {
         final Reporting.ScheduleInfo scheduleInfo = scheduleDTO.getScheduleInfo();
         try {
             context.update(SCHEDULE)
-                            .set(SCHEDULE.REPORT_TYPE, (short)scheduleInfo.getReportType())
+                            .set(SCHEDULE.REPORT_TYPE, ReportType.get(scheduleInfo.getReportType()))
                             .set(SCHEDULE.TEMPLATE_ID, scheduleInfo.getTemplateId())
                             .set(SCHEDULE.PERIOD, scheduleInfo.getPeriod())
                             .set(SCHEDULE.DAY_OF_WEEK, scheduleInfo.getDayOfWeek())
                             .set(SCHEDULE.FORMAT, scheduleInfo.getFormat())
-                            .set(SCHEDULE.SHOW_CHARTS, (byte)(scheduleInfo.getShowCharts() ? 1 : 0))
+                            .set(SCHEDULE.SHOW_CHARTS, scheduleInfo.getShowCharts())
                             .set(SCHEDULE.SCOPE_OID, scheduleInfo.getScopeOid())
                         .where(SCHEDULE.ID.eq(scheduleDTO.getId()))
                         .execute();
@@ -185,7 +195,7 @@ public class ScheduleDAOimpl implements ScheduleDAO {
         logger.debug("Reading of schedules with reportType {} and templateId {}",
                         reportType, templateId);
         try {
-            return context.selectFrom(SCHEDULE).where(SCHEDULE.REPORT_TYPE.eq((short)reportType)
+            return context.selectFrom(SCHEDULE).where(SCHEDULE.REPORT_TYPE.eq(ReportType.get(reportType))
                             .and(SCHEDULE.TEMPLATE_ID.eq(templateId))).fetch()
                             .stream()
                             .map(this::toScheduleDTO)
@@ -214,12 +224,13 @@ public class ScheduleDAOimpl implements ScheduleDAO {
                                                   @Nonnull List<String> subscribers) {
         return Reporting.ScheduleInfo.newBuilder()
                 .addAllSubscribersEmails(subscribers)
-                .setReportType(scheduleRecord.getReportType())
+                .setReportType(scheduleRecord.getReportType().getValue())
                 .setTemplateId(scheduleRecord.getTemplateId())
                 .setDayOfWeek(scheduleRecord.getDayOfWeek())
                 .setPeriod(scheduleRecord.getPeriod())
                 .setFormat(scheduleRecord.getFormat())
                 .setScopeOid(scheduleRecord.getScopeOid())
-                .setShowCharts(scheduleRecord.getShowCharts() > 0).build();
+                .setDayOfMonth(scheduleRecord.getDayOfMonth())
+                .setShowCharts(scheduleRecord.getShowCharts()).build();
     }
 }

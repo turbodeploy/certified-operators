@@ -1,5 +1,6 @@
 package com.vmturbo.reports.component;
 
+import java.io.File;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Optional;
@@ -30,7 +31,9 @@ import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
+import com.vmturbo.reports.component.instances.ReportsGenerator;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
+import com.vmturbo.reports.component.schedules.Scheduler;
 import com.vmturbo.reports.component.templates.TemplateWrapper;
 import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.DbException;
@@ -54,6 +57,7 @@ public class ReportingServiceInstanceOperationsTest {
     private ExecutorService threadPool;
     private ArgumentCaptor<Reporting.ReportInstance> instanceCaptor;
     private ArgumentCaptor<Throwable> exceptionCaptor;
+    private ReportsGenerator reportsGenerator;
 
     @Before
     public void init() throws Exception {
@@ -91,9 +95,11 @@ public class ReportingServiceInstanceOperationsTest {
                 Mockito.mock(ReportNotificationSender.class);
         threadPool = Executors.newCachedThreadPool();
 
-        reportingServer =
-                new ReportingServiceRpc(reportRunner, templatesOrganizer, instancesDao, scheduleDAO,
-                        tmpFolder.newFolder(), threadPool, notificationSender);
+        final File outputDir = tmpFolder.newFolder();
+        reportsGenerator = new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao,
+                        outputDir, threadPool, notificationSender);
+        reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
+                        outputDir, reportsGenerator, Mockito.mock(Scheduler.class));
         instanceCaptor = ArgumentCaptor.forClass(Reporting.ReportInstance.class);
         exceptionCaptor = ArgumentCaptor.forClass(Throwable.class);
     }
