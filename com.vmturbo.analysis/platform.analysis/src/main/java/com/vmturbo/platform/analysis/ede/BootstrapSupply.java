@@ -145,7 +145,10 @@ public class BootstrapSupply {
                     final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>>
                     movableSlByMarket = slByMarket.stream().filter(entry1 ->
                     entry1.getKey().isMovable()).collect(Collectors.toList());
-                    allActions.add(createCompoundMove(newSuppliers, movableSlByMarket, economy));
+                    CompoundMove compoundMove = createCompoundMove(newSuppliers, movableSlByMarket, economy);
+                    if (compoundMove != null) {
+                        allActions.add(compoundMove);
+                    }
                 } else {
                     @NonNull Trader buyer = entry.getKey().getBuyer();
                     if (buyer.isDebugEnabled()) {
