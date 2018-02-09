@@ -26,8 +26,6 @@ import org.springframework.web.client.RestTemplate;
 
 import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.api.dto.license.LicenseApiDTO;
-import com.vmturbo.api.dto.license.LicenseApiInputDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 
@@ -90,29 +88,6 @@ public class LicenseServiceTest {
                 String.class)).thenReturn(result);
         when(restTemplate.exchange("http://auth:9400/license", HttpMethod.POST, new HttpEntity<>(headers),
                 String.class)).thenReturn(result);
-    }
-
-    @Test
-    public void testGetLicense() throws Exception {
-        LicenseApiDTO license = licenseService.getLicense();
-        verifyLicenseContents(license);
-    }
-
-    private void verifyLicenseContents(final LicenseApiDTO license) {
-        assertEquals("Saipriya Balasubramanian", license.getLicenseOwner());
-        assertEquals("2050-01-31", license.getExpirationDate());
-        assertEquals(25, license.getFeatures().size());
-        assertThat(license.getFeatures(), hasItems("vmturbo_api"));
-        assertTrue(license.getIsValid());
-    }
-
-    @Test
-    public void testPopulateLicense() throws Exception {
-        logon("ADMINISTRATOR");
-        LicenseApiInputDTO inputDTO = new LicenseApiInputDTO();
-        inputDTO.setLicense(licenseString);
-        LicenseApiDTO license = licenseService.populateLicense(inputDTO);
-        verifyLicenseContents(license);
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -9,6 +10,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.xml.parsers.DocumentBuilder;
@@ -32,11 +34,13 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.license.LicenseApiDTO;
-import com.vmturbo.api.dto.license.LicenseApiInputDTO;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.ILicenseService;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
@@ -89,51 +93,6 @@ public class LicenseService implements ILicenseService {
         restTemplate_ = Objects.requireNonNull(restTemplate);
     }
 
-
-    /**
-     * Get license from Auth component, currently it only supports socket based license.
-     * @return LicenseApiDTO
-     */
-    @Override
-    public LicenseApiDTO getLicense() {
-        LicenseApiDTO license = new LicenseApiDTO();
-        UriComponentsBuilder builder = baseRequest().path(PATH);
-        String request = builder.build().toUriString();
-        HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(HTTP_ACCEPT);
-
-        ResponseEntity<String> result;
-        try {
-            result = restTemplate_.exchange(request, HttpMethod.GET, new HttpEntity<>(headers),
-                    String.class);
-            String rawLicense = result.getBody();
-            if (rawLicense == null || rawLicense.isEmpty()) {
-                // when license component is ready in XL, we should return empty LicenseApiDTO.
-                return getDefaultXlLicense(); // return the default XL license for now
-            }
-            return convertSocketLicenseToDTO(rawLicense);
-        } catch (RestClientException e) {
-            throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
-        }
-    }
-
-    @Override
-    public LicenseApiDTO populateLicense(final LicenseApiInputDTO licenseApiInputDTO) {
-        logger_.debug("Populating license.");
-        UriComponentsBuilder builder = baseRequest().path(PATH);
-        String request = builder.build().toUriString();
-        HttpHeaders headers = composeHttpHeaders();
-        HttpEntity<LicenseApiInputDTO> entity;
-        entity = new HttpEntity<>(licenseApiInputDTO, headers);
-        restTemplate_.exchange(request, HttpMethod.POST, entity, LicenseApiInputDTO.class);
-        logger_.debug("Done populating license.");
-        return getLicense();
-    }
-
-    @Override
-    public LicenseApiDTO validateLicense() {
-        return getLicense();
-    }
 
     /**
      * Composes the HTTP headers for REST calls.
@@ -190,12 +149,6 @@ public class LicenseService implements ILicenseService {
             license.setLicenseOwner(parse(document, "first-name") + " " + parse(document, "last-name"));
             license.setEmail(parse(document, "email"));
             license.setExpirationDate(parse(document, "expiration-date"));
-            license.setNumSocketsInUse(0);
-
-            license.setFeatures(featureList);
-
-            license.setNumSocketsLicensed(Integer.parseInt(parse(document, "num-sockets")));
-            license.setIsValid(true);
             return license;
         } catch (Exception e) {
             return license;
@@ -219,43 +172,41 @@ public class LicenseService implements ILicenseService {
         license.setLicenseOwner("Turbonomic XL");
         license.setEmail("");
         license.setExpirationDate(new SimpleDateFormat("MMM dd yyyy").format(expirationDate));
-
-        license.setFeatures(Arrays.asList(
-                "historical_data",
-                "multiple_vc",
-                "scoped_user_view",
-                "customized_views",
-                "group_editor",
-                "vmturbo_api",
-                "automated_actions",
-                "active_directory",
-                "custom_reports",
-                "planner",
-                "optimizer",
-                "full_policy",
-                "deploy",
-                "aggregation",
-                "action_script",
-                "fabric",
-                "cloud_targets",
-                "cluster_flattening",
-                "cluster_flattening",
-                "network_control",
-                "cluster_flattening",
-                "storage",
-                "vdi_control",
-                "public_cloud",
-                "container_control",
-                "applications",
-                "loadbalancer",
-                "app_control"
-        ));
-
-        license.setNumSocketsLicensed(Integer.MAX_VALUE);
-        license.setNumSocketsInUse(0);
-        license.setIsValid(true);
-        license.setExpired(LocalDate.now().isAfter(EXPIRATION_DATE));
-
         return license;
+    }
+
+    @Override
+    public Optional<LicenseApiDTO> readLicense(final String s) {
+        return Optional.of(getDefaultXlLicense());
+    }
+
+    @Override
+    public List<LicenseApiDTO> addLicenses(final List<LicenseApiDTO> list, final boolean b) {
+        return Lists.newArrayList(getDefaultXlLicense());
+    }
+
+    @Override
+    public List<LicenseApiDTO> findAllLicenses() {
+        return Lists.newArrayList(getDefaultXlLicense());
+    }
+
+    @Override
+    public boolean deleteLicense(final String s) {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public LicenseApiDTO deserializeLicenseToLicenseDTO(final InputStream inputStream, final String s) {
+        return getDefaultXlLicense();
+    }
+
+    @Override
+    public LicenseApiDTO deserializeLicenseToLicenseDTO(final String s) {
+        return getDefaultXlLicense();
+    }
+
+    @Override
+    public LicenseApiDTO getLicensesSummary() throws UnauthorizedObjectException {
+        return getDefaultXlLicense();
     }
 }

@@ -1,10 +1,12 @@
 package com.vmturbo.api.component.external.api.dispatcher;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.api.component.external.api.service.LicenseService;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
@@ -14,6 +16,7 @@ import com.vmturbo.api.controller.EntitiesController;
 import com.vmturbo.api.controller.GeneralController;
 import com.vmturbo.api.controller.GroupsController;
 import com.vmturbo.api.controller.LicenseController;
+import com.vmturbo.api.controller.LicensesController;
 import com.vmturbo.api.controller.LogsController;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.controller.NotificationsController;
@@ -31,6 +34,7 @@ import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
+import com.vmturbo.api.serviceinterfaces.ILicenseService;
 import com.vmturbo.api.xlcontroller.ClusterController;
 
 /**
@@ -45,6 +49,9 @@ import com.vmturbo.api.xlcontroller.ClusterController;
 @Configuration
 @EnableWebMvc
 public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
+
+    @Autowired
+    ILicenseService licenseService;
 
     @Bean
     public ActionsController actionsController() {
@@ -162,8 +169,8 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public LicenseController licenseController() {
-        return new LicenseController();
+    public LicensesController licenseController(ILicenseService licenseService) {
+        return new LicensesController(licenseService);
     }
 
     @Bean

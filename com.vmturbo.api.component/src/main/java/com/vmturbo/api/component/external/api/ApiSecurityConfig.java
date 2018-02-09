@@ -69,6 +69,7 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
             .antMatchers(base_uri + "users/me").permitAll()
             .antMatchers(base_uri + "admin/versions").permitAll()
             .antMatchers(base_uri + "license").permitAll()
+            .antMatchers(base_uri + "licenses/summary").permitAll()
             .antMatchers(base_uri + "initAdmin").permitAll()
             .antMatchers(base_uri + "**").authenticated();
         }
