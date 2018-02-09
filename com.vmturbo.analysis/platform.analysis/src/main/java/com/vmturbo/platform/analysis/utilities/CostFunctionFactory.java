@@ -452,6 +452,10 @@ public class CostFunctionFactory {
      */
     public static double calculateDiscountedComputeCost(ShoppingList buyer, Trader seller,
                     CbtpCostDTO cbtpResourceBundle, UnmodifiableEconomy economy) {
+        // if the buyer is already placed on a CBTP return 0
+        if (buyer.getSupplier() == seller) {
+            return 0;
+        }
 
         // Match the vm with a template in order to:
         // 1) Estimate the number of coupons requested by the vm
