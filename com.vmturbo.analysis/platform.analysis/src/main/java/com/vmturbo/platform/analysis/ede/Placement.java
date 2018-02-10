@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
 import com.google.common.collect.Sets;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
@@ -297,46 +298,28 @@ public class Placement {
             Set<Long> commonCliques = getCommonCliques(buyingTrader, slByMarket, movableSlByMarket);
             CliqueMinimizer minimizer = computeBestQuote(economy, movableSlByMarket, commonCliques);
             // If the best suppliers are not current ones, move shopping lists to best places
-            output.addAll(checkAndGenerateCompoundMoveActions(economy, movableSlByMarket, minimizer));
+            List<ShoppingList> shoppingLists = movableSlByMarket.stream().map(Entry::getKey)
+                            .collect(Collectors.toList());
+            List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
+                            .collect(Collectors.toList());
+            if (minimizer != null && !currentSuppliers.equals(minimizer.getBestSellers())) {
+                double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
+                if (minimizer.getBestTotalQuote() < currentTotalQuote
+                                * economy.getSettings().getQuoteFactor()) {
+                    List<Trader> bestSellers = minimizer.getBestSellers();
+                    CompoundMove compoundMove =
+                                        CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
+                                            economy, shoppingLists, currentSuppliers, bestSellers);
+                    if (compoundMove != null) {
+                        output.add(compoundMove.take().setImportance(currentTotalQuote - minimizer
+                                .getBestTotalQuote()));
+                    }
+                }
+            }
         }
         return output;
     }
 
-    /**
-     * Check if the current suppliers are the same as best sellers. If not, generate a {@link
-     * CompoundMove}.
-     *
-     * @param economy the economy
-     * @param movableSlByMarket the movable shopping lists from the buyer
-     * @param minimizer the {@link CliqueMinimizer}
-     * @return a list of actions generated
-     */
-    public static List<Action> checkAndGenerateCompoundMoveActions(Economy economy,
-                                                           List<Entry<@NonNull ShoppingList,
-                                                           @NonNull Market>>
-                                                           movableSlByMarket,
-                                                           @NonNull CliqueMinimizer minimizer) {
-        List<Action> actions = new ArrayList<>();
-        List<ShoppingList> shoppingLists = movableSlByMarket.stream().map(Entry::getKey)
-                        .collect(Collectors.toList());
-        List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
-                        .collect(Collectors.toList());
-        if (minimizer != null && !currentSuppliers.equals(minimizer.getBestSellers())) {
-            double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
-            if (minimizer.getBestTotalQuote() < currentTotalQuote
-                            * economy.getSettings().getQuoteFactor()) {
-                List<Trader> bestSellers = minimizer.getBestSellers();
-                CompoundMove compoundMove =
-                                    CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
-                                        economy, shoppingLists, currentSuppliers, bestSellers);
-                if (compoundMove != null) {
-                    actions.add(compoundMove.take().setImportance(currentTotalQuote - minimizer
-                            .getBestTotalQuote()));
-                }
-            }
-        }
-        return actions;
-    }
     /**
      * Compute the best quote for a trader.
      *
