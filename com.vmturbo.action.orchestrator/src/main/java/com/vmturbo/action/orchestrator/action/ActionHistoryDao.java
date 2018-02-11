@@ -39,5 +39,15 @@ public interface ActionHistoryDao {
      * @return set of existing action history.
      */
     @Nonnull
-    List<Action> getAllActionHistory();
+    List<ActionView> getAllActionHistory();
+
+    /**
+     * Returns all the existing action history between 'startDate' and 'endDate'.
+     *
+     * @param startDate the start date
+     * @param endDate   the end date
+     * @return List of {@link Action} within the startDate and endDate.
+     */
+    @Nonnull
+    List<ActionView> getActionHistoryByDate(LocalDateTime startDate, LocalDateTime endDate);
 }

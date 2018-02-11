@@ -194,6 +194,15 @@ public class PlanActionStore implements ActionStore {
     }
 
     /**
+     * Plan action store doesn't support get action views by date, will just return all the actions.
+     */
+    @Nonnull
+    @Override
+    public Map<Long, ActionView> getActionViewsByDate(final LocalDateTime startDate, final LocalDateTime endDate) {
+        return Collections.unmodifiableMap(getActions());
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Nonnull

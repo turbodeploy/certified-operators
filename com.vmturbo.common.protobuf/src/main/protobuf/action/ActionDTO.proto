@@ -532,6 +532,16 @@ message ActionQueryFilter {
         // The oids of the involved entities.
         repeated int64 oids = 11;
     }
+
+    // date range for the request; dates are epoch longs, e.g. Unix Timestamp
+    // We currently require both start_date and end_date to be not null.
+    // Todo: will work on provide default values.
+    optional int64 start_date = 4;
+
+    optional int64 end_date = 5;
+
+    // Include only actions in the given modes.
+    repeated ActionMode modes = 6;
 }
 
 // The number of actions of a specific type that match the criteria in
@@ -543,6 +553,20 @@ message TypeCount {
 
     // The number of actions of the type that match the request criteria.
     optional int64 count = 2;
+}
+
+// The number of actions of a specific state and mode that match the criteria in
+// the request.
+message StateAndModeCount {
+
+    // The type of the action this message pertains to.
+    optional ActionState state = 1;
+
+    // The mode of the action this message pertains to.
+    optional ActionMode mode = 2;
+
+    // The number of actions of the type that match the request criteria.
+    optional int32 count = 3;
 }
 
 // A message used to address a single action within a topology context.
@@ -653,6 +677,19 @@ message GetActionCountsResponse {
     repeated TypeCount counts_by_type = 2;
 }
 
+// The response message to GetActionCountsByDate.
+message GetActionCountsByDateResponse {
+
+    message ActionCountsByDateEntry {
+        // date of the actions recommended
+        optional int64 date = 1;
+
+        // The actions in the request organized by state and mode. And they are belong to a date.
+        repeated StateAndModeCount counts_by_state_and_mode = 2;
+    }
+    repeated  ActionCountsByDateEntry action_counts_by_date= 1;
+}
+
 // The request message to get actions counts by each entity.
 message GetActionCountsByEntityRequest {
     // The topology context for which to retrieve actions.
@@ -739,7 +776,11 @@ service ActionsService {
     // parameter provide involved entities ids, otherwise it will return INVALID_ARGUMENT status.
     // Returns a NOT_FOUND status if the ActionService doesn't know about the
     // GetActionCountsByEntityRequest.topology_context_id.
-    rpc getActionCountsByEntity(GetActionCountsByEntityRequest) returns (GetActionCountsByEntityResponse);
+    rpc GetActionCountsByEntity(GetActionCountsByEntityRequest) returns (GetActionCountsByEntityResponse);
+
+    // Returns a NOT_FOUND status if the ActionService doesn't know about the
+    // GetActionCountsByDateRequest.topology_context_id.
+    rpc GetActionCountsByDate(GetActionCountsRequest) returns (GetActionCountsByDateResponse);
 
     // Get probe priorities for some specific action type (if request provides action type)
     // or for all action types.

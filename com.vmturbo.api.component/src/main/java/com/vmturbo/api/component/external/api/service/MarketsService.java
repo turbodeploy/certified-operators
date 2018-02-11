@@ -54,8 +54,11 @@ import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -452,6 +455,19 @@ public class MarketsService implements IMarketsService {
         final ActionQueryFilter filter =
                 actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.empty());
         try {
+            // if UI provides start and end date, will call ActionRpcService#getActionCountsByDate
+            if (filter.hasEndDate() && filter.hasStartDate()) {
+                final GetActionCountsByDateResponse actionCountsResponse =
+                        actionRpcService.getActionCountsByDate(GetActionCountsRequest.newBuilder()
+                                .setTopologyContextId(apiId.oid())
+                                .setFilter(filter)
+                                .build());
+                List<ActionCountsByDateEntry> actionCountsByDateEntryList = actionCountsResponse.getActionCountsByDateList();
+                Map<Long, List<StateAndModeCount>> stateAndModeCountsByDateMap = actionCountsByDateEntryList.stream().collect(
+                        Collectors.toMap(ActionCountsByDateEntry::getDate, ActionCountsByDateEntry::getCountsByStateAndModeList));
+                return ActionCountsMapper.countsByStateAndModeGroupByDateToApi(stateAndModeCountsByDateMap);
+            }
+            // if UI doesn't provide start and end date, will call ActionRpcService#getActionCounts
             final GetActionCountsResponse actionCountsResponse =
                     actionRpcService.getActionCounts(GetActionCountsRequest.newBuilder()
                             .setTopologyContextId(apiId.oid())

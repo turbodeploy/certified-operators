@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -88,6 +89,18 @@ public interface ActionStore {
      */
     @Nonnull
     Map<Long, ActionView> getActionViews();
+
+    /**
+     * Get views of the actions, which its recommendation time is within {@param startDate} and
+     * {@param endDate}, in the store.
+     *
+     * No guarantee is made to the order of the {@link ActionView}s returned.
+     *
+     * @return A map descriptions for all actions in the store where the key is the actionId and
+     *         the value is the associated {@link ActionView}.
+     */
+    @Nonnull
+    Map<Long, ActionView> getActionViewsByDate(LocalDateTime startDate, LocalDateTime endDate);
 
     /**
      * Get the actions in the store.

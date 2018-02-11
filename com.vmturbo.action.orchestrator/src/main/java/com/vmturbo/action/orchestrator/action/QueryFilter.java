@@ -1,9 +1,15 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -14,6 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
@@ -55,9 +62,71 @@ public class QueryFilter {
         }
     }
 
+    /**
+     * Filter actions. If filter has startDate and endDate, it will only retrieve historical actions
+     * in that range.
+     *
+     * @param actionStore action store
+     * @return stream of actions that pass the filter
+     */
     public Stream<ActionView> filteredActionViews(@Nonnull final ActionStore actionStore) {
-        return actionStore.getActionViews().values().stream()
-            .filter(actionView -> test(actionView, actionStore.getVisibilityPredicate()));
+        if (optionalFilter.isPresent() && optionalFilter.get().hasStartDate()
+                && optionalFilter.get().hasEndDate()) {
+            LocalDateTime startDate = getLocalDateTime(optionalFilter.get().getStartDate());
+            LocalDateTime endDate = getLocalDateTime(optionalFilter.get().getEndDate());
+            return actionStore.getActionViewsByDate(startDate, endDate).values().stream()
+                    .filter(actionView -> test(actionView, actionStore.getVisibilityPredicate()));
+        } else {
+            return actionStore.getActionViews().values().stream()
+                    .filter(actionView -> test(actionView, actionStore.getVisibilityPredicate()));
+        }
+    }
+
+    /**
+     * Group the actions by recommended date.
+     *
+     * Group action type count by action recommendation date.
+     * If there is no involved actions within provided period, return empty map.
+     *
+     * @param actionStore action store
+     * @return Map (key, value) -> (recommended date, set of actions)
+     */
+    public Map<Long, List<ActionView>> filteredActionViewsGroupByDate(@Nonnull final ActionStore actionStore) {
+        if (optionalFilter.isPresent() && optionalFilter.get().hasStartDate()
+                && optionalFilter.get().hasEndDate()) {
+            LocalDateTime startDate = getLocalDateTime(optionalFilter.get().getStartDate());
+            LocalDateTime endDate = getLocalDateTime(optionalFilter.get().getEndDate());
+            Stream<ActionView> actionViewStream =  actionStore.getActionViewsByDate(startDate, endDate)
+                    .values()
+                    .stream()
+                    .filter(actionView -> test(actionView, actionStore.getVisibilityPredicate()));
+            return actionViewStream.collect(Collectors.groupingBy(action ->
+                    localDateTimeToDate(action
+                            .getRecommendationTime()
+                            .toLocalDate()
+                            .atStartOfDay()))); // Group by start of the Day
+        }
+        return Maps.newHashMap();
+    }
+
+    /**
+     * Convert date time to local date time.
+     *
+     * @param dateTime date time with long type.
+     * @return local date time with LocalDateTime type.
+     */
+    private LocalDateTime getLocalDateTime(long dateTime) {
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime),
+                                    TimeZone.getDefault().toZoneId());
+    }
+
+    /**
+     * Convert local date time to long.
+     * @param startOfDay start of date with LocalDateTime type.
+     * @return date time in long type.
+     */
+    private long localDateTimeToDate(LocalDateTime startOfDay) {
+        return Date.from(startOfDay.atZone(ZoneId.systemDefault()).toInstant()).getTime();
     }
 
     /**
@@ -122,6 +191,12 @@ public class QueryFilter {
         // states should be small (less than the total states).
         if (!filter.getStatesList().isEmpty() &&
             !filter.getStatesList().contains(actionView.getState())) {
+            return false;
+        }
+
+        // Same as states check, we also check the mode too.
+        if (!filter.getModesList().isEmpty() &&
+                !filter.getModesList().contains(actionView.getMode())) {
             return false;
         }
 

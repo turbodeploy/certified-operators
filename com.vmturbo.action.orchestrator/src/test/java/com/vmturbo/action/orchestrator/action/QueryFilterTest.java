@@ -3,9 +3,11 @@ package com.vmturbo.action.orchestrator.action;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -225,6 +227,59 @@ public class QueryFilterTest {
         assertEquals(2, testMap.get(1L).size());
         assertEquals(1, testMap.get(4L).size());
     }
+
+    @Test
+    public void testFilterActionViewsGroupByDate() {
+        final ActionView actionView1 = executableMoveAction(123L, 1L, 2L, 10L);
+        final ActionView actionView2 = executableMoveAction(124L, 1L, 3L, 11L);
+        final ActionView actionView3 = executableMoveAction(125L, 4L, 2L, 12L);
+        //final List<Long> involvedEntities = Arrays.asList(1L, 4L, 6L);
+        final LocalDateTime startDate = LocalDateTime.now();
+        final LocalDateTime endDate = startDate;
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                actionView1.getId(), actionView1, actionView2.getId(), actionView2, actionView3.getId(),
+                actionView3);
+        when(actionStore.getActionViewsByDate(any(), any())).thenReturn(actionViews);
+
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                                .setStartDate(11111l)
+                                .setEndDate(22222l)
+                                .build();
+
+        final Map<Long, List<ActionView>> testMap = new QueryFilter(Optional.of(filter))
+                .filteredActionViewsGroupByDate(actionStore);
+        // 1 entry due to all actions should be created a the same time
+        assertEquals(1, testMap.keySet().size());
+        assertEquals(1l, testMap.values().stream().count());
+        // values should have three actions
+        assertEquals(3, testMap.values().stream().findFirst().get().size());
+    }
+
+
+    @Test
+    public void testFilterActionViewsGroupByDateNoMatch() {
+        final ActionView actionView1 = executableMoveAction(123L, 1L, 2L, 10L);
+        final ActionView actionView2 = executableMoveAction(124L, 1L, 3L, 11L);
+        final ActionView actionView3 = executableMoveAction(125L, 4L, 2L, 12L);
+        //final List<Long> involvedEntities = Arrays.asList(1L, 4L, 6L);
+       final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                actionView1.getId(), actionView1, actionView2.getId(), actionView2, actionView3.getId(),
+                actionView3);
+        when(actionStore.getActionViewsByDate(any(), any())).thenReturn(actionViews);
+
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder().build();
+
+        final Map<Long, List<ActionView>> testMap = new QueryFilter(Optional.of(filter))
+                .filteredActionViewsGroupByDate(actionStore);
+        assertTrue(testMap.isEmpty());
+    }
+
 
     @Test
     public void testFilterActionViewsByEntityNoMatch() {

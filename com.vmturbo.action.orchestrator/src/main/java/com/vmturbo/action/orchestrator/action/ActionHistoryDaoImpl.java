@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -15,6 +16,7 @@ import org.slf4j.LoggerFactory;
 
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.db.tables.pojos.ActionHistory;
+import com.vmturbo.action.orchestrator.db.tables.records.ActionHistoryRecord;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
@@ -41,6 +43,12 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
         this.dsl = Objects.requireNonNull(dsl);
     }
 
+    /**
+     * Persist a action history, based on Action {@link Action}. It's intended to persist executed
+     * action which has either SUCCEEDED or FAILED state. And it should be added and not updated.
+     *
+     * @return action history, if created
+     */
     @Nonnull
     @Override
     public ActionHistory persistActionHistory(
@@ -70,24 +78,51 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
         return actionHistory;
     }
 
+    /**
+     * Returns all the existing action history.
+     *
+     * @return set of existing action history.
+     */
     @Nonnull
     @Override
-    public List<Action> getAllActionHistory() {
-        List<ActionHistory> actionHistoryList = dsl
+    public List<ActionView> getAllActionHistory() {
+        try (Stream<ActionHistoryRecord> stream =  dsl
                 .selectFrom(ACTION_HISTORY)
-                .fetch()
-                .into(ActionHistory.class);
+                .stream()) {
+            return stream.map(actionHistory -> mapDbActionHistoryToAction(actionHistory))
+                    .collect(Collectors.toList());
+        }
+    }
 
-        return actionHistoryList.stream()
-                .map(actionHistory -> new Action(
-                        new SerializationState(
-                                actionHistory.getId(),
-                                actionHistory.getRecommendation(),
-                                actionHistory.getRecommendationTime(),
-                                actionHistory.getActionDecision(),
-                                actionHistory.getExecutionStep(),
-                                ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
-                                new ActionTranslation(actionHistory.getRecommendation()))))
-                .collect(Collectors.toList());
+    /**
+     * Returns all the existing action history between 'startDate' and 'endDate'.
+     *
+     * @param startDate the start date
+     * @param endDate   the end date
+     * @return List of {@link Action} within the startDate and endDate.
+     */
+    @Nonnull
+    @Override
+    public List<ActionView> getActionHistoryByDate(@Nonnull final LocalDateTime startDate,
+                                               @Nonnull final LocalDateTime endDate) {
+        try (Stream<ActionHistoryRecord> stream =  dsl
+                .selectFrom(ACTION_HISTORY)
+                .where(ACTION_HISTORY.CREATE_TIME.between(startDate, endDate))
+                .stream()) {
+            return stream.map(actionHistory -> mapDbActionHistoryToAction(actionHistory))
+                    .collect(Collectors.toList());
+        }
+    }
+
+    private ActionView mapDbActionHistoryToAction(final ActionHistoryRecord actionHistory) {
+        return new Action(
+                new SerializationState(
+                        actionHistory.getId(),
+                        actionHistory.getRecommendation(),
+                        actionHistory.getRecommendationTime(),
+                        actionHistory.getActionDecision(),
+                        actionHistory.getExecutionStep(),
+                        ActionDTO.ActionState.forNumber(actionHistory.getCurrentState()),
+                        new ActionTranslation(actionHistory.getRecommendation())));
     }
 }

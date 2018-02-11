@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -349,16 +350,39 @@ public class LiveActionStore implements ActionStore {
     @Nonnull
     @Override
     public Map<Long, ActionView> getActionViews() {
-        List <Action> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
-        List<Action> otherActionList = actions.values().stream()
+        List <ActionView> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
+        List<ActionView> otherActionList = actions.values().stream()
                 .filter(action -> !isSucceededorFailed(action))
                 .collect(Collectors.toList());
-        List <Action> combinedActionList = Stream.of(succeededOrFailedActionList, otherActionList)
+        List <ActionView> combinedActionList = Stream.of(succeededOrFailedActionList, otherActionList)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
-        Map <Long, Action> combinedActionMap = combinedActionList.stream()
-                .collect(Collectors.toMap(Action::getId, Function.identity()));
+        Map <Long, ActionView> combinedActionMap = combinedActionList.stream()
+                .collect(Collectors.toMap(ActionView::getId, Function.identity()));
         return Collections.unmodifiableMap(combinedActionMap);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public Map<Long, ActionView> getActionViewsByDate(@Nonnull final LocalDateTime startDate,
+                                                      @Nonnull final LocalDateTime endDate) {
+        List<ActionView> succeededOrFailedActionList = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
+        List<ActionView> otherActionList = actions.values().stream()
+                .filter(action -> !isSucceededorFailed(action))
+                .filter(action -> isEndDateAfterRecommendationTime(action, endDate))
+                .collect(Collectors.toList());
+        Map<Long, ActionView> combinedActionMap = Stream.of(succeededOrFailedActionList, otherActionList)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toMap(ActionView::getId, Function.identity()));
+        return Collections.unmodifiableMap(combinedActionMap);
+    }
+
+    private boolean isEndDateAfterRecommendationTime(@Nonnull final ActionView acionView,
+                                                     @Nonnull final LocalDateTime endDate) {
+        return endDate.compareTo(acionView.getRecommendationTime()) > 0;
     }
 
     @Override

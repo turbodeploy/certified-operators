@@ -484,8 +484,25 @@ public class ActionSpecMapper {
                         .map(Optional::get)
                         .forEach(queryBuilder::addStates);
             }
-        }
 
+            // Map UI's ActionMode to ActionDTO.ActionMode and add them to filter
+            if (inputDto.getActionModeList() != null) {
+                inputDto.getActionModeList().stream()
+                        .map(this::modeToEnum)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .forEach(queryBuilder::addModes);
+            }
+
+            // pass in start and end time
+            if (inputDto.getStartTime() != null && !inputDto.getStartTime().isEmpty()) {
+                queryBuilder.setStartDate(Long.parseLong(inputDto.getStartTime()));
+            }
+
+            if (inputDto.getEndTime() != null && !inputDto.getEndTime().isEmpty()) {
+                queryBuilder.setEndDate(Long.parseLong(inputDto.getEndTime()));
+            }
+        }
         involvedEntities.ifPresent(entities -> queryBuilder.setInvolvedEntities(
             ActionQueryFilter.InvolvedEntities.newBuilder()
                                               .addAllOids(entities)
@@ -516,6 +533,29 @@ public class ActionSpecMapper {
                 return Optional.empty();
         }
     }
+
+    /**
+     * Map UI's ActionMode to ActionDTO.ActionMode
+     *
+     * @param actionMode UI's ActionMode
+     * @return ActionDTO.ActionMode
+     */
+    private Optional<ActionDTO.ActionMode> modeToEnum(final ActionMode actionMode) {
+        switch (actionMode) {
+            case DISABLED:
+                return Optional.of(ActionDTO.ActionMode.DISABLED);
+            case RECOMMEND:
+                return Optional.of(ActionDTO.ActionMode.RECOMMEND);
+            case MANUAL:
+                return Optional.of(ActionDTO.ActionMode.MANUAL);
+            case AUTOMATIC:
+                return Optional.of(ActionDTO.ActionMode.AUTOMATIC);
+            default:
+                logger.error("Unknown action mode {}", actionMode);
+                return Optional.empty();
+        }
+    }
+
 
     /**
      * Populate the necessary fields in the response {@link ServiceEntityApiDTO} for a newly

@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
@@ -44,14 +46,19 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionProbePriorities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
@@ -61,6 +68,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionPrioritiesResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
@@ -273,6 +281,25 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getActionCountsByDate(GetActionCountsRequest request,
+                                StreamObserver<GetActionCountsByDateResponse> response) {
+        final Optional<ActionStore> contextStore =
+                actionStorehouse.getStore(request.getTopologyContextId());
+        if (contextStore.isPresent()) {
+            // Get actions within the startDate and endDate, filter the relevant actions, and
+            // group the actions by recommended date.
+            final Map<Long, List<ActionView>> longListMap =  new QueryFilter(Optional.of(request.getFilter()))
+                            .filteredActionViewsGroupByDate(contextStore.get());
+            observeActionCountsByDate(longListMap, response);
+        } else {
+            contextNotFoundError(response, request.getTopologyContextId());
+        }
+    }
+
     @Override
     public void getActionCountsByEntity(GetActionCountsByEntityRequest request,
                                         StreamObserver<GetActionCountsByEntityResponse> response) {
@@ -452,6 +479,53 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
         responseObserver.onNext(respBuilder.build());
         responseObserver.onCompleted();
+    }
+
+
+    /**
+     * Count action types for each available date.
+     *
+     * @param actionViewsMap Key is date in long, value is its related actions.
+     * @param responseObserver contains final relationship between date with action type.
+     */
+    static void observeActionCountsByDate(@Nonnull final Map<Long, List<ActionView>> actionViewsMap,
+                                    @Nonnull final StreamObserver<GetActionCountsByDateResponse> responseObserver) {
+        Builder respBuilder = getActionCountsByDateResponseBuilder(actionViewsMap);
+        responseObserver.onNext(respBuilder.build());
+        responseObserver.onCompleted();
+    }
+
+    /**
+     * Build action state and mode counts by date.
+     * actionStateList:["PENDING_ACCEPT","RECOMMENDED","ACCEPTED","SUCCEEDED"]
+     * actionModeList:["MANUAL","AUTOMATIC","RECOMMEND"
+     *
+     * @param actionViewsMap key is date(long type), and value is list of actions recommended on the date.
+     * @return builder with {@link ActionCountsByDateEntry} objects. In {@link ActionCountsByDateEntry}
+     * object, key is the date (long type), and value is list of {@link StateAndModeCount}.
+     */
+    @VisibleForTesting
+    public static Builder getActionCountsByDateResponseBuilder(final @Nonnull Map<Long, List<ActionView>> actionViewsMap) {
+        Builder respBuilder = GetActionCountsByDateResponse.newBuilder();
+        // composite key for action state and mode.
+        Function<ActionView, List<Object>> compositeKey = action ->
+                Arrays.<Object>asList(action.getState(), action.getMode());
+
+        for (Map.Entry<Long, List<ActionView>> entry : actionViewsMap.entrySet()) {
+            Map<List<Object>, List<ActionView>> stateAndModeActionsMap =
+                    entry.getValue().stream().collect(Collectors.groupingBy(compositeKey, Collectors.toList()));
+            ActionCountsByDateEntry.Builder actionCountsByDateEntry = ActionCountsByDateEntry.newBuilder();
+            actionCountsByDateEntry.setDate(entry.getKey());
+            stateAndModeActionsMap.entrySet().stream()
+                    .map(stateAndModeEntry -> StateAndModeCount.newBuilder()
+                            .setState(ActionState.valueOf(stateAndModeEntry.getKey().get(0).toString()))
+                            .setMode(ActionMode.valueOf(stateAndModeEntry.getKey().get(1).toString()))
+                            .setCount(stateAndModeEntry.getValue().size()))
+                    .forEach(
+                            builder -> actionCountsByDateEntry.addCountsByStateAndMode(builder));
+            respBuilder.addActionCountsByDate(actionCountsByDateEntry);
+        }
+        return respBuilder;
     }
 
     /**
