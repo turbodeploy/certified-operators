@@ -112,10 +112,11 @@ public final class SettingDTOUtil {
      *  @param settingPolicies List of SettingPolicy.
      *  @return List of User SettingPolicy.
      */
-    public static List<SettingPolicy> extractUserSettingPolicies(List<SettingPolicy> settingPolicies) {
+    public static List<SettingPolicy> extractUserAndDiscoveredSettingPolicies(List<SettingPolicy> settingPolicies) {
         return settingPolicies.stream()
             .filter(settingPolicy -> settingPolicy.hasSettingPolicyType() &&
-                settingPolicy.getSettingPolicyType() == SettingPolicy.Type.USER)
+                (settingPolicy.getSettingPolicyType() == SettingPolicy.Type.USER ||
+                    settingPolicy.getSettingPolicyType() == SettingPolicy.Type.DISCOVERED))
             .collect(Collectors.toList());
     }
 

@@ -1,6 +1,7 @@
 package com.vmturbo.components.common.setting;
 
 import static junit.framework.TestCase.assertFalse;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -28,6 +29,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 
@@ -147,7 +149,7 @@ public class SettingDTOUtilTest {
     }
 
     @Test
-    public void testExtractUserSettingPolicies() {
+    public void testExtractUserAndDiscoveredSettingPolicies() {
         final SettingPolicy policy1 =
             SettingPolicy.newBuilder()
                 .setSettingPolicyType(SettingPolicy.Type.DEFAULT)
@@ -156,12 +158,16 @@ public class SettingDTOUtilTest {
             SettingPolicy.newBuilder()
                 .setSettingPolicyType(SettingPolicy.Type.USER)
                 .build();
+        final SettingPolicy policy3 =
+            SettingPolicy.newBuilder()
+                .setSettingPolicyType(Type.DISCOVERED)
+                .build();
 
         List<SettingPolicy> userSettings =
-            SettingDTOUtil.extractUserSettingPolicies(Arrays.asList(policy1, policy2));
+            SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(Arrays.asList(policy1, policy2, policy3));
 
-        assertThat(userSettings.size(), is(1));
-        assertThat(userSettings.get(0), is(policy2));
+        assertThat(userSettings.size(), is(2));
+        assertThat(userSettings, containsInAnyOrder(policy2, policy3));
     }
 
     @Test
@@ -172,7 +178,7 @@ public class SettingDTOUtilTest {
                 .build();
 
         List<SettingPolicy> userSettings =
-            SettingDTOUtil.extractUserSettingPolicies(Arrays.asList(policy));
+            SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(Arrays.asList(policy));
 
         assertThat(userSettings.size(), is(0));
     }

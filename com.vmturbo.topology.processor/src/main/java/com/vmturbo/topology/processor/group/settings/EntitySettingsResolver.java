@@ -110,12 +110,12 @@ public class EntitySettingsResolver {
         final List<SettingPolicy> allSettingPolicies =
             getAllSettingPolicies(settingPolicyServiceClient);
 
-        final List<SettingPolicy> userSettingPolicies =
-            SettingDTOUtil.extractUserSettingPolicies(allSettingPolicies);
+        final List<SettingPolicy> userAndDiscoveredSettingPolicies =
+            SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(allSettingPolicies);
 
         // groupId -> SettingPolicies mapping
         final Map<Long, List<SettingPolicy>> groupSettingPoliciesMap =
-            getGroupSettingPolicyMapping(userSettingPolicies);
+            getGroupSettingPolicyMapping(userAndDiscoveredSettingPolicies);
 
         final Map<Long, Group> groups =
             getGroupInfo(groupServiceClient, groupSettingPoliciesMap.keySet());
