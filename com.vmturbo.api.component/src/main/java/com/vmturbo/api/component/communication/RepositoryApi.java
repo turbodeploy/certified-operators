@@ -15,7 +15,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
@@ -252,7 +254,9 @@ public class RepositoryApi {
         final Map<Long, Optional<ServiceEntityApiDTO>> retMap =
                 new HashMap<>(requestedIds.size());
         requestedIds.forEach(id -> retMap.put(id, Optional.empty()));
-        HttpEntity<Set> idList = new HttpEntity<>(requestedIds);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Set> idList = new HttpEntity<>(requestedIds, headers);
         try {
             final ResponseEntity<List<ServiceEntityApiDTO>> response =
                     restTemplate.exchange(getEntitiesByIdSetRequest, HttpMethod.POST, idList,

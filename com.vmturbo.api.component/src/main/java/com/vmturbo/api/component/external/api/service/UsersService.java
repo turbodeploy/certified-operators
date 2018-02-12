@@ -129,6 +129,7 @@ public class UsersService implements IUsersService {
     private HttpHeaders composeHttpHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
+        headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME, getLoggedInPrincipal().getToken());
         return headers;
     }
