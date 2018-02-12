@@ -16,8 +16,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
+import com.vmturbo.stitching.StitchingScope;
+import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
@@ -27,11 +30,13 @@ import com.vmturbo.stitching.TopologyEntity;
  * When:
  *  - Both the source and the overprovisioned commodities are present
  *  - The entity has an overprovision percentage setting
- *  - The overprovisioned commodity does not have a set capacity, or permits overwriting existing capacity
- * The overprovisioned commodity capacity is set to the overprovision percentage multiplied by the source
- * commodity capacity.
+ *  - The overprovisioned commodity does not have a set capacity, or permits overwriting existing
+ *    capacity
+ * The overprovisioned commodity capacity is set to the overprovision percentage multiplied by the
+ * source commodity capacity.
  */
-public abstract class OverprovisionCapacityPostStitchingOperation implements PostStitchingOperation {
+public abstract class OverprovisionCapacityPostStitchingOperation implements
+                                                                        PostStitchingOperation {
 
     private final EntitySettingSpecs overprovisionSettingType;
     private final CommodityType sourceCommodityType;
@@ -50,8 +55,8 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements Pos
     @Nonnull
     @Override
     public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
-                                                 @Nonnull final EntitySettingsCollection settingsCollection,
-                                                 @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+                               @Nonnull final EntitySettingsCollection settingsCollection,
+                               @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
        entities.forEach(entity -> {
            final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
@@ -75,14 +80,15 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements Pos
                        overprovCommodityType, entityOid, overprovisionSettingType.getSettingName());
                } else {
                    resultBuilder.queueUpdateEntityAlone(entity, entityForUpdate ->
-                        overprovisionedToSourceCapacity.forEach((overprovisioned, sourceCapacity) -> {
-                           final double overprovisionedCapacity =
-                               calculateOverprovisionedCapacity(sourceCapacity, overprovisionSetting.get());
+                        overprovisionedToSourceCapacity.forEach((overprov, sourceCapacity) -> {
+                           final double overprovisionedCapacity = calculateOverprovisionedCapacity(
+                               sourceCapacity, overprovisionSetting.get());
 
-                           overprovisioned.setCapacity(overprovisionedCapacity);
+                           overprov.setCapacity(overprovisionedCapacity);
 
-                           logger.debug("Setting {} capacity for entity {} to {} from {} capacity {}",
-                               overprovCommodityType.name(), entityForUpdate.getOid(), overprovisionedCapacity,
+                           logger.debug("Setting {} capacity for entity {} to {} " +
+                                   "from {} capacity {}", overprovCommodityType.name(),
+                               entityForUpdate.getOid(), overprovisionedCapacity,
                                sourceCommodityType.name(), sourceCapacity);
                        })
                    );
@@ -109,7 +115,8 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements Pos
      * @param commodity the commodity to check
      * @return true if it is the overprovisioned commodity type, false otherwise
      */
-    private boolean commodityIsOverprovisionedType(@Nonnull final CommoditySoldDTO.Builder commodity) {
+    private boolean commodityIsOverprovisionedType(
+        @Nonnull final CommoditySoldDTO.Builder commodity) {
         return commodity.getCommodityType().getType() == overprovCommodityType.getNumber();
     }
 
@@ -126,18 +133,19 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements Pos
     }
 
     /**
-     * Finds a source commodity (read-only), if it is present, to match the key of an overprovisioned
-     * commodity builder.
+     * Finds a source commodity (read-only), if it is present, to match the key of an
+     * overprovisioned commodity builder.
      *
      * @throws IllegalStateException if a duplicate source commodity is encountered.
      * @param key the overprovisioned commodity key
      * @param oid the OID of the entity that contains all the commodities
-     * @param allCommodities the list of commodities potentially containing a matching source commodity
+     * @param allCommodities the list of commodities potentially containing a matching source
+     *                       commodity
      * @return an empty optional if there is no matching source commodity, or an optional of the
      * matching source commodity.
      */
     private Optional<CommoditySoldDTO> findMatchingSource(@Nonnull final String key, final long oid,
-                                                          @Nonnull final List<CommoditySoldDTO> allCommodities) {
+                                             @Nonnull final List<CommoditySoldDTO> allCommodities) {
         Optional<CommoditySoldDTO> found = allCommodities.stream()
             .filter(commodity -> isMatchingSourceCommodity(commodity, key))
             /* the IllegalStateException is thrown if there are multiple commodities with the same
@@ -155,16 +163,17 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements Pos
     }
 
     /**
-     * Get all commodities of the overprovisioned commodity type eligible for capacity updates from a list
+     * Get all commodities of the overprovisioned commodity type eligible for capacity updates from
+     * a list
      *
      * @param commodityBuilders the commodities to search through
-     * @return list of all the commodities from the original list that are of the overprovisioned type and
-     *         are eligible for capacity updates
+     * @return list of all the commodities from the original list that are of the overprovisioned
+     *         type and are eligible for capacity updates
      */
     private Stream<CommoditySoldDTO.Builder> getEligibleCommodities(
                             @Nonnull final List<CommoditySoldDTO.Builder> commodityBuilders) {
-        return commodityBuilders.stream()
-            .filter(commodity -> commodityIsOverprovisionedType(commodity) && canUpdateCapacity(commodity));
+        return commodityBuilders.stream().filter(commodity ->
+            commodityIsOverprovisionedType(commodity) && canUpdateCapacity(commodity));
     }
 
     /**
@@ -202,4 +211,121 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements Pos
      * @return true if existing capacity should be overwritten, false otherwise.
      */
     abstract boolean shouldOverwriteCapacity();
+
+    /**
+     * Post-stitching operation for the purpose of setting CPU Provisioned commodity capacities for
+     * physical machines.
+     *
+     * If the PM in question has a CPU commodity, a CPU Provisioned commodity,
+     * and a setting for CPU overprovisioned percentage, then the CPU Provisioned commodity's
+     * capacity is set to the CPU commodity capacity multiplied by the overprovisioned percentage.
+     */
+    public static class CpuProvisionedPostStitchingOperation extends
+        OverprovisionCapacityPostStitchingOperation {
+
+        @Nonnull
+        @Override
+        public StitchingScope<TopologyEntity> getScope(
+            @Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
+            return stitchingScopeFactory.entityTypeScope(EntityType.PHYSICAL_MACHINE);
+        }
+
+        public CpuProvisionedPostStitchingOperation() {
+            super(EntitySettingSpecs.CpuOverprovisionedPercentage,
+                CommodityType.CPU, CommodityType.CPU_PROVISIONED);
+        }
+
+        @Override
+        boolean shouldOverwriteCapacity() {
+            return true;
+        }
+    }
+
+    /**
+     * Post-stitching operation for the purpose of setting Memory Provisioned commodity capacities
+     * for physical machines.
+     *
+     * If the PM in question has a Memory commodity, a Memory Provisioned commodity, and a setting
+     * for memory overprovisioned percentage, then the Memory Provisioned commodity's capacity is
+     * set to the Memory commodity capacity multiplied by the overprovisioned percentage.
+     */
+    public static class MemoryProvisionedPostStitchingOperation extends
+        OverprovisionCapacityPostStitchingOperation {
+
+        @Nonnull
+        @Override
+        public StitchingScope<TopologyEntity> getScope(
+            @Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
+            return stitchingScopeFactory.entityTypeScope(EntityType.PHYSICAL_MACHINE);
+        }
+
+        public MemoryProvisionedPostStitchingOperation() {
+            super(EntitySettingSpecs.MemoryOverprovisionedPercentage,
+                CommodityType.MEM, CommodityType.MEM_PROVISIONED);
+        }
+
+        @Override
+        boolean shouldOverwriteCapacity() {
+            return true;
+        }
+    }
+
+    /**
+     * Post-stitching operation for the purpose of setting Memory Allocation commodity capacities
+     * for physical machines if not already set.
+     *
+     * If the entity in question has a Memory commodity, a Memory Allocation commodity with unset
+     * capacity, and a setting for memory overprovisioned percentage, then the Memory Allocation
+     * commodity's capacity is set to the Memory commodity capacity multiplied by the
+     * overprovisioned percentage.
+     */
+    public static class MemoryAllocationPostStitchingOperation extends
+        OverprovisionCapacityPostStitchingOperation {
+
+        public MemoryAllocationPostStitchingOperation() {
+            super(EntitySettingSpecs.MemoryOverprovisionedPercentage, CommodityType.MEM,
+                CommodityType.MEM_ALLOCATION);
+        }
+
+        @Nonnull
+        @Override
+        public StitchingScope<TopologyEntity> getScope(
+            @Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
+            return stitchingScopeFactory.entityTypeScope(EntityType.PHYSICAL_MACHINE);
+        }
+
+        @Override
+        boolean shouldOverwriteCapacity() {
+            return false;
+        }
+    }
+
+    /**
+     * Post-stitching operation for the purpose of setting CPU Allocation commodity capacities for
+     * physical machines if not already set.
+     *
+     * If the PM in question has a CPU commodity, a CPU Allocation commodity with unset capacity,
+     * and a setting for CPU overprovisioned percentage, then the CPU Allocation commodity's
+     * capacity is set to the CPU commodity capacity multiplied by the overprovisioned percentage.
+     */
+    public static class PmCpuAllocationPostStitchingOperation extends
+        OverprovisionCapacityPostStitchingOperation {
+
+        @Nonnull
+        @Override
+        public StitchingScope<TopologyEntity> getScope(
+            @Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
+            return stitchingScopeFactory.entityTypeScope(EntityType.PHYSICAL_MACHINE);
+        }
+
+        public PmCpuAllocationPostStitchingOperation() {
+            super(EntitySettingSpecs.CpuOverprovisionedPercentage, CommodityType.CPU,
+                CommodityType.CPU_ALLOCATION);
+        }
+
+        @Override
+        boolean shouldOverwriteCapacity() {
+            return false;
+        }
+    }
 }

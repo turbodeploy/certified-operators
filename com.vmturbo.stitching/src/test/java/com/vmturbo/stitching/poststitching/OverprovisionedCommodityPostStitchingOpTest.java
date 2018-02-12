@@ -38,6 +38,8 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 @RunWith(Parameterized.class)
@@ -67,10 +69,11 @@ public class OverprovisionedCommodityPostStitchingOpTest {
     private final List<CommoditySoldDTO> expectedCommodities;
 
 
-    public OverprovisionedCommodityPostStitchingOpTest(@Nonnull final OverprovisionCapacityPostStitchingOperation op,
-                                                       @Nonnull final CommodityType sourceType,
-                                                       @Nonnull final CommodityType overprovisionedType,
-                                                       @Nonnull final EntitySettingSpecs settingType) {
+    public OverprovisionedCommodityPostStitchingOpTest(
+                                @Nonnull final OverprovisionCapacityPostStitchingOperation op,
+                                @Nonnull final CommodityType sourceType,
+                                @Nonnull final CommodityType overprovisionedType,
+                                @Nonnull final EntitySettingSpecs settingType) {
         this.operation = op;
         this.sourceCommodityType = sourceType;
         this.sourceCommodity = makeCommoditySold(sourceCommodityType, sourceCapacity);

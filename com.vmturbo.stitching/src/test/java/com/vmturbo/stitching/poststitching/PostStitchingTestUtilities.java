@@ -75,6 +75,12 @@ class PostStitchingTestUtilities {
         return builder.build();
     }
 
+    static TopologyEntity makeTopologyEntity(final int entityType,
+                                             @Nonnull final List<CommoditySoldDTO> commoditiesSold) {
+        return TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder().setEntityType(entityType)
+            .addAllCommoditySoldList(commoditiesSold)).build();
+    }
+
     static TopologyEntity.Builder makeTopologyEntityBuilder(final int entityType,
                                                             @Nonnull final List<CommoditySoldDTO> commoditiesSold,
                                                             @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
