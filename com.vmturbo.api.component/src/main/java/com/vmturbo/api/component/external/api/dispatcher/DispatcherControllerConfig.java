@@ -3,10 +3,12 @@ package com.vmturbo.api.component.external.api.dispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.api.component.external.api.service.LicenseService;
+import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
@@ -36,6 +38,7 @@ import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.serviceinterfaces.ILicenseService;
 import com.vmturbo.api.xlcontroller.ClusterController;
+import com.vmturbo.auth.api.SpringSecurityConfig;
 
 /**
  * Configuration for the dispatcher servlet responsible for
@@ -48,10 +51,11 @@ import com.vmturbo.api.xlcontroller.ClusterController;
  */
 @Configuration
 @EnableWebMvc
+@Import({ServiceConfig.class})
 public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     @Autowired
-    ILicenseService licenseService;
+    ServiceConfig serviceConfig;
 
     @Bean
     public ActionsController actionsController() {
@@ -169,8 +173,8 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
-    public LicensesController licenseController(ILicenseService licenseService) {
-        return new LicensesController(licenseService);
+    public LicensesController licenseController() {
+        return new LicensesController(serviceConfig.licenseService());
     }
 
     @Bean

@@ -131,31 +131,6 @@ public class LicenseService implements ILicenseService {
     }
 
     // For end to end test only, will be replaced with real implementation.
-    private static LicenseApiDTO convertSocketLicenseToDTO(String rawLicense) {
-        LicenseApiDTO license = new LicenseApiDTO();
-        try {
-            DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
-            Document document = documentBuilder.parse(new InputSource(new ByteArrayInputStream(rawLicense.getBytes("utf-8"))));
-
-            NodeList featureNodelist = document.getElementsByTagName("feature");
-            List<String> featureList = new ArrayList<>();
-            for (int i = 0; i < featureNodelist.getLength(); i++) {
-                Element sessionElement = (Element) featureNodelist.item(i);
-                String featureName = sessionElement.getAttribute("FeatureName");
-                featureList.add(featureName);
-            }
-
-            license.setLicenseOwner(parse(document, "first-name") + " " + parse(document, "last-name"));
-            license.setEmail(parse(document, "email"));
-            license.setExpirationDate(parse(document, "expiration-date"));
-            return license;
-        } catch (Exception e) {
-            return license;
-        }
-    }
-
-    // For end to end test only, will be replaced with real implementation.
     private static String parse(Document document, String tag) {
         NodeList list = document.getElementsByTagName(tag);
         Element element = (Element) list.item(0);
@@ -177,17 +152,17 @@ public class LicenseService implements ILicenseService {
 
     @Override
     public Optional<LicenseApiDTO> readLicense(final String s) {
-        return Optional.of(getDefaultXlLicense());
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
     public List<LicenseApiDTO> addLicenses(final List<LicenseApiDTO> list, final boolean b) {
-        return Lists.newArrayList(getDefaultXlLicense());
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
     public List<LicenseApiDTO> findAllLicenses() {
-        return Lists.newArrayList(getDefaultXlLicense());
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
@@ -197,12 +172,12 @@ public class LicenseService implements ILicenseService {
 
     @Override
     public LicenseApiDTO deserializeLicenseToLicenseDTO(final InputStream inputStream, final String s) {
-        return getDefaultXlLicense();
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
     public LicenseApiDTO deserializeLicenseToLicenseDTO(final String s) {
-        return getDefaultXlLicense();
+        throw ApiUtils.notImplementedInXL();
     }
 
     @Override
