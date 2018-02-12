@@ -87,7 +87,7 @@ public class ReservationPolicyFactoryTest {
                 .build();
         Mockito.when(groupServiceMole.getMembers(request)).thenReturn(response);
         final PlacementPolicy placementPolicy = reservationPolicyFactory.generatePolicyForInitialPlacement(topologyGraph,
-                Lists.newArrayList(clusterConstraint));
+                Lists.newArrayList(clusterConstraint), Sets.newHashSet(5L));
         final Policy policy = placementPolicy.getPolicyDefinition();
         Mockito.verify(groupServiceMole, Mockito.times(1))
                 .getMembers(request);
@@ -123,12 +123,5 @@ public class ReservationPolicyFactoryTest {
                 entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
         Assert.assertEquals(1L,
                 entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).iterator().next().getOid());
-    }
-
-    @Test
-    public void testGenerateConsumerMembers() {
-        final Set<Long> consumers =
-                reservationPolicyFactory.getConsumerMembersOfConstraint(topologyGraph);
-        Assert.assertEquals(Sets.newHashSet(5L), consumers);
     }
 }

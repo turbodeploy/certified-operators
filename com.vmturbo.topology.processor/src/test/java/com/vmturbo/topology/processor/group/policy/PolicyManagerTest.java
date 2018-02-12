@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.group.policy;
 
+import static com.vmturbo.topology.processor.group.filter.FilterUtils.neverDiscoveredTopologyEntity;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItems;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -14,11 +16,14 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -26,6 +31,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -37,9 +43,17 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
@@ -132,6 +146,8 @@ public class PolicyManagerTest {
     @Test
     public void testApplyPoliciesResolvesGroups() throws Exception {
         ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
+
         policyManager.applyPolicies(topologyGraph, groupResolver);
 
         verify(groupResolver, times(4)).resolve(groupArguments.capture(), eq(topologyGraph));
@@ -142,6 +158,7 @@ public class PolicyManagerTest {
     public void testGroupResolutionErrorDoesNotStopProcessing() throws Exception {
         // The first policy will have an exception, but the second one should still be run.
         ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
             .thenThrow(new GroupResolutionException("error!"));
 
@@ -154,6 +171,7 @@ public class PolicyManagerTest {
     @Test
     public void testNoPoliciesNoGroupRPC() {
         when(policyServiceMole.getAllPolicies(any())).thenReturn(Collections.emptyList());
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
         policyManager.applyPolicies(topologyGraph, groupResolver);
 
         // There shouldn't be a call to get groups if there are no policies.
@@ -163,6 +181,8 @@ public class PolicyManagerTest {
     @Test
     public void testPoliciesWithChanges() throws GroupResolutionException {
         ArgumentCaptor<Group> groupArguments = ArgumentCaptor.forClass(Group.class);
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
+
         policyManager.applyPolicies(topologyGraph, groupResolver, changes());
 
         // groups are resolved 6 times: two per policy (group3 twice)
@@ -170,6 +190,44 @@ public class PolicyManagerTest {
         assertThat(groupArguments.getAllValues(),
             containsInAnyOrder(group1, group2, group3, group3, group4, group5));
     }
+
+    @Test
+    public void testHandleReservationPolicyConstraints() {
+        final List<ScenarioChange> scenarioChanges = Lists.newArrayList(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder()
+                        .addInitialPlacementConstraints(ReservationConstraintInfo.newBuilder()
+                                .setConstraintId(33)
+                                .setType(ReservationConstraintInfo.Type.POLICY)))
+                .build());
+        Mockito.when(topologyGraph.entities())
+                .thenReturn(Stream.of(neverDiscoveredTopologyEntity(5L, EntityType.VIRTUAL_MACHINE).build()));
+        Mockito.when(reservationServiceMole.getReservationByStatus(
+                GetReservationByStatusRequest.newBuilder()
+                        .setStatus(ReservationStatus.RESERVED)
+                        .build()))
+                .thenReturn(Lists.newArrayList(Reservation.newBuilder()
+                        .setId(44)
+                        .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                                .addReservationTemplate(ReservationTemplate.newBuilder()
+                                        .setTemplateId(77)
+                                        .setCount(1)
+                                        .addReservationInstance(ReservationInstance.newBuilder()
+                                                .setEntityId(66L))))
+                        .setConstraintInfoCollection(ConstraintInfoCollection.newBuilder()
+                                .addReservationConstraintInfo(ReservationConstraintInfo.newBuilder()
+                                        .setType(ReservationConstraintInfo.Type.POLICY)
+                                        .setConstraintId(34)))
+                        .build()));
+        final Map<Long, Set<Long>> policyConstraintMap =
+                policyManager.handleReservationConstraints(topologyGraph, groupResolver,
+                        scenarioChanges, Collections.emptyMap());
+        assertEquals(2L, policyConstraintMap.keySet().size());
+        final Set<Long> reservationIds = policyConstraintMap.get(34L);
+        final Set<Long> initialPlacementIds = policyConstraintMap.get(33L);
+        assertEquals(Sets.newHashSet(66L), reservationIds);
+        assertEquals(Sets.newHashSet(5L), initialPlacementIds);
+    }
+
 
     private List<ScenarioChange> changes() {
         return Lists.newArrayList(

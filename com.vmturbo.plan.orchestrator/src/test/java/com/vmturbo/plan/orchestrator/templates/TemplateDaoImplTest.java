@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.assertj.core.util.Sets;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -21,12 +22,15 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -46,7 +50,6 @@ public class TemplateDaoImplTest {
 
     @Before
     public void setup() throws Exception {
-        IdentityGenerator.initPrefix(0);
         prepareDatabase();
     }
 
@@ -55,7 +58,8 @@ public class TemplateDaoImplTest {
         final DSLContext dsl = dbConfig.dsl();
         flyway.clean();
         flyway.migrate();
-        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json");
+        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
+                new IdentityInitializer(0));
     }
 
     @After
@@ -138,6 +142,25 @@ public class TemplateDaoImplTest {
     }
 
     @Test
+    public void testGetTemplatesCountByIds() {
+        final TemplateInfo barTemplate = TemplateInfo.newBuilder()
+                .setName("bar")
+                .build();
+        final TemplateInfo fooTemplate = TemplateInfo.newBuilder()
+                .setName("foo")
+                .build();
+        final TemplateInfo bazTemplate = TemplateInfo.newBuilder()
+                .setName("baz")
+                .build();
+        final Template createdBarTemplate = templatesDao.createTemplate(barTemplate);
+        final Template createFooTemplate = templatesDao.createTemplate(fooTemplate);
+        final Template createBazTemplate = templatesDao.createTemplate(bazTemplate);
+        final long count = templatesDao.getTemplatesCount(
+                ImmutableSet.of(createdBarTemplate.getId(), createFooTemplate.getId()));
+        assertEquals(2, count);
+    }
+
+    @Test
     public void testGetTemplatesByNameEmpty() {
         assertTrue(templatesDao.getTemplatesByName("foo").isEmpty());
     }
@@ -145,7 +168,8 @@ public class TemplateDaoImplTest {
     @Test
     public void testLoadDefaultTemplates() {
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json");
+                new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+                        new IdentityInitializer(0));
         final List<Template> templates = templatesDao.getTemplatesByName("testVM");
         assertThat(templates.size(), is(1));
         Template defaultTemplate = templates.get(0);
@@ -155,17 +179,21 @@ public class TemplateDaoImplTest {
 
     @Test
     public void testDeleteDefaultTemplates() {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json");
+        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+                new IdentityInitializer(0));
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "emptyDefaultTemplates.json");
+                new TemplatesDaoImpl(dbConfig.dsl(), "emptyDefaultTemplates.json",
+                        new IdentityInitializer(0));
         assertTrue(templatesDao.getAllTemplates().isEmpty());
     }
 
     @Test
     public void testEditDefaultTemplates() {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json");
+        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+                new IdentityInitializer(0));
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "testModifiedDefaultTemplates.json");
+                new TemplatesDaoImpl(dbConfig.dsl(), "testModifiedDefaultTemplates.json",
+                        new IdentityInitializer(0));
         final List<Template> templates = templatesDao.getTemplatesByName("testVM");
         assertThat(templates.size(), is(1));
         Template defaultTemplate = templates.get(0);
@@ -182,7 +210,8 @@ public class TemplateDaoImplTest {
 
     @Test
     public void testGetTemplateByName() throws Exception {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json");
+        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+                new IdentityInitializer(0));
         List<Template> result = templatesDao.getTemplatesByName("testVM");
         assertEquals(1, result.size());
         assertEquals("testVM", result.get(0).getTemplateInfo().getName());

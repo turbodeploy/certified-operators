@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,6 +17,7 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
@@ -26,6 +28,8 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 
@@ -38,6 +42,10 @@ public class TemplateConverterFactoryTest {
     private TemplateConverterFactory templateConverterFactory;
 
     private final Long TEMPLATE_ID = 123L;
+
+    private final Set<Integer> provisionCommodityType =
+            ImmutableSet.of(CommodityType.CPU_PROVISIONED_VALUE, CommodityType.MEM_PROVISIONED_VALUE,
+                    CommodityType.STORAGE_PROVISIONED_VALUE);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole);
@@ -118,6 +126,33 @@ public class TemplateConverterFactoryTest {
         Assert.assertEquals(2, topologyEntityDTOList.size());
         Assert.assertTrue(topologyEntityDTOList.stream()
                 .anyMatch(entity -> entity.getDisplayName().contains("Clone")));
+        Assert.assertTrue(topologyEntityDTOList.stream()
+                .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
+    }
+
+    @Test
+    public void testTemplateAdditionForReservation() {
+        final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 3L);
+        when(templateServiceMole.
+                getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
+                        .addTemplateIds(TEMPLATE_ID).build()))
+                .thenReturn(Lists.newArrayList(Template.newBuilder()
+                        .setId(TEMPLATE_ID)
+                        .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
+                        .build()));
+        final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
+                templateConverterFactory.generateReservationEntityFromTemplates(templateAdditions);
+        final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates
+                .map(Builder::build)
+                .collect(Collectors.toList());
+        Assert.assertEquals(3, topologyEntityDTOList.size());
+        Assert.assertTrue(topologyEntityDTOList.get(0).getCommoditiesBoughtFromProvidersList().stream()
+                .allMatch(commoditiesBoughtFromProvider ->
+                        commoditiesBoughtFromProvider.getCommodityBoughtList().stream()
+                                .filter(commodityBoughtDTO -> commodityBoughtDTO.getUsed() > 0)
+                                .allMatch(commodityBoughtDTO ->
+                                        provisionCommodityType.contains(commodityBoughtDTO
+                                                .getCommodityType().getType()))));
         Assert.assertTrue(topologyEntityDTOList.stream()
                 .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
     }

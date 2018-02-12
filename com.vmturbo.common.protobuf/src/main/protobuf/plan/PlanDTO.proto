@@ -336,6 +336,9 @@ message ReservationConstraintInfo {
         DATA_CENTER = 2;
         // Virtual data center constraint and constraint id is virtual data center id
         VIRTUAL_DATA_CENTER = 3;
+        // Placement policy constraint which means reservation entities will be part of policy
+        // consumer group.
+        POLICY = 4;
     }
 }
 

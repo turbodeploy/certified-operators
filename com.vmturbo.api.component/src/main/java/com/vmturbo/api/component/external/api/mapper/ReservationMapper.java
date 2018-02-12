@@ -43,6 +43,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
@@ -71,14 +75,18 @@ public class ReservationMapper {
 
     private final TemplateServiceBlockingStub templateService;
 
+    private final PolicyServiceBlockingStub policyService;
+
     private final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
 
     public ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
                              @Nonnull final TemplateServiceBlockingStub templateService,
-                             @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub) {
+                             @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
+                             @Nonnull final PolicyServiceBlockingStub policyService) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.templateService = Objects.requireNonNull(templateService);
         this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
+        this.policyService = Objects.requireNonNull(policyService);
     }
 
     /**
@@ -360,6 +368,12 @@ public class ReservationMapper {
         if (getGroupResponse.hasGroup() && getGroupResponse.getGroup().getType() == Group.Type.CLUSTER) {
             return constraint.setType(ReservationConstraintInfo.Type.CLUSTER).build();
         }
+        // TODO: (OM-30821) implement validation check for policy constraint. For example: if reservation
+        // entity type is VM, but the policy consumer and provider group doesn't related with VM
+        // type, it should throw exception.
+        if (getPolicyConstraint(constraintId).isPresent()) {
+            return constraint.setType(ReservationConstraintInfo.Type.POLICY).build();
+        }
         final ServiceEntityApiDTO serviceEntityApiDTO = repositoryApi.getServiceEntityForUuid(constraintId);
         final int entityType = ServiceEntityMapper.fromUIEntityType(serviceEntityApiDTO.getClassName());
         if (entityType == EntityType.DATACENTER_VALUE) {
@@ -368,6 +382,29 @@ public class ReservationMapper {
             return constraint.setType(ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER).build();
         } else {
             throw new UnknownObjectException("Unknown type for constraint id: " + constraintId);
+        }
+    }
+
+    /**
+     * Return a policy if input constraint id is a policy Id.
+     *
+     * @param constraintId id of constraint.
+     * @return a optional of {@link Policy}.
+     */
+    private Optional<Policy> getPolicyConstraint(final long constraintId) {
+        try {
+            final PolicyResponse response = policyService.getPolicy(PolicyRequest.newBuilder()
+                    .setPolicyId(constraintId)
+                    .build());
+            return Optional.of(response.getPolicy());
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode().equals(Code.NOT_FOUND) ||
+                    e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
+                // not find a policy.
+                return Optional.empty();
+            } else {
+                throw e;
+            }
         }
     }
 

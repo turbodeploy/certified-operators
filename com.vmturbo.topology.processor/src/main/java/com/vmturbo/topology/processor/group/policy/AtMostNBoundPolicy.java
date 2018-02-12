@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy;
 
+import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -8,12 +9,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -28,26 +31,28 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
 
     private final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBound;
 
-    private final Group providerGroup;
+    private final PolicyEntities providerPolicyEntities;
 
-    private final Group consumerGroup;
+    private final PolicyEntities consumerPolicyEntities;
 
     /**
      * Create a new AtMostNBoundPolicy.
      *
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
      *                         The policy should be of type AtMostN.
+     * @param consumerPolicyEntities consumer entities of current policy.
+     * @param providerPolicyEntities provider entities of current policy.
      */
     public AtMostNBoundPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
-                              @Nonnull final Group consumerGroup,
-                              @Nonnull final Group providerGroup) {
+                              @Nonnull final PolicyEntities consumerPolicyEntities,
+                              @Nonnull final PolicyEntities providerPolicyEntities) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasAtMostNbound(), "Must be AtMostNBoundPolicy");
 
-        this.providerGroup = providerGroup;
-        this.consumerGroup = consumerGroup;
-        this.atMostNBound = policyDefinition.getAtMostNbound();
-        GroupProtoUtil.checkEntityType(providerGroup);
+        this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
+        this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
+        this.atMostNBound = Objects.requireNonNull(policyDefinition.getAtMostNbound());
+        GroupProtoUtil.checkEntityType(providerPolicyEntities.getGroup());
         Preconditions.checkArgument(this.atMostNBound.hasCapacity(),
             "Capacity required");
     }
@@ -63,11 +68,14 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
     public void applyInternal(@Nonnull final GroupResolver groupResolver, @Nonnull final TopologyGraph topologyGraph)
         throws GroupResolutionException, PolicyApplicationException {
         logger.debug("Applying AtMostNBound policy with capacity of {}.", atMostNBound.getCapacity());
-
+        final Group providerGroup = providerPolicyEntities.getGroup();
+        final Group consumerGroup = consumerPolicyEntities.getGroup();
         // Resolve the relevant groups
         final int providerEntityType = GroupProtoUtil.getEntityType(providerGroup);
-        final Set<Long> providers = groupResolver.resolve(providerGroup, topologyGraph);
-        final Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph);
+        final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph),
+                providerPolicyEntities.getAdditionalEntities());
+        final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),
+                consumerPolicyEntities.getAdditionalEntities());
 
         // Add the commodity to the appropriate entities.
         // Add a small epsilon to the capacity to ensure floating point roundoff error does not accidentally

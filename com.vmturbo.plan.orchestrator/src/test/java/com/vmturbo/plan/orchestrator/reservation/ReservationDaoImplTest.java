@@ -9,6 +9,8 @@ import static org.junit.Assert.assertTrue;
 import java.util.Optional;
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import org.flywaydb.core.Flyway;
 import org.hamcrest.Matchers;
 import org.jooq.DSLContext;
@@ -33,8 +35,13 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.plan.orchestrator.templates.TemplatesDaoImpl;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -50,6 +57,8 @@ public class ReservationDaoImplTest {
     private Flyway flyway;
 
     private ReservationDaoImpl reservationDao;
+
+    private TemplatesDao templatesDao;
 
     private Reservation testFirstReservation = Reservation.newBuilder()
             .setName("Test-first-reservation")
@@ -111,6 +120,8 @@ public class ReservationDaoImplTest {
         flyway.clean();
         flyway.migrate();
         reservationDao = new ReservationDaoImpl(dsl);
+        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
+                new IdentityInitializer(0));
     }
 
     @After
@@ -120,7 +131,8 @@ public class ReservationDaoImplTest {
 
     @Test
     public void testCreateReservation() {
-        Reservation createdReservation = reservationDao.createReservation(testFirstReservation);
+        Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
+        Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
         Optional<Reservation> retrievedReservation =
                 reservationDao.getReservationById(createdReservation.getId());
         assertThat(retrievedReservation.get(), Matchers.is(createdReservation));
@@ -131,7 +143,8 @@ public class ReservationDaoImplTest {
         Reservation reservationWithoutConstraint = testFirstReservation.toBuilder()
                 .clearConstraintInfoCollection()
                 .build();
-        Reservation createdReservation = reservationDao.createReservation(reservationWithoutConstraint);
+        Reservation reservationWithTemplate = createReservationWithTemplate(reservationWithoutConstraint);
+        Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
         Optional<Reservation> retrievedReservation =
                 reservationDao.getReservationById(createdReservation.getId());
         assertTrue(retrievedReservation.isPresent());
@@ -142,7 +155,8 @@ public class ReservationDaoImplTest {
 
     @Test
     public void testGetReservationById() {
-        Reservation createdReservation = reservationDao.createReservation(testFirstReservation);
+        Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
+        Reservation createdReservation = reservationDao.createReservation(reservationWithTemplate);
         Optional<Reservation> reservation = reservationDao.getReservationById(createdReservation.getId());
         assertTrue(reservation.isPresent());
         assertThat(reservation.get(), Matchers.is(createdReservation));
@@ -150,8 +164,10 @@ public class ReservationDaoImplTest {
 
     @Test
     public void testGetAllReservation() {
-        Reservation createdFirstReservation = reservationDao.createReservation(testFirstReservation);
-        Reservation createdSecondReservation = reservationDao.createReservation(testSecondReservation);
+        Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
+        Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
+        Reservation createdFirstReservation = reservationDao.createReservation(reservationWithTemplateFirst);
+        Reservation createdSecondReservation = reservationDao.createReservation(reservationWithTemplateSecond);
         Set<Reservation> retrievedReservations = reservationDao.getAllReservations();
         assertTrue(retrievedReservations.size() == 2);
         assertTrue(retrievedReservations.stream()
@@ -162,16 +178,19 @@ public class ReservationDaoImplTest {
 
     @Test
     public void testUpdateReservation() throws NoSuchObjectException {
-        Reservation reservation = reservationDao.createReservation(testFirstReservation);
+        Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
+        Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
+        Reservation reservation = reservationDao.createReservation(reservationWithTemplateFirst);
         Reservation newReservation = reservationDao.updateReservation(reservation.getId(),
-                testSecondReservation);
+                reservationWithTemplateSecond);
         Optional<Reservation> retrievedReservation = reservationDao.getReservationById(reservation.getId());
         assertThat(retrievedReservation.get(), is(newReservation));
     }
 
     @Test
     public void testDeleteReservation() throws NoSuchObjectException {
-        Reservation reservation = reservationDao.createReservation(testFirstReservation);
+        Reservation reservationWithTemplate = createReservationWithTemplate(testFirstReservation);
+        Reservation reservation = reservationDao.createReservation(reservationWithTemplate);
         Reservation deletedReservation = reservationDao.deleteReservationById(reservation.getId());
         assertThat(deletedReservation, is(reservation));
         Optional<Reservation> retrievedReservation = reservationDao.getReservationById(reservation.getId());
@@ -180,8 +199,10 @@ public class ReservationDaoImplTest {
 
     @Test
     public void testGetReservationByStatus() {
-        Reservation createdFirstReservation = reservationDao.createReservation(testFirstReservation);
-        Reservation createdSecondReservation = reservationDao.createReservation(testSecondReservation);
+        Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
+        Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
+        reservationDao.createReservation(reservationWithTemplateFirst);
+        reservationDao.createReservation(reservationWithTemplateSecond);
         Set<Reservation> retrievedReservation = reservationDao.getReservationsByStatus(ReservationStatus.RESERVED);
         assertTrue(retrievedReservation.size() == 1);
         assertEquals("Test-second-reservation", retrievedReservation.iterator().next().getName());
@@ -189,13 +210,15 @@ public class ReservationDaoImplTest {
 
     @Test
     public void testUpdateReservationBatch() throws Exception {
-        Reservation createdFirstReservation = reservationDao.createReservation(testFirstReservation);
-        Reservation createdSecondReservation = reservationDao.createReservation(testSecondReservation);
-        Reservation newFirstReservation = Reservation.newBuilder(testFirstReservation)
+        Reservation reservationWithTemplateFirst = createReservationWithTemplate(testFirstReservation);
+        Reservation reservationWithTemplateSecond = createReservationWithTemplate(testSecondReservation);
+        Reservation createdFirstReservation = reservationDao.createReservation(reservationWithTemplateFirst);
+        Reservation createdSecondReservation = reservationDao.createReservation(reservationWithTemplateSecond);
+        Reservation newFirstReservation = Reservation.newBuilder(createdFirstReservation)
                 .setId(createdFirstReservation.getId())
                 .setName("New-first-reservation")
                 .build();
-        Reservation newSecondReservation = Reservation.newBuilder(testSecondReservation)
+        Reservation newSecondReservation = Reservation.newBuilder(createdSecondReservation)
                 .setId(createdSecondReservation.getId())
                 .setName("New-second-reservation")
                 .build();
@@ -206,5 +229,38 @@ public class ReservationDaoImplTest {
                 .anyMatch(reservation ->  reservation.getName().contains("New-first-reservation")));
         assertTrue(retrievedReservation.stream()
                 .anyMatch(reservation ->  reservation.getName().contains("New-second-reservation")));
+    }
+
+    @Test
+    public void testGetReservationsByTemplates() {
+        Template template = templatesDao.createTemplate(TemplateInfo.newBuilder()
+                .setName("test-template")
+                .build());
+        Reservation reservation = updateReservationTemplate(testFirstReservation, template.getId());
+        reservationDao.createReservation(reservation);
+        Set<Reservation> reservationSet =
+                reservationDao.getReservationsByTemplates(Sets.newHashSet(template.getId()));
+        assertEquals(1L, reservationSet.size());
+        assertEquals("Test-first-reservation", reservationSet.iterator().next().getName());
+    }
+
+    private Reservation createReservationWithTemplate(@Nonnull final Reservation reservation) {
+        Template template = templatesDao.createTemplate(TemplateInfo.newBuilder()
+                .setName("test-template")
+                .build());
+        return updateReservationTemplate(reservation, template.getId());
+
+    }
+
+    private Reservation updateReservationTemplate(@Nonnull final Reservation reservation,
+                                                  final long templateId) {
+        // make sure reservation only have 1 template.
+        assertEquals(1,
+                reservation.getReservationTemplateCollection().getReservationTemplateCount());
+        Reservation.Builder builder = reservation.toBuilder();
+        builder.getReservationTemplateCollectionBuilder()
+                .getReservationTemplateBuilderList()
+                .forEach(reservationTemplate -> reservationTemplate.setTemplateId(templateId));
+        return builder.build();
     }
 }

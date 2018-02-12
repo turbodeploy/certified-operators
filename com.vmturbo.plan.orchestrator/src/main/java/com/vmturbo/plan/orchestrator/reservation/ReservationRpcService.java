@@ -10,7 +10,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.joda.time.LocalDate;
 import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.Lists;
@@ -24,6 +23,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.CreateReservationRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.DeleteReservationByIdRequest;
@@ -33,20 +33,18 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusReq
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
-import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceFutureStub;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
+import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
 /**
  * Implementation of gRpc service for Reservation.
@@ -58,14 +56,18 @@ public class ReservationRpcService extends ReservationServiceImplBase {
 
     private final ReservationDao reservationDao;
 
+    private final TemplatesDao templatesDao;
+
     private final PlanRpcService planService;
 
     private final String DISABLED = "DISABLED";
 
     public ReservationRpcService(@Nonnull final PlanDao planDao,
+                                 @Nonnull final TemplatesDao templateDao,
                                  @Nonnull final ReservationDao reservationDao,
                                  @Nonnull final PlanRpcService planRpcService) {
         this.planDao = Objects.requireNonNull(planDao);
+        this.templatesDao = Objects.requireNonNull(templateDao);
         this.reservationDao = Objects.requireNonNull(reservationDao);
         this.planService = Objects.requireNonNull(planRpcService);
     }
@@ -80,6 +82,19 @@ public class ReservationRpcService extends ReservationServiceImplBase {
             return;
         }
         final List<ScenarioChange> scenarioChangeList = request.getScenarioInfo().getChangesList();
+        final Set<Long> templateIds = scenarioChangeList.stream()
+                .filter(ScenarioChange::hasTopologyAddition)
+                .map(ScenarioChange::getTopologyAddition)
+                .filter(TopologyAddition::hasTemplateId)
+                .map(TopologyAddition::getTemplateId)
+                .collect(Collectors.toSet());
+        // check input template ids are valid
+        if (!isValidTemplateIds(templateIds)) {
+            logger.error("Input templateIds are invalid: " + templateIds);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Template Ids are " +
+                    "invalid").asException());
+            return;
+        }
         final List<ScenarioChange> settingOverrides = createPlacementActionSettingOverride();
         PlanInstance planInstance = null;
         try {
@@ -199,6 +214,14 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                             "reservation id").asException());
             return;
         }
+        final Set<Long> templateIds = getTemplateIds(request.getReservation());
+        // check input template ids are valid
+        if (!isValidTemplateIds(templateIds)) {
+            logger.error("Input templateIds are invalid: " + templateIds);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Template Ids are " +
+                    "invalid").asException());
+            return;
+        }
         try {
             final Reservation reservation =
                     reservationDao.updateReservation(request.getReservationId(), request.getReservation());
@@ -219,6 +242,17 @@ public class ReservationRpcService extends ReservationServiceImplBase {
     @Override
     public void updateReservations(UpdateReservationsRequest request,
                                    StreamObserver<Reservation> responseObserver) {
+        final Set<Long> templateIds = request.getReservationList().stream()
+                .map(this::getTemplateIds)
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet());
+        // check input template ids are valid
+        if (!isValidTemplateIds(templateIds)) {
+            logger.error("Input templateIds are invalid: " + templateIds);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Template Ids are " +
+                    "invalid").asException());
+            return;
+        }
         try {
             final Set<Reservation> reservations = request.getReservationList().stream()
                     .collect(Collectors.toSet());
@@ -240,6 +274,14 @@ public class ReservationRpcService extends ReservationServiceImplBase {
     @Override
     public void createReservation(CreateReservationRequest request,
                                   StreamObserver<Reservation> responseObserver) {
+        final Set<Long> templateIds = getTemplateIds(request.getReservation());
+        // check input template ids are valid
+        if (!isValidTemplateIds(templateIds)) {
+            logger.error("Input templateIds are invalid: " + templateIds);
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Template Ids are " +
+                    "invalid").asException());
+            return;
+        }
         try {
             final Reservation reservation = reservationDao.createReservation(request.getReservation());
             responseObserver.onNext(reservation);
@@ -310,5 +352,26 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                 .build();
         return Lists.newArrayList(settingOverrideDisablePMMove, settingOverrideDisableSTMove,
                 settingOverrideDisableClone);
+    }
+
+    /**
+     * Check if input template ids are all valid template ids. If there is any id which can not find
+     * related template, it return false. And also if input template ids is empty, will return false.
+     *
+     * @param templateIds a set of template ids.
+     * @return boolean indicates if all input template ids are valid.
+     */
+    private boolean isValidTemplateIds(@Nonnull final Set<Long> templateIds) {
+        if (templateIds.isEmpty()) {
+            return false;
+        }
+        final long retrieveTemplatesCount = templatesDao.getTemplatesCount(templateIds);
+        return retrieveTemplatesCount == templateIds.size();
+    }
+
+    private Set<Long> getTemplateIds(@Nonnull final Reservation reservation) {
+        return reservation.getReservationTemplateCollection().getReservationTemplateList().stream()
+                .map(ReservationTemplate::getTemplateId)
+                .collect(Collectors.toSet());
     }
 }

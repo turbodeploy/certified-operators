@@ -38,9 +38,15 @@ public class TemplateConverterFactory {
     private final IdentityProvider identityProvider;
 
     private final Map<Integer, TopologyEntityConstructor> templateConverterMap = ImmutableMap.of(
-        EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(),
-        EntityType.PHYSICAL_MACHINE_VALUE, new PhysicalMachineEntityConstructor(),
-        EntityType.STORAGE_VALUE, new StorageEntityConstructor()
+            EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(),
+            EntityType.PHYSICAL_MACHINE_VALUE, new PhysicalMachineEntityConstructor(),
+            EntityType.STORAGE_VALUE, new StorageEntityConstructor()
+    );
+
+    // map used for creating reservation entities from template.
+    private final Map<Integer, TopologyEntityConstructor> reservationTemplateConvertMap = ImmutableMap.of(
+            EntityType.VIRTUAL_MACHINE_VALUE,
+            new VirtualMachineEntityConstructor(true)
     );
 
     public TemplateConverterFactory(@Nonnull TemplateServiceBlockingStub templateService,
@@ -59,29 +65,56 @@ public class TemplateConverterFactory {
      * @return set of {@link TopologyEntityDTO}.
      */
     public Stream<TopologyEntityDTO.Builder> generateTopologyEntityFromTemplates(
-        @Nonnull final Map<Long, Long> templateAdditions,
-        @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity) {
+            @Nonnull final Map<Long, Long> templateAdditions,
+            @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity) {
         final Set<Long> templateIds = Sets.union(templateAdditions.keySet(), templateToReplacedEntity.keySet());
-        GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
-            .addAllTemplateIds(templateIds)
-            .build();
+        final Stream<Template> templates = getTemplatesByIds(templateIds);
+        return templates.flatMap(template -> {
+            final long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
+            final Collection<TopologyEntityDTO> replacedEntities =
+                    templateToReplacedEntity.get(template.getId());
+            final Stream<TopologyEntityDTO.Builder> additionTemplates =
+                    generateEntityByTemplateAddition(template, additionCount, false);
+            final Stream<TopologyEntityDTO.Builder> replacedTemplates =
+                    generateEntityByTemplateReplaced(template, replacedEntities);
+            return Stream.concat(additionTemplates, replacedTemplates);
+        });
+    }
+
+    /**
+     * Generate reservation entities from templates. For reservation entity, it only can add templates
+     * , there are no replace templates.
+     *
+     * @param templateAdditions map key is template id, value is the number of template need to add.
+     * @return set of {@link TopologyEntityDTO} which newly created.
+     */
+    public Stream<TopologyEntityDTO.Builder> generateReservationEntityFromTemplates(
+            @Nonnull final Map<Long, Long> templateAdditions) {
+        final Stream<Template> templates = getTemplatesByIds(templateAdditions.keySet());
+        return templates.flatMap(template -> {
+            final long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
+            return generateEntityByTemplateAddition(template, additionCount, true);
+        });
+    }
+
+    /**
+     * Get templates from template rpc service by input a set of template ids. If there is any
+     * template missing, it will throw {@link TemplatesNotFoundException}.
+     *
+     * @param templateIds a set of {@link Template} ids.
+     * @return stream of templates.
+     */
+    private Stream<Template> getTemplatesByIds(@Nonnull Set<Long> templateIds) {
         try {
+            GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
+                    .addAllTemplateIds(templateIds)
+                    .build();
             Iterable<Template> templates = () -> templateService.getTemplatesByIds(getTemplatesRequest);
             final int templatesFoundSize = Iterables.size(templates);
             if (templatesFoundSize != templateIds.size()) {
                 throw new TemplatesNotFoundException(templateIds.size(), templatesFoundSize);
             }
-            return StreamSupport.stream(templates.spliterator(), false)
-                    .flatMap(template -> {
-                        final long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
-                        final Collection<TopologyEntityDTO> replacedEntities =
-                                templateToReplacedEntity.get(template.getId());
-                        final Stream<TopologyEntityDTO.Builder> additionTemplates =
-                                generateEntityByTemplateAddition(template, additionCount);
-                        final Stream<TopologyEntityDTO.Builder> replacedTemplates =
-                                generateEntityByTemplateReplaced(template, replacedEntities);
-                        return Stream.concat(additionTemplates, replacedTemplates);
-                    });
+            return StreamSupport.stream(templates.spliterator(), false);
         } catch (StatusRuntimeException e) {
             // TODO: (OM-28609) we should have mechanism to notify Plan component that some plan failed
             // at the middle of process (e.g topology processor). In this case, UI or API will not be
@@ -91,8 +124,9 @@ public class TemplateConverterFactory {
     }
 
     private Stream<TopologyEntityDTO.Builder> generateEntityByTemplateAddition(
-        @Nonnull final Template template,
-        final long additionCount) {
+            @Nonnull final Template template,
+            final long additionCount,
+            final boolean isReservation) {
         return LongStream.range(0L, additionCount)
             .mapToObj(number -> {
                 final TopologyEntityDTO.Builder topologyEntityBuilder =
@@ -100,13 +134,14 @@ public class TemplateConverterFactory {
                 topologyEntityBuilder
                     .setOid(identityProvider.generateTopologyId())
                     .setDisplayName(template.getTemplateInfo().getName() + " - Clone #" + number);
-                return generateTopologyEntityByType(template, topologyEntityBuilder, null);
+                return generateTopologyEntityByType(template, topologyEntityBuilder,
+                        null, isReservation);
             });
     }
 
     private Stream<TopologyEntityDTO.Builder> generateEntityByTemplateReplaced(
-        @Nonnull final Template template,
-        @Nonnull Collection<TopologyEntityDTO> replacedEntities) {
+            @Nonnull final Template template,
+            @Nonnull Collection<TopologyEntityDTO> replacedEntities) {
         return replacedEntities.stream()
             .map(entity -> {
                 final TopologyEntityDTO.Builder topologyEntityBuilder =
@@ -114,9 +149,10 @@ public class TemplateConverterFactory {
                 topologyEntityBuilder
                     .setOid(identityProvider.generateTopologyId())
                     .setDisplayName(template.getTemplateInfo().getName() + " - Clone for replacement");
-                return generateTopologyEntityByType(template, topologyEntityBuilder, entity);
+                return generateTopologyEntityByType(template, topologyEntityBuilder, entity, false);
             });
     }
+
     /**
      * Based on different template type, delegate create topology entity logic to different instance.
      *
@@ -124,17 +160,23 @@ public class TemplateConverterFactory {
      * @param topologyEntityBuilder topologyEntity builder contains setting up basic fields.
      * @param originalTopologyEntity the original topology entity which this template want to keep its
      *                               commodity constrains.
+     * @param isReservation if true means generate reservation entity templates, if false means generate normal
+     *                      entity from templates. The difference is for reservation entity, it will
+     *                      only buy provision commodity.
      * @return The {@link TopologyEntityDTO.Builder} for the newly generated entity.
      */
     private TopologyEntityDTO.Builder generateTopologyEntityByType(
-        @Nonnull final Template template,
-        @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-        @Nullable final TopologyEntityDTO originalTopologyEntity) {
+            @Nonnull final Template template,
+            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nullable final TopologyEntityDTO originalTopologyEntity,
+            final boolean isReservation) {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
-        if (!templateConverterMap.containsKey(templateEntityType)) {
+        final Map<Integer, TopologyEntityConstructor> converterMap =
+                isReservation ? reservationTemplateConvertMap : templateConverterMap;
+        if (!converterMap.containsKey(templateEntityType)) {
             throw new NotImplementedException(templateEntityType + " template is not supported.");
         }
-        return templateConverterMap.get(templateEntityType)
+        return converterMap.get(templateEntityType)
             .createTopologyEntityFromTemplate(template, topologyEntityBuilder, originalTopologyEntity);
     }
 }

@@ -22,17 +22,18 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * The tests use the following topology:
- *  VM5   VM6   VM7
- *   |     |  \/ |
- *   |     | / \ |
- *  PM1    PM2   ST3 ST4
+ *  VM5  VM8 VM6   VM7
+ *   |     \  |  \/ |
+ *   |      \ | / \ |
+ *  PM1      PM2   ST3 ST4
  */
 public class MustRunTogetherPolicyTest {
     @Rule
@@ -73,6 +74,7 @@ public class MustRunTogetherPolicyTest {
         topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 1));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
+        topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 2));
 
         topologyGraph = TopologyGraph.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
@@ -85,13 +87,15 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.emptySet());
 
-        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+        new MustRunTogetherPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(7L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+        assertThat(topologyGraph.getEntity(8L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
     }
 
     @Test
@@ -101,13 +105,15 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.singleton(1L));
 
-        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+        new MustRunTogetherPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getEntity(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(7L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+        assertThat(topologyGraph.getEntity(8L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
     }
 
     @Test
@@ -117,13 +123,15 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+        new MustRunTogetherPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getEntity(7L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+        assertThat(topologyGraph.getEntity(6L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
     }
 
     @Test
@@ -133,7 +141,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L, 2L));
 
-        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+        new MustRunTogetherPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
@@ -151,7 +160,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(2L));
 
-        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+        new MustRunTogetherPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(), policyMatcher.hasProviderSegment(POLICY_ID));
@@ -160,6 +170,7 @@ public class MustRunTogetherPolicyTest {
         assertThat(topologyGraph.getEntity(5L).get(), not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
         assertThat(topologyGraph.getEntity(6L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getEntity(7L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(8L).get(), policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
     }
 
     @Test
@@ -183,7 +194,8 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.singleton(4L));
 
-        new MustRunTogetherPolicy(policy, consumerGroup, providerGroup)
+        new MustRunTogetherPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));

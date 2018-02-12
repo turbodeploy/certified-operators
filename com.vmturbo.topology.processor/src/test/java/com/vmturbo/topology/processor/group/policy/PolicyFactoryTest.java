@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.group.policy;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,7 +48,8 @@ public class PolicyFactoryTest {
             .setBindToGroup(bindToGroup)
             .build();
 
-        assertThat(policyFactory.newPolicy(policy, groupingMap), instanceOf(BindToGroupPolicy.class));
+        assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
+                Collections.emptySet()), instanceOf(BindToGroupPolicy.class));
     }
 
     @Test
@@ -63,8 +65,8 @@ public class PolicyFactoryTest {
             .setBindToComplementaryGroup(bindToComplementaryGroup)
             .build();
 
-        assertThat(policyFactory.newPolicy(policy, groupingMap),
-                instanceOf(BindToComplementaryGroupPolicy.class));
+        assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
+                Collections.emptySet()), instanceOf(BindToComplementaryGroupPolicy.class));
     }
 
     @Test
@@ -80,7 +82,8 @@ public class PolicyFactoryTest {
             .setAtMostN(atMostNPolicy)
             .build();
 
-        assertThat(policyFactory.newPolicy(policy, groupingMap), instanceOf(AtMostNPolicy.class));
+        assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
+                Collections.emptySet()), instanceOf(AtMostNPolicy.class));
     }
 
     @Test
@@ -97,8 +100,8 @@ public class PolicyFactoryTest {
             .setAtMostNbound(atMostNBoundPolicy)
             .build();
 
-        assertThat(policyFactory.newPolicy(policy, groupingMap),
-                instanceOf(AtMostNBoundPolicy.class));
+        assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
+                Collections.emptySet()), instanceOf(AtMostNBoundPolicy.class));
     }
 
     @Test
@@ -114,7 +117,7 @@ public class PolicyFactoryTest {
             .setMustRunTogether(mustRunTogetherPolicy)
             .build();
 
-        assertThat(policyFactory.newPolicy(policy, groupingMap),
-                instanceOf(MustRunTogetherPolicy.class));
+        assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
+                Collections.emptySet()), instanceOf(MustRunTogetherPolicy.class));
     }
 }

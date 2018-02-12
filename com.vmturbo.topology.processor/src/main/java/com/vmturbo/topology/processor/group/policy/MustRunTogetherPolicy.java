@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.group.policy;
 
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -14,6 +15,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -22,6 +24,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -35,8 +38,8 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
 
     private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy;
 
-    private final Group consumerGroup;
-    private final Group providerGroup;
+    private final PolicyEntities consumerPolicyEntities;
+    private final PolicyEntities providerPolicyEntities;
 
     private static final Set<Integer> HOST_AND_STORAGE_TYPES = ImmutableSet.of(
             EntityType.PHYSICAL_MACHINE_VALUE, EntityType.STORAGE_VALUE);
@@ -45,15 +48,17 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
      * Create a new MustRunTogetherPolicy, the policy should be of type MustRunTogether.
      *
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
+     * @param consumerPolicyEntities consumer entities of current policy.
+     * @param providerPolicyEntities provider entities of current policy.
      */
     public MustRunTogetherPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
-                                 @Nonnull final Group consumerGroup,
-                                 @Nonnull final Group providerGroup) {
+                                 @Nonnull final PolicyEntities consumerPolicyEntities,
+                                 @Nonnull final PolicyEntities providerPolicyEntities) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasMustRunTogether());
-        this.mustRunTogetherPolicy = policyDefinition.getMustRunTogether();
-        this.consumerGroup = consumerGroup;
-        this.providerGroup = providerGroup;
+        this.mustRunTogetherPolicy = Objects.requireNonNull(policyDefinition.getMustRunTogether());
+        this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
+        this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
     }
 
     /**
@@ -69,8 +74,10 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
     public void applyInternal(@Nonnull final GroupResolver groupResolver, @Nonnull final TopologyGraph topologyGraph)
             throws GroupResolutionException, PolicyApplicationException {
         logger.debug("Applying mustRunTogether policy.");
-
-        final Set<Long> providers = groupResolver.resolve(providerGroup, topologyGraph);
+        final Group providerGroup = providerPolicyEntities.getGroup();
+        final Group consumerGroup = consumerPolicyEntities.getGroup();
+        final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph),
+                providerPolicyEntities.getAdditionalEntities());
         /* We do filtering by entity types because VC cluster groups may contain Virtual
            Datacenter as member. It is used by UI but it shouldn't be for DRS groups.
            As it comes from probe we may want to change probe itself in the future.
@@ -80,7 +87,8 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
         final Set<Long> onlyHostsOrStoragesProviders = providers.stream()
                 .filter(isHostOrStorage)
                 .collect(Collectors.toSet());
-        final Set<Long> consumers = groupResolver.resolve(consumerGroup, topologyGraph);
+        final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),
+                consumerPolicyEntities.getAdditionalEntities());
 
         final int providerType = GroupProtoUtil.getEntityType(providerGroup);
 

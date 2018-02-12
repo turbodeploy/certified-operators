@@ -8,16 +8,20 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.plan.ReservationDTOREST.ReservationServiceController;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.repository.RepositoryConfig;
+import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * Spring Configuration for Reservation services.
  */
 @Configuration
-@Import({SQLDatabaseConfig.class, RepositoryConfig.class})
+@Import({SQLDatabaseConfig.class, RepositoryConfig.class, TemplatesConfig.class})
 public class ReservationConfig {
     @Autowired
     private PlanConfig planConfig;
+
+    @Autowired
+    private TemplatesConfig templatesConfig;
 
     @Autowired
     private SQLDatabaseConfig dbConfig;
@@ -32,8 +36,8 @@ public class ReservationConfig {
 
     @Bean
     public ReservationRpcService reservationRpcService() {
-        return new ReservationRpcService(planConfig.planDao(), reservationDao(),
-                planConfig.planService());
+        return new ReservationRpcService(planConfig.planDao(), templatesConfig.templatesDao(),
+                reservationDao(), planConfig.planService());
     }
 
     @Bean

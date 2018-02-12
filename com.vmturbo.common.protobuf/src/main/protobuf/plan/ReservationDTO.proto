@@ -4,6 +4,7 @@ package plan;
 option java_package = "com.vmturbo.common.protobuf.plan";
 
 import "plan/PlanDTO.proto";
+import "topology/TopologyDTO.proto";
 
 // Reservation describes user-specified reservation information, such as templates, constraints and
 // also contains all reservation instances and placement information which are created by internal
@@ -88,6 +89,9 @@ message ReservationTemplateCollection {
 
                 // The entity type of provider.
                 optional int32 provider_type = 2;
+
+                // a list of commodities bought from this provider.
+                repeated .topology.CommodityBoughtDTO commodity_bought = 3;
             }
         }
     }

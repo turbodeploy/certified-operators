@@ -9,10 +9,11 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTOREST.DiscoveredTemplateDeploymentProfileServiceController;
 import com.vmturbo.common.protobuf.plan.TemplateDTOREST.TemplateServiceController;
 import com.vmturbo.common.protobuf.plan.TemplateDTOREST.TemplateSpecServiceController;
+import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
-@Import(SQLDatabaseConfig.class)
+@Import({SQLDatabaseConfig.class, GlobalConfig.class})
 public class TemplatesConfig {
 
     @Value("${templateSpecFile}")
@@ -24,6 +25,9 @@ public class TemplatesConfig {
     @Autowired
     private SQLDatabaseConfig databaseConfig;
 
+    @Autowired
+    private GlobalConfig globalConfig;
+
     @Bean
     public TemplateSpecParser templateSpecParser() {
         return new TemplateSpecParser(templateSpecFile);
@@ -31,7 +35,8 @@ public class TemplatesConfig {
 
     @Bean
     public TemplatesDao templatesDao() {
-        return new TemplatesDaoImpl(databaseConfig.dsl(), defaultTemplatesFile);
+        return new TemplatesDaoImpl(databaseConfig.dsl(), defaultTemplatesFile,
+                globalConfig.identityInitializer());
     }
 
     @Bean

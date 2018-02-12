@@ -3,13 +3,13 @@ package com.vmturbo.topology.processor.group.policy;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 
@@ -33,12 +34,15 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -125,26 +129,112 @@ public class PolicyManager {
                               List<ScenarioChange> changes) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
-
             final Iterator<PolicyResponse> policyIter =
                     policyService.getAllPolicies(PolicyRequest.newBuilder().build());
             final ImmutableList<PolicyResponse> policyResponses = ImmutableList.copyOf(policyIter);
             List<Policy> planOnlyPolicies = planOnlyPolicies(changes);
             final Map<Long, Group> groupsById = groupsById(policyResponses, planOnlyPolicies);
             final Map<PolicyDetailCase, Integer> policyTypeCounts = Maps.newEnumMap(PolicyDetailCase.class);
+            final Map<Long, Set<Long>> policyConstraintMap =
+            handleReservationConstraints(graph, groupResolver, changes, policyTypeCounts);
 
             applyServerPolicies(graph, groupResolver, changes,
-                            policyResponses, groupsById, policyTypeCounts);
+                            policyResponses, groupsById, policyTypeCounts, policyConstraintMap);
             applyPlanOnlyPolicies(graph, groupResolver, planOnlyPolicies,
                             groupsById, policyTypeCounts);
-
-            applyPolicyForInitialPlacement(graph, groupResolver, changes, policyTypeCounts);
-
-            applyPolicyForReservation(graph, groupResolver, policyTypeCounts);
 
             final long durationMs = System.currentTimeMillis() - startTime;
             logger.info("Completed application of {} policies in {}ms.", policyTypeCounts, durationMs);
         }
+    }
+
+    /**
+     * Handle initial placement and reservation constraints logic. For policy constraint, initial
+     * placement and reservation entity will be added to related service policy's default consumer.
+     * For Cluster, DataCenter, VDC constraints, it will be handled separately by adding a BindToGroup
+     * policy to related consumer and providers.
+     *
+     * @param graph The topology graph on which to apply the policies.
+     * @param groupResolver The resolver for the groups that the policy applies to.
+     * @param scenarioChanges list of plan changes to be applied to the policies
+     * @param policyTypeCounts policy type count map.
+     * @return a Map the key is policy id, value is related initial placement or reservation entity ids.
+     */
+    @VisibleForTesting
+    Map<Long, Set<Long>> handleReservationConstraints(@Nonnull final TopologyGraph graph,
+                                              @Nonnull final GroupResolver groupResolver,
+                                              @Nonnull final List<ScenarioChange> scenarioChanges,
+                                              @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
+        final Map<Long, Set<Long>> policyConstraintMap = new HashMap<>();
+        // for all current active reservation, their status are RESERVED, and also
+        // for reservations which just started, their status also have been
+        // updated to RESERVED during Reservation stage.
+        GetReservationByStatusRequest request = GetReservationByStatusRequest.newBuilder()
+                .setStatus(ReservationStatus.RESERVED)
+                .build();
+        final Iterable<Reservation> activeReservations = () -> reservationService.getReservationByStatus(request);
+        final List<Long> initialPlacementPolicyConstraint = scenarioChanges.stream()
+                .filter(ScenarioChange::hasPlanChanges)
+                .flatMap(change -> change.getPlanChanges().getInitialPlacementConstraintsList().stream())
+                .filter(ReservationConstraintInfo::hasType)
+                .filter(constraint -> constraint.getType() == ReservationConstraintInfo.Type.POLICY)
+                .map(ReservationConstraintInfo::getConstraintId)
+                .collect(Collectors.toList());
+        final Set<Long> initialPlacementEntityIds = initialPlacementPolicyConstraint.isEmpty() ?
+                Collections.emptySet() : getNotDiscoveredEntityIds(graph);
+        // add initial placement policy constraint to map
+        initialPlacementPolicyConstraint.stream()
+                .forEach(policyConstraint ->
+                        policyConstraintMap.computeIfAbsent(policyConstraint,
+                                constraint -> new HashSet<>()).addAll(initialPlacementEntityIds));
+        // get and add reservation policy constraint to map
+        final Map<Long, Set<Long>> reservationPolicyConstraint =
+                getReservationPolicyConstraint(activeReservations);
+        reservationPolicyConstraint.entrySet().stream()
+                .forEach(entry -> policyConstraintMap.computeIfAbsent(entry.getKey(),
+                        constraint -> new HashSet<>()).addAll(entry.getValue()));
+
+        applyPolicyForInitialPlacement(graph, groupResolver, scenarioChanges, policyTypeCounts,
+                initialPlacementEntityIds.isEmpty() ? getNotDiscoveredEntityIds(graph) :
+                Collections.emptySet());
+        applyPolicyForReservation(graph, groupResolver, policyTypeCounts, activeReservations);
+        return policyConstraintMap;
+    }
+
+    /**
+     * Get policy constraint for active reservations.
+     *
+     * @param activeReservations all active reservations.
+     * @return a Map which key is policy constraint id, value is a set of related reservation entity ids.
+     */
+    private Map<Long, Set<Long>> getReservationPolicyConstraint(
+            @Nonnull Iterable<Reservation> activeReservations) {
+        final Map<Long, Set<Long>> reservationPolicyConstraintMap = new HashMap<>();
+        StreamSupport.stream(activeReservations.spliterator(), false)
+                .forEach(reservation ->
+                    reservation.getConstraintInfoCollection().getReservationConstraintInfoList().stream()
+                            .filter(ReservationConstraintInfo::hasType)
+                            .filter(constraint ->
+                                    constraint.getType() == ReservationConstraintInfo.Type.POLICY)
+                            .forEach(constraint ->
+                                reservationPolicyConstraintMap.computeIfAbsent(
+                                        constraint.getConstraintId(), key -> new HashSet<>())
+                                        .addAll(getReservationEntityId(reservation))));
+        return reservationPolicyConstraintMap;
+    }
+
+    /**
+     * Get all reservation entity id belong to input {@link Reservation}.
+     *
+     * @param reservation input {@link Reservation}.
+     * @return a set of reservation entity ids.
+     */
+    private Set<Long> getReservationEntityId(@Nonnull final Reservation reservation) {
+        return reservation.getReservationTemplateCollection().getReservationTemplateList().stream()
+                .map(ReservationTemplate::getReservationInstanceList)
+                .flatMap(List::stream)
+                .map(ReservationInstance::getEntityId)
+                .collect(Collectors.toSet());
     }
 
     private Map<Long, Group> policyGroupsById(Collection<Policy> policies) {
@@ -194,8 +284,8 @@ public class PolicyManager {
                     @Nonnull List<ScenarioChange> changes,
                     @Nonnull List<PolicyResponse> policyResponses,
                     @Nonnull Map<Long, Group> groupsById,
-                    @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts
-                    ) {
+                    @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts,
+                    @Nonnull Map<Long, Set<Long>> policyConstraintMap) {
         // Map from policy ID to whether it is enabled or disabled in the plan
         Map<Long, Boolean> policyOverrides = changes.stream()
                 .filter(ScenarioChange::hasPlanChanges)
@@ -205,7 +295,9 @@ public class PolicyManager {
                 .collect(Collectors.toMap(
                         PolicyChange::getPolicyId, PolicyChange::getEnabled));
         for (PolicyResponse response : policyResponses) {
-            PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groupsById);
+            PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groupsById,
+                    policyConstraintMap.getOrDefault(response.getPolicy().getId(),
+                            Collections.emptySet()), Collections.emptySet());
             long policyId = policy.getPolicyDefinition().getId();
             Boolean enabledOverride = policyOverrides.get(policyId);
             if (enabledOverride != null) {
@@ -216,7 +308,9 @@ public class PolicyManager {
                             Policy.newBuilder(policy.getPolicyDefinition())
                                 .setEnabled(enabledOverride)
                                 .build();
-                    policy = policyFactory.newPolicy(altPolicyDefinition, groupsById);
+                    policy = policyFactory.newPolicy(altPolicyDefinition, groupsById,
+                            policyConstraintMap.getOrDefault(altPolicyDefinition.getId(),
+                                    Collections.emptySet()), Collections.emptySet());
                 }
             }
             applyPolicy(groupResolver, policy, graph, policyTypeCounts);
@@ -232,7 +326,8 @@ public class PolicyManager {
         for (Policy policyDefinition : planOnlyPolicies) {
             // Policy definition needs an ID, but plan-only policies don't have one
             policyDefinition = Policy.newBuilder(policyDefinition).setId(0).build();
-            PlacementPolicy policy = policyFactory.newPolicy(policyDefinition, groupsById);
+            PlacementPolicy policy = policyFactory.newPolicy(policyDefinition, groupsById,
+                    Collections.emptySet(), Collections.emptySet());
             applyPolicy(groupResolver, policy, graph, policyTypeCounts);
         }
     }
@@ -260,38 +355,45 @@ public class PolicyManager {
     private void applyPolicyForInitialPlacement(@Nonnull final TopologyGraph graph,
                                                 @Nonnull final GroupResolver groupResolver,
                                                 @Nonnull final List<ScenarioChange> scenarioChanges,
-                                                @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
+                                                @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts,
+                                                @Nonnull final Set<Long> consumers) {
         final List<ReservationConstraintInfo> constraints = scenarioChanges.stream()
                 .filter(ScenarioChange::hasPlanChanges)
                 .map(ScenarioChange::getPlanChanges)
                 .map(PlanChanges::getInitialPlacementConstraintsList)
                 .flatMap(List::stream)
+                .filter(ReservationConstraintInfo::hasType)
+                // filter out policy constraint, because all policy constraint will been applied along
+                // with service policy.
+                .filter(constraint -> constraint.getType() != ReservationConstraintInfo.Type.POLICY)
                 .collect(Collectors.toList());
         if (!constraints.isEmpty()) {
             final PlacementPolicy policy =
-                    reservationPolicyFactory.generatePolicyForInitialPlacement(graph, constraints);
+                    reservationPolicyFactory.generatePolicyForInitialPlacement(graph, constraints, consumers);
             applyPolicy(groupResolver, policy, graph, policyTypeCounts);
         }
     }
 
     private void applyPolicyForReservation(@Nonnull final TopologyGraph graph,
                                            @Nonnull final GroupResolver groupResolver,
-                                           @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
-        GetAllReservationsRequest request = GetAllReservationsRequest.newBuilder().build();
-        final Iterable<Reservation> reservations = () -> reservationService.getAllReservations(request);
-        StreamSupport.stream(reservations.spliterator(), false)
-                // for all current active reservation, their status are RESERVED, and also
-                // for reservations which just started, their status also have been
-                // updated to RESERVED during Reservation stage.
-                .filter(reservation -> reservation.getStatus() == ReservationStatus.RESERVED)
-                .filter(reservation ->  !reservation.getConstraintInfoCollection()
-                        .getReservationConstraintInfoList()
-                        .isEmpty())
+                                           @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts,
+                                           @Nonnull Iterable<Reservation> activeReservations) {
+        StreamSupport.stream(activeReservations.spliterator(), false)
+                .filter(reservation ->  reservation.getConstraintInfoCollection()
+                        .getReservationConstraintInfoList().stream()
+                    // filter out policy constraint, because all policy constraint will been applied
+                    // along with service policy.
+                                .filter(ReservationConstraintInfo::hasType)
+                                .filter(constraint -> constraint.getType()
+                                        != ReservationConstraintInfo.Type.POLICY)
+                                .count() > 0)
                 .forEach(reservation -> {
+                    final List<ReservationConstraintInfo> constraintInfos =
+                            reservation.getConstraintInfoCollection()
+                                    .getReservationConstraintInfoList();
                     final PlacementPolicy policy =
                             reservationPolicyFactory.generatePolicyForReservation(graph,
-                                    reservation.getConstraintInfoCollection()
-                                            .getReservationConstraintInfoList(), reservation);
+                                    constraintInfos, reservation);
                     applyPolicy(groupResolver, policy, graph, policyTypeCounts);
                 });
     }
@@ -320,5 +422,23 @@ public class PolicyManager {
         } catch (PolicyApplicationException e) {
             logger.error("Failed to apply policy: ", e);
         }
+    }
+
+    /**
+     * Get all entities which created from templates. It use {@link TopologyEntity}
+     * {@link com.vmturbo.stitching.DiscoveryInformation} to tell which entity is created from templates.
+     * Because for all template entities, discovery information is not present.
+     *
+     * @param graph The topology graph contains all entities and relations between entities.
+     * @return a set of entities id which created from templates.
+     */
+    private Set<Long> getNotDiscoveredEntityIds(@Nonnull final TopologyGraph graph) {
+        // only cloned or template entities' last update time are never been updated,
+        // for initial placement, it only has template entities, so we use it to tell which
+        // entities are created from templates.
+        return graph.entities()
+                .filter(entity -> !entity.getDiscoveryInformation().isPresent())
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet());
     }
 }

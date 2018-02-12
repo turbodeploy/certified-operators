@@ -27,16 +27,17 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class AtMostNPolicyTest {
     /**
      * The tests use the following topology
      *
-     *  VM4  VM5  VM6  VM7
-     *   |  /     |  \/ |
-     *   | /      | / \ |
-     *  PM1      PM2   ST3
+     *  VM8 VM4 VM5  VM6  VM7
+     *   \  |  /     |  \/ |
+     *    \ | /      | / \ |
+     *     PM1      PM2   ST3
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -79,6 +80,7 @@ public class AtMostNPolicyTest {
         topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 1));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
+        topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 1));
 
         topologyGraph = TopologyGraph.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
@@ -91,7 +93,8 @@ public class AtMostNPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNPolicy(policy, consumerGroup, providerGroup)
+        new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(),
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
@@ -110,7 +113,8 @@ public class AtMostNPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNPolicy(policy, consumerGroup, providerGroup)
+        new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(),
             policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, PlacementPolicy.MAX_CAPACITY_VALUE));
@@ -129,10 +133,11 @@ public class AtMostNPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L, 2L));
 
-        new AtMostNPolicy(policy, consumerGroup, providerGroup)
+        new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(),
-            policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 2.0f));
+            policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 3.0f));
         assertThat(topologyGraph.getEntity(2L).get(),
             policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 0.0f));
         assertThat(topologyGraph.getEntity(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -140,6 +145,8 @@ public class AtMostNPolicyTest {
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getEntity(5L).get(),
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(8L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
     }
 
     /**
@@ -168,7 +175,8 @@ public class AtMostNPolicyTest {
             .thenReturn(Collections.singleton(3L));
 
         expectedException.expect(PolicyApplicationException.class);
-        new AtMostNPolicy(policy, consumerGroup, providerGroup)
+        new AtMostNPolicy(policy, new PolicyEntities(consumerGroup,  Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
     }
 }

@@ -101,4 +101,12 @@ public interface TemplatesDao {
      */
     @Nonnull
     Set<Template> getTemplates(@Nonnull final Set<Long> ids);
+
+    /**
+     * Get the count of matched templates which id is in the input id set.
+     *
+     * @param ids a set of template ids need check if exist.
+     * @return the count of matched templates.
+     */
+    long getTemplatesCount(@Nonnull final Set<Long> ids);
 }

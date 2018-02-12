@@ -5,6 +5,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -41,7 +42,8 @@ public interface ReservationDao {
 
     /**
      * Create a new reservation to database, it will ignore the input reservation's id and
-     * create a new Id for the new reservation.
+     * create a new Id for the new reservation. And also it will create the mapping records between
+     * reservation with template.
      *
      * @param reservation describe the contents of new reservation.
      * @return a new created reservation.
@@ -50,7 +52,8 @@ public interface ReservationDao {
     Reservation createReservation(@Nonnull final Reservation reservation);
 
     /**
-     * Update the existing reservation with a new reservation.
+     * Update the existing reservation with a new reservation. And also it will updates the mapping
+     * records between reservation with template.
      *
      * @param id The id of reservation needs to update.
      * @param reservation a new reservation need to store.
@@ -62,7 +65,8 @@ public interface ReservationDao {
             throws NoSuchObjectException;
 
     /**
-     * Bathc update the existing reservations.
+     * Batch update the existing reservations. And also it will updates the mapping records between
+     * reservation with template.
      *
      * @param reservations A set of new reservations.
      * @return A set of new updated reservations.
@@ -80,4 +84,12 @@ public interface ReservationDao {
      */
     @Nonnull
     Reservation deleteReservationById(final long id) throws NoSuchObjectException;
+
+    /**
+     * Input a list of template ids, return all reservations which use anyone of these templates.
+     *
+     * @param templateIds a set of template ids.
+     * @return a set of {@link Reservation}.
+     */
+    public Set<Reservation> getReservationsByTemplates(@Nonnull final Set<Long> templateIds);
 }

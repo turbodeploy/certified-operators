@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
@@ -18,7 +19,6 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
@@ -29,8 +29,11 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance.PlacementInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.template.TemplatesNotFoundException;
@@ -40,9 +43,21 @@ import com.vmturbo.topology.processor.topology.TopologyEditorException;
  * Responsible for convert Reservations to TopologyEntity and add them into live topology. And also
  * check if there are any Reservation should become active (start day is today or before and
  * status is FUTURE) and change its status and send request to update Reservation table.
+ * <p>
+ * Reservation entity will only buy provision commodity, for example, Virtual Machine reservation
+ * entity only buy CpuProvision, MemProvision, StorageProvision commodity. And also the providers of
+ * reservation entity will modify their commodity sold utilization based on reservation entity provision
+ * value.
  */
 public class ReservationManager {
     private static final Logger logger = LogManager.getLogger();
+
+    // TODO: After OM-30576 is resolved, we can remove this epsilon check.
+    // Because right now, in XL commodityDTO, it used double as data type, but in Market commodityDTO,
+    // it use float as data type, it will cause commodity value precision loss between real time
+    // topology with projected topology. The epsilon is 1.0e-7, because float number only have
+    // about 7 decimal digits accuracy.
+    private final double EPSILON = 1.0e-7;
 
     private final TemplateConverterFactory templateConverterFactory;
 
@@ -156,8 +171,7 @@ public class ReservationManager {
         // Reservation inactive or delete reservations.
         try {
             final List<TopologyEntityDTO.Builder> topologyEntityDTOBuilder =
-                    templateConverterFactory.generateTopologyEntityFromTemplates(templateCountMap,
-                            ArrayListMultimap.create())
+                    templateConverterFactory.generateReservationEntityFromTemplates(templateCountMap)
                             .collect(Collectors.toList());
             final List<ReservationInstance> reservationInstances =
                     reservationTemplate.getReservationInstanceList();
@@ -202,17 +216,18 @@ public class ReservationManager {
         topologyEntityBuilder.setDisplayName(reservationInstance.getName());
         final Set<PlacementInfo> placementInfos = reservationInstance.getPlacementInfoList().stream()
                 .collect(Collectors.toSet());
+
         for (CommoditiesBoughtFromProvider.Builder commoditiesBoughtBuilder :
                 topologyEntityBuilder.getCommoditiesBoughtFromProvidersBuilderList()) {
-                    placeProviderIdByEntityType(commoditiesBoughtBuilder, placementInfos, topology);
+            placeProviderIdByEntityType(commoditiesBoughtBuilder, placementInfos, topology);
         }
         return TopologyEntity.newBuilder(topologyEntityBuilder);
     }
 
     /**
      * Add placement information's provider id to {@link CommoditiesBoughtFromProvider} based on
-     * same provider entity type. Note that, it will have problem for templates which have a list of
-     * same provider entity types.
+     * same provider entity type. And also will modify providers' commodity sold value utilization
+     * based reservation entity commodity bought value.
      *
      * @param commoditiesBoughtBuilder {@link CommoditiesBoughtFromProvider.Builder}.
      * @param placementInfos a set of {@link PlacementInfo}.
@@ -223,22 +238,149 @@ public class ReservationManager {
             @Nonnull CommoditiesBoughtFromProvider.Builder commoditiesBoughtBuilder,
             @Nonnull Set<PlacementInfo> placementInfos,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
-        final int providerEntityType = commoditiesBoughtBuilder.getProviderEntityType();
         placementInfos.stream()
                 .filter(PlacementInfo::hasProviderType)
                 .filter(PlacementInfo::hasProviderId)
-                .filter(placement -> placement.getProviderType() == providerEntityType)
+                .filter(placementInfo ->
+                        isCommodityBoughtGroupMatch(placementInfo, commoditiesBoughtBuilder))
                 .findFirst()
                 .ifPresent(placementInfoObj -> {
                     // if provider id is not available anymore, need to unplaced the commodity.
+                    // It could happen when Market recommend to clone a Host and move Reserved VM to
+                    // that cloned host, during next broadcast, the cloned host id is not available.
                     if (topology.containsKey(placementInfoObj.getProviderId())) {
                         commoditiesBoughtBuilder.setProviderId(placementInfoObj.getProviderId());
+                        // modify provider entity utilization based on reservation entity bought
+                        // commodity.
+                        modifyProviderEntityCommodityBought(topology.get(placementInfoObj.getProviderId())
+                                , commoditiesBoughtBuilder);
                         // remove this placementInfo from set, in order to avoid place same provider id to the
                         // following commodity bought group.
                         placementInfos.remove(placementInfoObj);
+                    } else {
+                        logger.warn("Provider id {} is not find for reservation",
+                                placementInfoObj.getProviderId());
                     }
                 });
         return commoditiesBoughtBuilder;
+    }
+
+    /**
+     * Check if the new generated commodity bought group is same as {@link PlacementInfo} commodity
+     * bought group. For example, input commodity bought group has provider entity is Storage and
+     * have one StorageProvision commodity which used value is 100, and also in placementInfo, it's
+     * provider entity type is Storage and have one StorageProvision commodity which used value is 100.
+     * In this case two commodity bought group are matched.
+     *
+     * @param placementInfo {@link PlacementInfo}.
+     * @param commoditiesBoughtBuilder {@link CommoditiesBoughtFromProvider.Builder}.
+     * @return a boolean.
+     */
+    private boolean isCommodityBoughtGroupMatch(
+            @Nonnull final PlacementInfo placementInfo,
+            @Nonnull final CommoditiesBoughtFromProvider.Builder commoditiesBoughtBuilder) {
+        if (placementInfo.getProviderType() != commoditiesBoughtBuilder.getProviderEntityType()) {
+            return false;
+        }
+        // because reservation entity are created from template from scratch. Right now it doesn't
+        // set commodity key and and doesn't contains same commodity type in one commodity bought group,
+        // so it is ok to use commodity type as Map key.
+        Map<Integer, CommodityBoughtDTO> projectedCommodityBoughtMap =
+                placementInfo.getCommodityBoughtList().stream()
+                        // filter out access commodity
+                        .filter(commodityBoughtDTO -> !commodityBoughtDTO.getCommodityType().hasKey())
+                        // filter out not used commodity
+                        .filter(commodityBoughtDTO -> commodityBoughtDTO.getUsed() > 0.0)
+                        .collect(Collectors.toMap(
+                                commodityBought -> commodityBought.getCommodityType().getType(),
+                                Function.identity()));
+        return commoditiesBoughtBuilder.getCommodityBoughtList().stream()
+                .filter(commodityBoughtDTO -> commodityBoughtDTO.getUsed() > 0.0)
+                .allMatch(commodityBought ->
+                        checkIfCommodityBoughtMatch(commodityBought, projectedCommodityBoughtMap));
+    }
+
+    /**
+     * Check if there is any commodity bought in parameter map which matches with the input commodity
+     * bought. And it only compare used and active value. Because for reservation entity, it doesn't
+     * care peak value.
+     *
+     * @param commodityBought {@link CommodityBoughtDTO}.
+     * @param projectedCommodityBoughtMap a Map key is commodity type, value is {@link CommodityBoughtDTO}.
+     * @return a boolean.
+     */
+    private boolean checkIfCommodityBoughtMatch(
+            @Nonnull final CommodityBoughtDTO commodityBought,
+            @Nonnull final Map<Integer, CommodityBoughtDTO> projectedCommodityBoughtMap) {
+        final CommodityBoughtDTO projectedCommodityBought =
+                projectedCommodityBoughtMap.get(commodityBought.getCommodityType().getType());
+        // only compare used and active here, because for peak value, market will set it to used's value.
+        // the delta is used value multiply EPSILON, because the delta is not constant and it is based
+        // on original double when converting double to float and convert back to double.
+        return projectedCommodityBought != null && projectedCommodityBought.getActive() &&
+                (Double.compare(Math.abs(projectedCommodityBought.getUsed() - commodityBought.getUsed()),
+                        commodityBought.getUsed() * EPSILON) <= 0);
+    }
+
+    /**
+     * Modify provider entity commodities sold based on created reservation entity's commodities bought.
+     * It will only modify provider entity provision commodity sold "used" value, because reservation entity
+     * only buy provision commodity. For example: a Reserved VM buy MemProvision commodity 100 value
+     * from Host 1, this method will increase Host 1 MemProvision commodity sold "used" value by 100.
+     *
+     * @param providerEntity  provider entity of reservation instance.
+     * @param commoditiesBoughtBuilder {@link CommoditiesBoughtFromProvider.Builder}.
+     */
+    @VisibleForTesting
+    void modifyProviderEntityCommodityBought(
+            @Nonnull final TopologyEntity.Builder providerEntity,
+            @Nonnull CommoditiesBoughtFromProvider.Builder commoditiesBoughtBuilder) {
+        // map only contains provision commodity and key is commodity type, value is used value of
+        // provision commodity.
+        final Map<Integer, Double> commodityBoughtTypeToUsed =
+                commoditiesBoughtBuilder.getCommodityBoughtList().stream()
+                        .filter(commodityBoughtDTO -> commodityBoughtDTO.getUsed() > 0)
+                        .collect(Collectors.toMap(
+                                commodityBought -> commodityBought.getCommodityType().getType(),
+                                CommodityBoughtDTO::getUsed));
+        final TopologyEntityDTO.Builder providerBuilder = providerEntity.getEntityBuilder();
+        final Set<CommoditySoldDTO.Builder> commoditySoldBuilderSet =
+                providerBuilder.getCommoditySoldListBuilderList().stream()
+                        .filter(commoditySoldBuilder ->
+                                commodityBoughtTypeToUsed.containsKey(
+                                        commoditySoldBuilder.getCommodityType().getType()))
+                        .collect(Collectors.toSet());
+        // if any commodity type is missing in provider commodities sold list.
+        if (commoditySoldBuilderSet.size() != commodityBoughtTypeToUsed.size()) {
+            final Set<String> missingCommodityType = getMissingCommodityType(commoditySoldBuilderSet,
+                    commodityBoughtTypeToUsed);
+            logger.error("Provider {} is not selling commodities {} bought by reservation",
+                    providerEntity.getOid(),
+                    missingCommodityType.stream().collect(Collectors.joining(",")));
+        } else {
+            commoditySoldBuilderSet.forEach(commoditySoldBuilder -> {
+                // adding the amount used by the reserved entity to the sold amount of the provider
+                final double newUsed = commoditySoldBuilder.getUsed() +
+                        commodityBoughtTypeToUsed.get(
+                                commoditySoldBuilder.getCommodityType().getType());
+                commoditySoldBuilder.setUsed(newUsed);
+            });
+        }
+    }
+
+    private Set<String> getMissingCommodityType(
+            @Nonnull Set<CommoditySoldDTO.Builder> commoditySoldBuilderSet,
+            @Nonnull final Map<Integer, Double> commodityBoughtTypeToUsed) {
+        final Set<Integer> commoditySoldTypes = commoditySoldBuilderSet.stream()
+                .map(commoditySoldDTOBuilder -> commoditySoldDTOBuilder.getCommodityType().getType())
+                .collect(Collectors.toSet());
+        final Set<Integer> missedCommodityTypes = commodityBoughtTypeToUsed.keySet().stream()
+                .filter(commodityType -> !commoditySoldTypes.contains(commodityType))
+                .collect(Collectors.toSet());
+        return missedCommodityTypes.stream()
+                .map(commodityType -> CommodityDTO.CommodityType.forNumber(commodityType))
+                .map(commodityType -> commodityType.toString())
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -297,8 +439,7 @@ public class ReservationManager {
         // Reservation inactive or delete reservations.
         try {
             final List<TopologyEntityDTO.Builder> createdTopologyEntityDTO =
-                    templateConverterFactory.generateTopologyEntityFromTemplates(templateCountMap,
-                            ArrayListMultimap.create())
+                    templateConverterFactory.generateReservationEntityFromTemplates(templateCountMap)
                             .collect(Collectors.toList());
 
             final List<TopologyEntityDTO.Builder> updatedTopologyEntityDTO = new ArrayList<>();

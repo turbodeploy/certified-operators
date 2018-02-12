@@ -38,6 +38,13 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
@@ -69,6 +76,10 @@ public class ReservationMapperTest {
 
     private GroupServiceBlockingStub groupServiceBlockingStub;
 
+    private PolicyServiceMole policyServiceMole = Mockito.spy(new PolicyServiceMole());
+
+    private PolicyServiceBlockingStub policyServiceBlockingStub;
+
     private RepositoryApi repositoryApi;
 
     private ReservationMapper reservationMapper;
@@ -89,15 +100,18 @@ public class ReservationMapperTest {
             .build();
 
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole, groupServiceMole);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole, groupServiceMole,
+            policyServiceMole);
 
     @Before
     public void setup() {
         repositoryApi = Mockito.mock(RepositoryApi.class);
         templateServiceBlockingStub = TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel());
         groupServiceBlockingStub = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        policyServiceBlockingStub = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
         reservationMapper = new ReservationMapper(repositoryApi, templateServiceBlockingStub,
-                groupServiceBlockingStub);
+                groupServiceBlockingStub, policyServiceBlockingStub);
 
         vmServiceEntity.setClassName("VirtualMachine");
         vmServiceEntity.setDisplayName("VM-template Clone #1");
@@ -133,7 +147,7 @@ public class ReservationMapperTest {
         final PlacementParametersDTO placementParameter = new PlacementParametersDTO();
         placementParameter.setCount(2);
         placementParameter.setTemplateID(String.valueOf(TEMPLATE_ID));
-        placementParameter.setConstraintIDs(Sets.newHashSet("123"));
+        placementParameter.setConstraintIDs(Sets.newHashSet("123", "456"));
         demandParameters.setPlacementParameters(placementParameter);
         Mockito.when(groupServiceMole.getGroup(GroupID.newBuilder()
                 .setId(123L)
@@ -141,6 +155,15 @@ public class ReservationMapperTest {
                 .thenReturn(GetGroupResponse.newBuilder()
                         .setGroup(Group.newBuilder()
                                 .setType(Group.Type.CLUSTER))
+                        .build());
+        Mockito.when(policyServiceMole.getPolicy(PolicyRequest.newBuilder()
+                .setPolicyId(456L).build()))
+                .thenReturn(PolicyResponse.newBuilder()
+                        .setPolicy(Policy.newBuilder()
+                                .setId(456)
+                                .setBindToGroup(BindToGroupPolicy.newBuilder()
+                                        .setConsumerGroupId(8)
+                                        .setProviderGroupId(9)))
                         .build());
         final List<ScenarioChange> scenarioChangeList =
                 reservationMapper.placementToScenarioChange(Lists.newArrayList(demandParameters));
@@ -153,10 +176,15 @@ public class ReservationMapperTest {
                 .get();
         final List<ReservationConstraintInfo> constraints = planChange.getPlanChanges()
                 .getInitialPlacementConstraintsList();
-        assertEquals(1L, constraints.size());
-        final ReservationConstraintInfo constraint = constraints.get(0);
-        assertEquals(123L, constraint.getConstraintId());
-        assertEquals(ReservationConstraintInfo.Type.CLUSTER, constraint.getType());
+        assertEquals(2L, constraints.size());
+        assertTrue(constraints.stream().anyMatch(constraint -> constraint.getConstraintId() == 123L));
+        assertTrue(constraints.stream().anyMatch(constraint -> constraint.getConstraintId() == 456L));
+        assertTrue(constraints.stream()
+                .filter(constraint -> constraint.getConstraintId() == 123L)
+                .anyMatch(constraint -> constraint.getType() == ReservationConstraintInfo.Type.CLUSTER));
+        assertTrue(constraints.stream()
+                .filter(constraint -> constraint.getConstraintId() == 456L)
+                .anyMatch(constraint -> constraint.getType() == ReservationConstraintInfo.Type.POLICY));
     }
 
     @Test

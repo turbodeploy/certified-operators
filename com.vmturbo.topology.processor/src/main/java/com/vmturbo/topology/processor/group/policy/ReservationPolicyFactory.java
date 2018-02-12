@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
@@ -63,27 +64,30 @@ public class ReservationPolicyFactory {
      *
      * @param graph The topology graph contains all entities and relations between entities.
      * @param constraints a list of {@link ReservationConstraintInfo}.
+     * @param consumers a list id of initial placement entity.
      * @return {@link BindToGroupPolicy}.
      */
     public PlacementPolicy generatePolicyForInitialPlacement(
             @Nonnull final TopologyGraph graph,
-            @Nonnull final List<ReservationConstraintInfo> constraints) {
-
-
+            @Nonnull final List<ReservationConstraintInfo> constraints,
+            @Nonnull final Set<Long> consumers) {
         final Group pmProviderGroup = generateProviderGroup(graph, constraints);
-        final Group consumerGroup = generateConsumerGroup(graph);
+        final Group consumerGroup = generateConsumerGroup(consumers);
         final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
-        return new BindToGroupPolicy(bindToGroupPolicyPM, consumerGroup, pmProviderGroup);
+        return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
+                consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
     }
 
     public PlacementPolicy generatePolicyForReservation(
             @Nonnull final TopologyGraph graph,
             @Nonnull final List<ReservationConstraintInfo> constraints,
             @Nonnull final Reservation reservation) {
+        // when we support different template types for reservation, we should generate generic provider group
         final Group pmProviderGroup = generateProviderGroup(graph, constraints);
         final Group consumerGroup = generateConsumerGroup(reservation);
         final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
-        return new BindToGroupPolicy(bindToGroupPolicyPM, consumerGroup, pmProviderGroup);
+        return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
+                consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
     }
 
     private Group generateConsumerGroup(@Nonnull final Reservation reservation) {
@@ -96,8 +100,7 @@ public class ReservationPolicyFactory {
         return generateStaticGroup(consumerGroupIds, EntityType.VIRTUAL_MACHINE_VALUE);
     }
 
-    private Group generateConsumerGroup(@Nonnull final TopologyGraph graph) {
-        final Set<Long> consumers = getConsumerMembersOfConstraint(graph);
+    private Group generateConsumerGroup(@Nonnull final Set<Long> consumers) {
         return generateStaticGroup(consumers, EntityType.VIRTUAL_MACHINE_VALUE);
     }
 
@@ -198,25 +201,6 @@ public class ReservationPolicyFactory {
                 throw new IllegalArgumentException("Constraint " + constraint.getType() +
                         " type is not support.");
         }
-    }
-
-    /**
-     * Get all entities which created from templates. It use {@link TopologyEntity}
-     * {@link com.vmturbo.stitching.DiscoveryInformation} to tell which entity is created from templates.
-     * Because for all template entities, discovery information is not present.
-     *
-     * @param graph The topology graph contains all entities and relations between entities.
-     * @return a set of entities id which created from templates.
-     */
-    @VisibleForTesting
-    Set<Long> getConsumerMembersOfConstraint(@Nonnull final TopologyGraph graph) {
-        // only cloned or template entities' last update time are never been updated,
-        // for initial placement, it only has template entities, so we use it to tell which
-        // entities are created from templates.
-        return graph.entities()
-                .filter(entity -> !entity.getDiscoveryInformation().isPresent())
-                .map(TopologyEntity::getOid)
-                .collect(Collectors.toSet());
     }
 
     /**

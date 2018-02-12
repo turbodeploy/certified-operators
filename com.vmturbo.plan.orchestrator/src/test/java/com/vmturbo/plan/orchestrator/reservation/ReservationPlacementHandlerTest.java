@@ -20,9 +20,13 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class ReservationPlacementHandlerTest {
 
@@ -31,6 +35,77 @@ public class ReservationPlacementHandlerTest {
     private final ReservationDao reservationDao = Mockito.mock(ReservationDao.class);
 
     private ReservationPlacementHandler reservationPlacementHandler;
+
+    private final long contextId = 7777;
+
+    private final long topologyId = 123456;
+
+    private final CommodityBoughtDTO memCommodityBought = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.MEM_VALUE))
+            .setUsed(100)
+            .build();
+
+    private final CommodityBoughtDTO cpuCommodityBought = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.CPU_VALUE))
+            .setUsed(3)
+            .build();
+
+    private final CommodityBoughtDTO storageCommodityBought = CommodityBoughtDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.STORAGE_VALUE))
+            .setUsed(200)
+            .build();
+
+    private final Reservation reservation = Reservation.newBuilder()
+            .setName("Test-reservation")
+            .setId(123)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                                    .setTemplateId(456)
+                                    .setCount(1)
+                                    .addReservationInstance(ReservationInstance.newBuilder()
+                                            .setEntityId(1)
+                                            .addPlacementInfo(PlacementInfo.newBuilder()
+                                                    .setProviderId(2)
+                                                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)))))
+            .build();
+
+    private final Reservation newReservation = Reservation.newBuilder()
+            .setName("Test-reservation")
+            .setId(123)
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                                    .setTemplateId(456)
+                                    .setCount(1)
+                                    .addReservationInstance(ReservationInstance.newBuilder()
+                                            .setEntityId(1)
+                                            .addPlacementInfo(PlacementInfo.newBuilder()
+                                                    .setProviderId(3)
+                                                    .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                                    .addCommodityBought(memCommodityBought)
+                                                    .addCommodityBought(cpuCommodityBought))
+                                            .addPlacementInfo(PlacementInfo.newBuilder()
+                                                    .addCommodityBought(storageCommodityBought)))))
+            .build();
+
+    private final TopologyEntityDTO reservationEntity = TopologyEntityDTO.newBuilder()
+            .setOid(1)
+            .setEntityType(10)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(3)
+                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .addCommodityBought(memCommodityBought)
+                    .addCommodityBought(cpuCommodityBought))
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addCommodityBought(storageCommodityBought))
+            .build();
+
+    private final TopologyEntityDTO providerEntity = TopologyEntityDTO.newBuilder()
+            .setOid(3)
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .build();
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(repositoryServiceMole);
@@ -43,45 +118,7 @@ public class ReservationPlacementHandlerTest {
 
     @Test
     public void testUpdateReservations() throws Exception {
-        final long contextId = 7777;
-        final long topologyId = 123456;
-        final Reservation reservation = Reservation.newBuilder()
-                .setName("Test-reservation")
-                .setId(123)
-                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                        .addReservationTemplate(ReservationTemplate.newBuilder()
-                                .setTemplateId(456)
-                                .setCount(1)
-                                .addReservationInstance(ReservationInstance.newBuilder()
-                                        .setEntityId(1)
-                                        .addPlacementInfo(PlacementInfo.newBuilder()
-                                                .setProviderId(2)
-                                                .setProviderType(14)))))
-                .build();
-        final Reservation newReservation = Reservation.newBuilder()
-                .setName("Test-reservation")
-                .setId(123)
-                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                        .addReservationTemplate(ReservationTemplate.newBuilder()
-                                .setTemplateId(456)
-                                .setCount(1)
-                                .addReservationInstance(ReservationInstance.newBuilder()
-                                        .setEntityId(1)
-                                        .addPlacementInfo(PlacementInfo.newBuilder()
-                                                .setProviderId(3)
-                                                .setProviderType(14)))))
-                .build();
-        final TopologyEntityDTO reservationEntity = TopologyEntityDTO.newBuilder()
-                .setOid(1)
-                .setEntityType(10)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(3)
-                        .setProviderEntityType(14))
-                .build();
-        final TopologyEntityDTO providerEntity = TopologyEntityDTO.newBuilder()
-                .setOid(3)
-                .setEntityType(14)
-                .build();
+
         Mockito.when(reservationDao.getReservationsByStatus(ReservationStatus.RESERVED))
                 .thenReturn(ImmutableSet.of(reservation));
         final RetrieveTopologyEntitiesRequest entityRequest = RetrieveTopologyEntitiesRequest.newBuilder()

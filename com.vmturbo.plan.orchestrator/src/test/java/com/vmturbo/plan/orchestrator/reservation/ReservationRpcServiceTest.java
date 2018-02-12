@@ -33,6 +33,8 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
+import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationByIdRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
@@ -41,6 +43,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
+import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
 /**
  * Test cases for {@link ReservationRpcService}.
@@ -48,6 +51,8 @@ import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 public class ReservationRpcServiceTest {
 
     private PlanDao planDao;
+
+    private TemplatesDao templatesDao;
 
     private ReservationDao reservationDao;
 
@@ -62,17 +67,24 @@ public class ReservationRpcServiceTest {
     private Reservation testReservation = Reservation.newBuilder()
             .setId(123)
             .setName("test-reservation")
+            .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
+                    .addReservationTemplate(ReservationTemplate.newBuilder()
+                            .setCount(1L)
+                            .setTemplateId(234L)))
             .build();
 
     @Before
     public void setup() throws Exception {
         planDao = Mockito.mock(PlanDao.class);
+        templatesDao = Mockito.mock(TemplatesDao.class);
         reservationDao = Mockito.mock(ReservationDao.class);
         planRpcService = Mockito.mock(PlanRpcService.class);
-        reservationRpcService = new ReservationRpcService(planDao, reservationDao, planRpcService);
+        reservationRpcService = new ReservationRpcService(planDao, templatesDao, reservationDao,
+                planRpcService);
         grpcTestServerReservation = GrpcTestServer.newServer(reservationRpcService);
         grpcTestServerReservation.start();
-        reservationServiceBlockingStub = ReservationServiceGrpc.newBlockingStub(grpcTestServerReservation.getChannel());
+        reservationServiceBlockingStub =
+                ReservationServiceGrpc.newBlockingStub(grpcTestServerReservation.getChannel());
     }
 
     @After
@@ -85,7 +97,7 @@ public class ReservationRpcServiceTest {
         final ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
                 .addChanges(ScenarioChange.newBuilder()
                         .setTopologyAddition(TopologyAddition.newBuilder()
-                                .setTemplateId(123L)))
+                                .setTemplateId(234L)))
                 .build();
         final InitialPlacementRequest request = InitialPlacementRequest.newBuilder()
                 .setScenarioInfo(scenarioInfo)
@@ -98,6 +110,8 @@ public class ReservationRpcServiceTest {
                 .setStatus(PlanStatus.RUNNING_ANALYSIS)
                 .build();
         Mockito.when(planDao.createPlanInstance(Mockito.any(), Mockito.any())).thenReturn(planInstance);
+        Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))
+                .thenReturn(1L);
         reservationServiceBlockingStub.initialPlacement(request);
 
         Mockito.verify(planDao, Mockito.times(1))
@@ -146,6 +160,8 @@ public class ReservationRpcServiceTest {
                         .setDay(nextMonth.getDayOfMonth()))
                 .build();
         Mockito.when(reservationDao.createReservation(testReservation)).thenReturn(createdReservation);
+        Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))
+                .thenReturn(1L);
         Reservation reservation = reservationServiceBlockingStub.createReservation(request);
         assertEquals(reservation, createdReservation);
     }
@@ -160,6 +176,7 @@ public class ReservationRpcServiceTest {
                 .setReservation(newReservation)
                 .build();
         Mockito.when(reservationDao.updateReservation(123, newReservation)).thenReturn(newReservation);
+        Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet())).thenReturn(1L);
         Reservation reservation = reservationServiceBlockingStub.updateReservationById(request);
         assertEquals(reservation, newReservation);
     }
@@ -204,6 +221,8 @@ public class ReservationRpcServiceTest {
         final UpdateReservationsRequest request = UpdateReservationsRequest.newBuilder()
                 .addAllReservation(reservations)
                 .build();
+        Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))
+                .thenReturn(1L);
         Mockito.when(reservationDao.updateReservationBatch(Mockito.anySet()))
                 .thenReturn(reservations);
         final Iterator<Reservation> results = reservationServiceBlockingStub.updateReservations(request);

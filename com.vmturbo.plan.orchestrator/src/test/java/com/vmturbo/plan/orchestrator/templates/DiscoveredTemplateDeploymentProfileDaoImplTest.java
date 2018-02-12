@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileIn
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImpl;
 import com.vmturbo.plan.orchestrator.templates.DiscoveredTemplateDeploymentProfileDaoImpl.TemplateInfoToDeploymentProfileMap;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -61,7 +62,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         flyway.migrate();
 
         discoveredTemplateDeploymentProfileDao = new DiscoveredTemplateDeploymentProfileDaoImpl(dsl);
-        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json");
+        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
+                new IdentityInitializer(0));
     }
 
     @After

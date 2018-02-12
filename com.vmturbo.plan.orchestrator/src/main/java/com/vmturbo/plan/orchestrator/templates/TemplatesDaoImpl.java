@@ -8,6 +8,7 @@ import java.nio.charset.Charset;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -31,6 +32,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Template;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
@@ -45,8 +47,10 @@ public class TemplatesDaoImpl implements TemplatesDao {
     private final DSLContext dsl;
 
     public TemplatesDaoImpl(@Nonnull final DSLContext dsl,
-                            @Nonnull final String defaultTemplatesFile) {
-        this.dsl = dsl;
+                            @Nonnull final String defaultTemplatesFile,
+                            @Nonnull final IdentityInitializer identityInitializer) {
+        this.dsl = Objects.requireNonNull(dsl);
+        Objects.requireNonNull(identityInitializer);
 
         // The loading of system templates is intentionally done in the DaoImpl, to avoid having
         // methods to operate on default templates in the Dao interface. The alternative is
@@ -187,6 +191,8 @@ public class TemplatesDaoImpl implements TemplatesDao {
             throws NoSuchObjectException, IllegalTemplateOperationException {
         try {
             return dsl.transactionResult(configuration -> {
+                //TODO: when delete a template, we need to delete relate reservations or modify related
+                // reservations status to invalid.
                 final DSLContext transactionDsl = DSL.using(configuration);
                 final TemplateDTO.Template template = getTemplate(transactionDsl, id)
                         .orElseThrow(() -> noSuchObjectException(id));
@@ -261,6 +267,18 @@ public class TemplatesDaoImpl implements TemplatesDao {
             dsl.selectFrom(TEMPLATE)
                 .where(TEMPLATE.ID.in(ids)).fetch().into(Template.class);
         return templatesToProto(templateList);
+    }
+
+    /**
+     * Get the count of matched templates which id is in the input id set.
+     *
+     * @param ids a set of template ids need check if exist.
+     * @return the count of matched templates.
+     */
+    @Override
+    public long getTemplatesCount(@Nonnull Set<Long> ids) {
+        return dsl.fetchCount(dsl.selectFrom(TEMPLATE)
+                .where(TEMPLATE.ID.in(ids)));
     }
 
     private Optional<TemplateDTO.Template> getTemplate(@Nonnull final DSLContext dsl,

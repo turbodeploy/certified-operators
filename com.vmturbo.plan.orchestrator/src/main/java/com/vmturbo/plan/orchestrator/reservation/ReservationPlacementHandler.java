@@ -23,9 +23,11 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Update reservation placement information after receive notification from Repository. It will call
@@ -132,6 +134,7 @@ public class ReservationPlacementHandler {
         final Set<Long> providerIds = reservationEntities.stream()
                 .map(TopologyEntityDTO::getCommoditiesBoughtFromProvidersList)
                 .flatMap(List::stream)
+                .filter(CommoditiesBoughtFromProvider::hasProviderId)
                 .map(CommoditiesBoughtFromProvider::getProviderId)
                 .collect(Collectors.toSet());
         final RetrieveTopologyEntitiesRequest retrieveProviderEntityRequest =
@@ -173,6 +176,16 @@ public class ReservationPlacementHandler {
         return reservation.build();
     }
 
+    /**
+     * Update reservation placement information for each type of template.
+     *
+     * @param reservationTemplate {@link ReservationTemplate} contains placement information for
+     *                            each type templates.
+     * @param entityIdToEntityMap a Map which key is reservation entity id, value is
+     *                            {@link TopologyEntityDTO}
+     * @param providerIdToEntityType a Map which key is provider entity id, value is provider entity
+     *                               type.
+     */
     private void updateReservationTemplate(
             @Nonnull final ReservationTemplate.Builder reservationTemplate,
             @Nonnull final Map<Long, TopologyEntityDTO> entityIdToEntityMap,
@@ -183,11 +196,13 @@ public class ReservationPlacementHandler {
     }
 
     /**
-     * Update placement information of Reservation instances.
+     * Update placement information of Reservation instances based on latest projected topology.
+     * It will create a list of new {@link PlacementInfo} based on input reservation entity map and
+     * provider entity map. The new placementInfo will replace old one in {@link ReservationInstance}.
      *
      * @param reservationInstance {@link ReservationInstance.Builder} contains entity id.
-     * @param entityIdToEntityMap a Map key is entity id, value is {@link TopologyEntityDTO}.
-     * @param providerIdToEntityType a Map key is entity id, value is entity type.
+     * @param entityIdToEntityMap a Map key is reservation entity id, value is {@link TopologyEntityDTO}.
+     * @param providerIdToEntityType a Map key is provider entity id, value is provider entity type.
      * @return
      */
     private void updateReservationInstance(
@@ -201,22 +216,23 @@ public class ReservationPlacementHandler {
             return ;
         }
         final TopologyEntityDTO topologyEntityDTO = entityIdToEntityMap.get(entityId);
-        final List<Long> providerIds = topologyEntityDTO.getCommoditiesBoughtFromProvidersList().stream()
-                // projected topology entity could be unplaced which has no provider id.
-                .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
-                .collect(Collectors.toList());
-        for (long providerId : providerIds) {
-            if (!providerIdToEntityType.containsKey(providerId)) {
-                logger.error("Can not find project topology entity for id: " + providerId);
-                return ;
+        for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
+                topologyEntityDTO.getCommoditiesBoughtFromProvidersList()) {
+            final List<CommodityBoughtDTO> commodityBoughtDTOs =
+                    commoditiesBoughtFromProvider.getCommodityBoughtList();
+            PlacementInfo.Builder placementInfoBuilder = PlacementInfo.newBuilder()
+                    .addAllCommodityBought(commodityBoughtDTOs);
+            if (commoditiesBoughtFromProvider.hasProviderId()) {
+                final long providerId = commoditiesBoughtFromProvider.getProviderId();
+                placementInfoBuilder.setProviderId(providerId);
+                if (!providerIdToEntityType.containsKey(providerId)) {
+                    logger.error("Can not find project topology entity for id: " + providerId);
+                } else {
+                    placementInfoBuilder.setProviderType(providerIdToEntityType.get(providerId));
+                }
             }
-            placementInfos.add(PlacementInfo.newBuilder()
-                    .setProviderId(providerId)
-                    .setProviderType(providerIdToEntityType.get(providerId))
-                    .build());
+            placementInfos.add(placementInfoBuilder.build());
         }
-        // reset placement information for reservation instance.
         reservationInstance.clearPlacementInfo().addAllPlacementInfo(placementInfos);
     }
 }

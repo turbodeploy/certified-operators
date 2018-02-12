@@ -27,6 +27,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class AtMostNBoundPolicyTest {
@@ -34,10 +35,10 @@ public class AtMostNBoundPolicyTest {
     /**
      * The tests use the following topology
      *
-     *  VM4  VM5  VM6  VM7
-     *   |  /     |  \/ |
-     *   | /      | / \ |
-     *  PM1      PM2   ST3
+     *  VM8 VM4 VM5  VM6  VM7
+     *   \  |  /     |  \/ |
+     *    \ | /      | / \ |
+     *     PM1      PM2   ST3
      */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -79,6 +80,7 @@ public class AtMostNBoundPolicyTest {
         topologyMap.put(5L, topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 1));
         topologyMap.put(6L, topologyEntity(6L, EntityType.VIRTUAL_MACHINE, 2, 3));
         topologyMap.put(7L, topologyEntity(7L, EntityType.VIRTUAL_MACHINE, 2, 3));
+        topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 1));
 
         topologyGraph = TopologyGraph.newGraph(topologyMap);
         policyMatcher = new PolicyMatcher(topologyGraph);
@@ -91,7 +93,8 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNBoundPolicy(policy, consumerGroup, providerGroup)
+        new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(),
             not(policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f)));
@@ -110,7 +113,8 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Collections.<Long>emptySet());
 
-        new AtMostNBoundPolicy(policy, consumerGroup, providerGroup)
+        new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(),
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -120,6 +124,8 @@ public class AtMostNBoundPolicyTest {
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getEntity(5L).get(),
             not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+        assertThat(topologyGraph.getEntity(8L).get(),
+                (policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
     }
 
     @Test
@@ -129,10 +135,11 @@ public class AtMostNBoundPolicyTest {
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(1L));
 
-        new AtMostNBoundPolicy(policy, consumerGroup, providerGroup)
+        new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
         assertThat(topologyGraph.getEntity(1L).get(),
-            policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 2.0f));
+            policyMatcher.hasProviderSegmentWithCapacityAndUsed(POLICY_ID, 1.0f, 3.0f));
         assertThat(topologyGraph.getEntity(2L).get(),
             not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(3L).get(), not(policyMatcher.hasProviderSegment(POLICY_ID)));
@@ -140,6 +147,8 @@ public class AtMostNBoundPolicyTest {
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
         assertThat(topologyGraph.getEntity(5L).get(),
             policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(8L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
     }
 
     /**
@@ -168,7 +177,8 @@ public class AtMostNBoundPolicyTest {
             .thenReturn(Collections.singleton(3L));
 
         expectedException.expect(PolicyApplicationException.class);
-        new AtMostNBoundPolicy(policy, consumerGroup, providerGroup)
+        new AtMostNBoundPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
+                new PolicyEntities(providerGroup))
                 .apply(groupResolver, topologyGraph);
     }
 }
