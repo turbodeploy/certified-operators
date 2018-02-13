@@ -16,6 +16,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
@@ -72,12 +73,8 @@ public class ActionStoreConfig {
 
     @Bean
     public RestTemplate serviceRestTemplate() {
-        RestTemplate restTemplate;
         // for communication with repository component
-        restTemplate = new RestTemplate();
-        final Jaxb2RootElementHttpMessageConverter msgConverter = new Jaxb2RootElementHttpMessageConverter();
-        restTemplate.getMessageConverters().add(msgConverter);
-        return restTemplate;
+        return ComponentRestTemplate.create();
     }
 
     @Bean

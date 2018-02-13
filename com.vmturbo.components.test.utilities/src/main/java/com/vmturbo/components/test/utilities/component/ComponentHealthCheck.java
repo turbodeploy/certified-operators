@@ -14,6 +14,8 @@ import com.palantir.docker.compose.connection.Container;
 import com.palantir.docker.compose.connection.DockerPort;
 import com.palantir.docker.compose.connection.waiting.SuccessOrFailure;
 
+import com.vmturbo.components.api.ComponentRestTemplate;
+
 /**
  * An implementation of a {@link ServiceHealthCheck} specific for components.
  *
@@ -23,6 +25,8 @@ import com.palantir.docker.compose.connection.waiting.SuccessOrFailure;
 public class ComponentHealthCheck extends ServiceHealthCheck {
 
     public static final String HEALTH_CHECK_PATH = "/api/v2/health";
+
+    private static final RestTemplate REST_TEMPLATE = ComponentRestTemplate.create();
 
     /**
      * Check if a component is healthy.
@@ -45,7 +49,7 @@ public class ComponentHealthCheck extends ServiceHealthCheck {
                     .setPort(dockerPort.getExternalPort())
                     .setPath(HEALTH_CHECK_PATH)
                     .build();
-            return isHealthy(uri, new RestTemplate());
+            return isHealthy(uri, REST_TEMPLATE);
         } catch (URISyntaxException e) {
             return SuccessOrFailure.failure("Got unexpected syntax exception: " + e.getMessage());
         } catch (RuntimeException e) {

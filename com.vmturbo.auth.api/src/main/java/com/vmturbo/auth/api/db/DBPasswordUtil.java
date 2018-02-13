@@ -14,6 +14,8 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.vmturbo.components.api.ComponentRestTemplate;
+
 /**
  * Contains the method to retrieve the root password.
  */
@@ -59,10 +61,7 @@ public class DBPasswordUtil {
         this.authHost = authHost;
         this.authPort = authPort;
         this.authRetryDelaySecs = authRetryDelaySecs;
-        restTemplate = new RestTemplate();
-        final Jaxb2RootElementHttpMessageConverter msgConverter =
-                new Jaxb2RootElementHttpMessageConverter();
-        restTemplate.getMessageConverters().add(msgConverter);
+        restTemplate = ComponentRestTemplate.create();
     }
 
     /**

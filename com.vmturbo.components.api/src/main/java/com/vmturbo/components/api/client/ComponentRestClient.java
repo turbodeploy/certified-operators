@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.api.ComponentRestTemplate;
 
 /**
  * Parent class to execute REST operations on a remote endpoint,
@@ -32,18 +33,10 @@ public abstract class ComponentRestClient {
 
     protected final Logger logger = LogManager.getLogger();
 
-    /**
-     * Message converter to decode incoming responses.
-     */
-    private final GsonHttpMessageConverter msgConverter;
-
     protected final String restUri;
 
     protected ComponentRestClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
         this.restUri = "http://" + connectionConfig.getHost() + ":" + connectionConfig.getPort();
-
-        msgConverter = new GsonHttpMessageConverter();
-        msgConverter.setGson(ComponentGsonFactory.createGson());
     }
 
     /**
@@ -68,7 +61,7 @@ public abstract class ComponentRestClient {
             this.expectedErrorCodes = ImmutableSet.copyOf(expectedErrorCodes);
             this.responseClass = responseClass;
 
-            restTemplate = new RestTemplate(Collections.singletonList(msgConverter));
+            restTemplate = ComponentRestTemplate.create();
             restTemplate.setErrorHandler(new ResponseErrorHandler() {
 
                 @Override

@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServic
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.FileFolderZipper;
@@ -289,10 +290,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public RestTemplate restTemplate() {
-        final RestTemplate restTemplate = new RestTemplate();
-
-        restTemplate.getMessageConverters().add(new ByteArrayHttpMessageConverter());
-        return restTemplate;
+        return ComponentRestTemplate.create();
     }
 
     @Bean

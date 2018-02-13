@@ -49,6 +49,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
@@ -121,12 +122,7 @@ public class CommunicationConfig {
 
     @Bean
     public RestTemplate serviceRestTemplate() {
-        RestTemplate restTemplate;
-        // set up the RestTemplate to re-use in forwarding requests to RepositoryComponent
-        restTemplate = new RestTemplate();
-        final Jaxb2RootElementHttpMessageConverter msgConverter = new Jaxb2RootElementHttpMessageConverter();
-        restTemplate.getMessageConverters().add(msgConverter);
-        return restTemplate;
+        return ComponentRestTemplate.create();
     }
 
     @Bean

@@ -24,6 +24,7 @@ import org.springframework.web.client.RestTemplate;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.api.serviceinterfaces.IClusterService;
+import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentRestClient;
 
@@ -69,11 +70,9 @@ class ClusterMgrRestClient extends ComponentRestClient
         uriBase = restUri + REST_API_PREFIX;
 
         // set up the RestTemplate to re-use in forwarding requests to RepositoryComponent
-        restTemplate = new RestTemplate();
-        final GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
-        restTemplate.getMessageConverters().add(msgConverter);
+        restTemplate = ComponentRestTemplate.create();
         // set up a RestTemplate to re-use in streaming a large response; the response data will not be buffered locally.
-        streamingRestTemplate = new RestTemplate();
+        streamingRestTemplate = ComponentRestTemplate.create();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setBufferRequestBody(false);
         streamingRestTemplate.setRequestFactory(requestFactory);

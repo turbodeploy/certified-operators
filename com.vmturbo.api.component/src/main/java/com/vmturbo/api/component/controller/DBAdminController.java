@@ -19,6 +19,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.auth.api.db.DBPasswordDTO;
+import com.vmturbo.components.api.ComponentRestTemplate;
+
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 
@@ -44,10 +46,7 @@ public class DBAdminController {
      * Constructs the DBAdminController.
      */
     public DBAdminController() {
-        restTemplate_ = new RestTemplate();
-        final Jaxb2RootElementHttpMessageConverter msgConverter =
-                new Jaxb2RootElementHttpMessageConverter();
-        restTemplate_.getMessageConverters().add(msgConverter);
+        restTemplate_ = ComponentRestTemplate.create();
     }
 
     /**

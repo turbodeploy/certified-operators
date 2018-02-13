@@ -4,21 +4,16 @@ import java.io.StringReader;
 import java.net.URI;
 import java.time.Clock;
 import java.util.List;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestTemplate;
 
-import com.google.common.collect.Sets;
-
 import io.prometheus.client.Collector.MetricFamilySamples;
-import io.prometheus.client.exporter.common.TextFormat;
 
+import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.test.utilities.metric.TextParser;
 import com.vmturbo.components.test.utilities.metric.TextParser.TextParseException;
 
@@ -33,7 +28,7 @@ public abstract class RemoteMetricsScraper extends MetricsScraper {
     protected RemoteMetricsScraper(@Nonnull final String name,
                                 @Nonnull final Clock clock) {
         super(name, clock);
-        this.restTemplate = new RestTemplate();
+        this.restTemplate = ComponentRestTemplate.create();
     }
 
     @Nonnull
