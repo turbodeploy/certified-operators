@@ -252,7 +252,6 @@ public class ClusterMgrRestClientTest {
     }
 
     @Test
-    @Ignore
     public void testPutDefaultPropertiesForComponentType() throws Exception {
         // Arrange
         ComponentPropertiesDTO newValue = new ComponentPropertiesDTO();
@@ -288,7 +287,6 @@ public class ClusterMgrRestClientTest {
     }
 
     @Test
-    @Ignore
     public void testPutComponentInstanceProperties() throws Exception {
         // Arrange
         ComponentPropertiesDTO newValue = new ComponentPropertiesDTO();
@@ -383,7 +381,6 @@ public class ClusterMgrRestClientTest {
     }
 
     @Test
-    @Ignore
     public void testSetTelemetryEnabled() throws Exception {
         // Arrange
         boolean newValue = false;
