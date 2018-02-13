@@ -5,6 +5,7 @@ option java_package = "com.vmturbo.common.protobuf.stats";
 
 import "group/GroupDTO.proto";
 import "setting/Setting.proto";
+import "topology/TopologyDTO.proto";
 
 message EntityStatsRequest {
     // The entities to gather stats for. These could be the IDs of individual entities, a plan,
@@ -191,6 +192,33 @@ message SetAuditLogDataRetentionSettingResponse {
     optional setting.Setting newSetting = 1;
 }
 
+// The max value of a commodity over the whole stats
+// retention period.
+message CommodityMaxValue {
+
+    // The type of commodity.
+    optional topology.CommodityType commodityType = 1;
+
+    // The max value for the commodity.
+    optional double maxValue = 2;
+}
+
+// Return the max stats of the commodities sold by the entity.
+message EntityCommoditiesMaxValues {
+    // entity id
+    optional uint64 oid = 1;
+
+    // mapping from the commodity type to their max values
+    // Would have been nice to use map here. But float/double
+    // map values are not supported by protobuf.
+    repeated CommodityMaxValue commodityMaxValues = 2;
+}
+
+message GetEntityCommoditiesMaxValuesRequest {
+    // List of entity types whose commodity sold max values has to be fetched.
+    repeated int32 entityTypes = 1;
+}
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -208,7 +236,7 @@ service StatsHistoryService {
     // doesn't have any projected stats.
     rpc GetProjectedStats(ProjectedStatsRequest) returns (ProjectedStatsResponse);
 
-    // Get per-entity stats from the latest projected topology.
+     // Get per-entity stats from the latest projected topology.
     // Will return a response for each entity with no data if the stats service
     // doesn't have any projected stats.
     rpc GetProjectedEntityStats(ProjectedStatsRequest) returns (stream EntityStats);
@@ -238,4 +266,8 @@ service StatsHistoryService {
 
     // Set audit log data retention setting
     rpc SetAuditLogDataRetentionSetting(SetAuditLogDataRetentionSettingRequest) returns (SetAuditLogDataRetentionSettingResponse);
+
+    // Get the historic max values(within the stats retention period) for all the non-access commodities
+    // for all entities of the given entity type.
+    rpc GetEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest) returns (stream EntityCommoditiesMaxValues);
 }

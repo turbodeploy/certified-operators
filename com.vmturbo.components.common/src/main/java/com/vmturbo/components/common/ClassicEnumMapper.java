@@ -109,13 +109,13 @@ public class ClassicEnumMapper {
             .put("Power",                       CommodityType.POWER)
             .put("Space",                       CommodityType.SPACE)
             .put("Ballooning",                  CommodityType.BALLOONING)
-            .put("Q1VCPU",                      CommodityType.Q1_VCPU)
-            .put("Q2VCPU",                      CommodityType.Q2_VCPU)
-            .put("Q4VCPU",                      CommodityType.Q4_VCPU)
-            .put("Q8VCPU",                      CommodityType.Q8_VCPU)
-            .put("Q16VCPU",                     CommodityType.Q16_VCPU)
-            .put("Q32VCPU",                     CommodityType.Q32_VCPU)
-            .put("Q64VCPU",                     CommodityType.Q64_VCPU)
+            .put("Q1_VCPU",                     CommodityType.Q1_VCPU)
+            .put("Q2_VCPU",                     CommodityType.Q2_VCPU)
+            .put("Q4_VCPU",                     CommodityType.Q4_VCPU)
+            .put("Q8_VCPU",                     CommodityType.Q8_VCPU)
+            .put("Q16_VCPU",                    CommodityType.Q16_VCPU)
+            .put("Q32_VCPU",                    CommodityType.Q32_VCPU)
+            .put("Q64_VCPU",                    CommodityType.Q64_VCPU)
             .put("Flow",                        CommodityType.FLOW)
             .put("Swapping",                    CommodityType.SWAPPING)
             .put("VCPU",                        CommodityType.VCPU)
@@ -140,6 +140,7 @@ public class ClassicEnumMapper {
             .put("DrsSegmentationCommodity",    CommodityType.DRS_SEGMENTATION)
             .put("SegmentationCommodity",       CommodityType.SEGMENTATION)
             .put("VDCCommodity",                CommodityType.VDC)
+            .put("HOST_LUN_ACCESS",             CommodityType.HOST_LUN_ACCESS)
             .put("Unknown",                     CommodityType.UNKNOWN)
             .build();
 
@@ -223,6 +224,7 @@ public class ClassicEnumMapper {
         VAPP_ACCESS("VAppAccessCommodity", ""),
         VDC("VDCCommodity", ""),
         VMPM_ACCESS("VMPMAccessCommodity", ""),
+        HOST_LUN_ACCESS("HOST_LUN_ACCESS", ""),
         // End of Access Commodities
         UNKNOWN("Unknown", "");
 

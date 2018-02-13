@@ -6,11 +6,13 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.MemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.MemoryProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PmCpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageControllerLatencyPostStitchingOperation;
@@ -35,8 +37,10 @@ public class PostStitchingOperationLibrary {
      * Note: these operations are executed in order. For now the only reason it matters is because
      * CpuCapacityPostStitchingOperation must be executed before CpuProvisionedPostStitchingOperation
      * and PmCpuAllocationPostStitchingOperation.
+     *
+     * @param statsServiceClient Stats/History client
      */
-    public PostStitchingOperationLibrary() {
+    public PostStitchingOperationLibrary(StatsHistoryServiceBlockingStub statsServiceClient) {
         postStitchingOperations = ImmutableList.of(
             new MemoryProvisionedPostStitchingOperation(),
             new CpuCapacityPostStitchingOperation(),
@@ -50,7 +54,8 @@ public class PostStitchingOperationLibrary {
             new DiskArrayStorageProvisionedPostStitchingOperation(),
             new StorageEntityStorageProvisionedPostStitchingOperation(),
             new LogicalPoolStorageProvisionedPostStitchingOperation(),
-            new MemoryAllocationPostStitchingOperation()
+            new MemoryAllocationPostStitchingOperation(),
+            new SetCommodityMaxQuantityPostStitchingOperation(statsServiceClient)
         );
     }
 

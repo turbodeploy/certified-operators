@@ -1,9 +1,15 @@
 package com.vmturbo.topology.processor.stitching;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import io.grpc.Channel;
+
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
@@ -15,6 +21,12 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
  */
 @Configuration
 public class StitchingConfig {
+
+    @Value("${historyHost}")
+    private String historyHost;
+
+    @Value("${server.grpcPort}")
+    private int grpcPort;
 
     /**
      * No associated @Import because it adds a circular import dependency.
@@ -41,8 +53,18 @@ public class StitchingConfig {
     }
 
     @Bean
+    public Channel historyChannel() {
+        return PingingChannelBuilder.forAddress(historyHost, grpcPort).usePlaintext(true).build();
+    }
+
+    @Bean
+    public StatsHistoryServiceBlockingStub historyClient() {
+        return StatsHistoryServiceGrpc.newBlockingStub(historyChannel());
+    }
+
+    @Bean
     public PostStitchingOperationLibrary postStitchingOperationStore() {
-        return new PostStitchingOperationLibrary();
+        return new PostStitchingOperationLibrary(historyClient());
     }
 
     @Bean

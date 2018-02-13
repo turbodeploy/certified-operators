@@ -52,10 +52,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
@@ -921,6 +923,29 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     .withDescription("Failed to set the retention value")
                     .asException());
             }
+        } catch (VmtDbException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getEntityCommoditiesMaxValues(
+                    GetEntityCommoditiesMaxValuesRequest request,
+                    StreamObserver<EntityCommoditiesMaxValues> responseObserver) {
+        try {
+            if (request.getEntityTypesCount() <= 0) {
+                logger.warn("Invalid entities count in request: {}", request.getEntityTypesCount());
+                responseObserver.onCompleted();
+                return;
+            }
+            for (Integer entityType : request.getEntityTypesList()) {
+                historydbIO.getEntityCommoditiesMaxValues(entityType).forEach(responseObserver::onNext);
+            }
+            responseObserver.onCompleted();
         } catch (VmtDbException e) {
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());

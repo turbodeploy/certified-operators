@@ -7,6 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -25,16 +26,23 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -45,20 +53,22 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
  * Attempt to simulate a basic storage stitching operation.
  */
 public class StitchingIntegrationTest {
+
+    private StatsHistoryServiceMole statsRpcSpy = spy(new StatsHistoryServiceMole());
+    private StatsHistoryServiceBlockingStub statsServiceClient;
+
     private final StitchingOperationLibrary stitchingOperationLibrary = new StitchingOperationLibrary();
     private final StitchingOperationStore stitchingOperationStore =
         new StitchingOperationStore(stitchingOperationLibrary);
     private final PreStitchingOperationLibrary preStitchingOperationLibrary =
         new PreStitchingOperationLibrary();
-    private final PostStitchingOperationLibrary postStitchingOperationLibrary =
-        new PostStitchingOperationLibrary();
+    private PostStitchingOperationLibrary postStitchingOperationLibrary;
 
     private final long netAppProbeId = 1234L;
     private final long netAppTargetId = 1111L;
@@ -70,6 +80,16 @@ public class StitchingIntegrationTest {
     private final EntityValidator entityValidator = Mockito.mock(EntityValidator.class);
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
         entityValidator, Clock.systemUTC());
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
+
+    @Before
+    public void setup() {
+        statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        postStitchingOperationLibrary =
+            new PostStitchingOperationLibrary(statsServiceClient);
+    }
 
     @Test
     public void testVcAlone() throws Exception {

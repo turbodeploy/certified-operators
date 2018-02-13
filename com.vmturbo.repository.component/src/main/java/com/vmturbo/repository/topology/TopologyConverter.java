@@ -173,6 +173,7 @@ public class TopologyConverter {
             commRepo.setResizeable(comm.getIsResizeable());
             commRepo.setThin(comm.getIsThin());
             commRepo.setCapacityIncrement(comm.getCapacityIncrement());
+            commRepo.setMaxQuantity(comm.getMaxQuantity());
             return commRepo;
         }
 

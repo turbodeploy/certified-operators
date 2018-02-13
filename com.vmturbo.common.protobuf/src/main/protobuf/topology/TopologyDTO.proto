@@ -293,6 +293,9 @@ message CommoditySoldDTO {
 
     // related to resize increment
     optional float capacity_increment = 11 [default = 1.0];
+
+    // The historic max value(within the data retention period)
+    optional double max_quantity = 12;
 }
 
 // A request to assemble the current topology and broadcast it to all listeners for the topology.

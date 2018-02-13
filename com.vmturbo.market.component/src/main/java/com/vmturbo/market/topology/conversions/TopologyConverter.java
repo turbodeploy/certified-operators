@@ -957,6 +957,9 @@ public class TopologyConverter {
                         .setPeakQuantity((float)topologyCommSold.getPeak())
                         .setCapacity(capacity)
                         .setQuantity(used)
+                        // Warning: we are down casting from double to float.
+                        // Market has to change this field to double
+                        .setMaxQuantity((float)topologyCommSold.getMaxQuantity())
                         .setSettings(economyCommSoldSettings)
                         .setSpecification(commoditySpecification(commodityType))
                         .setThin(topologyCommSold.getIsThin())
@@ -1012,6 +1015,7 @@ public class TopologyConverter {
                     .setCapacity(commSoldTO.getCapacity())
                     .setPeak(commSoldTO.getPeakQuantity())
                     .setUsed(commSoldTO.getQuantity())
+                    .setMaxQuantity(commSoldTO.getMaxQuantity())
                     .setIsResizeable(commSoldTO.getSettings().getResizable())
                     .setEffectiveCapacityPercentage(
                         commSoldTO.getSettings().getUtilizationUpperBound() * 100)

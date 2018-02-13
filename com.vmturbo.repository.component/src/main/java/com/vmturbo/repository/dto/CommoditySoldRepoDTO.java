@@ -17,6 +17,8 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     private float capacityIncrement;
 
+    private double maxQuantity;
+
     public double getCapacity() {
         return capacity;
     }
@@ -63,5 +65,13 @@ public class CommoditySoldRepoDTO extends CommodityBaseRepoDTO {
 
     public float getCapacityIncrement() {
         return this.capacityIncrement;
+    }
+
+    public void setMaxQuantity(double max) {
+        this.maxQuantity = max;
+    }
+
+    public double getMaxQuantity() {
+        return this.maxQuantity;
     }
 }

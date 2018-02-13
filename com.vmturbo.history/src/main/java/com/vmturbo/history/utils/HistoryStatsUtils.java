@@ -112,20 +112,25 @@ public class HistoryStatsUtils {
     public static final ImmutableMap<CommonDTO.EntityDTO.EntityType, EntityType>
             SDK_ENTITY_TYPE_TO_ENTITY_TYPE =
             new ImmutableMap.Builder<CommonDTO.EntityDTO.EntityType, EntityType>()
-                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
+                    .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
+                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
+                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER_POD, EntityType.CONTAINERPOD)
                     // DC's are intentionally mapped to PM's
                     .put(CommonDTO.EntityDTO.EntityType.DATACENTER, EntityType.PHYSICAL_MACHINE)
-                    .put(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE)
-                    .put(CommonDTO.EntityDTO.EntityType.STORAGE, EntityType.STORAGE)
-                    .put(CommonDTO.EntityDTO.EntityType.APPLICATION, APPLICATION)
-                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_APPLICATION, APPLICATION)
-                    .put(CommonDTO.EntityDTO.EntityType.CHASSIS, CHASSIS)
                     .put(CommonDTO.EntityDTO.EntityType.DISK_ARRAY, DISK_ARRAY)
+                    .put(CommonDTO.EntityDTO.EntityType.DPOD, EntityType.DPOD)
                     .put(CommonDTO.EntityDTO.EntityType.IO_MODULE, IO_MODULE)
+                    .put(CommonDTO.EntityDTO.EntityType.LOGICAL_POOL, EntityType.LOGICAL_POOL)
+                    .put(CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.RESERVED_INSTANCE, EntityType.RESERVED_INSTANCE)
+                    .put(CommonDTO.EntityDTO.EntityType.STORAGE, EntityType.STORAGE)
                     .put(CommonDTO.EntityDTO.EntityType.STORAGE_CONTROLLER, STORAGE_CONTROLLER)
                     .put(CommonDTO.EntityDTO.EntityType.SWITCH, SWITCH)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_APPLICATION, APPLICATION)
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_DATACENTER, VDC)
-                    .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
+                    .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE, EntityType.VIRTUAL_MACHINE)
+                    .put(CommonDTO.EntityDTO.EntityType.VPOD, EntityType.VPOD)
                     .build();
 
     /**

@@ -8,6 +8,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -24,9 +25,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -56,13 +62,15 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * storages are merged as desired.
  */
 public class SharedStorageIntegrationTest {
+
+    private StatsHistoryServiceMole statsRpcSpy = spy(new StatsHistoryServiceMole());
+    private StatsHistoryServiceBlockingStub statsServiceClient;
     private final StitchingOperationLibrary stitchingOperationLibrary = new StitchingOperationLibrary();
     private final StitchingOperationStore stitchingOperationStore =
         new StitchingOperationStore(stitchingOperationLibrary);
     private final PreStitchingOperationLibrary preStitchingOperationLibrary =
         new PreStitchingOperationLibrary();
-    private final PostStitchingOperationLibrary postStitchingOperationLibrary =
-        new PostStitchingOperationLibrary();
+    private PostStitchingOperationLibrary postStitchingOperationLibrary;
 
     private final long targetAId = 1111L;
     private final long targetBId = 2222L;
@@ -83,8 +91,14 @@ public class SharedStorageIntegrationTest {
     private final String sharedStorageId = "9bd4ee88-99c64661";
     private final String sharedDiskArrayId = "DiskArray-9bd4ee88-99c64661";
 
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
+
     @Before
     public void setup() {
+        statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        postStitchingOperationLibrary =
+            new PostStitchingOperationLibrary(statsServiceClient);
         when(targetA.getId()).thenReturn(targetAId);
         when(targetB.getId()).thenReturn(targetBId);
     }

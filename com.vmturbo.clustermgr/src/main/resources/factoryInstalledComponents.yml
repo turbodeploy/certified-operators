@@ -59,9 +59,11 @@ topology-processor:
   kvStoreRetryIntervalMillis: 1000
   actionTimeoutSeconds: 30
   groupHost: 'group'
+  historyHost: 'history'
+  planOrchestratorHost: 'plan-orchestrator'
+  repositoryHost: 'repository'
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 1
-  repositoryHost: 'repository'
   # Urgent metrics are collected every 10 minutes, the offline every 3 days
   collectionIntervalUrgentSec: 600
   collectionIntervalOfflineSec: 259200
@@ -72,7 +74,15 @@ topology-processor:
   # The interval at which to attempt to reload assigned IDs
   # after topology processor startup.
   assignedIdReloadReattemptIntervalSeconds: 10
-  planOrchestratorHost: 'plan-orchestrator'
+  # This configuration value controls how often the commodity max values are
+  # loaded from history component.
+  maxValuesBackgroundLoadFrequencyMinutes: 180 # 3 hours
+  # This configuration value controls the initial delay before triggering
+  # the background load task when the initial load during startup fails.
+  # For subsequent fetches from the DB or when the initial load succeeds,
+  # the delay will be based on the maxValuesBackgroundLoadFrequencyMinutes
+  # config value.
+  maxValuesBackgroundLoadDelayOnInitFailureMinutes : 30
 
 repository:
   <<: *baseVmtComponentSettings
@@ -229,7 +239,9 @@ history:
   mariadbHealthCheckIntervalSeconds: 60
   # note: excluded commodities are case-insensitive, but in mixed case here for readability
   # and to match exactly the values from discovery
-  excludedCommodities: ApplicationCommodity CLUSTERCommodity DATACENTERCommodity DATASTORECommodity DSPMAccessCommodity NETWORKCommodity
+  # list obtained from $legacy/com.vmturbo.components.common/src/main/java/com/vmturbo/components/common/ClassicEnumMapper.java
+  # The commodities for which stats are not maintained/tracked in the DB. These are typically access commodities.
+  excludedCommodities: ApplicationCommodity CLUSTERCommodity DATACENTERCommodity DATASTORECommodity DRSSEGMENTATIONCommodity DSPMAccessCommodity NETWORKCommodity SEGMENTATIONCommodity STORAGECLUSTERCommodity VAPPAccessCommodity VDCCommodity VMPMAccessCommodity
   topologyProcessorHost: topology-processor
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000

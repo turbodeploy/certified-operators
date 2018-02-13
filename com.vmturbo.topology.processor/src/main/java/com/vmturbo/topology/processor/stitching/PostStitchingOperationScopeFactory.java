@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -69,6 +70,14 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
     @Override
     public StitchingScope<TopologyEntity> entityTypeScope(@Nonnull final EntityType entityType) {
         return new EntityTypeStitchingScope(topologyGraph, entityType);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public StitchingScope<TopologyEntity> multiEntityTypesScope(@Nonnull final List<EntityType> entityTypes) {
+        return new MultiEntityTypesStitchingScope(topologyGraph, entityTypes);
     }
 
     /**
@@ -181,6 +190,29 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         @Override
         public Stream<TopologyEntity> entities() {
             return getTopologyGraph().entitiesOfType(entityType);
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation globally to entities of a specific {@link EntityType}.
+     */
+    private static class MultiEntityTypesStitchingScope extends BaseStitchingScope {
+
+        private final List<EntityType> entityTypes;
+
+        public MultiEntityTypesStitchingScope(@Nonnull TopologyGraph topologyGraph,
+                                              @Nonnull final List<EntityType> entityTypes) {
+            super(topologyGraph);
+            this.entityTypes = Objects.requireNonNull(entityTypes);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<TopologyEntity> entities() {
+            Stream<TopologyEntity> entityStreams = Stream.empty();
+            return entityTypes
+                    .stream()
+                    .flatMap(entityType -> getTopologyGraph().entitiesOfType(entityType));
         }
     }
 

@@ -30,6 +30,7 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -53,6 +54,7 @@ import org.jooq.Select;
 import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 import org.springframework.beans.factory.annotation.Value;
 
 import com.google.common.collect.ImmutableBiMap;
@@ -64,6 +66,10 @@ import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
+import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
@@ -128,7 +134,7 @@ public class HistorydbIO extends BasedbIO {
     private int migrationTimeout_sec;
 
     // Mapping from the retention settings DB column name -> Setting name
-    private ImmutableBiMap<String, String> retentionDbColumnNameToSettingName =
+    private final ImmutableBiMap<String, String> retentionDbColumnNameToSettingName =
             ImmutableBiMap.of(
                     //"retention_latest_hours", , # skipping as there is no equivalent in the UI
                     "retention_hours", GlobalSettingSpecs.StatsRetentionHours.getSettingName(),
@@ -139,7 +145,11 @@ public class HistorydbIO extends BasedbIO {
     private ImmutableBiMap<String, String> retentionSettingNameToDbColumnName =
             retentionDbColumnNameToSettingName.inverse();
 
-    private static String auditLogRetentionPolicyName = "retention_days";
+    private static final String AUDIT_LOG_RETENTION_POLICY_NAME = "retention_days";
+
+    private static final String STATS_TABLE_PROPERTY_SUBTYPE_FILTER = "used";
+
+    private static final String MAX_COLUMN_NAME = "max";
 
     /**
      * Maximum number of entities allowed in the getEntities method.
@@ -286,10 +296,52 @@ public class HistorydbIO extends BasedbIO {
 
         Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
         if (!entityDBInfo.isPresent()) {
-            logger.debug("Cannot convert " + entityTypeId + " to EntityType");
+            logger.debug("Cannot convert {} to EntityType ", entityTypeId);
             return null;
         }
         return entityDBInfo.get().getLatestTable();
+    }
+
+    /**
+     * Return the "_stats_by_day" table for the given Entity Type based on the ID.
+     *
+     * The table prefix depends on the entity type.
+     *
+     * Returns null if the table prefix cannot be determined. This may represent an entity
+     * that is not to be persisted, or an internal system configuration error.
+     *
+     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
+     * @return a DB Table object for the _stats_by_day table for the entity type of this entity,
+     * or null if the entity table cannot be determined.
+     */
+    private Table<?> getDayStatsDbTableForEntityType(int entityTypeId) {
+
+        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
+        if (!entityDBInfo.isPresent()) {
+            return null;
+        }
+        return entityDBInfo.get().getDayTable();
+    }
+
+    /**
+     * Return the "_stats_by_month" table for the given Entity Type based on the ID.
+     *
+     * The table prefix depends on the entity type.
+     *
+     * Returns null if the table prefix cannot be determined. This may represent an entity
+     * that is not to be persisted, or an internal system configuration error.
+     *
+     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
+     * @return a DB Table object for the _stats_by_month table for the entity type of this entity,
+     * or null if the entity table cannot be determined.
+     */
+    private Table<?> getMonthStatsDbTableForEntityType(int entityTypeId) {
+
+        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
+        if (!entityDBInfo.isPresent()) {
+            return null;
+        }
+        return entityDBInfo.get().getMonthTable();
     }
 
     /**
@@ -832,7 +884,7 @@ public class HistorydbIO extends BasedbIO {
         // don't care if the entry exists or not as long as query succeeds
         execute(Style.FORCED, JooqBuilder()
                 .delete(Scenarios.SCENARIOS)
-                .where(Scenarios.SCENARIOS.ID.in(topologyContextId)));
+                .where(Scenarios.SCENARIOS.ID.eq(topologyContextId)));
 
     }
 
@@ -885,7 +937,7 @@ public class HistorydbIO extends BasedbIO {
             return Optional.empty();
         }
 
-        execute(Style.FORCED, getJooqBuilder()
+        execute(Style.PATIENT, getJooqBuilder()
                 .update(RETENTION_POLICIES)
                 .set(RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
                 .where(RETENTION_POLICIES.POLICY_NAME.eq(
@@ -908,7 +960,7 @@ public class HistorydbIO extends BasedbIO {
             using(connection())
                 .selectFrom(AUDIT_LOG_RETENTION_POLICIES)
                 .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME
-                        .eq(auditLogRetentionPolicyName))
+                        .eq(AUDIT_LOG_RETENTION_POLICY_NAME))
                 .fetchOne(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD);
 
         return createSetting(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName(),
@@ -926,12 +978,94 @@ public class HistorydbIO extends BasedbIO {
     public Optional<Setting> setAuditLogRetentionSetting(int retentionPeriod)
         throws VmtDbException {
 
-        execute(Style.FORCED, getJooqBuilder()
+        execute(Style.PATIENT, getJooqBuilder()
                 .update(AUDIT_LOG_RETENTION_POLICIES)
                 .set(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD, retentionPeriod)
-                .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME.eq(auditLogRetentionPolicyName)));
+                .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME.eq(AUDIT_LOG_RETENTION_POLICY_NAME)));
 
         return Optional.of(createSetting(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName(),
                     retentionPeriod));
+    }
+
+    /**
+     * The stats in the db get rolled-up every 10 minutes from latest->hourly, hourly->daily.
+     * So the daily table will have all the max values. Querying the daily table should suffice.
+     * As the daily table stores all historic stats(until the retention period), we may return
+     * entries which may not be relevant to the current enviornment(because targets could be removed).
+     * We leave the filtering of the entities to the clients.
+     * The access commodities are already filtered as we store stats only for non-access commmodities.
+     * TODO:karthikt - Do batch selects(paginate) from the DB.
+     */
+    public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityType)
+        throws VmtDbException {
+
+        // Get the name of the table in the db associated with the entityType.
+        Table<?> tbl = getDayStatsDbTableForEntityType(entityType);
+        if (tbl == null) {
+            logger.warn("No table for entityType: {}", entityType);
+            return Collections.emptyList();
+        }
+        // Query for the max of the max values from all the days in the DB for
+        // each commodity in each entity.
+        Result<? extends Record> statsRecords =
+            using(connection())
+                .select(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE), dField(tbl, COMMODITY_KEY),
+                            DSL.max(dField(tbl, MAX_VALUE)))
+                .from(tbl)
+                // only interested in used and sold commodities
+                .where(str(dField(tbl, PROPERTY_SUBTYPE)).eq(STATS_TABLE_PROPERTY_SUBTYPE_FILTER).and(
+                    (relType(dField(tbl, RELATION))).eq(RelationType.COMMODITIES)))
+                .groupBy(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE))
+                .fetch(); //TODO:karthikt - check if fetchLazy would help here.
+
+        logger.debug("Number of records fetched for table {} = {}", tbl, statsRecords.size());
+        return convertToEntityCommoditiesMaxValues(tbl, statsRecords);
+    }
+
+    /**
+     * Convert the max value db records into EntityCommoditiesMaxValues.
+     *
+     * @param tbl DB table from which the records were fetched.
+     * @param maxStatsRecords Jooq Result containing the lisf of max values DB records.
+     * @return List of converted records.
+     */
+    private List<EntityCommoditiesMaxValues> convertToEntityCommoditiesMaxValues(
+                                                Table<?> tbl, Result<? extends Record> maxStatsRecords) {
+        List<EntityCommoditiesMaxValues> maxValues = new ArrayList<>();
+        // Group the records by entityId
+        // TODO: karthikt - check the memory profile for large number of entities
+        Map<String, List<Record>> entityIdToRecordGrouping =
+            maxStatsRecords
+            .stream()
+            .collect(Collectors.groupingBy(
+                rec -> { return rec.getValue(str(dField(tbl, UUID))); }));
+        // Create the protobuf messages
+        entityIdToRecordGrouping.forEach((key, records) -> {
+            EntityCommoditiesMaxValues.Builder entityMaxValuesBuilder =
+                EntityCommoditiesMaxValues.newBuilder()
+                    .setOid(Long.parseLong(key));
+
+            records.forEach(record -> {
+                CommodityMaxValue commodityMaxValue =
+                    CommodityMaxValue.newBuilder()
+                        .setMaxValue(record.getValue((Field<Double>)DSL.field(MAX_COLUMN_NAME, Double.class)))
+                        .setCommodityType(
+                    CommodityType.newBuilder()
+                        .setType(ClassicEnumMapper.commodityType(
+                            record.getValue(str(dField(tbl, PROPERTY_TYPE)))).getNumber())
+                        // WARN : CommodityKey gets truncated in length when
+                        // being stored in the DB. It's a one-way function. This will lead to
+                        // correctness problems if keys share common prefix and they get truncated
+                        // at a common prefix boundary.
+                        .setKey(record.getValue(str(dField(tbl, COMMODITY_KEY))))
+                        .build())
+                    .build();
+
+                entityMaxValuesBuilder.addCommodityMaxValues(commodityMaxValue);
+            });
+            maxValues.add(entityMaxValuesBuilder.build());
+        });
+
+        return maxValues;
     }
 }

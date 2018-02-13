@@ -1,5 +1,6 @@
 package com.vmturbo.stitching;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -32,7 +33,7 @@ public interface StitchingScope<ENTITY> {
      */
     interface StitchingScopeFactory<ENTITY> {
         /**
-         * Return a global calculation scope. Calculations with this scope will operation on all entities
+         * Return a global calculation scope. Calculations with this scope will operate on all entities
          * in the entire topology.
          *
          * @return A global {@link StitchingScope}.
@@ -58,6 +59,17 @@ public interface StitchingScope<ENTITY> {
          * @return An entity type {@link StitchingScope}.
          */
         StitchingScope<ENTITY> entityTypeScope(@Nonnull final EntityType entityType);
+
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * of the given entity types. Calculations with this scope will be fed all entities which match
+         * the list of the the given {@link EntityType}s regardless of which target or probe discovered
+         * those entities.
+         *
+         * @param entityTypes List of entity type of the entities
+         * @return An entity type {@link StitchingScope}.
+         */
+        StitchingScope<ENTITY> multiEntityTypesScope(@Nonnull final List<EntityType> entityTypes);
 
         /**
          * Return a {@link StitchingScope} that restricts the calculation to operate on only entities

@@ -15,9 +15,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
+import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -67,6 +67,14 @@ public class PreStitchingOperationScopeFactory implements StitchingScopeFactory<
     @Override
     public StitchingScope<StitchingEntity> entityTypeScope(@Nonnull final EntityType entityType) {
         return new EntityTypeStitchingScope(stitchingContext, entityType);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public StitchingScope<StitchingEntity> multiEntityTypesScope(@Nonnull final List<EntityType> entityTypes) {
+        return new MultiEntityTypesStitchingScope(stitchingContext, entityTypes);
     }
 
     /**
@@ -176,6 +184,29 @@ public class PreStitchingOperationScopeFactory implements StitchingScopeFactory<
         @Override
         public Stream<StitchingEntity> entities() {
             return getStitchingContext().getEntitiesOfType(entityType).map(Function.identity());
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation globally to entities of a specific {@link EntityType}.
+     */
+    private static class MultiEntityTypesStitchingScope extends BaseStitchingScope {
+
+        private final List<EntityType> entityTypes;
+
+        public MultiEntityTypesStitchingScope(@Nonnull StitchingContext stitchingContext,
+                                              @Nonnull final List<EntityType> entityTypes) {
+            super(stitchingContext);
+            this.entityTypes = Objects.requireNonNull(entityTypes);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<StitchingEntity> entities() {
+            Stream<StitchingEntity> entityStreams = Stream.empty();
+            return entityTypes
+                    .stream()
+                    .flatMap(entityType -> getStitchingContext().getEntitiesOfType(entityType));
         }
     }
 
