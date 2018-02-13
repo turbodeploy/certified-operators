@@ -23,6 +23,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
+import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -50,6 +51,8 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc;
+import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc.WidgetsetsServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -72,7 +75,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Import({ApiWebsocketConfig.class, TopologyProcessorClientConfig.class,
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
         GroupClientConfig.class, HistoryClientConfig.class, RepositoryClientConfig.class,
-        ReportingClientConfig.class})
+        ReportingClientConfig.class, AuthClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -89,6 +92,8 @@ public class CommunicationConfig {
     private RepositoryClientConfig repositoryClientConfig;
     @Autowired
     private ReportingClientConfig reportingClientConfig;
+    @Autowired
+    private AuthClientConfig authClientConfig;
     @Value("${clusterMgrHost}")
     private String clusterMgrHost;
 
@@ -267,6 +272,14 @@ public class CommunicationConfig {
     @Bean
     public Channel actionOrchestratorChannel() {
         return aoClientConfig.actionOrchestratorChannel();
+    }
+
+    @Bean
+    public WidgetsetsServiceBlockingStub widgetsetsServiceBlockingStub() {
+        return WidgetsetsServiceGrpc.newBlockingStub(authClientConfig.authClientChannel())
+        // Intercept client call and add JWT token to the metadata
+                .withInterceptors(new JwtClientInterceptor());
+
     }
 
     @Bean

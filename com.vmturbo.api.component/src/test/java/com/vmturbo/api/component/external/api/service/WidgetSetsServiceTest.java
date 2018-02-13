@@ -1,22 +1,38 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
-import static org.hamcrest.collection.IsMapContaining.hasKey;
-import static org.hamcrest.core.IsNot.not;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 
+import org.assertj.core.util.Lists;
+import org.assertj.core.util.Sets;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableList;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
+import com.vmturbo.api.component.external.api.mapper.WidgetsetMapper;
+import com.vmturbo.api.dto.widget.WidgetApiDTO;
 import com.vmturbo.api.dto.widget.WidgetsetApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.common.protobuf.widgets.Widgets;
+import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
+import com.vmturbo.common.protobuf.widgets.WidgetsMoles;
+import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
  * Tests for the in-memory scaffolding for the widgetset storage. This will be completely re-done
@@ -29,16 +45,33 @@ public class WidgetSetsServiceTest {
     private static final String WIDGETSET_SCOPETYPE_1 = "scopetype1";
     private static final String WIDGETSET_NAME_1 = "widgetset 1";
     private static final String WIDGETSET_NAME_UPDATED = "widgetset 1 UPDATED";
-    private static final String WIDGETSET_UUID_1 = "widgetset1";
+    private static final String WIDGETSET_UUID_1 = "1";
+    private static final String WIDGETSET_OWNER_1 = "101";
     private static final String WIDGETSET_NAME_2 = "widgetset 2";
-    private static final String WIDGETSET_UUID_2 = "widgetset2";
+    private static final String WIDGETSET_UUID_2 = "2";
+    private static final String WIDGETSET_OWNER_2 = "102";
     private static final String WIDGETSET_CATEGORY_2 = "category2";
     private static final String WIDGETSET_SCOPETYPE_2 = "scopetype2";
-    private static final String WIDGETSET_NOT_FOUND_UUID = "widgetset_not_found";
+    private static final String WIDGETSET_NOT_FOUND_UUID = "9999";
+
+    private WidgetsMoles.WidgetsetsServiceMole widgetsetsserviceSpy =
+            spy(new WidgetsMoles.WidgetsetsServiceMole());
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(widgetsetsserviceSpy);
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     private WidgetSetsService widgetSetsService;
     private WidgetsetApiDTO widgetset1 = new WidgetsetApiDTO();
     private WidgetsetApiDTO widgetset2 = new WidgetsetApiDTO();
+    private WidgetApiDTO widget1 = new WidgetApiDTO();
+    private WidgetApiDTO widget2 = new WidgetApiDTO();
+
+    private Widgets.Widgetset widgetsetProto1;
+    private Widgets.Widgetset widgetsetProto2;
+
+
 
     /**
      * Initialize widgetset store with two widgetsets.
@@ -50,33 +83,45 @@ public class WidgetSetsServiceTest {
         IdentityGenerator.initPrefix(1);
 
         // create some {@link WidgetsetApiDTO} values to test with
+        widget1.setDisplayName("widget1");
         widgetset1.setDisplayName(WIDGETSET_NAME_1);
         widgetset1.setUuid(WIDGETSET_UUID_1);
+        widgetset1.setUsername(WIDGETSET_OWNER_1);
         widgetset1.setCategory(WIDGETSET_CATEGORY_1);
         widgetset1.setScopeType(WIDGETSET_SCOPETYPE_1);
+        widgetset1.setWidgets(ImmutableList.of(widget1));
 
+        widget2.setDisplayName("widget2");
         widgetset2.setDisplayName(WIDGETSET_NAME_2);
         widgetset2.setUuid(WIDGETSET_UUID_2);
+        widgetset2.setUsername(WIDGETSET_OWNER_2);
         widgetset2.setCategory(WIDGETSET_CATEGORY_2);
         widgetset2.setScopeType(WIDGETSET_SCOPETYPE_2);
+        widgetset2.setWidgets(ImmutableList.of(widget2));
+
+        widgetsetProto1 = WidgetsetMapper.fromUiWidgetset(widgetset1);
+        widgetsetProto2 = WidgetsetMapper.fromUiWidgetset(widgetset2);
 
         // initialize test instance
-        widgetSetsService = new WidgetSetsService();
-        widgetSetsService.getInMemoryWidgetSetCache().put(widgetset1.getUuid(), widgetset1);
-        widgetSetsService.getInMemoryWidgetSetCache().put(widgetset2.getUuid(), widgetset2);
+        widgetSetsService = new WidgetSetsService(WidgetsetsServiceGrpc.newBlockingStub(
+                grpcServer.getChannel()));
     }
 
     /**
      * Test that we can retrieve the full widgetset list.
      */
     @Test
-    public void testGetFullWidgetsetList() throws Exception {
+    public void testGetFullWidgetsetList() {
         // Arrange
+        when(widgetsetsserviceSpy.getWidgetsetList(anyObject()))
+                .thenReturn(Lists.newArrayList(widgetsetProto1, widgetsetProto2));
         // Act
         List<WidgetsetApiDTO> widgetsets = widgetSetsService.getWidgetsetList(null, null);
         // Assert
         assertThat(widgetsets, hasSize(2));
-        assertThat(widgetsets, containsInAnyOrder(widgetset1,widgetset2));
+        // sadly you cannot compare WidgetsetApiDTO with equal()
+        assertThat(widgetsets.get(0).toString(), equalTo(widgetset1.toString()));
+        assertThat(widgetsets.get(1).toString(), equalTo(widgetset2.toString()));
     }
 
     /**
@@ -85,12 +130,20 @@ public class WidgetSetsServiceTest {
     @Test
     public void testGetWidgetset() throws Exception {
         // Arrange
+        when(widgetsetsserviceSpy.getWidgetset(Widgets.GetWidgetsetRequest.newBuilder()
+                .setOid(Long.valueOf(WIDGETSET_UUID_1))
+                .build()))
+                .thenReturn(widgetsetProto1);
+        when(widgetsetsserviceSpy.getWidgetset(Widgets.GetWidgetsetRequest.newBuilder()
+                .setOid(Long.valueOf(WIDGETSET_UUID_2))
+                .build()))
+                .thenReturn(widgetsetProto2);
         // Act
         WidgetsetApiDTO widgetseta = widgetSetsService.getWidgetset(WIDGETSET_UUID_1);
         WidgetsetApiDTO widgetsetb = widgetSetsService.getWidgetset(WIDGETSET_UUID_2);
         // Assert
-        assertThat(widgetseta.getUuid(), equalTo(WIDGETSET_UUID_1));
-        assertThat(widgetsetb.getUuid(), equalTo(WIDGETSET_UUID_2));
+        assertThat(widgetseta.toString(), equalTo(widgetset1.toString()));
+        assertThat(widgetsetb.toString(), equalTo(widgetset2.toString()));
     }
 
     /**
@@ -99,6 +152,10 @@ public class WidgetSetsServiceTest {
      */
     @Test(expected = UnknownObjectException.class)
     public void testGetWidgetsetNotFound() throws Exception {
+        // Arrange
+        when(widgetsetsserviceSpy.getWidgetset(anyObject()))
+                .thenReturn(Widgets.Widgetset.newBuilder().build());
+
         // Act
         widgetSetsService.getWidgetset(WIDGETSET_NOT_FOUND_UUID);
         // Assert
@@ -113,20 +170,19 @@ public class WidgetSetsServiceTest {
         // Arrange
         WidgetsetApiDTO newWidgetset = new WidgetsetApiDTO();
         newWidgetset.setUuid(null);
+        newWidgetset.setUsername(WIDGETSET_OWNER_1);
         newWidgetset.setDisplayName(NEW_WIDGETSET_NAME);
         newWidgetset.setCategory(WIDGETSET_CATEGORY_1);
         newWidgetset.setScopeType(WIDGETSET_SCOPETYPE_1);
+        newWidgetset.setWidgets(ImmutableList.of(widget1));
+
+        when(widgetsetsserviceSpy.createWidgetset(anyObject()))
+                .thenReturn(widgetsetProto2);
         // Act
         WidgetsetApiDTO created = widgetSetsService.createWidgetset(newWidgetset);
         // Assert
-        assertNotNull(created.getUuid());
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache().keySet(), hasSize(3));
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache(), hasKey(created.getUuid()));
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache().get(created.getUuid()),
-                equalTo(created));
-        assertThat(created.getDisplayName(), equalTo(NEW_WIDGETSET_NAME));
-        assertThat(created.getCategory(), equalTo(WIDGETSET_CATEGORY_1));
-        assertThat(created.getScopeType(), equalTo(WIDGETSET_SCOPETYPE_1));
+        // convert to protobuf so 'equals()' can be used
+        assertThat(WidgetsetMapper.fromUiWidgetset(created), equalTo(widgetsetProto2));
 
     }
 
@@ -139,19 +195,21 @@ public class WidgetSetsServiceTest {
         WidgetsetApiDTO updatedWidgetset = new WidgetsetApiDTO();
         updatedWidgetset.setDisplayName(WIDGETSET_NAME_UPDATED);
         updatedWidgetset.setUuid(WIDGETSET_UUID_1);
+        updatedWidgetset.setUsername(WIDGETSET_OWNER_1);
         updatedWidgetset.setCategory(WIDGETSET_CATEGORY_1);
         updatedWidgetset.setScopeType(WIDGETSET_SCOPETYPE_1);
+        updatedWidgetset.setWidgets(ImmutableList.of(widget1));
+
+        when(widgetsetsserviceSpy.updateWidgetset(anyObject()))
+                .thenReturn(widgetsetProto2);
 
         // Act
         WidgetsetApiDTO updatedAnswer = widgetSetsService.updateWidgetset(WIDGETSET_UUID_1,
                 updatedWidgetset);
 
         // Assert
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache().keySet(), hasSize(2));
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache(), hasKey(updatedWidgetset.getUuid()));
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache().get(updatedWidgetset.getUuid()),
-                equalTo(updatedWidgetset));
-        assertThat(updatedAnswer, equalTo(updatedWidgetset));
+        // convert to protobuf so 'equals()' can be used
+        assertThat(WidgetsetMapper.fromUiWidgetset(updatedAnswer), equalTo(widgetsetProto2));
     }
 
     /**
@@ -162,20 +220,21 @@ public class WidgetSetsServiceTest {
         // Arrange
         WidgetsetApiDTO updatedWidgetset = new WidgetsetApiDTO();
         updatedWidgetset.setUuid(WIDGETSET_NOT_FOUND_UUID);
+        updatedWidgetset.setUsername(WIDGETSET_OWNER_1);
         updatedWidgetset.setDisplayName(WIDGETSET_NAME_UPDATED);
         updatedWidgetset.setCategory(WIDGETSET_CATEGORY_1);
         updatedWidgetset.setScopeType(WIDGETSET_SCOPETYPE_1);
+        updatedWidgetset.setWidgets(ImmutableList.of(widget1));
+
+        when(widgetsetsserviceSpy.updateWidgetset(anyObject()))
+                .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+
+        expectedException.expect(UnknownObjectException.class);
+        expectedException.expectMessage("Cannot find widgetset: " + WIDGETSET_NOT_FOUND_UUID);
         // Act
-        WidgetsetApiDTO updated = widgetSetsService.updateWidgetset(WIDGETSET_NOT_FOUND_UUID, updatedWidgetset);
+        widgetSetsService.updateWidgetset(WIDGETSET_NOT_FOUND_UUID, updatedWidgetset);
         // Assert
-        assertNotNull(updated.getUuid());
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache().keySet(), hasSize(3));
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache(), hasKey(updated.getUuid()));
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache().get(updated.getUuid()),
-                equalTo(updated));
-        assertThat(updated.getDisplayName(), equalTo(WIDGETSET_NAME_UPDATED));
-        assertThat(updated.getCategory(), equalTo(WIDGETSET_CATEGORY_1));
-        assertThat(updated.getScopeType(), equalTo(WIDGETSET_SCOPETYPE_1));
+        fail("Should never get here - Exception should have been thrown.");
     }
 
     /**
@@ -187,8 +246,8 @@ public class WidgetSetsServiceTest {
         // Act
         widgetSetsService.deleteWidgetset(WIDGETSET_UUID_1);
         // Assert
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache().keySet(), hasSize(1));
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache(), not(hasKey(WIDGETSET_UUID_1)));
+        Mockito.verify(widgetsetsserviceSpy).deleteWidgetset(DeleteWidgetsetRequest.newBuilder()
+                .setOid(Long.valueOf(WIDGETSET_UUID_1)).build());
     }
 
     /**
@@ -197,10 +256,14 @@ public class WidgetSetsServiceTest {
     @Test
     public void testDeleteWidgetsetNotFound() throws Exception {
         // Arrange
+        when(widgetsetsserviceSpy.deleteWidgetset(anyObject()))
+                .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+        expectedException.expect(UnknownObjectException.class);
+        expectedException.expectMessage("Cannot find widgetset to delete: " + WIDGETSET_NOT_FOUND_UUID);
         // Act
         widgetSetsService.deleteWidgetset(WIDGETSET_NOT_FOUND_UUID);
         // Assert
-        assertThat(widgetSetsService.getInMemoryWidgetSetCache().keySet(), hasSize(2));
+        fail("Should not get here.");
     }
 
 }

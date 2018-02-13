@@ -24,6 +24,14 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>kvstore</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>grpc-extensions</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt</artifactId>
         </dependency>
@@ -43,10 +51,6 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>kvstore</artifactId>
         </dependency>
     </dependencies>
 </project>

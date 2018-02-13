@@ -235,6 +235,18 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>common-protobuf</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>kvstore</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>auth-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.group.api</artifactId>
+        </dependency>
 
         <!-- return XML from REST endpoints if requested -->
         <dependency>
@@ -254,16 +266,8 @@
             <artifactId>spring-security-config</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>kvstore</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>auth-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.group.api</artifactId>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
         </dependency>
 
         <!-- test dependencies -->

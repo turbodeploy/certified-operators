@@ -4,10 +4,15 @@ import java.util.Optional;
 
 import javax.ws.rs.NotAuthorizedException;
 
+import org.jooq.tools.StringUtils;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.auth.component.store.AuthProvider;
+import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.DeleteWidgetsetRequest;
 import com.vmturbo.common.protobuf.widgets.Widgets.UpdateWidgetsetRequest;
@@ -22,27 +27,35 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
 
     private final IWidgetsetStore widgetsetStore;
 
-    public WidgetsetRpcService(IWidgetsetStore widgetsetStore) {
+    private final AuthProvider authProvider;
+
+    private static final String DEFAULT_OWNER_USERID = "?";
+
+    public WidgetsetRpcService(IWidgetsetStore widgetsetStore, AuthProvider authProvider) {
         this.widgetsetStore = widgetsetStore;
+        this.authProvider = authProvider;
     }
 
     @Override
     public void getWidgetsetList(Widgets.GetWidgetsetListRequest request,
                                  StreamObserver<Widgetset> responseObserver) {
 
-        long queryUserOid = getQueryUserOid();
-        widgetsetStore.search(queryUserOid, request.getCategoriesList(), request.getScopeType())
-                .forEachRemaining(responseObserver::onNext);
+        widgetsetStore.search(request.getCategoriesList(), request.getScopeType(), getQueryUserOid())
+                .forEachRemaining(widgetsetRecord -> {
+                    responseObserver.onNext(fromDbWidgetset(widgetsetRecord));
+                });
         responseObserver.onCompleted();
     }
 
     @Override
     public void getWidgetset(Widgets.GetWidgetsetRequest request,
                              StreamObserver<Widgetset> responseObserver) {
-        long queryUserOid = getQueryUserOid();
-        final Optional<Widgetset> widgetset = widgetsetStore.fetch(queryUserOid, request.getOid());
-        if (widgetset.isPresent()) {
-            responseObserver.onNext(widgetset.get());
+        final Optional<WidgetsetRecord> widgetsetRecordOptional = widgetsetStore.fetch(request.getOid(),
+                getQueryUserOid()
+        );
+        if (widgetsetRecordOptional.isPresent()) {
+            responseObserver.onNext(fromDbWidgetset(
+                    widgetsetRecordOptional.get()));
             responseObserver.onCompleted();
         } else {
             responseObserver.onError(Status.NOT_FOUND
@@ -59,28 +72,29 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
                     .withDescription("Widgetset to create not found.")
                     .asException());
         }
-        long queryUserOid = getQueryUserOid();
-        Widgetset newWidgetSet = widgetsetStore.createWidgetSet(queryUserOid, request.getWidgetsetInfo());
-        responseObserver.onNext(newWidgetSet);
+        WidgetsetRecord newWidgetSetRecord = widgetsetStore.createWidgetSet(
+                request.getWidgetsetInfo(), getQueryUserOid());
+        responseObserver.onNext(fromDbWidgetset(newWidgetSetRecord));
         responseObserver.onCompleted();
     }
 
     @Override
     public void updateWidgetset(UpdateWidgetsetRequest request,
                                 StreamObserver<Widgetset> responseObserver) {
-        long queryUserOid = getQueryUserOid();
-        responseObserver.onNext(widgetsetStore.update(queryUserOid, request.getOid(),
-                request.getWidgetsetInfo()));
+        final WidgetsetRecord widgetsetRecord = widgetsetStore.update(request.getOid(),
+                request.getWidgetsetInfo(), getQueryUserOid());
+        responseObserver.onNext(fromDbWidgetset(widgetsetRecord));
         responseObserver.onCompleted();
     }
 
     @Override
     public void deleteWidgetset(DeleteWidgetsetRequest request,
                                 StreamObserver<Widgetset> responseObserver) {
-        long queryUserOid = getQueryUserOid();
-        final Optional<Widgetset> widgetset = widgetsetStore.delete(queryUserOid, request.getOid());
-        if (widgetset.isPresent()) {
-            responseObserver.onNext(widgetset.get());
+        final Optional<WidgetsetRecord> widgetsetRecordOptional =
+                widgetsetStore.delete(request.getOid(), getQueryUserOid());
+        if (widgetsetRecordOptional.isPresent()) {
+            responseObserver.onNext(fromDbWidgetset(
+                    widgetsetRecordOptional.get()));
             responseObserver.onCompleted();
         } else {
             responseObserver.onError(Status.NOT_FOUND
@@ -90,12 +104,26 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
     }
 
     /**
-     * Fetch the User OID for the current request from the JWT created by the sender. If the
-     * id (key USER_UUID) is not a valid number, throw {@link NotAuthorizedException}
+     * Fetch the Userid for the current request from the JWT created by the sender.
      *
-     * @return an Optional containing the User OID for the requester, if set, or Optional.empty()
+     * @return the Userid String for the requester - must not be empty
      * otherwise
-     * @throws NotAuthorizedException if the USER_UUID_KEY in the JWT cannot be converted to a number
+     * @throws NotAuthorizedException if the USER_UUID_KEY in the JWT is empty
+     */
+    private String getQueryUserid() {
+        String queryUseridString = SecurityConstant.USER_ID_CTX_KEY.get();
+        if (StringUtils.isEmpty(queryUseridString)) {
+            throw new NotAuthorizedException("Invalid USER_ID_CTX_KEY in JWT: " + queryUseridString);
+        }
+        return queryUseridString;
+    }
+
+    /**
+     * Fetch the User OID for the current request from the JWT created by the sender. If the
+     * id (key USER_UUID_KEY) is not a valid number, throw {@link NotAuthorizedException}
+     *
+     * @return the Userid String for the requester - must not be a valid long number
+     * @throws NotAuthorizedException if the USER_UUID_KEY in the JWT is not a number
      */
     private long getQueryUserOid() {
         String queryUserOidString = SecurityConstant.USER_UUID_KEY.get();
@@ -108,4 +136,51 @@ public class WidgetsetRpcService extends WidgetsetsServiceGrpc.WidgetsetsService
         return userOid;
     }
 
+    /**
+     * Create a {@link Widgets.Widgetset} from the given DB record. The Widgetset protobuf contains
+     * the unique ID and owner userid for this widgetset. The WidgetsetInfo protobuf contains
+     * the shape and content information about the widgetset.
+     *
+     * If the query user matches the current call,
+     *
+     * @param dbWidgetset the DB record for the widgetset
+     * @return a Widgetset protobuf initialized from the widgetset DB record plus the owner userid
+     */
+    private Widgets.Widgetset fromDbWidgetset(WidgetsetRecord dbWidgetset) {
+        Widgets.Widgetset.Builder protoWidgetset = Widgets.Widgetset.newBuilder();
+        protoWidgetset.setOid(dbWidgetset.getOid());
+        long queryUserOid = getQueryUserOid();
+        String queryUserid = getQueryUserid();
+        if (queryUserOid == dbWidgetset.getOwnerOid()) {
+            protoWidgetset.setOwnerUserid(queryUserid);
+        } else {
+            String ownerUserUuid = Long.toString(dbWidgetset.getOwnerOid());
+            // TODO: add an entrypoint to look up a user by UUID; otherwise must loop
+            String ownerUserid = authProvider.list().stream()
+                    .filter(authUserDTO -> authUserDTO.getUuid().equals(ownerUserUuid))
+                    .map(AuthUserDTO::getUser)
+                    .findFirst().orElse(DEFAULT_OWNER_USERID);
+            protoWidgetset.setOwnerUserid(ownerUserid);
+        }
+        Widgets.WidgetsetInfo.Builder protoWidgetsetInfo = Widgets.WidgetsetInfo.newBuilder();
+        if (dbWidgetset.getDisplayName() != null) {
+            protoWidgetsetInfo.setDisplayName(dbWidgetset.getDisplayName());
+        }
+        if (dbWidgetset.getCategory() != null) {
+            protoWidgetsetInfo.setCategory(dbWidgetset.getCategory());
+        }
+        if (dbWidgetset.getScope() != null) {
+            protoWidgetsetInfo.setScope(dbWidgetset.getScope());
+        }
+        if (dbWidgetset.getScopeType() != null) {
+            protoWidgetsetInfo.setScopeType(dbWidgetset.getScopeType());
+        }
+        if (dbWidgetset.getSharedWithAllUsers() != null) {
+            protoWidgetsetInfo.setSharedWithAllUsers(dbWidgetset.getSharedWithAllUsers() != 0);
+        }
+        if (dbWidgetset.getWidgets() != null) {
+            protoWidgetsetInfo.setWidgets(dbWidgetset.getWidgets());
+        }
+        return protoWidgetset.setInfo(protoWidgetsetInfo.build()).build();
+    }
 }

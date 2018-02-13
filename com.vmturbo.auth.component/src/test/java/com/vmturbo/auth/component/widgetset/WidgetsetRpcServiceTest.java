@@ -27,6 +27,8 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
+import com.vmturbo.auth.component.store.AuthProvider;
+import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.auth.test.JwtContextUtil;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.common.protobuf.widgets.Widgets.CreateWidgetsetRequest;
@@ -44,32 +46,39 @@ public class WidgetsetRpcServiceTest {
 
     private IWidgetsetStore widgetsetStore = Mockito.mock(IWidgetsetStore.class);
 
-    private WidgetsetRpcService widgetsetRpcService = new WidgetsetRpcService(widgetsetStore);
+    private AuthProvider mockAuthProvider = Mockito.mock(AuthProvider.class);
 
+    private WidgetsetRpcService widgetsetRpcService = new WidgetsetRpcService(widgetsetStore,
+            mockAuthProvider);
 
-    static final WidgetsetInfo WIDGETSET_1_INFO = WidgetsetInfo.newBuilder()
+    private final String userid = "administrator";
+    long userOid = 123456L;
+
+    private final WidgetsetInfo WIDGETSET_1_INFO = WidgetsetInfo.newBuilder()
             .setWidgets("{}")
             .build();
-    public static final Widgetset WIDGETSET_1 = Widgetset.newBuilder()
+    private final Widgetset WIDGETSET_1 = Widgetset.newBuilder()
             .setOid(1)
-            .setOwnerOid(100)
+            .setOwnerUserid(userid)
             .setInfo(WIDGETSET_1_INFO)
             .build();
-    public static final WidgetsetInfo WIDGETSET_2_INFO = WidgetsetInfo.newBuilder()
+    private final WidgetsetInfo WIDGETSET_2_INFO = WidgetsetInfo.newBuilder()
             .setWidgets("{}")
             .build();
-    public static final Widgetset WIDGETSET_2 = Widgetset.newBuilder()
+    private final Widgetset WIDGETSET_2 = Widgetset.newBuilder()
             .setOid(2)
-            .setOwnerOid(100)
+            .setOwnerUserid(userid)
             .setInfo(WIDGETSET_2_INFO)
             .build();
 
-    private static final List<Widgetset> WIDGETSETS = Lists.newArrayList(
+    private final List<Widgetset> WIDGETSETS = Lists.newArrayList(
             WIDGETSET_1,
             WIDGETSET_2
     );
 
-    private static final long userOid = 123;
+    private WidgetsetRecord WIDGETSET_RECORD_1;
+    private WidgetsetRecord WIDGETSET_RECORD_2;
+    private List<WidgetsetRecord> WIDGETSET_RECORDS;
 
     private JwtContextUtil jwtContextUtil;
 
@@ -77,10 +86,25 @@ public class WidgetsetRpcServiceTest {
     public void setup() throws Exception {
 
         jwtContextUtil = new JwtContextUtil();
-        jwtContextUtil.setupSecurityContext(widgetsetRpcService, userOid);
+        jwtContextUtil.setupSecurityContext(widgetsetRpcService, userOid, userid);
 
         widgetsetRpcClient = WidgetsetsServiceGrpc.newBlockingStub(jwtContextUtil.getChannel())
                 .withInterceptors(new JwtClientInterceptor());
+
+        WIDGETSET_RECORD_1 = new WidgetsetRecord();
+        WIDGETSET_RECORD_1.setOid(1L);
+        WIDGETSET_RECORD_1.setOwnerOid(userOid);
+        WIDGETSET_RECORD_1.setWidgets("{}");
+
+        WIDGETSET_RECORD_2 = new WidgetsetRecord();
+        WIDGETSET_RECORD_2.setOid(2L);
+        WIDGETSET_RECORD_2.setOwnerOid(userOid);
+        WIDGETSET_RECORD_2.setWidgets("{}");
+
+        WIDGETSET_RECORDS = Lists.newArrayList(
+                WIDGETSET_RECORD_1,
+                WIDGETSET_RECORD_2
+        );
     }
 
     @After
@@ -98,7 +122,8 @@ public class WidgetsetRpcServiceTest {
         List<String> categories = Lists.newArrayList("a", "b");
         String scopeType = "scope-type";
 
-        when(widgetsetStore.search(userOid, categories, scopeType)).thenReturn(WIDGETSETS.iterator());
+        when(widgetsetStore.search(categories, scopeType, userOid))
+                .thenReturn(WIDGETSET_RECORDS.iterator());
         // Act
         Iterator<Widgetset> result = widgetsetRpcClient
                 .withCallCredentials(new JwtCallCredential(jwtContextUtil.getToken().
@@ -116,7 +141,8 @@ public class WidgetsetRpcServiceTest {
     @Test
     public void testGetWidgetset() {
         // Arrange
-        when(widgetsetStore.fetch(eq(userOid), anyLong())).thenReturn(Optional.of(WIDGETSET_1));
+        when(widgetsetStore.fetch(anyLong(), eq(userOid)))
+                .thenReturn(Optional.of(WIDGETSET_RECORD_1));
         // Act
         Widgetset result = widgetsetRpcClient
                 .getWidgetset(GetWidgetsetRequest.newBuilder()
@@ -129,7 +155,7 @@ public class WidgetsetRpcServiceTest {
     @Test
     public void testGetWidgetsetNotFound() {
         // Arrange
-        when(widgetsetStore.fetch(eq(userOid), anyLong())).thenReturn(Optional.empty());
+        when(widgetsetStore.fetch(anyLong(), eq(userOid))).thenReturn(Optional.empty());
         thrown.expect(StatusRuntimeException.class);
         thrown.expectMessage("NOT_FOUND: Widgetset: 1 not found.");
 
@@ -143,7 +169,8 @@ public class WidgetsetRpcServiceTest {
     public void testCreateWidgetset() {
         // Arrange
         final WidgetsetInfo emptyDTO = WidgetsetInfo.newBuilder().build();
-        when(widgetsetStore.createWidgetSet(userOid, emptyDTO)).thenReturn(WIDGETSET_1);
+        when(widgetsetStore.createWidgetSet(emptyDTO, userOid))
+                .thenReturn(WIDGETSET_RECORD_1);
         // Act
         Widgetset result = widgetsetRpcClient.createWidgetset(CreateWidgetsetRequest.newBuilder()
                 .setWidgetsetInfo(emptyDTO)
@@ -156,8 +183,8 @@ public class WidgetsetRpcServiceTest {
     @Test
     public void testUpdateWidgetset() {
         // Arrange
-        when(widgetsetStore.update(userOid, WIDGETSET_1.getOid(), WIDGETSET_1_INFO))
-                .thenReturn(WIDGETSET_2);
+        when(widgetsetStore.update(WIDGETSET_1.getOid(), WIDGETSET_1_INFO, userOid))
+                .thenReturn(WIDGETSET_RECORD_2);
         // Act
         Widgetset result = widgetsetRpcClient.updateWidgetset(UpdateWidgetsetRequest.newBuilder()
                 .setOid(WIDGETSET_1.getOid())
@@ -171,14 +198,14 @@ public class WidgetsetRpcServiceTest {
     public void testDeleteWidgetset() {
         // Arrange
         final long oidToDelete = 1L;
-        when(widgetsetStore.delete(userOid, oidToDelete)).thenReturn(Optional.of(WIDGETSET_1));
+        when(widgetsetStore.delete(oidToDelete, userOid)).thenReturn(Optional.of(WIDGETSET_RECORD_1));
         // Act
         Widgetset result = widgetsetRpcClient.deleteWidgetset(DeleteWidgetsetRequest.newBuilder()
                 .setOid(oidToDelete)
                 .build());
         // Assert
         assertThat(result.getOid(), equalTo(oidToDelete));
-        verify(widgetsetStore).delete(userOid, oidToDelete);
+        verify(widgetsetStore).delete(oidToDelete, userOid);
         verifyNoMoreInteractions(widgetsetStore);
     }
 

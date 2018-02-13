@@ -142,7 +142,7 @@ public class ActionExecutionSecureRpcTest {
     public void setup() throws Exception {
 
         jwtContextUtil = new JwtContextUtil();
-        jwtContextUtil.setupSecurityContext(actionsRpcService, 1234567890L);
+        jwtContextUtil.setupSecurityContext(actionsRpcService, 1234567890L, "userid");
 
         ManagedChannel channel = jwtContextUtil.getChannel();
         actionOrchestratorServiceClientWithInterceptor = ActionsServiceGrpc.newBlockingStub(channel)

@@ -33,8 +33,7 @@ public class WidgetsetMapperTest {
         WidgetsetApiDTO widgetsetApiDTO = getBaseWidgetsetApiDTO();
         widgetsetApiDTO.setUuid(DEFAULT_USER_ID_STRING);
         // Act
-        WidgetsetMapper mapper = new WidgetsetMapper();
-        Widgetset result = mapper.fromUiWidgetset(widgetsetApiDTO);
+        Widgetset result = WidgetsetMapper.fromUiWidgetset(widgetsetApiDTO);
         // Assert
         assertTrue(result.hasOid());
         assertThat(result.getOid(), equalTo(DEFAULT_USER_ID));
@@ -45,8 +44,7 @@ public class WidgetsetMapperTest {
         // Arrange
         WidgetsetApiDTO widgetsetApiDTO = getBaseWidgetsetApiDTO();
         // Act
-        WidgetsetMapper mapper = new WidgetsetMapper();
-        Widgetset result = mapper.fromUiWidgetset(widgetsetApiDTO);
+        Widgetset result = WidgetsetMapper.fromUiWidgetset(widgetsetApiDTO);
         // Assert
         assertFalse(result.hasOid());
     }
@@ -55,14 +53,15 @@ public class WidgetsetMapperTest {
     public void testRoundTrip() {
         // Arrange
         WidgetsetApiDTO widgetsetApiDTO = getBaseWidgetsetApiDTO();
+        widgetsetApiDTO.setClassName("CLASSNAME");
+        widgetsetApiDTO.setDisplayName("DISPLAYNAME");
         widgetsetApiDTO.setUuid(DEFAULT_WIDGETSET_ID);
         widgetsetApiDTO.setCategory("CATEGORY");
         widgetsetApiDTO.setScope("SCOPE");
         widgetsetApiDTO.setSharedWithAllUsers(true);
         // Act
-        WidgetsetMapper mapper = new WidgetsetMapper();
-        final Widgetset intermediate = mapper.fromUiWidgetset(widgetsetApiDTO);
-        WidgetsetApiDTO answer = mapper.toUiWidgetset(intermediate);
+        final Widgetset intermediate = WidgetsetMapper.fromUiWidgetset(widgetsetApiDTO);
+        WidgetsetApiDTO answer = WidgetsetMapper.toUiWidgetset(intermediate);
         // Assert
         assertThat(GSON.toJson(answer), equalTo(GSON.toJson(widgetsetApiDTO)));
     }

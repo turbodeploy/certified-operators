@@ -8,6 +8,8 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -87,8 +89,9 @@ public class JwtContextUtil {
 
     private final Logger logger = LogManager.getLogger();
 
-    public <S extends BindableService> void setupSecurityContext(S rpcService,
-                                                                 long userOid) throws Exception {
+    public <S extends BindableService> void setupSecurityContext(@Nonnull S rpcService,
+                                                                 long userOid,
+                                                                 @Nonnull String userid) throws Exception {
 
         String userOidString = Long.toString(userOid);
 
@@ -99,7 +102,7 @@ public class JwtContextUtil {
 
         // build JWT token
         String compact = Jwts.builder()
-                .setSubject(ADMIN)
+                .setSubject(userid)
                 .claim(IAuthorizationVerifier.ROLE_CLAIM, ImmutableList.of(ADMINISTRATOR))
                 .claim(JWTAuthorizationVerifier.UUID_CLAIM, userOidString)
                 .claim(JWTAuthorizationVerifier.IP_ADDRESS_CLAIM, IP_ADDRESS) // add IP address

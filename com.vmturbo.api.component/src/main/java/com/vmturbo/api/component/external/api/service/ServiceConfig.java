@@ -98,7 +98,7 @@ public class ServiceConfig {
     }
 
     @Bean
-    public EntitiesService entitiesService() throws Exception {
+    public EntitiesService entitiesService() {
         return new EntitiesService(
                 communicationConfig.actionsRpcService(),
                 mapperConfig.actionSpecMapper(),
@@ -281,6 +281,6 @@ public class ServiceConfig {
 
     @Bean
     public WidgetSetsService widgetSetsService() {
-        return new WidgetSetsService();
+        return new WidgetSetsService(communicationConfig.widgetsetsServiceBlockingStub());
     }
 }

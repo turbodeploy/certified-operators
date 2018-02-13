@@ -2,15 +2,19 @@
 
 -- The storage keeps secure data.
 -- The keys are unique, but don't enforce any semantics as to their construction.
+DROP TABLE IF EXISTS `widgetset`;
 CREATE TABLE widgetset (
 
   -- the unique id for this widgetset
   oid BIGINT UNIQUE NOT NULL,
 
-  -- the owner id of the widgetset; limits access unless 'shared_with_all_users' is true
-  owner_oid BIGINT,
+  -- the user-facing name for the widgetset
+  display_name VARCHAR(255),
 
-  -- unused by the server; saved/restored on behalf of the UI
+  -- the user oid of the owner of this widgetset; limits access unless 'shared_with_all_users' is true
+  owner_oid BIGINT NOT NULL,
+
+  -- defined by the UI, and available as a search filter for UI requests
   category VARCHAR(255),
 
   -- the scope attached to this widget

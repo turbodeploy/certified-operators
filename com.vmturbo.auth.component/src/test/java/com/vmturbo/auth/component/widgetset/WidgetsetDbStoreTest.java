@@ -49,9 +49,8 @@ public class WidgetsetDbStoreTest {
     private DSLContext dsl;
     private WidgetsetDbStore testDbStore;
 
-    private static long USER_OID_1 = 1L;
-    private static long USER_OID_2 = 2L;
-
+    public static final long USER_OID_1 = 111L;
+    public static final long USER_OID_2 = 222L;
     private static long OID_DOESNT_EXIST = 999999L;
 
     @Rule
@@ -83,13 +82,13 @@ public class WidgetsetDbStoreTest {
         // Arrange
 
         // Act
-        Widgets.Widgetset result = testDbStore.createWidgetSet(1L, Widgets.WidgetsetInfo.newBuilder()
+        WidgetsetRecord result = testDbStore.createWidgetSet(Widgets.WidgetsetInfo.newBuilder()
                 .setCategory("a")
                 .setScope("scope")
                 .setScopeType("scope-type")
                 .setSharedWithAllUsers(true)
                 .setWidgets("widgets-string")
-                .build());
+                .build(), USER_OID_1);
         // Assert
         WidgetsetRecord testFetch = dsl.selectFrom(WIDGETSET)
                 .where(WIDGETSET.OID.eq(result.getOid()))
@@ -107,11 +106,11 @@ public class WidgetsetDbStoreTest {
         addDbWidgets(testDbStore);
         List<String> categoriesList = Lists.newArrayList("a", "b");
         // Act
-        Iterator<Widgets.Widgetset> result = testDbStore.search(USER_OID_1, categoriesList, null);
+        Iterator<WidgetsetRecord> result = testDbStore.search(categoriesList, null, USER_OID_1);
         // Assert
-        ArrayList<Widgets.Widgetset> resultList = Lists.newArrayList(result);
+        ArrayList<WidgetsetRecord> resultList = Lists.newArrayList(result);
         assertThat(resultList.size(), equalTo(2));
-        assertThat(resultList, containsInAnyOrder(widgetset1, widgetset2));
+        assertThat(resultList, containsInAnyOrder(widgetsetRecord1, widgetsetRecord2));
     }
 
     /**
@@ -123,11 +122,11 @@ public class WidgetsetDbStoreTest {
         addDbWidgets(testDbStore);
         String scopeType = "scope-type";
         // Act
-        Iterator<Widgets.Widgetset> result = testDbStore.search(USER_OID_2, null, scopeType);
+        Iterator<WidgetsetRecord> result = testDbStore.search(null, scopeType, USER_OID_2);
         // Assert
-        ArrayList<Widgets.Widgetset> resultList = Lists.newArrayList(result);
+        ArrayList<WidgetsetRecord> resultList = Lists.newArrayList(result);
         assertThat(resultList.size(), equalTo(1));
-        assertThat(resultList, containsInAnyOrder(widgetset3));
+        assertThat(resultList, containsInAnyOrder(widgetsetRecord3));
     }
 
     /**
@@ -138,11 +137,11 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Iterator<Widgets.Widgetset> result = testDbStore.search(USER_OID_2, null, null);
+        Iterator<WidgetsetRecord> result = testDbStore.search(null, null, USER_OID_2);
         // Assert
-        ArrayList<Widgets.Widgetset> resultList = Lists.newArrayList(result);
+        ArrayList<WidgetsetRecord> resultList = Lists.newArrayList(result);
         assertThat(resultList.size(), equalTo(2));
-        assertThat(resultList, containsInAnyOrder(widgetset3, widgetset4));
+        assertThat(resultList, containsInAnyOrder(widgetsetRecord3, widgetsetRecord4));
     }
 
     /**
@@ -153,10 +152,10 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Optional<Widgets.Widgetset> result = testDbStore.fetch(USER_OID_1, widgetset2.getOid());
+        Optional<WidgetsetRecord> result = testDbStore.fetch(widgetsetRecord2.getOid(), USER_OID_1);
         // Assert
         assertTrue(result.isPresent());
-        assertThat(result.get(), equalTo(widgetset2));
+        assertThat(result.get(), equalTo(widgetsetRecord2));
     }
 
     /**
@@ -167,7 +166,7 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Optional<Widgets.Widgetset> result = testDbStore.fetch(USER_OID_1, 99999L);
+        Optional<WidgetsetRecord> result = testDbStore.fetch(99999L, USER_OID_1);
         // Assert
         assertFalse(result.isPresent());
     }
@@ -180,7 +179,7 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Optional<Widgets.Widgetset> result = testDbStore.fetch(USER_OID_1, widgetset3.getOid());
+        Optional<WidgetsetRecord> result = testDbStore.fetch(widgetsetRecord3.getOid(), USER_OID_1);
         // Assert
         assertFalse(result.isPresent());
     }
@@ -194,10 +193,10 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Optional<Widgets.Widgetset> result = testDbStore.fetch(USER_OID_1, widgetset4.getOid());
+        Optional<WidgetsetRecord> result = testDbStore.fetch(widgetsetRecord4.getOid(), USER_OID_1);
         // Assert
         assertTrue(result.isPresent());
-        assertThat(result.get(), equalTo(widgetset4));
+        assertThat(result.get(), equalTo(widgetsetRecord4));
     }
 
     /**
@@ -207,17 +206,17 @@ public class WidgetsetDbStoreTest {
     public void testUpdateSuccess() {
         // Arrange
         addDbWidgets(testDbStore);
-        Widgets.WidgetsetInfo widgetset1Update = widgetset1.getInfo().toBuilder()
+        Widgets.WidgetsetInfo widgetset1Update = widgetsetInfo1.toBuilder()
                 .setWidgets("new-widgets-string")
                 .build();
         // Act
-        Widgets.Widgetset result = testDbStore.update(USER_OID_1, widgetset1.getOid(),
-                widgetset1Update);
+        WidgetsetRecord result = testDbStore.update(widgetsetRecord1.getOid(), widgetset1Update,
+                USER_OID_1);
         // Assert
         assertNotNull(result);
-        Optional<Widgets.Widgetset> updated = testDbStore.fetch(USER_OID_1, widgetset1.getOid());
+        Optional<WidgetsetRecord> updated = testDbStore.fetch(widgetsetRecord1.getOid(), USER_OID_1);
         assertTrue(updated.isPresent());
-        assertThat(updated.get().getInfo().getWidgets(), equalTo("new-widgets-string"));
+        assertThat(updated.get().getWidgets(), equalTo("new-widgets-string"));
     }
 
     /**
@@ -229,8 +228,7 @@ public class WidgetsetDbStoreTest {
         addDbWidgets(testDbStore);
         thrown.expect(NoDataFoundException.class);
         // Act
-        Widgets.Widgetset result = testDbStore.update(USER_OID_1, OID_DOESNT_EXIST,
-                widgetset1.getInfo());
+        WidgetsetRecord result = testDbStore.update(OID_DOESNT_EXIST, widgetsetInfo1, USER_OID_1);
         // Assert
         fail("Shouldn't get here - exception should have been thrown: " + result);
     }
@@ -244,7 +242,7 @@ public class WidgetsetDbStoreTest {
         addDbWidgets(testDbStore);
         thrown.expect(NoDataFoundException.class);
         // Act
-        testDbStore.update(USER_OID_2, widgetset1.getOid(), widgetset1.getInfo());
+        testDbStore.update(widgetsetRecord1.getOid(), widgetsetInfo1, USER_OID_2);
         // Assert
         fail("Should have thrown exception");
     }
@@ -258,7 +256,7 @@ public class WidgetsetDbStoreTest {
         addDbWidgets(testDbStore);
         thrown.expect(NoDataFoundException.class);
         // Act
-        testDbStore.update(USER_OID_2, widgetset4.getOid(), widgetset4.getInfo());
+        testDbStore.update(widgetsetRecord4.getOid(), widgetsetInfo4, USER_OID_2);
         // Assert
         fail("Should have thrown exception");
     }
@@ -268,12 +266,12 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Optional<Widgets.Widgetset> result = testDbStore.delete(USER_OID_1, widgetset1.getOid());
+        Optional<WidgetsetRecord> result = testDbStore.delete(widgetsetRecord1.getOid(), USER_OID_1);
         // Assert
         assertNotNull(result);
         assertTrue(result.isPresent());
-        assertThat(result.get(), equalTo(widgetset1));
-        Optional<Widgets.Widgetset> afterDelete = testDbStore.fetch(USER_OID_1, widgetset1.getOid());
+        assertThat(result.get(), equalTo(widgetsetRecord1));
+        Optional<WidgetsetRecord> afterDelete = testDbStore.fetch(widgetsetRecord1.getOid(), USER_OID_1);
         assertFalse(afterDelete.isPresent());
     }
 
@@ -282,46 +280,56 @@ public class WidgetsetDbStoreTest {
         // Arrange
         addDbWidgets(testDbStore);
         // Act
-        Optional<Widgets.Widgetset> result = testDbStore.delete(USER_OID_1, OID_DOESNT_EXIST);
+        Optional<WidgetsetRecord> result = testDbStore.delete(OID_DOESNT_EXIST, USER_OID_1);
         // Assert
         assertFalse(result.isPresent());
     }
 
-    private Widgets.Widgetset widgetset1;
-    private Widgets.Widgetset widgetset2;
-    private Widgets.Widgetset widgetset3;
-    private Widgets.Widgetset widgetset4;
+    private Widgets.WidgetsetInfo widgetsetInfo1;
+    private Widgets.WidgetsetInfo widgetsetInfo4;
+    private WidgetsetRecord widgetsetRecord1;
+    private WidgetsetRecord widgetsetRecord2;
+    private WidgetsetRecord widgetsetRecord3;
+    private WidgetsetRecord widgetsetRecord4;
+
 
     private void addDbWidgets(WidgetsetDbStore testDbStore) {
-        widgetset1 = testDbStore.createWidgetSet(USER_OID_1, Widgets.WidgetsetInfo.newBuilder()
+        widgetsetInfo1 = Widgets.WidgetsetInfo.newBuilder()
+                .setDisplayName("Widget Set 1")
                 .setCategory("a")
                 .setScope("scope")
                 .setScopeType("scope-type")
                 .setSharedWithAllUsers(false)
                 .setWidgets("widgets-string")
-                .build());
-        widgetset2 = testDbStore.createWidgetSet(USER_OID_1, Widgets.WidgetsetInfo.newBuilder()
+                .build();
+        widgetsetRecord1 = testDbStore.createWidgetSet(widgetsetInfo1, USER_OID_1);
+        Widgets.WidgetsetInfo widgetsetInfo2 = Widgets.WidgetsetInfo.newBuilder()
+                .setDisplayName("Widget Set 2")
                 .setCategory("b")
                 .setScope("scope")
                 .setScopeType("scope-type")
                 .setSharedWithAllUsers(false)
                 .setWidgets("widgets-string")
-                .build());
-        widgetset3 = testDbStore.createWidgetSet(USER_OID_2, Widgets.WidgetsetInfo.newBuilder()
+                .build();
+        widgetsetRecord2 = testDbStore.createWidgetSet(widgetsetInfo2, USER_OID_1);
+        Widgets.WidgetsetInfo widgetsetInfo3 = Widgets.WidgetsetInfo.newBuilder()
+                .setDisplayName("Widget Set 3")
                 .setCategory("b")
                 .setScope("scope")
                 .setScopeType("scope-type")
                 .setSharedWithAllUsers(false)
                 .setWidgets("widgets-string")
-                .build());
-        long USER_OID_3 = 3L;
-        widgetset4 = testDbStore.createWidgetSet(USER_OID_3, Widgets.WidgetsetInfo.newBuilder()
+                .build();
+        widgetsetRecord3 = testDbStore.createWidgetSet(widgetsetInfo3, USER_OID_2);
+        long USER_OID_3 = 333L;
+        widgetsetInfo4 = Widgets.WidgetsetInfo.newBuilder()
                 .setCategory("c")
                 .setScope("scope")
                 .setScopeType("scope-type-2")
                 .setSharedWithAllUsers(true)
                 .setWidgets("widgets-string")
-                .build());
+                .build();
+        widgetsetRecord4 = testDbStore.createWidgetSet(widgetsetInfo4, USER_OID_3);
     }
 
 
