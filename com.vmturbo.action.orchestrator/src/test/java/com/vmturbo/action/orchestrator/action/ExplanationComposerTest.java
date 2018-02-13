@@ -1,49 +1,34 @@
 package com.vmturbo.action.orchestrator.action;
 
-import org.junit.Before;
+import static org.junit.Assert.assertEquals;
+
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-
-import static org.junit.Assert.assertEquals;
 
 /**
  * Tests for Action Explanation generation in the {@link ExplanationComposer} class.
  */
 public class ExplanationComposerTest {
-    private CommodityType commodityCpu;
-    private CommodityType commodityMem;
-    private static final long actionPlanId = 1234L;
-
-    @Before
-    public void setup() {
-        commodityCpu = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.CPU_VALUE)
-            .setKey("blah")
-            .build();
-        commodityMem = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.MEM_VALUE)
-            .setKey("grah")
-            .build();
-    }
 
     @Test
     public void testMoveExplanation() throws Exception {
         Explanation compliance = Explanation.newBuilder()
             .setMove(MoveExplanation.newBuilder()
-                .setCompliance(Compliance.newBuilder()
-                    .addMissingCommodities(21)
-                    .addMissingCommodities(40).build())
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setCompliance(Compliance.newBuilder()
+                        .addMissingCommodities(21)
+                        .addMissingCommodities(40).build())
+                    .build())
                 .build())
             .build();
 

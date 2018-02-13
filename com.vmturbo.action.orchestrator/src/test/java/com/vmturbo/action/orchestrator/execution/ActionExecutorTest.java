@@ -23,6 +23,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -97,8 +98,9 @@ public class ActionExecutorTest {
         final Move move = sentSpec.getActionInfo().getMove();
         Assert.assertEquals(targetId, sentSpec.getTargetId());
         Assert.assertEquals(1, move.getTargetId());
-        Assert.assertEquals(2, move.getSourceId());
-        Assert.assertEquals(3, move.getDestinationId());
+        Assert.assertEquals(1, move.getChangesCount());
+        Assert.assertEquals(2, move.getChanges(0).getSourceId());
+        Assert.assertEquals(3, move.getChanges(0).getDestinationId());
     }
 
     @Test(expected = TargetResolutionException.class)
@@ -139,10 +141,9 @@ public class ActionExecutorTest {
     @Nonnull
     private Action buildMoveAction(long targetId, long sourceId, long destinationId) {
         return Action.newBuilder().setId(1).setImportance(1)
-                .setExplanation(Explanation.newBuilder().build()).setInfo(ActionDTO.ActionInfo
-                        .newBuilder().setMove(Move.newBuilder().setTargetId(targetId)
-                                .setSourceId(sourceId).setDestinationId(destinationId)
-                                .build()).build()).build();
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destinationId))
+                .build();
     }
 
     @Test

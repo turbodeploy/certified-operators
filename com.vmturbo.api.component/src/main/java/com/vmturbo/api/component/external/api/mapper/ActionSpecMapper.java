@@ -20,7 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.CaseFormat;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -39,10 +39,10 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
@@ -133,11 +133,11 @@ public class ActionSpecMapper {
     public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec,
                                                     final long topologyContextId)
             throws UnknownObjectException, UnsupportedActionException {
-        final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntities(actionSpec
-                .getRecommendation());
+        final Set<Long> involvedEntities =
+                    ActionDTOUtil.getInvolvedEntities(actionSpec.getRecommendation());
 
-        final ActionSpecMappingContext context = new ActionSpecMappingContext(topologyContextId,
-                involvedEntities, repositoryApi);
+        final ActionSpecMappingContext context =
+                new ActionSpecMappingContext(topologyContextId, involvedEntities, repositoryApi);
         return mapActionSpecToActionApiDTOInternal(actionSpec, context);
     }
 
@@ -238,47 +238,145 @@ public class ActionSpecMapper {
         return actionApiDTO;
     }
 
-    private void addMoveInfo(@Nonnull final ActionApiDTO actionApiDTO,
+    private static final String STORAGE_VALUE = UIEntityType.STORAGE.getValue();
+    private static final String HOST_VALUE = UIEntityType.PHYSICAL_MACHINE.getValue();
+
+    /**
+     * Populate various fields of the {@link ActionApiDTO} representing a (compound) move.
+     *
+     * @param wrapperDto the DTO that represents the move recommendation and
+     * wraps other {@link ActionApiDTO}s
+     * @param move A Move recommendation with one or more provider changes
+     * @param moveExplanation wraps the explanations for the provider changes
+     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
+     * @throws UnknownObjectException when the actions involve an unrecognized (out of
+     * context) oid
+     */
+    private void addMoveInfo(@Nonnull final ActionApiDTO wrapperDto,
                              @Nonnull final Move move,
                              final MoveExplanation moveExplanation,
                              @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
 
-        final boolean initialPlacement = moveExplanation.hasInitialPlacement();
-        if (initialPlacement) {
-            actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.START);
-        } else {
-            // The UI (and legacy) expect the action type to be CHANGE for storage moves
-            // and MOVE for host moves. We determine if we're dealing with a storage move or
-            // a host move by looking at the type of the source entity.
-            final String sourceType = context.getEntity(move.getSourceId()).getClassName();
-            if (sourceType.equals(UIEntityType.STORAGE.getValue())) {
-                actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.CHANGE);
-            } else {
-                actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.MOVE);
-            }
-        }
+        // Assume that if this is an initial placement then all explanations will be InitialPlacement
+        final boolean initialPlacement = moveExplanation.getChangeProviderExplanationCount() > 0
+                        && moveExplanation.getChangeProviderExplanation(0).hasInitialPlacement();
 
+        wrapperDto.setActionType(initialPlacement ? ActionType.START : actionType(move, context));
         // Set entity DTO fields for target, source (if needed) and destination entities
-        setEntityDtoFields(actionApiDTO.getTarget(), move.getTargetId(), context);
+        setEntityDtoFields(wrapperDto.getTarget(), move.getTargetId(), context);
+
+        ChangeProvider primaryChange = primaryChange(move, context);
         if (!initialPlacement) {
-            long sourceId = move.getSourceId();
+            long primarySourceId = primaryChange.getSourceId();
+            wrapperDto.setCurrentValue(Long.toString(primarySourceId));
+            setEntityDtoFields(wrapperDto.getCurrentEntity(), primarySourceId, context);
+        }
+        long primaryDestinationId = primaryChange.getDestinationId();
+        wrapperDto.setNewValue(Long.toString(primaryDestinationId));
+        setEntityDtoFields(wrapperDto.getNewEntity(), primaryDestinationId, context);
+
+        List<ActionApiDTO> actions = Lists.newArrayList();
+        for (ChangeProvider change : move.getChangesList()) {
+            actions.add(singleMove(wrapperDto, move.getTargetId(), change, initialPlacement, context));
+        }
+        wrapperDto.addCompoundActions(actions);
+        wrapperDto.setDetails(actionDetails(initialPlacement, wrapperDto));
+    }
+
+    /**
+     * Provider change to be used in wrapper action DTO details and in the
+     * currentEntity/newEntity.
+     *
+     * @param move a Move action with one or more provider changes
+     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
+     * @return a host change if exists, first change otherwise
+     */
+    private ChangeProvider primaryChange(Move move, ActionSpecMappingContext context) {
+        return move.getChangesList().stream()
+                        // If a host change exists then use it
+                        .filter(change -> isHost(context.getOptionalEntity(change.getDestinationId())))
+                        .findFirst()
+                        // otherwise use first change
+                        .orElse(move.getChanges(0));
+    }
+
+    private boolean isHost(Optional<ServiceEntityApiDTO> entity) {
+        return entity.map(ServiceEntityApiDTO::getClassName).map(HOST_VALUE::equals).orElse(false);
+    }
+
+    private ActionApiDTO singleMove(ActionApiDTO compoundDto,
+                    final long targetId,
+                    @Nonnull final ChangeProvider change,
+                    final boolean initialPlacement,
+                    @Nonnull final ActionSpecMappingContext context)
+                                    throws UnknownObjectException {
+
+        ActionApiDTO actionApiDTO = new ActionApiDTO();
+        actionApiDTO.setTarget(new ServiceEntityApiDTO());
+        actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
+        actionApiDTO.setNewEntity(new ServiceEntityApiDTO());
+
+        actionApiDTO.setActionMode(compoundDto.getActionMode());
+        actionApiDTO.setActionState(compoundDto.getActionState());
+        actionApiDTO.setDisplayName(compoundDto.getActionMode().name());
+
+        long sourceId = change.getSourceId();
+        long destinationId = change.getDestinationId();
+
+        if (!initialPlacement) {
+            actionApiDTO.setCurrentValue(Long.toString(sourceId));
+        }
+        ServiceEntityApiDTO destinationEntity = context.getOptionalEntity(destinationId).get();
+        boolean isStorage = destinationEntity != null
+                        && destinationEntity.getClassName().equals(STORAGE_VALUE);
+        actionApiDTO.setActionType(isStorage ? ActionType.START : ActionType.CHANGE);
+        // Set entity DTO fields for target, source (if needed) and destination entities
+        setEntityDtoFields(actionApiDTO.getTarget(), targetId, context);
+
+        if (!initialPlacement) {
             actionApiDTO.setCurrentValue(Long.toString(sourceId));
             setEntityDtoFields(actionApiDTO.getCurrentEntity(), sourceId, context);
         }
-        actionApiDTO.setNewValue(Long.toString(move.getDestinationId()));
-        setEntityDtoFields(actionApiDTO.getNewEntity(), move.getDestinationId(), context);
+        actionApiDTO.setNewValue(Long.toString(destinationId));
+        setEntityDtoFields(actionApiDTO.getNewEntity(), destinationId, context);
 
         // Set action details
-        actionApiDTO.setDetails(initialPlacement
-            ? MessageFormat.format("Start {0} on {1}",
-                readableEntityTypeAndName(actionApiDTO.getTarget()),
-                readableEntityTypeAndName(actionApiDTO.getNewEntity()))
-           : MessageFormat.format("Move {0} from {1} to {2}",
-                readableEntityTypeAndName(actionApiDTO.getTarget()),
-                readableEntityTypeAndName(actionApiDTO.getCurrentEntity()),
-                readableEntityTypeAndName(actionApiDTO.getNewEntity())));
-        // TODO: refer to MT ActionItemImpl for further explanation, e.g. "due to overutilized"
+        actionApiDTO.setDetails(actionDetails(initialPlacement, actionApiDTO));
+        return actionApiDTO;
+    }
+
+    private String actionDetails(boolean initialPlacement, ActionApiDTO actionApiDTO) {
+        return initialPlacement
+                ? MessageFormat.format("Start {0} on {1}",
+                    readableEntityTypeAndName(actionApiDTO.getTarget()),
+                    readableEntityTypeAndName(actionApiDTO.getNewEntity()))
+                : MessageFormat.format("Move {0} from {1} to {2}",
+                    readableEntityTypeAndName(actionApiDTO.getTarget()),
+                    readableEntityTypeAndName(actionApiDTO.getCurrentEntity()),
+                    readableEntityTypeAndName(actionApiDTO.getNewEntity()));
+    }
+
+    /**
+     * If the move contains multiple changes then it is MOVE, if one Storage change it is a CHANGE
+     * and if one host change then a MOVE.
+     *
+     * @param move a Move action
+     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
+     * @return CHANGE or MOVE type.
+     */
+    private ActionType actionType(@Nonnull final Move move,
+                    @Nonnull final ActionSpecMappingContext context) {
+        if (move.getChangesCount() > 1) {
+            return ActionType.MOVE;
+        }
+        long destinationId = move.getChanges(0).getDestinationId();
+        return context.getOptionalEntity(destinationId)
+                    .map(ServiceEntityApiDTO::getClassName)
+                    .map(STORAGE_VALUE::equals)
+                    .orElseGet(() -> false)
+                        ? ActionType.CHANGE
+                        : ActionType.MOVE;
     }
 
     private void addReconfigureInfo(@Nonnull final ActionApiDTO actionApiDTO,
@@ -286,7 +384,7 @@ public class ActionSpecMapper {
                                     @Nonnull final ReconfigureExplanation explanation,
                                     @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.RECONFIGURE);
+        actionApiDTO.setActionType(ActionType.RECONFIGURE);
 
         setEntityDtoFields(actionApiDTO.getTarget(), reconfigure.getTargetId(), context);
         setEntityDtoFields(actionApiDTO.getCurrentEntity(), reconfigure.getSourceId(), context);
@@ -304,7 +402,7 @@ public class ActionSpecMapper {
                                   @Nonnull final Provision provision,
                                   @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.PROVISION);
+        actionApiDTO.setActionType(ActionType.PROVISION);
 
         final String provisionedSellerUuid = Long.toString(provision.getProvisionedSeller());
         setNewEntityDtoFields(actionApiDTO.getTarget(), provision.getEntityToCloneId(),
@@ -325,7 +423,7 @@ public class ActionSpecMapper {
                                @Nonnull final Resize resize,
                                @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.RESIZE);
+        actionApiDTO.setActionType(ActionType.RESIZE);
 
         setEntityDtoFields(actionApiDTO.getTarget(), resize.getTargetId(), context);
         setEntityDtoFields(actionApiDTO.getCurrentEntity(), resize.getTargetId(), context);
@@ -349,7 +447,7 @@ public class ActionSpecMapper {
                                  @Nonnull final Activate activate,
                                  @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.START);
+        actionApiDTO.setActionType(ActionType.START);
         setEntityDtoFields(actionApiDTO.getTarget(), activate.getTargetId(), context);
 
         final List<String> reasonCommodityNames =
@@ -378,7 +476,7 @@ public class ActionSpecMapper {
                                    @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
         setEntityDtoFields(actionApiDTO.getTarget(), deactivate.getTargetId(), context);
-        actionApiDTO.setActionType(com.vmturbo.api.enums.ActionType.DEACTIVATE);
+        actionApiDTO.setActionType(ActionType.DEACTIVATE);
 
         final List<String> reasonCommodityNames =
                 deactivate.getTriggeringCommoditiesList().stream()
@@ -387,9 +485,8 @@ public class ActionSpecMapper {
                         .map(CommodityType::name)
                         .collect(Collectors.toList());
 
-        actionApiDTO.getRisk().setReasonCommodity(reasonCommodityNames.stream()
-                                                                      .collect(Collectors.joining(
-                                                                              ",")));
+        actionApiDTO.getRisk().setReasonCommodity(
+            reasonCommodityNames.stream().collect(Collectors.joining(",")));
         String detailStrBuilder = MessageFormat.format("Deactivate {0}.",
                 readableEntityTypeAndName(actionApiDTO.getTarget()));
         actionApiDTO.setDetails(detailStrBuilder);
@@ -567,8 +664,9 @@ public class ActionSpecMapper {
      * @param responseEntityApiDTO the response {@link ServiceEntityApiDTO} to populate as "new"
      * @param originalEntityOid the OID of the original {@link ServiceEntityApiDTO}  to copy from
      * @param newEntityOid the OID of the newly provisioned entity
-     *@param context the {@link ActionSpecMappingContext} in which to look up the original
-     *                entity OID  @throws UnknownObjectException if the originalEntityOid is not found in the context
+     * @param context the {@link ActionSpecMappingContext} in which to look up the original
+     *                entity OID
+     * @throws UnknownObjectException if the originalEntityOid is not found in the context
      */
     private void setNewEntityDtoFields(@Nonnull final BaseApiDTO responseEntityApiDTO,
                                        final long originalEntityOid,
@@ -583,7 +681,7 @@ public class ActionSpecMapper {
 
     /**
      * Populate the necessary fields in the response {@link ServiceEntityApiDTO} from the
-     * related entity OID as listed in the {link ActionSpecMappingContext}.
+     * related entity OID as listed in the {@link ActionSpecMappingContext}.
      *
      * TODO: this method will need to accommodate both OID and uuid in the return object
      * when we implement the legacy UUID in TopologyDTO.proto - see OM-14309.
@@ -635,6 +733,10 @@ public class ActionSpecMapper {
             return Objects.requireNonNull(entities.get(oid))
                           .orElseThrow(() -> new UnknownObjectException("Entity: " + oid
                                   + " not found."));
+        }
+
+        Optional<ServiceEntityApiDTO> getOptionalEntity(final long oid) {
+            return entities.get(oid);
         }
     }
 }

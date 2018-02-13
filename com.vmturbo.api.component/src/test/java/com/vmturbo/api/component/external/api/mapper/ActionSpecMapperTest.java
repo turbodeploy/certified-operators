@@ -27,13 +27,12 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.action.ActionApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -44,13 +43,15 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Compliance;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
@@ -77,6 +78,11 @@ public class ActionSpecMapperTest {
     private CommodityType commodityCpu;
     private CommodityType commodityMem;
 
+    private static final String START = "Start";
+    private static final String TARGET = "Target";
+    private static final String SOURCE = "Source";
+    private static final String DESTINATION = "Destination";
+
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
@@ -94,22 +100,26 @@ public class ActionSpecMapperTest {
     public void testMapMove() throws Exception {
         ActionInfo moveInfo = getHostMoveActionInfo();
         Explanation compliance = Explanation.newBuilder()
-                        .setMove(MoveExplanation.newBuilder()
-                                        .setCompliance(Compliance.newBuilder()
-                                                        .addMissingCommodities(21)
-                                                        .addMissingCommodities(40).build())
-                                        .build())
-                        .build();
+            .setMove(MoveExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setCompliance(Compliance.newBuilder()
+                        .addMissingCommodities(21)
+                        .addMissingCommodities(40)
+                        .build())
+                    .build())
+                .build())
+            .build();
         ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
-        assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("0", actionApiDTO.getTarget().getUuid());
 
-        assertEquals("Source", actionApiDTO.getCurrentEntity().getDisplayName());
-        assertEquals("1", actionApiDTO.getCurrentValue());
+        ActionApiDTO first = actionApiDTO.getCompoundActions().get(0);
+        assertEquals(SOURCE, first.getCurrentEntity().getDisplayName());
+        assertEquals("1", first.getCurrentValue());
 
-        assertEquals("Destination", actionApiDTO.getNewEntity().getDisplayName());
-        assertEquals("2", actionApiDTO.getNewValue());
+        assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
+        assertEquals("2", first.getNewValue());
 
         assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
@@ -122,24 +132,27 @@ public class ActionSpecMapperTest {
         ActionInfo moveInfo = getHostMoveActionInfo();
         Explanation placement = Explanation.newBuilder()
                         .setMove(MoveExplanation.newBuilder()
-                                        .setInitialPlacement(InitialPlacement.newBuilder().build())
-                                        .build())
+                            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder().build())
+                                .build())
+                            .build())
                         .build();
         ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, placement), contextId);
-        assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("0", actionApiDTO.getTarget().getUuid());
 
-        assertEquals(null, actionApiDTO.getCurrentEntity().getDisplayName());
-        assertEquals(null, actionApiDTO.getCurrentValue());
+        ActionApiDTO first = actionApiDTO.getCompoundActions().get(0);
+        assertEquals(null, first.getCurrentEntity().getDisplayName());
+        assertEquals(null, first.getCurrentValue());
 
-        assertEquals("Destination", actionApiDTO.getNewEntity().getDisplayName());
-        assertEquals("2", actionApiDTO.getNewValue());
+        assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
+        assertEquals("2", first.getNewValue());
 
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
 
-        assertTrue(actionApiDTO.getDetails().startsWith("Start"));
+        assertTrue(actionApiDTO.getDetails().startsWith(START));
     }
 
     @Test
@@ -147,21 +160,25 @@ public class ActionSpecMapperTest {
         ActionInfo moveInfo = getStorageMoveActionInfo();
         Explanation compliance = Explanation.newBuilder()
                 .setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                         .setCompliance(Compliance.newBuilder()
                                 .addMissingCommodities(21)
                                 .addMissingCommodities(40).build())
                         .build())
+                    .build())
                 .build();
         ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
-        assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("0", actionApiDTO.getTarget().getUuid());
 
-        assertEquals("Source", actionApiDTO.getCurrentEntity().getDisplayName());
-        assertEquals("1", actionApiDTO.getCurrentValue());
+        assertEquals(1, actionApiDTO.getCompoundActions().size());
+        ActionApiDTO first = actionApiDTO.getCompoundActions().get(0);
+        assertEquals(SOURCE, first.getCurrentEntity().getDisplayName());
+        assertEquals("1", first.getCurrentValue());
 
-        assertEquals("Destination", actionApiDTO.getNewEntity().getDisplayName());
-        assertEquals("2", actionApiDTO.getNewValue());
+        assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
+        assertEquals("2", first.getNewValue());
 
         assertEquals(ActionType.CHANGE, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
@@ -178,17 +195,17 @@ public class ActionSpecMapperTest {
                                         .build();
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                         .thenReturn(oidToEntityMap(
-                                entityApiDTO("Target", 0L, "C0"),
-                                entityApiDTO("Source", 1L, "C1")));
+                                entityApiDTO(TARGET, 0L, "C0"),
+                                entityApiDTO(SOURCE, 1L, "C1")));
 
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), contextId);
-        assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("0", actionApiDTO.getTarget().getUuid());
         assertEquals("C0", actionApiDTO.getTarget().getClassName());
 
-        assertEquals("Source", actionApiDTO.getCurrentEntity().getDisplayName());
-        assertEquals("Target", actionApiDTO.getTarget().getDisplayName());
+        assertEquals(SOURCE, actionApiDTO.getCurrentEntity().getDisplayName());
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("1", actionApiDTO.getCurrentValue());
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
@@ -338,11 +355,12 @@ public class ActionSpecMapperTest {
 
         final ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
                 .setTargetId(badTarget)
-                .setSourceId(badSource)
-                .setDestinationId(badDestination)
-                .build()
-        ).build();
-
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSourceId(badSource)
+                    .setDestinationId(badDestination)
+                    .build())
+                .build())
+        .build();
 
         final ActionInfo resizeInfo = ActionInfo.newBuilder()
             .setResize(Resize.newBuilder()
@@ -403,17 +421,19 @@ public class ActionSpecMapperTest {
 
     private ActionInfo getMoveActionInfo(final String srcAndDestType) {
         ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
-                .setTargetId(0)
+            .setTargetId(0)
+            .addChanges(ChangeProvider.newBuilder()
                 .setSourceId(1)
                 .setDestinationId(2)
-                .build()
-        ).build();
+                .build())
+            .build())
+        .build();
 
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                 .thenReturn(oidToEntityMap(
-                                entityApiDTO("Target", 0L, UIEntityType.VIRTUAL_MACHINE.getValue()),
-                                entityApiDTO("Source", 1L, srcAndDestType),
-                                entityApiDTO("Destination", 2L, srcAndDestType)));
+                                entityApiDTO(TARGET, 0L, UIEntityType.VIRTUAL_MACHINE.getValue()),
+                                entityApiDTO(SOURCE, 1L, srcAndDestType),
+                                entityApiDTO(DESTINATION, 2L, srcAndDestType)));
         return moveInfo;
     }
 

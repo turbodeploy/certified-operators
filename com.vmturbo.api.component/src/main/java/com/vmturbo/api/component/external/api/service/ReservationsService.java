@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -68,7 +69,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 
 /**
- * XL implementation of IReservationAndDeployService
+ * XL implementation of IReservationAndDeployService.
  **/
 public class ReservationsService implements IReservationsService {
     private static final Logger logger = LogManager.getLogger();
@@ -112,6 +113,17 @@ public class ReservationsService implements IReservationsService {
         }
     }
 
+    private List<DemandReservationApiDTO> getAllReservations() throws Exception {
+        GetAllReservationsRequest request = GetAllReservationsRequest.newBuilder()
+                .build();
+        Iterable<Reservation> reservationIterable = () -> reservationService.getAllReservations(request);
+        final List<DemandReservationApiDTO> result = new ArrayList<>();
+        for (Reservation reservation : reservationIterable) {
+            result.add(reservationMapper.convertReservationToApiDTO(reservation));
+        }
+        return result;
+    }
+
     @Override
     public DemandReservationApiDTO getReservationByID(String reservationID) throws Exception {
         try {
@@ -124,8 +136,7 @@ public class ReservationsService implements IReservationsService {
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 throw new UnknownObjectException(e.getStatus().getDescription());
-            }
-            else {
+            } else {
                 throw e;
             }
         }
@@ -197,17 +208,6 @@ public class ReservationsService implements IReservationsService {
         }
     }
 
-    private List<DemandReservationApiDTO> getAllReservations() throws Exception {
-        GetAllReservationsRequest request = GetAllReservationsRequest.newBuilder()
-                .build();
-        Iterable<Reservation> reservationIterable = () -> reservationService.getAllReservations(request);
-        final List<DemandReservationApiDTO> result = new ArrayList<>();
-        for (Reservation reservation : reservationIterable) {
-            result.add(reservationMapper.convertReservationToApiDTO(reservation));
-        }
-        return result;
-    }
-
     /**
      * Because UI initial placement call is synchronous, but in XL, Market analysis is asynchronous.
      * This method will continuously check initial placement status until it succeed or failed.
@@ -216,8 +216,8 @@ public class ReservationsService implements IReservationsService {
      * @param scenarioChanges a list of {@link ScenarioChange} contains required parameters for
      *                        initial placement.
      * @return {@link DemandReservationApiDTO}.
-     * @throws OperationFailedException
-     * @throws UnknownObjectException
+     * @throws OperationFailedException when placement operation fails
+     * @throws UnknownObjectException if there are unknown objects
      */
     private DemandReservationApiDTO processInitialPlacement(@Nonnull final List<ScenarioChange> scenarioChanges)
             throws OperationFailedException, UnknownObjectException {
@@ -249,8 +249,7 @@ public class ReservationsService implements IReservationsService {
             logger.error("Initial placement: {} operation timeout. Error: {}", planId,
                     e.getMessage());
             throw new OperationFailedException("Initial placement operation time out.");
-        }
-        catch (InterruptedException | ExecutionException e) {
+        } catch (InterruptedException | ExecutionException e) {
             logger.error("Initial placement: {} operation failed. Error: {}", planId,
                     e.getMessage());
             throw new OperationFailedException("Initial placement operation failed.");
@@ -291,8 +290,10 @@ public class ReservationsService implements IReservationsService {
      *
      * @param planId id of initial placement plan.
      * @return boolean, true means plan succeeded, false means plan failed.
-     * @throws InterruptedException
-     * @throws UnknownObjectException
+     * @throws InterruptedException when the thread gets interrupted
+     * @throws UnknownObjectException if the plan is not found
+     * @throws ExecutionException when attempting to retrieve the result of a task
+     * that aborted by throwing an exception (TODO: can it be removed?).
      */
     private boolean waitingInitialPlacementFinish(final long planId)
             throws InterruptedException, UnknownObjectException, ExecutionException {
@@ -337,7 +338,10 @@ public class ReservationsService implements IReservationsService {
                 .filter(actionInfo -> actionInfo.getActionTypeCase().equals(ActionTypeCase.MOVE))
                 .map(ActionInfo::getMove)
                 .filter(move -> !reservationEntityIds.contains(move.getTargetId()))
-                .forEach(move -> entityToProviders.put(move.getTargetId(), move.getDestinationId()));
+                .forEach(move -> entityToProviders.putAll(move.getTargetId(),
+                    move.getChangesList().stream()
+                        .map(ChangeProvider::getDestinationId)
+                        .collect(Collectors.toList())));
         final List<PlacementInfo> placementInfos = createPlacementInfos(entityToProviders);
         return placementInfos;
     }

@@ -1,5 +1,6 @@
 package com.vmturbo.systest.policy;
 
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -11,8 +12,8 @@ import org.hamcrest.Matcher;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 
@@ -22,7 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 public class AnalysisResultsMatchers {
 
     /**
-     * Prevent construction
+     * Prevent construction.
      */
     private AnalysisResultsMatchers() {
 
@@ -102,13 +103,13 @@ public class AnalysisResultsMatchers {
                 final ActionPlan actionPlan = (ActionPlan)o;
                 return actionPlan.getActionList().stream()
                     .map(Action::getInfo)
-                    .filter(info -> info.getActionTypeCase().equals(ActionTypeCase.MOVE))
+                    .filter(ActionInfo::hasMove)
                     .map(ActionInfo::getMove)
                     .filter(move -> move.getTargetId() == vmId)
-                    .filter(move -> move.getSourceId() == fromHost.getFromId())
-                    .filter(move -> move.getDestinationId() == toHost.getToId())
-                    .findAny()
-                    .isPresent();
+                    .map(Move::getChangesList)
+                    .flatMap(List::stream)
+                    .anyMatch(change -> change.getSourceId() == fromHost.getFromId()
+                                     && change.getDestinationId() == toHost.getToId());
             }
 
             @Override
@@ -134,11 +135,9 @@ public class AnalysisResultsMatchers {
                 final ActionPlan actionPlan = (ActionPlan)o;
                 return actionPlan.getActionList().stream()
                     .map(Action::getInfo)
-                    .filter(info -> info.getActionTypeCase().equals(ActionTypeCase.MOVE))
+                    .filter(ActionInfo::hasMove)
                     .map(ActionInfo::getMove)
-                    .filter(move -> move.getTargetId() == vmId)
-                    .findAny()
-                    .isPresent();
+                    .anyMatch(move -> move.getTargetId() == vmId);
             }
 
             @Override

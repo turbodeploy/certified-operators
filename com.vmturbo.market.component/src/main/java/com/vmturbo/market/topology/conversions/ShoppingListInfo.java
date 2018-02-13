@@ -43,4 +43,7 @@ public class ShoppingListInfo {
         this.commodities = commodities;
     }
 
+    public long getBuyerId() {
+        return buyerId;
+    }
 }

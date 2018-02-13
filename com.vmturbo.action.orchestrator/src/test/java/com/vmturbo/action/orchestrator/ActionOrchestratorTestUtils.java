@@ -1,9 +1,7 @@
 package com.vmturbo.action.orchestrator;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
@@ -11,6 +9,7 @@ import javax.annotation.Nonnull;
 import org.junit.Assert;
 
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -47,12 +46,8 @@ public class ActionOrchestratorTestUtils {
     public static ActionDTO.Action createMoveRecommendation(final long actionId, final long targetId,
                                                             final long sourceId, final long destinationId) {
         return baseAction(actionId)
-                .setInfo(ActionDTO.ActionInfo.newBuilder()
-                        .setMove(ActionDTO.Move.newBuilder()
-                            .setSourceId(sourceId)
-                            .setDestinationId(destinationId)
-                            .setTargetId(targetId)))
-                .build();
+                        .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destinationId))
+                        .build();
     }
 
     @Nonnull

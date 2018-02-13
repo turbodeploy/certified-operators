@@ -19,18 +19,17 @@ import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
@@ -53,8 +52,7 @@ public class ActionStateUpdaterTest {
     private final ActionDTO.Action recommendation = ActionDTO.Action.newBuilder()
         .setId(actionId)
         .setImportance(0)
-        .setInfo(ActionInfo.newBuilder()
-            .setMove(Move.newBuilder().setDestinationId(1).setSourceId(2).setTargetId(3)))
+        .setInfo(ActionTest.makeMoveInfo(3, 2, 1))
         .setExplanation(Explanation.newBuilder().build())
         .build();
 

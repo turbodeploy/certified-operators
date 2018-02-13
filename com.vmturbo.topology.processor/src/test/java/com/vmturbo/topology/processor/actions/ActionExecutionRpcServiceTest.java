@@ -22,6 +22,7 @@ import io.grpc.Status.Code;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
@@ -79,8 +80,10 @@ public class ActionExecutionRpcServiceTest {
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
                 .setTargetId(1)
-                .setSourceId(2)
-                .setDestinationId(3)
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSourceId(2)
+                    .setDestinationId(3)
+                    .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
@@ -89,10 +92,11 @@ public class ActionExecutionRpcServiceTest {
                     .setMove(moveSpec))
                 .build();
 
+        ChangeProvider change = moveSpec.getChanges(0);
         final Map<Long, Entity> entities = initializeTopology(targetId,
-                NewEntityRequest.virtualMachine(moveSpec.getTargetId(), moveSpec.getSourceId()),
-                NewEntityRequest.physicalMachine(moveSpec.getSourceId()),
-                NewEntityRequest.physicalMachine(moveSpec.getDestinationId()));
+                NewEntityRequest.virtualMachine(moveSpec.getTargetId(), change.getSourceId()),
+                NewEntityRequest.physicalMachine(change.getSourceId()),
+                NewEntityRequest.physicalMachine(change.getDestinationId()));
 
 
         actionExecutionStub.executeAction(request);
@@ -109,15 +113,15 @@ public class ActionExecutionRpcServiceTest {
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getTargetSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getSourceId())
+                entities.get(moveSpec.getChanges(0).getSourceId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getHostedBySE());
         Assert.assertEquals(
-                entities.get(moveSpec.getSourceId())
+                entities.get(moveSpec.getChanges(0).getSourceId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getCurrentSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getDestinationId())
+                entities.get(moveSpec.getChanges(0).getDestinationId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getNewSE());
     }
@@ -134,8 +138,10 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
         final ActionDTO.Move move = ActionDTO.Move.newBuilder()
                 .setTargetId(1)
-                .setSourceId(2)
-                .setDestinationId(3)
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSourceId(2)
+                    .setDestinationId(3)
+                    .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setTargetId(targetId)
@@ -146,8 +152,8 @@ public class ActionExecutionRpcServiceTest {
 
         // Entity with ID 3 (destination) is missing.
         initializeTopology(targetId,
-                NewEntityRequest.virtualMachine(move.getTargetId(), move.getSourceId()),
-                NewEntityRequest.physicalMachine(move.getSourceId()));
+                NewEntityRequest.virtualMachine(move.getTargetId(), move.getChanges(0).getSourceId()),
+                NewEntityRequest.physicalMachine(move.getChanges(0).getSourceId()));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
@@ -167,8 +173,10 @@ public class ActionExecutionRpcServiceTest {
 
         final ActionDTO.Move move = ActionDTO.Move.newBuilder()
                 .setTargetId(1)
-                .setSourceId(2)
-                .setDestinationId(3)
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSourceId(2)
+                    .setDestinationId(3)
+                    .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setTargetId(targetId1)
@@ -179,13 +187,13 @@ public class ActionExecutionRpcServiceTest {
 
         // Target and source are on the same target
         initializeTopology(targetId1,
-                NewEntityRequest.virtualMachine(move.getTargetId(), move.getSourceId()),
-                NewEntityRequest.physicalMachine(move.getSourceId()));
+                NewEntityRequest.virtualMachine(move.getTargetId(), move.getChanges(0).getSourceId()),
+                NewEntityRequest.physicalMachine(move.getChanges(0).getSourceId()));
 
         // Destination is on a different target
         initializeTopology(
                 targetIdCounter.getAndIncrement(),
-                NewEntityRequest.physicalMachine(move.getDestinationId()));
+                NewEntityRequest.physicalMachine(move.getChanges(0).getDestinationId()));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
@@ -199,8 +207,10 @@ public class ActionExecutionRpcServiceTest {
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
                 .setTargetId(1)
-                .setSourceId(2)
-                .setDestinationId(3)
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSourceId(2)
+                    .setDestinationId(3)
+                    .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
@@ -210,9 +220,9 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
-                NewEntityRequest.virtualMachine(moveSpec.getTargetId(), moveSpec.getSourceId()),
-                NewEntityRequest.storage(moveSpec.getSourceId()),
-                NewEntityRequest.storage(moveSpec.getDestinationId()));
+                NewEntityRequest.virtualMachine(moveSpec.getTargetId(), moveSpec.getChanges(0).getSourceId()),
+                NewEntityRequest.storage(moveSpec.getChanges(0).getSourceId()),
+                NewEntityRequest.storage(moveSpec.getChanges(0).getDestinationId()));
 
 
         actionExecutionStub.executeAction(request);
@@ -229,15 +239,15 @@ public class ActionExecutionRpcServiceTest {
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getTargetSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getSourceId())
+                entities.get(moveSpec.getChanges(0).getSourceId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getHostedBySE());
         Assert.assertEquals(
-                entities.get(moveSpec.getSourceId())
+                entities.get(moveSpec.getChanges(0).getSourceId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getCurrentSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getDestinationId())
+                entities.get(moveSpec.getChanges(0).getDestinationId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getNewSE());
     }
@@ -248,8 +258,10 @@ public class ActionExecutionRpcServiceTest {
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
                 .setTargetId(1)
-                .setSourceId(2)
-                .setDestinationId(3)
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSourceId(2)
+                    .setDestinationId(3)
+                    .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setActionId(0)
@@ -260,8 +272,8 @@ public class ActionExecutionRpcServiceTest {
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
                 NewEntityRequest.storage(moveSpec.getTargetId()),
-                NewEntityRequest.diskArray(moveSpec.getSourceId()),
-                NewEntityRequest.diskArray(moveSpec.getDestinationId()));
+                NewEntityRequest.diskArray(moveSpec.getChanges(0).getSourceId()),
+                NewEntityRequest.diskArray(moveSpec.getChanges(0).getDestinationId()));
 
         actionExecutionStub.executeAction(request);
 
@@ -278,11 +290,11 @@ public class ActionExecutionRpcServiceTest {
                 dto.getTargetSE());
         Assert.assertFalse(dto.hasHostedBySE());
         Assert.assertEquals(
-                entities.get(moveSpec.getSourceId())
+                entities.get(moveSpec.getChanges(0).getSourceId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getCurrentSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getDestinationId())
+                entities.get(moveSpec.getChanges(0).getDestinationId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dto.getNewSE());
     }
@@ -293,8 +305,10 @@ public class ActionExecutionRpcServiceTest {
 
         final ActionDTO.Move move = ActionDTO.Move.newBuilder()
                 .setTargetId(1)
-                .setSourceId(2)
-                .setDestinationId(3)
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSourceId(2)
+                    .setDestinationId(3)
+                    .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
                 .setTargetId(targetId1)
@@ -304,10 +318,10 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         initializeTopology(targetId1,
-                NewEntityRequest.virtualMachine(move.getTargetId(), move.getSourceId()),
-                NewEntityRequest.physicalMachine(move.getSourceId()),
+                NewEntityRequest.virtualMachine(move.getTargetId(), move.getChanges(0).getSourceId()),
+                NewEntityRequest.physicalMachine(move.getChanges(0).getSourceId()),
                 // Destination is a storage, but source is a PM.
-                NewEntityRequest.storage(move.getDestinationId()));
+                NewEntityRequest.storage(move.getChanges(0).getDestinationId()));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)

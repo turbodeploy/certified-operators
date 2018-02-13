@@ -39,7 +39,7 @@ if [ ! -d "/var/lib/mysql/mysql" ]; then
         sleep 1
     done
     pid=$(ps -e -o pid,args | grep [m]ysqld | awk '{print $1}')
-	# Terminate the initial mysqld
+    # Terminate the initial mysqld
     if ! kill -s TERM "$pid" || ! wait "$pid"; then
         echo '--- MariaDB init process failed. Unable to terminate daemon.' 2>&1 | logger --tag mariadb -u /tmp/log.sock
         exit 1

@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -334,11 +335,14 @@ public class ActionTest {
                 .setInfo(infoBuilder).setExplanation(Explanation.newBuilder().build());
     }
 
-    private ActionInfo.Builder makeMoveInfo(long targetId, long sourceId, long destinationId) {
+    public static ActionInfo.Builder makeMoveInfo(long targetId, long sourceId, long destinationId) {
         return ActionInfo.newBuilder().setMove(Move.newBuilder()
                 .setTargetId(targetId)
-                .setSourceId(sourceId)
-                .setDestinationId(destinationId));
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSourceId(sourceId)
+                    .setDestinationId(destinationId)
+                    .build())
+                .build());
     }
 
     private ActionInfo.Builder makeResizeInfo(long targetId) {

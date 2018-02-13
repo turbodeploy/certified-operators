@@ -5,7 +5,6 @@ option java_package = "com.vmturbo.common.protobuf.action";
 
 import "topology/TopologyDTO.proto";
 
-
 message Explanation {
    oneof action_explanation_type {
        MoveExplanation move = 1;
@@ -17,7 +16,10 @@ message Explanation {
    }
    // A list of explanations for move action.
     message MoveExplanation {
-        oneof move_explanation_type {
+        repeated ChangeProviderExplanation change_provider_explanation = 1;
+    }
+    message ChangeProviderExplanation {
+        oneof change_provider_explanation_type {
             Compliance compliance = 1;
             Congestion congestion = 2;
             Evacuation evacuation = 3;
@@ -112,16 +114,20 @@ message Explanation {
 
 }
 
-// Move a topology entity from source
-// to destination.
+// Change one or more providers of an entity.
 message Move {
-    // ID of the entity that's getting moved.
+    // ID of the entity which providers are being changed.
     required int64 target_id = 1;
 
-    // ID of the entity that's the current location of the target.
+    // Details of the providers changes
+    repeated ChangeProvider changes = 2;
+}
+
+message ChangeProvider {
+    // ID of the entity's current provider.
     required int64 source_id = 2;
 
-    // ID of the entity that's the new location of the target.
+    // ID of the entity's new provider.
     required int64 destination_id = 3;
 }
 
@@ -190,8 +196,8 @@ message Provision {
     // The OID of an entity to clone.
     required int64 entity_to_clone_id = 1;
 
-	// The OID of the newly provisioned entity (that does not yet exist in the system).
-	// TODO: Make this non-negative per feedback from Jerry. Need to coordinate this with the market folks.
+    // The OID of the newly provisioned entity (that does not yet exist in the system).
+    // TODO: Make this non-negative per feedback from Jerry. Need to coordinate this with the market folks.
     optional sint64 provisioned_seller = 2;
 }
 

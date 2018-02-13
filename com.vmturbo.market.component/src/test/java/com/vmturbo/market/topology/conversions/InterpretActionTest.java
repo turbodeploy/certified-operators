@@ -18,16 +18,15 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
@@ -110,22 +109,23 @@ public class InterpretActionTest {
 
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()
-                    .setImportance(0.)
-                    .setIsNotExecutable(false)
-                    .setMove(MoveTO.newBuilder()
+                .setImportance(0.)
+                .setIsNotExecutable(false)
+                .setCompoundMove(CompoundMoveTO.newBuilder()
+                    .addMoves(MoveTO.newBuilder()
                         .setShoppingListToMove(shoppingList.getOid())
                         .setSource(1234)
                         .setDestination(5678)
-                            // set the moveExplanation only for
-                            // compilation purpose
-                        .setMoveExplanation(MoveExplanation
-                            .newBuilder().build())
+                        .setMoveExplanation(MoveExplanation.newBuilder().build())
                         .build())
-                    .build()).get().getInfo();
+                    .build())
+                .build()).get().getInfo();
 
+        System.out.println(actionInfo);
         assertEquals(ActionTypeCase.MOVE, actionInfo.getActionTypeCase());
-        assertEquals(1234, actionInfo.getMove().getSourceId());
-        assertEquals(5678, actionInfo.getMove().getDestinationId());
+        assertEquals(1, actionInfo.getMove().getChangesList().size());
+        assertEquals(1234, actionInfo.getMove().getChanges(0).getSourceId());
+        assertEquals(5678, actionInfo.getMove().getChanges(0).getDestinationId());
     }
 
     @Test

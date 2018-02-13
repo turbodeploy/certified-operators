@@ -9,12 +9,15 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang3.StringUtils;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 
 /**
@@ -45,7 +48,8 @@ public class ActionDTOUtil {
                 // For move actions, the importance of the action
                 // is applied to the source instead of the target,
                 // since we're moving the load off of the source.
-                return actionInfo.getMove().getSourceId();
+                // TODO(COMPOUND): handle multiple moves. Maybe change method to return a list.
+                return actionInfo.getMove().getChanges(0).getSourceId();
             case RESIZE:
                 return actionInfo.getResize().getTargetId();
             case ACTIVATE:
@@ -98,11 +102,15 @@ public class ActionDTOUtil {
         switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
                 final ActionDTO.Move move = action.getInfo().getMove();
-                if (move.getSourceId() == 0) {
-                    return ImmutableSet.of(move.getDestinationId(), move.getTargetId());
-                } else {
-                    return ImmutableSet.of(move.getSourceId(), move.getDestinationId(), move.getTargetId());
+                Set<Long> involvedEntities = Sets.newHashSet(move.getTargetId());
+                for (ChangeProvider change : move.getChangesList()) {
+                    long sourceId = change.getSourceId();
+                    if (sourceId != 0) {
+                        involvedEntities.add(sourceId);
+                    }
+                    involvedEntities.add(change.getDestinationId());
                 }
+                return ImmutableSet.copyOf(involvedEntities);
             case RESIZE:
                 return ImmutableSet.of(action.getInfo().getResize().getTargetId());
             case ACTIVATE:
@@ -149,14 +157,18 @@ public class ActionDTOUtil {
     /**
      * Set the severity using the naming scheme expected by the UI.
      *
-     * @param severity The severity whose name should be retrieved..
+     * @param severity The severity whose name should be retrieved
+     * @return the name of the severity with proper Capitalization
      */
     public static String getSeverityName(@Nonnull final Severity severity) {
         return StringUtils.capitalize(severity.name().toLowerCase());
     }
 
     /**
-     * Return the {@link Action} that matches the contents of an {@link ActionInfo}.
+     * Return the {@link ActionType} that matches the contents of an {@link Action}.
+     *
+     * @param action an action with explanations
+     * @return the type corresponding with the action
      */
     @Nonnull
     public static ActionType getActionInfoActionType(@Nonnull final Action action) {
@@ -164,8 +176,15 @@ public class ActionDTOUtil {
             case MOVE:
                 final Explanation explanation = action.getExplanation();
                 // if Move has initial placement explanation, it should be START.
-                return (explanation.hasMove() && explanation.getMove().hasInitialPlacement()) ?
-                        ActionType.START : ActionType.MOVE;
+                // When a change within a move has initial placement, all changes will.
+                if (explanation.hasMove()) {
+                    MoveExplanation moveExplanation = explanation.getMove();
+                    if (moveExplanation.getChangeProviderExplanationCount() > 0
+                        && moveExplanation.getChangeProviderExplanation(0).hasInitialPlacement()) {
+                        return ActionType.START;
+                    }
+                }
+                return ActionType.MOVE;
             case RECONFIGURE:
                 return ActionType.RECONFIGURE;
             case PROVISION:

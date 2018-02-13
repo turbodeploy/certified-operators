@@ -3,26 +3,17 @@ package com.vmturbo.systest;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.EnumSet;
-import java.util.concurrent.Executors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.KafkaConsumerStarter;
-import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
-import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.external.api.TurboApiClient;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 

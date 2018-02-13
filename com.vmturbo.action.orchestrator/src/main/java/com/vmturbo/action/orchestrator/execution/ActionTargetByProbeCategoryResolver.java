@@ -67,20 +67,16 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
                     "GUEST OS PROCESSES");
 
     /** Provides Priorities of Probe categories for each action type. **/
-    private static final Map<ActionTypeCase, List<String>> ACTION_TYPES_PROBE_PRIORITIES;
-
-    /** For now we have the same priorities for all action types. **/
-    static {
-        final Builder<ActionTypeCase, List<String>> builder = ImmutableMap.builder();
-        builder.put(ActionTypeCase.ACTIONTYPE_NOT_SET, PROBE_CATEGORY_PRIORITIES);
-        builder.put(ActionTypeCase.MOVE, PROBE_CATEGORY_PRIORITIES);
-        builder.put(ActionTypeCase.RECONFIGURE, PROBE_CATEGORY_PRIORITIES);
-        builder.put(ActionTypeCase.PROVISION, PROBE_CATEGORY_PRIORITIES);
-        builder.put(ActionTypeCase.RESIZE, PROBE_CATEGORY_PRIORITIES);
-        builder.put(ActionTypeCase.ACTIVATE, PROBE_CATEGORY_PRIORITIES);
-        builder.put(ActionTypeCase.DEACTIVATE, PROBE_CATEGORY_PRIORITIES);
-        ACTION_TYPES_PROBE_PRIORITIES = builder.build();
-    }
+    private static final Map<ActionTypeCase, List<String>> ACTION_TYPES_PROBE_PRIORITIES =
+                    ImmutableMap.<ActionTypeCase, List<String>>builder()
+                        .put(ActionTypeCase.ACTIONTYPE_NOT_SET, PROBE_CATEGORY_PRIORITIES)
+                        .put(ActionTypeCase.MOVE, PROBE_CATEGORY_PRIORITIES)
+                        .put(ActionTypeCase.RECONFIGURE, PROBE_CATEGORY_PRIORITIES)
+                        .put(ActionTypeCase.PROVISION, PROBE_CATEGORY_PRIORITIES)
+                        .put(ActionTypeCase.RESIZE, PROBE_CATEGORY_PRIORITIES)
+                        .put(ActionTypeCase.ACTIVATE, PROBE_CATEGORY_PRIORITIES)
+                        .put(ActionTypeCase.DEACTIVATE, PROBE_CATEGORY_PRIORITIES)
+                        .build();
 
     public ActionTargetByProbeCategoryResolver(@Nonnull final TopologyProcessor topologyProcessor,
             @Nonnull final ActionCapabilitiesStore actionCapabilitiesStore) {
@@ -145,8 +141,7 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
                         .stream().map(ProbeInfo::getId).collect(Collectors.toSet()));
         final Set<Long> probesWhichNotSupportAction = getProbesWhichDoNotSupportAction(action
                 .getInfo().getActionTypeCase(), probesCapabilities);
-        return filterUnsupported
-                (targetIdsToProbeInfos, probesWhichNotSupportAction);
+        return filterUnsupported(targetIdsToProbeInfos, probesWhichNotSupportAction);
     }
 
     @Nonnull
@@ -201,8 +196,8 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
     @Nonnull
     private Map<Long, ProbeInfo> getProbeInfosOfTargets(@Nonnull Set<Long> targets) {
         final Map<Long, Optional<TargetInfo>> targetInfos = targets.stream()
-                .collect(Collectors.toMap(Function.identity(), targetId -> getProbeOrTarget
-                        (targetId, topologyProcessor::getTarget)));
+                .collect(Collectors.toMap(Function.identity(),
+                    targetId -> getProbeOrTarget(targetId, topologyProcessor::getTarget)));
 
         final Map<Long, Optional<ProbeInfo>> probeInfosOptionalsOfTargets = targetInfos.entrySet().stream()
                 .filter(targetIdToTargetInfoOpt -> targetIdToTargetInfoOpt.getValue().isPresent())

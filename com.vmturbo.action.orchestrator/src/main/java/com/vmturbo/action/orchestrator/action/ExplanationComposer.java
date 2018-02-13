@@ -1,8 +1,10 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
@@ -49,23 +51,16 @@ public class ExplanationComposer {
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
                 MoveExplanation moveExp = explanation.getMove();
-                switch (moveExp.getMoveExplanationTypeCase()) {
-                    case COMPLIANCE:
-                        return buildComplianceExplanation(
-                            moveExp.getCompliance().getMissingCommoditiesList());
-                    case CONGESTION:
-                        return buildCongestionExplanation(
-                            moveExp.getCongestion().getCongestedCommoditiesList());
-                    case EVACUATION:
-                        return buildEvacuationExplanation(
-                            moveExp.getEvacuation().getSuspendedEntity());
-                    case INITIALPLACEMENT:
-                        return buildInitialPlacementExplanation();
-                    case PERFORMANCE:
-                        return buildPerformanceExplanation();
-                    default:
-                        return ACTION_TYPE_ERROR;
+                List<ChangeProviderExplanation> changeExplanations =
+                                moveExp.getChangeProviderExplanationList();
+                ChangeProviderExplanation firstChangeProviderExplanation =
+                                changeExplanations.get(0);
+                if (firstChangeProviderExplanation.hasInitialPlacement()) {
+                    return buildPerformanceExplanation();
                 }
+                return changeExplanations.stream()
+                                .map(ExplanationComposer::changeExplanationBuilder)
+                                .collect(Collectors.joining(", "));
             case RESIZE:
                 return buildResizeExplanation(
                     explanation.getResize().getStartUtilization(),
@@ -97,6 +92,24 @@ public class ExplanationComposer {
         }
     }
 
+    private static String changeExplanationBuilder(ChangeProviderExplanation changeExp) {
+        switch (changeExp.getChangeProviderExplanationTypeCase()) {
+            case COMPLIANCE:
+                return buildComplianceExplanation(
+                    changeExp.getCompliance().getMissingCommoditiesList());
+            case CONGESTION:
+                return buildCongestionExplanation(
+                    changeExp.getCongestion().getCongestedCommoditiesList());
+            case EVACUATION:
+                return buildEvacuationExplanation(
+                    changeExp.getEvacuation().getSuspendedEntity());
+            case PERFORMANCE:
+                return buildPerformanceExplanation();
+            default:
+                return ACTION_TYPE_ERROR;
+        }
+    }
+
     /**
      * Build move explanation for compliance.
      * @param commodities a list of missing commodity base types
@@ -104,7 +117,7 @@ public class ExplanationComposer {
      */
     public static String buildComplianceExplanation(List<Integer> commodities) {
         StringBuilder sb = new StringBuilder().append(MOVE_COMPLIANCE_EXPLANATION);
-        commodities.forEach(c -> sb.append(CommodityType.valueOf(c)).append(" "));
+        commodities.forEach(c -> sb.append(CommodityType.forNumber(c)).append(" "));
         return sb.toString();
     }
 
@@ -115,7 +128,7 @@ public class ExplanationComposer {
      */
     public static String buildCongestionExplanation(List<Integer> commodities) {
         StringBuilder sb = new StringBuilder().append(MOVE_CONGESTION_EXPLANATION);
-        commodities.forEach(c -> sb.append(CommodityType.valueOf(c)));
+        commodities.forEach(c -> sb.append(CommodityType.forNumber(c)));
         return sb.toString();
     }
 
@@ -150,7 +163,7 @@ public class ExplanationComposer {
     }
 
     /**
-     * Build resize explanation
+     * Build resize explanation.
      * @param startUtil the utilization before resize
      * @param endUtil the utilization after resize
      * @return explanation
@@ -172,7 +185,7 @@ public class ExplanationComposer {
      */
     public static String buildActivateExplanation(int commodity) {
         return new StringBuilder().append(ACTIVATE_EXPLANATION)
-            .append(CommodityType.valueOf(commodity)).toString();
+            .append(CommodityType.forNumber(commodity)).toString();
     }
 
     /**
@@ -190,7 +203,7 @@ public class ExplanationComposer {
      */
     public static String buildReconfigureExplanation(List<Integer> commodities) {
         StringBuilder sb = new StringBuilder().append(RECONFIGURE_EXPLANATION);
-        commodities.forEach(c -> sb.append(CommodityType.valueOf(c)));
+        commodities.forEach(c -> sb.append(CommodityType.forNumber(c)));
         return sb.toString();
     }
 
@@ -203,8 +216,7 @@ public class ExplanationComposer {
     public static String buildProvisionByDemandExplanation(List<CommodityMaxAmountAvailableEntry> entries) {
         StringBuilder sb = new StringBuilder().append(PROVISION_BY_DEMAND_EXPLANATION);
         entries.forEach(entry -> sb
-            .append(CommodityType
-                .valueOf(entry.getCommodityBaseType()))
+            .append(CommodityType.forNumber(entry.getCommodityBaseType()))
             .append(" ")
             .append(" whose requested amount is ")
             .append(entry.getRequestedAmount())
@@ -220,6 +232,6 @@ public class ExplanationComposer {
      */
     public static String buildProvisionBySupplyExplanation(int commodity) {
         return new StringBuilder().append(PROVISION_BY_SUPPLY_EXPLANATION)
-            .append(CommodityType.valueOf(commodity)).toString();
+            .append(CommodityType.forNumber(commodity)).toString();
     }
 }

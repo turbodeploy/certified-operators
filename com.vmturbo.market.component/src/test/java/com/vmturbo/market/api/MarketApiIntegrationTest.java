@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.market.MarketNotificationSender;
@@ -115,10 +116,14 @@ public class MarketApiIntegrationTest {
                 .setExplanation(ActionDTO.Explanation.newBuilder().build())
                 .setInfo(ActionInfo.newBuilder()
                         .setMove(Move.newBuilder()
-                            .setSourceId(0L)
-                            .setDestinationId(0L)
-                            .setTargetId(0L))
-                ).build();
+                            .setTargetId(0L)
+                            .addChanges(ChangeProvider.newBuilder()
+                                .setSourceId(0L)
+                                .setDestinationId(0L)
+                                .build())
+                            .build())
+                        .build())
+                .build();
     }
 
 }

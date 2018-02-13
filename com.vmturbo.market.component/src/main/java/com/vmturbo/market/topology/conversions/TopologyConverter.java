@@ -15,6 +15,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.catalina.filters.AddDefaultCharsetFilter;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -24,16 +29,14 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
@@ -49,12 +52,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.analysis.AnalysisUtil;
+import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
@@ -1111,6 +1115,9 @@ public class TopologyConverter {
                 case MOVE:
                     infoBuilder.setMove(interpretMoveAction(actionTO.getMove()));
                     break;
+                case COMPOUND_MOVE:
+                    infoBuilder.setMove(interpretCompoundMoveAction(actionTO.getCompoundMove()));
+                    break;
                 case RECONFIGURE:
                     infoBuilder.setReconfigure(
                             interpretReconfigureAction(actionTO.getReconfigure()));
@@ -1121,7 +1128,7 @@ public class TopologyConverter {
                     break;
                 case PROVISION_BY_DEMAND:
                     infoBuilder.setProvision(
-                                    interpretProvisionByDemand(actionTO.getProvisionByDemand()));
+                            interpretProvisionByDemand(actionTO.getProvisionByDemand()));
                     break;
                 case RESIZE:
                     infoBuilder.setResize(interpretResize(actionTO.getResize()));
@@ -1160,28 +1167,32 @@ public class TopologyConverter {
                 break;
             case RECONFIGURE:
                 expBuilder.setReconfigure(
-                                interpretReconfigureExplanation(actionTO.getReconfigure()));
+                    interpretReconfigureExplanation(actionTO.getReconfigure()));
                 break;
             case PROVISION_BY_SUPPLY:
                 expBuilder.setProvision(
-                                interpretProvisionExplanation(actionTO.getProvisionBySupply()));
+                    interpretProvisionExplanation(actionTO.getProvisionBySupply()));
                 break;
             case PROVISION_BY_DEMAND:
                 expBuilder.setProvision(
-                                interpretProvisionExplanation(actionTO.getProvisionByDemand()));
+                    interpretProvisionExplanation(actionTO.getProvisionByDemand()));
                 break;
             case RESIZE:
                 expBuilder.setResize(
-                                interpretResizeExplanation(actionTO.getResize()));
+                    interpretResizeExplanation(actionTO.getResize()));
                 break;
             case ACTIVATE:
                 expBuilder.setActivate(
-                                interpretActivateExplanation(actionTO.getActivate()));
+                    interpretActivateExplanation(actionTO.getActivate()));
                 break;
             case DEACTIVATE:
-               expBuilder.setDeactivate(
-                   ActionDTO.Explanation.DeactivateExplanation.newBuilder().build());
-               break;
+                expBuilder.setDeactivate(
+                    ActionDTO.Explanation.DeactivateExplanation.getDefaultInstance());
+                break;
+            case COMPOUND_MOVE:
+                // TODO(COMPOUND): different moves in a compound move may have different explanations
+                expBuilder.setMove(interpretCompoundMoveExplanation(actionTO.getCompoundMove().getMovesList()));
+                break;
             default:
                 throw new IllegalArgumentException("Market returned invalid action type "
                                 + actionTO.getActionTypeCase());
@@ -1254,44 +1265,56 @@ public class TopologyConverter {
                         .build();
     }
 
-    private MoveExplanation interpretMoveExplanation(MoveTO moveTO) {
+    private static MoveExplanation interpretCompoundMoveExplanation(List<MoveTO> moveTOs) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
-        ActionDTOs.MoveExplanation marketMoveExp = moveTO.getMoveExplanation();
-        switch (marketMoveExp.getExplanationTypeCase()) {
+        moveTOs.stream()
+            .map(MoveTO::getMoveExplanation)
+            .map(TopologyConverter::changeExplanation)
+            .forEach(moveExpBuilder::addChangeProviderExplanation);
+        return moveExpBuilder.build();
+    }
+
+    private static MoveExplanation interpretMoveExplanation(MoveTO moveTO) {
+        MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
+        moveExpBuilder.addChangeProviderExplanation(changeExplanation(moveTO.getMoveExplanation()));
+        return moveExpBuilder.build();
+    }
+
+    private static ChangeProviderExplanation changeExplanation(
+            com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation moveExplanation) {
+        switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
-                moveExpBuilder.setCompliance(ActionDTO.Explanation.MoveExplanation.Compliance
-                    .newBuilder().addAllMissingCommodities(marketMoveExp
-                        .getCompliance().getMissingCommoditiesList())
-                    .build());
-                break;
+                return ChangeProviderExplanation.newBuilder()
+                        .setCompliance(ChangeProviderExplanation.Compliance.newBuilder()
+                            .addAllMissingCommodities(
+                                moveExplanation.getCompliance().getMissingCommoditiesList())
+                            .build())
+                        .build();
             case CONGESTION:
-                moveExpBuilder.setCongestion(ActionDTO.Explanation.MoveExplanation.Congestion
-                    .newBuilder().addAllCongestedCommodities(marketMoveExp
-                        .getCongestion().getCongestedCommoditiesList())
-                    .build());
-                break;
+                return ChangeProviderExplanation.newBuilder()
+                        .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()
+                            .addAllCongestedCommodities(
+                                moveExplanation.getCongestion().getCongestedCommoditiesList())
+                            .build())
+                        .build();
             case EVACUATION:
-                moveExpBuilder.setEvacuation(
-                    ActionDTO.Explanation.MoveExplanation.Evacuation.newBuilder()
-                        .setSuspendedEntity(
-                            marketMoveExp.getEvacuation().getSuspendedTrader())
-                        .build());
-                break;
+                return ChangeProviderExplanation.newBuilder()
+                        .setEvacuation(ChangeProviderExplanation.Evacuation.newBuilder()
+                            .setSuspendedEntity(moveExplanation.getEvacuation().getSuspendedTrader())
+                            .build())
+                        .build();
             case INITIALPLACEMENT:
-                moveExpBuilder.setInitialPlacement(
-                    ActionDTO.Explanation.MoveExplanation.InitialPlacement.newBuilder()
-                        .build());
-                break;
+                return ChangeProviderExplanation.newBuilder()
+                        .setInitialPlacement(ChangeProviderExplanation.InitialPlacement.getDefaultInstance())
+                    .build();
             case PERFORMANCE:
-                moveExpBuilder.setPerformance(
-                    ActionDTO.Explanation.MoveExplanation.Performance.newBuilder()
-                        .build());
-                break;
+                return ChangeProviderExplanation.newBuilder()
+                        .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance())
+                    .build();
             default:
                 logger.error("Unknown explanation for move action");
-                break;
+                return ChangeProviderExplanation.getDefaultInstance();
         }
-        return moveExpBuilder.build();
     }
 
     @Nonnull
@@ -1303,9 +1326,46 @@ public class TopologyConverter {
                             "Market returned invalid shopping list for MOVE: " + moveTO);
         } else {
             return ActionDTO.Move.newBuilder().setTargetId(shoppingList.buyerId)
-                            .setSourceId(moveTO.getSource())
-                            .setDestinationId(moveTO.getDestination()).build();
+                            .addChanges(ChangeProvider.newBuilder()
+                                .setSourceId(moveTO.getSource())
+                                .setDestinationId(moveTO.getDestination())
+                                .build())
+                            .build();
         }
+    }
+
+    @Nonnull
+    private ActionDTO.Move interpretCompoundMoveAction(
+                    @Nonnull final CompoundMoveTO compoundMoveTO) {
+        List<MoveTO> moves = compoundMoveTO.getMovesList();
+        if (moves.isEmpty()) {
+            throw new IllegalStateException(
+                "Market returned no moves in a COMPOUND_MOVE: " + compoundMoveTO);
+        }
+        Set<Long> targetIds = moves.stream()
+                        .map(MoveTO::getShoppingListToMove)
+                        .map(shoppingListOidToInfos::get)
+                        .map(ShoppingListInfo::getBuyerId)
+                        .collect(Collectors.toSet());
+        if (targetIds.size() != 1) {
+            throw new IllegalStateException(
+                (targetIds.isEmpty() ? "Empty target ID" : "Non-unique target IDs")
+                    + " in COMPOUND_MOVE:" + compoundMoveTO);
+        }
+
+        return ActionDTO.Move.newBuilder().setTargetId(targetIds.iterator().next())
+                        .addAllChanges(moves.stream()
+                            .map(TopologyConverter::changeProvider)
+                            .collect(Collectors.toList()))
+                            .build();
+    }
+
+    @Nonnull
+    private static ActionDTO.ChangeProvider changeProvider(MoveTO move) {
+        return ActionDTO.ChangeProvider.newBuilder()
+                        .setSourceId(move.getSource())
+                        .setDestinationId(move.getDestination())
+                        .build();
     }
 
     @Nonnull

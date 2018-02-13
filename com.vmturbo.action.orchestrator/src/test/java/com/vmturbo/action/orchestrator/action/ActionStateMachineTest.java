@@ -1,5 +1,11 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static junit.framework.TestCase.assertEquals;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.util.Objects;
 import java.util.Optional;
 
@@ -22,18 +28,10 @@ import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ClearingDecision.Reason;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-
-import static junit.framework.TestCase.assertEquals;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Integration tests for the {@link ActionStateMachine} interaction with {@link Action}s.
@@ -43,14 +41,11 @@ public class ActionStateMachineTest {
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
 
     private final ActionDTO.Action move = ActionDTO.Action.newBuilder()
-        .setId(0)
-        .setImportance(0)
-        .setInfo(ActionInfo.newBuilder().setMove(Move.newBuilder()
-                .setTargetId(1)
-                .setSourceId(2)
-                .setDestinationId(3)))
-        .setExplanation(Explanation.newBuilder().build())
-        .build();
+                    .setId(0)
+                    .setImportance(0)
+                    .setInfo(ActionTest.makeMoveInfo(1, 2, 2))
+                    .setExplanation(Explanation.newBuilder().build())
+                .build();
 
     private final long actionPlanId = 4;
     private final String userUuid = "5";

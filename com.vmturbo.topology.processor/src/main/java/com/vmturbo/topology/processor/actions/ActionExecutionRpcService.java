@@ -178,8 +178,9 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
             TargetNotFoundException, CommunicationException, ActionExecutionException {
 
         final PerTargetInfo targetInfo = getPerTargetInfo(targetId, moveAction.getTargetId(), "target");
-        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, moveAction.getSourceId(), "source");
-        final PerTargetInfo destInfo = getPerTargetInfo(targetId, moveAction.getDestinationId(), "destination");
+        // TODO(COMPOUND): handle action with multiple changes
+        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, moveAction.getChanges(0).getSourceId(), "source");
+        final PerTargetInfo destInfo = getPerTargetInfo(targetId, moveAction.getChanges(0).getDestinationId(), "destination");
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
 

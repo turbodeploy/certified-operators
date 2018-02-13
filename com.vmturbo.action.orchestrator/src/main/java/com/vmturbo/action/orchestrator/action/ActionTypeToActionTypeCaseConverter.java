@@ -14,6 +14,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
  */
 public class ActionTypeToActionTypeCaseConverter {
 
+    private ActionTypeToActionTypeCaseConverter() {}
+
     /**
      * Actions come with oneOf action type and ActionTypeCase to determine it. ActionType values
      * don't match ActionTypeCase values so we need to do maping between them.
@@ -40,6 +42,7 @@ public class ActionTypeToActionTypeCaseConverter {
      *
      * @param actionType to get ActionTypeCase for
      * @return ActionTypeCase for actionType
+     * @throws IllegalArgumentException when action type cannot be resolved
      */
     @Nonnull
     public static ActionTypeCase getActionTypeCaseFor(ActionType actionType)

@@ -34,12 +34,14 @@ import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 
 public class AutomatedActionExecutorTest {
@@ -415,27 +417,22 @@ public class AutomatedActionExecutorTest {
 
     private ActionDTO.Action makeActionRec(long actionId, ActionInfo info) {
         return ActionDTO.Action.newBuilder()
-                .setId(actionId)
-                .setImportance(0)
-                .setExplanation(Explanation.newBuilder()
-                        .setMove(Explanation.MoveExplanation.newBuilder()
-                                .setInitialPlacement(Explanation.MoveExplanation.InitialPlacement
-                                        .newBuilder()
-                                        .build())
-                                .build())
+            .setId(actionId)
+            .setImportance(0)
+            .setExplanation(Explanation.newBuilder()
+                .setMove(Explanation.MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setInitialPlacement(
+                            ChangeProviderExplanation.InitialPlacement.getDefaultInstance())
                         .build())
-                .setInfo(info)
-                .build();
+                    .build())
+                .build())
+            .setInfo(info)
+            .build();
     }
 
     private ActionInfo makeMoveInfo(long sourceId, long destId, long targetId) {
-        return ActionInfo.newBuilder()
-                .setMove(ActionDTO.Move.newBuilder()
-                        .setSourceId(sourceId)
-                        .setTargetId(targetId)
-                        .setDestinationId(destId)
-                        .build())
-                .build();
+        return ActionTest.makeMoveInfo(targetId, sourceId, destId).build();
     }
 
     private EntityInfo makeEntityInfo(long entityId, long targetId) {

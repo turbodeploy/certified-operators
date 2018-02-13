@@ -15,6 +15,7 @@ import com.google.common.collect.ImmutableList;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
@@ -27,12 +28,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.topology.Probe.ActionCapabilitiesList;
-import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
 import com.vmturbo.common.protobuf.topology.Probe.ListProbeActionCapabilitiesRequest;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
@@ -42,11 +42,11 @@ import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.P
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
- * Tests for class which resolve whether action supported or not
+ * Tests for class which resolve whether action supported or not.
  */
 public class ActionSupportResolverTest {
 
-    private final long probeId = 1l;
+    private final long probeId = 1L;
 
     private final ActionExecutor actionExecutor = Mockito.mock(ActionExecutor.class);
 
@@ -96,13 +96,7 @@ public class ActionSupportResolverTest {
 
     private List<Action> getTestedActions() {
         ActionDTO.Action move = ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.newBuilder()
-                        .setMove(Move.newBuilder()
-                                .setDestinationId(probeId)
-                                .setSourceId(probeId)
-                                .setTargetId(probeId)
-                                .build())
-                        .build())
+                .setInfo(ActionTest.makeMoveInfo(probeId, probeId, probeId))
                 .setId(1)
                 .setImportance(1)
                 .setExplanation(Explanation.newBuilder().build())
@@ -133,7 +127,7 @@ public class ActionSupportResolverTest {
     }
 
     /**
-     * Tests resolving of actions supporting
+     * Tests resolving of actions supporting.
      */
     @Test
     public void testResolveActionsSupporting() {
@@ -142,7 +136,7 @@ public class ActionSupportResolverTest {
                     ActionTypeCase.ACTIVATE) {
                 Assert.assertEquals(SupportLevel.UNSUPPORTED, action.getSupportLevel());
             } else if (action.getRecommendation().getInfo().getActionTypeCase() ==
-                    ActionTypeCase.DEACTIVATE){
+                    ActionTypeCase.DEACTIVATE) {
                 Assert.assertEquals(SupportLevel.SHOW_ONLY, action.getSupportLevel());
             } else {
                 Assert.assertEquals(SupportLevel.SUPPORTED, action.getSupportLevel());
@@ -189,8 +183,10 @@ public class ActionSupportResolverTest {
                 StreamObserver<ProbeActionCapabilities> responseObserver) {
             ProbeActionCapabilities probeCapabilities = ProbeActionCapabilities.newBuilder()
                     .setProbeId(probeId).setActionCapabilitiesList(
-                            ActionCapabilitiesList.newBuilder().addAllActionCapabilities
-                                    (actionCapabilities).build()).build();
+                            ActionCapabilitiesList.newBuilder()
+                            .addAllActionCapabilities(actionCapabilities)
+                            .build())
+                    .build();
             responseObserver.onNext(probeCapabilities);
             responseObserver.onCompleted();
         }

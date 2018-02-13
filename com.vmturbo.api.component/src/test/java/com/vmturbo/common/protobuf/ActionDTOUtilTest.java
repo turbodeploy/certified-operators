@@ -1,5 +1,7 @@
 package com.vmturbo.common.protobuf;
 
+import static org.junit.Assert.assertEquals;
+
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -7,13 +9,13 @@ import org.junit.rules.ExpectedException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-
-import static org.junit.Assert.assertEquals;
 
 public class ActionDTOUtilTest {
     @Rule
@@ -60,11 +62,19 @@ public class ActionDTOUtilTest {
                 .setInfo(ActionInfo.newBuilder()
                         .setMove(Move.newBuilder()
                                 .setTargetId(1234L)
-                                .setSourceId(0L)
-                                .setDestinationId(111L)))
+                                .addChanges(ChangeProvider.newBuilder()
+                                    .setSourceId(0L)
+                                    .setDestinationId(111L)
+                                    .build())
+                                .build())
+                        .build())
                 .setExplanation(Explanation.newBuilder()
                         .setMove(MoveExplanation.newBuilder()
-                                .setInitialPlacement(InitialPlacement.getDefaultInstance())))
+                            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.getDefaultInstance())
+                                .build())
+                            .build())
+                        .build())
                 .build();
         assertEquals(ActionType.START, ActionDTOUtil.getActionInfoActionType(action));
     }

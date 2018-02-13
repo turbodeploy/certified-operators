@@ -6,7 +6,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 
 /**
- * Tests for converting of ActionTypes to ActionTypeCases
+ * Tests for converting of ActionTypes to ActionTypeCases.
  */
 public class ActionTypeToActionTypeCaseConverterTest {
 

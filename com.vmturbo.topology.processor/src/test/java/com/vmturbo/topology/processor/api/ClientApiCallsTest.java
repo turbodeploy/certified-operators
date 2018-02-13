@@ -13,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -33,6 +32,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
@@ -65,7 +65,6 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
 
-
 /**
  * Tests for client side calls for {@link TopologyProcessor}.
  */
@@ -76,7 +75,6 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     private EntityStore entityStore;
     private IdentityProvider identityProviderSpy;
 
-    private final AtomicLong probeCounter = new AtomicLong();
     private static final String FIELD_NAME = FakeRemoteMediation.TGT_ID;
 
     @Rule
@@ -479,9 +477,13 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                 .setTargetId(target)
                 .setActionInfo(ActionInfo.newBuilder()
                     .setMove(Move.newBuilder()
-                        .setSourceId(1)
-                        .setDestinationId(2)
-                        .setTargetId(3)))
+                        .addChanges(ChangeProvider.newBuilder()
+                            .setSourceId(1)
+                            .setDestinationId(2)
+                            .build())
+                        .setTargetId(3)
+                        .build())
+                    .build())
                 .build();
 
         final ActionExecutionListener listener = Mockito.mock(ActionExecutionListener.class);

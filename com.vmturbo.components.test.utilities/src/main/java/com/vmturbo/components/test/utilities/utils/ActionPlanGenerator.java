@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
@@ -104,7 +105,7 @@ public class ActionPlanGenerator {
         }
 
         // Half of all actions are moves.
-        final MoveCount moveCount = moveCount((int) Math.ceil(numActions * 0.5));
+        final MoveCount moveCount = moveCount((int)Math.ceil(numActions * 0.5));
         // Arrays.asList generates an immutable list. We need a mutable list so wrap in new ArrayList.
         final List<ActionTypeCount> counts = new ArrayList<>(Arrays.asList(
             reconfigureCount(0), provisionCount(0), resizeCount(0), activateCount(0), deactivateCount(0)));
@@ -136,7 +137,7 @@ public class ActionPlanGenerator {
      * @param topologyContextId The topology context ID to be associated with the action plan.
      * @param topologyOids The topology to use when generating the action plan.
      * @param actionCounts The counts of each type of action to include in the plan.
-     * @return
+     * @return the generated action plan
      */
     public ActionPlan generate(final long topologyId, final long topologyContextId,
                                @Nonnull final List<Long> topologyOids,
@@ -188,7 +189,7 @@ public class ActionPlanGenerator {
         private final Random random;
         private long nextNewOid;
 
-        public Chooser(@Nonnull final List<Long> topologyOids, @Nonnull final Random random) {
+        private Chooser(@Nonnull final List<Long> topologyOids, @Nonnull final Random random) {
             this.topologyOids = topologyOids;
             this.random = random;
 
@@ -202,7 +203,7 @@ public class ActionPlanGenerator {
          * Get an OID at random from the {@link Chooser}'s topology.
          * @return A random OID.
          */
-        public long topologyOid() {
+        private long topologyOid() {
             return topologyOids.get(random.nextInt(topologyOids.size()));
         }
 
@@ -250,7 +251,7 @@ public class ActionPlanGenerator {
     /**
      * How many actions of a particular type should be added to an action plan.
      */
-    public static abstract class ActionTypeCount {
+    public abstract static class ActionTypeCount {
         private int actionCount;
 
         public ActionTypeCount(int actionCount) {
@@ -309,14 +310,15 @@ public class ActionPlanGenerator {
         protected Action makeAction(@Nonnull Chooser chooser) {
             return makeAction(
                 Explanation.newBuilder()
-                    .setMove(MoveExplanation.getDefaultInstance()),
-                ActionInfo.newBuilder()
-                    .setMove(Move.newBuilder()
-                            .setSourceId(chooser.topologyOid())
-                            .setDestinationId(chooser.topologyOid())
-                            .setTargetId(chooser.topologyOid())),
-                chooser
-            );
+                    .setMove(MoveExplanation.getDefaultInstance()), ActionInfo.newBuilder()
+                        .setMove(Move.newBuilder()
+                            .setTargetId(chooser.topologyOid())
+                            .addChanges(ChangeProvider.newBuilder()
+                                .setSourceId(chooser.topologyOid())
+                                .setDestinationId(chooser.topologyOid())
+                                .build())
+                            .build()),
+                chooser);
         }
     }
 
@@ -431,11 +433,11 @@ public class ActionPlanGenerator {
                 ActionInfo.newBuilder()
                     .setDeactivate(Deactivate.newBuilder()
                         .setTargetId(chooser.topologyOid())
-                        .addTriggeringCommodities(
-                            CommodityType.newBuilder()
-                                .setType(chooser.commodityType()))),
-                chooser
-            );
+                        .addTriggeringCommodities(CommodityType.newBuilder()
+                            .setType(chooser.commodityType())
+                            .build())
+                        .build()),
+                chooser);
         }
     }
 }

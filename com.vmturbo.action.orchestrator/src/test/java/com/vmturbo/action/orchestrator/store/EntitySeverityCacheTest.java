@@ -16,14 +16,13 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 
@@ -125,10 +124,7 @@ public class EntitySeverityCacheTest {
             .setExecutable(true)
             .setId(IdentityGenerator.next())
             .setImportance(mapSeverityToImportance(severity))
-            .setInfo(ActionInfo.newBuilder().setMove(Move.newBuilder()
-                    .setTargetId(targetId)
-                    .setSourceId(sourceId)
-                    .setDestinationId(destinationId)))
+            .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destinationId))
             .setExplanation(Explanation.newBuilder().build())
             .build();
     }

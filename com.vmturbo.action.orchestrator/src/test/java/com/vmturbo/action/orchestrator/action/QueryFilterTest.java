@@ -24,13 +24,11 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 
 /**
  * Tests for the {@link QueryFilter} class.
@@ -307,28 +305,20 @@ public class QueryFilterTest {
                 .setImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().build())
-                .setInfo(ActionInfo.newBuilder()
-                        .setMove(Move.newBuilder()
-                            .setSourceId(sourceId)
-                            .setDestinationId(destId)
-                            .setTargetId(targetId))
-                ).build();
+                .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destId))
+                .build();
 
         return spy(new Action(action, ACTION_PLAN_ID));
     }
 
     private ActionView notExecutableMoveAction(long id, long sourceId, long destId, long targetId) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
-                .setId(id)
-                .setImportance(0)
-                .setExplanation(Explanation.newBuilder().build())
-                .setExecutable(false)
-                .setInfo(ActionInfo.newBuilder()
-                        .setMove(Move.newBuilder()
-                            .setSourceId(sourceId)
-                            .setDestinationId(destId)
-                            .setTargetId(targetId))
-                ).build();
+                        .setId(id)
+                        .setImportance(0)
+                        .setExplanation(Explanation.newBuilder().build())
+                        .setExecutable(false)
+                        .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destId))
+                        .build();
 
         return spy(new Action(action, ACTION_PLAN_ID));
     }

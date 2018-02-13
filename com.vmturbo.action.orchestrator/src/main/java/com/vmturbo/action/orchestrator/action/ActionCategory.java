@@ -1,25 +1,16 @@
 package com.vmturbo.action.orchestrator.action;
 
-import java.util.Set;
-import java.util.HashSet;
 import java.util.Arrays;
-
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Congestion;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Compliance;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Evacuation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.InitialPlacement;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Performance;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class ActionCategory {
 
@@ -45,19 +36,29 @@ public class ActionCategory {
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
                 MoveExplanation moveExp = explanation.getMove();
-                switch (moveExp.getMoveExplanationTypeCase()) {
-                    case COMPLIANCE:
-                        return CATEGORY_COMPLIANCE;
-                    case CONGESTION:
-                        return CATEGORY_PERFORMANCE_ASSURANCE;
-                    case EVACUATION:
-                    case INITIALPLACEMENT:
-                        return CATEGORY_EFFICIENCY_IMPROVEMENT;
-                    case PERFORMANCE:
-                        return CATEGORY_PREVENTION;
-                    default:
-                        return CATEGORY_ERROR;
+                List<ChangeProviderExplanation> changeExplanations =
+                                moveExp.getChangeProviderExplanationList();
+                ChangeProviderExplanation firstChangeExplanation = changeExplanations.get(0);
+                if (firstChangeExplanation.hasInitialPlacement()
+                       || firstChangeExplanation.hasEvacuation()) {
+                    return CATEGORY_EFFICIENCY_IMPROVEMENT;
                 }
+                // TODO (COMPOUND): Should we pick "highest severity" instead?
+                return changeExplanations.stream()
+                                .map(ChangeProviderExplanation::getChangeProviderExplanationTypeCase)
+                                .map(typeCase -> {
+                                    switch (typeCase) {
+                                        case COMPLIANCE:
+                                            return CATEGORY_COMPLIANCE;
+                                        case CONGESTION:
+                                            return CATEGORY_PERFORMANCE_ASSURANCE;
+                                        case PERFORMANCE:
+                                            return CATEGORY_PREVENTION;
+                                        default:
+                                            return CATEGORY_ERROR;
+                                    }
+                                })
+                                .collect(Collectors.joining(" / "));
             case RESIZE:
                 if (explanation.getResize().getStartUtilization() >= explanation.getResize()
                                 .getEndUtilization()) {

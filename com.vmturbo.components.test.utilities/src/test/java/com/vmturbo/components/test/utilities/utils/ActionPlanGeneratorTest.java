@@ -81,8 +81,10 @@ public class ActionPlanGeneratorTest {
             .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.MOVE)
             .map(action -> action.getInfo().getMove())
             .forEach(move -> {
-                assertThat(oids, hasItem(move.getSourceId()));
-                assertThat(oids, hasItem(move.getDestinationId()));
+             // TODO(COMPOUND): add compound moves with more than 1 change
+                assertEquals(1, move.getChangesCount());
+                assertThat(oids, hasItem(move.getChanges(0).getSourceId()));
+                assertThat(oids, hasItem(move.getChanges(0).getDestinationId()));
                 assertThat(oids, hasItem(move.getTargetId()));
             });
     }

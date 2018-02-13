@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -126,11 +127,11 @@ public class Action implements ActionView {
     private final ImmutableMap<ActionTypeCase, ActionMode> actionTypeSettingDefault;
 
     /**
-     * Map of action type to target ID getter method
+     * Map of action type to target ID getter method.
      */
     private static final ImmutableMap<ActionTypeCase, Function<ActionInfo, Long>>
             ACTION_TYPE_TARGET_ID_GETTER =
-            ImmutableMap.<ActionTypeCase, Function<ActionInfo,Long>>builder()
+            ImmutableMap.<ActionTypeCase, Function<ActionInfo, Long>>builder()
                     .put(ActionTypeCase.RESIZE, (info) -> info.getResize().getTargetId())
                     .put(ActionTypeCase.ACTIVATE, (info) -> info.getActivate().getTargetId())
                     .put(ActionTypeCase.DEACTIVATE, (info) -> info.getDeactivate().getTargetId())
@@ -417,21 +418,22 @@ public class Action implements ActionView {
     }
 
     /**
-     * Determines if a move action refers to moving between physical machines or storages
+     * Determines if a move action refers to moving between physical machines or storages.
+     * If all moves are for storages then move type is storage move, otherwise it is a move.
+     *
      * @return a predicate for filtering settings based on move type
      */
     @Nonnull
     private EntitySettingSpecs determineMoveType() {
-        final Optional<EntityType> sourceType = entitySettings
-                .getTypeForEntity(recommendation.getInfo().getMove().getSourceId());
-        final Optional<EntityType> destType = entitySettings
-                .getTypeForEntity(recommendation.getInfo().getMove().getDestinationId());
-        if (sourceType.isPresent() && sourceType.get().equals(EntityType.STORAGE) &&
-                destType.isPresent() && destType.get().equals(EntityType.STORAGE)) {
-            return EntitySettingSpecs.StorageMove;
-        } else {
-            return EntitySettingSpecs.Move;
-        }
+        boolean allStorageMoves = recommendation.getInfo().getMove().getChangesList().stream()
+                        .map(ChangeProvider::getDestinationId)
+                        .map(entitySettings::getTypeForEntity)
+                        .filter(Optional::isPresent)
+                        .map(Optional::get)
+                        .allMatch(type -> type == EntityType.STORAGE);
+        return allStorageMoves
+                        ? EntitySettingSpecs.StorageMove
+                        : EntitySettingSpecs.Move;
     }
 
     /**

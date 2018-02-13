@@ -1,16 +1,19 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static org.junit.Assert.assertEquals;
+
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Evacuation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Compliance;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Congestion;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Evacuation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.InitialPlacement;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
@@ -18,14 +21,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
-import static org.junit.Assert.assertEquals;
-
 public class ActionCategoryTest {
     @Test
     public void testComplianceCategory() {
         Explanation compliance = Explanation.newBuilder()
             .setMove(MoveExplanation.newBuilder()
-                .setCompliance(Compliance.newBuilder().build()).build()).build();
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                .setCompliance(Compliance.getDefaultInstance()).build()).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_COMPLIANCE, ActionCategory.assignActionCategory(compliance));
     }
@@ -33,9 +35,10 @@ public class ActionCategoryTest {
     @Test
     public void testCongestionCategory() {
         Explanation congestion = Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
             .setCongestion(Congestion.newBuilder()
                 .addCongestedCommodities(CommodityType.CPU_VALUE).build())
-            .build()).build();
+            .build()).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE, ActionCategory.assignActionCategory(congestion));
     }
@@ -43,8 +46,9 @@ public class ActionCategoryTest {
     @Test
     public void testEvacuationCategory() {
         Explanation evacuation = Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
             .setEvacuation(Evacuation.newBuilder().setSuspendedEntity(100).build())
-            .build()).build();
+            .build()).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_EFFICIENCY_IMPROVEMENT, ActionCategory.assignActionCategory(evacuation));
     }
@@ -52,7 +56,8 @@ public class ActionCategoryTest {
     @Test
     public void testInitialPlacementCategory() {
         Explanation initialPlacement = Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
-            .setInitialPlacement(InitialPlacement.newBuilder().build()).build()).build();
+            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+            .setInitialPlacement(InitialPlacement.getDefaultInstance()).build()).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_EFFICIENCY_IMPROVEMENT, ActionCategory.assignActionCategory(initialPlacement));
     }
@@ -60,7 +65,8 @@ public class ActionCategoryTest {
     @Test
     public void testPerformanceCategory() {
         Explanation performance = Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
-            .setPerformance(Performance.newBuilder().build()).build()).build();
+            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+            .setPerformance(Performance.getDefaultInstance()).build()).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_PREVENTION,
             ActionCategory.assignActionCategory(performance));
@@ -69,7 +75,7 @@ public class ActionCategoryTest {
     @Test
     public void testReconfigureCategory() {
         Explanation reconfigure = Explanation.newBuilder().setReconfigure(ReconfigureExplanation
-            .newBuilder().build()).build();
+            .getDefaultInstance()).build();
 
         assertEquals(ActionCategory.CATEGORY_COMPLIANCE,
             ActionCategory.assignActionCategory(reconfigure));
@@ -131,7 +137,7 @@ public class ActionCategoryTest {
     @Test
     public void testDeactivateCategory() {
         Explanation deactivate = Explanation.newBuilder().setDeactivate(
-            DeactivateExplanation.newBuilder().build()).build();
+            DeactivateExplanation.getDefaultInstance()).build();
 
         assertEquals(ActionCategory.CATEGORY_EFFICIENCY_IMPROVEMENT,
             ActionCategory.assignActionCategory(deactivate));

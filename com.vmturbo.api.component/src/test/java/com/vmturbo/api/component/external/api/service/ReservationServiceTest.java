@@ -21,9 +21,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
@@ -156,36 +158,52 @@ public class ReservationServiceTest {
                 .setTopologyContextId(planId)
                 .build();
         final ActionOrchestratorAction placementMoveAction = ActionOrchestratorAction.newBuilder()
-                .setActionId(1L)
-                .setActionSpec(ActionSpec.newBuilder()
-                        .setRecommendation(Action.newBuilder()
+                        .setActionId(1L)
+                        .setActionSpec(ActionSpec.newBuilder()
+                            .setRecommendation(Action.newBuilder()
                                 .setId(90)
                                 .setImportance(10.0)
                                 .setExplanation(Explanation.newBuilder()
-                                        .setMove(MoveExplanation.newBuilder()
-                                                .setInitialPlacement(
-                                                        InitialPlacement.getDefaultInstance())))
+                                    .setMove(MoveExplanation.newBuilder()
+                                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                        .setInitialPlacement(
+                                            InitialPlacement.getDefaultInstance())))
+                                    .build())
                                 .setInfo(ActionInfo.newBuilder()
-                                        .setMove(Move.newBuilder()
-                                                .setTargetId(111L)
-                                                .setSourceId(0L)
-                                                .setDestinationId(78910)))))
-                .build();
+                                    .setMove(Move.newBuilder()
+                                        .setTargetId(111L)
+                                        .addChanges(ChangeProvider.newBuilder()
+                                            .setSourceId(0L)
+                                            .setDestinationId(78910)
+                                            .build())
+                                        .build())
+                                    .build())
+                                .build())
+                            .build())
+                        .build();
         final ActionOrchestratorAction reservationMoveAction = ActionOrchestratorAction.newBuilder()
                 .setActionId(2L)
                 .setActionSpec(ActionSpec.newBuilder()
-                        .setRecommendation(Action.newBuilder()
-                                .setId(91)
-                                .setImportance(11.0)
-                                .setExplanation(Explanation.newBuilder()
-                                        .setMove(MoveExplanation.newBuilder()
-                                                .setInitialPlacement(
-                                                        InitialPlacement.getDefaultInstance())))
-                                .setInfo(ActionInfo.newBuilder()
-                                        .setMove(Move.newBuilder()
-                                                .setTargetId(222L)
-                                                .setSourceId(0L)
-                                                .setDestinationId(78911)))))
+                    .setRecommendation(Action.newBuilder()
+                        .setId(91)
+                        .setImportance(11.0)
+                        .setExplanation(Explanation.newBuilder()
+                            .setMove(MoveExplanation.newBuilder()
+                                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                    .setInitialPlacement(
+                                        InitialPlacement.getDefaultInstance())))
+                            .build())
+                        .setInfo(ActionInfo.newBuilder()
+                            .setMove(Move.newBuilder()
+                                .setTargetId(222L)
+                                .addChanges(ChangeProvider.newBuilder()
+                                    .setSourceId(0L)
+                                    .setDestinationId(78911)
+                                    .build())
+                                .build())
+                            .build())
+                        .build())
+                    .build())
                 .build();
         Mockito.when(actionsServiceMole.getAllActions(actionRequest))
                 .thenReturn(Lists.newArrayList(placementMoveAction, reservationMoveAction));
