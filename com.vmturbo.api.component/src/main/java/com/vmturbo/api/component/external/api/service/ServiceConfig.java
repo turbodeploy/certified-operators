@@ -136,14 +136,15 @@ public class ServiceConfig {
     @Bean
     public MarketsService marketsService() {
         return new MarketsService(mapperConfig.actionSpecMapper(),
-              mapperConfig.uuidMapper(),
-              communicationConfig.actionsRpcService(),
-              communicationConfig.policyRpcService(),
-              communicationConfig.planRpcService(),
-              mapperConfig.policyMapper(),
-              mapperConfig.marketMapper(),
-              communicationConfig.groupRpcService(),
-              websocketConfig.websocketHandler());
+                mapperConfig.uuidMapper(),
+                communicationConfig.actionsRpcService(),
+                communicationConfig.policyRpcService(),
+                communicationConfig.planRpcService(),
+                mapperConfig.policyMapper(),
+                mapperConfig.marketMapper(),
+                communicationConfig.groupRpcService(),
+                communicationConfig.repositoryRpcService(),
+                websocketConfig.websocketHandler());
     }
 
     @Bean

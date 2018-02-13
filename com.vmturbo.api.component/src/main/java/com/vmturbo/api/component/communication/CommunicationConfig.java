@@ -41,6 +41,8 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
@@ -174,6 +176,10 @@ public class CommunicationConfig {
                 serviceRestTemplate(), entitySeverityService(), getRealtimeTopologyContextId());
     }
 
+    @Bean
+    public RepositoryServiceBlockingStub repositoryRpcService() {
+        return RepositoryServiceGrpc.newBlockingStub(repositoryChannel());
+    }
 
     @Bean
     public ClusterMgrClient clusterMgr() {

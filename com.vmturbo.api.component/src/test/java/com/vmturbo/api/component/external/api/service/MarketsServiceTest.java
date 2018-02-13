@@ -92,6 +92,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceImplBase;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -277,7 +279,7 @@ public class MarketsServiceTest {
         public MarketsService marketsService() {
             return new MarketsService(actionSpecMapper(), uuidMapper(), actionRpcService(),
                     policyCpcService(), planRpcService(), policyMapper(), marketMapper(),
-                    groupRpcService(), uiNotificationChannel());
+                    groupRpcService(), repositoryRpcService(), uiNotificationChannel());
         }
 
         @Bean
@@ -363,6 +365,10 @@ public class MarketsServiceTest {
         @Bean
         public GroupServiceBlockingStub groupRpcService() {
             return GroupServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
+        }
+
+        public RepositoryServiceBlockingStub repositoryRpcService() {
+            return RepositoryServiceGrpc.newBlockingStub(grpcTestServer().getChannel());
         }
 
         @Bean

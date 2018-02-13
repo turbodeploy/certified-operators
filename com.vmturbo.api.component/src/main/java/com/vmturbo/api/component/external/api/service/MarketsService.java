@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -9,6 +10,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -30,6 +33,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -73,6 +77,18 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Service implementation of Markets.
@@ -92,6 +108,8 @@ public class MarketsService implements IMarketsService {
 
     private final GroupServiceBlockingStub groupRpcService;
 
+    private final RepositoryServiceBlockingStub repositoryRpcService;
+
     private final PolicyMapper policyMapper;
 
     private final MarketMapper marketMapper;
@@ -106,6 +124,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final PolicyMapper policyMapper,
                           @Nonnull final MarketMapper marketMapper,
                           @Nonnull final GroupServiceBlockingStub groupRpcService,
+                          @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
                           @Nonnull final UINotificationChannel uiNotificationChannel) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -116,6 +135,7 @@ public class MarketsService implements IMarketsService {
         this.marketMapper = Objects.requireNonNull(marketMapper);
         this.uiNotificationChannel = Objects.requireNonNull(uiNotificationChannel);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
+        this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
     }
 
     /**
@@ -492,10 +512,115 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public List<ServiceEntityApiDTO> getUnplacedEntitiesByMarketUuid(String uuid) throws Exception {
-        // This has to return something instead of throwing an error,
-        // because if this throws an error the entire Environment Summary
-        // widget doesn't render (which includes the before-and-after entity
-        // counts).
-        return Collections.emptyList();
+        // get the topology id for the plan
+        OptionalPlanInstance planResponse = planRpcService.getPlan(PlanId.newBuilder()
+                .setPlanId(Long.valueOf(uuid))
+                .build());
+
+        if (!planResponse.hasPlanInstance()) {
+            throw new UnknownObjectException(uuid);
+        }
+
+        // Get the list of unplaced entities from the repository for this plan
+        PlanInstance plan = planResponse.getPlanInstance();
+        final Iterable<RetrieveTopologyResponse> response = () ->
+                repositoryRpcService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
+                        .setTopologyId(plan.getProjectedTopologyId())
+                        .setEntityFilter(TopologyEntityFilter.newBuilder()
+                                .setUnplacedOnly(true))
+                        .build());
+        List<TopologyEntityDTO> unplacedDTOs = StreamSupport.stream(response.spliterator(), false)
+                .flatMap(rtResponse -> rtResponse.getEntitiesList().stream())
+                .collect(Collectors.toList());
+
+        // if no unplaced entities, return an empty collection
+        if (unplacedDTOs.size() == 0) {
+            return Collections.emptyList();
+        }
+
+        // get the set of unique supplier ids. It's not guaranteed that there are any suppliers for
+        // any of these commodities, so we need to be prepared for the possibility of an empty set.
+        Set<Long> providerOids = unplacedDTOs.stream()
+                .flatMap(entity -> entity.getCommoditiesBoughtFromProvidersList().stream())
+                .filter(CommoditiesBoughtFromProvider::hasProviderId) // a provider is not guaranteed
+                .filter(comm -> comm.getProviderId() > 0)
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .collect(Collectors.toSet());
+
+        // fetch the provider dto's using the list of supplier id's so we can use their display names
+        Map<Long,TopologyEntityDTO> providers = (providerOids.size() == 0)
+                ? Collections.emptyMap()
+                : repositoryRpcService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                        .addAllEntityOids(providerOids)
+                        .setTopologyContextId(plan.getPlanId())
+                        .setTopologyId(plan.getProjectedTopologyId())
+                        .setTopologyType(TopologyType.PROJECTED)
+                        .build())
+                    .getEntitiesList().stream()
+                    .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
+
+        // convert to ServiceEntityApiDTOs, filling in the blanks of the placed on / not placed on fields
+        List<ServiceEntityApiDTO> unplacedApiDTOs = createServiceEntityApiDTOs(unplacedDTOs, providers);
+
+        logger.debug("Found {} unplaced entities in plan {} results.", unplacedApiDTOs.size(), uuid);
+        return unplacedApiDTOs;
+    }
+
+    /**
+     * Create a list of ServiceEntityApiDTO objects from a collection of unplaced TopologyEntityDTOs.
+     *
+     * @param unplacedDTOs The collection of unplaced TopologyEntityDTOs to use as the source
+     * @param providers A map of providers (provider id -> provider) that is used for looking up
+     *                  provider names.
+     * @return A list of ServiceEntityApiDTO objects representing the unplaced entities.
+     */
+    private List<ServiceEntityApiDTO> createServiceEntityApiDTOs(Collection<TopologyEntityDTO> unplacedDTOs,
+                                                         Map<Long, TopologyEntityDTO> providers) {
+        return unplacedDTOs.stream()
+                .map(entity -> createServiceEntityApiDTO(entity, providers))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Create an unplaced ServiceEntityApiDTO from an unplaced TopologyEntityDTO.
+     *
+     * @param entity the (unplaced) TopologyEntityDTO to use as the basis for the new
+     *               ServiceEntityApiDTO object.
+     * @param providers the set of provider entities, used for looking up provider names.
+     * @return the ServiceEntityApiDTO that represents the unplaced TopologyEntityDTO
+     */
+    private ServiceEntityApiDTO createServiceEntityApiDTO(TopologyEntityDTO entity,
+                                                          Map<Long, TopologyEntityDTO> providers) {
+        ServiceEntityApiDTO seEntity = ServiceEntityMapper.toServiceEntityApiDTO(entity);
+        StringJoiner placedOnJoiner = new StringJoiner(",");
+        StringJoiner notPlacedOnJoiner = new StringJoiner(",");
+        // for all of the commodities bought, build a string description of which are placed
+        // and which are not for the UI to display.
+        for (CommoditiesBoughtFromProvider comm : entity.getCommoditiesBoughtFromProvidersList()) {
+            if (comm.hasProviderId() && comm.getProviderId() > 0) {
+                // add to "placed on" list
+                // if no commodity provider DTO was retrieved for this provider id, fall back to
+                // displaying the id instead of the name
+                TopologyEntityDTO provider = providers.get(comm.getProviderId());
+                placedOnJoiner.add((provider != null)
+                        ? provider.getDisplayName()
+                        : String.valueOf(comm.getProviderId()));
+            } else {
+                // 'not placed on' list contains the list of provider entity types that were not found
+                // during analysis. These entity types could have provided the commodities needed by
+                // this unplaced entity
+                if (comm.hasProviderEntityType()) {
+                    notPlacedOnJoiner.add(EntityType.forNumber(comm.getProviderEntityType()).name());
+                } else {
+                    // fall back if no provider entity type -- list out all the unplaced commodities bought
+                    comm.getCommodityBoughtList()
+                            .forEach(bought -> notPlacedOnJoiner.add(
+                                    CommodityType.forNumber(bought.getCommodityType().getType()).name()));
+                }
+            }
+        }
+        seEntity.setPlacedOn(placedOnJoiner.toString());
+        seEntity.setNotPlacedOn(notPlacedOnJoiner.toString());
+        return seEntity;
     }
 }
