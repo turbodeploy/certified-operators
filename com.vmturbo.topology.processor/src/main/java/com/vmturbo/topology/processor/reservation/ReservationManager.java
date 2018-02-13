@@ -13,13 +13,13 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.GetAllReservationsRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -33,6 +33,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
@@ -141,8 +143,17 @@ public class ReservationManager {
             final List<ReservationTemplate> reservationTemplates =
                     reservation.getReservationTemplateCollection()
                     .getReservationTemplateList();
+            // give each reserved entity a ReservationOrigin
+            Origin reservationOrigin = Origin.newBuilder()
+                    .setReservationOrigin(ReservationOrigin.newBuilder()
+                        .setReservationId(reservation.getId()))
+                    .build();
             for (ReservationTemplate reservationTemplate : reservationTemplates) {
-                reservationTopologyEntities.addAll(createTopologyEntities(reservationTemplate, topology));
+                List<TopologyEntity.Builder> entityBuilders = createTopologyEntities(reservationTemplate, topology);
+                entityBuilders.forEach(builder -> {
+                    builder.getEntityBuilder().setOrigin(reservationOrigin);
+                    reservationTopologyEntities.add(builder);
+                });
             }
         }
     }

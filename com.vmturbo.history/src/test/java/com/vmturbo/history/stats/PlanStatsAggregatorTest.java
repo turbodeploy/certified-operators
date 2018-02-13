@@ -35,7 +35,7 @@ public class PlanStatsAggregatorTest {
     private static List<MktSnapshotsStatsRecord> records;
 
     private static long CONTEXT_ID = 6666666;
-    private static String PREFIX = "foo";
+    private static String PREFIX = "current";
     private static double CPU_CAPACITY = 111.111;
     private static double CPU_MIN = 10;
     private static double CPU_MID = 20;
@@ -56,7 +56,7 @@ public class PlanStatsAggregatorTest {
 
         TopologyOrganizer topologyOrganizer = new TopologyOrganizer(CONTEXT_ID, 200);
         HistorydbIO historydbIO = Mockito.mock(HistorydbIO.class);
-        aggregator = new PlanStatsAggregator(historydbIO, topologyOrganizer, PREFIX);
+        aggregator = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2));
         aggregator.handleChunk(Lists.newArrayList(pm3));

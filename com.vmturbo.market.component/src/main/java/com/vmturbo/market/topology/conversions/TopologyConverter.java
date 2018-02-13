@@ -15,10 +15,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
@@ -27,6 +23,10 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -381,6 +381,11 @@ public class TopologyConverter {
         if (originalTrader == null) {
             // this is a clone trader
             originalTrader = traderOidToEntityDTO.get(traderTO.getCloneOf());
+        } else {
+            // copy the origin story from the original entity
+            if (originalTrader.hasOrigin()) {
+                entityDTO.setOrigin(originalTrader.getOrigin());
+            }
         }
         // get dspm and datastore commodity sold from the original trader, add
         // them to projected topology entity DTO

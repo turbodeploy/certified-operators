@@ -14,21 +14,23 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.utils.HistoryStatsUtils;
@@ -46,23 +48,29 @@ public class PlanStatsAggregator {
 
     private final Logger logger = LogManager.getLogger();
 
+    private static final String NO_COMMODITY_PREFIX = "";
+    private static final String CURRENT_COMMODITY_PREFIX = "current";
+
     private Map<Integer, MktSnapshotsStatsRecord> commodityAggregate = Maps.newHashMap();
     private Map<Integer, Integer> commodityTypeCounts = Maps.newHashMap();
     private Map<Integer, Integer> entityTypeCounts = Maps.newHashMap();
     private final Timestamp snapshotTimestamp;
     private final HistorydbIO historydbIO;
+    private final boolean isProcessingSourceTopologyStats;
     private final String dbCommodityPrefix;
     private final long topologyId;
     private final long topologyContextId;
 
     public PlanStatsAggregator(
                 @Nonnull HistorydbIO historydbIO, @Nonnull TopologyOrganizer topologyOrganizer,
-                String prefix) {
+                boolean isProcessingSourceTopologyStats) {
         topologyId = topologyOrganizer.getTopologyId();
         topologyContextId = topologyOrganizer.getTopologyContextId();
         snapshotTimestamp = new Timestamp(topologyOrganizer.getSnapshotTime());
         this.historydbIO = historydbIO;
-        dbCommodityPrefix = prefix == null ? "" : prefix;
+
+        this.isProcessingSourceTopologyStats = isProcessingSourceTopologyStats;
+        dbCommodityPrefix = isProcessingSourceTopologyStats ? CURRENT_COMMODITY_PREFIX : NO_COMMODITY_PREFIX;
     }
 
     /**
@@ -86,8 +94,11 @@ public class PlanStatsAggregator {
      * @param chunk a collection of topology DTOs
      */
     public void handleChunk(Collection<TopologyEntityDTO> chunk) {
-        aggregateCommodities(chunk);
-        countTypes(chunk);
+        Collection<TopologyEntityDTO> entitiesToCount = chunk.stream()
+                .filter(this::shouldCountEntity)
+                .collect(Collectors.toSet());
+        countTypes(entitiesToCount);
+        aggregateCommodities(entitiesToCount);
     }
 
     /**
@@ -96,9 +107,61 @@ public class PlanStatsAggregator {
      */
     private void countTypes(Collection<TopologyEntityDTO> chunk) {
         chunk.stream()
-            .filter(dto -> dto.getEntityState() == EntityState.POWERED_ON)
             .map(TopologyEntityDTO::getEntityType)
             .forEach(this::increment);
+
+        logger.debug("Entity Counts:\n {}", () -> getEntityCountDump(chunk));
+    }
+
+    // this function is only for debugging. It's an ugly function, but very useful for seeing
+    // breakdowns of the contents of a topology having stats aggregated.
+    // TODO: remove this after the plan results are solid.
+    private String getEntityCountDump(Collection<TopologyEntityDTO> chunk) {
+        if (chunk.size() <= 0) {
+            return "No entities.";
+        }
+        // create a dump of the raw entity counts
+        StringBuilder sb = new StringBuilder("Raw Entity Counts:\n");
+        Map<String,Integer> entityTypeStateCounts = new HashMap<>();
+        chunk.stream()
+                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() +":"+ dto.getEntityState().name())
+                .forEach(key -> entityTypeStateCounts.merge(key,1, (i,d) -> i+d ));
+        entityTypeStateCounts.entrySet().forEach(entry -> sb.append("  ")
+                .append(entry.getKey()).append(":").append(entry.getValue()).append("\n"));
+
+        // dump unplaced entity counts
+        Map<String,Integer> unplacedEntityTypeStateCounts = new HashMap<>();
+        chunk.stream().filter(dto -> !TopologyDTOUtil.isPlaced(dto))
+                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() +":"+ dto.getEntityState().name())
+                .forEach(key -> unplacedEntityTypeStateCounts.merge(key,1, (i,d) -> i+d ));
+        sb.append("Unplaced entity counts:\n");
+        unplacedEntityTypeStateCounts.entrySet().forEach(entry -> sb.append("  ")
+                .append(entry.getKey()).append(":").append(entry.getValue()).append("\n"));
+
+        // count the entities with plan origins too
+        Map<String,Integer> planEntityCounts = new HashMap<>();
+        chunk.stream()
+                .filter(dto -> !shouldCountEntity(dto))
+                .map(dto -> EntityType.forNumber(dto.getEntityType()).name() +":"+ dto.getEntityState().name())
+                .forEach(key -> planEntityCounts.merge(key,1, (i,d) -> i+d ));
+        sb.append("Entity w/Plan Origin counts:\n");
+        planEntityCounts.entrySet().forEach(entry -> sb.append("  ")
+                .append(entry.getKey()).append(":").append(entry.getValue()).append("\n"));
+        return sb.toString();
+    }
+
+    /**
+     * Should we count this entity? If we are processing source topology stats, then we will skip
+     * any entities that were added in plan scenarios. Since these were not part of the original
+     * topology, they should not be counted in the "before plan" stats.
+     *
+     * @param  entity the entity to check if we should count
+     * @return true, if this entity should be included in the stats.
+     */
+    private boolean shouldCountEntity(TopologyEntityDTO entity) {
+        return !(isProcessingSourceTopologyStats
+                && entity.hasOrigin()
+                && entity.getOrigin().hasPlanOrigin());
     }
 
     /**

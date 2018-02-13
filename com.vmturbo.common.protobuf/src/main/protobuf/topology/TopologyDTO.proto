@@ -88,6 +88,63 @@ message TopologyEntityDTO {
         // The desired utilization target range
         optional float desired_utilization_range = 6 ;
     }
+
+    optional Origin origin = 10;
+    optional Edit edit = 11;
+
+    // The Origin tracks where and how an entity came to be included in the topology.
+    // An entity can have one of three possible Origins:
+    //   1) discovered from a probe target (or multiple targets) - this is not modeled yet.
+    //   2) created by a Placement Reservation
+    //   3) Added as part of a plan scenario, such as an entity added by an "add workload" config,
+    //      or headroom vm's added for cluster headroom calculation.
+    message Origin {
+        oneof origin_type {
+            // leaving 1 open for a potential future DiscoveryOrigin
+            ReservationOrigin reservation_origin = 2;
+            PlanOrigin plan_origin = 3;
+        }
+    }
+
+    // an entity that was created via a Placement reservation. Has a reference to it's reservation
+    // id.
+    message ReservationOrigin {
+        required int64 reservation_id = 1;
+    }
+
+    // an entity can be created by a plan configuration to support plan scenarios, such as "Add
+    // Workload", "Replace". Phantom Entities are also created in special situations, such as for
+    // calculating headroom in the cluster headroom plan. The plan origin for these entities will
+    // refer to the plan id the entity was added to support.
+    message PlanOrigin {
+        required int64 plan_id = 1;
+    }
+
+    // if the entity has met a (potentially grisly) end, describe it. Currently there are only two
+    // edits being tracked:
+    //   1) Removed -- the entity was Removed as part of a "remove" or "decommission" plan scenario
+    //   2) Replaced -- the entity was Replaced in a plan scenario change.
+    // We have discussed other possible types of edits in the future, such as "change workload", but
+    // those are not necessary for modeling at this time and have alternate approaches available as
+    // well.
+    message Edit {
+        oneof change_type {
+            Removed removed = 1;
+            Replaced replaced = 2;
+        }
+    }
+
+    // this entity was Removed as part of a place scenario configuration.
+    message Removed {
+        required int64 plan_id = 1; // the plan calling for the entity's removal
+    }
+
+    // this entity was Replaced by another entity as part of a place scenario configuration.
+    // We could potentially track the "replaced by" entity id here too, but that requires additional
+    // complexity. We don't seem to need it yet, so leaving it out.
+    message Replaced {
+        required int64 plan_id = 1; // the plan calling for the entity's replacement
+    }
 }
 
 // Message to hold original topology broadcast message.

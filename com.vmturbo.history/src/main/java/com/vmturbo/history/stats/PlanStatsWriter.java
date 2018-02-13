@@ -33,8 +33,6 @@ import com.vmturbo.reports.db.abstraction.tables.records.ScenariosRecord;
 public class PlanStatsWriter {
 
     private static final Logger logger = LogManager.getLogger();
-    private static final String NO_COMMODITY_PREFIX = "";
-    private static final String CURRENT_COMMODITY_PREFIX = "current";
 
     private final HistorydbIO historydbIO;
 
@@ -160,7 +158,7 @@ public class PlanStatsWriter {
     public int processProjectedChunks(TopologyOrganizer topologyOrganizer,
         RemoteIterator<TopologyEntityDTO> dtosIterator)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
-        return internalProcessChunks(topologyOrganizer, dtosIterator, NO_COMMODITY_PREFIX);
+        return internalProcessChunks(topologyOrganizer, dtosIterator, false);
     }
 
     /**
@@ -177,17 +175,17 @@ public class PlanStatsWriter {
     public int processChunks(TopologyOrganizer topologyOrganizer,
         RemoteIterator<TopologyEntityDTO> dtosIterator)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
-        return internalProcessChunks(topologyOrganizer, dtosIterator, CURRENT_COMMODITY_PREFIX);
+        return internalProcessChunks(topologyOrganizer, dtosIterator, true);
     }
 
     private int internalProcessChunks(TopologyOrganizer topologyOrganizer,
-        RemoteIterator<TopologyEntityDTO> dtosIterator, String prefix)
+        RemoteIterator<TopologyEntityDTO> dtosIterator, boolean isProcessingCurrent)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
         int numberOfEntities = 0;
         int chunkNumber = 0;
         historydbIO.addMktSnapshotRecord(topologyOrganizer);
         PlanStatsAggregator aggregator
-            = new PlanStatsAggregator(historydbIO, topologyOrganizer, prefix);
+            = new PlanStatsAggregator(historydbIO, topologyOrganizer, isProcessingCurrent);
         while (dtosIterator.hasNext()) {
             Collection<TopologyEntityDTO> chunk = dtosIterator.nextChunk();
             logger.debug("Received chunk #{} of size {} for topology {} and context {}",

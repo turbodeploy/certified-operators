@@ -139,9 +139,18 @@ public class StagesTest {
     public void testEditStage() throws PipelineStageException {
         final TopologyEditor topologyEditor = mock(TopologyEditor.class);
         final List<ScenarioChange> changes = Collections.emptyList();
+        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+                .setTopologyContextId(1)
+                .setTopologyId(1)
+                .setCreationTime(System.currentTimeMillis())
+                .setTopologyType(TopologyType.PLAN)
+                .build();
+        final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
+        when(context.getTopologyInfo()).thenReturn(topologyInfo);
         final TopologyEditStage stage = new TopologyEditStage(topologyEditor, changes);
+        stage.setContext(context);
         stage.execute(Collections.emptyMap());
-        verify(topologyEditor).editTopology(eq(Collections.emptyMap()), eq(Collections.emptyList()));
+        verify(topologyEditor).editTopology(eq(Collections.emptyMap()), eq(Collections.emptyList()), any());
     }
 
     @Test

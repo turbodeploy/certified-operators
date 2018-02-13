@@ -3,9 +3,12 @@ package com.vmturbo.market.runner;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -16,13 +19,13 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
@@ -141,6 +144,25 @@ public class Analysis {
                 // save the scoped topology for later broadcast
                 captureScopedTopology(traderTOs);
             }
+
+            // remove any (scoped) traders that may have been flagged for removal
+            // We are doing this after the convertToMarket() function because we need the original
+            // traders available in the "old providers maps" so the biclique calculation can
+            // preserve the original topology structure. We may refactor this in a way that lets us
+            // remove the old provider map though -- see OM-26631.
+            Set<Long> oidsToRemove = topologyDTOs.stream()
+                    .filter(dto -> dto.hasEdit())
+                    .filter(dto -> dto.getEdit().hasRemoved()
+                                || dto.getEdit().hasReplaced())
+                    .map(TopologyEntityDTO::getOid)
+                    .collect(Collectors.toSet());
+            if (oidsToRemove.size() > 0) {
+                logger.debug("Removing {} traders before analysis: ", oidsToRemove.size());
+                traderTOs = traderTOs.stream()
+                        .filter(traderTO -> !(oidsToRemove.contains(traderTO.getOid())))
+                        .collect(Collectors.toSet());
+            }
+
             if (logger.isDebugEnabled()) {
                 logger.debug(traderTOs.size() + " Economy DTOs");
             }

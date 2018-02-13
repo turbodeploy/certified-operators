@@ -226,7 +226,7 @@ public class Stages {
 
         @Override
         public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            topologyEditor.editTopology(input, changes);
+            topologyEditor.editTopology(input, changes, getContext().getTopologyInfo());
         }
 
         @Override

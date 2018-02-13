@@ -14,17 +14,17 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
@@ -36,6 +36,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -144,6 +147,13 @@ public class TopologyEditorTest {
     private TopologyEditor topologyEditor =
             new TopologyEditor(identityProvider, templateConverterFactory);
 
+    private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
+            .setTopologyContextId(1)
+            .setTopologyId(1)
+            .setCreationTime(System.currentTimeMillis())
+            .setTopologyType(TopologyType.PLAN)
+            .build();
+
     @Before
     public void setup() {
         when(identityProvider.getCloneId(Mockito.any(TopologyEntityDTO.class)))
@@ -159,7 +169,7 @@ public class TopologyEditorTest {
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD);
 
-        topologyEditor.editTopology(topology, changes);
+        topologyEditor.editTopology(topology, changes, topologyInfo);
 
         List<TopologyEntity.Builder> clones = topology.values().stream()
                         .filter(entity -> entity.getOid() != vm.getOid())
@@ -214,7 +224,7 @@ public class TopologyEditorTest {
                 UtilizationLevel.newBuilder().setPercentage(50).build()
             ).build()
         ).build());
-        topologyEditor.editTopology(topology, changes);
+        topologyEditor.editTopology(topology, changes, topologyInfo);
         final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
             .getEntityBuilder()
             .getCommoditiesBoughtFromProvidersList().stream()
@@ -251,7 +261,7 @@ public class TopologyEditorTest {
                         UtilizationLevel.newBuilder().setPercentage(50).build()
                 ).build()
         ).build());
-        topologyEditor.editTopology(topology, changes);
+        topologyEditor.editTopology(topology, changes, topologyInfo);
         final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
                 .getEntityBuilder()
                 .getCommoditiesBoughtFromProvidersList().stream()
@@ -292,12 +302,18 @@ public class TopologyEditorTest {
                     .setOid(1234L)
                     .setDisplayName("Test PM1")));
 
-        topologyEditor.editTopology(topology, changes);
+        topologyEditor.editTopology(topology, changes, topologyInfo);
         final List<TopologyEntityDTO> topologyEntityDTOS = topology.entrySet().stream()
                 .map(Entry::getValue)
                 .map(entity -> entity.getEntityBuilder().build())
                 .collect(Collectors.toList());
-        assertEquals(3, topologyEntityDTOS.size());
+        assertEquals(4, topologyEntityDTOS.size());
+        // verify that one of the entities is marked for removal
+        assertEquals( 1, topologyEntityDTOS.stream()
+                    .filter(TopologyEntityDTO::hasEdit)
+                    .map(TopologyEntityDTO::getEdit)
+                    .filter(Edit::hasReplaced)
+                    .count());
         // make sure consumers of replaced PM are unplaced
         assertTrue(topologyEntityDTOS.stream()
                 .filter(topologyEntity ->
