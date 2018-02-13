@@ -11,6 +11,8 @@ target/
 .settings/
 .classpath
 .project
+# Eclipse IDE plugin temporary configuration files for Eclipse CS Checkstyle
+.checkstyle
 
 # Mac OS X
 .DS_Store
