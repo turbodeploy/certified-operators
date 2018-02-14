@@ -5,14 +5,17 @@ import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.mail.EmailException;
 import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
@@ -20,6 +23,8 @@ import org.mockito.internal.exceptions.MockitoLimitations;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
@@ -43,6 +48,7 @@ public class ReportingServiceReportGenerationTest {
     private static final long TIMEOUT_MS = 30 * 1000;
 
     private static final String EXCEPTION_MESSAGE = "Some underlying error";
+    private static final String EMAIL_EXCEPTION_MESSAGE = "email provided";
 
     @Rule
     public TemporaryFolder tmpFolder = new TemporaryFolder();
@@ -94,7 +100,7 @@ public class ReportingServiceReportGenerationTest {
 
         final File outputDir = tmpFolder.newFolder();
         reportsGenerator = new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao,
-                        outputDir, threadPool, notificationSender);
+                        outputDir, threadPool, notificationSender, Mockito.mock(MailManager.class));
         reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
                         outputDir, reportsGenerator, Mockito.mock(Scheduler.class));
     }
@@ -113,6 +119,11 @@ public class ReportingServiceReportGenerationTest {
     public void testGoodReport() throws Exception {
         reportingServer.generateReport(request, observer);
         // Steps from background steps are verified with timeout
+        verifyGoodReport();
+    }
+
+    private void verifyGoodReport()
+                    throws DbException, InterruptedException, CommunicationException {
         Mockito.verify(dirtyRecord, Mockito.timeout(TIMEOUT_MS)).commit();
         Mockito.verify(dirtyRecord, Mockito.never()).rollback();
         Mockito.verify(observer).onCompleted();
@@ -181,6 +192,32 @@ public class ReportingServiceReportGenerationTest {
         reportingServer.generateReport(request, observer);
         Mockito.verify(dirtyRecord, Mockito.timeout(TIMEOUT_MS)).rollback();
         Assert.assertThat(expectAsyncFailure(), CoreMatchers.containsString(EXCEPTION_MESSAGE));
+    }
+
+    /**
+     * Tests that generating of report with correct email provided is succeed.
+     *
+     * @throws Exception if exception occured.
+     */
+    @Test
+    public void testGenerateReportWithCorrectEmail() throws Exception{
+        reportingServer.generateReport(request.toBuilder().addSubcribersEmails("correct@email.com")
+                        .build(), observer);
+        verifyGoodReport();
+    }
+
+    /**
+     * Tests that generating of report with incorrect email provided is failed.
+     */
+    @Test
+    public void testGenerateReportWithIncorrectCorrectEmail() {
+        final ArgumentCaptor<StatusRuntimeException> argument =
+                        ArgumentCaptor.forClass(StatusRuntimeException.class);
+        reportingServer.generateReport(request.toBuilder()
+                        .addSubcribersEmails("incorrectemail").build(), observer);
+        Mockito.verify(observer).onError(argument.capture());
+        Assert.assertThat(argument.getValue().getStatus().getDescription(),
+                        CoreMatchers.containsString(EMAIL_EXCEPTION_MESSAGE));
     }
 
     /**

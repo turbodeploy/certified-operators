@@ -23,9 +23,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
+import com.vmturbo.components.common.mail.MailManager;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
@@ -50,13 +53,16 @@ import com.vmturbo.sql.utils.FlywayMigrator;
  */
 @Configuration
 @EnableTransactionManagement
-@Import({ReportingTestDbConfig.class})
+@Import({ReportingTestDbConfig.class, GroupClientConfig.class})
 public class ReportingTestConfig {
 
     private static final String REPORTING_SCHEMA = "reporting_test";
 
     @Autowired
     private ReportingTestDbConfig dbConfig;
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Bean
     protected GrpcTestServer planGrpcServer() throws IOException {
@@ -99,7 +105,12 @@ public class ReportingTestConfig {
     @Bean
     public ReportsGenerator reportsGenerator() {
         return new ReportsGenerator(reportRunner(), templatesOrganizer(), reportInstanceDao(),
-                        reportsOutputDir(), threadPool(), notificationSender());
+                        reportsOutputDir(), threadPool(), notificationSender(), mailManager());
+    }
+
+    @Bean
+    public MailManager mailManager() {
+        return new MailManager(SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
     @Bean public Scheduler scheduler() {

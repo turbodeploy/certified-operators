@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles;
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
@@ -43,6 +44,9 @@ public class MailManagerTest {
     @Rule
     public GrpcTestServer settingsServer = GrpcTestServer.newServer(settingServiceMole);
 
+    private final SettingServiceGrpc.SettingServiceBlockingStub settingsService =
+                    SettingServiceGrpc.newBlockingStub(settingsServer.getChannel());
+
     /**
      * Test sending an email without authentication using a relay SMTP server.
      *
@@ -50,7 +54,7 @@ public class MailManagerTest {
      */
     //@Test
     public void testSendMailNoAuth() throws Exception {
-        MailManager mailManager = new MailManager(settingsServer.getChannel());
+        MailManager mailManager = new MailManager(settingsService);
 
         when(settingServiceMole.getMultipleGlobalSettings(eq(GetMultipleGlobalSettingsRequest.newBuilder()
                 .addAllSettingSpecName(specNames)
@@ -67,7 +71,7 @@ public class MailManagerTest {
      */
     //@Test
     public void testSendMailSSL() throws Exception {
-        MailManager mailManager = new MailManager(settingsServer.getChannel());
+        MailManager mailManager = new MailManager(settingsService);
 
         when(settingServiceMole.getMultipleGlobalSettings(eq(GetMultipleGlobalSettingsRequest.newBuilder()
                 .addAllSettingSpecName(specNames)
@@ -88,7 +92,7 @@ public class MailManagerTest {
      */
     //@Test
     public void testSendMailTLS() throws Exception {
-        MailManager mailManager = new MailManager(settingsServer.getChannel());
+        MailManager mailManager = new MailManager(settingsService);
         when(settingServiceMole.getMultipleGlobalSettings(eq(GetMultipleGlobalSettingsRequest.newBuilder()
                 .addAllSettingSpecName(specNames)
                 .build())))

@@ -254,3 +254,5 @@ reporting:
   <<: *auth_conn_info
   identityGeneratorPrefix: 8
   scheduledReportsGenerationTime: 1
+  groupHost: 'group'
+  grpcPingIntervalSeconds: 300

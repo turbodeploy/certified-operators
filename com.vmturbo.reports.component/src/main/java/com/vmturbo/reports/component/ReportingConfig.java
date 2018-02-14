@@ -17,9 +17,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.components.common.mail.MailManager;
+import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
@@ -40,7 +43,7 @@ import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
  * Spring beans configuration for running reporting.
  */
 @Configuration
-@Import({ReportingDbConfig.class, BaseKafkaProducerConfig.class})
+@Import({ReportingDbConfig.class, BaseKafkaProducerConfig.class, GroupClientConfig.class})
 public class ReportingConfig {
 
     @Autowired
@@ -48,6 +51,9 @@ public class ReportingConfig {
 
     @Autowired
     private BaseKafkaProducerConfig baseKafkaProducerConfig;
+
+    @Autowired
+    private GroupClientConfig groupClientConfig;
 
     @Value("${report.files.output.dir}")
     private File reportOutputDir;
@@ -86,7 +92,12 @@ public class ReportingConfig {
     @Bean
     public ReportsGenerator reportsGenerator() {
         return new ReportsGenerator(componentReportRunner(), templatesOrganizer(), reportInstanceDao(),
-                        reportOutputDir, threadPool(), notificationSender());
+                        reportOutputDir, threadPool(), notificationSender(), mailManager());
+    }
+
+    @Bean
+    public MailManager mailManager() {
+        return new MailManager(SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
     }
 
     @Bean

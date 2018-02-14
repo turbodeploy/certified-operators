@@ -22,6 +22,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.mail.EmailException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -80,7 +81,7 @@ public class SchedulerTest {
     }
 
     @Test
-    public void testScheduleReportGenerationDaily() throws DbException {
+    public void testScheduleReportGenerationDaily() throws DbException, EmailException {
         final long timeInMillis = new GregorianCalendar(2018, Calendar.FEBRUARY, 5).getTimeInMillis();
         Mockito.when(clock.millis()).thenReturn(timeInMillis);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(timeInMillis));
@@ -90,7 +91,8 @@ public class SchedulerTest {
     }
 
     @Test
-    public void testScheduleReportGenerationWeeklyGenerateThisWeek() throws DbException {
+    public void testScheduleReportGenerationWeeklyGenerateThisWeek()
+                    throws DbException, EmailException {
         final long timeInMillis = new GregorianCalendar(2018, Calendar.FEBRUARY, 5).getTimeInMillis();
         Mockito.when(clock.millis()).thenReturn(timeInMillis);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(timeInMillis));
@@ -100,7 +102,8 @@ public class SchedulerTest {
     }
 
     @Test
-    public void testScheduleReportGenerationWeeklyGenerateNextWeek() throws DbException {
+    public void testScheduleReportGenerationWeeklyGenerateNextWeek()
+                    throws DbException, EmailException {
         final long timeInMillis = new GregorianCalendar(2018, Calendar.FEBRUARY, 9).getTimeInMillis();
         Mockito.when(clock.millis()).thenReturn(timeInMillis);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(timeInMillis));
@@ -110,7 +113,8 @@ public class SchedulerTest {
     }
 
     @Test
-    public void testScheduleReportGenerationMonthlyGenerateThisMonth() throws DbException {
+    public void testScheduleReportGenerationMonthlyGenerateThisMonth()
+                    throws DbException, EmailException {
         final long timeInMillis = new GregorianCalendar(2018, Calendar.FEBRUARY, 5).getTimeInMillis();
         Mockito.when(clock.millis()).thenReturn(timeInMillis);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(timeInMillis));
@@ -122,7 +126,8 @@ public class SchedulerTest {
     }
 
     @Test
-    public void testScheduleReportGenerationMonthlyGenerateNextMonth() throws DbException {
+    public void testScheduleReportGenerationMonthlyGenerateNextMonth()
+                    throws DbException, EmailException {
         final long timeInMillis = new GregorianCalendar(2018, Calendar.FEBRUARY, 9).getTimeInMillis();
         Mockito.when(clock.millis()).thenReturn(timeInMillis);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(timeInMillis));
@@ -134,7 +139,8 @@ public class SchedulerTest {
     }
 
     @Test
-    public void testScheduleReportGenerationMonthlyGenerateNextYear() throws DbException {
+    public void testScheduleReportGenerationMonthlyGenerateNextYear()
+                    throws DbException, EmailException {
         long timeInMillis = new GregorianCalendar(2018, Calendar.DECEMBER, 9).getTimeInMillis();
         Mockito.when(clock.millis()).thenReturn(timeInMillis);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(timeInMillis));
@@ -146,7 +152,7 @@ public class SchedulerTest {
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void testScheduleReportGenerationIllegalPeriod() throws DbException {
+    public void testScheduleReportGenerationIllegalPeriod() throws DbException, EmailException {
         long timeInMillis = new GregorianCalendar(2018, Calendar.DECEMBER, 9).getTimeInMillis();
         Mockito.when(clock.millis()).thenReturn(timeInMillis);
         Mockito.when(clock.instant()).thenReturn(Instant.ofEpochMilli(timeInMillis));

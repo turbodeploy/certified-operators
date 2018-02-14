@@ -12,6 +12,8 @@ message GenerateReportRequest {
     required ReportTemplateId template = 2;
     // Parameters for the report
     map<string, string> parameters = 3;
+    // emails to send generated report to. Each GenerateReportRequest may have 0 or more subscribers.
+    repeated string subcribers_emails = 4;
 }
 
 // Report template

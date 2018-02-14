@@ -12,6 +12,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -178,6 +180,9 @@ public class ReportsService implements IReportsService {
         final GenerateReportRequest.Builder builder =
                 GenerateReportRequest.newBuilder().setTemplate(templateId);
         builder.setFormat(reportApiRequest.getFormat().getLiteral());
+        if (!StringUtils.isBlank(reportApiRequest.getEmailAddress())) {
+            builder.addAllSubcribersEmails(splitToEmails(reportApiRequest.getEmailAddress()));
+        }
         // TODO add attributes, as soon as we face at least one real use case
         final ReportInstanceId response = reportingService.generateReport(builder.build());
         final ReportInstanceApiDTO result = new ReportInstanceApiDTO();
@@ -239,14 +244,19 @@ public class ReportsService implements IReportsService {
                 .setPeriod(reportScheduleApiInputDTO.getPeriod().getName())
                 .setShowCharts(reportScheduleApiInputDTO.isShowCharts());
         if (reportScheduleApiInputDTO.getEmail() != null) {
-            infoBuilder.addAllSubscribersEmails(Arrays.stream(reportScheduleApiInputDTO.getEmail().split(","))
-                            .map(String::trim)
-                            .collect(Collectors.toList()));
+            infoBuilder.addAllSubscribersEmails(splitToEmails(reportScheduleApiInputDTO.getEmail()));
         }
         if (reportScheduleApiInputDTO.getScope() != null) {
             infoBuilder.setScopeOid(reportScheduleApiInputDTO.getScope());
         }
         return infoBuilder.build();
+    }
+
+    @Nonnull
+    private List<String> splitToEmails(@Nonnull String emails) {
+        return Arrays.stream(emails.split(","))
+                        .map(String::trim)
+                        .collect(Collectors.toList());
     }
 
     @Override

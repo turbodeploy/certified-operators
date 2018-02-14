@@ -4,10 +4,12 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.mail.internet.AddressException;
 
 import com.google.protobuf.ByteString;
 
@@ -15,6 +17,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.mail.EmailException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -74,7 +77,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
 
     /**
      * Triggeres generating a report and returns report id. Report generation will be executed in a
-     * separate thread, notifications will be sent on finish using {@link #notificationSender}.
+     * separate thread.
      * Report instance data (generated reports) are stored in the filesystem in
      * {@link #outputDirectory} and have associated DB record in {@code report_instances} table.
      * Name of the file to store report data is a report instance Id (converted to {@link String})
@@ -92,6 +95,8 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             logger.error("Failed to generate report " + request.getTemplate().getId(), e);
             responseObserver.onError(
                     new StatusRuntimeException(Status.INTERNAL.withDescription(e.getMessage())));
+        } catch (EmailException ex) {
+            onEmailError(responseObserver, request.getSubcribersEmailsList(), ex);
         }
     }
 
@@ -193,7 +198,16 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
         } catch (DbException e) {
             responseObserver.onError(new StatusRuntimeException(
                             Status.ABORTED.withDescription(e.getMessage())));
+        } catch (EmailException ex) {
+            onEmailError(responseObserver, scheduleInfo.getSubscribersEmailsList(), ex);
         }
+    }
+
+    private <T> void onEmailError(@Nonnull StreamObserver<T> responseObserver,
+                    @Nonnull List<String> emailAddresses, @Nonnull EmailException ex) {
+        logger.error("Invalid email address provided " + emailAddresses, ex);
+        responseObserver.onError(new StatusRuntimeException(
+                        Status.INVALID_ARGUMENT.withDescription(ex.getMessage())));
     }
 
     @Override
@@ -226,7 +240,11 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             responseObserver.onNext(scheduleDTO);
             responseObserver.onCompleted();
         } catch (DbException e) {
-            responseObserver.onError(new StatusRuntimeException(Status.ABORTED.withDescription(e.getMessage())));
+            responseObserver.onError(new StatusRuntimeException(
+                            Status.ABORTED.withDescription(e.getMessage())));
+        } catch (EmailException ex) {
+            onEmailError(responseObserver, scheduleDTO.getScheduleInfo().getSubscribersEmailsList(),
+                            ex);
         }
     }
 

@@ -19,11 +19,13 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.commons.mail.EmailException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.enums.Period;
 import com.vmturbo.reporting.api.protobuf.Reporting;
+import com.vmturbo.reports.component.EmailAddressValidator;
 import com.vmturbo.reports.component.ReportingException;
 import com.vmturbo.reports.component.instances.ReportsGenerator;
 import com.vmturbo.sql.utils.DbException;
@@ -100,7 +102,8 @@ public class Scheduler implements AutoCloseable {
 
     @Nonnull
     public Reporting.ScheduleDTO addSchedule(@Nonnull Reporting.ScheduleInfo scheduleInfo)
-                    throws DbException {
+                    throws DbException, EmailException {
+        EmailAddressValidator.validateAddresses(scheduleInfo.getSubscribersEmailsList());
         synchronized (lock) {
             final Reporting.ScheduleDTO scheduleDTO = scheduleDAO.addSchedule(scheduleInfo);
             scheduleReportGeneration(scheduleDTO);
@@ -121,7 +124,9 @@ public class Scheduler implements AutoCloseable {
     }
 
     @Nonnull
-    public void editSchedule(@Nonnull Reporting.ScheduleDTO scheduleDTO) throws DbException {
+    public void editSchedule(@Nonnull Reporting.ScheduleDTO scheduleDTO)
+                    throws DbException, EmailException {
+        EmailAddressValidator.validateAddresses(scheduleDTO.getScheduleInfo().getSubscribersEmailsList());
         synchronized (lock) {
             scheduleDAO.editSchedule(scheduleDTO);
             scheduleAllReportsGeneration();
@@ -149,6 +154,7 @@ public class Scheduler implements AutoCloseable {
         final Reporting.ScheduleInfo info = scheduleDTO.getScheduleInfo();
         final Reporting.GenerateReportRequest request = Reporting.GenerateReportRequest.newBuilder()
                         .setFormat(info.getFormat())
+                        .addAllSubcribersEmails(info.getSubscribersEmailsList())
                         .setTemplate(Reporting.ReportTemplateId.newBuilder()
                                         .setId(info.getTemplateId())
                                         .setReportType(info.getReportType()))
@@ -250,6 +256,9 @@ public class Scheduler implements AutoCloseable {
                 reportsGenerator.generateReport(request);
             } catch (DbException | ReportingException e) {
                 logger.error("Failed to generate scheduled report " + request, e);
+            } catch (EmailException ex) {
+                logger.error("Invalid address provided for scheduled report generation " +
+                                request.getSubcribersEmailsList(), ex);
             }
         }
     }

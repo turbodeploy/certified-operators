@@ -35,10 +35,10 @@ public class MailManager {
     /**
      * Constructor for the mail manager.
      *
-     * @param groupChannel Channel for calling RPC of the Group component.
+     * @param settingService to get email settings
      */
-    public MailManager(@Nonnull final Channel groupChannel) {
-        this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
+    public MailManager(@Nonnull final SettingServiceGrpc.SettingServiceBlockingStub settingService) {
+        this.settingService = Objects.requireNonNull(settingService);
     }
 
     /**

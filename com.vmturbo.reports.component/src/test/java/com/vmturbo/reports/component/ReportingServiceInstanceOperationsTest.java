@@ -23,6 +23,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
+import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
@@ -97,7 +98,7 @@ public class ReportingServiceInstanceOperationsTest {
 
         final File outputDir = tmpFolder.newFolder();
         reportsGenerator = new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao,
-                        outputDir, threadPool, notificationSender);
+                        outputDir, threadPool, notificationSender, Mockito.mock(MailManager.class));
         reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
                         outputDir, reportsGenerator, Mockito.mock(Scheduler.class));
         instanceCaptor = ArgumentCaptor.forClass(Reporting.ReportInstance.class);
