@@ -997,7 +997,7 @@ public class HistorydbIO extends BasedbIO {
      * TODO:karthikt - Do batch selects(paginate) from the DB.
      */
     public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityType)
-        throws VmtDbException {
+        throws VmtDbException, SQLException {
 
         // Get the name of the table in the db associated with the entityType.
         Table<?> tbl = getDayStatsDbTableForEntityType(entityType);
@@ -1007,19 +1007,20 @@ public class HistorydbIO extends BasedbIO {
         }
         // Query for the max of the max values from all the days in the DB for
         // each commodity in each entity.
-        Result<? extends Record> statsRecords =
-            using(connection())
-                .select(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE), dField(tbl, COMMODITY_KEY),
-                            DSL.max(dField(tbl, MAX_VALUE)))
-                .from(tbl)
-                // only interested in used and sold commodities
-                .where(str(dField(tbl, PROPERTY_SUBTYPE)).eq(STATS_TABLE_PROPERTY_SUBTYPE_FILTER).and(
-                    (relType(dField(tbl, RELATION))).eq(RelationType.COMMODITIES)))
-                .groupBy(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE))
-                .fetch(); //TODO:karthikt - check if fetchLazy would help here.
-
-        logger.debug("Number of records fetched for table {} = {}", tbl, statsRecords.size());
-        return convertToEntityCommoditiesMaxValues(tbl, statsRecords);
+        try (Connection conn = connection()) {
+            Result<? extends Record> statsRecords =
+                using(conn)
+                    .select(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE), dField(tbl, COMMODITY_KEY),
+                                DSL.max(dField(tbl, MAX_VALUE)))
+                    .from(tbl)
+                    // only interested in used and sold commodities
+                    .where(str(dField(tbl, PROPERTY_SUBTYPE)).eq(STATS_TABLE_PROPERTY_SUBTYPE_FILTER).and(
+                        (relType(dField(tbl, RELATION))).eq(RelationType.COMMODITIES)))
+                    .groupBy(dField(tbl, UUID), dField(tbl, PROPERTY_TYPE))
+                    .fetch(); //TODO:karthikt - check if fetchLazy would help here.
+            logger.debug("Number of records fetched for table {} = {}", tbl, statsRecords.size());
+            return convertToEntityCommoditiesMaxValues(tbl, statsRecords);
+        }
     }
 
     /**

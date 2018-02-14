@@ -946,7 +946,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                 historydbIO.getEntityCommoditiesMaxValues(entityType).forEach(responseObserver::onNext);
             }
             responseObserver.onCompleted();
-        } catch (VmtDbException e) {
+        } catch (VmtDbException|SQLException e) {
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
