@@ -168,8 +168,10 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .map(Target::getId)
                 .collect(Collectors.toSet());
             return getTopologyGraph().entities()
-                .filter(entity -> entity.getDiscoveryInformation().isPresent())
-                .filter(entity -> probeTargetIds.contains(entity.getDiscoveryInformation().get().getTargetId()));
+                .filter(TopologyEntity::hasDiscoveryOrigin)
+                .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                    .anyMatch(probeTargetIds::contains));
+
         }
     }
 
@@ -254,8 +256,9 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .map(Target::getId)
                 .collect(Collectors.toSet());
             return getTopologyGraph().entitiesOfType(entityType)
-                .filter(entity -> entity.getDiscoveryInformation().isPresent())
-                .filter(entity -> probeTargetIds.contains(entity.getDiscoveryInformation().get().getTargetId()));
+                .filter(TopologyEntity::hasDiscoveryOrigin)
+                .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                    .anyMatch(probeTargetIds::contains));
         }
     }
 
@@ -291,8 +294,9 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .collect(Collectors.toSet());
 
             return getTopologyGraph().entitiesOfType(entityType)
-                .filter(entity -> entity.getDiscoveryInformation().isPresent())
-                .filter(entity -> probeCategoryTargetIds.contains(entity.getDiscoveryInformation().get().getTargetId()));
+                .filter(TopologyEntity::hasDiscoveryOrigin)
+                .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                    .anyMatch(probeCategoryTargetIds::contains));
         }
     }
 }

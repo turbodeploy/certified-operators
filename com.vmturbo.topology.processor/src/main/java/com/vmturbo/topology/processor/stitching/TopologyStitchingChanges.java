@@ -17,6 +17,7 @@ import com.google.common.base.Preconditions;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 
 /**
@@ -92,7 +93,6 @@ public class TopologyStitchingChanges {
 
             // TODO: (DavidBlinn 12/1/2017)
             // TODO: Support for replacing an entity in discovered groups.
-            // TODO: Support for bookkeeping which targets discovered the entity.
 
             // Set up commodities sold on the merged (onto) entity.
             onto.setCommoditiesSold(commoditySoldMerger.mergeCommoditiesSold(
@@ -104,6 +104,7 @@ public class TopologyStitchingChanges {
             from.getConsumers().forEach(consumer ->
                 buyFromNewProvider(consumer, from, onto));
 
+            trackMergeInformation(from, onto);
             stitchingContext.removeEntity(from);
         }
 
@@ -132,6 +133,23 @@ public class TopologyStitchingChanges {
 
             // Make the buying entity a consumer of the new provider.
             newProvider.addConsumer(toUpdate);
+        }
+
+        /**
+         * Track the oids and targetIds of all targets that discovered the "from" entity by
+         * adding those targetIds and oids onto the mergeInformation of the "onto" entity.
+         *
+         * Also updates the last updatedTime on the "onto" entity to be
+         * max(from.updateTime, onto.updateTime)
+         *
+         * @param from The entity whose data will be merged onto the "onto" entity.
+         * @param onto The entity to receive data from the "from" entity.
+         */
+        private void trackMergeInformation(@Nonnull final TopologyStitchingEntity from,
+                                           @Nonnull final TopologyStitchingEntity onto) {
+            onto.addMergeInformation(new StitchingMergeInformation(from));
+            onto.addAllMergeInformation(from.getMergeInformation());
+            onto.updateLastUpdatedTime(from.getLastUpdatedTime());
         }
     }
 

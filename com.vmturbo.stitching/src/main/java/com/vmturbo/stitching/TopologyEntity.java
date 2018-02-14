@@ -9,6 +9,8 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 
 /**
  * A wrapper around {@link TopologyEntityDTO.Builder}.Properties of the entity such as commodity values
@@ -38,19 +40,12 @@ public class TopologyEntity {
      */
     private final List<TopologyEntity> providers;
 
-    /**
-     * Discovery information about this entity. {@see DiscoveryInformation}
-     * While this field is not marked as final, it is only set during the build of the entity.
-     */
-    private Optional<DiscoveryInformation> discoveryInformation;
-
     private TopologyEntity(@Nonnull final TopologyEntityDTO.Builder entity,
                            @Nonnull final List<TopologyEntity> consumers,
                            @Nonnull final List<TopologyEntity> providers) {
         this.entityBuilder = Objects.requireNonNull(entity);
         this.consumers = consumers;
         this.providers = providers;
-        this.discoveryInformation = Optional.empty();
     }
 
     /**
@@ -138,28 +133,60 @@ public class TopologyEntity {
     }
 
     /**
-     * Get information describing when the entity was last updated and by which target(s)
-     * this entity was discovered.
+     * Check if this {@link TopologyEntity} was discovered by a probe.
      *
-     * @return {@link DiscoveryInformation} describing when and by which target(s) this entity
-     *         was discovered.
+     * @return True if discovered by a probe, false otherwise.
      */
-    public Optional<DiscoveryInformation> getDiscoveryInformation() {
-        return discoveryInformation;
+    public boolean hasDiscoveryOrigin() {
+        return entityBuilder.hasOrigin() && entityBuilder.getOrigin().hasDiscoveryOrigin();
+    }
+
+    /**
+     * Check if this {@link TopologyEntity} was created by a reservation.
+     *
+     * @return True if created by a reservation, false otherwise.
+     */
+    public boolean hasReservationOrigin() {
+        return entityBuilder.hasOrigin() && entityBuilder.getOrigin().hasReservationOrigin();
+    }
+
+    /**
+     * Check if this {@link TopologyEntity} was added as part of a plan scenario,
+     * such as an entity added by an "add workload" config, or headroom vm's added
+     * for cluster headroom calculation.
+     *
+     * @return True if added as part of a plan scenario, false otherwise.
+     */
+    public boolean hasPlanOrigin() {
+        return entityBuilder.hasOrigin() && entityBuilder.getOrigin().hasPlanOrigin();
+    }
+
+    /**
+     * Get the {@Link Origin} for this entity. The Origin tracks where and how an entity came to be
+     * included in the topology.
+     *
+     * @return The origin for this entity, or if not present, returns {@link Optional#empty()}.
+     */
+    public Optional<Origin> getOrigin() {
+        return entityBuilder.hasOrigin() ? Optional.of(entityBuilder.getOrigin()) : Optional.empty();
+    }
+
+    /**
+     * Get the {@Link DiscoveryOrigin} for this entity. The DiscoveryOrigin tracks information about which
+     * targets discovered the entity and when it was last updated.
+     *
+     * @return The {@link DiscoveryOrigin} for this entity, or if the entity does not have a discovery origin,
+     * returns {@link Optional#empty()}.
+     */
+    public Optional<DiscoveryOrigin> getDiscoveryOrigin() {
+        return hasDiscoveryOrigin() ?
+            Optional.of(entityBuilder.getOrigin().getDiscoveryOrigin()) :
+            Optional.empty();
     }
 
     @Override
     public String toString() {
         return "(oid: " + getOid() + ", entityType: " + getEntityType() + ")";
-    }
-
-    /**
-     * Set the discovery information for this entity.
-     *
-     * @param discoveryInformation Information describing when and by which targets this entity was discovered.
-     */
-    private void setDiscoveryInformation(@Nonnull final DiscoveryInformation discoveryInformation) {
-        this.discoveryInformation = Optional.of(discoveryInformation);
     }
 
     /**
@@ -192,11 +219,6 @@ public class TopologyEntity {
             this.providers = new ArrayList<>();
             this.associatedTopologyEntity = new TopologyEntity(entityBuilder,
                 this.consumers, this.providers);
-        }
-
-        public TopologyEntity.Builder discoveryInformation(@Nonnull final DiscoveryInformation discoveryInformation) {
-            associatedTopologyEntity.setDiscoveryInformation(discoveryInformation);
-            return this;
         }
 
         public void addConsumer(@Nonnull final TopologyEntity.Builder consumer) {

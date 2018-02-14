@@ -10,8 +10,9 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.DiscoveryInformation;
+import com.vmturbo.stitching.DiscoveryOriginBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
@@ -79,8 +80,10 @@ public class FilterUtils {
         final TopologyEntity.Builder builder = TopologyEntity.newBuilder(
             TopologyEntityDTO.newBuilder()
                 .setOid(oid)
-                .setEntityType(entityType.getNumber()))
-            .discoveryInformation(DiscoveryInformation.discoveredBy(discoveringTargetId).lastUpdatedAt(lastUpdatedTime));
+                .setEntityType(entityType.getNumber())
+                .setOrigin(Origin.newBuilder()
+                    .setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(discoveringTargetId)
+                        .lastUpdatedAt(lastUpdatedTime))));
 
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;

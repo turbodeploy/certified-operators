@@ -33,6 +33,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.utilities.MergeEntities;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.MergeEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.RemoveEntityChange;
@@ -145,10 +146,10 @@ public class TopologyStitchingChangesTest {
          * |  |     -->   \ /
          * 1  3            1
          */
-        final StitchingEntityData entity1Data = stitchingData("1", Collections.emptyList());
-        final StitchingEntityData entity2Data = stitchingData("2", Collections.singletonList("1"));
-        final StitchingEntityData entity3Data = stitchingData("3", Collections.emptyList());
-        final StitchingEntityData entity4Data = stitchingData("4", Collections.singletonList("3"));
+        final StitchingEntityData entity1Data = stitchingData("1", Collections.emptyList()).forTarget(1L);
+        final StitchingEntityData entity2Data = stitchingData("2", Collections.singletonList("1")).forTarget(1L);
+        final StitchingEntityData entity3Data = stitchingData("3", Collections.emptyList()).forTarget(2L);
+        final StitchingEntityData entity4Data = stitchingData("4", Collections.singletonList("3")).forTarget(2L);
 
         final Map<String, StitchingEntityData> topologyMap = ImmutableMap.of(
             "1", entity1Data,
@@ -177,6 +178,9 @@ public class TopologyStitchingChangesTest {
         assertThat(entity4.getProviders(), contains(entity1));
         assertThat(entity2.getProviders(), contains(entity1));
         assertThat(entity1.getConsumers(), containsInAnyOrder(entity2, entity4));
+
+        assertEquals(1L, entity1.getTargetId());
+        assertThat(entity1.getMergeInformation(), contains(new StitchingMergeInformation(entity3)));
     }
 
     // Test that applying a merge on the same two entities multiple times results in a no-op on the second
@@ -220,6 +224,45 @@ public class TopologyStitchingChangesTest {
 
         when(stitchingContext.hasEntity(entity3)).thenReturn(false);
         merge.applyChange();
+    }
+
+    @Test
+    public void testMergeEntitiesCarriesOverMergeTargets() {
+        final StitchingEntityData entity1Data = stitchingData("1", Collections.emptyList()).forTarget(1L);
+        final StitchingEntityData entity2Data = stitchingData("2", Collections.emptyList()).forTarget(2L);
+        final StitchingEntityData entity3Data = stitchingData("3", Collections.emptyList()).forTarget(3L);
+
+        final Map<String, StitchingEntityData> topologyMap = ImmutableMap.of(
+            "1", entity1Data,
+            "2", entity2Data,
+            "3", entity3Data
+        );
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
+        final TopologyStitchingEntity entity1 = graph.getEntity(entity1Data.getEntityDtoBuilder()).get();
+        entity1.updateLastUpdatedTime(1000L);
+        final TopologyStitchingEntity entity2 = graph.getEntity(entity2Data.getEntityDtoBuilder()).get();
+        entity2.updateLastUpdatedTime(2000L);
+        final TopologyStitchingEntity entity3 = graph.getEntity(entity3Data.getEntityDtoBuilder()).get();
+        entity3.updateLastUpdatedTime(3000L);
+        when(stitchingContext.hasEntity(entity1)).thenReturn(true);
+        when(stitchingContext.hasEntity(entity2)).thenReturn(true);
+        when(stitchingContext.hasEntity(entity3)).thenReturn(true);
+
+        final MergeEntitiesChange mergeThreeOntoTwo = new MergeEntitiesChange(stitchingContext, entity3, entity2,
+            new CommoditySoldMerger(MergeEntities.KEEP_DISTINCT_FAVOR_ONTO));
+        final MergeEntitiesChange mergeTwoOntoOne = new MergeEntitiesChange(stitchingContext, entity2, entity1,
+            new CommoditySoldMerger(MergeEntities.KEEP_DISTINCT_FAVOR_ONTO));
+        assertEquals(1000L, entity1.getLastUpdatedTime());
+        assertEquals(2000L, entity2.getLastUpdatedTime());
+
+        mergeThreeOntoTwo.applyChange();
+        assertThat(entity2.getMergeInformation(), contains(new StitchingMergeInformation(entity3)));
+        assertEquals(3000L, entity2.getLastUpdatedTime());
+
+        mergeTwoOntoOne.applyChange();
+        assertThat(entity1.getMergeInformation(),
+            containsInAnyOrder(new StitchingMergeInformation(entity3), new StitchingMergeInformation(entity2)));
+        assertEquals(3000L, entity1.getLastUpdatedTime());
     }
 
     @Test

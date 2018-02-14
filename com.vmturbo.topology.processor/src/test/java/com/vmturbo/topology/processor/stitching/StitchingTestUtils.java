@@ -253,8 +253,10 @@ public class StitchingTestUtils {
     /**
      * A matcher that allows asserting that a particular entity in the topology is acting as a provider
      * for exactly a certain number of entities.
+     *
+     * Ignores origin in comparison.
      */
-    public static Matcher<TopologyEntityDTO> matchesEntity(final TopologyEntityDTO secondEntity) {
+    public static Matcher<TopologyEntityDTO> matchesEntityIgnoringOrigin(final TopologyEntityDTO secondEntity) {
         return new BaseMatcher<TopologyEntityDTO>() {
             @Override
             @SuppressWarnings("unchecked")
@@ -262,9 +264,11 @@ public class StitchingTestUtils {
                 final TopologyEntityDTO firstEntity = (TopologyEntityDTO) o;
                 final TopologyEntityDTO firstEntityWithoutBought = firstEntity.toBuilder()
                     .clearCommoditiesBoughtFromProviders()
+                    .clearOrigin()
                     .build();
                 final TopologyEntityDTO secondEntityWithoutBought = secondEntity.toBuilder()
                     .clearCommoditiesBoughtFromProviders()
+                    .clearOrigin()
                     .build();
 
                 if (!firstEntityWithoutBought.equals(secondEntityWithoutBought)) {

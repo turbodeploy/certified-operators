@@ -31,7 +31,6 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * @see StitchingChangesBuilder#queueEntityMerger(MergeEntitiesDetails)
  *
  * TODO: Support for replacing an entity in discovered groups.
- * TODO: Support for bookkeeping which targets discovered the entity.
  */
 public class MergeEntities {
     /**

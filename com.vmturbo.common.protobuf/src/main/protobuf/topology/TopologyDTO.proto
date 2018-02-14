@@ -94,16 +94,47 @@ message TopologyEntityDTO {
 
     // The Origin tracks where and how an entity came to be included in the topology.
     // An entity can have one of three possible Origins:
-    //   1) discovered from a probe target (or multiple targets) - this is not modeled yet.
+    //   1) discovered from a probe target (or multiple targets).
     //   2) created by a Placement Reservation
     //   3) Added as part of a plan scenario, such as an entity added by an "add workload" config,
     //      or headroom vm's added for cluster headroom calculation.
     message Origin {
         oneof origin_type {
-            // leaving 1 open for a potential future DiscoveryOrigin
+            DiscoveryOrigin discovery_origin = 1;
             ReservationOrigin reservation_origin = 2;
             PlanOrigin plan_origin = 3;
         }
+    }
+
+    // An entity that was discovered by a probe.
+    message DiscoveryOrigin {
+        // The ids of the one or more targets that discovered this entity.
+        //
+        // If more than one target is present in the list, those targets may or may not be associated
+        // with the same type of probe.
+        //
+        // An example where the targets belong to the same type of probe: 3 VC targets discover
+        // the same shared storage
+        //
+        // An example where the targets belong to different types of probe: 1 VC target and 1 NetApp target
+        // discover the same storage device.
+        //
+        // The id of at least one target will always be in this list.
+        // No guarantees are made about the order of the targets in the list.
+        repeated int64 discovering_target_ids = 1;
+
+        // The time that the data for this entity was last updated.
+        //
+        // If the entity was discovered by multiple targets, this time is the time at which the
+        // most recent update across all those targets provided new information for this entity.
+        //
+        // Important note: This is the time that TopologyProcessor received this data from the probe,
+        // not the actual time that the probe retrieved the information from the target.
+        //
+        // This field may be used as a heuristic for the recency of the data in the absence of better information.
+        // The time is in "computer time" and not necessarily UTC, however, times on TopologyEntityDTOs
+        // are comparable. See documentation in Java's System#currentTimeMillis() for further details.
+        optional int64 last_updated_time = 2;
     }
 
     // an entity that was created via a Placement reservation. Has a reference to it's reservation

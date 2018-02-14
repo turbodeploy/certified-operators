@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.stitching.DiscoveryOriginBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -426,7 +427,7 @@ public class PolicyManager {
 
     /**
      * Get all entities which created from templates. It use {@link TopologyEntity}
-     * {@link com.vmturbo.stitching.DiscoveryInformation} to tell which entity is created from templates.
+     * {@link DiscoveryOriginBuilder} to tell which entity is created from templates.
      * Because for all template entities, discovery information is not present.
      *
      * @param graph The topology graph contains all entities and relations between entities.
@@ -437,7 +438,7 @@ public class PolicyManager {
         // for initial placement, it only has template entities, so we use it to tell which
         // entities are created from templates.
         return graph.entities()
-                .filter(entity -> !entity.getDiscoveryInformation().isPresent())
+                .filter(entity -> !entity.hasDiscoveryOrigin())
                 .map(TopologyEntity::getOid)
                 .collect(Collectors.toSet());
     }

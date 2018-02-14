@@ -1,6 +1,6 @@
 package com.vmturbo.topology.processor.stitching;
 
-import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.matchesEntity;
+import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.matchesEntityIgnoringOrigin;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.sdkDtosFromFile;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -126,7 +126,7 @@ public class StitchingIntegrationTest {
 
         stitchedEntities.forEach((oid, stitched) -> {
             final TopologyEntityDTO unstitched = unstitchedEntities.get(oid);
-            assertThat(stitched, matchesEntity(unstitched));
+            assertThat(stitched, matchesEntityIgnoringOrigin(unstitched));
         });
     }
 

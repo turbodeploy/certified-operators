@@ -1,5 +1,7 @@
 package com.vmturbo.stitching;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -7,6 +9,7 @@ import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TopologyEntityTest {
@@ -24,17 +27,31 @@ public class TopologyEntityTest {
         assertEquals(ENTITY_OID, entity.getOid());
         assertEquals(ENTITY_TYPE, entity.getEntityType());
         assertEquals(dtoBuilder, entity.getTopologyEntityDtoBuilder());
-        assertFalse(entity.getDiscoveryInformation().isPresent());
+        assertFalse(entity.hasDiscoveryOrigin());
     }
 
     @Test
     public void testBuildDiscoveryInformation() {
-        final TopologyEntity entity = TopologyEntity.newBuilder(dtoBuilder)
-            .discoveryInformation(DiscoveryInformation.discoveredBy(111L).lastUpdatedAt(222L))
+        final TopologyEntity entity = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
+                Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L).lastUpdatedAt(222L)))
+        ).build();
+
+        assertTrue(entity.hasDiscoveryOrigin());
+        assertEquals(111L, entity.getDiscoveryOrigin().get().getDiscoveringTargetIds(0));
+        assertEquals(222L, entity.getDiscoveryOrigin().get().getLastUpdatedTime());
+    }
+
+    @Test
+    public void testBuildDiscoveryInformationWithMergeFromTargetIds() {
+        final TopologyEntity entity = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
+            Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L)
+                .withMergeFromTargetIds(333L, 444L)
+                .lastUpdatedAt(222L))))
             .build();
 
-        assertTrue(entity.getDiscoveryInformation().isPresent());
-        assertEquals(111L, entity.getDiscoveryInformation().get().getTargetId());
-        assertEquals(222L, entity.getDiscoveryInformation().get().getLastUpdatedTime());
+        assertTrue(entity.hasDiscoveryOrigin());
+        assertThat(entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList(),
+            containsInAnyOrder(111L, 333L, 444L));
+        assertEquals(222L, entity.getDiscoveryOrigin().get().getLastUpdatedTime());
     }
 }

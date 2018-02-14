@@ -177,7 +177,9 @@ public class TopologicalChangelog {
          * <p>
          * TODO: (DavidBlinn 12/1/2017)
          * TODO: Support for replacing an entity in discovered groups.
-         * TODO: Support for bookkeeping which targets discovered the entity.
+         *
+         * As a side effect of merging entities, the lastUpdatedTime and mergeFromTargetIds of the
+         * "onto" entity will be updated to reflect the result of the merge.
          *
          * @param details An object describing the entities to be merged.
          * @return A reference to {@link this} to support method chaining.

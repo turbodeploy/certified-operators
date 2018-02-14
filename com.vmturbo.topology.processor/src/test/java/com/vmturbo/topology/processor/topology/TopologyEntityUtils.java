@@ -4,18 +4,17 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.OriginOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 
@@ -59,25 +58,47 @@ public class TopologyEntityUtils {
     public static TopologyEntity.Builder topologyEntityBuilder(final long oid,
                                                                final EntityType entityType,
                                                                @Nonnull final List<Long> providerIds) {
+        return topologyEntityBuilder(oid, entityType, DiscoveryOrigin.getDefaultInstance(), providerIds);
+    }
+
+    /**
+     * Create a new {@link TopologyEntity} with the given OID and {@link EntityType} buying
+     * from the given providerIds.
+     *
+     * All providers are set to be physical machines and the created entity is set to buy CPU from the providers.
+     *
+     * @param oid The oid of the entity.
+     * @param entityType The entity type of the entity.
+     * @param discoveryOrigin The builder for the entity origin.
+     * @param providerIds The oids of the providers to this entity.
+     * @return a new {@link TopologyEntity} with the given OID and {@link EntityType} buying
+     *         from the given providerIds.
+     */
+    @Nonnull
+    public static TopologyEntity.Builder topologyEntityBuilder(final long oid,
+                                                               final EntityType entityType,
+                                                               @Nonnull final DiscoveryOrigin discoveryOrigin,
+                                                               @Nonnull final List<Long> providerIds) {
         return topologyEntityBuilder(TopologyEntityDTO.newBuilder()
-            .setOid(oid)
-            .setEntityType(entityType.getNumber())
-            .addAllCommoditiesBoughtFromProviders(
-                providerIds.stream()
-                    .map(providerId ->
-                        CommoditiesBoughtFromProvider.newBuilder()
-                            .setProviderId(providerId)
-                            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                            .addCommodityBought(
-                                CommodityBoughtDTO.newBuilder()
-                                    .setCommodityType(
-                                        CommodityType.newBuilder()
-                                            .setType(CommodityDTO.CommodityType.CPU_VALUE)
-                                            .build()
-                                    )
-                            ).build()
-                    ).collect(Collectors.toList())
-            )
+                .setOid(oid)
+                .setEntityType(entityType.getNumber())
+                .setOrigin(Origin.newBuilder().setDiscoveryOrigin(discoveryOrigin))
+                .addAllCommoditiesBoughtFromProviders(
+                    providerIds.stream()
+                        .map(providerId ->
+                                CommoditiesBoughtFromProvider.newBuilder()
+                                    .setProviderId(providerId)
+                                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                    .addCommodityBought(
+                                        CommodityBoughtDTO.newBuilder()
+                                            .setCommodityType(
+                                                CommodityType.newBuilder()
+                                                    .setType(CommodityDTO.CommodityType.CPU_VALUE)
+                                                    .build()
+                                            )
+                                    ).build()
+                        ).collect(Collectors.toList())
+                )
         );
     }
 

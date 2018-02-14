@@ -531,7 +531,7 @@ public class Stages {
         public TopologyBroadcastInfo execute(@Nonnull final TopologyGraph input)
                 throws PipelineStageException, InterruptedException {
             final Iterator<TopologyEntityDTO> entities = input.entities()
-                    .map(vertex -> vertex.getTopologyEntityDtoBuilder().build())
+                    .map(topologyEntity -> topologyEntity.getTopologyEntityDtoBuilder().build())
                     .iterator();
             try {
                 switch (getContext().getTopologyInfo().getTopologyType()) {

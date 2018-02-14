@@ -16,6 +16,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
@@ -226,8 +227,8 @@ public class StitchingContext {
         return stitchingGraph.entities()
             .collect(Collectors.toMap(
                 TopologyStitchingEntity::getOid,
-                stitchingEntity -> TopologyEntity.newBuilder(Converter.newTopologyEntityDTO(stitchingEntity))
-                    .discoveryInformation(stitchingEntity.getDiscoveryInformation()),
+                stitchingEntity -> TopologyEntity.newBuilder(Converter.newTopologyEntityDTO(stitchingEntity)
+                    .setOrigin(Origin.newBuilder().setDiscoveryOrigin(stitchingEntity.buildDiscoveryOrigin()))),
                 (oldValue, newValue) -> {
                     logger.error("Multiple entities with oid {}. Keeping the first.", oldValue.getOid());
                     return oldValue;

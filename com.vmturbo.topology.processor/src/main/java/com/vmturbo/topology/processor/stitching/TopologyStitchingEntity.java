@@ -20,6 +20,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.StitchingMergeInformation;
 
 /**
  * The concrete implementation of the {@link StitchingEntity} interface.
@@ -35,7 +36,20 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     private final long targetId;
 
-    private final long lastUpdatedTime;
+    private long lastUpdatedTime;
+
+    /**
+     * A list of {@link StitchingMergeInformation} for entities that were that were merged onto this entity.
+     * For additional details, see {@link com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails}.
+     *
+     * Note that for memory reasons, internally this is initialized to null but all public accessors
+     * guarantee a non-null value (ie if the internal value is null but it is accessed publicly,
+     * we will return an empty list).
+     *
+     * Use a list instead of a set even though the list should contain distinct elements because we
+     * expect these to be generally quite small and this will help reduce the memory footprint.
+     */
+    private List<StitchingMergeInformation> mergeInformation;
 
     private final Map<StitchingEntity, List<CommodityDTO.Builder>> commoditiesBoughtByProvider = new IdentityHashMap<>();
     private final Set<StitchingEntity> consumers = Sets.newIdentityHashSet();
@@ -56,6 +70,7 @@ public class TopologyStitchingEntity implements StitchingEntity {
         this.oid = oid;
         this.targetId = targetId;
         this.lastUpdatedTime = lastUpdatedTime;
+        this.mergeInformation = null;
     }
 
     @Nonnull
@@ -77,6 +92,16 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public long getLastUpdatedTime() {
         return lastUpdatedTime;
+    }
+
+    @Override
+    public boolean updateLastUpdatedTime(final long updateTime) {
+        if (updateTime > lastUpdatedTime) {
+            this.lastUpdatedTime = updateTime;
+            return true;
+        }
+
+        return false;
     }
 
     @Override
@@ -175,6 +200,43 @@ public class TopologyStitchingEntity implements StitchingEntity {
         return String.format("(%s %s %s oid-%d targetId-%d numConsumers-%d numProviders-%d)",
             getEntityType().name(), getLocalId(), getDisplayName(), getOid(), getTargetId(),
             consumers.size(), commoditiesBoughtByProvider.size());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<StitchingMergeInformation> getMergeInformation() {
+        if (mergeInformation == null) {
+            return Collections.emptyList();
+        } else {
+            return Collections.unmodifiableList(mergeInformation);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean addMergeInformation(@Nonnull final StitchingMergeInformation mergeInfo) {
+        if (mergeInformation == null) {
+            mergeInformation = new ArrayList<>();
+        }
+
+        if (mergeInformation.contains(mergeInfo)) {
+            return false;
+        }
+
+        mergeInformation.add(mergeInfo);
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void addAllMergeInformation(@Nonnull final List<StitchingMergeInformation> mergeInfo) {
+        mergeInfo.forEach(this::addMergeInformation);
     }
 
     public static class CommoditySold {

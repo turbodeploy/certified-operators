@@ -2,18 +2,15 @@ package com.vmturbo.common.protobuf;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 
 /**
  * Utilities for dealing with protobuf messages in topology/TopologyDTO.proto.
  */
 public class TopologyDTOUtil {
-
     /**
-     * Deremine whether or not an entity is placed in whatever topology it belongs to.
+     * Determine whether or not an entity is placed in whatever topology it belongs to.
      *
      * @param entity The {@link TopologyDTO.TopologyEntityDTO} to evaluate.
      * @return Whether or not the entity is placed (in whatever topology it belongs to).

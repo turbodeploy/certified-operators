@@ -1,6 +1,6 @@
 package com.vmturbo.topology.processor.stitching.prestitching;
 
-import static com.vmturbo.stitching.DiscoveryInformation.discoveredBy;
+import static com.vmturbo.stitching.DiscoveryOriginBuilder.discoveredBy;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntityBuilder;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyGraphOf;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,21 +38,18 @@ public class PostStitchingOperationScopeFactoryTest {
     private PostStitchingOperationScopeFactory scopeFactory;
 
     private final TopologyEntity.Builder vm1 = topologyEntityBuilder(1L, EntityType.VIRTUAL_MACHINE,
-        Collections.emptyList())
-        .discoveryInformation(discoveredBy(1L).lastUpdatedAt(11L));
+        discoveredBy(1L).lastUpdatedAt(11L), Collections.emptyList());
     private final TopologyEntity.Builder vm2 = topologyEntityBuilder(2L, EntityType.VIRTUAL_MACHINE,
-        Collections.emptyList())
-        .discoveryInformation(discoveredBy(2L).lastUpdatedAt(22L));
+        discoveredBy(2L).lastUpdatedAt(22L), Collections.emptyList());
     private final TopologyEntity.Builder vm3 = topologyEntityBuilder(3L, EntityType.VIRTUAL_MACHINE,
-        Collections.emptyList())
-        .discoveryInformation(discoveredBy(3L).lastUpdatedAt(33L));
+        discoveredBy(3L).lastUpdatedAt(33L), Collections.emptyList());
     private final TopologyEntity.Builder pm = topologyEntityBuilder(4L, EntityType.PHYSICAL_MACHINE,
-        Collections.emptyList())
-        .discoveryInformation(discoveredBy(1L).lastUpdatedAt(11L));
+        discoveredBy(1L).withMergeFromTargetIds(4L).lastUpdatedAt(11L), Collections.emptyList());
 
     private final Target target1 = mock(Target.class);
     private final Target target2 = mock(Target.class);
     private final Target target3 = mock(Target.class);
+    private final Target target4 = mock(Target.class);
 
     private TopologyGraph topologyGraph = topologyGraphOf(vm1, vm2, vm3, pm);
 
@@ -68,16 +65,21 @@ public class PostStitchingOperationScopeFactoryTest {
 
         when(probeStore.getProbeIdForType("111")).thenReturn(Optional.of(111L));
         when(probeStore.getProbeIdForType("222")).thenReturn(Optional.of(222L));
+        when(probeStore.getProbeIdForType("444")).thenReturn(Optional.of(444L));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR)).thenReturn(
             Arrays.asList(111L, 222L));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.STORAGE)).thenReturn(Collections.emptyList());
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERCONVERGED)).thenReturn(
+            Collections.singletonList(444L));
 
         when(target1.getId()).thenReturn(1L);
         when(target2.getId()).thenReturn(2L);
         when(target3.getId()).thenReturn(3L);
+        when(target4.getId()).thenReturn(4L);
 
         when(targetStore.getProbeTargets(eq(111L))).thenReturn(Arrays.asList(target1, target3));
         when(targetStore.getProbeTargets(eq(222L))).thenReturn(Collections.singletonList(target2));
+        when(targetStore.getProbeTargets(eq(444L))).thenReturn(Collections.singletonList(target4));
     }
 
     @Test
@@ -144,6 +146,18 @@ public class PostStitchingOperationScopeFactoryTest {
             .collect(Collectors.toList()), is(empty()));
         assertThat(scopeFactory.probeCategoryEntityTypeScope(
             ProbeCategory.HYPERVISOR, EntityType.PHYSICAL_MACHINE).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), contains(4L));
+    }
+
+    @Test
+    public void testEntityDiscoveredByMultipleTargets() throws Exception {
+        assertThat(scopeFactory.probeCategoryEntityTypeScope(
+            ProbeCategory.HYPERVISOR, EntityType.PHYSICAL_MACHINE).entities()
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toList()), contains(4L));
+        assertThat(scopeFactory.probeCategoryEntityTypeScope(
+            ProbeCategory.HYPERCONVERGED, EntityType.PHYSICAL_MACHINE).entities()
             .map(TopologyEntity::getOid)
             .collect(Collectors.toList()), contains(4L));
     }

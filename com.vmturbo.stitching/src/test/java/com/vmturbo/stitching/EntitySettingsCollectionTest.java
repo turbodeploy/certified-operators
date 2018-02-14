@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 public class EntitySettingsCollectionTest {
@@ -36,9 +37,9 @@ public class EntitySettingsCollectionTest {
         TopologyEntityDTO.newBuilder().setOid(ENTITY_OID).setEntityType(100001);
 
     private static final TopologyEntity PARENT_ENTITY =
-        TopologyEntity.newBuilder(PARENT_ENTITY_DTO_BUILDER)
-            .discoveryInformation(DiscoveryInformation.discoveredBy(1234L).lastUpdatedAt(5678L))
-            .build();
+        TopologyEntity.newBuilder(PARENT_ENTITY_DTO_BUILDER.setOrigin(
+            Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(1234L).lastUpdatedAt(5678L)))
+        ).build();
 
     final Map<Long, SettingPolicy> defaultSettingPolicies = Collections.singletonMap(
         DEFAULT_SETTING_ID, SettingPolicy.newBuilder().setId(DEFAULT_SETTING_ID)

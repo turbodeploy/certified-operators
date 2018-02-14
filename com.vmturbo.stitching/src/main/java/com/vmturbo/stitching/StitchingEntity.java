@@ -8,6 +8,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -107,6 +108,10 @@ public interface StitchingEntity {
     /**
      * Get the ID of the target that discovered this {@link StitchingEntity}.
      *
+     * Note that if the entity has been merged with one or more other entities during stitching
+     * (meaning the entity was discovered by multiple targets), those targetIds are available through
+     * information on {@link #getMergeInformation()}.
+     *
      * @return The ID of the target that discovered this {@link StitchingEntity}.
      */
     long getTargetId();
@@ -123,6 +128,20 @@ public interface StitchingEntity {
      * @return The time that the data for this entity was last updated.
      */
     long getLastUpdatedTime();
+
+    /**
+     * Update the time at which the data for this entity was last updated if that time is
+     * more recent.
+     *
+     * If the input updateTime is not more recent than the current updateTime according to the
+     * {@link #getLastUpdatedTime()} method, this {@link StitchingEntity} will retain its
+     * current updateTime instead of adopting the input time.
+     *
+     * @param updateTime The update time to adopt if newer than the current update time.
+     * @return true if the input updateTime is newer than the current update time,
+     *         false otherwise.
+     */
+    boolean updateLastUpdatedTime(final long updateTime);
 
     /**
      * The commodities sold by this entity.
@@ -197,13 +216,47 @@ public interface StitchingEntity {
     boolean hasConsumer(@Nonnull final StitchingEntity entity);
 
     /**
-     * Get a {@link DiscoveryInformation} object representing when this entity was last updated and by which
+     * Get an unmodifiable view of information about the entities that were merged onto
+     * this entity during stitching.
+     *
+     * If no entities were merged onto this entity, will return an empty list.
+     * No guarantees are made about the order of the information in the list.
+     *
+     * @return an unmodifiable view of information about the entities that were merged onto
+     *         this entity during stitching.
+     */
+    @Nonnull
+    List<StitchingMergeInformation> getMergeInformation();
+
+    /**
+     * Add tracking information for another {@link StitchingEntity} that was merged onto this one.
+     *
+     * Attempting to add the same information multiple times will have no effect after the first addition.
+     *
+     * @param mergeInformation the {@Link StitchingMergeInformation} to be added.
+     * @return true if the information was successfully added, false otherwise.
+     */
+    boolean addMergeInformation(@Nonnull final StitchingMergeInformation mergeInformation);
+
+    /**
+     * Add a list of {@link StitchingMergeInformation} for entities that were merged onto this entity.
+     *
+     * Equivalent to calling {@link #addMergeInformation} for each element of the input list.
+     *
+     * @param mergeInformation The list of {@link StitchingMergeInformation} to be added.
+     */
+    void addAllMergeInformation(@Nonnull final List<StitchingMergeInformation> mergeInformation);
+
+    /**
+     * Get a {@link DiscoveryOrigin} object representing when this entity was last updated and by which
      * target(s).
      *
-     * @return {@link DiscoveryInformation} for this entity.
+     * @return {@link DiscoveryOrigin} for this entity.
      */
-    default DiscoveryInformation getDiscoveryInformation() {
-        return DiscoveryInformation.discoveredBy(getTargetId())
+    default DiscoveryOrigin buildDiscoveryOrigin() {
+        return DiscoveryOriginBuilder.discoveredBy(getTargetId())
+            .withMergeFromTargetIds(getMergeInformation().stream()
+                .map(StitchingMergeInformation::getTargetId))
             .lastUpdatedAt(getLastUpdatedTime());
     }
 }
