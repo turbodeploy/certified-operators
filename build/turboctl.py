@@ -78,6 +78,17 @@ def shell_to_component(parsed_args):
     call_shell_cmd([DOCKER_COMPOSE_COMMAND, "exec", component] +
                    command_to_exec)
 
+def execute_mysql_command(parsed_args):
+    """
+    Execute command as an SQL command on the DB component
+    """
+    command_to_exec = parsed_args.command_to_exec
+    user = parsed_args.user
+    password = parsed_args.password
+    database = parsed_args.database
+
+    call_shell_cmd([DOCKER_COMPOSE_COMMAND, "exec", "db", "mysql", "-u" + user, "-p" + password,
+                   "-D" + database, "-e", " ".join(command_to_exec)])
 
 def logs_display(parsed_args):
     """
@@ -195,6 +206,18 @@ def parse_args(args=sys.argv[1:]):
     shell_parser.add_argument("component")
     shell_parser.add_argument("command_to_exec", nargs=argparse.REMAINDER)
     shell_parser.set_defaults(func=shell_to_component)
+
+    # sql
+    sql_parser = subparsers.add_parser("sql", help="Run an SQL command on the DB Component:\n"
+                                                   "  sql [-d <database>] [-u <user>] "
+                                                   "[-p <password>] <command>\n"
+                                                   "defaults are 'vmtdb', 'root', 'vmturbo' "
+                                       )
+    sql_parser.add_argument("-d", "--database", default='vmtdb')
+    sql_parser.add_argument("-u", "--user", default='root')
+    sql_parser.add_argument("-p", "--password", default='vmturbo')
+    sql_parser.add_argument("command_to_exec", nargs=argparse.REMAINDER)
+    sql_parser.set_defaults(func=execute_mysql_command)
 
     # logs
     logs_parser = subparsers.add_parser("logs", help="Display Debug Logs for Components:\n"
