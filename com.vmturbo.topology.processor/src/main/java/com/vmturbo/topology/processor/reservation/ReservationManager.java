@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
@@ -220,11 +221,10 @@ public class ReservationManager {
             @Nonnull ReservationInstance reservationInstance,
             @Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
-        // TODO: update topologyEntityBuilder from Project topology entity in order to keep correct
-        // commodity type order. Current approach will not handle templates with multiple same
-        // type fields, such as VM template with a list of Storage.
         topologyEntityBuilder.setOid(reservationInstance.getEntityId());
         topologyEntityBuilder.setDisplayName(reservationInstance.getName());
+        // set suspendable to false in order to prevent Market from generating suspend action.
+        disableSuspendAnalysisSetting(topologyEntityBuilder);
         final Set<PlacementInfo> placementInfos = reservationInstance.getPlacementInfoList().stream()
                 .collect(Collectors.toSet());
 
@@ -457,6 +457,10 @@ public class ReservationManager {
             for (TopologyEntityDTO.Builder entityBuilder : createdTopologyEntityDTO) {
                 final TopologyEntityDTO.Builder newEntityBuilder =
                         entityBuilder.setDisplayName(reservationName + "_" + instanceCount);
+                // set suspendable to false in order to prevent Market from generating
+                // suspend action.
+                disableSuspendAnalysisSetting(newEntityBuilder);
+
                 instanceCount++;
                 updatedTopologyEntityDTO.add(newEntityBuilder);
             }
@@ -480,6 +484,20 @@ public class ReservationManager {
         } catch (TopologyEditorException e) {
             logger.error("Can not find template: " + reservationTemplate.getTemplateId() +
                     " and ignore the reservation templates.");
+        }
+    }
+
+    /**
+     * Only disable suspend for the input entity, and it will keep other analysis setting not changed.
+     *
+     * @param topologyEntityBuilder {@link TopologyEntity.Builder} need to disable suspend.
+     */
+    private void disableSuspendAnalysisSetting(@Nonnull TopologyEntityDTO.Builder topologyEntityBuilder) {
+        if (topologyEntityBuilder.hasAnalysisSettings()) {
+            topologyEntityBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
+        } else {
+            topologyEntityBuilder.setAnalysisSettings(AnalysisSettings.newBuilder()
+                    .setSuspendable(false));
         }
     }
 }

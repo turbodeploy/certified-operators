@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.reservation;
 
 import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.argThat;
 
@@ -79,8 +80,12 @@ public class ReservationManagerTest {
                                             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                                                     .setCommodityType(CommodityType.newBuilder()
                                                             .setType((CommodityDTO
-                                                                    .CommodityType.MEM_VALUE)))
-                                                    .setUsed(100)))
+                                                                    .CommodityType.MEM_PROVISIONED_VALUE)))
+                                                    .setUsed(100))
+                                            .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                                    .setUsed(200)
+                                                    .setCommodityType(CommodityType.newBuilder()
+                                                            .setType(CommodityDTO.CommodityType.MEM_VALUE))))
                                     .addPlacementInfo(PlacementInfo.newBuilder()
                                             .setProviderId(333)
                                             .setProviderType(EntityType.STORAGE_VALUE)
@@ -120,7 +125,7 @@ public class ReservationManagerTest {
                             .setCommodityType(CommodityType.newBuilder()
                                     .setType(CommodityDTO.CommodityType.MEM_PROVISIONED_VALUE)))
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                            .setUsed(200)
+                            .setUsed(0.0)
                             .setCommodityType(CommodityType.newBuilder()
                                     .setType(CommodityDTO.CommodityType.MEM_VALUE))))
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
@@ -189,6 +194,7 @@ public class ReservationManagerTest {
 
         // Check already reserved Reservation
         final TopologyEntityDTO.Builder builderReserved = topology.get(1L).getEntityBuilder();
+        assertFalse(builderReserved.getAnalysisSettings().getSuspendable());
         assertEquals(2L, builderReserved.getCommoditiesBoughtFromProvidersCount());
         assertTrue(builderReserved.getCommoditiesBoughtFromProvidersBuilderList().stream()
                 .anyMatch(commoditiesBought -> commoditiesBought.getProviderId() == providerEntity.getOid()));
@@ -201,6 +207,7 @@ public class ReservationManagerTest {
 
         // Check just become active Reservation
         final TopologyEntityDTO.Builder builderFuture = topology.get(2L).getEntityBuilder();
+        assertFalse(builderFuture.getAnalysisSettings().getSuspendable());
         assertEquals(2L, builderFuture.getCommoditiesBoughtFromProvidersCount());
         assertTrue(builderFuture.getCommoditiesBoughtFromProvidersBuilderList().stream()
                 .allMatch(commoditiesBought -> !commoditiesBought.hasProviderId()));
