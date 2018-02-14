@@ -37,7 +37,9 @@ public interface EntitiesListener {
      *        ID each time it broadcasts the topology.
      *        creationTime: The time of topology message created.
      * @param topologyDTOs Remote iterator to retrieve the complete set of stitched entities that
-     *      compose the the full topology snapshot
+     *      compose the the full topology snapshot. This object is valid only during the method
+     *      call. it will throw {@link IllegalStateException} if called after the method exists.
      */
-    void onTopologyNotification(TopologyInfo topologyInfo, @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs);
+    void onTopologyNotification(@Nonnull TopologyInfo topologyInfo,
+            @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs);
 }

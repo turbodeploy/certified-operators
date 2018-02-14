@@ -4,20 +4,23 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
@@ -27,6 +30,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.communication.LoggingUncaughtExceptionHandler;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
@@ -46,7 +50,6 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.topology.TopologyBroadcastUtil;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.util.Probes;
 
@@ -62,6 +65,11 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
 
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
+
+    @BeforeClass
+    public static void initStatic() {
+        Thread.setDefaultUncaughtExceptionHandler(new LoggingUncaughtExceptionHandler());
+    }
 
     @Before
     public void initStores() throws Exception {
@@ -83,41 +91,33 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final TopologyEntityDTO topology2 =
                         TopologyEntityDTO.newBuilder().setOid(2L).setEntityType(2).build();
 
-        final EntitiesListener listener1 = Mockito.mock(EntitiesListener.class);
-        final EntitiesListener listener2 = Mockito.mock(EntitiesListener.class);
+        final TopologyAccumulator listener1 = Mockito.spy(new TopologyAccumulator(2));
+        final TopologyAccumulator listener2 = Mockito.spy(new TopologyAccumulator(1));
         getTopologyProcessor().addLiveTopologyListener(listener1);
         final Set<TopologyEntityDTO> entities = ImmutableSet.of(topology1, topology2);
 
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        final ArgumentCaptor<RemoteIterator<TopologyEntityDTO>> targetCaptor1 =
-                        ArgumentCaptor.forClass((Class)Set.class);
         final ArgumentCaptor<TopologyInfo> topologyInfoCaptor1 = ArgumentCaptor.forClass(TopologyInfo.class);
 
         final long topologyOneId = 7;
         final long topologyTwoId = 8;
 
         sendEntities(topologyContextId, topologyOneId, entities);
-        Mockito.verify(listener1, Mockito.timeout(TIMEOUT_MS).times(1))
-                        .onTopologyNotification(topologyInfoCaptor1.capture(), targetCaptor1.capture());
-        TopologyInfo topologyInfoOneInstance = topologyInfoCaptor1.getValue();
-        Assert.assertEquals(topologyOneId, topologyInfoOneInstance.getTopologyId());
-        Assert.assertEquals(topologyContextId, topologyInfoOneInstance.getTopologyContextId());
-        Assert.assertEquals(entities, accumulate(targetCaptor1.getValue()));
 
         getTopologyProcessor().addLiveTopologyListener(listener2);
         @SuppressWarnings({ "unchecked", "rawtypes" })
-        final ArgumentCaptor<RemoteIterator<TopologyEntityDTO>> targetCaptor2 = ArgumentCaptor.forClass((Class)Set.class);
         final ArgumentCaptor<TopologyInfo> topologyInfoCaptor2 = ArgumentCaptor.forClass(TopologyInfo.class);
 
         sendEntities(topologyContextId, topologyTwoId, entities);
         Mockito.verify(listener1, Mockito.timeout(TIMEOUT_MS).times(2))
-                        .onTopologyNotification(topologyInfoCaptor1.capture(), targetCaptor1.capture());
+                        .onTopologyNotification(topologyInfoCaptor1.capture(), Mockito.any());
         Assert.assertEquals(topologyTwoId, topologyInfoCaptor1.getValue().getTopologyId());
         Assert.assertEquals(topologyContextId, topologyInfoCaptor1.getValue().getTopologyContextId());
         Mockito.verify(listener2, Mockito.timeout(TIMEOUT_MS).times(1))
-                        .onTopologyNotification(topologyInfoCaptor2.capture(), targetCaptor2.capture());
-        Assert.assertEquals(entities, accumulate(targetCaptor1.getValue()));
-        Assert.assertEquals(entities, accumulate(targetCaptor2.getValue()));
+                        .onTopologyNotification(topologyInfoCaptor2.capture(), Mockito.any());
+        listener1.await();
+        listener2.await();
+        Assert.assertEquals(entities, listener1.result);
+        Assert.assertEquals(entities, listener2.result);
         Assert.assertEquals(topologyTwoId, topologyInfoCaptor2.getValue().getTopologyId());
         Assert.assertEquals(topologyContextId, topologyInfoCaptor2.getValue().getTopologyContextId());
     }
@@ -132,7 +132,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final TopologyEntityDTO topology =
                         TopologyEntityDTO.newBuilder().setOid(1L).setEntityType(2).build();
 
-        final EntitiesListener goodListener = Mockito.mock(EntitiesListener.class);
+        final TopologyAccumulator goodListener = Mockito.spy(new TopologyAccumulator(2));
         final EntitiesListener failingListener = Mockito.mock(EntitiesListener.class);
         Mockito.doThrow(new RuntimeException("Exception for tests")).when(failingListener)
                         .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any());
@@ -144,14 +144,12 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         sendEntities(0L, 0L, entities);
         sendEntities(0L, 1L, entities);
 
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        final ArgumentCaptor<RemoteIterator<TopologyEntityDTO>> targetCaptor =
-                        ArgumentCaptor.forClass((Class)RemoteIterator.class);
-
+        Mockito.verify(failingListener, Mockito.timeout(TIMEOUT_MS).times(2))
+                .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any());
         Mockito.verify(goodListener, Mockito.timeout(TIMEOUT_MS).times(2))
-                        .onTopologyNotification(Mockito.any(TopologyInfo.class), targetCaptor.capture());
-        Assert.assertEquals(entities, accumulate(targetCaptor.getAllValues().get(0)));
-        Assert.assertEquals(entities, accumulate(targetCaptor.getAllValues().get(1)));
+                .onTopologyNotification(Mockito.any(TopologyInfo.class), Mockito.any());
+        goodListener.await();
+        Assert.assertEquals(entities, goodListener.result);
     }
 
     /**
@@ -536,8 +534,34 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         Assert.assertEquals(topologyId, broadcast.getTopologyId());
     }
 
-    private Set<TopologyEntityDTO> accumulate(RemoteIterator<TopologyEntityDTO> iterator)
-            throws InterruptedException, TimeoutException, CommunicationException {
-        return TopologyBroadcastUtil.accumulate(iterator);
+    /**
+     * Topology accumulator to store all the topology DTOs, sent by the server.
+     */
+    private class TopologyAccumulator implements EntitiesListener {
+
+        private final CountDownLatch latch;
+        private final Set<TopologyEntityDTO> result = new HashSet<>();
+
+        public TopologyAccumulator(int expectedInvocations) {
+            this.latch = new CountDownLatch(expectedInvocations);
+        }
+
+        @Override
+        public void onTopologyNotification(TopologyInfo topologyInfo,
+                @Nonnull RemoteIterator<TopologyEntityDTO> topologyDTOs) {
+            try {
+                while (topologyDTOs.hasNext()) {
+                    result.addAll(topologyDTOs.nextChunk());
+                }
+            } catch (Exception e) {
+                logger.error("Error retrieving topologies", e);
+            } finally {
+                latch.countDown();
+            }
+        }
+
+        public void await() throws InterruptedException {
+            Assert.assertTrue(latch.await(10, TimeUnit.SECONDS));
+        }
     }
 }
