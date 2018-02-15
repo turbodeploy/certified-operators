@@ -304,17 +304,7 @@ public class PlanStatsAggregator {
      * @throws VmtDbException when writing to the DB fails
      */
     public void writeAggregates() throws VmtDbException {
-        // TODO: write in batch
-        try (Connection conn = historydbIO.connection()) {
-            for (MktSnapshotsStatsRecord snapshotStatRecord : statsRecords()) {
-                historydbIO.execute(HistorydbIO.getJooqBuilder()
-                    .insertInto(MktSnapshotsStats.MKT_SNAPSHOTS_STATS)
-                    .set(snapshotStatRecord), conn);
-            }
-        } catch (SQLException | DataAccessException e) {
-            throw new VmtDbException(VmtDbException.INSERT_ERR, "Error persisting" +
-                            topologyContextId, e);
-        }
+        historydbIO.persistMarketSnapshotsStats(statsRecords());
     }
 
     /**

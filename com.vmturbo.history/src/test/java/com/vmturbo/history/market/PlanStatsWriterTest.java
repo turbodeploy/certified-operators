@@ -67,12 +67,11 @@ public class PlanStatsWriterTest {
         // Act
         planStatsWriter.persistPlanPriceIndexInfo(priceIndexMessage);
         // Assert
-        verify(mockHistorydbIO).connection();
         verify(mockHistorydbIO).getOrAddScenariosRecord(anyLong(), anyLong(), anyLong());
-        verify(mockHistorydbIO, times(2)).JooqBuilder();
+        verify(mockHistorydbIO, times(1)).JooqBuilder();
 
         // two execute(), one each for current and projected
-        verify(mockHistorydbIO, times(2)).execute(any(Query.class), any(Connection.class));
+        verify(mockHistorydbIO, times(1)).execute(any(Query.class));
         verifyNoMoreInteractions(mockHistorydbIO);
     }
 

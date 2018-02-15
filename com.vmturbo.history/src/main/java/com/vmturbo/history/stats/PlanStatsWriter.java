@@ -70,7 +70,7 @@ public class PlanStatsWriter {
     private void persistPlanPriceIndexInternal(PriceIndexMessage priceIndexMessage, long topologyContextId,
                                                long topologyId, long snapshotTime,
                                                List<PriceIndexMessagePayload> payloadList) {
-        try (Connection conn = historydbIO.connection()) {
+        try {
             ScenariosRecord scenarioInfo = historydbIO.getOrAddScenariosRecord(topologyContextId,
                     topologyId, snapshotTime);
 
@@ -96,12 +96,11 @@ public class PlanStatsWriter {
 
             historydbIO.execute(HistorydbIO.getJooqBuilder()
                     .insertInto(MktSnapshotsStats.MKT_SNAPSHOTS_STATS)
-                    .set(currentPriceIndexRecord), conn);
-            historydbIO.execute(HistorydbIO.getJooqBuilder()
-                    .insertInto(MktSnapshotsStats.MKT_SNAPSHOTS_STATS)
-                    .set(projectedPriceIndexRecord), conn);
+                    .set(currentPriceIndexRecord)
+                    .newRecord()
+                    .set(projectedPriceIndexRecord));
 
-        } catch (SQLException | VmtDbException e) {
+        } catch (VmtDbException e) {
             throw new RuntimeException(new VmtDbException(VmtDbException.INSERT_ERR,
                     "Error persisting priceIndex for context " + topologyContextId +
                     ", topology ID " + priceIndexMessage.getTopologyId() +

@@ -850,12 +850,43 @@ public class HistorydbIO extends BasedbIO {
                 logger.trace("Persisting next chunk if {} entities to the DB", chunk::size);
                 using(connection).batchStore(chunk).execute();
             }
-        } catch (DataAccessException e) {
-            throw new VmtDbException(201, "Failed to insert/update entities table records", e);
+            connection.commit();
+        } catch (SQLException | DataAccessException e) {
+            rollback(connection);
+            throw new VmtDbException(VmtDbException.INSERT_ERR,
+                    "Failed to insert/update entities table records", e);
         } finally {
             close(connection);
         }
         logger.trace("Successfully persisted entities");
+    }
+
+    /**
+     * Persist a list of records in the mkt_snapshots_stats table.
+     *
+     * @param snapshotStatRecords a list of records to be inserted in the mkt_snapshots_stats
+     * @throws VmtDbException database errors
+     */
+    public void persistMarketSnapshotsStats(@Nonnull List<MktSnapshotsStatsRecord> snapshotStatRecords)
+            throws VmtDbException {
+        logger.trace("Persisting {} MktSnapshotsStatsRecord", snapshotStatRecords.size());
+        final Connection connection = transConnection();
+        try {
+            for (Collection<MktSnapshotsStatsRecord> chunk : Lists.partition(snapshotStatRecords,
+                    entitiesChunkSize)) {
+                logger.trace("Persisting next chunk of {} MktSnapshotsStatsRecord to the DB",
+                        chunk::size);
+                using(connection).batchStore(chunk).execute();
+            }
+            connection.commit();
+        } catch (SQLException | DataAccessException e) {
+            rollback(connection);
+            throw new VmtDbException(VmtDbException.INSERT_ERR,
+                    "Failed to insert mkt_snapshots_stats table records.", e);
+        } finally {
+            close(connection);
+        }
+        logger.trace("Successfully persisted market snapshot stats.");
     }
 
     /**
