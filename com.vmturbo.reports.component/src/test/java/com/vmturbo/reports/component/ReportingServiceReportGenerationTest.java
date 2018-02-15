@@ -188,7 +188,7 @@ public class ReportingServiceReportGenerationTest {
      * is expected to finish with failure. No notifications are expected.
      *
      * @return exception thrown while submitting for the report generation
-     * @throws Exception if sume exception occur
+     * @throws Exception if some exception occur
      */
     private Throwable expectSyncFailure() throws Exception {
         Mockito.verify(observer, Mockito.never()).onCompleted();
@@ -209,7 +209,7 @@ public class ReportingServiceReportGenerationTest {
      * later.
      *
      * @return failure message string
-     * @throws Exception if sume exception occur
+     * @throws Exception if some exception occur
      */
     private String expectAsyncFailure() throws Exception {
         Mockito.verify(observer).onCompleted();

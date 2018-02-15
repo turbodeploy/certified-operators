@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
@@ -17,6 +18,7 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
 /**
  * Notification receiver for repots statuses.
  */
+@ThreadSafe
 public class ReportingNotificationReceiver extends
         ComponentNotificationReceiver<ReportNotification> {
 

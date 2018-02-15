@@ -15,7 +15,8 @@ import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
  */
 public class StandardTemplateWrapper implements TemplateWrapper {
 
-    private static final String pathPrefix = "/VmtReports/";
+    private static final String PATH_PREFIX = "/VmtReports/";
+    private static final String PATH_SUFFIX = ".rptdesign";
     private final StandardReportsRecord templateRecord;
 
     public StandardTemplateWrapper(@Nonnull StandardReportsRecord templateRecord) {
@@ -44,6 +45,6 @@ public class StandardTemplateWrapper implements TemplateWrapper {
     @Nonnull
     @Override
     public String getTemplateFile() {
-        return pathPrefix + templateRecord.getFilename() + ".rptdesign";
+        return PATH_PREFIX + templateRecord.getFilename() + PATH_SUFFIX;
     }
 }

@@ -15,7 +15,8 @@ import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
  */
 public class OnDemandTemplateWrapper implements TemplateWrapper {
 
-    private static final String pathPrefix = "/VmtReportTemplates/";
+    private static final String PATH_PREFIX = "/VmtReportTemplates/";
+    private static final String PATH_SUFFIX = ".rptdesign";
     private final OnDemandReportsRecord templateRecord;
 
     public OnDemandTemplateWrapper(@Nonnull OnDemandReportsRecord templateRecord) {
@@ -40,6 +41,6 @@ public class OnDemandTemplateWrapper implements TemplateWrapper {
     @Nonnull
     @Override
     public String getTemplateFile() {
-        return pathPrefix + templateRecord.getFilename() + ".rptdesign";
+        return PATH_PREFIX + templateRecord.getFilename() + PATH_SUFFIX;
     }
 }

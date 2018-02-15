@@ -3,6 +3,7 @@ package com.vmturbo.reports.component.communication;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
@@ -13,6 +14,7 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
 /**
  * Implementation of report notification sender.
  */
+@ThreadSafe
 public class ReportNotificationSenderImpl extends
         ComponentNotificationSender<ReportNotification> implements ReportNotificationSender {
 

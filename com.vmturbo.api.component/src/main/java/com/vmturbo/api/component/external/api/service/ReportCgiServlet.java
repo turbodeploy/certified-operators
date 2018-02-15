@@ -24,6 +24,9 @@ import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceB
  */
 public class ReportCgiServlet extends HttpServlet {
 
+    private static final String ACTION_REPORT = "REPORT";
+    private static final String ACTION_PARAM = "actionType";
+
     // TODO add user permissions here OM-29006
     private final ReportingServiceBlockingStub reportingService;
     private final Logger logger = LogManager.getLogger(getClass());
@@ -31,7 +34,7 @@ public class ReportCgiServlet extends HttpServlet {
     /**
      * Constructs the servlet.
      *
-     * @param reportingService reporting GRPC service to query
+     * @param reportingService reporting gRPC service to query
      */
     public ReportCgiServlet(@Nonnull ReportingServiceBlockingStub reportingService) {
         this.reportingService = Objects.requireNonNull(reportingService);
@@ -40,7 +43,7 @@ public class ReportCgiServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        if (req.getParameter("actionType").equals("REPORT")) {
+        if (ACTION_REPORT.equals(req.getParameter(ACTION_PARAM))) {
             final String reportId = req.getParameter("output");
             if (StringUtils.isNumeric(reportId)) {
                 final ReportInstanceId reportInstanceId =
