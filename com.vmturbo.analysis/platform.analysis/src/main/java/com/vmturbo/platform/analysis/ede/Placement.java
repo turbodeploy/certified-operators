@@ -170,8 +170,16 @@ public class Placement {
         final double cheapestQuote = minimizer.getBestQuote();
         final Trader cheapestSeller = minimizer.getBestSeller();
         boolean isDebugTrader = shoppingList.getBuyer().isDebugEnabled();
+        boolean isSellersInfoPrinted = shoppingList.getBuyer().isSellersInfoPrinted();
         String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
         if (isDebugTrader) {
+            if (!isSellersInfoPrinted) {
+                logger.info("{" + buyerDebugInfo + "} Print debug info for all sellers in placement: ");
+                for (Trader trader : sellers) {
+                    logger.info("Possible seller debug info: " + trader.getDebugInfoNeverUseInCode());
+                }
+                shoppingList.getBuyer().setSellersInfoPrinted(true);
+            }
             if (shoppingList.getSupplier() == null) {
                 logger.info("{" + buyerDebugInfo + "} Supplier is null.");
             } else {

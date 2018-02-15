@@ -58,6 +58,8 @@ public abstract class Trader implements Serializable {
     private boolean debugEnabled = false;
     // This field specifies whether this trader represents a template
     private boolean templateProvider_ = false;
+    // This field specifies whether the trader's debug info is already printed
+    private boolean sellersInfoPrinted = false;
 
     // Constructors
     /**
@@ -429,5 +431,19 @@ public abstract class Trader implements Serializable {
      */
     public void setTemplateProvider(boolean templateProvider) {
         templateProvider_ = templateProvider;
+    }
+
+    /**
+     * @return true if the trader's possible sellers' info is already printed
+     */
+    public boolean isSellersInfoPrinted() {
+        return sellersInfoPrinted;
+    }
+
+    /**
+     * set the sellersInfoPrinted flag to true or false
+     */
+    public void setSellersInfoPrinted(boolean printed) {
+        this.sellersInfoPrinted = printed;
     }
 } // end interface Trader
