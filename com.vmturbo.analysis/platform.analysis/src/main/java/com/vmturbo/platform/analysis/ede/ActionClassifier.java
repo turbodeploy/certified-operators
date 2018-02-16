@@ -163,6 +163,8 @@ public class ActionClassifier {
                           if (simSuspensionCandidate == null ||
                                           simSuspensionCandidate.getCustomers().isEmpty()) {
                               s.setExecutable(true);
+                          } else {
+                              s.setExecutable(false);
                           }
                       });
     }
