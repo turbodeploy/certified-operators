@@ -215,7 +215,7 @@ def parse_args(args=sys.argv[1:]):
                                        )
     sql_parser.add_argument("-d", "--database", default='vmtdb')
     sql_parser.add_argument("-u", "--user", default='root')
-    sql_parser.add_argument("-p", "--password", default='vmturbo')
+    sql_parser.add_argument("-p", "--password", default="")
     sql_parser.add_argument("command_to_exec", nargs=argparse.REMAINDER)
     sql_parser.set_defaults(func=execute_mysql_command)
 
