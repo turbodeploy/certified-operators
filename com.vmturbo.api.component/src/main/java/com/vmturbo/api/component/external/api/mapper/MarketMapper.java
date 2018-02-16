@@ -43,6 +43,12 @@ public class MarketMapper {
                 scenarioMapper.toScenarioApiDTO(instance.getScenario());
         retDto.setScenario(scenarioApiDTO);
 
+        // TODO: in legacy, the plan owner's userid is part of the constructed displayName, e.g.
+        //       "CUSTOM_administrator_1518690461426"
+        // in XL when we have the owner information we should add it to the displayName here.
+        retDto.setDisplayName(String.format("%s_%d", scenarioApiDTO.getType(),
+                instance.getPlanId()));
+
         retDto.setSaved(true);
         if (instance.hasStartTime()) {
             retDto.setRunDate(DateTimeUtil.toString(instance.getStartTime()));

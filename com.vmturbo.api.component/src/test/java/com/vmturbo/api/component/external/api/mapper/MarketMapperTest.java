@@ -30,6 +30,8 @@ public class MarketMapperTest {
 
     private static final long END_TIME = 100000;
 
+    private static final String SCENARIO_TYPE = "SCENARIO_TYPE";
+
     private static final PlanInstance BASE = PlanInstance.newBuilder()
             .setPlanId(PLAN_ID)
             .setTopologyId(1L)
@@ -71,6 +73,7 @@ public class MarketMapperTest {
         final ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
         scenarioApiDTO.setUuid(Long.toString(SCENARIO_ID));
         scenarioApiDTO.setDisplayName(SCENARIO_NAME);
+        scenarioApiDTO.setType(SCENARIO_TYPE);
 
         Mockito.when(scenarioMapper.toScenarioApiDTO(Mockito.eq(BASE.getScenario())))
                 .thenReturn(scenarioApiDTO);
@@ -86,6 +89,8 @@ public class MarketMapperTest {
         Assert.assertNull(inProgressDto.getRunCompleteDate());
         Assert.assertEquals(Long.toString(SCENARIO_ID), inProgressDto.getScenario().getUuid());
         Assert.assertEquals(SCENARIO_NAME, inProgressDto.getScenario().getDisplayName());
+        String compositePlanName = String.format("%s_%d", SCENARIO_TYPE, PLAN_ID);
+        Assert.assertEquals(compositePlanName, inProgressDto.getDisplayName());
     }
 
     @Test
