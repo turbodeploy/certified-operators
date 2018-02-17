@@ -1,7 +1,5 @@
 -- add an 'update_time' column to aggregation_status to help determine stuck aggregations
 ALTER TABLE aggregation_status ADD COLUMN created TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE aggregation_status ADD COLUMN last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-         ON UPDATE CURRENT_TIMESTAMP AFTER status;
 
 
 -- add roll-up colums for 'da' - Disk Array - tables
