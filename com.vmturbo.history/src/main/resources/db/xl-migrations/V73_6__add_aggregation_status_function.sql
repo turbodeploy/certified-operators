@@ -580,7 +580,7 @@ CREATE PROCEDURE aggregate(IN statspref CHAR(10))
       leave aggregate_proc;
     end if;
 
-    insert into aggregation_status values ('Running', null, null);
+    insert into aggregation_status values ('Running', null);
 
     set @start_of_aggregation=now();
 
