@@ -96,7 +96,11 @@ public class ActionStorehouse {
         populationTimer.observe();
 
         if (store.allowsExecution()) {
-            automatedExecutor.executeAutomatedFromStore(store);
+            try {
+                automatedExecutor.executeAutomatedFromStore(store);
+            } catch (RuntimeException e) {
+                logger.info("Unable to execute automated actions: ", e);
+            }
         }
         // severity cache must be refreshed after actions change (see EntitySeverityCache javadoc)
         store.getEntitySeverityCache().refresh(store);

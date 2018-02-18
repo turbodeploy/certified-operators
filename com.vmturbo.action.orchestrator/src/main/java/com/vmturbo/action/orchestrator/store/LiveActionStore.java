@@ -294,9 +294,13 @@ public class LiveActionStore implements ActionStore {
     }
 
     private void filterActionsByCapabilityForUiDisplaying() {
-        final Collection<Action> filteredForUiActions = actionSupportResolver
+        try {
+            final Collection<Action> filteredForUiActions = actionSupportResolver
                 .resolveActionsSupporting(actions.values());
-        filteredForUiActions.forEach(action -> actions.put(action.getId(), action));
+            filteredForUiActions.forEach(action -> actions.put(action.getId(), action));
+        } catch (RuntimeException e) {
+            logger.error("Error filtering actions by capability: ", e);
+        }
     }
 
     /**

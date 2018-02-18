@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
@@ -310,14 +311,19 @@ public class ActionPlanGenerator {
         protected Action makeAction(@Nonnull Chooser chooser) {
             return makeAction(
                 Explanation.newBuilder()
-                    .setMove(MoveExplanation.getDefaultInstance()), ActionInfo.newBuilder()
-                        .setMove(Move.newBuilder()
-                            .setTargetId(chooser.topologyOid())
-                            .addChanges(ChangeProvider.newBuilder()
-                                .setSourceId(chooser.topologyOid())
-                                .setDestinationId(chooser.topologyOid())
-                                .build())
-                            .build()),
+                    .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(
+                            ChangeProviderExplanation.getDefaultInstance()
+                        )
+                    ),
+                ActionInfo.newBuilder()
+                    .setMove(Move.newBuilder()
+                        .setTargetId(chooser.topologyOid())
+                        .addChanges(ChangeProvider.newBuilder()
+                            .setSourceId(chooser.topologyOid())
+                            .setDestinationId(chooser.topologyOid())
+                            .build())
+                        .build()),
                 chooser);
         }
     }
