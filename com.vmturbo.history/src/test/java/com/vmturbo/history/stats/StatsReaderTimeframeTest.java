@@ -66,8 +66,7 @@ public class StatsReaderTimeframeTest {
     /**
      * These are the test parameters injected by Parameterized runner. Must be public
      * to allow injection.
-     */
-    /**
+
      * Value to subtract from NOW to give earliest time in the range.
      */
     @Parameter(0)
@@ -85,7 +84,6 @@ public class StatsReaderTimeframeTest {
     @Parameter(2)
     public Table expectedTableToRead;
 
-
     @Test
     public void testGetStatsRecords() throws Exception {
 
@@ -93,6 +91,7 @@ public class StatsReaderTimeframeTest {
         final int NUM_RETAINED_MINUTES=120;
         final int NUM_RETAINED_HOURS=72;
         final int NUM_RETAINED_DAYS=60;
+        long LATEST_TABLE_TIME_WINDOW_MS = 60000;
 
         // Arrange
         final long NOW = new Date().getTime();
@@ -112,7 +111,7 @@ public class StatsReaderTimeframeTest {
         when(mockHistorydbIO.execute(any(BasedbIO.Style.class), any(Select.class))).thenReturn(queryResult);
 
         LiveStatsReader statsReaderUndertest = new LiveStatsReader(mockHistorydbIO, NUM_RETAINED_MINUTES,
-                NUM_RETAINED_HOURS, NUM_RETAINED_DAYS);
+                NUM_RETAINED_HOURS, NUM_RETAINED_DAYS, LATEST_TABLE_TIME_WINDOW_MS);
 
 
         List<String> entityIds = ImmutableList.of("PM1");

@@ -245,6 +245,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         try {
             for (long entityOid : request.getEntitiesList()) {
 
+                logger.debug("getEntityStats: {}", entityOid);
                 final StatsFilter statsFilter = request.getFilter();
                 List<Record> statDBRecords = liveStatsReader.getStatsRecords(
                         Collections.singletonList(Long.toString(entityOid)),

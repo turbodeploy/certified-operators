@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Import;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
-import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
@@ -32,6 +31,9 @@ public class StatsConfig {
 
     @Value("${numRetainedDays}")
     private int numRetainedDays;
+
+    @Value("${latestTableTimeWindowMS}")
+    private int latestTableTimeWindowMS;
 
     @Value("${writeTopologyChunkSize}")
     private int writeTopologyChunkSize;
@@ -70,7 +72,7 @@ public class StatsConfig {
     @Bean
     public LiveStatsReader liveStatsReader() {
         return new LiveStatsReader(historyDbConfig.historyDbIO(), numRetainedMinutes,
-                numRetainedHours, numRetainedDays);
+                numRetainedHours, numRetainedDays, latestTableTimeWindowMS);
     }
 
     @Bean

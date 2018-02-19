@@ -28,6 +28,9 @@ import com.vmturbo.reports.db.abstraction.tables.PmStatsLatest;
 import com.vmturbo.reports.db.abstraction.tables.records.PmStatsLatestRecord;
 
 public class LiveStatsReaderTest {
+
+    private static long LATEST_TABLE_TIME_WINDOW_MS = 60000;
+
     /**
      * Test that the timestamp of the counted-values match the timestamp returned from the DB.
      * The count values are given by four simple SE counts, e.g. NUM_HOSTS, listed in
@@ -41,7 +44,7 @@ public class LiveStatsReaderTest {
         // arrange
         HistorydbIO mockHistorydbIO = Mockito.mock(HistorydbIO.class);
 
-        LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0);
+        LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0, LATEST_TABLE_TIME_WINDOW_MS);
 
         // set up the return value for entity id -> entity type lookup
         List<Long> entities = Lists.newArrayList(1L);

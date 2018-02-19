@@ -41,7 +41,6 @@ import static org.jooq.impl.DSL.min;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -67,7 +66,6 @@ import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.Table;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
@@ -97,10 +95,9 @@ public class LiveStatsReader {
 
     // Partition the list of entities to read into chunks of this size in order not to flood the DB.
     private static final int ENTITIES_PER_CHUNK = 50000;
-    // time (MS) to specify a window before startTime and after endTime = 1 min (must be even #)
-    private static final long TIME_WINDOW_MS = Duration.of(60, ChronoUnit.SECONDS).toMillis();
-    @VisibleForTesting
-    static final long TIME_HALF_WINDOW_MS = TIME_WINDOW_MS / 2;
+    // time (MS) to specify a window before startTime and after endTime = 10 min (must be even #)
+    private final long latestTableTimeWindowMS;// = Duration.of(10, ChronoUnit.MINUTES).toMillis();
+    private final long latestTableHalfTimeWindowMS;// = latestTableTimeWindowMS / 2;
 
     private final HistorydbIO historydbIO;
 
@@ -110,11 +107,13 @@ public class LiveStatsReader {
 
 
     public LiveStatsReader(HistorydbIO historydbIO, int numRetainedMinutes, int numRetainedHours,
-                           int numRetainedDays) {
+                           int numRetainedDays, long latestTableTimeWindowMS) {
         this.historydbIO = historydbIO;
         this.numRetainedMinutes = numRetainedMinutes;
         this.numRetainedHours = numRetainedHours;
         this.numRetainedDays = numRetainedDays;
+        this.latestTableTimeWindowMS = latestTableTimeWindowMS;
+        latestTableHalfTimeWindowMS = latestTableTimeWindowMS / 2;
     }
 
     /**
@@ -155,8 +154,8 @@ public class LiveStatsReader {
             return Collections.emptyList();
         }
         long mostRecentTimestamp = mostRecentDbTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, mostRecentTimestamp - TIME_HALF_WINDOW_MS);
-        endTime = applyTimeDefault(endTime, mostRecentTimestamp + TIME_HALF_WINDOW_MS);
+        startTime = applyTimeDefault(startTime, mostRecentTimestamp);
+        endTime = applyTimeDefault(endTime, mostRecentTimestamp);
 
         Map<String, String> entityClsMap = historydbIO.getTypesForEntities(entityIds);
 
@@ -259,8 +258,8 @@ public class LiveStatsReader {
             return ImmutableList.of();
         }
         long now = mostRecentTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, now - TIME_HALF_WINDOW_MS);
-        endTime = applyTimeDefault(endTime, now + TIME_HALF_WINDOW_MS);
+        startTime = applyTimeDefault(startTime, now - latestTableHalfTimeWindowMS);
+        endTime = applyTimeDefault(endTime, now + latestTableHalfTimeWindowMS);
 
         logger.debug("getting stats for full market");
 
@@ -340,7 +339,7 @@ public class LiveStatsReader {
             // Go through the entity counts by time, and for each timestamp create
             // ratio properties based on the various counts.
             entityCountsByTime.forEach((snapshotTime, entityCounts) -> requestedRatioProps.forEach(ratioPropName -> {
-                double ratio = 0;
+                double ratio;
                 switch (ratioPropName) {
                     case NUM_VMS_PER_HOST: {
                         final Float numHosts = entityCounts.get(NUM_HOSTS);
@@ -528,10 +527,17 @@ public class LiveStatsReader {
         // accumulate the conditions for this query
         List<Condition> whereConditions = new ArrayList<>();
 
+        // adjust time range for LATEST queries with zero width
+        if (tFrame.equals(TimeFrame.LATEST) && startTime == endTime) {
+            startTime = startTime - latestTableHalfTimeWindowMS;
+            endTime = endTime + latestTableHalfTimeWindowMS;
+        }
+
         // add where clause for time range; null if the timeframe cannot be determined
         final Condition timeRangeCondition = betweenStartEndCond(dField(table, SNAPSHOT_TIME),
                 tFrame, startTime, endTime);
         if (timeRangeCondition != null) {
+            logger.debug("table {}, timeRangeCondition: {}", table.getName(), timeRangeCondition);
             whereConditions.add(timeRangeCondition);
         }
 
