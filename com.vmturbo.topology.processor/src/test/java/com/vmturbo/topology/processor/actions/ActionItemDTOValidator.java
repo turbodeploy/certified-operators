@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.actions;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,6 +33,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class ActionItemDTOValidator {
 
     private ActionItemDTOValidator() { }
+
+    public static void validateRequest(@Nonnull final List<ActionItemDTO> actionItems) throws ValidationError {
+        for (ActionItemDTO actionItem : actionItems) {
+            validateRequest(actionItem);
+        }
+    }
 
     public static void validateRequest(@Nonnull final ActionItemDTO actionItem)
             throws ValidationError {

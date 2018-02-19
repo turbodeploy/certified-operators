@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.actions;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -10,9 +11,11 @@ import org.apache.logging.log4j.Logger;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import jersey.repackaged.com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceImplBase;
@@ -39,43 +42,45 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     private final IOperationManager operationManager;
 
     public ActionExecutionRpcService(@Nonnull final EntityStore entityStore,
-                                     @Nonnull final IOperationManager operationManager) {
+                    @Nonnull final IOperationManager operationManager) {
         this.entityStore = Objects.requireNonNull(entityStore);
         this.operationManager = Objects.requireNonNull(operationManager);
     }
 
     @Override
     public void executeAction(ExecuteActionRequest request,
-                              StreamObserver<ExecuteActionResponse> responseObserver) {
+                    StreamObserver<ExecuteActionResponse> responseObserver) {
         try {
 
             final ActionInfo actionInfo = request.getActionInfo();
-            final ActionItemDTO sdkAction;
+            final List<ActionItemDTO> sdkActions = Lists.newArrayList();
             switch (actionInfo.getActionTypeCase()) {
                 case MOVE:
-                    sdkAction = move(request.getTargetId(),
-                            request.getActionId(), actionInfo.getMove());
+                    sdkActions.addAll(move(request.getTargetId(),
+                        request.getActionId(), actionInfo.getMove()));
                     break;
                 case RESIZE:
-                    sdkAction = resize(request.getTargetId(),
-                            request.getActionId(), actionInfo.getResize());
+                    sdkActions.add(resize(request.getTargetId(),
+                        request.getActionId(), actionInfo.getResize()));
                     break;
                 case ACTIVATE:
-                    sdkAction = activate(request.getTargetId(),
-                            request.getActionId(), actionInfo.getActivate());
+                    sdkActions.add(activate(request.getTargetId(),
+                        request.getActionId(), actionInfo.getActivate()));
                     break;
                 case DEACTIVATE:
-                    sdkAction = deactivate(request.getTargetId(),
-                            request.getActionId(), actionInfo.getDeactivate());
+                    sdkActions.add(deactivate(request.getTargetId(),
+                        request.getActionId(), actionInfo.getDeactivate()));
                     break;
                 default:
                     throw new IllegalArgumentException("Unsupported action type: " +
-                            actionInfo.getActionTypeCase());
+                                    actionInfo.getActionTypeCase());
             }
 
-            operationManager.startAction(request.getActionId(),
-                    request.getTargetId(),
-                    Objects.requireNonNull(sdkAction));
+            logger.debug("Start action {}", sdkActions);
+
+            operationManager.requestActions(request.getActionId(),
+                request.getTargetId(),
+                Objects.requireNonNull(sdkActions));
 
             responseObserver.onNext(ExecuteActionResponse.getDefaultInstance());
             responseObserver.onCompleted();
@@ -99,11 +104,11 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
     @Nonnull
     public ActionItemDTO activate(final long targetId,
-                                  final long actionId,
-                                  @Nonnull final ActionDTO.Activate activateAction)
-            throws ActionExecutionException {
+                    final long actionId,
+                    @Nonnull final ActionDTO.Activate activateAction)
+                                    throws ActionExecutionException {
         final PerTargetInfo targetInfo =
-                getPerTargetInfo(targetId, activateAction.getTargetId(), "target");
+                        getPerTargetInfo(targetId, activateAction.getTargetId(), "target");
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
         actionBuilder.setActionType(ActionType.START);
@@ -117,11 +122,11 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
     @Nonnull
     public ActionItemDTO deactivate(final long targetId,
-                                    final long actionId,
-                                    @Nonnull final ActionDTO.Deactivate deactivateAction)
-            throws ActionExecutionException {
+                    final long actionId,
+                    @Nonnull final ActionDTO.Deactivate deactivateAction)
+                                    throws ActionExecutionException {
         final PerTargetInfo targetInfo =
-                getPerTargetInfo(targetId, deactivateAction.getTargetId(), "target");
+                        getPerTargetInfo(targetId, deactivateAction.getTargetId(), "target");
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
         actionBuilder.setActionType(ActionType.SUSPEND);
@@ -136,12 +141,12 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
     @Nonnull
     public ActionItemDTO resize(final long targetId,
-                         final long actionId,
-                         @Nonnull final ActionDTO.Resize resizeAction)
-            throws InterruptedException, ProbeException, TargetNotFoundException,
-                CommunicationException, ActionExecutionException {
+                    final long actionId,
+                    @Nonnull final ActionDTO.Resize resizeAction)
+                                    throws InterruptedException, ProbeException, TargetNotFoundException,
+                                    CommunicationException, ActionExecutionException {
         final PerTargetInfo targetInfo =
-                getPerTargetInfo(targetId, resizeAction.getTargetId(), "target");
+                        getPerTargetInfo(targetId, resizeAction.getTargetId(), "target");
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
 
@@ -171,61 +176,53 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     }
 
     @Nonnull
-    public ActionItemDTO move(final long targetId,
-                              final long actionId,
-                              @Nonnull final ActionDTO.Move moveAction)
-            throws InterruptedException, ProbeException,
-            TargetNotFoundException, CommunicationException, ActionExecutionException {
+    public List<ActionItemDTO> move(final long targetId,
+                    final long actionId,
+                    @Nonnull final ActionDTO.Move moveAction)
+                                    throws InterruptedException, ProbeException,
+                                    TargetNotFoundException, CommunicationException, ActionExecutionException {
 
+        List<ActionItemDTO> actions = Lists.newArrayList();
         final PerTargetInfo targetInfo = getPerTargetInfo(targetId, moveAction.getTargetId(), "target");
-        // TODO(COMPOUND): handle action with multiple changes
-        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, moveAction.getChanges(0).getSourceId(), "source");
-        final PerTargetInfo destInfo = getPerTargetInfo(targetId, moveAction.getChanges(0).getDestinationId(), "destination");
+        for (ChangeProvider change : moveAction.getChangesList()) {
+            actions.add(actionItemDto(targetId, change, actionId, targetInfo));
+        }
+        return actions;
+    }
 
-        final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
+    private ActionItemDTO actionItemDto(long targetId, ChangeProvider change, long actionId, PerTargetInfo targetInfo) throws ActionExecutionException {
+        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, change.getSourceId(), "source");
+        final PerTargetInfo destInfo = getPerTargetInfo(targetId, change.getDestinationId(), "destination");
 
         // Set the action type depending on the type of the entity being moved.
-        {
-            final EntityType srcEntityType = sourceInfo.getEntityInfo().getEntityType();
-            if (srcEntityType != destInfo.getEntityInfo().getEntityType()) {
-                throw new ActionExecutionException("Mismatched source and destination entity types! " +
-                        " Source: " + srcEntityType +
-                        " Destination: " + sourceInfo.getEntityInfo().getEntityType());
-            }
-
-            // The specific case of VM move on a Storage is considered a "CHANGE" action but
-            // all others are considered "MOVE"
-            switch (srcEntityType) {
-                case STORAGE:
-                    actionBuilder.setActionType(ActionType.CHANGE);
-                    break;
-                default:
-                    actionBuilder.setActionType(ActionType.MOVE);
-                    break;
-            }
+        final EntityType srcEntityType = sourceInfo.getEntityInfo().getEntityType();
+        if (srcEntityType != destInfo.getEntityInfo().getEntityType()) {
+            throw new ActionExecutionException("Mismatched source and destination entity types! " +
+                            " Source: " + srcEntityType +
+                            " Destination: " + sourceInfo.getEntityInfo().getEntityType());
         }
 
-        actionBuilder.setUuid(Long.toString(actionId));
-        actionBuilder.setTargetSE(targetInfo.getEntityInfo());
+        final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder()
+                        .setActionType(srcEntityType == EntityType.STORAGE
+                        ? ActionType.CHANGE
+                            : ActionType.MOVE)
+                        .setUuid(Long.toString(actionId))
+                        .setTargetSE(targetInfo.getEntityInfo())
+                        .setCurrentSE(sourceInfo.getEntityInfo())
+                        .setNewSE(destInfo.getEntityInfo());
 
         getHost(targetId, targetInfo).ifPresent(actionBuilder::setHostedBySE);
-
-        actionBuilder.setCurrentSE(sourceInfo.getEntityInfo());
-
-        actionBuilder.setNewSE(destInfo.getEntityInfo());
-
         return actionBuilder.build();
     }
 
-
     private Optional<EntityDTO> getHost(final long targetId, final PerTargetInfo entityInfo)
-            throws ActionExecutionException {
+                    throws ActionExecutionException {
         // Right now hosted by only gets set for VM -> PM relationships.
         // This is most notably required by the HyperV probe.
         // TODO (roman, May 16 2017): Generalize to all entities where this is necessary.
         if (entityInfo.getEntityInfo().getEntityType().equals(EntityType.VIRTUAL_MACHINE)) {
             final PerTargetInfo hostOfTarget = getPerTargetInfo(targetId,
-                    entityInfo.getHost(), "host of target");
+                entityInfo.getHost(), "host of target");
             return Optional.of(hostOfTarget.getEntityInfo());
         }
         return Optional.empty();
@@ -234,18 +231,18 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
     private CommodityDTO.Builder commodityBuilderFromType(@Nonnull final CommodityType commodityType) {
         return CommodityDTO.newBuilder()
-                .setCommodityType(CommodityDTO.CommodityType.forNumber(commodityType.getType()))
-                .setKey(commodityType.getKey());
+                        .setCommodityType(CommodityDTO.CommodityType.forNumber(commodityType.getType()))
+                        .setKey(commodityType.getKey());
     }
 
     private PerTargetInfo getPerTargetInfo(final long targetId,
-                                           final long entityId,
-                                           final String entityType)
-            throws ActionExecutionException {
+                    final long entityId,
+                    final String entityType)
+                                    throws ActionExecutionException {
         return entityStore.getEntity(entityId)
-                .orElseThrow(() -> ActionExecutionException.noEntity(entityType, entityId))
-                .getTargetInfo(targetId)
-                .orElseThrow(() -> ActionExecutionException.noEntityTargetInfo(
-                        entityType, entityId, targetId));
+                        .orElseThrow(() -> ActionExecutionException.noEntity(entityType, entityId))
+                        .getTargetInfo(targetId)
+                        .orElseThrow(() -> ActionExecutionException.noEntityTargetInfo(
+                            entityType, entityId, targetId));
     }
 }

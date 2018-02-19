@@ -5,8 +5,6 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import io.prometheus.client.Counter;
-
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.topology.processor.operation.action.Action;
@@ -181,7 +179,7 @@ public interface IOperationManager {
      * @param actionId The id of the overarching action. This is the ID that gets
      * assigned by the Action Orchestrator.
      * @param targetId The id of the target containing the entities for the action.
-     * @param actionDto The {@link ActionExecution.ActionItemDTO} describing the action to execute.
+     * @param actionDtos A list of {@link ActionExecution.ActionItemDTO}s describing the action(s) to execute.
      * @return The {@link Action} requested for the target.
      * @throws TargetNotFoundException When the requested target is not found.
      * @throws ProbeException When the probe corresponding to the target is not registered.
@@ -189,8 +187,8 @@ public interface IOperationManager {
      * @throws InterruptedException If there is an interrupt while sending the request to the
      * probe.
      */
-    Action startAction(long actionId, long targetId,
-            @Nonnull ActionExecution.ActionItemDTO actionDto)
+    Action requestActions(long actionId, long targetId,
+            @Nonnull List<ActionExecution.ActionItemDTO> actionDtos)
             throws ProbeException, TargetNotFoundException, CommunicationException,
             InterruptedException;
 

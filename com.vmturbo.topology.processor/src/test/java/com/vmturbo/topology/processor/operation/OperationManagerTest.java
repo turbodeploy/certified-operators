@@ -23,6 +23,8 @@ import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
 
+import com.google.common.collect.Lists;
+
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -57,10 +59,10 @@ import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -629,9 +631,9 @@ public class OperationManagerTest {
      */
     @Test
     public void testStartAction() throws Exception {
-        final ActionItemDTO actionItemDto = actionItemDto();
+        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.startAction(0, targetId, actionItemDto);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
         Mockito.verify(mockRemoteMediationServer).sendActionRequest(eq(probeId),
             any(ActionRequest.class), any(OperationMessageHandler.class));
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
@@ -639,9 +641,9 @@ public class OperationManagerTest {
 
     @Test
     public void testProcessActionSuccess() throws Exception {
-        final ActionItemDTO actionItemDto = actionItemDto();
+        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.startAction(0, targetId, actionItemDto);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
 
         final ActionResult result = ActionResult.newBuilder()
                 .setResponse(ActionResponse.newBuilder()
@@ -657,9 +659,9 @@ public class OperationManagerTest {
 
     @Test
     public void testActionDiscoveryFailure() throws Exception {
-        final ActionItemDTO actionItemDto = actionItemDto();
+        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.startAction(0, targetId, actionItemDto);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
         // Critical errors applying to the target rather than a specific entity
         // should prevent any EntityDTOs in the discovery from being added to
         // the topology snapshot for the target.
@@ -678,9 +680,9 @@ public class OperationManagerTest {
 
     @Test
     public void testProcessActionCancelOperation() throws Exception {
-        final ActionItemDTO actionItemDto = actionItemDto();
+        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.startAction(0, targetId, actionItemDto);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.notifyOperationCancelled(action, "Transport closed");
         OperationTestUtilities.waitForEvent(operationListener, listener -> !listener.lastStatusMatches(Status.IN_PROGRESS));
@@ -699,10 +701,10 @@ public class OperationManagerTest {
 
     @Test
     public void testProcessActionTargetRemoval() throws Exception {
-        final ActionItemDTO actionItemDto = actionItemDto();
+        final List<ActionItemDTO> actionItemDtos = actionItemDtos();
         final Target target = targetStore.getTarget(targetId).get();
 
-        final Action action = operationManager.startAction(0, targetId, actionItemDto);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.onTargetRemoved(target);
         OperationTestUtilities.waitForAction(operationManager, action);
@@ -721,16 +723,16 @@ public class OperationManagerTest {
         Mockito.verify(mockRemoteMediationServer).checkForExpiredHandlers();
     }
 
-    private ActionItemDTO actionItemDto() {
+    private List<ActionItemDTO> actionItemDtos() {
         final EntityDTO target = EntityDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE)
             .setId("vm")
             .build();
 
-        return ActionItemDTO.newBuilder()
+        return Lists.newArrayList(ActionItemDTO.newBuilder()
             .setActionType(ActionType.MOVE)
             .setUuid("test")
             .setTargetSE(target)
-            .build();
+            .build());
     }
 }

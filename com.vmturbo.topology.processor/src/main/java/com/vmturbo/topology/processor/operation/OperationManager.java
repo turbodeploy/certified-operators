@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -54,6 +55,7 @@ import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandle
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
@@ -61,7 +63,6 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 
 /**
  * Responsible for managing all operations.
@@ -159,26 +160,12 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     }
 
     /**
-     * Request an action on a target. There can be multiple actions per target.
-     *
-     * Actions may take a long time and are performed asynchronously. This method
-     * throws exceptions if the action can't initiate (i.e. in case of an error
-     * sending the action to the probe).
-     *
-     * @param actionId The id of the overarching action. This is the ID that gets
-     *                 assigned by the Action Orchestrator.
-     * @param targetId The id of the target containing the entities for the action.
-     * @param actionDto The {@link ActionItemDTO} describing the action to execute.
-     * @return The {@link Action} requested for the target.
-     * @throws TargetNotFoundException When the requested target is not found.
-     * @throws ProbeException When the probe corresponding to the target is not registered.
-     * @throws CommunicationException If there is an error sending the request to the probe.
-     * @throws InterruptedException If there is an interrupt while sending the request to the probe.
+     * {@inheritDoc}
      */
     @Override
-    public synchronized Action startAction(final long actionId,
+    public synchronized Action requestActions(final long actionId,
                                            final long targetId,
-                                           @Nonnull final ActionItemDTO actionDto)
+                                           @Nonnull final List<ActionItemDTO> actionDtos)
             throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
         final Target target = targetStore.getTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
@@ -193,8 +180,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 .setProbeType(probeType)
                 .addAllAccountValue(target.getMediationAccountVals())
                 .setActionExecutionDTO(ActionExecutionDTO.newBuilder()
-                        .setActionType(actionDto.getActionType())
-                        .addActionItem(actionDto))
+                        .setActionType(actionDtos.size() > 1
+                        // We assume that with multiple actions, they are all MOVE/CHANGE actions
+                            ? ActionType.MOVE_TOGETHER
+                            : actionDtos.get(0).getActionType())
+                        .addAllActionItem(actionDtos))
                 .build();
         final ActionMessageHandler messageHandler = new ActionMessageHandler(this,
                 action,
@@ -540,6 +530,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * executing operation is closed.
      *
      * @param operation The {@link Operation} that timed out.
+     * @param cancellationReason the reason why the operation was cancelled.
      */
     public void notifyOperationCancelled(@Nonnull final Operation operation,
                                          @Nonnull final String cancellationReason) {
@@ -652,7 +643,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
                 discoveredTemplateDeploymentProfileNotifier.setTargetsTemplateDeploymentProfile(targetId,
                     response.getEntityProfileList(), response.getDeploymentProfileList());
-                DISCOVERY_SIZE_SUMMARY.observe((double) response.getEntityDTOList().size());
+                DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOList().size());
             }
             operationComplete(discovery, success, response.getErrorDTOList());
         } catch (EntitiesValidationException validationException) {
