@@ -1,11 +1,15 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -89,6 +93,14 @@ public class PlacementTest {
     // Arrays for use in tests
     private static final Action[] NO_ACTIONS = {};
 
+    // Temporary, for shop together tests that generate placements
+    // TODO btc - need to add this information to the test array, and also verify
+    // the content of the reconfigure action.
+    private static int testNumber = 0;
+    public static final Set<Integer> testsExpectingReconfigure =
+            new HashSet<>(Arrays.asList(1, 14, 15, 16, 17, 28, 29, 30, 42, 43, 44, 45, 56, 57, 58,
+                    110, 111, 160, 161));
+
     @RunWith(Parameterized.class)
     public static class ShopTogetherPlacementDecisions {
         // Fields needed by parameterized runner
@@ -97,7 +109,19 @@ public class PlacementTest {
 
         @Test
         public final void testShopTogetherPlacementDecisions() {
-            assertArrayEquals(actions, Placement.shopTogetherDecisions(economy).toArray());
+            final Object[] actuals = Placement.shopTogetherDecisions(economy).toArray();
+            if (testsExpectingReconfigure.contains(testNumber++)) {
+                // Verify that there is a single Reconfigure at the end, and the rest of the
+                // list matches
+                boolean lastIsReconfigure = (actuals.length > 0) &&
+                        (Arrays.copyOfRange(actuals, actuals.length - 1, actuals.length)[0]
+                                instanceof Reconfigure);
+                assertTrue("Reconfigure expected", lastIsReconfigure);
+                assertArrayEquals(actions,
+                        Arrays.copyOfRange(actuals, 0, actuals.length-1));
+            } else {
+                assertArrayEquals(actions, actuals);
+            }
         }
 
         // TODO: add tests with inactive traders

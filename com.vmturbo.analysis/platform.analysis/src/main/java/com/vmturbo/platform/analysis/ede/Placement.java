@@ -303,6 +303,27 @@ public class Placement {
             if (!shouldConsiderTraderForShopTogether(buyingTrader, movableSlByMarket)) {
                 continue;
             }
+
+            // If there are no sellers in any market, the buyer is misconfigured
+            boolean generatedReconfigure = false;
+            for (Entry<@NonNull ShoppingList, @NonNull Market> entry : movableSlByMarket) {
+                    ShoppingList sl = entry.getKey();
+                    if (sl.isMovable() && entry.getValue().getActiveSellers().isEmpty()) {
+                            generatedReconfigure = true;
+                            // Since the shopping list can be in multiple entries in this loop,
+                            // we need to check whether a Reconfigure was already generated for
+                            // this list.
+                            output.add(new Reconfigure(economy, sl).take()
+                                       .setImportance(Double.POSITIVE_INFINITY));
+                            // Set movable to false to prevent generating further reconfigures
+                            // for this shopping list
+                            sl.setMovable(false);
+                    }
+            }
+            if (generatedReconfigure) {
+                continue;
+            }
+
             Set<Long> commonCliques = getCommonCliques(buyingTrader, slByMarket, movableSlByMarket);
             CliqueMinimizer minimizer = computeBestQuote(economy, movableSlByMarket, commonCliques);
             // If the best suppliers are not current ones, move shopping lists to best places
