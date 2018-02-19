@@ -5,11 +5,14 @@ import static com.vmturbo.topology.processor.identity.storage.IdentityServiceInM
 
 import java.util.Collection;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
@@ -42,7 +45,7 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
     /**
      * The query properties.
      */
-    private final Collection<PropertyDescriptor> heuristicProperties;
+    private final List<PropertyDescriptor> heuristicProperties;
 
     EntityInMemoryProxyDescriptor(final long oid,
                              @Nonnull final EntityDescriptor entityDescriptor,
@@ -54,11 +57,11 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
     }
 
     EntityInMemoryProxyDescriptor(final long oid,
-            @Nonnull final Collection<PropertyDescriptor> identifyingProperties,
-            @Nonnull final Collection<PropertyDescriptor> heuristicProperties) {
+            @Nonnull final List<PropertyDescriptor> identifyingProperties,
+            @Nonnull final List<PropertyDescriptor> heuristicProperties) {
         this.oid = oid;
         this.queryPropertySet = composeQuerySet(identifyingProperties, heuristicProperties);
-        this.heuristicProperties = heuristicProperties;
+        this.heuristicProperties = ImmutableList.copyOf(heuristicProperties);
         this.key = composeKeyFromProperties(identifyingProperties);
     }
 
@@ -105,6 +108,9 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
 
     @Override
     public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
         if (!(obj instanceof EntityInMemoryProxyDescriptor)) {
             return false;
         }

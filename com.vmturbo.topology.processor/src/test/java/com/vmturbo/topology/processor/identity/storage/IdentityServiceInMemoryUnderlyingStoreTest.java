@@ -33,6 +33,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
@@ -41,6 +42,7 @@ import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
 import com.vmturbo.topology.processor.identity.EntryData;
 import com.vmturbo.topology.processor.identity.IdentityServiceStoreOperationException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
+import com.vmturbo.topology.processor.identity.extractor.EntityDescriptorImpl;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
 import com.vmturbo.topology.processor.identity.services.EntityProxyDescriptor;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
@@ -77,6 +79,31 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                                                 EntityDescriptorMock
                                                         .composePropertySet(Arrays.asList("VM")));
         Assert.assertEquals(firstOID, oid);
+    }
+
+    /**
+     * Tests, that to property descriptor lists, which are the reverse of one another are not
+     * matched the with the same entity.
+     *
+     * @throws Exception on exception occur
+     */
+    @Test
+    public void testLookupInverted() throws Exception {
+        final List<PropertyDescriptor> propertyDescriptors = new ArrayList<>();
+        propertyDescriptors.add(new PropertyDescriptorImpl("VM", 1));
+        propertyDescriptors.add(new PropertyDescriptorImpl("PM", 2));
+        final EntityDescriptor entityDescriptor =
+                new EntityDescriptorImpl(propertyDescriptors, Collections.emptyList(),
+                        Collections.emptyList());
+        store.addEntry(firstOID, entityDescriptor,
+                mock(EntityMetadataDescriptor.class));
+        long oid = store.lookupByIdentifyingSet(mock(EntityMetadataDescriptor.class),
+                propertyDescriptors);
+        Assert.assertEquals(firstOID, oid);
+        final List<PropertyDescriptor> reverseDescriptors = Lists.reverse(propertyDescriptors);
+        Assert.assertNotEquals(firstOID,
+                store.lookupByIdentifyingSet(mock(EntityMetadataDescriptor.class),
+                        reverseDescriptors));
     }
 
     @Test
@@ -157,71 +184,6 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                                                 EntityDescriptorMock.composePropertySet(
                                                         Arrays.asList("VM_Update_Fail")));
         Assert.assertEquals(firstOID, oid);
-    }
-
-    @Test
-    public void testQuery() throws Exception {
-        store.addEntry(firstOID,
-                       new EntityDescriptorMock(Arrays.asList("VM"),
-                                                   Arrays.asList("VM_Heuristics")),
-                       mock(EntityMetadataDescriptor.class));
-        store.addEntry(secondOID,
-                       new EntityDescriptorMock(Arrays.asList("VM_1"),
-                                                   Arrays.asList("VM_Heuristics")),
-                       mock(EntityMetadataDescriptor.class));
-        List<PropertyDescriptor> properties = new ArrayList<>();
-        properties.add(new PropertyDescriptorImpl("VM_Heuristics", 1));
-        Iterable<EntityProxyDescriptor> result =
-                store.query(properties);
-        int count = 0;
-        for (Iterator<EntityProxyDescriptor> it = result.iterator(); it.hasNext(); it.next()) {
-            count++;
-        }
-        Assert.assertEquals(2, count);
-    }
-
-    @Test
-    public void testQuerySingleMatch() throws Exception {
-        store.addEntry(firstOID,
-                       new EntityDescriptorMock(Arrays.asList("VM"),
-                                                   Arrays.asList("VM_Heuristics")),
-                       mock(EntityMetadataDescriptor.class));
-        store.addEntry(secondOID,
-                       new EntityDescriptorMock(Arrays.asList("VM_1"),
-                                                   Arrays.asList("VM_Heuristics")),
-                       mock(EntityMetadataDescriptor.class));
-        List<PropertyDescriptor> properties = new ArrayList<>();
-        properties.add(new PropertyDescriptorImpl("VM_1", 1));
-        properties.add(new PropertyDescriptorImpl("VM_Heuristics", 1));
-        Iterable<EntityProxyDescriptor> result =
-                store.query(properties);
-        int count = 0;
-        for (Iterator<EntityProxyDescriptor> it = result.iterator(); it.hasNext(); it.next()) {
-            count++;
-        }
-        Assert.assertEquals(1, count);
-    }
-
-    @Test
-    public void testQueryNotFound() throws Exception {
-        store.addEntry(firstOID,
-                       new EntityDescriptorMock(Arrays.asList("VM"),
-                                                   Arrays.asList("VM_Heuristics")),
-                       mock(EntityMetadataDescriptor.class));
-        store.addEntry(secondOID,
-                       new EntityDescriptorMock(Arrays.asList("VM_1"),
-                                                   Arrays.asList("VM_Heuristics")),
-                       mock(EntityMetadataDescriptor.class));
-        List<PropertyDescriptor> properties = new ArrayList<>();
-        // Wrong rank. Nothing will get found.
-        properties.add(new PropertyDescriptorImpl("VM_Heuristics", 2));
-        Iterable<EntityProxyDescriptor> result =
-                store.query(properties);
-        int count = 0;
-        for (Iterator<EntityProxyDescriptor> it = result.iterator(); it.hasNext(); it.next()) {
-            count++;
-        }
-        Assert.assertEquals(0, count);
     }
 
     @Test

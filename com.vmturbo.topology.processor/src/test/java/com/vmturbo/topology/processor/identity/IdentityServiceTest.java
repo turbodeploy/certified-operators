@@ -4,8 +4,11 @@
 package com.vmturbo.topology.processor.identity;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import com.google.common.collect.Lists;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -14,6 +17,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.topology.processor.identity.extractor.EntityDescriptorImpl;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
@@ -59,6 +63,24 @@ public class IdentityServiceTest {
                                        Mockito.mock(EntityMetadataDescriptor.class));
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid1);
         Assert.assertEquals(oid, oid1);
+        idSvc.removeEntity(oid);
+        idSvc.removeEntity(oid1);
+    }
+
+    @Test
+    public void testDifferentOrder() throws Exception {
+        final List<PropertyDescriptor> descriptors = new ArrayList<>();
+        descriptors.add(new PropertyDescriptorImpl("VM", 1));
+        descriptors.add(new PropertyDescriptorImpl("PM", 1));
+        long oid = idSvc.getEntityOID(new EntityDescriptorImpl(descriptors, Collections.emptyList(),
+                Collections.emptyList()), Mockito.mock(EntityMetadataDescriptor.class));
+        Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
+        final List<PropertyDescriptor> reverseDescriptors = Lists.reverse(descriptors);
+        long oid1 = idSvc.getEntityOID(
+                new EntityDescriptorImpl(reverseDescriptors, Collections.emptyList(),
+                        Collections.emptyList()), Mockito.mock(EntityMetadataDescriptor.class));
+        Assert.assertNotEquals(IdentityService.INVALID_OID, oid1);
+        Assert.assertNotEquals(oid, oid1);
         idSvc.removeEntity(oid);
         idSvc.removeEntity(oid1);
     }

@@ -1,10 +1,11 @@
 package com.vmturbo.topology.processor.identity;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
 
@@ -12,33 +13,35 @@ import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
  * Mock entity descriptor that actually persists data.
  */
 public class EntityDescriptorMock implements EntityDescriptor {
-    private final Collection<PropertyDescriptor> identifyingPropertiers;
+    private final List<PropertyDescriptor> identifyingPropertiers;
 
-    private final Collection<PropertyDescriptor> volatilePropertiers;
+    private final List<PropertyDescriptor> volatilePropertiers;
 
-    private final Collection<PropertyDescriptor> heuristicPropertiers;
+    private final List<PropertyDescriptor> heuristicPropertiers;
 
     public EntityDescriptorMock(List<String> identifyingPropertiers,
                                 List<String> heuristicPropertiers) {
         this.identifyingPropertiers = composePropertySet(identifyingPropertiers);
-        this.volatilePropertiers = composePropertySet(Collections.singleton("hyperv_vm"));
+        this.volatilePropertiers = composePropertySet(Collections.singletonList("hyperv_vm"));
         this.heuristicPropertiers = composePropertySet(heuristicPropertiers);
     }
 
     @Override
-    public Collection<PropertyDescriptor> getVolatileProperties(EntityMetadataDescriptor metadataDescriptor)
-            throws IdentityWrongSetException {
+    @Nonnull
+    public List<PropertyDescriptor> getVolatileProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
         return volatilePropertiers;
     }
 
     @Override
-    public Collection<PropertyDescriptor>
-    getIdentifyingProperties(EntityMetadataDescriptor metadataDescriptor)
-            throws IdentityWrongSetException {
+    @Nonnull
+    public List<PropertyDescriptor> getIdentifyingProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
         return identifyingPropertiers;
     }
 
     @Override
+    @Nonnull
     public HeuristicsDescriptor getHeuristicsDescriptor() {
         return new HeuristicsDescriptor() {
 
@@ -50,13 +53,13 @@ public class EntityDescriptorMock implements EntityDescriptor {
     }
 
     @Override
-    public Collection<PropertyDescriptor>
-    getHeuristicProperties(EntityMetadataDescriptor metadataDescriptor)
-            throws IdentityWrongSetException {
+    @Nonnull
+    public List<PropertyDescriptor> getHeuristicProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
         return heuristicPropertiers;
     }
 
-    public static Collection<PropertyDescriptor> composePropertySet(Collection<String> properties) {
+    public static List<PropertyDescriptor> composePropertySet(@Nonnull List<String> properties) {
         final AtomicInteger idCounter = new AtomicInteger(0);
         return properties.stream()
                 .map(prop -> new PropertyDescriptorImpl(prop, idCounter.incrementAndGet()))

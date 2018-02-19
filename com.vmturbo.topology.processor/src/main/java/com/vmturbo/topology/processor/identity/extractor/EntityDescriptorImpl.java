@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.identity.extractor;
 
-import java.util.Collection;
+import java.util.List;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
@@ -15,37 +17,41 @@ import com.vmturbo.topology.processor.identity.PropertyDescriptor;
  * Default entity descriptor.
  */
 public class EntityDescriptorImpl implements EntityDescriptor {
-    public final Collection<PropertyDescriptor> identifyingProperties;
-    public final Collection<PropertyDescriptor> volatileProperties;
-    public final Collection<PropertyDescriptor> heuristicProperties;
+    private final List<PropertyDescriptor> identifyingProperties;
+    private final List<PropertyDescriptor> volatileProperties;
+    private final List<PropertyDescriptor> heuristicProperties;
 
-    public EntityDescriptorImpl(Collection<PropertyDescriptor> identifyingProperties,
-                                Collection<PropertyDescriptor> volatileProperties,
-                                Collection<PropertyDescriptor> heuristicProperties) {
+    public EntityDescriptorImpl(@Nonnull List<PropertyDescriptor> identifyingProperties,
+            @Nonnull List<PropertyDescriptor> volatileProperties,
+            @Nonnull List<PropertyDescriptor> heuristicProperties) {
         this.identifyingProperties = ImmutableList.copyOf(identifyingProperties);
         this.volatileProperties = ImmutableList.copyOf(volatileProperties);
         this.heuristicProperties = ImmutableList.copyOf(heuristicProperties);
     }
 
     @Override
-    public Collection<PropertyDescriptor> getIdentifyingProperties(
-            EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+    @Nonnull
+    public List<PropertyDescriptor> getIdentifyingProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
         return identifyingProperties;
     }
 
     @Override
-    public Collection<PropertyDescriptor> getVolatileProperties(
-            EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+    @Nonnull
+    public List<PropertyDescriptor> getVolatileProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
         return volatileProperties;
     }
 
     @Override
-    public Collection<PropertyDescriptor> getHeuristicProperties(
-            EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+    @Nonnull
+    public List<PropertyDescriptor> getHeuristicProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
         return heuristicProperties;
     }
 
     @Override
+    @Nonnull
     public HeuristicsDescriptor getHeuristicsDescriptor() {
         return new HeuristicsDescriptor() {
             @Override

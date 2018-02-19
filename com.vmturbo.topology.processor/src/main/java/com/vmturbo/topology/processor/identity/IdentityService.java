@@ -103,9 +103,9 @@ public class IdentityService {
                 IdentityUninitializedException {
         final EntityDescriptor descriptor = entryData.getDescriptor();
         final EntityMetadataDescriptor metadataDescriptor = entryData.getMetadata();
-        Collection<PropertyDescriptor> identifyingProperties =
+        final List<PropertyDescriptor> identifyingProperties =
                 descriptor.getIdentifyingProperties(metadataDescriptor);
-        Collection<PropertyDescriptor> volatileProperties =
+        final List<PropertyDescriptor> volatileProperties =
                 descriptor.getVolatileProperties(metadataDescriptor);
         // First, see if we have the match by the identifying properties
         long oid = store_.lookupByIdentifyingSet(metadataDescriptor, identifyingProperties);
@@ -218,25 +218,9 @@ public class IdentityService {
      */
     public boolean containsWithIdentifyingProperties(
                 @Nonnull EntityMetadataDescriptor metadataDescriptor,
-                @Nonnull Iterable<PropertyDescriptor> properties)
+                @Nonnull List<PropertyDescriptor> properties)
             throws IdentityServiceOperationException, IdentityUninitializedException {
         return store_.containsWithIdentifyingProperties(metadataDescriptor, properties);
-    }
-
-    /**
-     * Performs the search using the set of properties.
-     *
-     * @param properties The set of properties.
-     * @return The collection of identifying and heuristic properties. It is in the form of:
-     * Iterable< Map< IDENTIFYING | HEURISTIC, List<Properties> >
-     * @throws IdentityServiceOperationException In case of an error querying the DTOs.
-     * @throws IdentityUninitializedException If the identity service initialization is incomplete.
-     */
-    public
-    @Nonnull Iterable<EntityProxyDescriptor> query(
-                @Nonnull Iterable<PropertyDescriptor> properties)
-            throws IdentityServiceOperationException, IdentityUninitializedException {
-        return store_.query(properties);
     }
 
     /**

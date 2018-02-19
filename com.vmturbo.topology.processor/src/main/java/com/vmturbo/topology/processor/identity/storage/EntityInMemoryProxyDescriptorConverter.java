@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.identity.storage;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -96,15 +97,15 @@ public class EntityInMemoryProxyDescriptorConverter implements Converter<String,
             final JsonNode idNode = idNodeOpt.get();
             final JsonNode heuristicNode = heuristicNodeOpt.get();
 
-            final Set<PropertyDescriptor> idProps =
-                    new HashSet<>(idNode.size());
+            final List<PropertyDescriptor> idProps =
+                    new ArrayList<>(idNode.size());
             for (int i = 0; i < idNode.size(); ++i) {
                 final String idProp = idNode.get(i).asText();
                 idProps.add(IdentityServiceInMemoryUnderlyingStore.parseString(idProp));
             }
 
-            final Set<PropertyDescriptor> heuristicProps =
-                    new HashSet<>(heuristicNode.size());
+            final List<PropertyDescriptor> heuristicProps =
+                    new ArrayList<>(heuristicNode.size());
             for (int i = 0; i < heuristicNode.size(); ++i) {
                 final String heuristicProp = heuristicNode.get(i).asText();
                 heuristicProps.add(IdentityServiceInMemoryUnderlyingStore.parseString(heuristicProp));
@@ -122,9 +123,9 @@ public class EntityInMemoryProxyDescriptorConverter implements Converter<String,
         final ObjectNode objectNode = mapper.createObjectNode();
         objectNode.put(CUR_OID_PROP_NAME, userObject.getOID());
 
-        final Set<String> heuristicProps = userObject.getHeuristicProperties().stream()
+        final List<String> heuristicProps = userObject.getHeuristicProperties().stream()
                 .map(IdentityServiceInMemoryUnderlyingStore::propertyAsString)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
 
         final ArrayNode heuristicNode = objectNode.putArray(CUR_HEURISTIC_PROPS_PROP_NAME);
         heuristicProps.forEach(heuristicNode::add);

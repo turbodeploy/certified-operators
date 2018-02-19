@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.identity;
 
-import java.util.Collection;
+import java.util.List;
+
+import javax.annotation.Nonnull;
 
 /**
  * The EntityDescriptor implements the entity descriptor.
@@ -9,14 +11,15 @@ import java.util.Collection;
  */
 public interface EntityDescriptor {
     /**
-     * Returns the "non-volatile identifying" property set.
+     * Returns the "non-volatile identifying" property list.
      *
      * @param metadataDescriptor The entity metadata descriptor.
      * @return The "non-volatile identifying" property set.
      * @exception IdentityWrongSetException In case the required properties aren't available.
      */
-    Collection<PropertyDescriptor> getIdentifyingProperties(EntityMetadataDescriptor metadataDescriptor)
-                    throws IdentityWrongSetException;
+    @Nonnull
+    List<PropertyDescriptor> getIdentifyingProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException;
 
     /**
      * Returns the "volatile identifying" property set.
@@ -25,8 +28,9 @@ public interface EntityDescriptor {
      * @return The "volatile identifying" property set.
      * @exception IdentityWrongSetException In case the required properties aren't available.
      */
-    Collection<PropertyDescriptor> getVolatileProperties(EntityMetadataDescriptor metadataDescriptor)
-                    throws IdentityWrongSetException;
+    @Nonnull
+    List<PropertyDescriptor> getVolatileProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException;
 
     /**
      * Returns the "heuristic" property set.
@@ -35,13 +39,15 @@ public interface EntityDescriptor {
      * @return The "heuristic" property set.
      * @exception IdentityWrongSetException In case the required properties aren't available.
      */
-    Collection<PropertyDescriptor> getHeuristicProperties(EntityMetadataDescriptor metadataDescriptor)
-                    throws IdentityWrongSetException;
+    @Nonnull
+    List<PropertyDescriptor> getHeuristicProperties(
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException;
 
     /**
      * Returns the Heuristics descriptor.
      *
      * @return The Heuristics descriptor.
      */
+    @Nonnull
     HeuristicsDescriptor getHeuristicsDescriptor();
 }

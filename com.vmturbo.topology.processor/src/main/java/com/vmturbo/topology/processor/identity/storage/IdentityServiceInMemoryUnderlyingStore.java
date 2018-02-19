@@ -20,9 +20,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -30,6 +27,9 @@ import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
@@ -165,6 +165,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      * @param vpd The property descriptor.
      * @return The String representation of a property.
      */
+    @Nonnull
     static String propertyAsString(PropertyDescriptor vpd) {
         StringBuilder sb = new StringBuilder();
         sb.append(vpd.getPropertyTypeRank());
@@ -191,14 +192,15 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     }
 
     /**
-     * Composes the key for the set of properties. We use it for the quick check whether or not the
-     * Entity is already here and has a full match.
+     * Composes the key for the list of properties. We use it for the quick check whether or not the
+     * Entity is already here and has a full match. This key will be used to identify the object,
+     * so, order of elements put into the result string matters.
      *
      * @param properties The property set.
      * @return The key.
      */
     static @Nonnull String composeKeyFromProperties(
-            @Nonnull Iterable<PropertyDescriptor> properties) {
+            @Nonnull List<PropertyDescriptor> properties) {
         StringBuilder sb = new StringBuilder();
         for (PropertyDescriptor vpd : properties) {
             sb.append(propertyAsString(vpd));
@@ -212,7 +214,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      */
     @Override
     public long lookupByIdentifyingSet(@Nonnull EntityMetadataDescriptor metadataDescriptor,
-                                       @Nonnull Iterable<PropertyDescriptor> properties)
+                                       @Nonnull List<PropertyDescriptor> properties)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
         return index_.getOrDefault(composeKeyFromProperties(properties),
@@ -386,17 +388,6 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
      * {@inheritDoc}
      */
     @Override
-    @Nonnull
-    public Iterable<EntityProxyDescriptor> query(
-                @Nonnull final Iterable<PropertyDescriptor> properties)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException {
-        return query(null, properties);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public boolean containsOID(long oid)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
@@ -409,7 +400,7 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
     @Override
     public boolean containsWithIdentifyingProperties(
                 @Nonnull EntityMetadataDescriptor metadataDescriptor,
-                @Nonnull Iterable<PropertyDescriptor> properties)
+                @Nonnull List<PropertyDescriptor> properties)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException {
         checkInitialized();
         return lookupByIdentifyingSet(metadataDescriptor, properties) !=

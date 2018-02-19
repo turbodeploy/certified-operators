@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.identity.services;
 
 import java.io.Reader;
 import java.io.Writer;
+import java.util.List;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
@@ -15,7 +16,7 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 
 /**
- * The IdentityServiceUnderlyingStore implements the Identity Service undelying service.
+ * The IdentityServiceUnderlyingStore implements the Identity Service underlying service.
  */
 public interface IdentityServiceUnderlyingStore {
 
@@ -29,7 +30,7 @@ public interface IdentityServiceUnderlyingStore {
      * @throws IdentityUninitializedException If the store is not initialized yet.
      */
     long lookupByIdentifyingSet(@Nonnull EntityMetadataDescriptor metadataDescriptor,
-                                @Nonnull Iterable<PropertyDescriptor> properties)
+                                @Nonnull List<PropertyDescriptor> properties)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
@@ -82,20 +83,6 @@ public interface IdentityServiceUnderlyingStore {
 
     /**
      * Performs the search using the set of properties.
-     *
-     * @param properties The set of properties.
-     * @return The collection of identifying and heuristic properties. It is in the form of:
-     * {@code Iterable<VMTEntityProxyDescriptor>}
-     * @throws IdentityServiceStoreOperationException In case of an error querying the DTOs.
-     * @throws IdentityUninitializedException If the store is not initialized yet.
-     */
-    @Nonnull
-    Iterable<EntityProxyDescriptor> query(
-            @Nonnull Iterable<PropertyDescriptor> properties)
-            throws IdentityServiceStoreOperationException, IdentityUninitializedException;
-
-    /**
-     * Performs the search using the set of properties.
      * The optional metadata descriptor will be used to narrow the search.
      *
      * @param metadataDescriptor The metadata descriptor. if {@code null}, will be ignored.
@@ -132,7 +119,7 @@ public interface IdentityServiceUnderlyingStore {
      */
     boolean containsWithIdentifyingProperties(
             @Nonnull EntityMetadataDescriptor metadataDescriptor,
-            @Nonnull Iterable<PropertyDescriptor> properties)
+            @Nonnull List<PropertyDescriptor> properties)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
