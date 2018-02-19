@@ -61,12 +61,16 @@ public class ReportingTestConfig {
     @Autowired
     private ReportingTestDbConfig dbConfig;
 
-    @Autowired
-    private GroupClientConfig groupClientConfig;
-
     @Bean
     protected GrpcTestServer planGrpcServer() throws IOException {
         final GrpcTestServer server = GrpcTestServer.newServer(reportingService());
+        server.start();
+        return server;
+    }
+
+    @Bean
+    public GrpcTestServer settingsGrpcServer() throws IOException {
+        final GrpcTestServer server = GrpcTestServer.newServer(settingsService());
         server.start();
         return server;
     }
@@ -97,23 +101,28 @@ public class ReportingTestConfig {
     }
 
     @Bean
-    protected ReportingServiceImplBase reportingService() {
+    protected ReportingServiceImplBase reportingService() throws IOException {
         return new ReportingServiceRpc(templatesOrganizer(), reportInstanceDao(),
                 reportsOutputDir(), reportsGenerator(), scheduler());
     }
 
     @Bean
-    public ReportsGenerator reportsGenerator() {
+    SettingServiceGrpc.SettingServiceImplBase settingsService() {
+        return new TestSetttingsService();
+    }
+
+    @Bean
+    public ReportsGenerator reportsGenerator() throws IOException {
         return new ReportsGenerator(reportRunner(), templatesOrganizer(), reportInstanceDao(),
                         reportsOutputDir(), threadPool(), notificationSender(), mailManager());
     }
 
     @Bean
-    public MailManager mailManager() {
-        return new MailManager(SettingServiceGrpc.newBlockingStub(groupClientConfig.groupChannel()));
+    public MailManager mailManager() throws IOException {
+        return new MailManager(SettingServiceGrpc.newBlockingStub(settingsGrpcServer().getChannel()));
     }
 
-    @Bean public Scheduler scheduler() {
+    @Bean public Scheduler scheduler() throws IOException {
         return new Scheduler(reportsGenerator(), scheduleDAO(), 1,
                         Clock.systemDefaultZone(), new Timer("scheduledReportsGeneration"));
     }
