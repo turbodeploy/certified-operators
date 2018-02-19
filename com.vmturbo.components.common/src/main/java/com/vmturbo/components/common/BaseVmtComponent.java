@@ -42,6 +42,7 @@ import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
@@ -57,6 +58,7 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 @Import({BaseVmtComponentConfig.class})
 public abstract class BaseVmtComponent implements IVmtComponent {
 
+    public static final String KEY_COMPONENT_VERSION = "component.version";
     /**
      * The number of seconds to wait for gRPC server to shutdown
      * during the shutdown procedure for the component.
@@ -285,7 +287,9 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     // the component lifecycle. BaseVmtComponent should NOT have any
     // code here. These methods are effectively abstract, but made non-abstract
     // for convenience.
-    protected void onStartComponent() {}
+    protected void onStartComponent() {
+        publishVersionInformation();
+    }
 
     protected void onStopComponent() {}
 
@@ -406,5 +410,18 @@ public abstract class BaseVmtComponent implements IVmtComponent {
             }
         } while (true);
         logger.info("configuration initialized");
+    }
+
+    /**
+     * Publishes version information of this container into a centralized key-value store.
+     */
+    private void publishVersionInformation() {
+        final String specVersion = getClass().getPackage().getSpecificationVersion();
+        if (specVersion != null) {
+            logger.debug("Component version {} found", specVersion);
+            baseVmtComponentConfig.keyValueStore().put(KEY_COMPONENT_VERSION, specVersion);
+        } else {
+            logger.error("Could not get Specification-Version for component class {}", getClass());
+        }
     }
 }

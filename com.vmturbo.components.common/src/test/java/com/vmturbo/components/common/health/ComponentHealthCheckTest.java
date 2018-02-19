@@ -39,7 +39,9 @@ import com.vmturbo.components.common.ComponentController;
 @WebAppConfiguration
 @ContextConfiguration(loader = AnnotationConfigWebContextLoader.class)
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
-@TestPropertySource(properties = {"server.grpcPort=9001"})
+@TestPropertySource(properties = {"server.grpcPort=9001", "spring.cloud.consul.host=consul",
+        "spring.cloud.consul.port=8500", "spring.application.name=testApplication",
+        "kvStoreRetryIntervalMillis=1000"})
 @NotThreadSafe
 public class ComponentHealthCheckTest {
 
