@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.util.CollectionUtils;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -33,9 +34,9 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
@@ -72,6 +73,7 @@ public class SearchService implements ISearchService {
 
     private final UuidMapper uuidMapper;
 
+    private final String REPO_OID_KEY_NAME = "oid";
 
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
@@ -106,7 +108,7 @@ public class SearchService implements ISearchService {
         try {
             // getGroupByUuid searches _both_ groups and clusters
             return groupsService.getGroupByUuid(uuidString, true);
-        } catch(UnknownObjectException e) {
+        } catch (UnknownObjectException e) {
             // not a group or cluster...fall through
         }
         // The input is the uuid for a single entity.
@@ -243,18 +245,43 @@ public class SearchService implements ISearchService {
     }
 
     /**
-     * Send a search request to search rpc service by passing a list of search parameters. Convert the
-     * response from a list of {@link com.vmturbo.common.protobuf.search.Search.Entity} objects
-     * to list of {@link BaseApiDTO}.
+     * Send a search request to search rpc service by passing a list of search
+     * parameters based on the parameters in the inputDTO. Convert the response
+     * from a list of {@link com.vmturbo.common.protobuf.search.Search.Entity}
+     * objects to list of {@link BaseApiDTO}.
      *
      * @param inputDTO a Description of what search to conduct
      * @return A list of {@link BaseApiDTO} will be sent back to client
      */
     private List<BaseApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
-        final Search.SearchRequest searchRequest = Search.SearchRequest.newBuilder()
-                .addAllSearchParameters(parameters).build();
-        Iterator<Entity> iterator = searchServiceRpc.searchEntities(searchRequest);
+        List<SearchParameters> parameters =
+            groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        final Search.SearchRequest.Builder searchRequestBuilder =
+            Search.SearchRequest.newBuilder()
+                .addAllSearchParameters(parameters);
+        // match only the entity uuids which are part of the group or cluster
+        // defined in the scope
+        if ((inputDTO.getScope() != null) && (!inputDTO.getScope().isEmpty())) {
+            String entityIdsToMatch =
+                groupExpander.expandUuids(ImmutableSet.copyOf(inputDTO.getScope()))
+                    .stream()
+                    .map(uuid -> Long.toString(uuid))
+                    // OR operation
+                    .collect(Collectors.joining( "|" ) );
+            if (!entityIdsToMatch.isEmpty()) {
+                // This is clunky. We are setting a filter on an index in
+                // repository(arangodb) which is not exposed anywhere.
+                // The other option is to filter for the entities here on the api
+                // client side. But doing the filter on the repository(server) side may
+                // be more efficient.
+                searchRequestBuilder.addSearchParameters(
+                    SearchParameters.newBuilder()
+                        .setStartingFilter(
+                            SearchMapper.stringFilter(REPO_OID_KEY_NAME, entityIdsToMatch))
+                        .build());
+            }
+        }
+        Iterator<Entity> iterator = searchServiceRpc.searchEntities(searchRequestBuilder.build());
         List<BaseApiDTO> list = Lists.newLinkedList();
         while (iterator.hasNext()) {
             Entity entity = iterator.next();
