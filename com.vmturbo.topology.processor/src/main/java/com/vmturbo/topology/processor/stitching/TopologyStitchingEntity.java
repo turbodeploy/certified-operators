@@ -239,6 +239,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
         mergeInfo.forEach(this::addMergeInformation);
     }
 
+    @Override
+    public boolean hasMergeInformation() {
+        return !(mergeInformation == null);
+    }
+
     public static class CommoditySold {
         /**
          * Get the commodity being sold.

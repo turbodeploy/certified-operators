@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.discovery;
 
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.DISCOVERED_SETTING_POLICY_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_CLUSTER_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_GROUP_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_CLUSTER;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -32,10 +34,15 @@ import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceImplBase;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsResponse;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.InterpretedGroup;
+import com.vmturbo.stitching.StitchingMergeInformation;
+import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 
 @ThreadSafe
 public class DiscoveredGroupUploaderTest {
@@ -120,7 +127,7 @@ public class DiscoveredGroupUploaderTest {
     public void testProcessClusterSuccess() throws Exception {
         when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
             .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_CLUSTER));
-        when(interpretedGroup.getDtoAsCluster()).thenReturn(Optional.of(PLACEHOLDER_CLUSTER_INFO));
+        when(interpretedGroup.getDtoAsCluster()).thenReturn(Optional.of(PLACEHOLDER_CLUSTER_INFO.toBuilder()));
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
         recorderSpy.uploadDiscoveredGroups();
 
@@ -135,7 +142,7 @@ public class DiscoveredGroupUploaderTest {
     public void testProcessGroupSuccess() throws Exception {
         when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
             .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_GROUP));
-        when(interpretedGroup.getDtoAsGroup()).thenReturn(Optional.of(PLACEHOLDER_GROUP_INFO));
+        when(interpretedGroup.getDtoAsGroup()).thenReturn(Optional.of(PLACEHOLDER_GROUP_INFO.toBuilder()));
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
 
         recorderSpy.uploadDiscoveredGroups();
@@ -143,6 +150,45 @@ public class DiscoveredGroupUploaderTest {
         verify(uploadServiceSpy).storeDiscoveredGroups(
                 eq(StoreDiscoveredGroupsRequest.newBuilder()
                         .addDiscoveredGroup(PLACEHOLDER_GROUP_INFO)
+                        .setTargetId(TARGET_ID)
+                        .build()), any());
+    }
+
+    @Test
+    public void testFixupGroupsModifiesUploadedGroups() throws Exception {
+        when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
+            .thenReturn(Collections.singletonList(
+                new InterpretedGroup(STATIC_MEMBER_DTO,
+                    Optional.of(PLACEHOLDER_GROUP_INFO.toBuilder()),
+                    Optional.empty())));
+        when(interpretedGroup.getDtoAsGroup()).thenReturn(Optional.of(PLACEHOLDER_GROUP_INFO.toBuilder()));
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+
+        // Apply the group fixer so that the uploader's group should be modified to replace
+        // the member PLACEHOLDER_GROUP_MEMBER with the member 12345L.
+        final StitchingGroupFixer fixer = new StitchingGroupFixer();
+        final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
+        final TopologyStitchingEntity mergedEntity = mock(TopologyStitchingEntity.class);
+        when(mergedEntity.getOid()).thenReturn(12345L);
+        when(mergedEntity.hasMergeInformation()).thenReturn(true);
+        when(mergedEntity.getMergeInformation()).thenReturn(Collections.singletonList(
+            new StitchingMergeInformation(DiscoveredGroupConstants.PLACEHOLDER_GROUP_MEMBER, TARGET_ID)
+        ));
+
+        when(graph.entities()).thenReturn(Stream.of(mergedEntity));
+        fixer.fixupGroups(graph, recorderSpy.buildMemberCache());
+
+        recorderSpy.uploadDiscoveredGroups();
+
+        // Ensure that the group that got uploaded contained 12345L and not PLACEHOLDER_GROUP_MEMBER
+        final GroupInfo modifiedGroup = PLACEHOLDER_GROUP_INFO.toBuilder()
+            .clearStaticGroupMembers()
+            .setStaticGroupMembers(StaticGroupMembers.newBuilder().addStaticMemberOids(12345L))
+            .build();
+
+        verify(uploadServiceSpy).storeDiscoveredGroups(
+                eq(StoreDiscoveredGroupsRequest.newBuilder()
+                        .addDiscoveredGroup(modifiedGroup)
                         .setTargetId(TARGET_ID)
                         .build()), any());
     }

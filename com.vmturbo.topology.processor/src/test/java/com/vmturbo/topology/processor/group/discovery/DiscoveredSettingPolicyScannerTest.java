@@ -46,7 +46,6 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.InterpretedGroup;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -404,14 +403,13 @@ public class DiscoveredSettingPolicyScannerTest {
                         .collect(Collectors.toList()))
             ).build();
 
-        final GroupInfo groupInfo = GroupInfo.newBuilder()
+        final GroupInfo.Builder groupInfo = GroupInfo.newBuilder()
             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
             .setName(groupName)
             .setStaticGroupMembers(StaticGroupMembers.newBuilder()
                 .addAllStaticMemberOids(hosts.stream()
                     .map(TopologyStitchingEntity::getOid)
-                    .collect(Collectors.toList())))
-            .build();
+                    .collect(Collectors.toList())));
 
         return new InterpretedGroup(groupDTO, Optional.of(groupInfo), Optional.empty());
     }

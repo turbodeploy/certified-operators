@@ -248,6 +248,14 @@ public interface StitchingEntity {
     void addAllMergeInformation(@Nonnull final List<StitchingMergeInformation> mergeInformation);
 
     /**
+     * True if this {@link StitchingEntity}'s merge information contains at least one entry.
+     *
+     * @return True if this {@link StitchingEntity}'s merge information contains at least one entry,
+     *         false otherwise.
+     */
+    boolean hasMergeInformation();
+
+    /**
      * Get a {@link DiscoveryOrigin} object representing when this entity was last updated and by which
      * target(s).
      *

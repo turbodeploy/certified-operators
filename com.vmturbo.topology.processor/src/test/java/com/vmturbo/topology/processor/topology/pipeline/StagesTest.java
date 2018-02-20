@@ -31,6 +31,7 @@ import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
@@ -38,7 +39,9 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
+import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.stitching.TopologyEntity;
@@ -49,6 +52,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFixupStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
@@ -92,7 +96,7 @@ public class StagesTest {
     }
 
     @Test
-    public void testStichingStage() {
+    public void testStitchingStage() {
         final StitchingManager stitchingManager = mock(StitchingManager.class);
         final EntityStore entityStore = mock(EntityStore.class);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
@@ -102,6 +106,22 @@ public class StagesTest {
 
         final StitchingStage stitchingStage = new StitchingStage(stitchingManager);
         assertThat(stitchingStage.execute(entityStore).constructTopology(), is(Collections.emptyMap()));
+    }
+
+    @Test
+    public void testStitchingGroupFixup() throws PipelineStageException {
+        final StitchingGroupFixer stitchingGroupFixer = mock(StitchingGroupFixer.class);
+        final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
+        final DiscoveredGroupMemberCache memberCache = mock(DiscoveredGroupMemberCache.class);
+        final StitchingContext stitchingContext = mock(StitchingContext.class);
+        final TopologyStitchingGraph stitchingGraph = mock(TopologyStitchingGraph.class);
+
+        when(uploader.buildMemberCache()).thenReturn(memberCache);
+        when(stitchingContext.getStitchingGraph()).thenReturn(stitchingGraph);
+
+        final StitchingGroupFixupStage fixupStage = new StitchingGroupFixupStage(stitchingGroupFixer, uploader);
+        fixupStage.passthrough(stitchingContext);
+        verify(stitchingGroupFixer).fixupGroups(stitchingGraph, memberCache);
     }
 
     @Test

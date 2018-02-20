@@ -9,7 +9,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,7 +26,6 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -37,7 +35,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.rpc.DiscoveredGroupRpcService;
 
 /**
  * The {@link DiscoveredGroupInterpreter} is responsible for providing conversion functions
@@ -119,8 +116,8 @@ class DiscoveredGroupInterpreter {
      */
     @VisibleForTesting
     @Nonnull
-    Optional<ClusterInfo> sdkToCluster(@Nonnull final CommonDTO.GroupDTO sdkDTO,
-                                       final long targetId) {
+    Optional<ClusterInfo.Builder> sdkToCluster(@Nonnull final CommonDTO.GroupDTO sdkDTO,
+                                               final long targetId) {
         // Clusters must be statically-configured.
         if (!isCluster(sdkDTO) || !sdkDTO.getMembersCase().equals(MembersCase.MEMBER_LIST)) {
             return Optional.empty();
@@ -146,7 +143,7 @@ class DiscoveredGroupInterpreter {
             logger.warn("Unable to parse cluster member list: {}", sdkDTO.getMemberList());
             return Optional.empty();
         }
-        return Optional.of(builder.build());
+        return Optional.of(builder);
     }
 
     /**
@@ -161,9 +158,8 @@ class DiscoveredGroupInterpreter {
      */
     @VisibleForTesting
     @Nonnull
-    Optional<GroupInfo> sdkToGroup(@Nonnull final CommonDTO.GroupDTO sdkDTO,
-                                   final long targetId) {
-
+    Optional<GroupInfo.Builder> sdkToGroup(@Nonnull final CommonDTO.GroupDTO sdkDTO,
+                                           final long targetId) {
         final GroupInfo.Builder builder = GroupInfo.newBuilder();
         builder.setEntityType(sdkDTO.getEntityType().getNumber());
         builder.setName(sdkDTO.getDisplayName());
@@ -225,7 +221,7 @@ class DiscoveredGroupInterpreter {
         // TODO: What to do with entityProperties?
         logger.info("Skipping entity properties: {}", sdkDTO.getEntityPropertiesList());
 
-        return Optional.of(builder.build());
+        return Optional.of(builder);
     }
 
     /**
@@ -310,80 +306,6 @@ class DiscoveredGroupInterpreter {
             }
         }
         return Optional.ofNullable(retMembers);
-    }
-
-    /**
-     * The {@link InterpretedGroup} represents the results of an attempt to interpret a
-     * {@link CommonDTO.GroupDTO} from the group component.
-     */
-    static class InterpretedGroup {
-        private CommonDTO.GroupDTO dto;
-        private final Optional<GroupInfo> dtoAsGroup;
-        private final Optional<ClusterInfo> dtoAsCluster;
-
-        InterpretedGroup(@Nonnull final CommonDTO.GroupDTO dto,
-                         @Nonnull final Optional<GroupInfo> dtoAsGroup,
-                         @Nonnull final Optional<ClusterInfo> dtoAsCluster) {
-            if (dtoAsGroup.isPresent() && dtoAsCluster.isPresent()) {
-                throw new IllegalArgumentException(
-                        "Interpreted group must be a group OR a cluster, not both.");
-            }
-            this.dto = dto;
-            this.dtoAsCluster = dtoAsCluster;
-            this.dtoAsGroup = dtoAsGroup;
-        }
-
-        /**
-         * Get the result of the interpretation as a group.
-         *
-         * At most one of {@link InterpretedGroup#getDtoAsGroup()} and
-         * {@link InterpretedGroup#getDtoAsCluster()} can return a non-empty optional.
-         */
-        Optional<GroupInfo> getDtoAsGroup() {
-            return dtoAsGroup;
-        }
-
-        /**
-         * Get the result of the interpretation as a cluster.
-         *
-         * At most one of {@link InterpretedGroup#getDtoAsGroup()} and
-         * {@link InterpretedGroup#getDtoAsCluster()} can return a non-empty optional.
-         */
-        Optional<ClusterInfo> getDtoAsCluster() {
-            return dtoAsCluster;
-        }
-
-        /**
-         * Create a {@link DiscoveredGroupInfo} for the purposes of
-         * {@link DiscoveredGroupRpcService}.
-         *
-         * @return The {@link DiscoveredGroupInfo} representing this DTO.
-         */
-        @Nonnull
-        DiscoveredGroupInfo createDiscoveredGroupInfo() {
-            DiscoveredGroupInfo.Builder builder = DiscoveredGroupInfo.newBuilder();
-            builder.setDiscoveredGroup(dto);
-            dtoAsGroup.ifPresent(builder::setInterpretedGroup);
-            dtoAsCluster.ifPresent(builder::setInterpretedCluster);
-            return builder.build();
-        }
-
-        @Override
-        public int hashCode() {
-            return com.google.common.base.Objects.hashCode(dto, dtoAsCluster, dtoAsGroup);
-        }
-
-        @Override
-        public boolean equals(@Nullable Object other) {
-            if (!(other instanceof InterpretedGroup)) {
-                return false;
-            }
-
-            final InterpretedGroup ig = (InterpretedGroup)other;
-            return com.google.common.base.Objects.equal(dto, ig.dto) &&
-                com.google.common.base.Objects.equal(dtoAsCluster, ig.dtoAsCluster) &&
-                com.google.common.base.Objects.equal(dtoAsGroup, ig.dtoAsGroup);
-        }
     }
 
     /**

@@ -112,10 +112,10 @@ public class DiscoveredGroupInterpreterTest {
 
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        final Optional<GroupInfo> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, TARGET_ID);
+        final Optional<GroupInfo.Builder> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, TARGET_ID);
         assertTrue(groupInfoOpt.isPresent());
 
-        final GroupInfo groupInfo = groupInfoOpt.get();
+        final GroupInfo groupInfo = groupInfoOpt.get().build();
         // ID should be assigned.
         assertEquals(DISPLAY_NAME, groupInfo.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupInfo.getEntityType());
@@ -131,7 +131,7 @@ public class DiscoveredGroupInterpreterTest {
                 .thenReturn(Optional.of(ImmutableMap.of("2", 2L)));
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        final Optional<GroupInfo> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, TARGET_ID);
+        final Optional<GroupInfo.Builder> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, TARGET_ID);
         assertFalse(groupInfoOpt.isPresent());
     }
 
@@ -144,10 +144,10 @@ public class DiscoveredGroupInterpreterTest {
                 .thenReturn(Optional.of(PLACEHOLDER_FILTER));
 
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        final Optional<GroupInfo> infoOpt = converter.sdkToGroup(SELECTION_DTO, TARGET_ID);
+        final Optional<GroupInfo.Builder> infoOpt = converter.sdkToGroup(SELECTION_DTO, TARGET_ID);
         assertTrue(infoOpt.isPresent());
 
-        final GroupInfo info = infoOpt.get();
+        final GroupInfo info = infoOpt.get().build();
         assertEquals(DISPLAY_NAME, info.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, info.getEntityType());
         assertTrue(info.hasSearchParametersCollection());
@@ -170,7 +170,7 @@ public class DiscoveredGroupInterpreterTest {
 
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        Optional<ClusterInfo> clusterInfo = converter.sdkToCluster(CommonDTO.GroupDTO.newBuilder()
+        Optional<ClusterInfo.Builder> clusterInfo = converter.sdkToCluster(CommonDTO.GroupDTO.newBuilder()
                 .setEntityType(EntityType.PHYSICAL_MACHINE)
                 .setDisplayName(DISPLAY_NAME)
                 .setConstraintInfo(ConstraintInfo.newBuilder()
@@ -199,7 +199,7 @@ public class DiscoveredGroupInterpreterTest {
 
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
-        Optional<ClusterInfo> clusterInfo = converter.sdkToCluster(CommonDTO.GroupDTO.newBuilder()
+        Optional<ClusterInfo.Builder> clusterInfo = converter.sdkToCluster(CommonDTO.GroupDTO.newBuilder()
                 .setEntityType(EntityType.STORAGE)
                 .setDisplayName(DISPLAY_NAME)
                 .setConstraintInfo(ConstraintInfo.newBuilder()

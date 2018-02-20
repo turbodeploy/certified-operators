@@ -9,6 +9,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
@@ -112,6 +113,14 @@ public class TopologyStitchingEntityTest {
 
         assertThat(pm.getMergeInformation(), containsInAnyOrder(new StitchingMergeInformation(999L, 123L),
             new StitchingMergeInformation(999L, 456L)));
+    }
+
+    @Test
+    public void testHasMergeInformation() {
+        assertFalse(pm.hasMergeInformation());
+
+        pm.addMergeInformation(new StitchingMergeInformation(999L, 123L));
+        assertTrue(pm.hasMergeInformation());
     }
 
     @Test

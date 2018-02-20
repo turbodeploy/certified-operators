@@ -33,7 +33,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.InterpretedGroup;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -454,12 +453,11 @@ public class DiscoveredSettingPolicyScanner {
                                 .collect(Collectors.toList()))
                     ).build();
 
-                final GroupInfo groupInfo = GroupInfo.newBuilder()
+                final GroupInfo.Builder groupInfo = GroupInfo.newBuilder()
                     .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .setName(groupName)
                     .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                    .addAllStaticMemberOids(hostOids))
-                    .build();
+                    .addAllStaticMemberOids(hostOids));
 
                 groups.add(new InterpretedGroup(groupDTO, Optional.of(groupInfo), Optional.empty()));
             }
@@ -474,7 +472,7 @@ public class DiscoveredSettingPolicyScanner {
         }
 
         /**
-         * Returns a name in the form of "memUtilzation-0.5-cpuUtilization-0.2/targetName"
+         * Returns a name in the form of "memUtilization-0.5-cpuUtilization-0.2/targetName"
          *
          * @return the name.
          */

@@ -20,6 +20,7 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
+import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
@@ -104,6 +105,11 @@ public class TopologyConfig {
     }
 
     @Bean
+    public StitchingGroupFixer stitchingGroupFixer() {
+        return new StitchingGroupFixer();
+    }
+
+    @Bean
     public TopologyPipelineFactory topologyPipelineFactory() {
         return new TopologyPipelineFactory(apiConfig.topologyProcessorNotificationSender(),
                 groupConfig.policyManager(),
@@ -117,7 +123,8 @@ public class TopologyConfig {
                 groupConfig.topologyFilterFactory(),
                 groupConfig.groupServiceClient(),
                 reservationConfig.reservationManager(),
-                discoveredSettingPolicyScanner());
+                discoveredSettingPolicyScanner(),
+                stitchingGroupFixer());
     }
 
     @Bean

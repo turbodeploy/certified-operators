@@ -32,7 +32,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.InterpretedGroup;
 
 /**
  * The {@link DiscoveredGroupUploader} is the interface for the discovery operation to upload
@@ -156,6 +155,19 @@ public class DiscoveredGroupUploader {
                     entry -> entry.getValue().stream()
                         .map(InterpretedGroup::createDiscoveredGroupInfo)
                         .collect(Collectors.toList())));
+        }
+    }
+
+    /**
+     * Get a {@link DiscoveredGroupMemberCache} associated with the {@link InterpretedGroup}s contained
+     * in the {@link DiscoveredGroupUploader} at this time.
+     *
+     * @return a {@link DiscoveredGroupMemberCache} for this {@link DiscoveredGroupUploader}.
+     */
+    @Nonnull
+    public DiscoveredGroupMemberCache buildMemberCache() {
+        synchronized (latestGroupByTarget) {
+            return new DiscoveredGroupMemberCache(latestGroupByTarget);
         }
     }
 

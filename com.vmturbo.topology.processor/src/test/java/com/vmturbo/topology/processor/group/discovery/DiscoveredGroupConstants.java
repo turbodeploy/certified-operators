@@ -20,7 +20,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpecList;
-import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.InterpretedGroup;
 
 /**
  * Shared constants for testing the package.
@@ -50,14 +49,19 @@ class DiscoveredGroupConstants {
                     .addMember("1").build())
             .build();
 
+    static final long PLACEHOLDER_GROUP_MEMBER = 10L;
+    static final long PLACEHOLDER_CLUSTER_MEMBER = 11L;
+
     static final GroupInfo PLACEHOLDER_GROUP_INFO = GroupInfo.newBuilder()
             .setStaticGroupMembers(StaticGroupMembers.newBuilder()
-                    .addStaticMemberOids(10L))
+                    .addStaticMemberOids(PLACEHOLDER_GROUP_MEMBER))
             .build();
 
     static final ClusterInfo PLACEHOLDER_CLUSTER_INFO = ClusterInfo.newBuilder()
             .setClusterType(Type.COMPUTE)
             .setName("cluster")
+            .setMembers(StaticGroupMembers.newBuilder()
+                .addStaticMemberOids(PLACEHOLDER_CLUSTER_MEMBER))
             .build();
 
     static final DiscoveredSettingPolicyInfo DISCOVERED_SETTING_POLICY_INFO = DiscoveredSettingPolicyInfo.newBuilder()
@@ -94,9 +98,9 @@ class DiscoveredGroupConstants {
 
     static final InterpretedGroup PLACEHOLDER_INTERPRETED_GROUP =
             new InterpretedGroup(STATIC_MEMBER_DTO,
-                    Optional.of(PLACEHOLDER_GROUP_INFO), Optional.empty());
+                    Optional.of(PLACEHOLDER_GROUP_INFO.toBuilder()), Optional.empty());
 
     static final InterpretedGroup PLACEHOLDER_INTERPRETED_CLUSTER =
             new InterpretedGroup(STATIC_MEMBER_DTO, Optional.empty(),
-                    Optional.of(PLACEHOLDER_CLUSTER_INFO));
+                    Optional.of(PLACEHOLDER_CLUSTER_INFO.toBuilder()));
 }

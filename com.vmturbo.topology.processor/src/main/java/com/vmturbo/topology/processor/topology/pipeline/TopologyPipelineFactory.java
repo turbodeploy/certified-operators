@@ -22,6 +22,7 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
+import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -38,6 +39,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionSt
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsUploadStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingGroupFixupStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
@@ -79,6 +81,8 @@ public class TopologyPipelineFactory {
 
     private final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner;
 
+    private final StitchingGroupFixer stitchingGroupFixer;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -91,7 +95,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final TopologyFilterFactory topologyFilterFactory,
                                    @Nonnull final GroupServiceBlockingStub groupServiceClient,
                                    @Nonnull final ReservationManager reservationManager,
-                                   @Nonnull final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner) {
+                                   @Nonnull final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner,
+                                   @Nonnull final StitchingGroupFixer stitchingGroupFixer) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -105,6 +110,7 @@ public class TopologyPipelineFactory {
         this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
         this.reservationManager = Objects.requireNonNull(reservationManager);
         this.discoveredSettingPolicyScanner = Objects.requireNonNull(discoveredSettingPolicyScanner);
+        this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
     }
 
     /**
@@ -122,6 +128,7 @@ public class TopologyPipelineFactory {
                 new TopologyPipelineContext(groupResolver, topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager))
+                .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
@@ -142,6 +149,14 @@ public class TopologyPipelineFactory {
      * Create a pipeline that constructs and broadcasts the most up-to-date live topology AND
      * applies a set of changes to it.
      *
+     * TODO: Note that because we don't upload discovered groups/policies during the
+     * TODO: planOverLive pipeline, we may have inconsistencies between the entities and
+     * TODO: discovered groups/policies. For example, suppose we broadcast 5 minutes before
+     * TODO: a planOverLive request and a discovery containing different discovered groups/policies
+     * TODO: completed 2 minutes before, the discovered groups/policies in the group component
+     * TODO: will reflect the 5 minute old snapshot while the entities that are fed into the
+     * TODO: pipeline will be from the 2 minute old snapshot.
+     *
      * @param topologyInfo The source topology info values. This will be cloned and potentially
      *                     edited during pipeline execution.
      * @param changes The list of changes to apply.
@@ -158,6 +173,8 @@ public class TopologyPipelineFactory {
                 new TopologyPipelineContext(groupResolver, topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager))
+                // TODO: We should fixup stitched groups but cannot because doing so would
+                // for the plan would also affect the live broadcast. See OM-31747.
                 .addStage(new ConstructTopologyFromStitchingContextStage())
                 .addStage(new ReservationStage(reservationManager))
                 .addStage(new TopologyEditStage(topologyEditor, changes))

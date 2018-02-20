@@ -45,6 +45,7 @@ import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
+import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -121,6 +122,32 @@ public class Stages {
         @Override
         public StitchingContext execute(@Nonnull final EntityStore entityStore) {
             return stitchingManager.stitch(entityStore);
+        }
+    }
+
+    /**
+     * A stage that fixes up groups that references entities whose identifiers were modified
+     * during stitching. See {@link StitchingGroupFixer} for more details.
+     *
+     * TODO: (DavidBlinn 2/16/2018) Ideally, instead of being a separate stage, this should
+     * be part of stitching itself. Unfortunately, because it has to be run with the Live
+     * pipeline but cannot be run in the PlanOverLive topology we have to split it out.
+     */
+    public static class StitchingGroupFixupStage extends PassthroughStage<StitchingContext> {
+
+        private final StitchingGroupFixer stitchingGroupFixer;
+        private final DiscoveredGroupUploader discoveredGroupUploader;
+
+        public StitchingGroupFixupStage(@Nonnull final StitchingGroupFixer stitchingGroupFixer,
+                                        @Nonnull final DiscoveredGroupUploader groupUploader) {
+            this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
+            this.discoveredGroupUploader = Objects.requireNonNull(groupUploader);
+        }
+
+        @Override
+        public void passthrough(StitchingContext input) throws PipelineStageException {
+            stitchingGroupFixer.fixupGroups(input.getStitchingGraph(),
+                discoveredGroupUploader.buildMemberCache());
         }
     }
 
