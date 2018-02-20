@@ -71,7 +71,7 @@ public class EntitySettingStoreTest {
 
     private final Setting falseSetting = Setting.newBuilder(trueSetting)
             .setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                    .setValue(true))
+                    .setValue(false))
             .build();
 
     private final SettingPolicy settingPolicyWithFalseSetting = SettingPolicy.newBuilder()
