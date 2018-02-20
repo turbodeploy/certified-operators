@@ -48,7 +48,9 @@ public class MapperConfig {
 
     @Bean
     public GroupMapper groupMapper() {
-        return new GroupMapper(groupUseCaseParser(), communicationConfig.supplyChainFetcher());
+        return new GroupMapper(groupUseCaseParser(),
+                    communicationConfig.supplyChainFetcher(),
+                    communicationConfig.groupExpander());
     }
 
     @Bean

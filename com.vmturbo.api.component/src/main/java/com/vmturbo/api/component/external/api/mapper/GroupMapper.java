@@ -16,9 +16,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -63,10 +65,14 @@ public class GroupMapper {
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+    private final GroupExpander groupExpander;
+
     public GroupMapper(@Nonnull final GroupUseCaseParser groupUseCaseParser,
-                       @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory) {
+                       @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
+                       @Nonnull final GroupExpander groupExpander) {
         this.groupUseCaseParser = Objects.requireNonNull(groupUseCaseParser);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
+        this.groupExpander = Objects.requireNonNull(groupExpander);
     }
 
     /**
@@ -137,7 +143,8 @@ public class GroupMapper {
     }
 
     @Nonnull
-    private GroupApiDTO createGroupApiDto(@Nonnull final GroupInfo groupInfo) {
+    private GroupApiDTO createGroupApiDto(@Nonnull final Group group) {
+        GroupInfo groupInfo = group.getGroup();
         final GroupApiDTO outputDTO = new GroupApiDTO();
         outputDTO.setClassName(GROUP);
         outputDTO.setEntitiesCount(0);
@@ -145,14 +152,22 @@ public class GroupMapper {
         switch (groupInfo.getSelectionCriteriaCase()) {
             case STATIC_GROUP_MEMBERS:
                 outputDTO.setIsStatic(true);
+                outputDTO.setEntitiesCount(
+                    groupInfo.getStaticGroupMembers().getStaticMemberOidsCount());
                 outputDTO.setMemberUuidList(
                         groupInfo.getStaticGroupMembers().getStaticMemberOidsList().stream()
                                 .map(Object::toString)
                                 .collect(Collectors.toList()));
                 break;
             case SEARCH_PARAMETERS_COLLECTION:
+                List<String> groupMembers =
+                    groupExpander.expandUuids(ImmutableSet.of(String.valueOf(group.getId())))
+                                    .stream()
+                                    .map(member -> Long.toString(member))
+                                    .collect(Collectors.toList());
                 outputDTO.setIsStatic(false);
-                outputDTO.setMemberUuidList(Collections.emptyList());
+                outputDTO.setMemberUuidList(groupMembers);
+                outputDTO.setEntitiesCount(groupMembers.size());
                 outputDTO.setCriteriaList(convertToFilterApis(groupInfo));
                 break;
             default:
@@ -202,7 +217,7 @@ public class GroupMapper {
         final GroupApiDTO outputDTO;
         switch (group.getType()) {
             case GROUP:
-                outputDTO = createGroupApiDto(group.getGroup());
+                outputDTO = createGroupApiDto(group);
                 break;
             case CLUSTER:
                 outputDTO = createClusterApiDto(group.getCluster());

@@ -1,15 +1,13 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,9 +19,11 @@ import java.util.Optional;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.group.FilterApiDTO;
@@ -59,7 +59,10 @@ public class GroupMapperTest {
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
 
-    private GroupMapper groupMapper = new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory);
+    private GroupExpander groupExpander = mock(GroupExpander.class);
+
+    private GroupMapper groupMapper =
+        new GroupMapper(groupUseCaseParser, supplyChainFetcherFactory, groupExpander);
 
     private static String AND = "AND";
     private static String FOO = "foo";
@@ -530,5 +533,53 @@ public class GroupMapperTest {
         assertThat(mappedDto.getGroupType(), is(VM_TYPE));
         assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.ONPREM));
         assertThat(mappedDto.getClassName(), is("Group"));
+    }
+
+    @Test
+    public void testStaticGroupMembersCount() {
+        final Group group = Group.newBuilder()
+                .setId(7L)
+                .setType(Group.Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
+                    .setName("group1")
+                    .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                    .setStaticGroupMembers(StaticGroupMembers.newBuilder()
+                            .addAllStaticMemberOids(Arrays.asList(10L, 20L))
+                            .build())
+                    .build())
+                .build();
+
+        final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
+        assertEquals("7", dto.getUuid());
+        assertEquals(true, dto.getIsStatic());
+        assertThat(dto.getEntitiesCount(), is(2));
+        assertThat(dto.getMemberUuidList(), containsInAnyOrder("10", "20"));
+    }
+
+    @Test
+    public void testDynamicGroupMembersCount() {
+        final Group group = Group.newBuilder()
+                .setId(7L)
+                .setType(Group.Type.GROUP)
+                .setGroup(GroupInfo.newBuilder()
+                    .setName("group1")
+                    .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                    .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                        .addSearchParameters(SearchParameters.newBuilder()
+                                .setStartingFilter(PropertyFilter.newBuilder()
+                                        .setPropertyName("entityType")
+                                        .setStringFilter(StringFilter.newBuilder()
+                                                .setStringPropertyRegex("PhysicalMachine")))
+                                .build())
+                         .build())
+                    .build())
+                .build();
+
+        when(groupExpander.expandUuids(ImmutableSet.of(String.valueOf(7L)))).thenReturn(
+            ImmutableSet.of(10L, 20L, 30L));
+        final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
+        assertThat(dto.getEntitiesCount(), is(3));
+        assertThat(dto.getMemberUuidList(),
+                containsInAnyOrder("10", "20", "30"));
     }
 }
