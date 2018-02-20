@@ -67,6 +67,14 @@ public class StatsUtils {
                       filename.contains("UnitTest") ? "target" + File.separator + filename + ".csv"
                                       : prefix + filename + ".csv";
         File file = new File(statsFileName);
+        file.setExecutable(true, false);
+        file.setReadable(true, false);
+        file.setWritable(true, false);
+        if (!file.canWrite()) {
+            logger.error("Could not set write permission for M2 Stats File");
+            setEnabled(false);
+            return;
+        }
         if (file.getParentFile() != null) {
             file.getParentFile().mkdirs();
         }
