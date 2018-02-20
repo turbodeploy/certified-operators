@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.LocalDate;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -292,28 +291,19 @@ public class ReservationMapper {
         }
         // Right now, UI set reservation start date to empty string when start date is current date,
         // after UI fix this issue, we can remove empty string covert here.
-        final LocalDate reserveDate = reserveDateStr.isEmpty() ? LocalDate.now(DateTimeZone.UTC) :
-                DateTime.parse(reserveDateStr).toLocalDate();
-        final LocalDate expireDate = DateTime.parse(expireDateStr).toLocalDate();
+        final DateTime reserveDate = reserveDateStr.isEmpty() ? DateTime.now(DateTimeZone.UTC) :
+                DateTime.parse(reserveDateStr);
+        final DateTime expireDate = DateTime.parse(expireDateStr);
         if (reserveDate.isAfter(expireDate)) {
             throw new InvalidOperationException("Reservation expire date should be after start date.");
         }
-        reservationBuilder.setStartDate(convertDateTimeToProto(reserveDate));
-        reservationBuilder.setExpirationDate(convertDateTimeToProto(expireDate));
-        // Right now, reservation date doesn't have hour information, we need to keep and compare date.
-        final LocalDate today = LocalDate.now(DateTimeZone.UTC);
+        reservationBuilder.setStartDate(reserveDate.getMillis());
+        reservationBuilder.setExpirationDate(expireDate.getMillis());
+        final DateTime today = DateTime.now(DateTimeZone.UTC);
         if (today.isAfter(expireDate)) {
             throw new InvalidOperationException("Reservation expire date should be after current date.");
         }
         reservationBuilder.setStatus(ReservationStatus.FUTURE);
-    }
-
-    private Reservation.Date convertDateTimeToProto(@Nonnull LocalDate date) {
-        return Reservation.Date.newBuilder()
-                .setYear(date.getYear())
-                .setMonth(date.getMonthOfYear())
-                .setDay(date.getDayOfMonth())
-                .build();
     }
 
     private ReservationTemplate convertToReservationTemplate(
@@ -408,8 +398,14 @@ public class ReservationMapper {
         }
     }
 
-    private String convertProtoDateToString(@Nonnull final Reservation.Date date) {
-        return new LocalDate(date.getYear(), date.getMonth(), date.getDay()).toDate().toString();
+    /**
+     * Convert timestamp to {@link java.util.Date} string with default UTC timezone.
+     *
+     * @param timestamp milliseconds.
+     * @return  {@link java.util.Date} string.
+     */
+    private String convertProtoDateToString(@Nonnull final long timestamp) {
+        return new DateTime(timestamp, DateTimeZone.UTC).toDate().toString();
     }
 
     /**

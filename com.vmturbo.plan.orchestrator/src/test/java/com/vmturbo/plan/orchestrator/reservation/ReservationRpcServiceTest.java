@@ -7,8 +7,8 @@ import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.LocalDate;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -143,21 +143,15 @@ public class ReservationRpcServiceTest {
 
     @Test
     public void testCreateReservation() {
-        final LocalDate today = LocalDate.now(DateTimeZone.UTC);
-        final LocalDate nextMonth = today.plusMonths(1);
+        final DateTime today = DateTime.now(DateTimeZone.UTC);
+        final DateTime nextMonth = today.plusMonths(1);
         final CreateReservationRequest request = CreateReservationRequest.newBuilder()
                 .setReservation(testReservation)
                 .build();
         final Reservation createdReservation = Reservation.newBuilder(testReservation)
                 .setId(123)
-                .setStartDate(Reservation.Date.newBuilder()
-                        .setYear(today.getYear())
-                        .setMonth(today.getMonthOfYear())
-                        .setDay(today.getDayOfMonth()))
-                .setExpirationDate(Reservation.Date.newBuilder()
-                        .setYear(nextMonth.getYear())
-                        .setMonth(nextMonth.getMonthOfYear())
-                        .setDay(nextMonth.getDayOfMonth()))
+                .setStartDate(today.getMillis())
+                .setExpirationDate(nextMonth.getMillis())
                 .build();
         Mockito.when(reservationDao.createReservation(testReservation)).thenReturn(createdReservation);
         Mockito.when(templatesDao.getTemplatesCount(Mockito.anySet()))

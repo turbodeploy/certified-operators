@@ -3,6 +3,7 @@ package com.vmturbo.plan.orchestrator.reservation;
 import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION;
 import static com.vmturbo.plan.orchestrator.db.Tables.RESERVATION_TO_TEMPLATE;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.joda.time.DateTimeZone;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -285,20 +287,16 @@ public class ReservationDaoImpl implements ReservationDao {
         return ReservationDTO.Reservation.newBuilder()
                 .setId(reservation.getId())
                 .setName(reservation.getName())
-                .setStartDate(convertLocalDateToProto(reservation.getStartTime()))
-                .setExpirationDate(convertLocalDateToProto(reservation.getExpireTime()))
+                .setStartDate(convertLocalDateToTimestamp(reservation.getStartTime()))
+                .setExpirationDate(convertLocalDateToTimestamp(reservation.getExpireTime()))
                 .setStatus(ReservationStatusConverter.typeFromDb(reservation.getStatus()))
                 .setReservationTemplateCollection(reservation.getReservationTemplateCollection())
                 .setConstraintInfoCollection(reservation.getConstraintInfoCollection())
                 .build();
     }
 
-    private ReservationDTO.Reservation.Date convertLocalDateToProto(@Nonnull final LocalDateTime time) {
-        return ReservationDTO.Reservation.Date.newBuilder()
-                .setYear(time.getYear())
-                .setMonth(time.getMonthValue())
-                .setDay(time.getDayOfMonth())
-                .build();
+    private long convertLocalDateToTimestamp(@Nonnull final LocalDateTime time) {
+        return (time.atZone(DateTimeZone.UTC.toTimeZone().toZoneId())).toInstant().toEpochMilli();
     }
 
     /**
@@ -333,8 +331,10 @@ public class ReservationDaoImpl implements ReservationDao {
         return record;
     }
 
-    private LocalDateTime convertDateProtoToLocalDate(@Nonnull ReservationDTO.Reservation.Date date) {
-        return LocalDateTime.of(date.getYear(), date.getMonth(), date.getDay(), 0, 0);
+    private LocalDateTime convertDateProtoToLocalDate(@Nonnull final long timestamp) {
+
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp),
+                DateTimeZone.UTC.toTimeZone().toZoneId());
     }
 
     /**

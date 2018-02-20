@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.LocalDate;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -49,7 +49,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation.Date;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
@@ -230,8 +229,9 @@ public class ReservationMapperTest {
     @Test
     public void testConvertToReservation() throws Exception {
         DemandReservationApiInputDTO demandApiInputDTO = new DemandReservationApiInputDTO();
-        final LocalDate tomorrow = LocalDate.now(DateTimeZone.UTC).plusDays(1);
-        final LocalDate nextMonth = LocalDate.now(DateTimeZone.UTC).plusMonths(1);
+        final DateTime today = DateTime.now(DateTimeZone.UTC);
+        final DateTime tomorrow = today.plusDays(1);
+        final DateTime nextMonth = today.plusMonths(1);
         demandApiInputDTO.setDemandName("test-reservation");
         demandApiInputDTO.setReserveDateTime(tomorrow.toString());
         demandApiInputDTO.setExpireDateTime(nextMonth.toString());
@@ -245,31 +245,19 @@ public class ReservationMapperTest {
         demandApiInputDTO.setParameters(Lists.newArrayList(demandReservationParametersDTO));
         final Reservation reservation = reservationMapper.convertToReservation(demandApiInputDTO);
         assertTrue(reservation.getStatus() == ReservationStatus.FUTURE);
-        assertEquals(tomorrow.getYear(), reservation.getStartDate().getYear());
-        assertEquals(tomorrow.getMonthOfYear(), reservation.getStartDate().getMonth());
-        assertEquals(tomorrow.getDayOfMonth(), reservation.getStartDate().getDay());
-        assertEquals(nextMonth.getYear(), reservation.getExpirationDate().getYear());
-        assertEquals(nextMonth.getMonthOfYear(), reservation.getExpirationDate().getMonth());
-        assertEquals(nextMonth.getDayOfMonth(), reservation.getExpirationDate().getDay());
+        assertEquals(tomorrow.getMillis(), reservation.getStartDate());
+        assertEquals(nextMonth.getMillis(), reservation.getExpirationDate());
     }
 
     @Test
     public void testConvertReservationToApiDTO() throws Exception {
-        LocalDate today = LocalDate.now(DateTimeZone.UTC);
-        LocalDate nextMonth = LocalDate.now(DateTimeZone.UTC).plusMonths(1);
+        DateTime today = DateTime.now(DateTimeZone.UTC);
+        DateTime nextMonth = today.plusMonths(1);
         Reservation.Builder reservationBuider = Reservation.newBuilder();
         reservationBuider.setId(111);
         reservationBuider.setName("test-reservation");
-        reservationBuider.setStartDate(Date.newBuilder()
-                .setYear(today.getYear())
-                .setMonth(today.getMonthOfYear())
-                .setDay(today.getDayOfMonth())
-                .build());
-        reservationBuider.setExpirationDate(Date.newBuilder()
-                .setYear(nextMonth.getYear())
-                .setMonth(nextMonth.getMonthOfYear())
-                .setDay(nextMonth.getDayOfMonth())
-                .build());
+        reservationBuider.setStartDate(today.getMillis());
+        reservationBuider.setExpirationDate(nextMonth.getMillis());
         reservationBuider.setStatus(ReservationStatus.RESERVED);
         ReservationTemplate reservationTemplate = ReservationTemplate.newBuilder()
                 .setTemplateId(TEMPLATE_ID)

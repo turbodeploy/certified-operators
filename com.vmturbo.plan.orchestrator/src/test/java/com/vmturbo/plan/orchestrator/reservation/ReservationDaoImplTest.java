@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 
 import org.flywaydb.core.Flyway;
 import org.hamcrest.Matchers;
+import org.joda.time.DateTime;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
@@ -29,7 +30,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo.Type;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ConstraintInfoCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation.Date;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
@@ -60,16 +60,23 @@ public class ReservationDaoImplTest {
 
     private TemplatesDao templatesDao;
 
+    private DateTime firstStartDateTime =
+            new DateTime(2018, 12, 12, 0, 0);
+
+    private DateTime firstEndDateTime =
+            new DateTime(2018, 12, 15, 0, 0);
+
+    private DateTime secondStartDateTime =
+            new DateTime(2019, 11, 22, 0, 0);
+
+    private DateTime secondEndDateTime =
+            new DateTime(2019, 12, 29, 0, 0);
+
+
     private Reservation testFirstReservation = Reservation.newBuilder()
             .setName("Test-first-reservation")
-                .setStartDate(Date.newBuilder()
-                        .setYear(2018)
-                        .setMonth(12)
-                        .setDay(12))
-            .setExpirationDate(Date.newBuilder()
-                        .setYear(2018)
-                        .setMonth(12)
-                        .setDay(25))
+                .setStartDate(firstStartDateTime.getMillis())
+            .setExpirationDate(firstEndDateTime.getMillis())
             .setStatus(ReservationStatus.FUTURE)
                 .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                         .addReservationTemplate(ReservationTemplate.newBuilder()
@@ -88,14 +95,8 @@ public class ReservationDaoImplTest {
 
     private Reservation testSecondReservation = Reservation.newBuilder()
             .setName("Test-second-reservation")
-            .setStartDate(Date.newBuilder()
-                    .setYear(2019)
-                    .setMonth(11)
-                    .setDay(22))
-            .setExpirationDate(Date.newBuilder()
-                    .setYear(2019)
-                    .setMonth(12)
-                    .setDay(29))
+            .setStartDate(secondStartDateTime.getMillis())
+            .setExpirationDate(secondEndDateTime.getMillis())
             .setStatus(ReservationStatus.RESERVED)
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()

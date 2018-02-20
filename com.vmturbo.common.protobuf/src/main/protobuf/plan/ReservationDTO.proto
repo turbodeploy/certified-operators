@@ -16,13 +16,13 @@ message Reservation {
     // Name of reservation
     optional string name = 2;
 
-    // Start date of reservation.
-    optional Date start_date = 3;
+    // Start date (milliseconds since Unix epoch) of reservation.
+    optional int64 start_date = 3;
 
-    // End date of reservation. When end date comes, it will automatically try to deploy this
-    // reservation.
-    //TODO: When expirtation date comes, perform deployment.
-    optional Date expiration_date = 4;
+    // End date (milliseconds since Unix epoch) of reservation. When end date comes, it will
+    // automatically try to deploy this reservation.
+    //TODO: When expiration date comes, perform deployment.
+    optional int64 expiration_date = 4;
 
     // Status of reservation.
     optional ReservationStatus status = 5;
@@ -32,16 +32,6 @@ message Reservation {
 
     // Contains all specified constraints when creating the reservation.
     optional ConstraintInfoCollection constraint_info_collection = 7;
-
-    // Date is observed in local time.
-    message Date {
-        // Year of date.
-        optional int32 year = 1;
-        // Month of date, The range should be 1 - 12.
-        optional int32 month = 2;
-        // Day of date, The range should be 1 - 31.
-        optional int32 day = 3;
-    }
 }
 
 // If current date is before start date, status is FUTURE. If current date is equal or after

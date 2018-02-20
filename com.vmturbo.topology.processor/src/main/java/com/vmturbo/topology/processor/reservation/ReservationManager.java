@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.LocalDate;
 
@@ -115,17 +116,15 @@ public class ReservationManager {
     }
 
     /**
-     * Check if reservation start day is today or before.
+     * Check if reservation start time is now or before.
      *
      * @param reservation {@link Reservation}.
      * @return a Boolean.
      */
     @VisibleForTesting
     boolean isReservationActiveNow(@Nonnull final Reservation reservation) {
-        final LocalDate today = LocalDate.now(DateTimeZone.UTC);
-        final Reservation.Date startDate = reservation.getStartDate();
-        final LocalDate reservationDate = new LocalDate(startDate.getYear(), startDate.getMonth(),
-                startDate.getDay());
+        final DateTime today = DateTime.now(DateTimeZone.UTC);
+        final DateTime reservationDate = new DateTime(reservation.getStartDate(), DateTimeZone.UTC);
         return reservationDate.isEqual(today) || reservationDate.isBefore(today);
     }
 

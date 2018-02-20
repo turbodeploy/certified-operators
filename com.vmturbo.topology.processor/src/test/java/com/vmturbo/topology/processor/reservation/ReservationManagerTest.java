@@ -10,8 +10,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.joda.time.LocalDate;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -31,7 +31,6 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.GetReservationByStatusReq
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementRequest;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.InitialPlacementResponse;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation.Date;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
@@ -96,19 +95,13 @@ public class ReservationManagerTest {
                                                     .setUsed(100))))))
             .build();
 
-    final LocalDate today = LocalDate.now(DateTimeZone.UTC);
-    final LocalDate nextMonth = LocalDate.now(DateTimeZone.UTC).plusMonths(1);
+    final DateTime today = DateTime.now(DateTimeZone.UTC);
+    final DateTime nextMonth = DateTime.now(DateTimeZone.UTC).plusMonths(1);
     final Reservation futureReservation = Reservation.newBuilder(reservation)
             .setId(234)
             .setStatus(ReservationStatus.FUTURE)
-            .setStartDate(Date.newBuilder()
-                    .setYear(today.getYear())
-                    .setMonth(today.getMonthOfYear())
-                    .setDay(today.getDayOfMonth()))
-            .setExpirationDate(Date.newBuilder()
-                    .setYear(nextMonth.getYear())
-                    .setMonth(nextMonth.getMonthOfYear())
-                    .setDay(nextMonth.getDayOfMonth()))
+            .setStartDate(today.getMillis())
+            .setExpirationDate(nextMonth.getMillis())
             .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
                     .addReservationTemplate(ReservationTemplate.newBuilder()
                             .setTemplateId(567)
