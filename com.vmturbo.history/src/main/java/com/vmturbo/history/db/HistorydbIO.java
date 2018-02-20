@@ -929,20 +929,25 @@ public class HistorydbIO extends BasedbIO {
      */
     public List<Setting> getStatsRetentionSettings() throws VmtDbException {
 
-        Map<String, Integer> retentionSettingsMap =
-            using(connection()).selectFrom(RETENTION_POLICIES)
-            .fetchMap(RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD);
+        try (Connection conn = connection()) {
+            Map<String, Integer> retentionSettingsMap =
+                using(conn).selectFrom(RETENTION_POLICIES)
+                .fetchMap(RETENTION_POLICIES.POLICY_NAME, RETENTION_POLICIES.RETENTION_PERIOD);
 
-        List<Setting> settings = new ArrayList<>();
+            List<Setting> settings = new ArrayList<>();
 
-        for (Entry<String, String> entry : retentionDbColumnNameToSettingName.entrySet()) {
-            // should be ok to skip if the entries don't exist in the DB.
-            Integer retentionPeriod = retentionSettingsMap.get(entry.getKey());
-            if (retentionPeriod != null) {
-                settings.add(createSetting(entry.getValue(), retentionPeriod));
+            for (Entry<String, String> entry : retentionDbColumnNameToSettingName.entrySet()) {
+                // should be ok to skip if the entries don't exist in the DB.
+                Integer retentionPeriod = retentionSettingsMap.get(entry.getKey());
+                if (retentionPeriod != null) {
+                    settings.add(createSetting(entry.getValue(), retentionPeriod));
+                }
             }
+            return settings;
         }
-        return settings;
+        catch (SQLException e) {
+            throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
+        }
     }
 
     private Setting createSetting(String name, int value) {
@@ -987,15 +992,20 @@ public class HistorydbIO extends BasedbIO {
      */
     public Setting getAuditLogRetentionSetting() throws VmtDbException {
 
-        int retentionPeriodDays =
-            using(connection())
-                .selectFrom(AUDIT_LOG_RETENTION_POLICIES)
-                .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME
-                        .eq(AUDIT_LOG_RETENTION_POLICY_NAME))
-                .fetchOne(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD);
+        try (Connection conn = connection()) {
+            int retentionPeriodDays =
+                using(conn)
+                    .selectFrom(AUDIT_LOG_RETENTION_POLICIES)
+                    .where(AUDIT_LOG_RETENTION_POLICIES.POLICY_NAME
+                            .eq(AUDIT_LOG_RETENTION_POLICY_NAME))
+                    .fetchOne(AUDIT_LOG_RETENTION_POLICIES.RETENTION_PERIOD);
 
-        return createSetting(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName(),
-                    retentionPeriodDays);
+            return createSetting(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName(),
+                        retentionPeriodDays);
+        }
+        catch (SQLException e) {
+            throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
+        }
     }
 
     /**
