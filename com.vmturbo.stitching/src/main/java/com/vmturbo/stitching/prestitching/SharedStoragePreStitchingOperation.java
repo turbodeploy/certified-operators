@@ -205,12 +205,12 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
          * For additional details see {@link AccessAndLatency::latencyWeightedAveraged}.
          */
         final List<AccessAndLatency> accessAndLatencies = storageInstances.stream()
-            .map(storage -> new AccessAndLatency(
-                storage.getCommoditiesSold()
-                    .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_LATENCY)
-                    .findFirst(),
+            .map(storage -> AccessAndLatency.accessAndLatencyFromCommodityDtos(
                 storage.getCommoditiesSold()
                     .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_ACCESS)
+                    .findFirst(),
+                storage.getCommoditiesSold()
+                    .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_LATENCY)
                     .findFirst()))
             .filter(AccessAndLatency::hasLatency)
             .collect(Collectors.toList());
@@ -219,7 +219,7 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
             return OptionalDouble.empty();
         }
 
-        return OptionalDouble.of(AccessAndLatency.latencyWeightedAveraged(accessAndLatencies));
+        return OptionalDouble.of(AccessAndLatency.latencyWeightedAveraged(accessAndLatencies.stream()));
     }
 
     /**

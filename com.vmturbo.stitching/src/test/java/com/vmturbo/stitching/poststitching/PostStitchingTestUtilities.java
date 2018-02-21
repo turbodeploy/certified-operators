@@ -93,6 +93,19 @@ class PostStitchingTestUtilities {
                 ));
     }
 
+    static TopologyEntity.Builder makeTopologyEntityBuilder(final long oid, final int entityType,
+                                                            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
+                                                            @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
+        return TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(entityType)
+                .addAllCommoditySoldList(commoditiesSold)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addAllCommodityBought(commoditiesBought)
+                ));
+    }
+
     static TopologyEntity makeTopologyEntity(@Nonnull final List<CommoditySoldDTO> commoditiesSold,
                                              @Nonnull final Map<String, String> propertyMap) {
         return TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
@@ -141,6 +154,12 @@ class PostStitchingTestUtilities {
             .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                 .setType(type.getNumber()))
             .build();
+    }
+
+    static CommodityBoughtDTO.Builder makeCommodityBoughtBuilder(@Nonnull final CommodityType type) {
+        return CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .setType(type.getNumber()));
     }
 
     static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type,

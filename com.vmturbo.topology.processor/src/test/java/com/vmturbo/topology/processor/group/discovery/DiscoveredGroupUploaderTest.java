@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.group.discovery;
 
-import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.DISCOVERED_SETTING_POLICY_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_CLUSTER_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_GROUP_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_CLUSTER;
