@@ -27,6 +27,7 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.utilities.AccessAndLatency;
 import com.vmturbo.stitching.utilities.EntityScopeFilters;
 
 /**
@@ -201,39 +202,24 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
      */
     private OptionalDouble calculateStorageLatencyUsed(@Nonnull final List<StitchingEntity> storageInstances) {
         /**
-         * Per Rich Hammond:
-         * The storage probe group has moved to use an IOPS weighted average of the latency values.
-         * We found that using max [or even uniform average] resulted in market actions which made no sense to
-         * the customer. The intent of the IOPS weighted average is to solve the request size versus latency issue.
-         * We cannot tell the size of individual requests, but larger requests, which have higher latency,
-         * should not occur as frequently, so weighting by IOPS count will give greater weight to the small,
-         * fast, queries without ignoring the larger, slower queries.
+         * For additional details see {@link AccessAndLatency::latencyWeightedAveraged}.
          */
-        final List<LatencyAndIops> latencyAndIopses = storageInstances.stream()
-            .map(storage -> new LatencyAndIops(
+        final List<AccessAndLatency> accessAndLatencies = storageInstances.stream()
+            .map(storage -> new AccessAndLatency(
                 storage.getCommoditiesSold()
                     .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_LATENCY)
                     .findFirst(),
                 storage.getCommoditiesSold()
                     .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_ACCESS)
                     .findFirst()))
-            .filter(LatencyAndIops::hasLatency)
+            .filter(AccessAndLatency::hasLatency)
             .collect(Collectors.toList());
 
-        if (latencyAndIopses.isEmpty()) {
+        if (accessAndLatencies.isEmpty()) {
             return OptionalDouble.empty();
         }
 
-        final double weightedLatencySum = latencyAndIopses.stream()
-            .map(LatencyAndIops::weightedLatency)
-            .filter(Optional::isPresent)
-            .mapToDouble(Optional::get)
-            .sum();
-        final double iopsSum = latencyAndIopses.stream()
-            .mapToDouble(LatencyAndIops::iopsWeight)
-            .sum();
-
-        return OptionalDouble.of(weightedLatencySum / iopsSum);
+        return OptionalDouble.of(AccessAndLatency.latencyWeightedAveraged(accessAndLatencies));
     }
 
     /**
@@ -296,55 +282,5 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
         }
 
         return 0;
-    }
-
-    /**
-     * A small helper class that bundles latency and IOPS commodities together.
-     */
-    private static class LatencyAndIops {
-        public final Optional<Double> latencyUsed;
-
-        public final Optional<Double> iopsUsed;
-
-        public LatencyAndIops(@Nonnull final Optional<CommodityDTO.Builder> latency,
-                              @Nonnull final Optional<CommodityDTO.Builder> iops) {
-            latencyUsed = latency
-                .filter(CommodityDTO.Builder::hasUsed)
-                .map(CommodityDTO.Builder::getUsed);
-            iopsUsed = iops
-                .filter(CommodityDTO.Builder::hasUsed)
-                .map(CommodityDTO.Builder::getUsed)
-                // If the probe cannot measure a real value, it often provides a value of 0 or <0
-                // and we will calculate a uniform average.
-                .map(value -> value <= 0.0 ? 1.0 : value);
-        }
-
-        /**
-         * Whether the latency is present in the {@link LatencyAndIops}.
-         *
-         * @return Whether the latency is present in the {@link LatencyAndIops}.
-         */
-        public boolean hasLatency() {
-            return latencyUsed.isPresent();
-        }
-
-        /**
-         * Return the IOPS weight. If no IOPS is present, returns a 1.0 to act as a uniform weight.
-         *
-         * @return The IOPS weight, or 1.0 if the IOPS value is not present.
-         */
-        public double iopsWeight() {
-            return iopsUsed.orElse(1.0);
-        }
-
-        /**
-         * The latency value weighted by the IOPS value, that is latency*IOPS.
-         * If latency is not present, returns empty.
-         *
-         * @return The IOPS weight, or 1.0 if the IOPS value is not present.
-         */
-        public Optional<Double> weightedLatency() {
-            return latencyUsed.map(latency -> latency * iopsWeight());
-        }
     }
 }

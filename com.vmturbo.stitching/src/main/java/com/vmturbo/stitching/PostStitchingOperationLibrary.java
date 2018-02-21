@@ -12,6 +12,7 @@ import com.vmturbo.stitching.poststitching.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.MemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.MemoryProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PmCpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
@@ -42,6 +43,7 @@ public class PostStitchingOperationLibrary {
      */
     public PostStitchingOperationLibrary(StatsHistoryServiceBlockingStub statsServiceClient) {
         postStitchingOperations = ImmutableList.of(
+            new PropagateStorageAccessAndLatencyPostStitchingOperation(),
             new MemoryProvisionedPostStitchingOperation(),
             new CpuCapacityPostStitchingOperation(),
             new CpuProvisionedPostStitchingOperation(),
