@@ -3,12 +3,10 @@ package com.vmturbo.api.component.external.api.dispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.api.component.external.api.service.LicenseService;
-import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
@@ -17,7 +15,6 @@ import com.vmturbo.api.controller.DeploymentProfilesController;
 import com.vmturbo.api.controller.EntitiesController;
 import com.vmturbo.api.controller.GeneralController;
 import com.vmturbo.api.controller.GroupsController;
-import com.vmturbo.api.controller.LicenseController;
 import com.vmturbo.api.controller.LicensesController;
 import com.vmturbo.api.controller.LogsController;
 import com.vmturbo.api.controller.MarketsController;
@@ -36,9 +33,7 @@ import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
-import com.vmturbo.api.serviceinterfaces.ILicenseService;
 import com.vmturbo.api.xlcontroller.ClusterController;
-import com.vmturbo.auth.api.SpringSecurityConfig;
 
 /**
  * Configuration for the dispatcher servlet responsible for
@@ -51,11 +46,16 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
  */
 @Configuration
 @EnableWebMvc
-@Import({ServiceConfig.class})
+// DO NOT import configurations outside the external.api.dispatcher package here, because
+// that will re-create the configuration's beans in the child context for the dispatcher servlet.
+// You will end up with multiple instances of the same beans, which could lead to tricky bugs.
 public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
+    /**
+     * This should get wired in from the root context.
+     */
     @Autowired
-    ServiceConfig serviceConfig;
+    LicenseService licenseService;
 
     @Bean
     public ActionsController actionsController() {
@@ -174,7 +174,7 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public LicensesController licenseController() {
-        return new LicensesController(serviceConfig.licenseService());
+        return new LicensesController(licenseService);
     }
 
     @Bean
