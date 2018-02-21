@@ -226,15 +226,18 @@ public class FunctionalOperatorUtil {
                         // interface, else do nothing
                         if (take) {
                             Topology topology = economy.getTopology();
+                            // check if topology or shopping list are null
+                            // Make sure we do not call place for a clone
+                            if (topology == null || buyer == null || seller.getCloneOf() != -1) {
+                                return new double[] {0, 0};
+                            }
                             String topoId = String.valueOf(topology.getTopologyId());
                             Optional<MatrixInterface> interfaceOptional =
                                             TheMatrix.instance(topoId);
-                            // If the seller on which buyer is being placed a clone,
-                            // avoid calling place on matrix interface for now as it
-                            // will not have knowledge of new trader created in market
-                            if (interfaceOptional.isPresent() && seller.getCloneOf() == -1) {
-                                long buyerOid = topology.getTraderOids().get(buyer.getBuyer());
-                                long sellerOid = topology.getTraderOids().get(seller);
+                            // Check if interface is present for given topology
+                            if (interfaceOptional.isPresent()) {
+                                Long buyerOid = topology.getTraderOids().get(buyer.getBuyer());
+                                Long sellerOid = topology.getTraderOids().get(seller);
                                 // Call Place method on interface to update matrix after placement
                                 interfaceOptional.get().place(buyerOid, sellerOid);
                             }
