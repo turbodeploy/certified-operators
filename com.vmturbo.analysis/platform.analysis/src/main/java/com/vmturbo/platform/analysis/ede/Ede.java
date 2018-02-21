@@ -141,7 +141,7 @@ public final class Ede {
                 data[0] = "plan";
             }
         }
-        StatsUtils statsUtils = new StatsUtils("m2stats-" + data[0], true);
+        StatsUtils statsUtils = new StatsUtils("m2stats-" + data[0], false);
         if (data.length == 3) {
             statsUtils.append(data[1]); // date, Time, topo name , topo send time from M1
             statsUtils.after(Instant.parse(data[2]));

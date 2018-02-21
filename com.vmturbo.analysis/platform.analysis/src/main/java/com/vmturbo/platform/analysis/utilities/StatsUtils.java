@@ -49,7 +49,6 @@ public class StatsUtils {
     private StringBuilder dataBuffer = new StringBuilder();
     private Instant before_;
     private boolean enabled_ = true;
-    private static final String DISABLED_STRING = "DISABLED";
 
     public StatsUtils(@NonNull String filename, boolean isEnabled) {
         if (!isEnabled()) {
@@ -105,7 +104,7 @@ public class StatsUtils {
      *
      */
     public String getdata() {
-        return dataBuffer.toString() == null ? DISABLED_STRING : dataBuffer.toString();
+        return dataBuffer.toString();
     }
 
     /**
