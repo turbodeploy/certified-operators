@@ -36,6 +36,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.Expressi
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.PropertyDoubleList;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.PropertyStringList;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpecList;
+import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.DefaultPropertyFilterConverter;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupInterpreter.PropertyFilterConverter;
@@ -104,6 +105,11 @@ public class DiscoveredGroupInterpreterTest {
         when(store.getTargetEntityIdMap(TARGET_ID))
                 .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
 
+        Entity entity = mock(Entity.class);
+        when(store.getEntity(1))
+                .thenReturn(Optional.of(entity));
+        when(entity.getEntityType()).thenReturn(EntityType.VIRTUAL_MACHINE);
+
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
         final Optional<GroupInfo> groupInfoOpt = converter.sdkToGroup(STATIC_MEMBER_DTO, TARGET_ID);
@@ -157,6 +163,10 @@ public class DiscoveredGroupInterpreterTest {
         final EntityStore store = mock(EntityStore.class);
         when(store.getTargetEntityIdMap(TARGET_ID))
                 .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
+        Entity entity = mock(Entity.class);
+        when(store.getEntity(1))
+                .thenReturn(Optional.of(entity));
+        when(entity.getEntityType()).thenReturn(EntityType.PHYSICAL_MACHINE);
 
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
@@ -181,6 +191,11 @@ public class DiscoveredGroupInterpreterTest {
         final EntityStore store = mock(EntityStore.class);
         when(store.getTargetEntityIdMap(TARGET_ID))
                 .thenReturn(Optional.of(ImmutableMap.of("1", 1L)));
+
+        Entity entity = mock(Entity.class);
+        when(store.getEntity(1))
+                .thenReturn(Optional.of(entity));
+        when(entity.getEntityType()).thenReturn(EntityType.STORAGE);
 
         final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);

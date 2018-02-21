@@ -9,11 +9,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
+
+import com.google.common.base.Preconditions;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.conversions.Converter;
 
 /**
@@ -32,12 +34,24 @@ public class Entity {
      */
     private final Map<Long, PerTargetInfo> perTargetInfo = new ConcurrentHashMap<>();
 
-    public Entity(final long id) {
+    /**
+     * Type of the entity.
+     */
+    private final EntityType entityType;
+
+    public Entity(final long id, final EntityType entityType) {
         this.id = id;
+        this.entityType = entityType;
     }
 
-    public void addTargetInfo(final long targetId, @Nonnull final EntityDTO value) {
-        perTargetInfo.put(targetId, Objects.requireNonNull(new PerTargetInfo(value)));
+    public void addTargetInfo(final long targetId, @Nonnull final EntityDTO entityDTO) {
+        Objects.requireNonNull(entityDTO, "EntityDTO shouldn't be null");
+        Preconditions.checkArgument(entityDTO.hasEntityType() &&
+                entityDTO.getEntityType() == this.entityType,
+                "EntityType from target: %s doesn't match. Expected: %s. Found: %s",
+                targetId, this.entityType, entityDTO.getEntityType());
+
+        perTargetInfo.put(targetId, new PerTargetInfo(entityDTO));
     }
 
     public void setHostedBy(final long targetId, final long hostEntity) {
@@ -76,6 +90,10 @@ public class Entity {
         return id;
     }
 
+    public EntityType getEntityType() {
+        return entityType;
+    }
+
     @Override
     public String toString() {
         return "Entity OID: " + id + "\n" + perTargetInfo.entrySet().stream()
@@ -89,6 +107,8 @@ public class Entity {
      * @param entityStore The {@link EntityStore} all entities are stored in.
      * @return The {@link TopologyEntityDTO} representing this entity, or an empty optional if this entity
      *         doesn't exist in the current topology.
+     *
+     *  This method is obsolete after stitching was addedd. Remove this.
      */
     @Nonnull
     public Optional<TopologyEntityDTO.Builder> constructTopologyDTO(

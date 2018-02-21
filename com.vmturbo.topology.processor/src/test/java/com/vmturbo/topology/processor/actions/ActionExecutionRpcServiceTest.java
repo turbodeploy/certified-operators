@@ -699,7 +699,8 @@ public class ActionExecutionRpcServiceTest {
             throws Exception {
         return Arrays.stream(entities)
                 .map(entityRequest -> {
-                    final Entity entity = new Entity(entityRequest.id);
+                    final Entity entity = new Entity(entityRequest.id,
+                        entityRequest.entityType);
                     entity.addTargetInfo(targetId, EntityDTO.newBuilder()
                             .setEntityType(entityRequest.entityType)
                             .setId(Long.toString(entityRequest.id))

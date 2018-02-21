@@ -368,7 +368,7 @@ public class EntityStore {
             entitiesById.entrySet().forEach(entry -> {
                 Entity entity = entityMap.get(entry.getKey());
                 if (entity == null) {
-                    entity = new Entity(entry.getKey());
+                    entity = new Entity(entry.getKey(), entry.getValue().getEntityType());
                     entityMap.put(entry.getKey(), entity);
                 }
                 entity.addTargetInfo(targetId, entry.getValue());
@@ -434,7 +434,7 @@ public class EntityStore {
             final long oid = entry.getKey();
             newTargetEntitiesBuilder.add(oid);
             newEntitiesByLocalIdBuilder.put(dto.getId(), oid);
-            final Entity entity = new Entity(oid);
+            final Entity entity = new Entity(oid, entry.getValue().getEntityType());
             entity.addTargetInfo(targetId, dto);
             entityMap.put(oid, entity);
         }

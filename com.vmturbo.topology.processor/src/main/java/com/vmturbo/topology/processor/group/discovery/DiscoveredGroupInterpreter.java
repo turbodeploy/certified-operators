@@ -35,6 +35,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersCase;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
+import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.rpc.DiscoveredGroupRpcService;
 
@@ -137,7 +138,7 @@ class DiscoveredGroupInterpreter {
                 ? Type.COMPUTE : Type.STORAGE);
         builder.setName(sdkDTO.getDisplayName());
         final Optional<StaticGroupMembers> parsedMembersOpt =
-                parseMemberList(sdkDTO.getMemberList(), targetId);
+                parseMemberList(sdkDTO, targetId);
         if (parsedMembersOpt.isPresent()) {
             // There may not be any members, but we allow empty clusters.
             builder.setMembers(parsedMembersOpt.get());
@@ -162,6 +163,7 @@ class DiscoveredGroupInterpreter {
     @Nonnull
     Optional<GroupInfo> sdkToGroup(@Nonnull final CommonDTO.GroupDTO sdkDTO,
                                    final long targetId) {
+
         final GroupInfo.Builder builder = GroupInfo.newBuilder();
         builder.setEntityType(sdkDTO.getEntityType().getNumber());
         builder.setName(sdkDTO.getDisplayName());
@@ -208,7 +210,7 @@ class DiscoveredGroupInterpreter {
                 break;
             case MEMBER_LIST:
                 final Optional<StaticGroupMembers> members =
-                        parseMemberList(sdkDTO.getMemberList(), targetId);
+                        parseMemberList(sdkDTO, targetId);
                 if (members.isPresent()) {
                     builder.setStaticGroupMembers(members.get());
                 } else {
@@ -242,8 +244,9 @@ class DiscoveredGroupInterpreter {
      *         Returns an empty optional if there are any errors looking up entity ID information.
      */
     private Optional<StaticGroupMembers> parseMemberList(
-            @Nonnull final CommonDTO.GroupDTO.MembersList membersList,
+            @Nonnull final CommonDTO.GroupDTO groupDTO,
             final long targetId) {
+
         final Optional<Map<String, Long>> idMapOpt =
                 entityStore.getTargetEntityIdMap(targetId);
         StaticGroupMembers retMembers = null;
@@ -254,7 +257,8 @@ class DiscoveredGroupInterpreter {
             final StaticGroupMembers.Builder staticMemberBldr =
                     StaticGroupMembers.newBuilder();
             final AtomicInteger missingMemberCount = new AtomicInteger(0);
-            membersList.getMemberList().stream()
+            groupDTO.getMemberList().getMemberList()
+                    .stream()
                     // Filter out folders, because we're currently not supporting mapping
                     // folders to groups in XL. Some groups have folder members - we
                     // don't want to take those into account.
@@ -262,8 +266,35 @@ class DiscoveredGroupInterpreter {
                     .map(idMap::get)
                     .map(Optional::ofNullable)
                     .forEach(optOid -> {
-                        optOid.ifPresent(staticMemberBldr::addStaticMemberOids);
-                        if (!optOid.isPresent()) {
+                        if (optOid.isPresent()) {
+                            Optional<Entity> entity = entityStore.getEntity(optOid.get());
+                            if (entity.isPresent()) {
+                                // Validate that the member entityType is the
+                                // same as that of the group/cluster.
+                                // So far, the only known case of
+                                // entityType!=entitypesOfMembers is in
+                                // VCenter Clusters where a VDC is part of
+                                // the Cluster along with the PhysicalMachine
+                                // entities. After checking with Dmitry
+                                // Illichev, this was done in legacy to
+                                // accomodate license feature - to model vdcs as
+                                // folders - and he thinks that this is now obsolete.
+                                // So the assumption that
+                                // GroupEntityType==EntityTypesOfItsMembers should be
+                                // fine as this is also the assumption made in
+                                // the UI. Even the Group protobuf message is defined
+                                // with this assumption.
+                                if (entity.get().getEntityType() == groupDTO.getEntityType()) {
+                                    staticMemberBldr.addStaticMemberOids(optOid.get());
+                                } else {
+                                    logger.warn("EntityType: {} and groupType: {} doesn't match for oid: {}"
+                                        + ". Not adding to the group/cluster members list for groupName: {}, " +
+                                        "groupDisplayName: {}.",
+                                        entity.get().getEntityType(), groupDTO.getEntityType(), optOid.get(),
+                                        groupDTO.getGroupName(), groupDTO.getDisplayName());
+                                }
+                            }
+                         } else {
                             // This may happen if the probe sends members that aren't
                             // discovered (i.e. a bug in the probe) or if the Topology
                             // Processor doesn't record the entities before processing
@@ -275,7 +306,7 @@ class DiscoveredGroupInterpreter {
                 retMembers = staticMemberBldr.build();
             } else {
                 logger.warn("Failed to find static group members in member list: {}",
-                        membersList.getMemberList());
+                        groupDTO.getMemberList().getMemberList());
             }
         }
         return Optional.ofNullable(retMembers);

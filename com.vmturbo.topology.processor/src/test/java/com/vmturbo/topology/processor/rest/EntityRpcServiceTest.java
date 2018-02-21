@@ -16,7 +16,6 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -42,7 +41,6 @@ import com.vmturbo.topology.processor.entity.EntityRpcService;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
-
 
 public class EntityRpcServiceTest {
     private TargetStore targetStore = Mockito.mock(TargetStore.class);
@@ -75,8 +73,8 @@ public class EntityRpcServiceTest {
         entityServiceClient = EntityServiceGrpc.newBlockingStub(server.getChannel());
 
         Mockito.when(entityStore.getEntity(Mockito.anyLong())).thenReturn(Optional.empty());
-        addEntity(1, ImmutableMap.of(1L, 1L));
-        addEntity(2, ImmutableMap.of(1L, 1L));
+        addEntity(1, EntityType.PHYSICAL_MACHINE, ImmutableMap.of(1L, 1L));
+        addEntity(2, EntityType.PHYSICAL_MACHINE, ImmutableMap.of(1L, 1L));
     }
 
     /**
@@ -187,13 +185,18 @@ public class EntityRpcServiceTest {
     }
 
     private void addEntity(final long entityId,
+                           final EntityType entityType,
                            final Map<Long, Long> targetToProbeMap) {
-        final Entity entity = new Entity(entityId);
+        final Entity entity = new Entity(entityId, entityType);
         targetToProbeMap.entrySet().forEach(targetToProbe -> {
             final Target target = Mockito.mock(Target.class);
             Mockito.when(target.getId()).thenReturn(targetToProbe.getKey());
             Mockito.when(target.getProbeId()).thenReturn(targetToProbe.getValue());
-            entity.addTargetInfo(targetToProbe.getKey(), CommonDTO.EntityDTO.getDefaultInstance());
+            entity.addTargetInfo(targetToProbe.getKey(),
+                CommonDTO.EntityDTO.newBuilder()
+                    .setId(String.valueOf(entityId))
+                    .setEntityType(entityType)
+                    .build());
             Mockito.when(targetStore.getTarget(Mockito.eq(targetToProbe.getKey()))).thenReturn(Optional.of(target));
         });
         Mockito.when(entityStore.getEntity(Mockito.eq(entityId))).thenReturn(Optional.of(entity));
@@ -203,8 +206,8 @@ public class EntityRpcServiceTest {
                                            final long hostId,
                                            @Nonnull final PhysicalMachineData hostProperties) {
         Preconditions.checkArgument(vmId != hostId, "VM and Host must have different IDs!");
-        final Entity vm = new Entity(vmId);
-        final Entity host = new Entity(hostId);
+        final Entity vm = new Entity(vmId, EntityType.VIRTUAL_MACHINE);
+        final Entity host = new Entity(hostId, EntityType.PHYSICAL_MACHINE);
 
         final EntityDTO vmDto = EntityDTO.newBuilder()
             .setId("vm-" + vmId)
