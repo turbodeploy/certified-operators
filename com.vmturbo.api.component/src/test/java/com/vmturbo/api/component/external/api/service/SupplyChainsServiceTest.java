@@ -51,6 +51,11 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScenario;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
@@ -159,6 +164,32 @@ public class SupplyChainsServiceTest {
 
         verify(supplyChainFetcherOperationBuilderMock).topologyContextId(LIVE_TOPOLOGY_CONTEXT_ID);
         verify(supplyChainFetcherOperationBuilderMock).addSeedUuids(uuids);
+    }
+
+    @Test
+    public void testGetSupplyChainByUuidsScopedPlan() throws Exception {
+
+        final long planId = 123456789;
+        final List<String> uuids = Collections.singletonList(Long.toString(planId));
+
+        final PlanId planIdObj = PlanId.newBuilder().setPlanId(planId).build();
+        final OptionalPlanInstance planInstance = OptionalPlanInstance.newBuilder()
+                .setPlanInstance(PlanInstance.newBuilder()
+                        .setPlanId(planId)
+                        .setScenario(Scenario.newBuilder()
+                                .setScenarioInfo(ScenarioInfo.newBuilder()
+                                    .setScope(PlanScope.newBuilder()
+                                        .addScopeEntries(PlanScopeEntry.newBuilder()
+                                            .setScopeObjectOid(1)))))
+                    .setStatus(PlanStatus.READY))
+                .build();
+
+        when(planServiceMole.getPlan(planIdObj)).thenReturn(planInstance);
+
+        service.getSupplyChainByUuids(uuids, null, null, null, null, false);
+
+        verify(supplyChainFetcherOperationBuilderMock).topologyContextId(123456789);
+        verify(supplyChainFetcherOperationBuilderMock).addSeedUuids(Collections.singleton("1"));
     }
 
     @Test

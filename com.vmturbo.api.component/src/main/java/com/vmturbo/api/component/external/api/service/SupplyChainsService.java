@@ -1,14 +1,18 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.mapper.GroupMapper.CLUSTER;
+import static com.vmturbo.api.component.external.api.mapper.GroupMapper.GROUP;
+
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
-
-import org.springframework.util.CollectionUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -16,17 +20,21 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
+
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
-import com.vmturbo.api.dto.supplychain.SupplyChainStatsApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplyChainStatsApiInputDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntitiesCountCriteria;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -35,9 +43,15 @@ import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 
 public class SupplyChainsService implements ISupplyChainsService {
+    private static final Logger logger = LogManager.getLogger();
+
+    private static final Set<String> GROUP_TYPES = Sets.newHashSet(GROUP, CLUSTER);
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final long liveTopologyContextId;
@@ -79,8 +93,17 @@ public class SupplyChainsService implements ISupplyChainsService {
                 .includeHealthSummary(includeHealthSummary);
 
         //if the request is for a plan supply chain, the "seed uuid" should instead be used as the topology context ID.
-        if (requestIsPlanSupplyChain(uuids)) {
+        Optional<PlanInstance> possiblePlan = getPlanIfRequestIsPlan(uuids);
+        if (possiblePlan.isPresent()) {
             fetcherBuilder.topologyContextId(Long.valueOf(uuids.iterator().next()));
+            PlanInstance plan = possiblePlan.get();
+            if (isPlanScoped(plan)) {
+                Set<String> planSeedIds = getSeedIdsForPlan(possiblePlan.get());
+                fetcherBuilder.addSeedUuids(planSeedIds);
+                if (planSeedIds.size() == 0) {
+                    logger.warn("Scoped plan {} did not have any entities in scope.", plan.getPlanId());
+                }
+            }
         } else {
             fetcherBuilder.topologyContextId(liveTopologyContextId).addSeedUuids(uuids);
         }
@@ -89,7 +112,52 @@ public class SupplyChainsService implements ISupplyChainsService {
     }
 
     /**
-     * Determine if a request for a supply chain refers specifically to a plan.
+     * check if a PlanInstance is scoped. It's scoped if the plan instance contains a scenario with
+     * a scope definition inside.
+     * @param planInstance the PlanInstance to check
+     * @return true if the plan is scoped, false otherwise
+     */
+    private boolean isPlanScoped(PlanInstance planInstance) {
+        // does this plan have a scope?
+        return (planInstance.hasScenario()
+                && planInstance.getScenario().hasScenarioInfo()
+                && planInstance.getScenario().getScenarioInfo().hasScope());
+        }
+
+    /**
+     * Given a plan instance, extract the set of seed entities based on the plan scope. If a plan
+     * is not scoped, this will be an empty set.
+     *
+     * @param planInstance the PlanInstance to check the scope of.
+     * @return The set of unique seed entities based on the plan scope. Will be empty for an
+     * unscoped plan.
+     */
+    private Set<String> getSeedIdsForPlan(PlanInstance planInstance) {
+        // does this plan have a scope?
+        if (!isPlanScoped(planInstance)) {
+            // nope, no scope
+            return Collections.emptySet();
+        }
+        Set<String> seedEntities = new HashSet(); // seed entities to return
+        PlanScope scope = planInstance.getScenario().getScenarioInfo().getScope();
+        for (PlanScopeEntry scopeEntry : scope.getScopeEntriesList()) {
+            // if it's an entity, add it right to the seed set. Otherwise queue it for
+            // group resolution.
+            if (GROUP_TYPES.contains(scopeEntry.getClassName())) {
+                // needs expansion
+                groupExpander.expandUuid(String.valueOf(scopeEntry.getScopeObjectOid()))
+                        .forEach(id -> seedEntities.add(id.toString()));
+            } else {
+                // this is an entity -- add it right to the seedEntities
+                seedEntities.add(String.valueOf(scopeEntry.getScopeObjectOid()));
+            }
+        }
+
+        return seedEntities;
+    }
+
+    /**
+     * Attempt to retrieve a PlanInstance if the supply chain request refers specifically to a plan.
      *
      * ASSUMPTIONS: A supply chain request refers to a plan if:
      *      - the seed UUID list has exactly one element
@@ -99,21 +167,22 @@ public class SupplyChainsService implements ISupplyChainsService {
      * These assumptions may change if the UI/API does.
      *
      * @param uuids the supplied seed UUID list
-     * @return true if the single supplied UUID refers to an existing plan, false otherwise
+     * @return an Optional PlanInstance, which will be provided if the uuids did, in fact, represent
+     * a plan request. It will be empty if this is not identified as a plan request.
      */
-    private boolean requestIsPlanSupplyChain(List<String> uuids) {
+    private Optional<PlanInstance> getPlanIfRequestIsPlan(List<String> uuids) {
         if (uuids.size() != 1) {
-            return false;
+            return Optional.empty();
         }
         final long prospectivePlanId;
         try {
             prospectivePlanId = Long.valueOf(uuids.iterator().next());
         } catch (NumberFormatException e) {
-            return false;
+            return Optional.empty();
         }
         final OptionalPlanInstance possiblePlan =
             planRpcService.getPlan(PlanId.newBuilder().setPlanId(prospectivePlanId).build());
-        return possiblePlan.hasPlanInstance();
+        return possiblePlan.hasPlanInstance() ? Optional.of(possiblePlan.getPlanInstance()) : Optional.empty();
     }
 
     /**
