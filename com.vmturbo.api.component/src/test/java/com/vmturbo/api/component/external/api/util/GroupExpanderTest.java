@@ -1,11 +1,14 @@
 package com.vmturbo.api.component.external.api.util;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsEqual.equalTo;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.Before;
@@ -16,6 +19,9 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -35,6 +41,30 @@ public class GroupExpanderTest {
     public void setup() {
         GroupServiceBlockingStub groupServiceRpc = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         groupExpander = new GroupExpander(groupServiceRpc);
+    }
+
+    @Test
+    public void testGetGroup() {
+        when(groupServiceSpy.getGroup(GroupID.newBuilder().setId(123).build()))
+            .thenReturn(GetGroupResponse.newBuilder()
+                .setGroup(Group.getDefaultInstance())
+                .build());
+        Optional<Group> ret = groupExpander.getGroup("123");
+        assertThat(ret.get(), is(Group.getDefaultInstance()));
+    }
+
+    @Test
+    public void testGetGroupNotFound() {
+        when(groupServiceSpy.getGroup(GroupID.newBuilder().setId(123).build()))
+                .thenReturn(GetGroupResponse.getDefaultInstance());
+        Optional<Group> ret = groupExpander.getGroup("123");
+        assertFalse(ret.isPresent());
+    }
+
+    @Test
+    public void testGetGroupNotNumeric() {
+        Optional<Group> ret = groupExpander.getGroup("foo");
+        assertFalse(ret.isPresent());
     }
 
     /**

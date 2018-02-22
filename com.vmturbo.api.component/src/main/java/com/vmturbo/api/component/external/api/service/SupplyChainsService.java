@@ -218,7 +218,6 @@ public class SupplyChainsService implements ISupplyChainsService {
                 .newApiDtoFetcher()
                 .topologyContextId(liveTopologyContextId)
                 .addSeedUuids(uuids)
-                .entityTypes(supplyChainStatsApiInputDTO.getTypes())
                 .supplyChainDetailType(SupplyChainDetailType.entity)
                 .includeHealthSummary(isHealthSummaryNeeded(criteriaToGroupBy));
         if (types != null) {

@@ -4,11 +4,12 @@ import static com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import static com.vmturbo.common.protobuf.group.GroupDTO.Group;
 
 import java.util.Collections;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.jooq.tools.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import com.google.common.collect.Sets;
 
@@ -17,7 +18,9 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 
 /**
@@ -35,6 +38,23 @@ public class GroupExpander {
 
     public GroupExpander(@Nonnull GroupServiceBlockingStub groupServiceGrpc) {
         this.groupServiceGrpc = groupServiceGrpc;
+    }
+
+    /**
+     * Get the group associated with a particular UUID, if any.
+     * @param uuid The string UUID. This may be the OID of a group, an entity, or a magic string
+     *             (e.g. Market).
+     * @return The {@link Group} associated with the UUID, if any.
+     */
+    public Optional<Group> getGroup(@Nonnull final String uuid) {
+        if (StringUtils.isNumeric(uuid)) {
+            final GetGroupResponse response = groupServiceGrpc.getGroup(GroupID.newBuilder()
+                    .setId(Long.parseLong(uuid))
+                    .build());
+            return response.hasGroup() ? Optional.of(response.getGroup()) : Optional.empty();
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**
@@ -93,6 +113,4 @@ public class GroupExpander {
         }
         return answer;
     }
-
-
 }

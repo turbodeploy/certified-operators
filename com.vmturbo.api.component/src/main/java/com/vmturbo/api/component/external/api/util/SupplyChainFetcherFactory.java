@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -33,6 +34,7 @@ import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -41,10 +43,12 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
@@ -226,7 +230,7 @@ public class SupplyChainFetcherFactory {
 
         protected final Set<String> seedUuids = Sets.newHashSet();
 
-        protected final List<String> entityTypes = Lists.newLinkedList();
+        protected final Set<String> entityTypes = Sets.newHashSet();
 
         /**
          * Synchronously fetch the supply chain with the parameters specified in the builder.
@@ -305,7 +309,7 @@ public class SupplyChainFetcherFactory {
 
         private final Set<String> seedUuids;
 
-        private final List<String> entityTypes;
+        private final Set<String> entityTypes;
 
         private final SupplyChainServiceStub supplyChainRpcService;
 
@@ -317,7 +321,7 @@ public class SupplyChainFetcherFactory {
 
         private SupplychainFetcher(final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
-                                   @Nullable final List<String> entityTypes,
+                                   @Nullable final Set<String> entityTypes,
                                    @Nonnull SupplyChainServiceStub supplyChainRpcService,
                                    @Nonnull GroupExpander groupExpander,
                                    @Nonnull Duration supplyChainFetcherTimeoutSeconds) {
@@ -370,6 +374,37 @@ public class SupplyChainFetcherFactory {
 
             // if list of seed uuids has limited scope,then expand it; if global scope, don't expand
             if (UuidMapper.hasLimitedScope(seedUuids)) {
+                // START Mad(ish) Hax.
+                // Handle a very particular special case where we are asking for the supply chain
+                // of a group, restricted to the entity type of the group (e.g. give me the supply
+                // chain of Group 1 of PhysicalMachines, containing only PhysicalMachine nodes).
+                // The request is, essentially, asking for the members of the group, so we don't need
+                // to do any supply chain queries.
+                //
+                // The reason this even happens is because some information (e.g. grouped severities
+                // for supply chain stats, or aspects for entities) is only available via the
+                // supply chain API. In the long term there should be a better API to retrieve this
+                // (e.g. some sort of "entity counts" API for grouped severities,
+                //       and/or options on the /search API for aspects)
+                if (seedUuids.size() == 1 && CollectionUtils.size(entityTypes) == 1) {
+                    final String groupUuid = seedUuids.iterator().next();
+                    final String desiredEntityType = entityTypes.iterator().next();
+                    final Optional<Group> group = groupExpander.getGroup(groupUuid);
+                    if (group.isPresent()) {
+                        final String groupType = ServiceEntityMapper.toUIEntityType(
+                                GroupProtoUtil.getEntityType(group.get()));
+
+                        if (groupType.equals(desiredEntityType)) {
+                            onNext(SupplyChainNode.newBuilder()
+                                    .setEntityType(groupType)
+                                    .addAllMemberOids(groupExpander.expandUuid(groupUuid))
+                                    .build());
+                            return getResult();
+                        }
+                    }
+                }
+                // END Mad(ish) Hax.
+
                 // expand any groups in the input list of seeds
                 Set<String> expandedUuids = groupExpander.expandUuids(seedUuids).stream()
                         .map(l -> Long.toString(l))
@@ -441,7 +476,7 @@ public class SupplyChainFetcherFactory {
 
         private SupplychainNodeFetcher(final long topologyContextId,
                                        @Nullable final Set<String> seedUuids,
-                                       @Nullable final List<String> entityTypes,
+                                       @Nullable final Set<String> entityTypes,
                                        @Nonnull final SupplyChainServiceStub supplyChainRpcService,
                                        @Nonnull final GroupExpander groupExpander,
                                        @Nonnull final Duration supplyChainFetcherTimeoutSeconds) {
@@ -492,7 +527,7 @@ public class SupplyChainFetcherFactory {
 
         private SupplychainApiDTOFetcher(final long topologyContextId,
                                          @Nullable final Set<String> seedUuids,
-                                         @Nullable final List<String> entityTypes,
+                                         @Nullable final Set<String> entityTypes,
                                          @Nullable final EnvironmentType environmentType,
                                          @Nullable final SupplyChainDetailType supplyChainDetailType,
                                          final boolean includeHealthSummary,
