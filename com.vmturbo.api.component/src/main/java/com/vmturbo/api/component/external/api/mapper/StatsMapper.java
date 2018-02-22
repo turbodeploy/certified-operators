@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -46,6 +47,10 @@ public class StatsMapper {
 
     @VisibleForTesting
     public static final String RELATION_FILTER_TYPE = "relation";
+
+    public static final String STAT_RECORD_PREFIX_CURRENT = "current";
+    public static final String FILTER_NAME_RESULTS_TYPE = "resultsType";
+    public static final String FILTER_TYPE_BEFORE_PLAN = "beforePlan";
 
     private static final ImmutableMap<String, Optional<String>> dbToUiStatTypes = ImmutableMap.of(
                RelationType.COMMODITIES.getLiteral(), Optional.of("sold"),
@@ -108,7 +113,14 @@ public class StatsMapper {
      */
     private static StatApiDTO toStatApiDto(StatRecord statRecord) {
         final StatApiDTO statApiDTO = new StatApiDTO();
-        statApiDTO.setName(statRecord.getName());
+        if (statRecord.getName().startsWith(STAT_RECORD_PREFIX_CURRENT)) {
+            // The UI requires the name for both before and after plan values to be the same.
+            // Remove the prefix "current".  e.g. currentNumVMs => numVMs
+            statApiDTO.setName(CaseFormat.UPPER_CAMEL.to(CaseFormat.LOWER_CAMEL,
+                    statRecord.getName().substring(STAT_RECORD_PREFIX_CURRENT.length())));
+        } else {
+            statApiDTO.setName(statRecord.getName());
+        }
 
         final BaseApiDTO provider = new BaseApiDTO();
         provider.setDisplayName(statRecord.getProviderDisplayName());
@@ -129,7 +141,15 @@ public class StatsMapper {
         if (statRecord.hasRelation()) {
             relationFilter(statRecord.getRelation()).ifPresent(filters::add);
         }
-        statApiDTO.setFilters(filters);
+        if (statRecord.getName().startsWith(STAT_RECORD_PREFIX_CURRENT)) {
+            StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
+            resultsTypeFilter.setType(FILTER_NAME_RESULTS_TYPE);
+            resultsTypeFilter.setValue(FILTER_TYPE_BEFORE_PLAN);
+            filters.add(resultsTypeFilter);
+        }
+        if (filters.size() > 0) {
+            statApiDTO.setFilters(filters);
+        }
         return statApiDTO;
     }
 

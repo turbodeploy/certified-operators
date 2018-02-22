@@ -24,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.CaseFormat;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -93,7 +94,9 @@ public class StatsService implements IStatsService {
     private final TargetsService targetsService;
 
     // "headroomVMs" is a constant specified in a query input used for requesting headroom stats
-    public final String HEADROOM_VMS = "headroomVMs";
+    public static final String HEADROOM_VMS = "headroomVMs";
+
+    private static final String STAT_FILTER_PREFIX = "current";
 
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
                  @Nonnull final PlanServiceBlockingStub planRpcService,
@@ -166,6 +169,15 @@ public class StatsService implements IStatsService {
      *
      * The "scope" field of the "inputDto" is ignored.
      *
+     * The inputDto object can include a list of "filters" which are keys to search for records
+     * in the statistics tables. (e.g. numHosts) For the purpose of getting
+     * statistics before and after a plan execution, the stats values for both before and after
+     * a plan execution should be returned. In the database, we denote the "before plan" value by
+     * having a "current" prefix.  (e.g. currentNumHosts), and the projected value without the
+     * prefix (e.g. numHosts). The UI will only send in one "filter" called "numHost". To work with
+     * this UI requirement, we add a filter with the "current" prefix for each of the filters.
+     * (e.g. for numHosts, we will add currentNumHosts.)
+     *
      * @param uuid the UUID of either a single ServiceEntity or a group.
      * @param inputDto the parameters to further refine this search.
      * @return a list of {@link StatSnapshotApiDTO}s one for each ServiceEntity in the expanded list
@@ -222,7 +234,22 @@ public class StatsService implements IStatsService {
             // if the startDate is in the past, read from the history (and combine with projected, if any)
             if (inputDto.getStartDate() == null || DateTimeUtil.parseTime(inputDto.getStartDate()) <
                     clockTimeNow) {
-
+                if (statsFilters != null) {
+                    // Duplicate the set of stat filters and add "current" as a prefix to the filter name.
+                    List<StatApiInputDTO> currentStatFilters =
+                            statsFilters.stream()
+                                    .map(filter -> STAT_FILTER_PREFIX +
+                                        CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, filter.getName()))
+                                    .collect(Collectors.toList())
+                                    .stream()
+                                    .map(filterName -> {
+                                        StatApiInputDTO currentFilter = new StatApiInputDTO();
+                                        currentFilter.setName(filterName);
+                                        return currentFilter;
+                                    })
+                                    .collect(Collectors.toList());
+                    statsFilters.addAll(currentStatFilters);
+                }
                 final EntityStatsRequest request = StatsMapper.toEntityStatsRequest(entityStatsOids,
                         inputDto);
                 final Iterable<StatSnapshot> statsIterator = () ->

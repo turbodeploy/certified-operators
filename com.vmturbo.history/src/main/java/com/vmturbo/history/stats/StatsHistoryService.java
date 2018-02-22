@@ -102,6 +102,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     private static final String CLUSTER_STATS_TYPE_HEADROOM_VMS = "headroomVMs";
     private static final String CLUSTER_STATS_TYPE_NUM_VMS = "numVMs";
 
+    private static final String PROPERTY_TYPE_PREFIX_CURRENT = "current";
+
     private static final Summary GET_STATS_SNAPSHOT_DURATION_SUMMARY = Summary.build()
         .name("history_get_stats_snapshot_duration_seconds")
         .help("Duration in seconds it takes the history component to get a stats snapshot for a group or entity.")
@@ -473,7 +475,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     private void returnPlanTopologyStats(StreamObserver<StatSnapshot> responseObserver,
                                          long topologyContextId,
                                          List<String> commodityNames) {
-        StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
+        StatSnapshot.Builder beforePlanStatSnapshotResponseBuilder = StatSnapshot.newBuilder();
+        StatSnapshot.Builder afterPlanStatSnapshotResponseBuilder = StatSnapshot.newBuilder();
         List<MktSnapshotsStatsRecord> dbSnapshotStatsRecords;
         try {
             dbSnapshotStatsRecords = planStatsReader.getStatsRecords(
@@ -499,16 +502,31 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     // doesn't use the 'relation' data for the plan results. Here, set the
                     // property as "plan" to indicate this record is for a plan result.
                     "plan" /*relation*/);
-            statSnapshotResponseBuilder.addStatRecords(statResponseRecord);
+
+            // Group all records with property type name that start with "current" in one group
+            // (before plan) and others in another group (after plan).
+            if (statsDBRecord.getPropertyType().startsWith(PROPERTY_TYPE_PREFIX_CURRENT)) {
+                beforePlanStatSnapshotResponseBuilder.addStatRecords(statResponseRecord);
+            } else {
+                afterPlanStatSnapshotResponseBuilder.addStatRecords(statResponseRecord);
+            }
         }
         Optional<ScenariosRecord> planStatsRecord = historydbIO.getScenariosRecord(topologyContextId);
         if (planStatsRecord.isPresent()) {
             final long planTime = planStatsRecord.get().getCreateTime().getTime();
-            statSnapshotResponseBuilder.setSnapshotDate(DateTimeUtil.toString(planTime));
+
+            beforePlanStatSnapshotResponseBuilder.setSnapshotDate(DateTimeUtil.toString(planTime));
             // TODO: the timestamps should be based on listening to the Plan Orchestrator OM-14839
-            statSnapshotResponseBuilder.setStartDate(planTime);
-            statSnapshotResponseBuilder.setEndDate(planTime);
-            responseObserver.onNext(statSnapshotResponseBuilder.build());
+            beforePlanStatSnapshotResponseBuilder.setStartDate(planTime);
+            beforePlanStatSnapshotResponseBuilder.setEndDate(planTime);
+            responseObserver.onNext(beforePlanStatSnapshotResponseBuilder.build());
+
+            afterPlanStatSnapshotResponseBuilder.setSnapshotDate(DateTimeUtil.toString(planTime));
+            // TODO: the timestamps should be based on listening to the Plan Orchestrator OM-14839
+            afterPlanStatSnapshotResponseBuilder.setStartDate(planTime);
+            afterPlanStatSnapshotResponseBuilder.setEndDate(planTime);
+            responseObserver.onNext(afterPlanStatSnapshotResponseBuilder.build());
+
             responseObserver.onCompleted();
         } else {
             responseObserver.onError(Status.NOT_FOUND.withDescription(

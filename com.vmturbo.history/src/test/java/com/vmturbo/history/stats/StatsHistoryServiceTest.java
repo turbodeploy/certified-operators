@@ -291,7 +291,7 @@ public class StatsHistoryServiceTest {
 
         // assert
         verify(mockPlanStatsReader).getStatsRecords(eq(PLAN_OID), anyObject());
-        verify(mockStatSnapshotStreamObserver).onNext(anyObject());
+        verify(mockStatSnapshotStreamObserver, times(2)).onNext(anyObject());
         verify(mockStatSnapshotStreamObserver).onCompleted();
         verifyNoMoreInteractions(mockStatSnapshotStreamObserver);
         verifyNoMoreInteractions(mockLivestatsreader);
