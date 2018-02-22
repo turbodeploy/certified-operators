@@ -36,6 +36,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
+import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -241,10 +242,11 @@ public class ActionOrchestratorDiagnosticsTest {
             throws Exception {
         final ActionDTO.Action rec = ActionOrchestratorTestUtils.createMoveRecommendation(1);
         final EntitySettingsCache settingsCache = mock(EntitySettingsCache.class);
+        final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
         when(settingsCache.getSettingsForEntity(eq(rec.getInfo().getMove().getTargetId())))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        when(settingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
-        final Action action = actionFactory.newAction(rec, settingsCache, 0L);
+        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
+        final Action action = actionFactory.newAction(rec, settingsCache, entityTypeMap, 0L);
         if (actionModifier != null) {
             actionModifier.accept(action);
         }

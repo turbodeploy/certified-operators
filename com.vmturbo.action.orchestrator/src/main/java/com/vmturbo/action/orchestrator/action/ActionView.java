@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -11,6 +12,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Provides a limited-access view of an action that permits accessors for retrieving properties
@@ -125,4 +127,14 @@ public interface ActionView {
             getState().equals(ActionState.READY);
     }
 
+    /**
+     * Obtain a mapping from entity oid to entity type. Depends on the implementation, this
+     * may return the entire map from the action store or just the types of the entities
+     * involved in the action. The returned map might not contain entries for the involved
+     * entities, and may even be empty (but not null).
+     *
+     * @return a map from entity oid to entity type
+     */
+    @Nonnull
+    Map<Long, EntityType> getTypes();
 }

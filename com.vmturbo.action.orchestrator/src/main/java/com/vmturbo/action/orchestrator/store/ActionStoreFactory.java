@@ -11,10 +11,6 @@ import io.grpc.Channel;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
-import com.vmturbo.action.orchestrator.execution.ActionTranslator;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -40,13 +36,10 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final EntitySettingsCache entitySettingsCache;
 
-    /**
-     * Required by {@link LiveActionStore}s to translate market actions to real-world actions.
-     */
-    private final ActionTranslator actionTranslator;
+    private final EntityTypeMap entityTypeMap;
 
-    public static final String PLAN_CONTEXT_TYPE_NAME = "plan";
-    public static final String LIVE_CONTEXT_TYPE_NAME = "live";
+    private static final String PLAN_CONTEXT_TYPE_NAME = "plan";
+    private static final String LIVE_CONTEXT_TYPE_NAME = "live";
 
     private final ActionCapabilitiesStore actionCapabilitiesStore;
 
@@ -55,29 +48,30 @@ public class ActionStoreFactory implements IActionStoreFactory {
      *
      * @param actionFactory The actionFactory to be passed to all store instances created
      *                      by the {@link this}.
-     * @param actionTranslator The translator for use when translating market actions to real-world actions.
      * @param realtimeTopologyContextId The context ID for the live topology context.
      * @param databaseDslContext The DSL context for use when interacting with the database.
      * @param topologyProcessorChannel Grpc Channel for topology processor.
      * @param topologyProcessor Topology processor client.
+     * @param entitySettingsCache cache of entity settings.
+     * @param entityTypeMap map from entity oid to entity type.
      */
     public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
-                              @Nonnull final ActionTranslator actionTranslator,
                               final long realtimeTopologyContextId,
                               @Nonnull final DSLContext databaseDslContext,
                               @Nonnull final Channel topologyProcessorChannel,
                               @Nonnull final TopologyProcessor topologyProcessor,
-                              @Nonnull final EntitySettingsCache entitySettingsCache) {
+                              @Nonnull final EntitySettingsCache entitySettingsCache,
+                              @Nonnull EntityTypeMap entityTypeMap) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
-        this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.topologyProcessorChannel = Objects.requireNonNull(topologyProcessorChannel);
         final ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesService =
                 ProbeActionCapabilitiesServiceGrpc.newBlockingStub(topologyProcessorChannel);
         this.actionCapabilitiesStore = new ProbeActionCapabilitiesStore(actionCapabilitiesService);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
+        this.entityTypeMap = Objects.requireNonNull(entityTypeMap);
     }
 
     /**
@@ -93,6 +87,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
                     new ActionTargetByProbeCategoryResolver(topologyProcessor, actionCapabilitiesStore));
             return new LiveActionStore(actionFactory, topologyContextId,
                     new ActionSupportResolver(actionCapabilitiesStore, actionExecutor), entitySettingsCache,
+                    entityTypeMap,
                     new ActionHistoryDaoImpl(databaseDslContext));
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);

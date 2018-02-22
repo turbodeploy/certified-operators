@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * A store for actions that are active in the system.
@@ -164,7 +165,9 @@ public interface ActionStore {
     Predicate<ActionView> getVisibilityPredicate();
 
     /**
-     * Get the name of the type of the store (ie "Live", "Plan", etc.)
+     * Get the name of the type of the store (ie "Live", "Plan", etc.).
+     *
+     * @return the store type name, e.g. "Live" or "Plan"
      */
     @Nonnull
     String getStoreTypeName();

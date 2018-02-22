@@ -82,8 +82,9 @@ public class LiveActionStoreTest {
         @Override
         public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                                 @Nonnull final EntitySettingsCache entitySettingsMap,
-                                long actionPlanId){
-            return spy(new Action(recommendation, entitySettingsMap, actionPlanId));
+                                @Nonnull final EntityTypeMap entityTypeMap,
+                                long actionPlanId) {
+            return spy(new Action(recommendation, entitySettingsMap, entityTypeMap, actionPlanId));
         }
 
         @Nonnull
@@ -100,6 +101,7 @@ public class LiveActionStoreTest {
     private final ActionSupportResolver filter = Mockito.mock(ActionSupportResolver.class);
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
 
     private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private ActionStore actionStore;
@@ -108,8 +110,8 @@ public class LiveActionStoreTest {
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, filter,
-                entitySettingsCache, actionHistoryDao);
-        when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
+                entitySettingsCache, entityTypeMap, actionHistoryDao);
+        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
 
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
                 -> invocationOnMock.getArguments()[0]);
@@ -179,7 +181,7 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, filter,
-                        entitySettingsCache, actionHistoryDao);
+                        entitySettingsCache, entityTypeMap, actionHistoryDao);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
 
@@ -397,6 +399,7 @@ public class LiveActionStoreTest {
                 eq(plan.getTopologyContextId()), eq(plan.getTopologyId()));
         verify(spyActionFactory).newAction(any(),
                 eq(entitySettingsCache),
+                eq(entityTypeMap),
                 eq(firstPlanId));
         assertEquals(1, actionStore.size());
     }

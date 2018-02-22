@@ -23,6 +23,7 @@ import org.junit.Test;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -60,6 +61,7 @@ public class ActionTest {
     private ActionDTO.Action reconfigureRecommendation;
     private Action reconfigureAction;
     private EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
 
     @Before
     public void setup() {
@@ -77,20 +79,20 @@ public class ActionTest {
 
         when(entitySettingsCache.getSettingsForEntity(anyLong()))
             .thenReturn(Collections.emptyList());
-        when(entitySettingsCache.getTypeForEntity(and(anyLong(), not(or(eq(44L), eq(55L))))))
+        when(entityTypeMap.getTypeForEntity(and(anyLong(), not(or(eq(44L), eq(55L))))))
                 .thenReturn(Optional.empty());
-        when(entitySettingsCache.getTypeForEntity(or(eq(44L), eq(55L))))
+        when(entityTypeMap.getTypeForEntity(or(eq(44L), eq(55L))))
                 .thenReturn(Optional.of(EntityType.STORAGE));
 
 
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
-        resizeAction = new Action(resizeRecommendation, entitySettingsCache, actionPlanId);
-        deactivateAction = new Action(deactivateRecommendation, entitySettingsCache, actionPlanId);
-        activateAction = new Action(activateRecommendation, entitySettingsCache, actionPlanId);
+        moveAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
+        resizeAction = new Action(resizeRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
+        deactivateAction = new Action(deactivateRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
+        activateAction = new Action(activateRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
+                new Action(storageMoveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         reconfigureAction =
-                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
+                new Action(reconfigureRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
     }
 
     @Test
@@ -222,23 +224,23 @@ public class ActionTest {
         //SHOW ONLY support level - no modes above RECOMMEND even though set to AUTOMATIC
         moveRecommendation =
                 makeRec(makeMoveInfo(11L, 22L, 33L), SupportLevel.SHOW_ONLY).build();
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        moveAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.SHOW_ONLY).build();
-        deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        deactivateAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.SHOW_ONLY).build();
-        activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        activateAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         resizeRecommendation =
                 makeRec(makeResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
-        resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        resizeAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         storageMoveRecommendation =
                 makeRec(makeMoveInfo(11L, 44L, 55L), SupportLevel.SHOW_ONLY).build();
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
+                new Action(storageMoveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         reconfigureRecommendation =
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SHOW_ONLY).build();
-        reconfigureAction = new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
+        reconfigureAction = new Action(reconfigureRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
 
         List<Setting> settingsList = Arrays.asList(
                 makeSetting("resize", ActionMode.AUTOMATIC),
@@ -264,23 +266,23 @@ public class ActionTest {
         //UNSUPPORTED support level - no modes above DISABLED even though set to RECOMMEND
         moveRecommendation =
                 makeRec(makeMoveInfo(11L, 22L, 33L), SupportLevel.UNSUPPORTED).build();
-        moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        moveAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
-        deactivateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        deactivateAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
-        activateAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        activateAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         resizeRecommendation = makeRec(makeResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
-        resizeAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
+        resizeAction = new Action(moveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         storageMoveRecommendation =
                 makeRec(makeMoveInfo(11L, 44L, 55L), SupportLevel.UNSUPPORTED).build();
         storageMoveAction =
-                new Action(storageMoveRecommendation, entitySettingsCache, actionPlanId);
+                new Action(storageMoveRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
         reconfigureRecommendation =
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.UNSUPPORTED).build();
         reconfigureAction =
-                new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
+                new Action(reconfigureRecommendation, entitySettingsCache, entityTypeMap, actionPlanId);
 
         List<Setting> settingsList = Arrays.asList(
                 makeSetting("resize", ActionMode.RECOMMEND),

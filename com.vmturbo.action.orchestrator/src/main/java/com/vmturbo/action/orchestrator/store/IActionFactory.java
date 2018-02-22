@@ -1,14 +1,11 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 
 /**
  * An interface for factories that create actions.
@@ -33,13 +30,16 @@ public interface IActionFactory {
      *
      * @param recommendation The market recommendation for the action in the environment.
      * @param entitySettingsCache Entities and associated settings
+     * @param entityTypeMap a mapping from entity oid to entity type
      * @param actionPlanId The ID of the ActionPlan the recommendation was a part of.
      * @return A new {@link Action} instance.
      */
     @Nonnull
     Action newAction(@Nonnull final ActionDTO.Action recommendation,
                      final EntitySettingsCache entitySettingsCache,
+                     final EntityTypeMap entityTypeMap,
                      final long actionPlanId);
+
     /**
      * Create a new Action instance.
      *

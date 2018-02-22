@@ -2,6 +2,8 @@ package com.vmturbo.common.protobuf;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -19,6 +21,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Utility functions for dealing with {@link ActionDTO} protobuf objects.
@@ -36,10 +39,11 @@ public class ActionDTOUtil {
      * applies. This will be one of the entities involved in the action.
      *
      * @param action The action in question.
+     * @param types a map from entity oid to entity type.
      * @return The ID of the entity whose severity is affected by the action.
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
-    public static long getSeverityEntity(@Nonnull final ActionDTO.Action action)
+    public static long getSeverityEntity(@Nonnull final ActionDTO.Action action, Map<Long, EntityType> types)
             throws UnsupportedActionException {
         final ActionInfo actionInfo = action.getInfo();
 
@@ -48,8 +52,14 @@ public class ActionDTOUtil {
                 // For move actions, the importance of the action
                 // is applied to the source instead of the target,
                 // since we're moving the load off of the source.
-                // TODO(COMPOUND): handle multiple moves. Maybe change method to return a list.
-                return actionInfo.getMove().getChanges(0).getSourceId();
+                List<ChangeProvider> changes = actionInfo.getMove().getChangesList();
+                return changes.stream()
+                    .filter(provider -> types.get(provider.getSourceId()) == EntityType.PHYSICAL_MACHINE)
+                    .findFirst()
+                    // If a PM move exists then use the source ID as the severity entity
+                    .map(ChangeProvider::getSourceId)
+                    // Otherwise use the source ID of the first provider change
+                    .orElse(changes.get(0).getSourceId());
             case RESIZE:
                 return actionInfo.getResize().getTargetId();
             case ACTIVATE:

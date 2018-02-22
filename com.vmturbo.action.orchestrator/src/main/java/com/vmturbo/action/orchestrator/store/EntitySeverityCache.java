@@ -20,26 +20,30 @@ import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Maintain a cache of entity severities. Refreshing the entire cache causes the recomputation of the
  * severity for every entity in the cache. Refreshing the cache when a single action changes updates
  * causes the recomputation of only the "SeverityEntity"
- * (see {@link com.vmturbo.common.protobuf.ActionDTOUtil#getSeverityEntity(Action)}
  * for that action (although this operation is not that much faster than a full recomputation because
  * it still requires an examination of every action in the {@link ActionStore}.
  *
  * The severity for an entity is considered the maximum severity across all "visible" actions for
  * which the entity is a "SeverityEntity".
  *
- * The cache should be invalidated and refreshed when:
- * 1. A new action arrives in the system
- * 2. The "visibility" of an existing action in the system changes. (Visibility defined as whether
+ * <p>The cache should be invalidated and refreshed when:
+ * <ol>
+ * <li>A new action arrives in the system
+ * <li>The "visibility" of an existing action in the system changes. (Visibility defined as whether
  * the user can see it in the UI).
- * 3. An action transitions from READY to any other state.
+ * <li>An action transitions from READY to any other state.
+ * </ol>
  *
- * TODO: (davidblinn) The work being done here is somewhat specific to the API. Consider
+ * <p>TODO(davidblinn): The work being done here is somewhat specific to the API. Consider
  * moving this responsibility to the API if possible.
+ *
+ * @see {@link ActionDTOUtil#getSeverityEntity(Action)}
  */
 @ThreadSafe
 public class EntitySeverityCache {
@@ -56,10 +60,13 @@ public class EntitySeverityCache {
     }
 
     /**
-     * Invalidate and refresh the calculated severity based on the current contents of the action store.
+     * Invalidate and refresh the calculated severity based on the current
+     * contents of the action store.
+     *
+     * @param actionStore the action store to use for the refresh
      */
     public void refresh(@Nonnull final ActionStore actionStore) {
-        synchronized(severities) {
+        synchronized (severities) {
             severities.clear();
 
             visibleReadyActionViews(actionStore)
@@ -71,13 +78,18 @@ public class EntitySeverityCache {
      * Refresh the calculated severity for the "SeverityEntity" for the given
      * action based on the current contents of the {@link ActionStore}.
      *
-     * TODO: (davidblinn) This may need to be made more efficient when lots of actions are updated
+     * TODO(davidblinn): This may need to be made more efficient when lots of actions are updated
      *
      * @param action The action whose "SeverityEntity" should have its severity recalculated.
+     * @param actionStore The action store where the action view for this action is stored. The
+     *     entity types map is taken from that action view.
      */
     public void refresh(@Nonnull final Action action, @Nonnull final ActionStore actionStore) {
         try {
-            long severityEntity = ActionDTOUtil.getSeverityEntity(action);
+            Map<Long, EntityType> types = actionStore.getActionView(action.getId())
+                            .map(ActionView::getTypes)
+                            .orElse(Collections.emptyMap());
+            long severityEntity = ActionDTOUtil.getSeverityEntity(action, types);
 
             visibleReadyActionViews(actionStore)
                 .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
@@ -109,7 +121,9 @@ public class EntitySeverityCache {
      */
     private void handleActionSeverity(@Nonnull final ActionView actionView) {
         try {
-            final long severityEntity = ActionDTOUtil.getSeverityEntity(actionView.getRecommendation());
+            final long severityEntity =
+                            ActionDTOUtil.getSeverityEntity(
+                                actionView.getRecommendation(), actionView.getTypes());
             final Severity nextSeverity = ActionDTOUtil.mapImportanceToSeverity(
                 actionView.getRecommendation().getImportance());
 
@@ -133,7 +147,9 @@ public class EntitySeverityCache {
      */
     private boolean matchingSeverityEntity(long severityEntity, @Nonnull final ActionView actionView) {
         try {
-            long specSeverityEntity = ActionDTOUtil.getSeverityEntity(actionView.getRecommendation());
+            long specSeverityEntity =
+                            ActionDTOUtil.getSeverityEntity(
+                                actionView.getRecommendation(), actionView.getTypes());
             return specSeverityEntity == severityEntity;
         } catch (UnsupportedActionException e) {
             return false;

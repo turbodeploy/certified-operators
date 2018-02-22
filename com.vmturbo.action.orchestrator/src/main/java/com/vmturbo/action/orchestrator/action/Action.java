@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.action;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -27,6 +28,8 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntityTypeMap;
+import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -82,6 +85,8 @@ public class Action implements ActionView {
      * Cached settings for entities.
      */
     private final EntitySettingsCache entitySettings;
+
+    private EntityTypeMap entityTypeMap;
 
     /**
      * The translation for this action.
@@ -178,6 +183,7 @@ public class Action implements ActionView {
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
                   @Nonnull final EntitySettingsCache entitySettings,
+                  @Nonnull final EntityTypeMap entityTypeMap,
                   final long actionPlanId) {
         this.recommendation = Objects.requireNonNull(recommendation);
         this.actionPlanId = actionPlanId;
@@ -187,6 +193,7 @@ public class Action implements ActionView {
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = Objects.requireNonNull(entitySettings);
+        this.entityTypeMap = Objects.requireNonNull(entityTypeMap);
         this.actionTypeSettingFilter = loadSettingFilterMap(true);
         this.actionTypeSettingDefault = loadSettingDefaultMap(true);
     }
@@ -212,8 +219,9 @@ public class Action implements ActionView {
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final EntitySettingsCache entitySettings,
+                  @Nonnull final EntityTypeMap entityTypeMap,
                   final long actionPlanId) {
-        this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId);
+        this(recommendation, LocalDateTime.now(), entitySettings, entityTypeMap, actionPlanId);
     }
 
     /**
@@ -427,7 +435,7 @@ public class Action implements ActionView {
     private EntitySettingSpecs determineMoveType() {
         boolean allStorageMoves = recommendation.getInfo().getMove().getChangesList().stream()
                         .map(ChangeProvider::getDestinationId)
-                        .map(entitySettings::getTypeForEntity)
+                        .map(entityTypeMap::getTypeForEntity)
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .allMatch(type -> type == EntityType.STORAGE);
@@ -757,5 +765,13 @@ public class Action implements ActionView {
             this.currentState = actionState;
             this.actionTranslation = actionTranslation;
         }
+    }
+
+    @Override
+    @Nonnull
+    public Map<Long, EntityType> getTypes() {
+        return entityTypeMap == null
+                        ? Collections.emptyMap()
+                        : entityTypeMap.getMap();
     }
 }

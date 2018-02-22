@@ -13,6 +13,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -26,6 +28,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 
+/**
+ * Unit Tests for EntitySeverityCache.
+ */
 public class EntitySeverityCacheTest {
 
     private final QueryFilter queryFilter = QueryFilter.VISIBILITY_FILTER;
@@ -101,6 +106,14 @@ public class EntitySeverityCacheTest {
             action3.getRecommendation().getId(), action3,
             unrelatedAction.getRecommendation().getId(), unrelatedAction);
         when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getActionView(Mockito.anyLong()))
+            .thenAnswer(new Answer<Optional<ActionView>>() {
+                @Override
+                public Optional<ActionView> answer(InvocationOnMock invocation) {
+                    Object[] args = invocation.getArguments();
+                    return Optional.of(actionViews.get(args[0]));
+                }
+            });
 
         entitySeverityCache.refresh(actionStore);
         Assert.assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());

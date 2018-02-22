@@ -1,14 +1,11 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 
 /**
  * A factory for creating actions.
@@ -35,8 +32,9 @@ public class ActionFactory implements IActionFactory {
     @Nonnull
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                             final EntitySettingsCache entitySettingsCache,
+                            final EntityTypeMap entityTypeMap,
                             final long actionPlanId) {
-        return new Action(recommendation, entitySettingsCache, actionPlanId);
+        return new Action(recommendation, entitySettingsCache, entityTypeMap, actionPlanId);
     }
 
     /**

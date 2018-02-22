@@ -42,6 +42,9 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
+/**
+ * Unit tests for {@link EntitySettingsCache} and {@link EntityTypeMap}.
+ */
 public class EntitySettingsCacheTest {
     private static final long TOPOLOGY_ID = 7L;
     private static final long TOPOLOGY_CONTEXT_ID = 77L;
@@ -49,7 +52,7 @@ public class EntitySettingsCacheTest {
     private static final EntityType VM_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE;
     private static final String VM_CLASSIC_ENTITY_TYPE = "VirtualMachine";
 
-    private final HttpEntity<Set> httpEntity = new HttpEntity<>(Collections.singleton(ENTITY_ID));
+    private final HttpEntity<Set<Long>> httpEntity = new HttpEntity<>(Collections.singleton(ENTITY_ID));
     private final ParameterizedTypeReference<List<ServiceEntityApiDTO>> type =
             new ParameterizedTypeReference<List<ServiceEntityApiDTO>>() {};
 
@@ -60,12 +63,15 @@ public class EntitySettingsCacheTest {
 
     private EntitySettingsCache entitySettingsCache;
 
+    private EntityTypeMap entityTypeMap;
+
     private RestTemplate restTemplate = mock(RestTemplate.class);
 
     @Before
     public void setup() {
-        entitySettingsCache = new EntitySettingsCache(grpcTestServer.getChannel(), restTemplate,
-                "test", 123, Executors.newSingleThreadExecutor(), 5, 1000);
+        entitySettingsCache = new EntitySettingsCache(grpcTestServer.getChannel());
+        entityTypeMap = new EntityTypeMap(restTemplate,
+            "test", 123, Executors.newSingleThreadExecutor(), 5, 1000);
 
         when(restTemplate.exchange(anyString(), eq(HttpMethod.POST), eq(httpEntity), eq(type)))
                 .thenReturn(ResponseEntity.ok(Collections.emptyList()));
@@ -101,9 +107,10 @@ public class EntitySettingsCacheTest {
 
 
         entitySettingsCache.update(Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+        entityTypeMap.retrieveEntityTypes(Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID);
 
         final List<Setting> newSettings = entitySettingsCache.getSettingsForEntity(ENTITY_ID);
-        final Optional<EntityType> newType = entitySettingsCache.getTypeForEntity(ENTITY_ID);
+        final Optional<EntityType> newType = entityTypeMap.getTypeForEntity(ENTITY_ID);
         assertThat(newSettings, containsInAnyOrder(setting));
         assertTrue(newType.isPresent());
         assertEquals(newType.get(), VM_ENTITY_TYPE);
@@ -112,7 +119,7 @@ public class EntitySettingsCacheTest {
     @Test
     public void testGetEmpty() {
         assertTrue(entitySettingsCache.getSettingsForEntity(ENTITY_ID).isEmpty());
-        assertFalse(entitySettingsCache.getTypeForEntity(ENTITY_ID).isPresent());
+        assertFalse(entityTypeMap.getTypeForEntity(ENTITY_ID).isPresent());
     }
 
     @Test
@@ -126,6 +133,6 @@ public class EntitySettingsCacheTest {
         entitySettingsCache.update(Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         assertTrue(entitySettingsCache.getSettingsForEntity(ENTITY_ID).isEmpty());
-        assertFalse(entitySettingsCache.getTypeForEntity(ENTITY_ID).isPresent());
+        assertFalse(entityTypeMap.getTypeForEntity(ENTITY_ID).isPresent());
     }
 }

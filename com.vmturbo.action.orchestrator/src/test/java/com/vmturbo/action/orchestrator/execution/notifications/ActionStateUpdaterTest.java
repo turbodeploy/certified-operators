@@ -25,6 +25,7 @@ import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -57,13 +58,14 @@ public class ActionStateUpdaterTest {
         .build();
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
 
     private Action testAction;
 
     @Before
     public void setup() {
-        when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
-        testAction = new Action(recommendation, entitySettingsCache, 4);
+        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
+        testAction = new Action(recommendation, entitySettingsCache, entityTypeMap, 4);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());

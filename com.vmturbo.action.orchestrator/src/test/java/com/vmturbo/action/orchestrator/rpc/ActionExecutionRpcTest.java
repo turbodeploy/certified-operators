@@ -36,13 +36,14 @@ import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult
 import com.vmturbo.action.orchestrator.store.ActionFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
+import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
-import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -53,6 +54,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Tests for action execution RPCs.
@@ -77,14 +79,14 @@ public class ActionExecutionRpcTest {
             return action;
         })));
 
-    private final ActionSupportResolver filter = mock
-            (ActionSupportResolver.class);
+    private final ActionSupportResolver filter = mock(ActionSupportResolver.class);
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
+    private final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
 
-    private final static long ACTION_PLAN_ID = 2;
-    private final static long TOPOLOGY_CONTEXT_ID = 3;
-    private final static long ACTION_ID = 9999;
+    private static final long ACTION_PLAN_ID = 2;
+    private static final long TOPOLOGY_CONTEXT_ID = 3;
+    private static final long ACTION_ID = 9999;
 
     private final ActionsRpcService actionsRpcService =
             new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
@@ -94,15 +96,14 @@ public class ActionExecutionRpcTest {
 
     private ActionStore actionStoreSpy;
 
-    @SuppressWarnings("unchecked")
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
 
-        when(entitySettingsCache.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
+        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.of(EntityType.PHYSICAL_MACHINE));
         actionStoreSpy =
                 Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                        filter, entitySettingsCache, actionHistoryDao));
+                        filter, entitySettingsCache, entityTypeMap, actionHistoryDao));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -242,6 +243,7 @@ public class ActionExecutionRpcTest {
             .build();
 
         actionStorehouse.storeActions(plan);
+
         when(actionExecutor.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
         doThrow(new ExecutionStartException("ERROR!"))
             .when(actionExecutor).execute(eq(targetId), eq(recommendation));

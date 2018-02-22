@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
@@ -65,10 +64,14 @@ public class ActionStoreConfig {
 
     @Bean
     public EntitySettingsCache entitySettingsCache() {
-        return new EntitySettingsCache(groupClientConfig.groupChannel(),
-                serviceRestTemplate(), repositoryClientConfig.getRepositoryHost(), httpPort,
-                Executors.newSingleThreadExecutor(), entityTypeMaxRetries,
-                entityTypeRetryIntervalMillis);
+        return new EntitySettingsCache(groupClientConfig.groupChannel());
+    }
+
+    @Bean EntityTypeMap entityTypeMap() {
+        return new EntityTypeMap(serviceRestTemplate(),
+            repositoryClientConfig.getRepositoryHost(), httpPort,
+            Executors.newSingleThreadExecutor(), entityTypeMaxRetries,
+            entityTypeRetryIntervalMillis);
     }
 
     @Bean
@@ -87,12 +90,11 @@ public class ActionStoreConfig {
     @Bean
     public IActionStoreFactory actionStoreFactory() {
         return new ActionStoreFactory(actionFactory(),
-            actionTranslator(),
             actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
             databaseConfig.dsl(),
             actionOrchestratorGlobalConfig.topologyProcessorChannel(),
             actionOrchestratorGlobalConfig.topologyProcessor(),
-            entitySettingsCache());
+            entitySettingsCache(), entityTypeMap());
     }
 
     @Bean

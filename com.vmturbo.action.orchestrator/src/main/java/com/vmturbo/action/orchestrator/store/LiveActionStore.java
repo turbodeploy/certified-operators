@@ -60,6 +60,8 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitySeverityCache severityCache;
 
+    private final EntityTypeMap entityTypeMap;
+
     private final EntitySettingsCache entitySettingsCache;
 
     private final ActionHistoryDao actionHistoryDao;
@@ -95,17 +97,23 @@ public class LiveActionStore implements ActionStore {
      *
      * @param actionFactory The factory for generating new actions.
      * @param topologyContextId The contextId for the live (realtime) market.
+     * @param actionSupportResolver used to determine action capabilities.
+     * @param entitySettingsCache caches the entity capabilities per entity
+     * @param entityTypeMap a mapping from entity oid to entity type
+     * @param actionHistoryDao obtains history of actions
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
                            @Nonnull final ActionSupportResolver actionSupportResolver,
                            @Nonnull final EntitySettingsCache entitySettingsCache,
+                           @Nonnull final EntityTypeMap entityTypeMap,
                            @Nonnull final ActionHistoryDao actionHistoryDao) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
         this.actionSupportResolver = actionSupportResolver;
         this.entitySettingsCache = entitySettingsCache;
+        this.entityTypeMap = entityTypeMap;
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
     }
 
@@ -260,7 +268,7 @@ public class LiveActionStore implements ActionStore {
             actionPlan.getActionList().forEach(recommendedAction -> {
                 final ActionInfo info = recommendedAction.getInfo();
                 final Action action = recommendations.take(info)
-                    .orElse(actionFactory.newAction(recommendedAction, entitySettingsCache, planId));
+                    .orElse(actionFactory.newAction(recommendedAction, entitySettingsCache, entityTypeMap, planId));
                 if (action.getState() == ActionState.READY) {
                     try {
                         entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntities(recommendedAction));
@@ -273,6 +281,7 @@ public class LiveActionStore implements ActionStore {
 
             entitySettingsCache.update(entitiesToRetrieve,
                     actionPlan.getTopologyContextId(), actionPlan.getTopologyId());
+            entityTypeMap.retrieveEntityTypes(entitiesToRetrieve, topologyContextId);
 
             filterActionsByCapabilityForUiDisplaying();
 
@@ -287,7 +296,7 @@ public class LiveActionStore implements ActionStore {
                     a.getRecommendation().getInfo().getActionTypeCase(), Collectors.counting())
                 ).forEach((actionType, count) -> ACTION_COUNTS_SUMMARY
                     .labels(actionType.name())
-                    .observe((double) count));
+                    .observe((double)count));
         }
 
         return true;
@@ -354,14 +363,14 @@ public class LiveActionStore implements ActionStore {
     @Nonnull
     @Override
     public Map<Long, ActionView> getActionViews() {
-        List <ActionView> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
+        List<ActionView> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
         List<ActionView> otherActionList = actions.values().stream()
                 .filter(action -> !isSucceededorFailed(action))
                 .collect(Collectors.toList());
-        List <ActionView> combinedActionList = Stream.of(succeededOrFailedActionList, otherActionList)
+        List<ActionView> combinedActionList = Stream.of(succeededOrFailedActionList, otherActionList)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
-        Map <Long, ActionView> combinedActionMap = combinedActionList.stream()
+        Map<Long, ActionView> combinedActionMap = combinedActionList.stream()
                 .collect(Collectors.toMap(ActionView::getId, Function.identity()));
         return Collections.unmodifiableMap(combinedActionMap);
     }
