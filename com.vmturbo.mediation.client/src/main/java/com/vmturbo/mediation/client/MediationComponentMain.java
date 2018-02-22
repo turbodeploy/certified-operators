@@ -114,7 +114,6 @@ public class MediationComponentMain<A> extends BaseVmtComponent {
 
     @Override
     protected void onStartComponent() {
-        super.onStartComponent();
         mediationWorker().startMediationHandshake();
     }
 

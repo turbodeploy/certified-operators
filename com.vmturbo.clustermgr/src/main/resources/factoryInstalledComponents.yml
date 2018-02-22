@@ -17,6 +17,7 @@ action-orchestrator:
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000
   mariadbHealthCheckIntervalSeconds: 60
+  kvStoreRetryIntervalMillis: 1000
   repositoryHost: 'repository'
   entityTypeRetryIntervalMillis: 1000
   entityTypeMaxRetries: 6
@@ -24,7 +25,6 @@ action-orchestrator:
     deadlockCheckIntervalSecs: 900
     maxHealthyUsedMemoryRatio: 0.95
     scheduledMetricsIntervalMs: 60000
-    kvStoreRetryIntervalMillis: 1000
   #temp fix to resolve conflict between action.orchestrator.api project and
   #    action.orchestrator.api package in AO
   actionOrchestratorHost: 'action-orchestrator'
@@ -56,6 +56,7 @@ topology-processor:
   discoveryTimeoutSeconds: 30
   validationTimeoutSeconds: 30
   topologyBroadcastIntervalMinutes: 10
+  kvStoreRetryIntervalMillis: 1000
   actionTimeoutSeconds: 30
   groupHost: 'group'
   historyHost: 'history'
@@ -128,6 +129,7 @@ api:
   historyHost: 'history'
   reportingHost: 'reporting'
   identityGeneratorPrefix: 5
+  kvStoreRetryIntervalMillis: 1000
   keystoreFile: '/home/turbonomic/data/keystore.p12'
   keystoreType: 'PKCS12'
   keystoreAlias: 'vmt'
@@ -147,6 +149,7 @@ api:
 
 auth:
   <<: *baseVmtComponentSettings
+  kvStoreRetryIntervalMillis: 1000
   <<: *db_conn_info
   dbSchemaName: 'auth'
   sqlDialect: 'MARIADB'
