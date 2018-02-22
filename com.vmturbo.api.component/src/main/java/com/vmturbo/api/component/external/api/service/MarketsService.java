@@ -531,6 +531,8 @@ public class MarketsService implements IMarketsService {
                         .build());
         List<TopologyEntityDTO> unplacedDTOs = StreamSupport.stream(response.spliterator(), false)
                 .flatMap(rtResponse -> rtResponse.getEntitiesList().stream())
+                // right now, legacy and UI only expect unplaced virtual machine.
+                .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .collect(Collectors.toList());
 
         // if no unplaced entities, return an empty collection
@@ -577,6 +579,10 @@ public class MarketsService implements IMarketsService {
     private List<ServiceEntityApiDTO> createServiceEntityApiDTOs(Collection<TopologyEntityDTO> unplacedDTOs,
                                                          Map<Long, TopologyEntityDTO> providers) {
         return unplacedDTOs.stream()
+                // TODO: (OM-31842) After Market side fix the bug of unplaced cloned
+                // entity, we can remove this filter logic.
+                .filter(entity -> entity.getCommoditiesBoughtFromProvidersList().stream()
+                        .allMatch(CommoditiesBoughtFromProvider::hasProviderEntityType))
                 .map(entity -> createServiceEntityApiDTO(entity, providers))
                 .collect(Collectors.toList());
     }
@@ -609,14 +615,7 @@ public class MarketsService implements IMarketsService {
                 // 'not placed on' list contains the list of provider entity types that were not found
                 // during analysis. These entity types could have provided the commodities needed by
                 // this unplaced entity
-                if (comm.hasProviderEntityType()) {
-                    notPlacedOnJoiner.add(EntityType.forNumber(comm.getProviderEntityType()).name());
-                } else {
-                    // fall back if no provider entity type -- list out all the unplaced commodities bought
-                    comm.getCommodityBoughtList()
-                            .forEach(bought -> notPlacedOnJoiner.add(
-                                    CommodityType.forNumber(bought.getCommodityType().getType()).name()));
-                }
+                notPlacedOnJoiner.add(EntityType.forNumber(comm.getProviderEntityType()).name());
             }
         }
         seEntity.setPlacedOn(placedOnJoiner.toString());

@@ -341,6 +341,13 @@ public class TopologyConverter {
             if (sl.hasSupplier()) {
                 commoditiesBoughtFromProviderBuilder.setProviderId(sl.getSupplier());
             }
+            // if can not find the ShoppingListInfo, that means Market generate some wrong shopping
+            // list.
+            if (!shoppingListOidToInfos.containsKey(sl.getOid())) {
+                throw new IllegalStateException("Market returned invalid shopping list for : " + sl);
+            }
+            shoppingListOidToInfos.get(sl.getOid()).getSellerEntityType()
+                    .ifPresent(commoditiesBoughtFromProviderBuilder::setProviderEntityType);
             topoDTOCommonBoughtGrouping.add(commoditiesBoughtFromProviderBuilder.build());
         }
 
@@ -740,8 +747,11 @@ public class TopologyConverter {
         if (providerOid != null) {
             economyShoppingListBuilder.setSupplier(providerOid);
         }
+        final Integer providerEntityType = commBoughtGrouping.hasProviderEntityType() ?
+                commBoughtGrouping.getProviderEntityType() : null;
         shoppingListOidToInfos.put(id,
-            new ShoppingListInfo(id, buyerOid, providerOid, commBoughtGrouping.getCommodityBoughtList()));
+            new ShoppingListInfo(id, buyerOid, providerOid, providerEntityType,
+                    commBoughtGrouping.getCommodityBoughtList()));
         return economyShoppingListBuilder.build();
     }
 
@@ -1501,7 +1511,7 @@ public class TopologyConverter {
         // commodityBoughtList, we have to give some dummy values
         list.forEach(l -> shoppingListOidToInfos.put(l.getNewShoppingList(),
                     new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null,
-                        Lists.newArrayList())));
+                            null, Lists.newArrayList())));
         return;
     }
 }

@@ -1,6 +1,7 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.List;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -29,6 +30,12 @@ public class ShoppingListInfo {
     public final Long sellerId;
 
     /**
+     * The entity type of seller of the shopping list and it could be null when the shopping list
+     * is from newly provisioned trader.
+     */
+    public final Integer sellerEntityType;
+
+    /**
      * The commodity list used to create the shopping list.
      */
     public final List<CommodityBoughtDTO> commodities;
@@ -36,14 +43,20 @@ public class ShoppingListInfo {
     public ShoppingListInfo(final long id,
                             final long buyerId,
                             @Nullable final Long sellerId,
+                            @Nullable final Integer sellerEntityType,
                             @Nonnull final List<CommodityBoughtDTO> commodities) {
         this.id = id;
         this.buyerId = buyerId;
         this.sellerId = sellerId;
+        this.sellerEntityType = sellerEntityType;
         this.commodities = commodities;
     }
 
     public long getBuyerId() {
         return buyerId;
+    }
+
+    public Optional<Integer> getSellerEntityType() {
+        return Optional.ofNullable(this.sellerEntityType);
     }
 }

@@ -408,7 +408,8 @@ public class TopologyConverterTest {
         final int cpuType = idAllocator.allocate("CPU");
         final int dspmType = idAllocator.allocate("DSPM");
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
-        shoppingListMap.put(10000L, new ShoppingListInfo(2, 20000L, 10000L, topologyDSPMBought));
+        shoppingListMap.put(10001L, new ShoppingListInfo(2, 20000L, 10000L,
+                EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field commTypeAllocator =
                         TopologyConverter.class.getDeclaredField("commodityTypeAllocator");
         commTypeAllocator.setAccessible(true);
@@ -434,12 +435,13 @@ public class TopologyConverterTest {
                         .economyToTopologyCommodity(Mockito.eq(economyCPUSold.getSpecification()));
         // create a topology entity DTO with DSPM sold
         TopologyDTO.TopologyEntityDTO expectedEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
-                        .setEntityType(10)
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setOid(10000L)
                         .addCommoditySoldList(topologyDSPMSold)
                         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                             .setProviderId(10000L)
-                            .addAllCommodityBought(topologyCPUBought))
+                            .addAllCommodityBought(topologyCPUBought)
+                            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE))
                         .putEntityPropertyMap("dummy", "dummy")
                         .build();
         // create a topology entity DTO with DSPM bought
@@ -457,7 +459,7 @@ public class TopologyConverterTest {
                         .setOid(10000L)
                         .addCommoditiesSold(economyDSPMSold)
                         .addShoppingLists(ShoppingListTO.newBuilder()
-                            .setOid(111)
+                            .setOid(10001L)
                             .addCommoditiesBought(CommodityBoughtTO.newBuilder()
                                 .setSpecification(CommoditySpecificationTO.newBuilder()
                                     .setBaseType(2)
@@ -470,8 +472,12 @@ public class TopologyConverterTest {
         List<TopologyDTO.TopologyEntityDTO> entity =
                         converter.convertFromMarket(Arrays.asList(trader),
                             Sets.newHashSet(expectedEntity, expectedEntity2));
+        assertEquals(1L, entity.size());
         assertTrue(expectedEntity.getCommoditySoldList(0)
                         .equals(entity.get(0).getCommoditySoldList(0)));
+        assertEquals(1, entity.get(0).getCommoditiesBoughtFromProvidersCount());
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE,
+                entity.get(0).getCommoditiesBoughtFromProviders(0).getProviderEntityType());
     }
 
     private static final Set<String> CONSTANT_PRICE_TYPES_S = ImmutableSet.of(
