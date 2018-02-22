@@ -44,6 +44,8 @@ public class ReportsComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
+        // We call localFlyway to promote reporting db migration directly
+        reportingConfig.dbConfig().localFlyway();
         // add kafka producer health check
         getHealthMonitor().addHealthCheck(reportingConfig.kafkaHealthMonitor());
         reportingConfig.scheduler().scheduleAllReportsGeneration();

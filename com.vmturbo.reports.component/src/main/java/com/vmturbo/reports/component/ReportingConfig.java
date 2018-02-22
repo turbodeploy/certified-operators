@@ -7,6 +7,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.eclipse.birt.core.exception.BirtException;
@@ -66,6 +68,11 @@ public class ReportingConfig {
      */
     @Value("${scheduledReportsGenerationTime}")
     private int scheduledReportsGenerationTime;
+
+    @Nonnull
+    public ReportingDbConfig dbConfig() {
+        return dbConfig;
+    }
 
     @Bean
     public ComponentReportRunner componentReportRunner() {
