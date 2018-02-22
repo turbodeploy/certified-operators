@@ -2,6 +2,7 @@ package com.vmturbo.components.api.client;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -152,12 +153,13 @@ public class KafkaMessageConsumer implements AutoCloseable {
      */
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull String topic,
             @Nonnull Deserializer<T> deserializer) {
-        return messageReceiver(Collections.singleton(topic), deserializer);
+        return createMessageReceiver(topic, deserializer);
     }
 
     /**
      * Creates message receiver for the specific topic. Kafka consumer will not subscribe to any
-     * topics until this method is called.
+     * topics until this method is called. Different topics specified here could be reported
+     * in parallel, while all the messages within a topic are only delivered sequentially.
      *
      * @param topics topic to subscribe to
      * @param deserializer function to deserialize the message from bytes
@@ -167,22 +169,40 @@ public class KafkaMessageConsumer implements AutoCloseable {
      */
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull Collection<String> topics,
             @Nonnull Deserializer<T> deserializer) {
-        final KafkaMessageReceiver<T> receiver = new KafkaMessageReceiver<>(deserializer);
+        final Collection<IMessageReceiver<T>> receivers = new ArrayList<>();
         synchronized (consumerLock) {
             for (String topic : topics) {
-                if (started) {
-                    throw new IllegalStateException(
-                            "It is not allowed to add message receivers after" +
-                                    " consumer has been started");
-                }
-                logger.debug("Adding receiver for topic {}", topic);
-                if (consumers.containsKey(topic)) {
-                    throw new IllegalStateException("Topic " + topic + " has been already added");
-                }
-                consumers.put(topic, receiver);
+                receivers.add(createMessageReceiver(topic, deserializer));
             }
-            return receiver;
         }
+        return new UmbrellaMessageReceiver<>(receivers);
+    }
+
+    /**
+     * Internal method to create message receiver based on topic and deserializer.
+     *
+     * @param topic topic to subscribe to
+     * @param deserializer function to deserialize the message from bytes
+     * @param <T> type of messages to receive
+     * @return message receiver implementation
+     * @throws IllegalStateException if the topic has been already subscribed to, or
+     *         consumer has been already started
+     */
+    private <T> IMessageReceiver<T> createMessageReceiver(@Nonnull String topic,
+            @Nonnull Deserializer<T> deserializer) {
+        final KafkaMessageReceiver<T> receiver = new KafkaMessageReceiver<>(deserializer);
+        synchronized (consumerLock) {
+            if (started) {
+                throw new IllegalStateException("It is not allowed to add message receivers after" +
+                        " consumer has been started");
+            }
+            logger.debug("Adding receiver for topic {}", topic);
+            if (consumers.containsKey(topic)) {
+                throw new IllegalStateException("Topic " + topic + " has been already added");
+            }
+            consumers.put(topic, receiver);
+        }
+        return receiver;
     }
 
     /**
