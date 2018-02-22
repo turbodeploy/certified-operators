@@ -581,8 +581,10 @@ public class GroupService extends GroupServiceImplBase {
                     .anyMatch(id -> id.equals(groupId));
 
             case MUST_RUN_TOGETHER:
-                return (policy.getMustRunTogether().getConsumerGroup() == groupId) ||
-                    (policy.getMustRunTogether().getProviderGroup() == groupId);
+                return (policy.getMustRunTogether().getGroup() == groupId);
+
+            case MUST_NOT_RUN_TOGETHER:
+                return (policy.getMustNotRunTogether().getGroup() == groupId);
 
             default:
                 throw new RuntimeException("Failed to parse policy case: " + policy.getPolicyDetailCase());

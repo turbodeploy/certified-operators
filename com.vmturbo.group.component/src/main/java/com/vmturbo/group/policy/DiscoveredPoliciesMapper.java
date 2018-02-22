@@ -8,10 +8,11 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToComplementaryGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.MustNotRunTogetherPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.MustRunTogetherPolicy;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 
 /**
@@ -36,6 +37,8 @@ public class DiscoveredPoliciesMapper {
                     "Can't create a policy where buyers group is the same as sellers group";
     private static final String NOT_FOUND = "Buyers or Sellers group ID not found";
     private static final String MESSAGE = "{}. Buyers : \"{}\" ({}). Sellers : \"{}\" ({}).";
+    private static final String BUYER_BUYER_NOT_FOUND = "Buyers group ID not found";
+    private static final String BUYER_BUYER_MESSAGE = "{}. Buyers : \"{}\" ({}).";
 
     /**
      * Convert a discovered policy spec (representing e.g. a DRS rules)
@@ -45,12 +48,30 @@ public class DiscoveredPoliciesMapper {
      * @return a representation of the policy that can be saved in the DB
      */
     public Optional<InputPolicy> inputPolicy(DiscoveredPolicyInfo spec) {
+
+        final int constraintType = spec.getConstraintType();
+        boolean isBuyerBuyerPolicy = (
+                constraintType == ConstraintType.BUYER_BUYER_AFFINITY_VALUE ||
+                constraintType == ConstraintType.BUYER_BUYER_ANTI_AFFINITY_VALUE);
+
         Long buyersId = groupOids.get(spec.getBuyersGroupStringId());
-        Long sellersId = groupOids.get(spec.getSellersGroupStringId());
-        if (sellersId == null || buyersId == null) {
+
+        // the seller might not be present in the spec
+        Long sellersId = null;
+        if (spec.hasSellersGroupStringId()) {
+            sellersId = groupOids.get(spec.getSellersGroupStringId());
+        }
+
+        // check all expected groups are found
+        if ((sellersId == null || buyersId == null) && !isBuyerBuyerPolicy) {
             logger.warn(MESSAGE, NOT_FOUND,
                 spec.getBuyersGroupStringId(), buyersId,
                 spec.getSellersGroupStringId(), sellersId);
+            return Optional.empty();
+        }
+        if (buyersId == null && isBuyerBuyerPolicy) {
+            logger.warn(BUYER_BUYER_MESSAGE, BUYER_BUYER_NOT_FOUND,
+                    spec.getBuyersGroupStringId(), buyersId);
             return Optional.empty();
         }
         if (sellersId ==  buyersId) {
@@ -59,6 +80,8 @@ public class DiscoveredPoliciesMapper {
                 spec.getSellersGroupStringId(), sellersId);
             return Optional.empty();
         }
+
+        // create the policy
         InputPolicy.Builder builder = InputPolicy.newBuilder()
                         .setName(spec.getPolicyName())
                         .setCommodityType(DRS_SEGMENTATION_COMMODITY);
@@ -76,14 +99,15 @@ public class DiscoveredPoliciesMapper {
                         .build()).build());
             case ConstraintType.BUYER_BUYER_AFFINITY_VALUE:
                 return Optional.of(builder.setMustRunTogether(MustRunTogetherPolicy.newBuilder()
-                    .setConsumerGroup(buyersId)
-                    .setProviderGroup(sellersId)
+                    .setGroup(buyersId)
+                    // for now we are assuming that every buyer_buyer affinity is on hosts
+                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .build()).build());
             case ConstraintType.BUYER_BUYER_ANTI_AFFINITY_VALUE:
-                return Optional.of(builder.setAtMostN(AtMostNPolicy.newBuilder()
-                    .setConsumerGroup(buyersId)
-                    .setProviderGroup(sellersId)
-                    .setCapacity(1)
+                return Optional.of(builder.setMustNotRunTogether(MustNotRunTogetherPolicy.newBuilder()
+                    .setGroup(buyersId)
+                    // for now we are assuming that every buyer_buyer anti-affinity is on hosts
+                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .build()).build());
             default: {
                 logger.warn("Constraint type " + spec.getConstraintType() + " is not supported");

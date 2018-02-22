@@ -147,7 +147,9 @@ message DiscoveredPolicyInfo {
     // Name of the seller's group. It will be replaced to OID in group component.
     // When creating a discovered policy, a group of the same name must exist in the
     // StoreDiscoveredGroupsRequest or the discovered policy creation will fail.
-    required string sellers_group_string_id = 2;
+    // Note: some policies (MustRun/MustNotRunTogether) only have a buyers group, so this field
+    // will be empty in those policies
+    optional string sellers_group_string_id = 2;
 
     // Name of the buyer's group. It will be replaced to OID in group component
     // When creating a discovered policy, a group of the same name must exist in the

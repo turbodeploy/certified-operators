@@ -14,8 +14,10 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToComplementaryGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.MustNotRunTogetherPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.MustRunTogetherPolicy;
 import com.vmturbo.group.policy.DiscoveredPoliciesMapper;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 
 /**
@@ -79,7 +81,6 @@ public class DiscoveredPoliciesMapperTest {
         DiscoveredPolicyInfo info = DiscoveredPolicyInfo.newBuilder()
                         .setPolicyName("VM-VM-ANTI-AFFINITY")
                         .setBuyersGroupStringId(BUYERS_GROUP_NAME)
-                        .setSellersGroupStringId(SELLERS_GROUP_NAME)
                         .setConstraintType(ConstraintType.BUYER_BUYER_AFFINITY_VALUE)
                         .build();
         InputPolicy policy = mapper.inputPolicy(info).get();
@@ -87,8 +88,8 @@ public class DiscoveredPoliciesMapperTest {
         assertEquals(info.getPolicyName(), policy.getName());
         assertSame(DRS_SEGMENTATION_COMMODITY, policy.getCommodityType());
         MustRunTogetherPolicy together = policy.getMustRunTogether();
-        assertEquals(BUYERS_GROUP_OID, together.getConsumerGroup());
-        assertEquals(SELLERS_GROUP_OID, together.getProviderGroup());
+        assertEquals(BUYERS_GROUP_OID, together.getGroup());
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, together.getProviderEntityType());
     }
 
     @Test
@@ -96,17 +97,15 @@ public class DiscoveredPoliciesMapperTest {
         DiscoveredPolicyInfo info = DiscoveredPolicyInfo.newBuilder()
                         .setPolicyName("VM-VM-ANTI-AFFINITY")
                         .setBuyersGroupStringId(BUYERS_GROUP_NAME)
-                        .setSellersGroupStringId(SELLERS_GROUP_NAME)
                         .setConstraintType(ConstraintType.BUYER_BUYER_ANTI_AFFINITY_VALUE)
                         .build();
         InputPolicy policy = mapper.inputPolicy(info).get();
-        assertTrue(policy.hasAtMostN());
+        assertTrue(policy.hasMustNotRunTogether());
         assertEquals(info.getPolicyName(), policy.getName());
         assertSame(DRS_SEGMENTATION_COMMODITY, policy.getCommodityType());
-        AtMostNPolicy separate = policy.getAtMostN();
-        assertEquals(BUYERS_GROUP_OID, separate.getConsumerGroup());
-        assertEquals(SELLERS_GROUP_OID, separate.getProviderGroup());
-        assertEquals(1.0, separate.getCapacity(), 0.001);
+        MustNotRunTogetherPolicy separate = policy.getMustNotRunTogether();
+        assertEquals(BUYERS_GROUP_OID, separate.getGroup());
+        assertEquals(EntityType.PHYSICAL_MACHINE_VALUE, separate.getProviderEntityType());
     }
 
     @Test

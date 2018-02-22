@@ -742,8 +742,7 @@ public class PlacementPolicySysTest {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
             .setMustRunTogether(Policy.MustRunTogetherPolicy.newBuilder()
-                .setConsumerGroupId(policyGroupingID())
-                .setProviderGroupId(policyGroupingID())
+                .setGroupId(policyGroupingID())
                 .build())
             .build();
     }

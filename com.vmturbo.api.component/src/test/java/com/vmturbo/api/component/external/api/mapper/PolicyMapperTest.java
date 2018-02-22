@@ -130,11 +130,10 @@ public class PolicyMapperTest {
         assertEquals(result.getUuid(), Long.toString(testPolicyID));
         assertFalse(result.isEnabled());
         assertEquals(result.getCommodityType(), testPolicyCommodityType);
-        assertEquals(result.getType(), PolicyType.valueOf(policy.getPolicyDetailCase().name()));
 
         // then - specific
         assertEquals(Integer.valueOf(10), result.getCapacity());
-        assertEquals(result.getType(), PolicyType.AT_MOST_NBOUND);
+        assertEquals(result.getType(), PolicyType.AT_MOST_N_BOUND);
         assertEquals(result.getConsumerGroup(), consumerDTO);
         assertEquals(result.getProviderGroup(), providerDTO);
 
@@ -343,8 +342,7 @@ public class PolicyMapperTest {
     public void testPolicyToApiDtoMustRunTogether() {
         Policy policy = rawPolicyBuilder
                 .setMustRunTogether(Policy.MustRunTogetherPolicy.newBuilder()
-                        .setConsumerGroupId(testConsumerId)
-                        .setProviderGroupId(testProviderId)
+                        .setGroupId(testConsumerId)
                         .build())
                 .build();
 
@@ -359,11 +357,35 @@ public class PolicyMapperTest {
 
         assertEquals(result.getType(), PolicyType.MUST_RUN_TOGETHER);
         assertEquals(result.getConsumerGroup(), consumerDTO);
-        assertEquals(result.getProviderGroup(), providerDTO);
+        // the provider group should not be populated in this case
+        assertEquals(null, result.getProviderGroup());
 
         // the reverse conversion
         Policy reverse = policyMapper.policyApiDtoToProto(result);
         assertEquals(policy, reverse);
+    }
+
+    @Test
+    public void testPolicyToApiDtoMustNotRunTogether() {
+        Policy policy = rawPolicyBuilder
+                .setMustNotRunTogether(Policy.MustNotRunTogetherPolicy.newBuilder()
+                        .setGroupId(testConsumerId)
+                        .build())
+                .build();
+
+        PolicyApiDTO result = policyMapper.policyToApiDto(policy, policyGroupingMap);
+
+        assertEquals(result.getName(), result.getDisplayName());
+        assertEquals(result.getName(), testPolicyName);
+        assertEquals(result.getUuid(), Long.toString(testPolicyID));
+        assertFalse(result.isEnabled());
+        assertEquals(result.getCommodityType(), testPolicyCommodityType);
+        // right now we are converting a MustNotRunTogether into a AtMostN, because api is not
+        // supporting that yet
+        assertEquals(result.getType(), PolicyType.AT_MOST_N);
+        assertEquals(result.getConsumerGroup(), consumerDTO);
+        // the provider group should not be populated in this case
+        assertEquals(null, result.getProviderGroup());
     }
 
 
@@ -512,7 +534,7 @@ public class PolicyMapperTest {
     @Test
     public void testPolicyApiInputDtoToProtoAtMostNBound() {
         PolicyApiInputDTO inputDTO = makeTestPolicyApiInputDTO();
-        inputDTO.setType(PolicyType.AT_MOST_NBOUND);
+        inputDTO.setType(PolicyType.AT_MOST_N_BOUND);
         inputDTO.setCapacity(10);
 
         InputPolicy result = policyMapper.policyApiInputDtoToProto(inputDTO);
@@ -539,8 +561,7 @@ public class PolicyMapperTest {
 
         assertTrue(result.hasMustRunTogether());
         InputPolicy.MustRunTogetherPolicy policy = result.getMustRunTogether();
-        assertEquals(policy.getConsumerGroup(), testConsumerId);
-        assertEquals(policy.getProviderGroup(), testProviderId);
+        assertEquals(policy.getGroup(), testConsumerId);
     }
 
     @Test

@@ -78,9 +78,10 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
                 consumerPolicyEntities.getAdditionalEntities());
 
         // Add the commodity to the appropriate entities.
-        // Add a small epsilon to the capacity to ensure floating point roundoff error does not accidentally
+        // Add a small delta to the capacity to ensure floating point roundoff error does not accidentally
         // reduce the atMostNBound capacity below the intended integer equivalent value.
-        addCommoditySold(providers, consumers, topologyGraph, atMostNBound.getCapacity() + 0.1f);
+        addCommoditySold(providers, consumers, topologyGraph,
+                atMostNBound.getCapacity() + SMALL_DELTA_VALUE);
         addCommodityBought(consumers, topologyGraph, providerEntityType, commodityBought());
     }
 }

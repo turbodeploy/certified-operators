@@ -31,6 +31,7 @@ message Policy {
         BindToGroupAndGeoRedundancyPolicy bind_to_group_and_geo_redundancy = 20;
         MergePolicy merge = 21;
         MustRunTogetherPolicy must_run_together = 22;
+        MustNotRunTogetherPolicy must_not_run_together = 23;
     }
 
     // Defines a limit on the number of entities from the consumer group that can run on each
@@ -38,7 +39,7 @@ message Policy {
     // in the provider group.
     // Common use case: VM->VM anti-affinity
     message AtMostNPolicy {
-        // Indicate the max entities at the same time that can run on any entity in the providers group.
+        // Indicate the max entities at the same time that can run on any entity in the provider group.
         optional float capacity = 1;
         optional int64 consumer_group_id = 2;
         optional int64 provider_group_id = 3;
@@ -90,12 +91,27 @@ message Policy {
         repeated int64 merge_group_ids = 2;
     }
 
-    // Requires that all entities in the consumer group must run together on a single provider in
-    // the provider group.
+    // Requires that all entities in the group must run together on a single provider.
     // Common use case: VM->VM affinity.
     message MustRunTogetherPolicy {
-        optional int64 consumer_group_id = 1;
-        optional int64 provider_group_id = 2;
+        optional int64 group_id = 1;
+
+        // Entity type of the provider on which we want the consumers to run together.
+        // We might want 2 VMs to run on the same host, or run on the same storage.
+        optional int32 provider_entity_type = 2;
+    }
+
+    // Requires that all entities in the group must not run together on the same provider.
+    // Common use case: VM->VM anti-affinity.
+    // Please note that this is different from the AtMostN and AtMostNBound policies. Those last two
+    // requires you to limit on which provider group the entities should run; and also limit how many
+    // of them to run, per provider.
+    message MustNotRunTogetherPolicy {
+        optional int64 group_id = 1;
+
+        // Entity type of the providers on which we want the consumers to not run together.
+        // We might want 2 VMs to run on different hosts, or run on different storages.
+        optional int32 provider_entity_type = 2;
     }
 }
 
@@ -129,14 +145,24 @@ message InputPolicy {
         BindToGroupAndGeoRedundancyPolicy bind_to_group_and_geo_redundancy = 20;
         MergePolicy merge = 21;
         MustRunTogetherPolicy must_run_together = 22;
+        MustNotRunTogetherPolicy must_not_run_together = 23;
     }
 
+    // Defines a limit on the number of entities from the consumer group that can run on each
+    // provider in the provider group without limiting the consumers to run only on the entities
+    // in the provider group.
+    // Common use case: VM->VM anti-affinity
     message AtMostNPolicy {
+        // Indicate the max entities at the same time that can run on any entity in the provider group.
         optional float capacity = 1;
         optional int64 consumer_group = 2;
         optional int64 provider_group = 3;
     }
 
+    // Limits the entities in the consumer group to run only on the entities in the provider group
+    // (and not run on providers outside this group).
+    // In addition limits the number of entities that can run on each of the providers.
+    // Common use case: VM->VM anti-affinity
     message AtMostNBoundPolicy {
         // Indicate the max workload entities at the same time per placement entites.
         optional float capacity = 1;
@@ -144,26 +170,37 @@ message InputPolicy {
         optional int64 provider_group = 3;
     }
 
+    // Entities in the consumer group can not run on any entity in the provider group.
+    // Common use case: VM->Host or VM->Storage anti-affinity.
     message BindToComplementaryGroupPolicy {
         optional int64 consumer_group = 1;
         optional int64 provider_group = 2;
     }
 
+    // Limits the entities in the consumer group to run only on the entities in the provider group.
+    // Common use case: VM->Host or VM->Storage affinity.
     message BindToGroupPolicy {
         optional int64 consumer_group = 1;
         optional int64 provider_group = 2;
     }
 
+    // Limits the entities in the consumer group to run only on the entities in the provider group
+    // and makes it more expensive for workloads not in the consumer group to run on providers in
+    // the provider group.
     message BindToGroupAndLicencePolicy {
         optional int64 consumer_group = 1;
         optional int64 provider_group = 2;
     }
 
+    // TODO - Seems to have something to do with timezones.
     message BindToGroupAndGeoRedundancyPolicy {
         optional int64 consumer_group = 1;
         optional int64 provider_group = 2;
     }
 
+    // Merges all the given provider groups to be viewed as a single liquidity pool. For example
+    // when merging clusters workloads would be able to move across the boundaries of those clusters
+    // (and only within the specified clusters).
     message MergePolicy {
         optional MergeType merge_type = 1;
 
@@ -171,9 +208,27 @@ message InputPolicy {
         repeated int64 merge_groups = 2;
     }
 
+    // Requires that all entities in the group must run together on a single provider.
+    // Common use case: VM->VM affinity.
     message MustRunTogetherPolicy {
-        optional int64 consumer_group = 1;
-        optional int64 provider_group = 2;
+        optional int64 group = 1;
+
+        // Entity type of the provider on which we want the consumers to run together.
+        // We might want a group of VMs to run on the same host, or run on the same storage.
+        optional int32 provider_entity_type = 2;
+    }
+
+    // Requires that all entities in the group must not run together on the same provider.
+    // Common use case: VM->VM anti-affinity.
+    // Please note that this is different from the AtMostN and AtMostNBound policies. Those last two
+    // requires you to also limit on which providers group the entities should run; and also limit how many
+    // of them to run, per provider.
+    message MustNotRunTogetherPolicy {
+        optional int64 group = 1;
+
+        // Entity type of the providers on which we want the consumers to run together.
+        // We might want 2 VMs to run on the same host, or run on the same storage.
+        optional int32 provider_entity_type = 2;
     }
 }
 

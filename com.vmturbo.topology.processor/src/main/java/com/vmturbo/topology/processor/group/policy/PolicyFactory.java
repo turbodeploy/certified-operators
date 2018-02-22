@@ -65,10 +65,12 @@ public class PolicyFactory {
                                 additionalProviders));
             case MUST_RUN_TOGETHER:
                 return new MustRunTogetherPolicy(policyDefinition,
-                        new PolicyEntities(groups.get(policyDefinition.getMustRunTogether().getConsumerGroupId()),
-                                additionalConsumers),
-                        new PolicyEntities(groups.get(policyDefinition.getMustRunTogether().getProviderGroupId()),
-                                additionalProviders));
+                        new PolicyEntities(groups.get(policyDefinition.getMustRunTogether().getGroupId()),
+                                additionalConsumers));
+            case MUST_NOT_RUN_TOGETHER:
+                return new MustNotRunTogetherPolicy(policyDefinition,
+                        new PolicyEntities(groups.get(policyDefinition.getMustNotRunTogether().getGroupId()),
+                                additionalConsumers));
             case MERGE:
                 //TODO: support additionalConsumers and additionalProviders
                 return buildMergePolicy(policyDefinition, groups);

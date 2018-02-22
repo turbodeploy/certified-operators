@@ -87,8 +87,10 @@ class DiscoveredGroupInterpreter {
         return dtoList.stream()
             // Filter out folders, because we're currently not supporting mapping
             // folders to groups in XL. In VC, folders can be identified by the group name.
-            .filter(groupDTO -> !groupDTO.hasGroupName() ||
-                    !groupDTO.getGroupName().contains(VC_FOLDER_KEYWORD))
+            // Filter out also groups with empty displayName, because they will not be visible in
+            // the UI anyway, and can cause discrepancies
+            .filter(groupDTO -> groupDTO.hasDisplayName() && (!groupDTO.hasGroupName() ||
+                    !groupDTO.getGroupName().contains(VC_FOLDER_KEYWORD)))
             .map(dto -> {
                 if (isCluster(dto)) {
                     return new InterpretedGroup(dto, Optional.empty(), sdkToCluster(dto, targetId));

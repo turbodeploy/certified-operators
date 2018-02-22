@@ -17,6 +17,7 @@ import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Conversions between different representations of policies.
@@ -66,7 +67,7 @@ public class PolicyMapper {
                 consumerGrouping = groupsByID.get(atMostNBound.getConsumerGroupId());
                 providerGrouping = groupsByID.get(atMostNBound.getProviderGroupId());
                 policyApiDTO.setCapacity((int)atMostNBound.getCapacity());
-                policyApiDTO.setType(PolicyType.AT_MOST_NBOUND);
+                policyApiDTO.setType(PolicyType.AT_MOST_N_BOUND);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
                 break;
@@ -127,11 +128,22 @@ public class PolicyMapper {
                 break;
             case MUST_RUN_TOGETHER:
                 final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogether = policyProto.getMustRunTogether();
-                consumerGrouping = groupsByID.get(mustRunTogether.getConsumerGroupId());
-                providerGrouping = groupsByID.get(mustRunTogether.getProviderGroupId());
+                consumerGrouping = groupsByID.get(mustRunTogether.getGroupId());
                 policyApiDTO.setType(PolicyType.MUST_RUN_TOGETHER);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
-                policyApiDTO.setProviderGroup(groupMapper.toGroupApiDto(providerGrouping));
+                break;
+            case MUST_NOT_RUN_TOGETHER:
+                final PolicyDTO.Policy.MustNotRunTogetherPolicy mustNotRunTogether =
+                        policyProto.getMustNotRunTogether();
+                consumerGrouping = groupsByID.get(mustNotRunTogether.getGroupId());
+                // FIXME
+                // right now we are converting an internal MustNotRunTogether policy into a AtMostN
+                // because the api is not supporting it yet.
+                policyApiDTO.setType(PolicyType.AT_MOST_N);
+                // and this is also why we cannot get the capacity from the original policy
+                // so we are setting it here directly
+                policyApiDTO.setCapacity(1);
+                policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 break;
             default:
                 // Not supposed to happen
@@ -184,7 +196,7 @@ public class PolicyMapper {
                 case AT_MOST_N:
                     policyBuilder.setAtMostN(atMostNPolicy(policyApiDTO));
                     break;
-                case AT_MOST_NBOUND:
+                case AT_MOST_N_BOUND:
                     policyBuilder.setAtMostNbound(atMostNBoundPolicy(policyApiDTO));
                     break;
                 case MUST_RUN_TOGETHER:
@@ -273,8 +285,7 @@ public class PolicyMapper {
     private PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy(
                     @Nonnull PolicyApiDTO policyApiDTO) {
         return PolicyDTO.Policy.MustRunTogetherPolicy.newBuilder()
-                        .setProviderGroupId(providersId(policyApiDTO))
-                        .setConsumerGroupId(consumersId(policyApiDTO))
+                        .setGroupId(consumersId(policyApiDTO))
                         .build();
     }
 
@@ -402,7 +413,7 @@ public class PolicyMapper {
                                     .build();
                     inputPolicyBuilder.setAtMostN(atMostNPolicy);
                     break;
-                case AT_MOST_NBOUND:
+                case AT_MOST_N_BOUND:
                     providerId = providersGroupId(policyApiInputDTO);
                     consumerId = consumersGroupId(policyApiInputDTO);
                     capacity = getInputPolicyCapacity(policyApiInputDTO);
@@ -419,8 +430,7 @@ public class PolicyMapper {
                     consumerId = consumersGroupId(policyApiInputDTO);
                     final PolicyDTO.InputPolicy.MustRunTogetherPolicy mustRunTogetherPolicy =
                             PolicyDTO.InputPolicy.MustRunTogetherPolicy.newBuilder()
-                                    .setProviderGroup(providerId)
-                                    .setConsumerGroup(consumerId)
+                                    .setGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setMustRunTogether(mustRunTogetherPolicy);
                     break;

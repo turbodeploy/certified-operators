@@ -108,8 +108,7 @@ public class PolicyFactoryTest {
     public void testMustRunTogetherPolicy() {
         final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy =
             PolicyDTO.Policy.MustRunTogetherPolicy.newBuilder()
-                .setConsumerGroupId(groupIdA)
-                .setProviderGroupId(groupIdB)
+                .setGroupId(groupIdA)
                 .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
@@ -119,5 +118,21 @@ public class PolicyFactoryTest {
 
         assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
                 Collections.emptySet()), instanceOf(MustRunTogetherPolicy.class));
+    }
+
+    @Test
+    public void testMustNotRunTogetherPolicy() {
+        final PolicyDTO.Policy.MustNotRunTogetherPolicy mustNotRunTogetherPolicy =
+                PolicyDTO.Policy.MustNotRunTogetherPolicy.newBuilder()
+                        .setGroupId(groupIdA)
+                        .build();
+
+        final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
+                .setId(POLICY_ID)
+                .setMustNotRunTogether(mustNotRunTogetherPolicy)
+                .build();
+
+        assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
+                Collections.emptySet()), instanceOf(MustNotRunTogetherPolicy.class));
     }
 }

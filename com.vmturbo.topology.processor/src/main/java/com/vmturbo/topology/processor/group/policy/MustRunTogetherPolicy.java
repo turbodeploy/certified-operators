@@ -1,12 +1,10 @@
 package com.vmturbo.topology.processor.group.policy;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -14,13 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.stitching.TopologyEntity;
@@ -28,9 +23,9 @@ import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
- * Requires that all entities in the consumer group must run together on a single provider in
- * the provider group.
- * Common use case: VM->VM affinity.
+ * Requires that all entities in the consumer group must run together on a single provider of the
+ * specified type.
+ * Common use case: VM->VM affinity, keep all the VMs in the group on the same host.
  */
 public class MustRunTogetherPolicy extends PlacementPolicy {
 
@@ -38,27 +33,21 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
 
     private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy;
 
-    private final PolicyEntities consumerPolicyEntities;
-    private final PolicyEntities providerPolicyEntities;
-
-    private static final Set<Integer> HOST_AND_STORAGE_TYPES = ImmutableSet.of(
-            EntityType.PHYSICAL_MACHINE_VALUE, EntityType.STORAGE_VALUE);
+    private final PolicyEntities policyEntities;
 
     /**
-     * Create a new MustRunTogetherPolicy, the policy should be of type MustRunTogether.
+     * Create a new {@link MustRunTogetherPolicy}, the policy should be of type
+     * {@link PolicyDTO.Policy.MustRunTogetherPolicy}.
      *
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
-     * @param consumerPolicyEntities consumer entities of current policy.
-     * @param providerPolicyEntities provider entities of current policy.
+     * @param policyEntities consumer entities of current policy.
      */
     public MustRunTogetherPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
-                                 @Nonnull final PolicyEntities consumerPolicyEntities,
-                                 @Nonnull final PolicyEntities providerPolicyEntities) {
+                                 @Nonnull final PolicyEntities policyEntities) {
         super(policyDefinition);
         Preconditions.checkArgument(policyDefinition.hasMustRunTogether());
         this.mustRunTogetherPolicy = Objects.requireNonNull(policyDefinition.getMustRunTogether());
-        this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
-        this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
+        this.policyEntities = Objects.requireNonNull(policyEntities);
     }
 
     /**
@@ -73,53 +62,49 @@ public class MustRunTogetherPolicy extends PlacementPolicy {
     @Override
     public void applyInternal(@Nonnull final GroupResolver groupResolver, @Nonnull final TopologyGraph topologyGraph)
             throws GroupResolutionException, PolicyApplicationException {
-        logger.debug("Applying mustRunTogether policy.");
-        final Group providerGroup = providerPolicyEntities.getGroup();
-        final Group consumerGroup = consumerPolicyEntities.getGroup();
-        final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph),
-                providerPolicyEntities.getAdditionalEntities());
-        /* We do filtering by entity types because VC cluster groups may contain Virtual
-           Datacenter as member. It is used by UI but it shouldn't be for DRS groups.
-           As it comes from probe we may want to change probe itself in the future.
-         */
-        final Predicate<Long> isHostOrStorage = id -> topologyGraph.getEntity(id).isPresent()
-                && HOST_AND_STORAGE_TYPES.contains(topologyGraph.getEntity(id).get().getEntityType());
-        final Set<Long> onlyHostsOrStoragesProviders = providers.stream()
-                .filter(isHostOrStorage)
-                .collect(Collectors.toSet());
+        logger.debug("Applying MustRunTogether policy.");
+
+        // get group of entities that need to run together (consumers)
+        final Group consumerGroup = policyEntities.getGroup();
+        Set<Long> additionalEntities = policyEntities.getAdditionalEntities();
         final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),
-                consumerPolicyEntities.getAdditionalEntities());
+                additionalEntities);
 
-        final int providerType = GroupProtoUtil.getEntityType(providerGroup);
+        // Add the commodity sold to the provider
+        addCommoditySoldToSelectedProvider(consumers, topologyGraph);
 
-        addCommoditySold(onlyHostsOrStoragesProviders, consumers, topologyGraph);
-        addCommodityBought(consumers, topologyGraph, providerType, commodityBought());
+        // Add the commodity bought to the entities that need to run separate
+        addCommodityBought(consumers, topologyGraph, mustRunTogetherPolicy.getProviderEntityType(),
+                commodityBought());
+
     }
 
     /**
      * Add commoditySold to provider which contains max number of consumers in group, if there are two
      * providers sell same number of consumers, use it's id to break tie.
      *
-     * @param providers The providers that belong to the segment.
      * @param consumers The consumers that belong to the segment.
      * @param topologyGraph The graph containing the topology.
      */
-    private void addCommoditySold(@Nonnull final Set<Long> providers,
-                                  @Nonnull final Set<Long> consumers,
+    private void addCommoditySoldToSelectedProvider(@Nonnull final Set<Long> consumers,
                                   @Nonnull final TopologyGraph topologyGraph) {
-        final Map<Long, Long> providerMatchCountMap = providers.stream()
-            .collect(Collectors.toMap(Function.identity(),
-                provider -> topologyGraph.getConsumers(provider)
-                    .map(TopologyEntity::getOid)
-                    .filter(consumers::contains)
-                    .count())
-            );
+
+        // find out which provider they need to consume from
+        // we are picking the provider where the biggest number of consumers are already running on.
+        final Map<Long, Long> providerMatchCountMap = new HashMap<>();
+        for (long consumerOid : consumers) {
+            topologyGraph.getProviders(consumerOid)
+                    // filter out only providers of the type that we are interested in
+                    .filter(provider -> provider.getEntityType() == mustRunTogetherPolicy.getProviderEntityType())
+                    // add the provider to the map, incrementing the count if already found
+                    .forEach(provider -> providerMatchCountMap.merge(provider.getOid(), 1L, Long::sum));
+        }
 
         Comparator<Long> providerCompare = Comparator.comparingLong(providerMatchCountMap::get);
-        providers.stream()
-            .max(providerCompare.thenComparing(Long::compare))
-            .flatMap(topologyGraph::getEntity)
-            .map(TopologyEntity::getTopologyEntityDtoBuilder)
-            .ifPresent(provider -> provider.addCommoditySoldList(commoditySold()));
+        providerMatchCountMap.keySet().stream()
+                .max(providerCompare.thenComparing(Long::compare))
+                .flatMap(topologyGraph::getEntity)
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .ifPresent(provider -> provider.addCommoditySoldList(commoditySold()));
     }
 }

@@ -1,9 +1,7 @@
 package com.vmturbo.topology.processor.group.discovery;
 
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
@@ -30,8 +28,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 public class DiscoveredPolicyInfoParser {
 
     private static final Logger logger = LogManager.getLogger();
-
-    private final Map<String, CommonDTO.GroupDTO> foundClusters = new HashMap<>();
 
     private final List<CommonDTO.GroupDTO> allGroups;
 
@@ -142,74 +138,13 @@ public class DiscoveredPolicyInfoParser {
             policyGroups) {
 
         if (isBuyerBuyerPolicy(policyGroups)) {
-            return parseVmClusterPolicy(policyGroups);
+            // if it's a buyer-buyer policy, there is only 1 group
+            CommonDTO.GroupDTO buyerBuyerPolicy = policyGroups.get(0);
+            return Optional.of(parsePolicy(buyerBuyerPolicy));
         } else {
             return Optional.of(parsePolicyFromPairOfGroups(policyGroups.get(0),
                     policyGroups.get(1)));
         }
-    }
-
-    /**
-     * Searches cluster and creates policy for VM-Cluster groups.
-     * @param policyGroups Has one VM group
-     * @return Created policy if everything was ok and it was created.
-     */
-    private Optional<DiscoveredPolicyInfo> parseVmClusterPolicy(@Nonnull List<CommonDTO.GroupDTO>
-            policyGroups) {
-
-        CommonDTO.GroupDTO vmGroup = policyGroups.get(0);
-        Optional<String> policyClusterName = getPolicyClusterName(vmGroup);
-        if (!policyClusterName.isPresent()) {
-            logger.warn("Can't parse a cluster name from VM-group name.");
-            return Optional.empty();
-        }
-        Optional<CommonDTO.GroupDTO> cluster = findPolicyCluster(policyClusterName.get());
-        if (cluster.isPresent()) {
-            return Optional.of(parsePolicy(vmGroup, cluster.get()));
-        } else {
-            logger.warn("Can't find the cluster with such name.");
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Extract the cluster name from a policy name. For example:
-     * <p>"GROUP-DRS-testRule-rule/Physical Hosts_Cluster2/vsphere-dc13.corp.vmturbo.com"
-     * <p>Here the name of the cluster is "Physical Hosts_Cluster2".
-     *
-     * @param policyGroup Discovered group. It has name of cluster as a part of name.
-     * @return Name of policy cluster if it was found.
-     */
-    private Optional<String> getPolicyClusterName(@Nonnull CommonDTO.GroupDTO policyGroup) {
-        /*
-        * There is not the most reliable way to figure out the related cluster.
-        * We suppose that it should be changed in future.
-        */
-        final String[] nameParts = policyGroup.getDisplayName().split("/");
-        return nameParts.length > 1
-                ? Optional.of(nameParts[1])
-                : Optional.empty();
-    }
-
-    /**
-     * Searches in allGroups cluster with the certain name.
-     *
-     * @param clusterName Name of cluster which is parsed from VM-group name.
-     * @return Cluster with the same name if it was found.
-     */
-    private Optional<CommonDTO.GroupDTO> findPolicyCluster(@Nonnull String clusterName) {
-
-        CommonDTO.GroupDTO clusterInMap = foundClusters.get(clusterName);
-        if (clusterInMap != null) {
-            return Optional.of(clusterInMap);
-        }
-        Optional<CommonDTO.GroupDTO> clusterOpt = allGroups.stream()
-                .filter(group -> group.getDisplayName().equals(clusterName) &&
-                        group.getConstraintInfo().getConstraintType() ==
-                                CommonDTO.GroupDTO.ConstraintType.CLUSTER)
-                .findFirst();
-        clusterOpt.ifPresent(cluster -> foundClusters.put(cluster.getDisplayName(), cluster));
-        return clusterOpt;
     }
 
     /**
@@ -240,13 +175,33 @@ public class DiscoveredPolicyInfoParser {
      */
     private DiscoveredPolicyInfo parsePolicy(@Nonnull CommonDTO.GroupDTO buyers,
                                              @Nonnull CommonDTO.GroupDTO sellers) {
+        return parsePolicyInternal(buyers)
+                .setSellersGroupStringId(GroupProtoUtil.discoveredIdFromName(sellers))
+                .build();
+    }
 
+    /**
+     * Parses new DRS rule spec from a single buyer group.
+     *
+     * @param buyer Group of Policy which is Buyer group.
+     * @return Created policy.
+     */
+    private DiscoveredPolicyInfo parsePolicy(@Nonnull CommonDTO.GroupDTO buyer) {
+        return parsePolicyInternal(buyer).build();
+    }
+
+    /**
+     * Parses new DRS rule spec from a buyer groups.
+     * Used only as a helper method to return a {@link DiscoveredPolicyInfo} builder.
+     *
+     * @param buyers Group of Policy which is Buyers group.
+     * @return Builder for the policy to create.
+     */
+    private DiscoveredPolicyInfo.Builder parsePolicyInternal(@Nonnull CommonDTO.GroupDTO buyers) {
         final CommonDTO.GroupDTO.ConstraintInfo constraintInfo = buyers.getConstraintInfo();
         return DiscoveredPolicyInfo.newBuilder()
                 .setPolicyName(constraintInfo.getConstraintName())
                 .setBuyersGroupStringId(GroupProtoUtil.discoveredIdFromName(buyers))
-                .setSellersGroupStringId(GroupProtoUtil.discoveredIdFromName(sellers))
-                .setConstraintType(buyers.getConstraintInfo().getConstraintType().getNumber())
-                .build();
+                .setConstraintType(buyers.getConstraintInfo().getConstraintType().getNumber());
     }
 }

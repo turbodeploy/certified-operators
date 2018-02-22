@@ -111,11 +111,17 @@ public class PolicyService extends PolicyServiceImplBase {
                             .build());
                     break;
                 case MUST_RUN_TOGETHER:
-                    inputConsumerGroup = inputPolicy.getMustRunTogether().getConsumerGroup();
-                    inputProviderGroup = inputPolicy.getMustRunTogether().getProviderGroup();
+                    inputConsumerGroup = inputPolicy.getMustRunTogether().getGroup();
                     policyBuilder.setMustRunTogether(PolicyDTO.Policy.MustRunTogetherPolicy.newBuilder()
-                            .setConsumerGroupId(inputConsumerGroup)
-                            .setProviderGroupId(inputProviderGroup)
+                            .setGroupId(inputConsumerGroup)
+                            .setProviderEntityType(inputPolicy.getMustRunTogether().getProviderEntityType())
+                            .build());
+                    break;
+                case MUST_NOT_RUN_TOGETHER:
+                    inputConsumerGroup = inputPolicy.getMustNotRunTogether().getGroup();
+                    policyBuilder.setMustNotRunTogether(PolicyDTO.Policy.MustNotRunTogetherPolicy.newBuilder()
+                            .setGroupId(inputConsumerGroup)
+                            .setProviderEntityType(inputPolicy.getMustNotRunTogether().getProviderEntityType())
                             .build());
                     break;
             }

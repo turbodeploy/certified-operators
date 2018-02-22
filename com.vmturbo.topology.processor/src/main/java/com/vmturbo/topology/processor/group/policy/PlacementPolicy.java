@@ -41,9 +41,32 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 public abstract class PlacementPolicy {
     private static final Logger logger = LogManager.getLogger();
 
-    // We can not set capacity to infinity, because database table can not store string "Infinity".
-    // The constant number is same as legacy, but we can change it later if we need.
+    /**
+     * We can not set capacity to infinity, because database table can not store string "Infinity".
+     */
     public static final float MAX_CAPACITY_VALUE = 1e9f;
+
+    /**
+     * Small delta that we are adding to a segmentation commodity capacity, to ensure floating point
+     * roundoff error does not accidentally reduce the commodity capacity below the intended value.
+     * Another use case for this delta is that (given our standard price function) when you are at
+     * the max value that an integer capacity allows, you will not hit an infinite quote.
+     * For example, if the capacity is 9.0, you can still accommodate 9 buyers (each one buying 1.0)
+     * and the price will not be infinite, but 10 consumers don't fit.
+     */
+    public static final float SMALL_DELTA_VALUE = 0.1f;
+
+    /**
+     * Used value of a segmentation commodity bought
+     */
+    public static final float SEGM_BOUGHT_USED_VALUE = 1.0f;
+
+    /**
+     * This is the capacity value that a segmentation commodity sold by a provider should have,
+     * if it want to accommodate only a single provider
+     */
+    public static final float SEGM_CAPACITY_VALUE_SINGLE_CONSUMER =
+            SEGM_BOUGHT_USED_VALUE + SMALL_DELTA_VALUE;
 
     /**
      * The policy definition describing the details of the policy to be applied.
@@ -164,19 +187,44 @@ public abstract class PlacementPolicy {
      * group by having each of them sell a segmentation commodity specific to this policy.
      *
      * @param providers The providers that belong to the segment.
-     * @param providerEntityTYpe The entity type of the providers.
+     * @param providerEntityType The entity type of the providers.
      * @param topologyGraph The graph containing the topology.
      * @param segmentationCommodity The commodity for use in segmenting the providers.
      */
     protected void addCommoditySoldToComplementaryProviders(@Nonnull final Set<Long> providers,
-                                                            final long providerEntityTYpe,
+                                                            final long providerEntityType,
                                                             @Nonnull final TopologyGraph topologyGraph,
                                                             @Nonnull final CommoditySoldDTO segmentationCommodity) {
         topologyGraph.entities()
-            .filter(entity -> entity.getEntityType() == providerEntityTYpe)
+            .filter(entity -> entity.getEntityType() == providerEntityType)
             .filter(vertex -> !providers.contains(vertex.getOid()))
             .map(TopologyEntity::getTopologyEntityDtoBuilder)
             .forEach(provider -> provider.addCommoditySoldList(segmentationCommodity));
+    }
+
+    /**
+     * Adds a segmentation commodity sold (with specified capacity) to every entity of a particular
+     * type. Note that it's doing that for the entire topology.
+     *
+     * @param providerEntityType The entity type of the providers.
+     * @param consumerGroupIds The consumers that belong to the segment.
+     * @param topologyGraph The graph containing the topology.
+     * @param commoditySoldCapacity The capacity for the commodity sold by the providers.
+     */
+    protected void addCommoditySoldToSpecificEntityTypeProviders(
+            final long providerEntityType,
+            @Nonnull final Set<Long> consumerGroupIds,
+            @Nonnull final TopologyGraph topologyGraph,
+            final float commoditySoldCapacity) {
+
+        topologyGraph.entities()
+            .filter(entity -> entity.getEntityType() == providerEntityType)
+            .map(TopologyEntity::getTopologyEntityDtoBuilder)
+            .forEach(provider -> {
+                final CommoditySoldDTO segmentationCommodity = commoditySold(commoditySoldCapacity,
+                        provider.getOid(), consumerGroupIds, topologyGraph);
+                provider.addCommoditySoldList(segmentationCommodity);
+            });
     }
 
     /**
@@ -328,7 +376,7 @@ public abstract class PlacementPolicy {
     protected CommodityBoughtDTO commodityBought() {
         return CommodityBoughtDTO.newBuilder()
             .setCommodityType(commodityType())
-            .setUsed(1.0)
+            .setUsed(SEGM_BOUGHT_USED_VALUE)
             .build();
     }
 

@@ -35,7 +35,7 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
  *   |      \ | / \ |
  *  PM1      PM2   ST3 ST4
  */
-public class MustRunTogetherPolicyTest {
+public class MustNotRunTogetherPolicyTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -44,9 +44,9 @@ public class MustRunTogetherPolicyTest {
         searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
     private final long groupID = group.getId();
 
-    // must run together on host policy
-    private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy = PolicyDTO.Policy
-        .MustRunTogetherPolicy.newBuilder()
+    // must not run together on host policy
+    private final PolicyDTO.Policy.MustNotRunTogetherPolicy mustNotRunTogetherPolicy = PolicyDTO.Policy
+        .MustNotRunTogetherPolicy.newBuilder()
         .setGroupId(groupID)
         .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
         .build();
@@ -54,12 +54,12 @@ public class MustRunTogetherPolicyTest {
     private static final long POLICY_ID = 9999L;
     final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
         .setId(POLICY_ID)
-        .setMustRunTogether(mustRunTogetherPolicy)
+        .setMustNotRunTogether(mustNotRunTogetherPolicy)
         .build();
 
-    // must run together on storage policy
-    private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherOnStoragePolicy = PolicyDTO.Policy
-            .MustRunTogetherPolicy.newBuilder()
+    // must not run together on storage policy
+    private final PolicyDTO.Policy.MustNotRunTogetherPolicy mustNotRunTogetherOnStoragePolicy = PolicyDTO.Policy
+            .MustNotRunTogetherPolicy.newBuilder()
             .setGroupId(groupID)
             .setProviderEntityType(EntityType.STORAGE_VALUE)
             .build();
@@ -67,7 +67,7 @@ public class MustRunTogetherPolicyTest {
     private static final long POLICY_ST_ID = 9998L;
     final PolicyDTO.Policy policyStorage = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ST_ID)
-            .setMustRunTogether(mustRunTogetherOnStoragePolicy)
+            .setMustNotRunTogether(mustNotRunTogetherOnStoragePolicy)
             .build();
 
     private TopologyGraph topologyGraph;
@@ -96,59 +96,65 @@ public class MustRunTogetherPolicyTest {
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
             .thenReturn(Collections.emptySet());
 
-        new MustRunTogetherPolicy(policy, new PolicyEntities(group, Collections.emptySet()))
+        new MustNotRunTogetherPolicy(policy, new PolicyEntities(group, Collections.emptySet()))
                 .apply(groupResolver, topologyGraph);
+
+        // entities will not buy segmentation, because the group is empty
         assertThat(topologyGraph.getEntity(1L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(2L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
-        assertThat(topologyGraph.getEntity(5L).get(),
-                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
-        assertThat(topologyGraph.getEntity(6L).get(),
-                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
-        assertThat(topologyGraph.getEntity(7L).get(),
-                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
-        assertThat(topologyGraph.getEntity(8L).get(),
-                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
-    }
-
-    @Test
-    public void testApplyVmTogetherOnHost() throws GroupResolutionException, PolicyApplicationException {
-        when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-                .thenReturn(Sets.newHashSet(5L, 6L, 7L));
-
-        new MustRunTogetherPolicy(policy, new PolicyEntities(group, Collections.emptySet()))
-                .apply(groupResolver, topologyGraph);
-
-        // check consumers
-        assertThat(topologyGraph.getEntity(5L).get(),
-                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
-        assertThat(topologyGraph.getEntity(6L).get(),
-                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
-        assertThat(topologyGraph.getEntity(7L).get(),
-                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
-        assertThat(topologyGraph.getEntity(8L).get(),
-                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
-
-        // check providers
-        // the only one to have the segmentation commodity should be host2
-        // because it has already the most number of vms (in the policy) running on it
-        assertThat(topologyGraph.getEntity(1L).get(),
-                not(policyMatcher.hasProviderSegment(POLICY_ID)));
-        assertThat(topologyGraph.getEntity(2L).get(),
-                policyMatcher.hasProviderSegment(POLICY_ID));
         assertThat(topologyGraph.getEntity(3L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
         assertThat(topologyGraph.getEntity(4L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(5L).get(),
+                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+        assertThat(topologyGraph.getEntity(6L).get(),
+                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+        assertThat(topologyGraph.getEntity(7L).get(),
+                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+        assertThat(topologyGraph.getEntity(8L).get(),
+                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
     }
 
     @Test
-    public void testApplyVmTogetherOnStorage() throws GroupResolutionException, PolicyApplicationException {
+    public void testApplyVmSeparateOnHost() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
                 .thenReturn(Sets.newHashSet(6L, 7L));
 
-        new MustRunTogetherPolicy(policyStorage, new PolicyEntities(group, Collections.emptySet()))
+        new MustNotRunTogetherPolicy(policy, new PolicyEntities(group, Collections.emptySet()))
+                .apply(groupResolver, topologyGraph);
+
+        // check consumers
+        assertThat(topologyGraph.getEntity(5L).get(),
+                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+        assertThat(topologyGraph.getEntity(6L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(7L).get(),
+                policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE));
+        assertThat(topologyGraph.getEntity(8L).get(),
+                not(policyMatcher.hasConsumerSegment(POLICY_ID, EntityType.PHYSICAL_MACHINE)));
+
+        // check providers
+        // all the hosts need to sell a segmentation commodity with capacity 1
+        assertThat(topologyGraph.getEntity(1L).get(),
+                policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f));
+        assertThat(topologyGraph.getEntity(2L).get(),
+                policyMatcher.hasProviderSegmentWithCapacity(POLICY_ID, 1.0f));
+        // storages should not sell it
+        assertThat(topologyGraph.getEntity(3L).get(),
+                not(policyMatcher.hasProviderSegment(POLICY_ID)));
+        assertThat(topologyGraph.getEntity(4L).get(),
+                not(policyMatcher.hasProviderSegment(POLICY_ID)));
+    }
+
+    @Test
+    public void testApplyVmSeparateOnStorage() throws GroupResolutionException, PolicyApplicationException {
+        when(groupResolver.resolve(eq(group), eq(topologyGraph)))
+                .thenReturn(Sets.newHashSet(6L, 7L));
+
+        new MustNotRunTogetherPolicy(policyStorage, new PolicyEntities(group, Collections.emptySet()))
                 .apply(groupResolver, topologyGraph);
 
         // check consumers
@@ -162,16 +168,16 @@ public class MustRunTogetherPolicyTest {
                 not(policyMatcher.hasConsumerSegment(POLICY_ST_ID, EntityType.STORAGE)));
 
         // check providers
-        // the only one to have the segmentation commodity should be storage3
-        // because it has already the most number of vms (in the policy) running on it
+        // hosts should not sell it
         assertThat(topologyGraph.getEntity(1L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ST_ID)));
         assertThat(topologyGraph.getEntity(2L).get(),
                 not(policyMatcher.hasProviderSegment(POLICY_ST_ID)));
+        // all the storages need to sell a segmentation commodity with capacity 1
         assertThat(topologyGraph.getEntity(3L).get(),
-                policyMatcher.hasProviderSegment(POLICY_ST_ID));
+                policyMatcher.hasProviderSegmentWithCapacity(POLICY_ST_ID, 1.0f));
         assertThat(topologyGraph.getEntity(4L).get(),
-                not(policyMatcher.hasProviderSegment(POLICY_ST_ID)));
+                policyMatcher.hasProviderSegmentWithCapacity(POLICY_ST_ID, 1.0f));
     }
 
 }

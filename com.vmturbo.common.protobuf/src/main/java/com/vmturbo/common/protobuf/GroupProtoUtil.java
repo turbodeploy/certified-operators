@@ -237,8 +237,11 @@ public class GroupProtoUtil {
                 break;
             case MUST_RUN_TOGETHER:
                 Policy.MustRunTogetherPolicy mustRunTogether = policy.getMustRunTogether();
-                result.add(mustRunTogether.getConsumerGroupId());
-                result.add(mustRunTogether.getProviderGroupId());
+                result.add(mustRunTogether.getGroupId());
+                break;
+            case MUST_NOT_RUN_TOGETHER:
+                Policy.MustNotRunTogetherPolicy mustNotRunTogether = policy.getMustNotRunTogether();
+                result.add(mustNotRunTogether.getGroupId());
                 break;
         }
         return result;
