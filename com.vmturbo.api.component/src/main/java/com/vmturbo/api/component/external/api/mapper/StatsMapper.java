@@ -360,8 +360,9 @@ public class StatsMapper {
      * @param relatedType the input type from the request.
      * @return the original 'relatedType' except that 'Cluster' is replaced by 'PhysicalMachine'
      */
-    private static String normalizeRelatedType(String relatedType) {
-        return relatedType.equals(EntityType.CLUSTER.getClsName()) ?
+    public static String normalizeRelatedType(@Nonnull String relatedType) {
+        return relatedType.equals(EntityType.CLUSTER.getClsName()) ||
+                relatedType.equals(EntityType.DATA_CENTER.getClsName())?
                 EntityType.PHYSICAL_MACHINE.getClsName() : relatedType;
     }
 

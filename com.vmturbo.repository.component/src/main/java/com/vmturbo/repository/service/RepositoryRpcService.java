@@ -8,8 +8,6 @@ import static javaslang.API.Match;
 import static javaslang.Patterns.Left;
 import static javaslang.Patterns.Right;
 
-import java.time.Clock;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -109,7 +107,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
             return;
         }
 
-        logger.info("Deleting topology with id:{} and contextId:{} ",
+        logger.debug("Deleting topology with id:{} and contextId:{} ",
                 request.getTopologyId(), request.getTopologyContextId());
         try {
             topologyLifecycleManager.deleteTopology(
@@ -134,7 +132,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                                  final StreamObserver<RepositoryDTO.RetrieveTopologyResponse> responseObserver) {
         final long topologyID = topologyRequest.getTopologyId();
         try {
-            logger.info("Retrieving topology for {} with filter {}", topologyID,
+            logger.debug("Retrieving topology for {} with filter {}", topologyID,
                     topologyRequest.getEntityFilter());
             final TopologyProtobufReader reader =
                     topologyProtobufsManager.createTopologyProtobufReader(
@@ -207,41 +205,16 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
      * @param responseObserver observer for the PlanTopologyResponse created here
      */
     @Override
-    public void getPlanTopologyStats (@Nonnull final PlanTopologyStatsRequest request,
+    public void getPlanTopologyStats(@Nonnull final PlanTopologyStatsRequest request,
                                       @Nonnull final StreamObserver<PlanEntityStats> responseObserver) {
-        final Stats.StatsFilter requestFilter = request.getFilter();
-
-        String relatedEntityType = requestFilter.getRelatedEntityType();
-
-        long projectedTopologyid = request.getTopologyId();
-        logger.info("get plan topology stats, topology id {}, relatedEntityType: {}",
-                projectedTopologyid, relatedEntityType);
-
-        // record whether these plan stats are source or projected topology for use in error msg
-        String statsRequestScope = "?";
-
-        try {
-            long now = Instant.now(Clock.systemUTC()).toEpochMilli();
-            // is the request for the future (plan projected topology) or now = plan input topology
-            if (request.hasFilter() && request.getFilter().hasStartDate() &&
-                    request.getFilter().getStartDate() > now) {
-                // request is for the future
-                statsRequestScope = "projected";
-                returnProjectedPlanStats(request, projectedTopologyid, responseObserver);
-            } else {
-                // fetch from plan input topology - not implemented; return empty result
-                statsRequestScope = "source";
-                logger.warn("Plan stats request for 'now' = plan source topology; not implemented");
-            }
-        } catch (Exception e) {
-            logger.error("Error getting plan " + statsRequestScope + " topology stats: ", e);
-            responseObserver.onError(Status.INTERNAL
-                    .withDescription("Error fetching projected topology " +
-                            projectedTopologyid + ": " + e)
-                    .asException());
-            return;
+        // is the request for the plan projected topology plan input topology
+        if (!request.hasFilter() || !request.getFilter().hasStartDate()) {
+            // request is for the future
+            returnProjectedPlanStats(request, request.getTopologyId(), responseObserver);
+        } else {
+            // fetch from plan input topology - not implemented; return empty result
+            logger.warn("Plan stats request for 'now' = plan source topology; not implemented");
         }
-        responseObserver.onCompleted();
     }
 
     /**
@@ -255,12 +228,12 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                                           long projectedTopologyid,
                                           @Nonnull StreamObserver<PlanEntityStats> responseObserver) {
 
-        // fetch the topology for this projectedTopologyId from the Arango DB
+        // create a filter on relatedEntityType
         final Stats.StatsFilter requestFilter = request.getFilter();
         Predicate<TopologyEntityDTO> entityTypePredicate = requestFilter.hasRelatedEntityType() ?
                 matchEntityType(requestFilter.getRelatedEntityType()) :
                 noFilterPredicate();
-        logger.info("fetch projected plan stats, entity filter {}, commodities {}",
+        logger.debug("fetch projected plan stats, entity filter {}, commodities {}",
                 requestFilter.getRelatedEntityType(), requestFilter.getCommodityNameList());
         final TopologyProtobufReader reader = topologyProtobufsManager.createTopologyProtobufReader(
                         projectedTopologyid, Optional.empty());
@@ -268,17 +241,16 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         while (reader.hasNext()) {
             try {
                 List<TopologyEntityDTO> chunk = reader.nextChunk();
-                logger.info("chunk size: {}", chunk.size());
+                logger.debug("chunk size: {}", chunk.size());
                 for (TopologyEntityDTO entityDTO : chunk) {
+                    // apply the filtering predicate - i.e. match for relatedEntityType
                     if (!entityTypePredicate.test(entityDTO)) {
                         logger.trace("skipping {}", entityDTO.getDisplayName());
                         continue;
                     }
-                    logger.trace("entity: {}", entityDTO.getDisplayName());
 
                     // create a return stats record, including only the stats requested
-                    EntityStats stats = getEntityStats(entityDTO, request);
-
+                    EntityStats stats = getStatsForPlanEntity(entityDTO, request);
                     PlanEntityStats entityStats = PlanEntityStats.newBuilder()
                             .setPlanEntity(entityDTO)
                             .setPlanEntityStats(stats)
@@ -288,10 +260,13 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
             } catch (NoSuchElementException e) {
                 logger.error("Topology with ID: " + projectedTopologyid + "not found.",
                         e.getMessage());
-                throw e;
+                responseObserver.onError(Status.INTERNAL
+                        .withDescription("Topology with ID: " + projectedTopologyid + "not found.")
+                        .asException());
+                return;
             }
-
         }
+        responseObserver.onCompleted();
     }
 
     /**
@@ -303,21 +278,21 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
      * @return an {@link EntityStats} object populated from the current stats for the
      * given {@link TopologyEntityDTO}
      */
-    private EntityStats getEntityStats(TopologyEntityDTO entityDTO, PlanTopologyStatsRequest request) {
+    private EntityStats getStatsForPlanEntity(TopologyEntityDTO entityDTO, PlanTopologyStatsRequest request) {
         Set<String> commodityNames = Sets.newHashSet(request.getFilter().getCommodityNameList());
         StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
         if (request.hasFilter() && request.getFilter().hasStartDate()) {
             snapshot.setSnapshotDate(DateTimeUtil.toString(request.getFilter().getStartDate()));
         }
 
-        // commodities bought
+        // commodities bought - TODO: compute capacity of commodities bought = seller capacity
         for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
                 entityDTO.getCommoditiesBoughtFromProvidersList()) {
             String providerOidString = Long.toString(commoditiesBoughtFromProvider.getProviderId());
-            logger.info("   provider  id {}", providerOidString);
+            logger.debug("   provider  id {}", providerOidString);
             commoditiesBoughtFromProvider.getCommodityBoughtList().forEach(commodityBoughtDTO ->
                     buildStatRecord(commodityBoughtDTO.getCommodityType(), commodityBoughtDTO.getPeak(),
-                            commodityBoughtDTO.getUsed(), providerOidString, commodityNames)
+                            commodityBoughtDTO.getUsed(), 0, providerOidString, commodityNames)
                             .ifPresent(snapshot::addStatRecords));
         }
         // commodities sold
@@ -325,8 +300,8 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         final List<CommoditySoldDTO> commoditySoldListList = entityDTO.getCommoditySoldListList();
         for (CommoditySoldDTO commoditySoldDTO : commoditySoldListList) {
             buildStatRecord(commoditySoldDTO.getCommodityType(), commoditySoldDTO.getPeak(),
-                    commoditySoldDTO.getUsed(), entityOidString, commodityNames
-            )
+                    commoditySoldDTO.getUsed(), commoditySoldDTO.getCapacity(),
+                    entityOidString, commodityNames)
                     .ifPresent(snapshot::addStatRecords);
         }
         return EntityStats.newBuilder()
@@ -343,6 +318,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
      * @param commodityType the numeric (SDK) type of the commodity
      * @param peak peak value recorded for one sample
      * @param used used (or current) value recorded for one sample
+     * @param capacity the total capacity for the commodity
      * @param providerOidString the OID for the provider - either this SE for sold, or the 'other'
      *                          SE for bought commodities
      * @param commodityNames the Set of commodity names (DB String) that are to be included.
@@ -350,19 +326,17 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
      * if the given commodity is not on the list, then return Optional.empty().
      */
     private Optional<StatRecord> buildStatRecord(TopologyDTO.CommodityType commodityType,
-                                                 double peak, double used, String providerOidString,
+                                                 double peak, double used, double capacity,
+                                                 String providerOidString,
                                                  Set<String> commodityNames) {
         int commodityNum = commodityType.getType();
         CommodityDTO.CommodityType commonCommodityDtoType =
                 CommodityDTO.CommodityType.forNumber(commodityNum);
         final String commodityStringName =
                 COMMODITY_TYPE_TO_STRING_MAPPER.get(commonCommodityDtoType);
-        logger.info("      commodity name {}", commodityStringName);
         if (commodityNames.isEmpty() || commodityNames.contains(commodityStringName)) {
             final String units = CommodityTypeUnits.fromString(commodityStringName).getUnits();
             final String key = commodityType.getKey();
-            logger.info("commodity name {}, used {}  peak {}  key {}",
-                    commodityStringName, (float) used, (float) peak, key);
             // create a stat record from the used and peak values
             // todo: capacity value, which comes from provider, is not set - may not be needed
             StatRecord statRecord = StatRecord.newBuilder()
@@ -371,6 +345,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                     .setCurrentValue((float) used)
                     .setUsed(buildStatValue((float) used))
                     .setPeak(buildStatValue((float) peak))
+                    .setCapacity((float) capacity)
                     .setStatKey(key)
                     .setProviderUuid(providerOidString)
                     .build();

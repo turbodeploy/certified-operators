@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.DATACENTER;
+import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.toServiceEntityApiDTO;
 import static com.vmturbo.api.component.external.api.mapper.StatsMapper.toStatSnapshotApiDTO;
 import static com.vmturbo.api.component.external.api.mapper.StatsMapper.toStatsSnapshotApiDtoList;
@@ -524,6 +526,10 @@ public class StatsService implements IStatsService {
             throw new IllegalArgumentException("Cannot request individual stats for full " +
                     "Market without specifying 'relatedType'");
         }
+
+        // DATACENTERs are represented by the PHYSICAL_MACHINES
+        relatedType = StatsMapper.normalizeRelatedType(relatedType);
+
         // Fetch the SE's of this type
         List<ServiceEntityApiDTO> matchingServiceEntities = Lists.newArrayList(
                 repositoryApi.getSearchResults(null, Collections.singletonList(relatedType),
