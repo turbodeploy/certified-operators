@@ -333,6 +333,7 @@ public class Stages {
                 // fetch the group definitions from the group service
                 GetGroupsRequest request = GetGroupsRequest.newBuilder()
                         .addAllId(groupsToResolve)
+                        .setResolveClusterSearchFilters(true)
                         .build();
                 groupServiceClient.getGroups(request)
                     .forEachRemaining(

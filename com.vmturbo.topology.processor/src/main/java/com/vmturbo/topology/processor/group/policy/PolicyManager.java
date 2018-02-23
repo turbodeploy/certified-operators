@@ -248,6 +248,7 @@ public class PolicyManager {
         if (!groupIds.isEmpty()) {
             groupServiceBlockingStub.getGroups(GetGroupsRequest.newBuilder()
                 .addAllId(groupIds)
+                .setResolveClusterSearchFilters(true) // precalculate cluster filters for us
                 .build())
             .forEachRemaining(group -> groupsById.put(group.getId(), group));
 

@@ -117,9 +117,11 @@ public class PolicyManagerTest {
     public void setup() throws Exception {
         when(groupServiceMole.getGroups(GetGroupsRequest.newBuilder()
             .addAllId(Arrays.asList(id1, id2, id3, id4))
+            .setResolveClusterSearchFilters(true)
             .build())).thenReturn(Arrays.asList(group1, group2, group3, group4));
         when(groupServiceMole.getGroups(GetGroupsRequest.newBuilder()
             .addAllId(Arrays.asList(id1, id2, id3, id4, id5))
+            .setResolveClusterSearchFilters(true)
             .build())).thenReturn(Arrays.asList(group1, group2, group3, group4, group5));
         when(policyServiceMole.getAllPolicies(any()))
             .thenReturn(Stream.of(policy12, policy34)

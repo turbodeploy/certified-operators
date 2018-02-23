@@ -6,10 +6,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,6 +33,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
@@ -38,6 +43,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.group.persistent.DatabaseException;
@@ -144,6 +152,10 @@ public class GroupService extends GroupServiceImplBase {
     public void getGroups(GetGroupsRequest request, StreamObserver<Group> responseObserver) {
         logger.info("Get all user groups");
 
+        boolean resolveClusterFilters = request.hasResolveClusterSearchFilters()
+                ? request.getResolveClusterSearchFilters()
+                : false;
+
         final Set<Long> requestedIds = new HashSet<>(request.getIdList());
         try {
             final Stream<Group> groupStream =
@@ -159,9 +171,16 @@ public class GroupService extends GroupServiceImplBase {
                                     request.getNameFilter()))
                     .filter(group -> !request.hasClusterFilter() ||
                             GroupProtoUtil.clusterFilterMatcher(group, request.getClusterFilter()))
+                    .map(group -> {
+                        try {
+                            return resolveClusterFilters ? resolveClusterFilters(group) : group;
+                        } catch (DatabaseException de) {
+                            throw new RuntimeException(de);
+                        }
+                    })
                     .forEach(responseObserver::onNext);
             responseObserver.onCompleted();
-        } catch (DatabaseException e) {
+        } catch (DatabaseException|RuntimeException e) {
             logger.error("Failed to query group store for group definitions.", e);
             responseObserver.onError(Status.INTERNAL.withDescription(e.getLocalizedMessage())
                     .asException());
@@ -353,9 +372,24 @@ public class GroupService extends GroupServiceImplBase {
                         resp = getStaticMembers(group.getId(), groupInfo.getStaticGroupMembers());
                     } else {
                         try {
-                            final List<SearchParameters> searchParameters = groupInfo.getSearchParametersCollection().getSearchParametersList();
-                            final Search.SearchRequest searchRequest = Search.SearchRequest.newBuilder()
-                                    .addAllSearchParameters(searchParameters).build();
+                            final List<SearchParameters> searchParameters
+                                    = groupInfo.getSearchParametersCollection().getSearchParametersList();
+
+                            // Convert any ClusterMemberFilters to static set member checks based
+                            // on current group membership info
+                            Search.SearchRequest.Builder searchRequestBuilder = Search.SearchRequest.newBuilder();
+                            try {
+                                for (SearchParameters params : searchParameters) {
+                                    searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
+                                }
+                            } catch (DatabaseException de) {
+                                logger.error("Failed to resolve cluster filters: ", de);
+                                responseObserver.onError(Status.INTERNAL
+                                        .withDescription(de.getLocalizedMessage()).asRuntimeException());
+                                return;
+
+                            }
+                            final Search.SearchRequest searchRequest = searchRequestBuilder.build();
                             final Search.SearchResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
                             final List<Long> searchResults = searchResponse.getEntitiesList();
                             logger.debug("Dynamic group ({}) and its first 10 members {}",
@@ -387,6 +421,111 @@ public class GroupService extends GroupServiceImplBase {
             logger.error(errMsg);
             responseObserver.onError(Status.NOT_FOUND.withDescription(errMsg).asRuntimeException());
         }
+    }
+
+    /**
+     * Given a group, transform any dynamic clusterMembershipFilters it contains into StringFilters
+     * that express the cluster membership filter statically.
+     *
+     * @param group the group to resolve cluster filters for
+     * @return A new group containing the changes if there were any cluster membership filters to
+     * transform. If not, the original group is returned.
+     */
+    private Group resolveClusterFilters(Group group) throws DatabaseException {
+        final GroupInfo groupInfo = group.getGroup();
+        if (groupInfo.hasStaticGroupMembers()) {
+            return group; // not a dynamic group -- return original group
+        }
+
+        final List<SearchParameters> searchParameters
+                = groupInfo.getSearchParametersCollection().getSearchParametersList();
+        // check if there are any cluster membership filters in the search params
+        if (!searchParameters.stream()
+                .anyMatch(params -> params.getSearchFilterList().stream()
+                        .anyMatch(SearchFilter::hasClusterMembershipFilter))) {
+            return group; // no cluster filters inside -- return original group
+        }
+        // we have cluster membership filters to resolve -- rebuild the group with the resolved
+        // filters
+        logger.debug("Resolving cluster filters for {}", group.getGroup().getName());
+        Group.Builder groupBuilder = Group.newBuilder(group);
+        SearchParametersCollection.Builder searchParamsBuilder = groupBuilder.getGroupBuilder()
+                .getSearchParametersCollectionBuilder()
+                .clearSearchParameters();
+        for (SearchParameters params : searchParameters) {
+            searchParamsBuilder.addSearchParameters(resolveClusterFilters(params));
+        }
+        return groupBuilder.build();
+    }
+
+    /**
+     * Provided an input SearchParameters object, resolve any cluster membership filters contained
+     * inside and return a new SearchParameters object with the resolved filters. If there are no
+     * cluster membership filters inside, return the original object.
+     *
+     * @param searchParameters A SearchParameters object that may contain cluster filters.
+     * @return A SearchParameters object that has had any cluster filters in it resolved. Will be the
+     * original object if there were no group filters inside.
+     */
+    SearchParameters resolveClusterFilters(SearchParameters searchParameters)
+            throws DatabaseException {
+        // return the original object if no cluster member filters inside
+        if (!searchParameters.getSearchFilterList().stream()
+                .anyMatch(SearchFilter::hasClusterMembershipFilter)) {
+            return searchParameters;
+        }
+        // We have one or more Cluster Member Filters to resolve. Rebuild the SearchParameters.
+        SearchParameters.Builder searchParamBuilder = SearchParameters.newBuilder(searchParameters);
+        // we will rebuild the search filters, resolving any cluster member filters we encounter.
+        searchParamBuilder.clearSearchFilter();
+        for (SearchFilter sf : searchParameters.getSearchFilterList()) {
+            searchParamBuilder.addSearchFilter(convertClusterMemberFilter(sf));
+        }
+
+        return searchParamBuilder.build();
+    }
+
+    /**
+     * Convert a cluster member filter to a static property filter. If the input filter does not
+     * contain a cluster member filter, the input filter will be returned, unchanged.
+     *
+     * @param inputFilter The ClusterMemberFilter to convert.
+     * @return A new SearchFilter with any ClusterMemberFilters converted to property filters. If
+     * there weren't any ClusterMemberFilters to convert, the original filter is returned.
+     */
+    private SearchFilter convertClusterMemberFilter(SearchFilter inputFilter)
+            throws DatabaseException {
+        if (! inputFilter.hasClusterMembershipFilter()) {
+            return inputFilter;
+        }
+        // this has a cluster membership filter -- resolve plz
+        // We are only supporting cluster lookups in this filter. Theoretically we could call
+        // back to getMembers() to get generic group resolution, which would be more flexible,
+        // but has the huge caveat of allowing circular references to happen. We'll stick to
+        // just handling clusters here and open it up later, when/if needed.
+        StringFilter clusterSpecifierFilter = inputFilter.getClusterMembershipFilter().getClusterSpecifier().getStringFilter();
+        NameFilter nf = NameFilter.newBuilder()
+                .setNameRegex(clusterSpecifierFilter.getStringPropertyRegex())
+                .setNegateMatch(!clusterSpecifierFilter.getMatch())
+                .build();
+        logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter.getStringPropertyRegex());
+        Set<Long> matchingClusterMembers = groupStore.getAll().stream()
+                .filter(group -> GroupProtoUtil.nameFilterMatches(GroupProtoUtil.getGroupName(group), nf))
+                .filter(Group::hasCluster) // only clusters plz
+                .map(Group::getCluster)
+                .flatMap(clusterInfo -> clusterInfo.getMembers().getStaticMemberOidsList().stream())
+                .collect(Collectors.toSet());
+        // build the replacement filter - a regex against /^oid1$|^oid2$|.../
+        StringJoiner sj = new StringJoiner("$|^","/^","$/");
+        matchingClusterMembers.forEach(oid -> sj.add(oid.toString()));
+
+        SearchFilter searchFilter = SearchFilter.newBuilder()
+                .setPropertyFilter(PropertyFilter.newBuilder()
+                        .setPropertyName("oid")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setStringPropertyRegex(sj.toString())))
+                .build();
+        return searchFilter;
     }
 
     /**

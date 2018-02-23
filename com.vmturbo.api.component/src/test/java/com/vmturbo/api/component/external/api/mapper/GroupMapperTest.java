@@ -16,11 +16,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
@@ -419,6 +420,36 @@ public class GroupMapperTest {
         List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
         assertEquals(2, parameters.size());
     }
+
+    @Test
+    public void testVmsByClusterNameToSearchParameters() {
+        GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL, FOO, "vmsByClusterName"));
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(groupDto, groupDto.getClassName());
+        assertEquals(1, parameters.size());
+        SearchParameters param = parameters.get(0);
+        // verify that the Cluster Membership Filter was created
+        assertTrue(param.getSearchFilter(0).hasClusterMembershipFilter());
+        ClusterMembershipFilter clusterMembershipFilter = param.getSearchFilter(0).getClusterMembershipFilter();
+        // verify that we are looking for clusters with name FOO
+        assertEquals(FOO, clusterMembershipFilter.getClusterSpecifier().getStringFilter().getStringPropertyRegex());
+
+        // test conversion from GroupApiDTO back to FilterApiDTO
+        groupDto.setDisplayName("TestGroupDto");
+        groupDto.setGroupType("VirtualMachine");
+        groupDto.setIsStatic(false);
+        final GroupInfo groupInfo = groupMapper.toGroupInfo(groupDto);
+
+        List<FilterApiDTO> filterApiDTOS = groupMapper.convertToFilterApis(groupInfo);
+        assertEquals(1, filterApiDTOS.size());
+        // verify that we have rebuilt the original vmsByClusterName
+        FilterApiDTO vmsByClusterNameFilter = filterApiDTOS.get(0);
+        assertEquals("vmsByClusterName", vmsByClusterNameFilter.getFilterType());
+        assertEquals("EQ", vmsByClusterNameFilter.getExpType());
+        assertEquals(FOO, vmsByClusterNameFilter.getExpVal());
+
+    }
+
+
 
     private FilterApiDTO filterDTO(String expType, String expVal, String filterType) {
         FilterApiDTO filter = new FilterApiDTO();

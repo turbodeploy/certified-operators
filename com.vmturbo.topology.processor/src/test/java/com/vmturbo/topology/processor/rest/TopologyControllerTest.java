@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -36,6 +37,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.google.gson.Gson;
 
+import io.grpc.Channel;
+
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;

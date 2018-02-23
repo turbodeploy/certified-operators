@@ -248,6 +248,18 @@ message GetGroupsRequest {
 
     // Apply this filter to any groups returned where Group.Type is CLUSTER.
     optional ClusterFilter cluster_filter = 5;
+
+    // "Resolve" any Cluster Membership search filters contained in the resulting Groups.
+    // Cluster Membership filters are expected to return the set of PM's belonging to all clusters
+    // matching the filter criteria. So "resolving" a cluster membership means replacing the
+    // ClusterMembershipFilter with an equivalent regex-based String matching filter that identifies
+    // all of the PM entity id's belonging to the set of clusters matched by the cluster filter.
+    //
+    // Since the group component is the primary source of truth for cluster membership, this option
+    // exists as a way to have the group component pre-calculate the cluster members and inject them
+    // into the search parameters, avoiding further calls back to the group service that would have
+    // requested these cluster members anyways.
+    optional bool resolve_cluster_search_filters = 6 [default = false];
 }
 
 message GetMembersRequest {

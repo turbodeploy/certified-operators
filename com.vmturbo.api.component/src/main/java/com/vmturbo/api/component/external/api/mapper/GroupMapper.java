@@ -11,15 +11,17 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.group.FilterApiDTO;
@@ -35,6 +37,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -325,12 +328,39 @@ public class GroupMapper {
             return parameters;
         }
         // elements is of the form (for example) "PhysicalMachine:PRODUCES"
+        SearchParameters.Builder parametersBuilder = SearchParameters.newBuilder();
+
+        // the name filter will be used for either an entity name search or cluster name search
+        PropertyFilter nameFilter = SearchMapper.nameFilter(filter.getExpVal(),
+                filter.getExpType().equals(EQUAL));
+        // if we are searching by cluster, create the cluster search parameter for that.
         String[] elementsArray = elements.split(ELEMENTS_DELIMITER);
-        TraversalDirection direction = TraversalDirection.valueOf(elementsArray[1]);
-        PropertyFilter seTypeFilter = SearchMapper.entityTypeFilter(elementsArray[0]);
-        PropertyFilter seNameFilter = SearchMapper.nameFilter(filter.getExpVal(),
-            filter.getExpType().equals(EQUAL));
+        if ((elementsArray.length > 0) && (CLUSTER.equals(elementsArray[0]))) {
+            // add cluster search parameters
+            // create a cluster membership filter using the name filter as the cluster lookup function
+            ClusterMembershipFilter clusterFilter = ClusterMembershipFilter.newBuilder()
+                    .setClusterSpecifier(nameFilter)
+                    .build();
+            // we will also add a PM starting filter. The startingFilter could be refactored to
+            // allow for the ClusterFilter to be used directly too, though it may not be worth the
+            // cost of doing it just to remove this hard-coded PM filter. Another option is to
+            // extend the groupUseCase grammar so cluster member entity type can be explicit, but
+            // has a similar cost-to-benefit question.
+            PropertyFilter startingFilter = SearchMapper.entityTypeFilter(UIEntityType.PHYSICAL_MACHINE.getValue());
+            parametersBuilder
+                    .setStartingFilter(startingFilter)
+                    .addSearchFilter(SearchFilter.newBuilder().setClusterMembershipFilter(clusterFilter));
+
+        } else {
+            // add starting search parameters for regular entity types
+            PropertyFilter seTypeFilter = SearchMapper.entityTypeFilter(elementsArray[0]);
+            parametersBuilder
+                    .setStartingFilter(seTypeFilter)
+                    .addSearchFilter(SearchMapper.searchFilterProperty(nameFilter));
+        }
+        // add the search params for traversals as needed.
         PropertyFilter classNameFilter = SearchMapper.entityTypeFilter(className);
+        TraversalDirection direction = TraversalDirection.valueOf(elementsArray[1]);
         int hops = elementsArray.length > 2 ? Integer.valueOf(elementsArray[2]) : 0;
         Function<StoppingCondition.Builder, StoppingCondition.Builder> condition =
                 builder -> (hops > 0
@@ -341,10 +371,7 @@ public class GroupMapper {
                 .setTraversalDirection(direction)
                 .setStoppingCondition(stop)
                 .build();
-        SearchParameters.Builder parametersBuilder = SearchParameters.newBuilder()
-                .setStartingFilter(seTypeFilter)
-                .addSearchFilter(SearchMapper.searchFilterProperty(seNameFilter))
-                .addSearchFilter(SearchMapper.searchFilterTraversal(traversal));
+        parametersBuilder.addSearchFilter(SearchMapper.searchFilterTraversal(traversal));
         if (hops > 0) {
             parametersBuilder.addSearchFilter(SearchMapper.searchFilterProperty(classNameFilter));
         }
@@ -369,18 +396,33 @@ public class GroupMapper {
                 .collect(Collectors.toMap(map -> map.getElements().split(ELEMENTS_DELIMITER)[0],
                     GroupUseCaseCriteria::getFilterType));
 
-        PropertyFilter startingPropertyFilter = searchParameters.getStartingFilter();
-        final String startFilterEntityName = ServiceEntityMapper.toUIEntityType(
-                Math.toIntExact(startingPropertyFilter.getNumericFilter().getValue()));
+        // we will recreate the FilterApiDTO differently depending on whether  a cluster filter was used.
+        Optional<ClusterMembershipFilter> optionalClusterFilter = searchParameters.getSearchFilterList().stream()
+                .filter(SearchFilter::hasClusterMembershipFilter)
+                .map(SearchFilter::getClusterMembershipFilter)
+                .findFirst();
+        final String startFilterEntityName; // the primary filter type used -- cluster or entity type
+        final Optional<PropertyFilter> entityValueFilter; // the property filter used on the primary filter type
+        if (optionalClusterFilter.isPresent()) {
+            // use the cluster filter properties to reconstruct the FilterApiDTO
+            startFilterEntityName = CLUSTER;
+            entityValueFilter = Optional.of(optionalClusterFilter.get().getClusterSpecifier());
+        } else {
+            // not a cluster filter -- create the FilterApiDTO using the standard filter props
+            PropertyFilter startingPropertyFilter = searchParameters.getStartingFilter();
+            startFilterEntityName = ServiceEntityMapper.toUIEntityType(
+                    Math.toIntExact(startingPropertyFilter.getNumericFilter().getValue()));
+            entityValueFilter = searchParameters.getSearchFilterList().stream()
+                    .filter(searchFilter -> searchFilter.getFilterTypeCase() == FilterTypeCase.PROPERTY_FILTER)
+                    .filter(searchFilter -> searchFilter.getPropertyFilter().getPropertyName().equals(DISPLAY_NAME))
+                    .map(SearchFilter::getPropertyFilter)
+                    .findFirst();
+        }
+
         FilterApiDTO filterApiDTO = new FilterApiDTO();
 
         final Optional<String> filterType = Optional.ofNullable(useCaseByEntityType.get(startFilterEntityName));
         filterApiDTO.setFilterType(filterType.orElse(useCaseByEntityType.get(DISPLAY_NAME)));
-        Optional<PropertyFilter> entityValueFilter = searchParameters.getSearchFilterList().stream()
-                .filter(searchFilter -> searchFilter.getFilterTypeCase() == FilterTypeCase.PROPERTY_FILTER)
-                .filter(searchFilter -> searchFilter.getPropertyFilter().getPropertyName().equals(DISPLAY_NAME))
-                .map(SearchFilter::getPropertyFilter)
-                .findFirst();
 
         entityValueFilter.ifPresent(valueFilter -> {
             switch (valueFilter.getPropertyTypeCase()) {
@@ -400,4 +442,5 @@ public class GroupMapper {
         });
         return filterApiDTO;
     }
+
 }

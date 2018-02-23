@@ -1,6 +1,7 @@
 package com.vmturbo.group.service;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
@@ -18,18 +19,19 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
-
-import com.google.common.collect.Lists;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -38,6 +40,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateClusterHeadroomTemplateResponse;
@@ -45,6 +48,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -538,6 +545,55 @@ public class GroupServiceTest {
         verify(mockObserver).onError(any(IllegalArgumentException.class));
         verify(mockObserver, never()).onNext(any(GroupDTO.GetMembersResponse.class));
         verify(mockObserver, never()).onCompleted();
+    }
+
+
+    @Test
+    public void testGetGroupWithClusterFilterResolution() throws Exception {
+        final GroupDTO.Group cluster1 = GroupDTO.Group.newBuilder()
+                .setType(Type.CLUSTER)
+                .setId(1)
+                .setCluster(ClusterInfo.newBuilder()
+                        .setName("Cluster1")
+                        .setMembers(StaticGroupMembers.newBuilder()
+                                .addStaticMemberOids(1)
+                                .addStaticMemberOids(2)))
+                .build();
+
+        // create a dynamic group based on Cluster1
+        final GroupDTO.Group clusterGroup = GroupDTO.Group.newBuilder()
+                .setType(Type.GROUP)
+                .setId(2)
+                .setGroup(GroupInfo.newBuilder()
+                        .setName("clusterGroup")
+                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                .addSearchParameters(SearchParameters.newBuilder()
+                                    .addSearchFilter(SearchFilter.newBuilder()
+                                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                                            .setClusterSpecifier(PropertyFilter.newBuilder()
+                                                .setPropertyName("displayName")
+                                                .setStringFilter(StringFilter.newBuilder()
+                                                    .setStringPropertyRegex("Cluster1"))))))))
+                .build();
+        given(groupStore.getAll()).willReturn(Arrays.asList(cluster1,clusterGroup));
+
+        final StreamObserver<GroupDTO.Group> mockObserver =
+                mock(StreamObserver.class);
+
+        ArgumentCaptor<Group> groupCaptor = ArgumentCaptor.forClass(Group.class);
+
+        groupService.getGroups(GetGroupsRequest.newBuilder()
+                .setResolveClusterSearchFilters(true)
+                .addId(2)
+                .build(), mockObserver);
+
+        verify(mockObserver).onNext(groupCaptor.capture());
+        // there should be one string filter in the group now
+        GroupInfo info = groupCaptor.getValue().getGroup();
+        StringFilter stringFilter = info.getSearchParametersCollection()
+                .getSearchParameters(0).getSearchFilter(0)
+                .getPropertyFilter().getStringFilter();
+        assertEquals("/^1$|^2$/", stringFilter.getStringPropertyRegex());
     }
 
     @Test

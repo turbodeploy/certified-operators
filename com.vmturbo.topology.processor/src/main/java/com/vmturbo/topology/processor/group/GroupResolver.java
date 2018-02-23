@@ -14,11 +14,11 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -28,8 +28,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -44,9 +44,9 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
  */
 @NotThreadSafe
 public class GroupResolver {
+    private static final Logger logger = LogManager.getLogger();
 
     private final TopologyFilterFactory filterFactory;
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Cache for storing resolved groups.
@@ -54,6 +54,11 @@ public class GroupResolver {
      */
     private final Map<Long, Set<Long>> groupResolverCache;
 
+    /**
+     * Create a GroupResolver.
+     *
+     * @param filterFactory The topology filter factory to use when resolving dynamic groups.
+     */
     public GroupResolver(@Nonnull final TopologyFilterFactory filterFactory) {
         this.filterFactory = Objects.requireNonNull(filterFactory);
         this.groupResolverCache = new HashMap<>();

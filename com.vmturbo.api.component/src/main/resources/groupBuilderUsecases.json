@@ -4,7 +4,8 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vmsByName"},
             {"inputType": "*", "elements": "PhysicalMachine:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByPMName"},
             {"inputType": "*", "elements": "Storage:PRODUCES", "filterCategory": "entity", "filterType": "vmsByStorage"},
-            {"inputType": "*", "elements": "Application:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"}
+            {"inputType": "*", "elements": "Application:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
+            {"inputType": "*", "elements": "Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"}
         ]
     },
 

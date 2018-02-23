@@ -17,6 +17,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -161,6 +162,12 @@ public class ConstraintsEditorTest {
                             .get())
                     .build();
             responseObserver.onNext(groupResponse);
+            responseObserver.onCompleted();
+        }
+
+        @Override
+        public void getGroups(final GetGroupsRequest request, final StreamObserver<Group> responseObserver) {
+            groups.forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         }
     }

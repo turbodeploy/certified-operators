@@ -39,8 +39,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.St
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class GroupResolverTest {
@@ -336,4 +336,5 @@ public class GroupResolverTest {
         final GroupResolver resolver = new GroupResolver(Mockito.mock(TopologyFilterFactory.class));
         resolver.resolve(group, topologyGraph);
     }
+
 }

@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
@@ -9,20 +10,21 @@ import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+
 import org.assertj.core.util.Sets;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 
 import io.grpc.Channel;
 
@@ -34,11 +36,16 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 
@@ -59,10 +66,12 @@ public class SearchServiceTest {
     private final UuidMapper uuidMapper = new UuidMapper(7777777L);
     private final GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
+    private final Channel channel = Mockito.mock(Channel.class);
+
     @Before
     public void setUp() {
         SearchServiceBlockingStub searchGrpcStub =
-                SearchServiceGrpc.newBlockingStub(Mockito.mock(Channel.class));
+                SearchServiceGrpc.newBlockingStub(channel);
         searchService = new SearchService(
                 repositoryApi,
                 marketsService,
@@ -171,4 +180,30 @@ public class SearchServiceTest {
                 containsInAnyOrder("1", "2", "3", "4"));
     }
 
+    @Test
+    public void testClusterFilters() throws Exception {
+        GroupApiDTO cluster1 = new GroupApiDTO();
+        cluster1.setDisplayName("Cluster1");
+        cluster1.setGroupType("PhysicalMachine");
+        cluster1.setIsStatic(true);
+        cluster1.setLogicalOperator("AND");
+        cluster1.setMemberUuidList(Arrays.asList("1","2"));
+
+        // create a SearchParams for members of Cluster1
+        SearchParameters params = SearchParameters.newBuilder()
+                .addSearchFilter(SearchFilter.newBuilder()
+                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                                .setClusterSpecifier(PropertyFilter.newBuilder()
+                                        .setStringFilter(StringFilter.newBuilder()
+                                                .setStringPropertyRegex("Cluster1"))
+                                        .setPropertyName("displayName"))))
+                .build();
+        when(groupsService.getGroupApiDTOS(anyObject())).thenReturn(Arrays.asList(cluster1));
+        SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
+
+        // we should get the members of cluster 1 in the static regex
+        StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
+        assertEquals("/^1$|^2$/", stringFilter.getStringPropertyRegex());
+
+    }
 }

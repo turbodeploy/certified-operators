@@ -8,6 +8,8 @@ import java.util.function.ToLongFunction;
 import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.StringUtils;
+
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -30,15 +32,6 @@ public class TopologyFilterFactory {
 
     public TopologyFilterFactory() {
         // Nothing to do
-    }
-
-    /**
-     * Create a group resolver that uses this topology filter factory when creating filters to resolve groups.
-     *
-     * @return A group resolver that uses this topology filter factory when creating filters to resolve groups.
-     */
-    public GroupResolver newGroupResolver() {
-        return new GroupResolver(this);
     }
 
     /**
@@ -135,11 +128,22 @@ public class TopologyFilterFactory {
                 ));
             // Support oid either as a string or as a numeric filter.
             case "oid":
-                return new PropertyFilter(longPredicate(
-                    Long.valueOf(stringCriteria.getStringPropertyRegex()),
-                    stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
-                    TopologyEntity::getOid
-                ));
+                if (StringUtils.isNumeric(stringCriteria.getStringPropertyRegex())) {
+                    // the string regex is an oid and can be represented as a numeric equals filter.
+                    return new PropertyFilter(longPredicate(
+                            Long.valueOf(stringCriteria.getStringPropertyRegex()),
+                            stringCriteria.getMatch() ? ComparisonOperator.EQ : ComparisonOperator.NE,
+                            TopologyEntity::getOid
+                    ));
+                } else {
+                    // the string regex is really a regex instead of a string-encoded long -- create
+                    // a string predicate to handle the oid matching.
+                    return new PropertyFilter(stringPredicate(
+                            stringCriteria.getStringPropertyRegex(),
+                            entity -> String.valueOf(entity.getOid()),
+                            !stringCriteria.getMatch()
+                    ));
+                }
             default:
                 throw new IllegalArgumentException("Unknown string property named: " + stringCriteria);
         }

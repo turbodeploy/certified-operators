@@ -13,16 +13,16 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.validation.Errors;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -94,6 +94,8 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlock
  * Service implementation of Groups functionality.
  **/
 public class GroupsService implements IGroupsService {
+
+    public static final String GROUPS_FILTER_TYPE = "groupsByName";
 
     private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
             "GROUP-VirtualMachine", "GROUP-PhysicalMachineByCluster", "Market");
@@ -661,7 +663,7 @@ public class GroupsService implements IGroupsService {
      * @param groupsRequest a request to specify, optionally, a name-matching regex
      * @return a list of {@link GroupApiDTO}s satisfying the given request
      */
-    private List<GroupApiDTO> getGroupApiDTOS(GetGroupsRequest groupsRequest) {
+    public List<GroupApiDTO> getGroupApiDTOS(GetGroupsRequest groupsRequest) {
         Iterable<Group> groups = () -> groupServiceRpc.getGroups(groupsRequest);
         return StreamSupport.stream(groups.spliterator(), false)
                 .map(groupMapper::toGroupApiDto)
@@ -684,7 +686,7 @@ public class GroupsService implements IGroupsService {
 
         GetGroupsRequest.Builder requestBuilder = GetGroupsRequest.newBuilder();
         for (FilterApiDTO filter : filterList ) {
-            if (filter.getFilterType().equals("groupsByName")) {
+            if (filter.getFilterType().equals(GROUPS_FILTER_TYPE)) {
                 requestBuilder.setNameFilter(GroupDTO.NameFilter.newBuilder()
                         .setNameRegex(filter.getExpVal())
                         .setNegateMatch(!filter.getExpType().equals("EQ"))

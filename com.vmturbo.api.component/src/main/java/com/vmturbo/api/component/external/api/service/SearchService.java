@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -18,12 +19,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
-import org.springframework.util.CollectionUtils;
-
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -44,8 +48,14 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISearchService;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.Entity;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 
@@ -53,6 +63,7 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
  * Service entry points to search the Repository.
  **/
 public class SearchService implements ISearchService {
+    private static final Logger logger = LogManager.getLogger();
 
     private final RepositoryApi repositoryApi;
 
@@ -254,20 +265,24 @@ public class SearchService implements ISearchService {
      * @return A list of {@link BaseApiDTO} will be sent back to client
      */
     private List<BaseApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
-        List<SearchParameters> parameters =
+        List<SearchParameters> searchParameters =
             groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
-        final Search.SearchRequest.Builder searchRequestBuilder =
-            Search.SearchRequest.newBuilder()
-                .addAllSearchParameters(parameters);
+
+        // Convert any ClusterMemberFilters to static member filters
+        Search.SearchRequest.Builder searchRequestBuilder = Search.SearchRequest.newBuilder();
+        for (SearchParameters params : searchParameters) {
+            searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
+        }
+        final Search.SearchRequest searchRequest = searchRequestBuilder.build();
         // match only the entity uuids which are part of the group or cluster
         // defined in the scope
         if ((inputDTO.getScope() != null) && (!inputDTO.getScope().isEmpty())) {
             String entityIdsToMatch =
-                groupExpander.expandUuids(ImmutableSet.copyOf(inputDTO.getScope()))
-                    .stream()
-                    .map(uuid -> Long.toString(uuid))
-                    // OR operation
-                    .collect(Collectors.joining( "|" ) );
+                    groupExpander.expandUuids(ImmutableSet.copyOf(inputDTO.getScope()))
+                            .stream()
+                            .map(uuid -> Long.toString(uuid))
+                            // OR operation
+                            .collect(Collectors.joining( "|" ) );
             if (!entityIdsToMatch.isEmpty()) {
                 // This is clunky. We are setting a filter on an index in
                 // repository(arangodb) which is not exposed anywhere.
@@ -275,12 +290,13 @@ public class SearchService implements ISearchService {
                 // client side. But doing the filter on the repository(server) side may
                 // be more efficient.
                 searchRequestBuilder.addSearchParameters(
-                    SearchParameters.newBuilder()
-                        .setStartingFilter(
-                            SearchMapper.stringFilter(REPO_OID_KEY_NAME, entityIdsToMatch))
-                        .build());
+                        SearchParameters.newBuilder()
+                                .setStartingFilter(
+                                        SearchMapper.stringFilter(REPO_OID_KEY_NAME, entityIdsToMatch))
+                                .build());
             }
         }
+
         Iterator<Entity> iterator = searchServiceRpc.searchEntities(searchRequestBuilder.build());
         List<BaseApiDTO> list = Lists.newLinkedList();
         while (iterator.hasNext()) {
@@ -289,6 +305,73 @@ public class SearchService implements ISearchService {
             list.add(seDTO);
         }
         return list;
+    }
+
+    /**
+     * Provided an input SearchParameters object, resolve any cluster membership filters contained
+     * inside and return a new SearchParameters object with the resolved filters. If there are no
+     * cluster membership filters inside, return the original object.
+     *
+     * @param searchParameters A SearchParameters object that may contain cluster filters.
+     * @return A SearchParameters object that has had any cluster filters in it resolved. Will be the
+     * original object if there were no group filters inside.
+     */
+    @VisibleForTesting
+    SearchParameters resolveClusterFilters(SearchParameters searchParameters) {
+        // return the original object if no cluster member filters inside
+        if (!searchParameters.getSearchFilterList().stream()
+                .anyMatch(SearchFilter::hasClusterMembershipFilter)) {
+            return searchParameters;
+        }
+        // We have one or more Cluster Member Filters to resolve. Rebuild the SearchParameters.
+        SearchParameters.Builder searchParamBuilder = SearchParameters.newBuilder(searchParameters);
+        // we will rebuild the search filters, resolving any cluster member filters we encounter.
+        searchParamBuilder.clearSearchFilter();
+        for (SearchFilter sf : searchParameters.getSearchFilterList()) {
+            searchParamBuilder.addSearchFilter(convertClusterMemberFilter(sf));
+        }
+
+        return searchParamBuilder.build();
+    }
+
+    /**
+     * Convert a cluster member filter to a static property filter. If the input filter does not
+     * contain a cluster member filter, the input filter will be returned, unchanged.
+     *
+     * @param inputFilter The ClusterMemberFilter to convert.
+     * @return A new SearchFilter with any ClusterMemberFilters converted to property filters. If
+     * there weren't any ClusterMemberFilters to convert, the original filter is returned.
+     */
+    private SearchFilter convertClusterMemberFilter(SearchFilter inputFilter) {
+        if (!inputFilter.hasClusterMembershipFilter()) {
+            return inputFilter;
+        }
+        // this has a cluster membership filter -- resolve plz
+        StringFilter clusterSpecifierFilter = inputFilter.getClusterMembershipFilter()
+                .getClusterSpecifier()
+                .getStringFilter();
+        logger.debug("Resolving ClusterMemberFilter {}", clusterSpecifierFilter.getStringPropertyRegex());
+        // find matching groups and members using the group service
+        List<GroupApiDTO> groups = groupsService.getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                .setNameFilter(NameFilter.newBuilder()
+                        .setNameRegex(clusterSpecifierFilter.getStringPropertyRegex())
+                        .setNegateMatch(!clusterSpecifierFilter.getMatch()))
+                .setTypeFilter(Type.CLUSTER)
+                .build());
+
+        // build the replacement filter - a regex against /^oid1$|^oid2$|.../
+        StringJoiner sj = new StringJoiner("$|^","/^","$/");
+        groups.stream()
+                .map(GroupApiDTO::getMemberUuidList)
+                .flatMap(List::stream)
+                .distinct()
+                .forEach(sj::add);
+        return SearchFilter.newBuilder()
+                .setPropertyFilter(PropertyFilter.newBuilder()
+                        .setPropertyName("oid")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setStringPropertyRegex(sj.toString())))
+                .build();
     }
 
     @Override

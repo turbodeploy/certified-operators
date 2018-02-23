@@ -9,17 +9,16 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
@@ -87,21 +86,24 @@ public class ConstraintsEditor {
                 .map(IgnoreConstraint::getGroupUuid)
                 .collect(Collectors.toSet());
         final Multimap<Long, String> entitesToIgnoredCommodities = HashMultimap.create();
-        for (long groupId : groups) {
-            final GetGroupResponse groupResponse = groupService.getGroup(
-                    GroupID.newBuilder().setId(groupId).build());
+        groupService.getGroups(GetGroupsRequest.newBuilder()
+                .addAllId(groups)
+                .setResolveClusterSearchFilters(true)
+                .build())
+                .forEachRemaining(group -> {
             try {
-                final Set<Long> groupMembersOids = groupResolver.resolve(groupResponse.getGroup(), graph);
+                final Set<Long> groupMembersOids = groupResolver.resolve(group, graph);
                 final Set<String> commoditiesOfGroup = ignoredCommodities.stream()
-                        .filter(commodity -> commodity.getGroupUuid() == groupId)
+                        .filter(commodity -> commodity.getGroupUuid() == group.getId())
                         .map(IgnoreConstraint::getCommodityType)
                         .collect(Collectors.toSet());
                 groupMembersOids.forEach(entityId ->
                         entitesToIgnoredCommodities.putAll(entityId, commoditiesOfGroup));
             } catch (GroupResolutionException e) {
-                logger.warn("Cannot resolve member for group {}", groupResponse.getGroup());
+                logger.warn("Cannot resolve member for group {}", group);
             }
-        }
+        });
+
         return entitesToIgnoredCommodities;
     }
 

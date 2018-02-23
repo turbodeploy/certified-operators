@@ -518,6 +518,7 @@ public class EntitySettingsResolver {
 
         groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
             .addAllId(groupIds)
+            .setResolveClusterSearchFilters(true) // precalculate any cluster filters for us
             .build())
             .forEachRemaining(group -> {
                 if (group.hasId()) {

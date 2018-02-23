@@ -21,12 +21,30 @@ message SearchParameters {
 // A filter that needs to be applied to the topology, in order to return a subset of the entities.
 message SearchFilter {
 
-    // There are 2 types of filters.
+    // There are 3 types of filters.
     // - traversal filter: used to traverse graph relationship
     // - property filter: used to specify specific criteria on properties of the element
+    // - cluster membership filter: this is a special-case filter that will target physical machines
+    // (and only physical machines) belonging to a cluster or set of clusters. Being special-purpose,
+    // there are a number of limitations:
+    //   1) It cannot be freely mixed-and-matched with the other search filters. It always produces
+    //      a set of PM oid's, which will only make sense in the filtering pipeline if the input to
+    //      the search stage is also PM's. If it is staged to filter on non-PM entities, it will produce
+    //      nonsensical results. If you want to get non-PM entities restricted by cluster, you can
+    //      pair this filter with the other filter types to navigate to them from the set of PM's
+    //      this filter returns.
+    //   2) It is primarily designed to support group creation and user-driven search queries. It
+    //      has not been tested outside of those scenarios. These target use cases will always create
+    //      a Starting Filter of "entity type = PM" and then place this filter as the first search
+    //      filter afterwards. Theoretically multiple cluster filters can be used together but the
+    //      use cases don't normally doesn't produce this setup.
+    //   3) TODO: With these limitations in mind, we will probably want to  come back and change the
+    //      data model for this use case so it works more naturally. But perhaps that is best done
+    //      coupled with other changes and improvements we will make to the filtering functionality.
     oneof filterType {
         TraversalFilter traversal_filter = 1;
         PropertyFilter property_filter = 2;
+        ClusterMembershipFilter cluster_membership_filter = 3;
     }
 
     // Filter used to traverse graph relationship.
@@ -97,6 +115,31 @@ message PropertyFilter {
         // Requested value for the numeric property filtering.
         optional int64 value = 2;
     }
+
+}
+
+// used to check if entities are part of a cluster.
+//
+// This filter gets special handling in SearchService, where the group information is resolved in a
+// separate step from the other filtering mechanisms and then is translated to a String RegEx filter
+// for checking if an entity id is part of the cluster.
+//
+// This is due to the group membership information being stored in a separate arango database from
+// the topology information and disallowing "joining" the topology documents with group info
+// documents. Perhaps, in the future, we can unify these in a way that allows the group filter to
+// be handled in a way that is consistent with the other search filters, e.g. direct graph
+// traversals in a single database/context. We could also generalize this to a "Group" filter if
+// the need ever arises.
+//
+message ClusterMembershipFilter {
+    // Specifies the group(s) to filter membership based on. NOTE: only string regexes on cluster
+    // names are supported right now. We would need to enhance to allow selection on other cluster
+    // properties and/or multiple property filter support if this is needed in the future.
+    //
+    // There is also a NameFilter available in the GroupDTO.proto that is a better modeling fit for
+    // this filter's role, but we can't import that without creating a circular reference between
+    // the two .proto files.
+    optional PropertyFilter cluster_specifier = 1;
 }
 
 enum ComparisonOperator {
