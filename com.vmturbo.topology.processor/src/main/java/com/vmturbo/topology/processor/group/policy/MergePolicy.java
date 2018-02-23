@@ -2,8 +2,8 @@ package com.vmturbo.topology.processor.group.policy;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -20,6 +20,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -97,81 +98,56 @@ public class MergePolicy extends PlacementPolicy {
                                     final long policyOid,
                                     @Nonnull final GroupResolver groupResolver,
                                     @Nonnull final TopologyGraph topologyGraph) {
-        // predicate for either PM or Storage type
-        final Predicate<Long> isMatchingPolicyType = id -> topologyGraph.getEntity(id).isPresent()
-                && getCurrentEntityType() == (topologyGraph.getEntity(id).get().getEntityType());
-        Set<TopologyEntity> entitySet = oidList
-                .stream()
-                .filter(isMatchingPolicyType)
-                .map(id -> topologyGraph.getEntity(id).get())
+        final Set<TopologyEntity> entitySet = oidList.stream()
+                .map(topologyGraph::getEntity)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .filter(entity -> entity.getEntityType() == getCurrentEntityType())
                 .collect(Collectors.toSet());
+
         // PM (or Storage)
-        changeClusterKey(policyOid, topologyGraph, entitySet);
+        changeClusterKey(policyOid, entitySet);
 
         // change the key of the cluster commodity for all VMs that attached to the PMs (or Storage) in the clusters
-        Set<TopologyEntity> vmSet = entitySet
+        final Set<TopologyEntity> vmSet = entitySet
                 .stream()
                 .flatMap(entity -> entity.getConsumers().stream())
                 .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .collect(Collectors.toSet());
-        changeClusterKeyForVM(policyOid, topologyGraph, vmSet, entitySet);
+        changeClusterKeyForVM(policyOid, vmSet, entitySet);
     }
 
     /**
      * Going through all the PMs (or Storage) and change the key of the 'sold' cluster commodity
      * to the policy OID.
      *
-     * @param policyOid     merge policy OID
-     * @param topologyGraph The {@link TopologyGraph} to which the policy should be applied.
-     * @param entitySet     Set with either PM (or Storage) OIDs
+     * @param policyOid merge policy OID
+     * @param entitySet Set with either PM (or Storage) OIDs
      */
 
     private void changeClusterKey(final long policyOid,
-                                  @Nonnull final TopologyGraph topologyGraph,
                                   @Nonnull final Set<TopologyEntity> entitySet) {
         entitySet.stream().forEach(topologyEntity -> {
             // get the commodity sold list
-            List<CommoditySoldDTO> commoditySoldList = topologyEntity
+            final List<CommoditySoldDTO.Builder> commoditySoldList = topologyEntity
                     .getTopologyEntityDtoBuilder()
-                    .getCommoditySoldListList();
+                    .getCommoditySoldListBuilderList();
 
-            // check if we have cluster, storage cluster or datacenter commodity, if yes store and reuse later
-            List<CommoditySoldDTO> newComoditySoldList = Lists.newArrayList();
-            CommoditySoldDTO oldSoldDTO = null;
-            for (CommoditySoldDTO soldDTO : commoditySoldList) {
-                if (soldDTO.getCommodityType().getType() == getCommodityType()) {
-                    oldSoldDTO = soldDTO;
-                } else {
-                    newComoditySoldList.add(soldDTO);
-                }
-            }
+            final Optional<Builder> commodityToModify = commoditySoldList.stream()
+                    .filter(commodity -> commodity.getCommodityType().getType() == getCommodityType())
+                    .findFirst();
 
-            // build Cluster commodity type
-            TopologyDTO.CommodityType newClusterType = TopologyDTO
-                    .CommodityType.newBuilder()
-                    .setKey(Long.toString(policyOid)) // see the key to merge policy id
-                    .setType(getCommodityType())
-                    .build();
-
-            // create cluster commodity.
-            CommoditySoldDTO newClusterDTO;
-            if (oldSoldDTO != null) {
-                newClusterDTO = CommoditySoldDTO.newBuilder(oldSoldDTO)
-                        .setCommodityType(newClusterType)
-                        .build();
+            if (commodityToModify.isPresent()) {
+                commodityToModify.get().getCommodityTypeBuilder()
+                        .setKey(Long.toString(policyOid));
             } else {
-                newClusterDTO = CommoditySoldDTO.newBuilder()
-                        .setCommodityType(newClusterType)
-                        .build();
+                topologyEntity.getTopologyEntityDtoBuilder().addCommoditySoldList(
+                        CommoditySoldDTO.newBuilder()
+                                .setCommodityType(TopologyDTO
+                                        .CommodityType.newBuilder()
+                                        .setKey(Long.toString(policyOid)) /* set the key to merge policy id*/
+                                        .setType(getCommodityType())));
             }
-            // add the new Cluster DTO to list
-            newComoditySoldList.add(newClusterDTO);
-
-            // remove the old list and add the new one
-            topologyEntity
-                    .getTopologyEntityDtoBuilder()
-                    .clearCommoditySoldList()
-                    .addAllCommoditySoldList(newComoditySoldList);
         });
     }
 
@@ -186,25 +162,19 @@ public class MergePolicy extends PlacementPolicy {
      * set CLUSTER commodity bought
      * }
      *
-     * @param policyOid     merge policy OID
-     * @param topologyGraph The {@link TopologyGraph} to which the policy should be applied.
-     * @param hostSet       The set of hosts, could be PMs or Storages
-     * @param vmSet         Set with VM OIDs
+     * @param policyOid merge policy OID
+     * @param hostSet   The set of hosts, could be PMs or Storages
+     * @param vmSet     Set with VM OIDs
      */
     private void changeClusterKeyForVM(final long policyOid,
-                                       @Nonnull final TopologyGraph topologyGraph,
                                        @Nonnull final Set<TopologyEntity> vmSet,
                                        @Nonnull final Set<TopologyEntity> hostSet) {
         vmSet.stream().forEach(topologyEntity -> {
             // get the commodity bought provider list
-            List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProvidersList = topologyEntity
+            List<CommoditiesBoughtFromProvider.Builder> boughtFromProviderBuilderList = topologyEntity
                     .getTopologyEntityDtoBuilder()
-                    .getCommoditiesBoughtFromProvidersList();
-
-            List<CommoditiesBoughtFromProvider> newCommodityBoughtFromProviderList = Lists.newArrayList();
-
-
-            commoditiesBoughtFromProvidersList
+                    .getCommoditiesBoughtFromProvidersBuilderList();
+            boughtFromProviderBuilderList
                     .stream()
                     .forEach(commoditiesBoughtFromProvider -> {
                         // the condition is to make sure that the providerID for that bought list is included in
@@ -214,50 +184,29 @@ public class MergePolicy extends PlacementPolicy {
                         if (commoditiesBoughtFromProvider.hasProviderId() &&
                                 hostSet.stream()
                                         .anyMatch(host -> host.getOid() == commoditiesBoughtFromProvider.getProviderId())) {
-                            List<CommodityBoughtDTO> commodityBoughtDTOList = commoditiesBoughtFromProvider
-                                    .getCommodityBoughtList();
-                            List<CommodityBoughtDTO> newCommodityBoughtList = Lists.newArrayList();
-                            CommodityBoughtDTO oldBoughtDto = null;
-                            for (CommodityBoughtDTO boughtDTO : commodityBoughtDTOList) {
-                                if (boughtDTO.getCommodityType().getType() == getCommodityType()) {
-                                    oldBoughtDto = boughtDTO;
-                                } else {
-                                    newCommodityBoughtList.add(boughtDTO);
-                                }
-                            }
+                            final List<CommodityBoughtDTO.Builder> commodityBoughtDTOBuilderList = commoditiesBoughtFromProvider
+                                    .getCommodityBoughtBuilderList();
+                            final Optional<CommodityBoughtDTO.Builder> commodityToModify = commodityBoughtDTOBuilderList
+                                    .stream()
+                                    .filter(commodity -> commodity.getCommodityType().getType() == getCommodityType())
+                                    .findFirst();
 
-                            TopologyDTO.CommodityType newClusterType = TopologyDTO.CommodityType.newBuilder()
-                                    .setKey(Long.toString(policyOid))
-                                    .setType(getCommodityType())
-                                    .build();
-
-                            // create cluster commodity.
-                            CommodityBoughtDTO newClusterDTO;
-                            if (oldBoughtDto != null) {
-                                newClusterDTO = CommodityBoughtDTO.newBuilder(oldBoughtDto)
-                                        .setCommodityType(newClusterType)
-                                        .build();
+                            if (commodityToModify.isPresent()) {
+                                commodityToModify.get().getCommodityTypeBuilder()
+                                        .setKey(Long.toString(policyOid));
                             } else {
-                                newClusterDTO = CommodityBoughtDTO.newBuilder()
-                                        .setCommodityType(newClusterType)
-                                        .build();
+                                commoditiesBoughtFromProvider.addCommodityBought(
+                                        CommodityBoughtDTO.newBuilder()
+                                                .setCommodityType(TopologyDTO
+                                                        .CommodityType
+                                                        .newBuilder()
+                                                        .setKey(Long.toString(policyOid))
+                                                        .setType(getCommodityType())
+                                                        .build())
+                                                .build());
                             }
-                            newCommodityBoughtList.add(newClusterDTO);
-                            CommoditiesBoughtFromProvider newCommodityBoughtFromProvider = CommoditiesBoughtFromProvider
-                                    .newBuilder()
-                                    .addAllCommodityBought(newCommodityBoughtList)
-                                    .build();
-                            newCommodityBoughtFromProviderList.add(newCommodityBoughtFromProvider);
-                        } else { // keep the original provider
-                            newCommodityBoughtFromProviderList.add(commoditiesBoughtFromProvider);
                         }
-
                     });
-
-            topologyEntity
-                    .getTopologyEntityDtoBuilder()
-                    .clearCommoditiesBoughtFromProviders()
-                    .addAllCommoditiesBoughtFromProviders(newCommodityBoughtFromProviderList);
         });
     }
 
