@@ -35,6 +35,7 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
@@ -185,6 +186,24 @@ public class Stages {
             }
 
             return stitchingContext.constructTopology();
+        }
+    }
+
+    /**
+     * This stage is for adding cluster commodities to relate TopologyEntityDTO.
+     */
+    public static class ApplyClusterCommodityStage extends PassthroughStage<TopologyGraph> {
+        private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
+
+        public ApplyClusterCommodityStage(
+                @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
+            this.discoveredClusterConstraintCache = discoveredClusterConstraintCache;
+        }
+
+        @Nonnull
+        @Override
+        public void passthrough(@Nonnull final TopologyGraph topologyGraph) {
+            discoveredClusterConstraintCache.applyClusterCommodity(topologyGraph);
         }
     }
 

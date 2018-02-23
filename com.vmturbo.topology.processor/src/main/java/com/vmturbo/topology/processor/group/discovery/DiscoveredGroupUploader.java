@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -74,6 +75,8 @@ public class DiscoveredGroupUploader {
 
     private final DiscoveredGroupInterpreter discoveredGroupInterpreter;
 
+    private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
+
     /**
      * A map from targetId to the list of the most recent {@link DiscoveredGroupInfo} for that
      * target.
@@ -88,15 +91,19 @@ public class DiscoveredGroupUploader {
 
     @VisibleForTesting
     DiscoveredGroupUploader(@Nonnull final Channel groupChannel,
-            @Nonnull final DiscoveredGroupInterpreter discoveredGroupInterpreter) {
+                            @Nonnull final DiscoveredGroupInterpreter discoveredGroupInterpreter,
+                            @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
         this.uploadStub =
             DiscoveredGroupServiceGrpc.newBlockingStub(Objects.requireNonNull(groupChannel));
-        this.discoveredGroupInterpreter = discoveredGroupInterpreter;
+        this.discoveredGroupInterpreter = Objects.requireNonNull(discoveredGroupInterpreter);
+        this.discoveredClusterConstraintCache = discoveredClusterConstraintCache;
     }
 
-    public DiscoveredGroupUploader(@Nonnull final Channel groupChannel,
-                                   @Nonnull final EntityStore entityStore) {
-        this(groupChannel, new DiscoveredGroupInterpreter(entityStore));
+    public DiscoveredGroupUploader(
+            @Nonnull final Channel groupChannel,
+            @Nonnull final EntityStore entityStore,
+            @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
+        this(groupChannel, new DiscoveredGroupInterpreter(entityStore), discoveredClusterConstraintCache);
     }
 
     /**
@@ -115,7 +122,9 @@ public class DiscoveredGroupUploader {
         synchronized (latestGroupByTarget) {
             latestGroupByTarget.put(targetId, interpretedDtos);
             final DiscoveredPolicyInfoParser parser = new DiscoveredPolicyInfoParser(groups);
-            latestPoliciesByTarget.put(targetId, parser.parsePoliciesOfGroups());
+            final List<DiscoveredPolicyInfo> discoveredPolicyInfos = parser.parsePoliciesOfGroups();
+            latestPoliciesByTarget.put(targetId, discoveredPolicyInfos);
+            discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId, groups);
             latestSettingPoliciesByTarget.get(targetId).clear();
         }
     }

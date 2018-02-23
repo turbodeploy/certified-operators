@@ -124,7 +124,8 @@ public class TopologyConfig {
                 groupConfig.groupServiceClient(),
                 reservationConfig.reservationManager(),
                 discoveredSettingPolicyScanner(),
-                stitchingGroupFixer());
+                stitchingGroupFixer(),
+                groupConfig.discoveredClusterConstraintCache());
     }
 
     @Bean

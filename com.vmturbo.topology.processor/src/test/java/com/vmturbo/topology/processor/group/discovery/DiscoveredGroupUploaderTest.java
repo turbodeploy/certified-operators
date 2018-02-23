@@ -52,6 +52,9 @@ public class DiscoveredGroupUploaderTest {
 
     private final DiscoveredGroupInterpreter converter = mock(DiscoveredGroupInterpreter.class);
 
+    private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache =
+            mock(DiscoveredClusterConstraintCache.class);
+
     private InterpretedGroup interpretedGroup = mock(InterpretedGroup.class);
 
     @Rule
@@ -59,7 +62,8 @@ public class DiscoveredGroupUploaderTest {
 
     @Before
     public void setup() throws Exception {
-        recorderSpy = spy(new DiscoveredGroupUploader(server.getChannel(), converter));
+        recorderSpy = spy(new DiscoveredGroupUploader(server.getChannel(), converter,
+                discoveredClusterConstraintCache));
         when(interpretedGroup.getDtoAsCluster()).thenReturn(Optional.empty());
         when(interpretedGroup.getDtoAsGroup()).thenReturn(Optional.empty());
     }

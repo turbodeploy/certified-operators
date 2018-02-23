@@ -14,6 +14,7 @@ import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
@@ -26,6 +27,7 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
@@ -83,6 +85,8 @@ public class TopologyPipelineFactory {
 
     private final StitchingGroupFixer stitchingGroupFixer;
 
+    private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -96,7 +100,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final GroupServiceBlockingStub groupServiceClient,
                                    @Nonnull final ReservationManager reservationManager,
                                    @Nonnull final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner,
-                                   @Nonnull final StitchingGroupFixer stitchingGroupFixer) {
+                                   @Nonnull final StitchingGroupFixer stitchingGroupFixer,
+                                   @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -111,6 +116,7 @@ public class TopologyPipelineFactory {
         this.reservationManager = Objects.requireNonNull(reservationManager);
         this.discoveredSettingPolicyScanner = Objects.requireNonNull(discoveredSettingPolicyScanner);
         this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
+        this.discoveredClusterConstraintCache = Objects.requireNonNull(discoveredClusterConstraintCache);
     }
 
     /**
@@ -135,6 +141,7 @@ public class TopologyPipelineFactory {
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
                 .addStage(new ReservationStage(reservationManager))
                 .addStage(new GraphCreationStage())
+                .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new PolicyStage(policyManager))
                 .addStage(SettingsResolutionStage.live(entitySettingsResolver))
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
@@ -179,6 +186,7 @@ public class TopologyPipelineFactory {
                 .addStage(new ReservationStage(reservationManager))
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
+                .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(),
                         groupServiceClient, changes))
                 .addStage(new PolicyStage(policyManager, changes))

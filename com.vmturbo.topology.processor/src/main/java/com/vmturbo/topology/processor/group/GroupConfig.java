@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.ReservationPolicyFactory;
@@ -90,11 +91,16 @@ public class GroupConfig {
     @Bean
     public DiscoveredGroupUploader discoveredGroupUploader() {
         return new DiscoveredGroupUploader(groupClientConfig.groupChannel(),
-                entityConfig.entityStore());
+                entityConfig.entityStore(), discoveredClusterConstraintCache());
     }
 
     @Bean
     public ReservationPolicyFactory initialPlacementPolicyFactory() {
         return new ReservationPolicyFactory(groupServiceClient());
+    }
+
+    @Bean
+    public DiscoveredClusterConstraintCache discoveredClusterConstraintCache() {
+        return new DiscoveredClusterConstraintCache(entityConfig.entityStore());
     }
 }
