@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.group.policy;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -68,7 +70,8 @@ public class PolicyFactory {
                         new PolicyEntities(groups.get(policyDefinition.getMustRunTogether().getProviderGroupId()),
                                 additionalProviders));
             case MERGE:
-                throw new NotImplementedException();
+                //TODO: support additionalConsumers and additionalProviders
+                return buildMergePolicy(policyDefinition, groups);
             case BIND_TO_GROUP_AND_LICENSE:
                 throw new NotImplementedException();
             case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
@@ -76,6 +79,21 @@ public class PolicyFactory {
             default:
                 throw new NotImplementedException();
         }
+    }
+
+    /**
+     *
+     * @param policyDefinition merge policy
+     * @param groups the group referenced by Policy
+     * @return merge policy
+     */
+    private PlacementPolicy buildMergePolicy(@Nonnull final Policy policyDefinition,
+                                             @Nonnull final Map<Long, Group> groups) {
+        List<Long> mergeGroupIdList = policyDefinition.getMerge().getMergeGroupIdsList();
+        List<PolicyEntities> policyEntitiesList = mergeGroupIdList.stream()
+                .map(id -> new PolicyEntities(groups.get(id)))
+                .collect(Collectors.toList());
+        return new MergePolicy(policyDefinition, policyEntitiesList);
     }
 
     /**

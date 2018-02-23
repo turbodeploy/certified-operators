@@ -180,6 +180,120 @@ public class PolicyMatcher {
         };
     }
 
+    /**
+     * Check if the key of the 'sold' cluster commodity is set to the policy OID and values are matches.
+     *
+     * @param policy merge policy.
+     * @param value extra value to check.
+     * @return true if key is set to policy OID and the extra property match (if it exists)
+     */
+    public Matcher<TopologyEntity> hasCommoditySoldClusterType(@Nonnull final MergePolicy policy, Double value) {
+        return new BaseMatcher<TopologyEntity>() {
+            @Override
+            public boolean matches(Object o) {
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                        .anyMatch(commodity -> {
+                                    boolean isTypeAndKeyRight = commodity.getCommodityType().getType() == getCommodityType(policy)
+                                            && commodity.getCommodityType().getKey().equals(Long.toString(policy.getPolicyDefinition().getId()));
+                                    if (value != null) {
+                                        return isTypeAndKeyRight && commodity.getCapacity() == value;
+                                    }
+                                    return isTypeAndKeyRight;
+
+                                }
+                        );
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("Should has Cluster commodity type in the commoditySoldList" +
+                        " with Key equal to Policy OID.");
+            }
+        };
+    }
+
+    /**
+     * Check if specific type are in the commodity sold list.
+     *
+     * @param type type to be check
+     * @return true if the type exists.
+     */
+    public Matcher<TopologyEntity> hasCommoditySoldType(final int type) {
+        return new BaseMatcher<TopologyEntity>() {
+            @Override
+            public boolean matches(Object o) {
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                        .anyMatch(commodity ->
+                                    commodity.getCommodityType().getType() == type
+                        );
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("Should has commodity type in the commoditySoldList: " + type);
+            }
+        };
+    }
+
+    /**
+     * Check if the key of the 'bought' cluster commodity is set to the policy OID.
+     *
+     * @param policy merge policy OID.
+     * @return true if key is set to policy OID.
+     */
+    public Matcher<TopologyEntity>  hasCommodityBoughtClusterType(final MergePolicy policy) {
+        return new BaseMatcher<TopologyEntity>() {
+            @Override
+            public boolean matches(Object o) {
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                        .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
+                                .anyMatch(commodity ->
+                                        commodity.getCommodityType().getType() == getCommodityType(policy) &&
+                                                commodity
+                                                        .getCommodityType()
+                                                        .getKey()
+                                                        .equals(Long.toString(policy.getPolicyDefinition().getId()))));
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("Should have Cluster commodity type in CommodityBoughtList with Key equal to policy OID");
+            }
+
+        };
+    }
+
+    /**
+     *
+     * Check if the key of the 'bought' cluster commodity is set to the policy OID and types are matches.
+     *
+     * @param policyOid merge policy OID.
+     * @param type  extra value to check.
+     * @return true if key is set to policy OID and type matches.
+     *
+     */
+    public Matcher<TopologyEntity> hasCommodityBoughtClusterType(final long policyOid, final int type) {
+        return new BaseMatcher<TopologyEntity>() {
+            @Override
+            public boolean matches(Object o) {
+                final TopologyEntity entity = (TopologyEntity)o;
+                return entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                        .anyMatch(commodityBoughtGroup -> commodityBoughtGroup.getCommodityBoughtList().stream()
+                                .anyMatch(commodity ->
+                                        commodity.getCommodityType().getType() == type &&
+                                                commodity.getCommodityType().getKey().equals(Long.toString(policyOid))));
+            }
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("Should has Cluster commodity type in the commodityBoughtList" +
+                        " with Key equal to Policy OID.");
+            }
+        };
+    }
+
     public static SearchParametersCollection searchParametersCollection() {
         return SearchParametersCollection.newBuilder()
             .addSearchParameters(SearchParameters.getDefaultInstance())
@@ -191,4 +305,24 @@ public class PolicyMatcher {
             .addAllStaticMemberOids(Arrays.asList(oids))
             .build();
     }
+
+    /**
+     * Get the commodity type based on the current merge policy type
+     * @return
+     */
+    public static int getCommodityType(MergePolicy policy) {
+        switch (policy.getPolicyDefinition().getMerge().getMergeType()) {
+            case CLUSTER:
+                return CommodityType.CLUSTER_VALUE;
+            case STORAGE_CLUSTER:
+                return CommodityType.STORAGE_CLUSTER_VALUE;
+            case DATACENTER:
+                return CommodityType.DATACENTER_VALUE;
+            default:
+                throw new InvalidMergePolicyTypeException("Invalid merge policy type: "
+                        + policy.getPolicyDefinition().getMerge().getMergeType());
+        }
+
+    }
+
 }
