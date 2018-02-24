@@ -101,7 +101,7 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
         // gRPC JWT token interceptor
-        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiKVStore());
+        final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
         builder
             .addService(ServerInterceptors.intercept(rpcConfig.actionRpcService(), jwtInterceptor))
             .addService(rpcConfig.entitySeverityRpcService());

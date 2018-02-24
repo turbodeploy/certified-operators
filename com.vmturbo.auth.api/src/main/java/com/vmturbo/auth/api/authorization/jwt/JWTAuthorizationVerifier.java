@@ -61,7 +61,7 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
     /**
      * The KV store
      */
-    private final IApiAuthStore apiKVStore_;
+    private final IApiAuthStore apiAuthKVStore_;
 
     /**
      * The key used to sign a JWT token.
@@ -80,7 +80,7 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
      */
     @VisibleForTesting JWTAuthorizationVerifier(final @Nonnull PublicKey publicKey) {
         signatureVerificationKey_ = publicKey;
-        apiKVStore_ = null;
+        apiAuthKVStore_ = null;
     }
 
     /**
@@ -88,14 +88,14 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
      * In case this bean is autowired, we want default constructor
      */
     private JWTAuthorizationVerifier() {
-        apiKVStore_ = null;
+        apiAuthKVStore_ = null;
     }
 
     /**
      * Creates the verifier.
      */
-    public JWTAuthorizationVerifier(final @Nonnull IApiAuthStore apiKVStore) {
-        apiKVStore_ = apiKVStore;
+    public JWTAuthorizationVerifier(final @Nonnull IApiAuthStore apiAuthKVStore) {
+        apiAuthKVStore_ = apiAuthKVStore;
     }
 
     /**
@@ -138,7 +138,7 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
         // properly started when the verifier is being constructed.
         synchronized (this) {
             if (signatureVerificationKey_ == null && keyString == null) {
-                keyString = apiKVStore_.retrievePublicKey();
+                keyString = apiAuthKVStore_.retrievePublicKey();
                 if (keyString != null) {
                     signatureVerificationKey_ = JWTKeyCodec.decodePublicKey(keyString);
                 }

@@ -104,7 +104,7 @@ public class AuthComponent extends BaseVmtComponent {
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
         // gRPC JWT token interceptor
         final JwtServerInterceptor jwtInterceptor =
-                new JwtServerInterceptor(securityConfig.apiKVStore());
+                new JwtServerInterceptor(securityConfig.apiAuthKVStore());
         return Optional.of(builder
                 .addService(ServerInterceptors.intercept(widgetsetConfig.widgetsetRpcService(
                         authRESTSecurityConfig.targetStore()), jwtInterceptor))

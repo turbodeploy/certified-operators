@@ -4,6 +4,8 @@ import java.util.concurrent.TimeUnit;
 
 import com.vmturbo.kvstore.ConsulKeyValueStore;
 import com.vmturbo.kvstore.KeyValueStore;
+
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,8 +33,9 @@ public class AuthApiKVConfig {
      *
      * @return The key/value store bean.
      */
+    @Qualifier("authKeyValueStore")
     @Bean
-    public KeyValueStore keyValueStore() {
+    public KeyValueStore authKeyValueStore() {
         return new ConsulKeyValueStore(
             "auth",
             consulHost,
