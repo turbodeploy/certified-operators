@@ -210,6 +210,7 @@ services:
     volumes:
       - api:/home/turbonomic/data
       - /tmp/certs:/tmp/certs
+#      - /Users/marklaff/VMTurbo/opsmgr/com.vmturbo.ux/.tmp:/www:ro
     mem_limit: ${API_MEM_LIMIT_MB}M
 
   market:

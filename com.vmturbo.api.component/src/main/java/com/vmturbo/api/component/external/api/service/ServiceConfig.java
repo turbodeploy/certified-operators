@@ -244,6 +244,7 @@ public class ServiceConfig {
                 communicationConfig.planRpcService(),
                 communicationConfig.repositoryApi(),
                 repositoryClientConfig.repositoryClient(),
+                communicationConfig.supplyChainFetcher(),
                 communicationConfig.groupExpander(),
                 Clock.systemUTC(),
                 targetService(),

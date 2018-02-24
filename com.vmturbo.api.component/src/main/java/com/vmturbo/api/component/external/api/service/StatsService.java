@@ -27,6 +27,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.CaseFormat;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -36,6 +37,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
@@ -44,6 +46,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -59,6 +62,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
@@ -89,6 +93,8 @@ public class StatsService implements IStatsService {
 
     private final RepositoryClient repositoryClient;
 
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory;
+
     private final GroupExpander groupExpander;
 
     private final GroupServiceBlockingStub groupServiceRpc;
@@ -100,10 +106,20 @@ public class StatsService implements IStatsService {
 
     private static final String STAT_FILTER_PREFIX = "current";
 
+    /**
+     * Map Entity types to be expanded to the RelatedEntityType to retrieve. For example,
+     * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
+     * in that DATACENTER.
+     */
+    private static final Map<String, String> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+            DATACENTER.getValue(), PHYSICAL_MACHINE.getValue()
+    );
+
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
                  @Nonnull final PlanServiceBlockingStub planRpcService,
                  @Nonnull final RepositoryApi repositoryApi,
-                 @Nonnull RepositoryClient repositoryClient,
+                 @Nonnull final RepositoryClient repositoryClient,
+                 @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                  @Nonnull final GroupExpander groupExpander,
                  @Nonnull final Clock clock,
                  @Nonnull final TargetsService targetsService,
@@ -112,6 +128,7 @@ public class StatsService implements IStatsService {
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.repositoryClient = repositoryClient;
+        this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.clock = Objects.requireNonNull(clock);
         this.groupExpander = groupExpander;
         this.targetsService = Objects.requireNonNull(targetsService);
@@ -169,7 +186,9 @@ public class StatsService implements IStatsService {
      * a list of ServiceEntity UUID's, and the results are averaged over the ServiceEntities
      * in the expanded list.
      *
-     * The "scope" field of the "inputDto" is ignored.
+     * Some ServiceEntities, either in the input or as a result of group expansion, require
+     * further expansion. For example, a DataCenter entity is replaced by the PMs in the
+     * DataCenter. We use the Supply Chain fetcher to calculate that expansion.
      *
      * The inputDto object can include a list of "filters" which are keys to search for records
      * in the statistics tables. (e.g. numHosts) For the purpose of getting
@@ -183,12 +202,9 @@ public class StatsService implements IStatsService {
      * @param uuid the UUID of either a single ServiceEntity or a group.
      * @param inputDto the parameters to further refine this search.
      * @return a list of {@link StatSnapshotApiDTO}s one for each ServiceEntity in the expanded list
-     * @throws Exception if there is an error fetching information from either the
-     * SearchService or the StatsService
      */
     @Override
-    public List<StatSnapshotApiDTO> getStatsByEntityQuery(String uuid, StatPeriodApiInputDTO inputDto)
-            throws Exception {
+    public List<StatSnapshotApiDTO> getStatsByEntityQuery(String uuid, StatPeriodApiInputDTO inputDto) {
 
         logger.debug("fetch stats for {} requestInfo: {}", uuid, inputDto);
 
@@ -214,12 +230,14 @@ public class StatsService implements IStatsService {
             }
         } else {
             // determine the list of entity OIDs to query for this operation
-            final Set<Long> entityStatsOids = groupExpander.expandUuid(uuid);
+            Set<Long> expandedOidsList = groupExpander.expandUuid(uuid);
             // if empty expansion and not "Market", must be an empty group; quick return
-            if (entityStatsOids.isEmpty() && !UuidMapper.isRealtimeMarket(uuid)) {
+            if (expandedOidsList.isEmpty() && !UuidMapper.isRealtimeMarket(uuid)) {
                 return Collections.emptyList();
             }
-
+            // expand any ServiceEntities that should be replaced by related ServiceEntities,
+            // e.g. DataCenter is replaced by the PhysicalMachines in the DataCenter
+            Set<Long> entityStatsOids = expandGroupingServiceEntities(expandedOidsList);
             if (inputDto.getEndDate() != null
                     && DateTimeUtil.parseTime(inputDto.getEndDate()) > clockTimeNow) {
                 ProjectedStatsResponse response =
@@ -536,5 +554,55 @@ public class StatsService implements IStatsService {
                         UuidMapper.UI_REAL_TIME_MARKET_STR, null, null));
 
         return Optional.of(matchingServiceEntities);
+    }
+
+    /**
+     * Replace specific types of ServiceEntities with "constituents". For example, a DataCenter SE
+     * is replaced by the PhysicalMachine SE's related to that DataCenter.
+     *
+     * ServiceEntities of other types not to be expanded are copied to the output result set.
+     *
+     * See 6.x method SupplyChainUtils.getUuidsFromScopesByRelatedType() which uses the
+     * marker interface EntitiesProvider to determine which Service Entities to expand.
+     *
+     * Errors fetching the supplychain are logged and ignored - the input OID will be copied
+     * to the output in case of an error or missing relatedEntityType info in the supplychain.
+     *
+     *
+     * @param entityOidsToExpand a set of ServiceEntity OIDs to examine
+     * @return a set of ServiceEntity OIDs with types that should be expanded replaced by the
+     * "constituent" ServiceEntity OIDs as computed by the supply chain.
+     */
+    private Set<Long> expandGroupingServiceEntities(Set<Long> entityOidsToExpand) {
+        final Set<Long> expandedEntityOids = Sets.newHashSet();
+        for (long oid : entityOidsToExpand) {
+            try {
+                String className = repositoryApi.getServiceEntityForUuid(oid).getClassName();
+                String relatedEntityType = ENTITY_TYPES_TO_EXPAND.get(className);
+                if (relatedEntityType != null) {
+                    // fetch the supply chain map:  entity type -> SupplyChainNode
+                    Map<String, SupplyChainNode> supplyChainMap = supplyChainFetcherFactory
+                            .newNodeFetcher()
+                            .entityTypes(Collections.singletonList(relatedEntityType))
+                            .addSeedUuid(Long.toString(oid))
+                            .fetch();
+                    SupplyChainNode relatedEntities = supplyChainMap.get(relatedEntityType);
+                    if (relatedEntities != null) {
+                        expandedEntityOids.addAll(relatedEntities.getMemberOidsList());
+                    } else {
+                        logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
+                                        "the entity is discarded", relatedEntityType, oid);
+                    }
+                } else {
+                    // this OID doesn't need expanding
+                    expandedEntityOids.add(oid);
+                }
+            } catch (UnknownObjectException | OperationFailedException e) {
+                logger.warn("Error fetching supplychain for {}: ", oid, e.getMessage());
+                // include the OID unexpanded
+                expandedEntityOids.add(oid);
+            }
+        }
+        return expandedEntityOids;
     }
 }
