@@ -54,6 +54,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
@@ -646,13 +647,18 @@ public class SettingsMapper {
             // setting and inject it here.
             if (isVmDefaultPolicy(settingPolicy)) {
                 String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
-                Setting rateOfResizeSetting = settingServiceClient.getGlobalSetting(
+                GetGlobalSettingResponse response = settingServiceClient.getGlobalSetting(
                     GetSingleGlobalSettingRequest.newBuilder()
                         .setSettingSpecName(rateOfResizeSettingName).build());
-                settingsByMgr.computeIfAbsent(
+                if (response.hasSetting()) {
+                    settingsByMgr.computeIfAbsent(
                             managerMapping.getManagerUuid(rateOfResizeSettingName).orElse(NO_MANAGER),
-                                k -> new ArrayList<Setting>())
-                               .add(rateOfResizeSetting);
+                            k -> new ArrayList<>())
+                        .add(response.getSetting());
+                } else {
+                    logger.error("No global setting {} found! This should not happen " +
+                            "outside of tests!", rateOfResizeSettingName);
+                }
             }
 
             final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);

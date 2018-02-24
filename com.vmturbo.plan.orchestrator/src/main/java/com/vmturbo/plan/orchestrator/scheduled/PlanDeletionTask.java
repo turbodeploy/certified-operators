@@ -12,6 +12,7 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -89,14 +90,15 @@ public class PlanDeletionTask {
                     .setSettingSpecName(GlobalSettingSpecs.PlanRetentionDays.getSettingName())
                     .build();
 
-            Setting planRetentionSetting = settingsServiceClient.getGlobalSetting(settingRequest);
+            final GetGlobalSettingResponse response =
+                    settingsServiceClient.getGlobalSetting(settingRequest);
             // If the response doesn't have any value, exit. We don't want to
             // continue with any defaul value.
-            if (!planRetentionSetting.hasNumericSettingValue()) {
+            if (!response.hasSetting() || !response.getSetting().hasNumericSettingValue()) {
                 logger.warn("No plan retention value set in the response. Quitting deletion task");
                 return;
             }
-            long retentionDays = (long) planRetentionSetting.getNumericSettingValue().getValue();
+            long retentionDays = (long) response.getSetting().getNumericSettingValue().getValue();
             // Query plan_instance db to get all the planIds older than the
             // retentionDays. Then delete them one by one.
             LocalDateTime expirationDate = LocalDateTime.now().minusDays(retentionDays);

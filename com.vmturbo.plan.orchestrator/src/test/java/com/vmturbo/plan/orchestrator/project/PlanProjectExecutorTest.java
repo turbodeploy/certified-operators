@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTOMoles;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -119,11 +120,12 @@ public class PlanProjectExecutorTest {
 
         // Set maxPlanInstancesPerPlan to 10
         when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
-                .thenReturn(Setting.newBuilder()
-                        .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(10)
-                                .build())
-                        .build());
+            .thenReturn(GetGlobalSettingResponse.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setNumericSettingValue(NumericSettingValue.newBuilder()
+                            .setValue(10)
+                            .build()))
+                .build());
 
         planProjectExecutor.executePlan(planProject);
 
@@ -249,11 +251,12 @@ public class PlanProjectExecutorTest {
         int numberOfClusters = 100;
         Float maxNumberOfClusters = 20F;
         when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
-                .thenReturn(Setting.newBuilder()
-                        .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(maxNumberOfClusters)
-                                .build())
-                        .build());
+            .thenReturn(GetGlobalSettingResponse.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setNumericSettingValue(NumericSettingValue.newBuilder()
+                            .setValue(maxNumberOfClusters)
+                            .build()))
+                .build());
         Set<Group> groupSet1 = new HashSet<>();
         for (int i = 0; i < numberOfClusters; i++) {
             Group group = Group.newBuilder()
@@ -271,11 +274,12 @@ public class PlanProjectExecutorTest {
         int numberOfClusters = 15;
         Float maxNumberOfClusters = 20F;
         when(settingServiceMole.getGlobalSetting(any(GetSingleGlobalSettingRequest.class)))
-                .thenReturn(Setting.newBuilder()
-                        .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(maxNumberOfClusters)
-                                .build())
-                        .build());
+            .thenReturn(GetGlobalSettingResponse.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setNumericSettingValue(NumericSettingValue.newBuilder()
+                            .setValue(maxNumberOfClusters)
+                            .build()))
+                .build());
         Set<Group> groupSet1 = new HashSet<>();
         for (int i = 0; i < numberOfClusters; i++) {
             Group group = Group.newBuilder()

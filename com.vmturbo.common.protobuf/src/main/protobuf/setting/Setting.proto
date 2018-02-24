@@ -605,6 +605,12 @@ message GetEntitySettingsResponse {
     repeated SettingsForEntity settings = 1;
 }
 
+message GetGlobalSettingResponse {
+    // The requested setting. It will be unset
+    // if the setting is not found.
+    optional Setting setting = 1;
+}
+
 // Service responsible for setting operations
 service SettingService {
     // Get a setting spec
@@ -614,7 +620,7 @@ service SettingService {
     rpc SearchSettingSpecs(SearchSettingSpecsRequest) returns (stream SettingSpec);
 
     // Get global setting
-    rpc GetGlobalSetting(GetSingleGlobalSettingRequest) returns (Setting);
+    rpc GetGlobalSetting(GetSingleGlobalSettingRequest) returns (GetGlobalSettingResponse);
 
     // Get global setting
     rpc GetMultipleGlobalSettings(GetMultipleGlobalSettingsRequest) returns (stream Setting);

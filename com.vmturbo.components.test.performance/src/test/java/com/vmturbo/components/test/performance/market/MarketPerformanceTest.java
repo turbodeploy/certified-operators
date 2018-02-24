@@ -21,6 +21,7 @@ import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
@@ -177,18 +178,18 @@ public class MarketPerformanceTest {
     public class GlobalSettingsStub extends SettingServiceImplBase {
         @Override
         public void getGlobalSetting(final GetSingleGlobalSettingRequest request,
-                                   final StreamObserver<Setting> responseObserver) {
+                                   final StreamObserver<GetGlobalSettingResponse> responseObserver) {
             Preconditions.checkArgument(
                 request.getSettingSpecName().equals(GlobalSettingSpecs.RateOfResize.getSettingName())
             );
 
-            responseObserver.onNext(
-                Setting.newBuilder()
+            responseObserver.onNext(GetGlobalSettingResponse.newBuilder()
+                .setSetting(Setting.newBuilder()
                     .setSettingSpecName(
                         GlobalSettingSpecs.RateOfResize.getSettingName())
                     .setNumericSettingValue(
-                        SettingDTOUtil.createNumericSettingValue(2.0f))
-                    .build());
+                        SettingDTOUtil.createNumericSettingValue(2.0f)))
+                .build());
             responseObserver.onCompleted();
         }
     }

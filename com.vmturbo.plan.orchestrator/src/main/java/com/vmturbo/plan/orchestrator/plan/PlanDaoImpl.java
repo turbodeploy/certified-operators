@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -429,12 +430,20 @@ public class PlanDaoImpl implements PlanDao {
      */
     private boolean isPlanExecutionCapacityAvailable(DSLContext dslContext) {
         // get maximum number of concurrent plan instance allowed
-        float maxNumOfRunningInstances = settingService.getGlobalSetting(GetSingleGlobalSettingRequest.newBuilder()
+        GetGlobalSettingResponse response = settingService.getGlobalSetting(
+            GetSingleGlobalSettingRequest.newBuilder()
                 .setSettingSpecName(GlobalSettingSpecs.MaxConcurrentPlanInstances
                         .getSettingName())
-                .build())
-                .getNumericSettingValue()
-                .getValue();
+                .build());
+
+        final float maxNumOfRunningInstances;
+        if (response.hasSetting()) {
+            maxNumOfRunningInstances = response.getSetting().getNumericSettingValue().getValue();
+        } else {
+            maxNumOfRunningInstances =
+                GlobalSettingSpecs.MaxConcurrentPlanInstances.createSettingSpec()
+                        .getNumericSettingValueType().getDefault();
+        }
 
         // get number of running plan instances
         Integer numRunningInstances = getNumberOfRunningPlanInstances();

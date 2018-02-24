@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.Entit
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -287,11 +288,12 @@ public class SettingsServiceTest {
         SettingApiInputDTO settingInput = new SettingApiInputDTO();
         settingInput.setValue(settingValue);
 
-        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(Setting.newBuilder()
+        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(
+            GetGlobalSettingResponse.newBuilder().setSetting(Setting.newBuilder()
                 .setSettingSpecName(settingSpecName)
                 .setStringSettingValue(StringSettingValue.newBuilder()
                         .setValue(settingValue)
-                        .build())
+                        .build()))
                 .build());
 
         when (settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
@@ -323,11 +325,12 @@ public class SettingsServiceTest {
         SettingApiInputDTO settingInput = new SettingApiInputDTO();
         settingInput.setValue(settingValue);
 
-        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(Setting.newBuilder()
+        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(
+            GetGlobalSettingResponse.newBuilder().setSetting(Setting.newBuilder()
                 .setSettingSpecName(settingSpecName)
                 .setStringSettingValue(StringSettingValue.newBuilder()
                         .setValue(settingValue)
-                        .build())
+                        .build()))
                 .build());
 
         when (settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()
@@ -357,11 +360,12 @@ public class SettingsServiceTest {
         SettingApiInputDTO settingInput = new SettingApiInputDTO();
         settingInput.setValue(settingValue);
 
-        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(Setting.newBuilder()
+        when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(
+            GetGlobalSettingResponse.newBuilder().setSetting(Setting.newBuilder()
                 .setSettingSpecName(settingSpecName)
                 .setStringSettingValue(StringSettingValue.newBuilder()
                         .setValue(settingValue)
-                        .build())
+                        .build()))
                 .build());
 
         when (settingRpcServiceSpy.getSettingSpec(SingleSettingSpecRequest.newBuilder()

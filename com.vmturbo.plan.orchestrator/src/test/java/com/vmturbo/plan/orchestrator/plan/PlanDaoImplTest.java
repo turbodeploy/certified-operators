@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -146,11 +147,12 @@ public class PlanDaoImplTest {
                 .setSettingSpecName(GlobalSettingSpecs.MaxConcurrentPlanInstances
                         .getSettingName())
                 .build()))
-                .thenReturn(Setting.newBuilder()
+                .thenReturn(GetGlobalSettingResponse.newBuilder()
+                    .setSetting(Setting.newBuilder()
                         .setNumericSettingValue(NumericSettingValue.newBuilder()
                                 .setValue(1)
-                                .build())
-                        .build());
+                                .build()))
+                    .build());
 
         // create 3 Headroom plan instances, 2 running and 1 ready
         createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS);

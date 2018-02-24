@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
@@ -76,13 +77,13 @@ public class AnalysisTest {
     private SettingServiceBlockingStub getSettingService(float resizeValue) {
         SettingServiceBlockingStub settingServiceClient = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(testSettingService.getGlobalSetting(any()))
-            .thenReturn(
-                Setting.newBuilder()
+            .thenReturn(GetGlobalSettingResponse.newBuilder()
+                .setSetting(Setting.newBuilder()
                     .setSettingSpecName(
                         GlobalSettingSpecs.RateOfResize.getSettingName())
                     .setNumericSettingValue(
-                        SettingDTOUtil.createNumericSettingValue(resizeValue))
-                    .build());
+                        SettingDTOUtil.createNumericSettingValue(resizeValue)))
+                .build());
         return settingServiceClient;
     }
 

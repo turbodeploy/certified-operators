@@ -27,8 +27,12 @@ import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -623,13 +627,21 @@ public class Analysis {
         Map<String, Setting> settingsMap = new HashMap<>();
 
         // for now only interested in one global settings: RateOfResize
-        GetSingleGlobalSettingRequest settingRequest =
+        final GetSingleGlobalSettingRequest settingRequest =
             GetSingleGlobalSettingRequest.newBuilder()
                 .setSettingSpecName(GlobalSettingSpecs.RateOfResize.getSettingName())
                 .build();
 
-        Setting rateOfResizeSetting = settingsServiceClient.getGlobalSetting(settingRequest);
-        settingsMap.put(rateOfResizeSetting.getSettingSpecName(), rateOfResizeSetting);
+        try {
+            final GetGlobalSettingResponse response =
+                    settingsServiceClient.getGlobalSetting(settingRequest);
+            if (response.hasSetting()) {
+                settingsMap.put(response.getSetting().getSettingSpecName(), response.getSetting());
+            }
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to get global settings from group component. Will run analysis " +
+                    " without global settings.", e);
+        }
         return settingsMap;
     }
 }

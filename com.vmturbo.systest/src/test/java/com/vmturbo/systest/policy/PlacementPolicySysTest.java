@@ -35,6 +35,8 @@ import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,6 +49,7 @@ import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.embedded.LocalServerPort;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,11 +58,21 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.ui.ModelMap;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.context.request.WebRequestInterceptor;
+import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.servlet.ModelAndView;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -96,16 +109,19 @@ import com.vmturbo.common.protobuf.topology.TopologyServiceGrpc.TopologyServiceB
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
+import com.vmturbo.components.test.utilities.component.DockerEnvironment;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.market.component.api.impl.MarketComponentNotificationReceiver;
+import com.vmturbo.mediation.delegatingprobe.DelegatingProbe.DelegatingDiscoveryRequest;
 import com.vmturbo.mediation.delegatingprobe.DelegatingProbeAccount;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -158,7 +174,6 @@ public class PlacementPolicySysTest {
 
     @Autowired
     private DiscoveryDriverController discoveryDriverController;
-    @Autowired
     private KafkaMessageConsumer kafkaMessageConsumer;
 
     @LocalServerPort
@@ -244,6 +259,8 @@ public class PlacementPolicySysTest {
     @Before
     public void setup() throws IOException {
         IdentityGenerator.initPrefix(0);
+        kafkaMessageConsumer = new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
+                "placement-policy-system-tests");
 
         topologyService = TopologyServiceGrpc.newBlockingStub(
             componentTestRule.getCluster().newGrpcChannel("topology-processor"));
@@ -264,10 +281,12 @@ public class PlacementPolicySysTest {
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
                 projectedTopologyReceiver, actionsReceiver, null, null, threadPool);
+        kafkaMessageConsumer.start();
     }
 
     @After
     public void teardown() {
+        kafkaMessageConsumer.close();
         try {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.MINUTES);
@@ -738,10 +757,26 @@ public class PlacementPolicySysTest {
      * controller for our test's REST API.
      */
     @SpringBootApplication
+    @EnableWebMvc
+    // The default @EnableAutoConfiguration implied by @SpringBootApplication will pick up
+    // the spring security JAR in the class-path, and set up authentication for the
+    // test application. We want to avoid dealing with that for the purpose of the test, so
+    // we explicitly exclude security-related AutoConfiguration.
+    @EnableAutoConfiguration(exclude = {
+            org.springframework.boot.autoconfigure.security.SecurityAutoConfiguration.class,
+            org.springframework.boot.actuate.autoconfigure.ManagementWebSecurityAutoConfiguration.class
+    })
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
         @Bean
         public DiscoveryDriverController discoveryDriverController() {
             return new DiscoveryDriverController();
+        }
+
+        @Bean
+        public GsonHttpMessageConverter gsonHttpMessageConverter() {
+            final GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
+            msgConverter.setGson(ComponentGsonFactory.createGson());
+            return msgConverter;
         }
     }
 
@@ -772,12 +807,12 @@ public class PlacementPolicySysTest {
          */
         @ApiOperation(value = "Run a discovery")
         @RequestMapping(path = "/discoveryDriver/discover",
-            method = RequestMethod.GET,
+            method = RequestMethod.POST,
             consumes = {MediaType.APPLICATION_JSON_VALUE},
             produces = {MediaType.APPLICATION_OCTET_STREAM_VALUE})
         @ResponseBody
         public @Nonnull
-        ResponseEntity<byte[]> discover() throws Exception {
+        ResponseEntity<byte[]> discover(@RequestBody DelegatingDiscoveryRequest request) throws Exception {
             logger.info("Handling discovery request and responding with {} entities", discoveredEntities.size());
 
             return new ResponseEntity<>(

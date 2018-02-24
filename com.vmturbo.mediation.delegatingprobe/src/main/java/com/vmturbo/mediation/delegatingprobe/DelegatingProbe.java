@@ -1,20 +1,26 @@
 package com.vmturbo.mediation.delegatingprobe;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.annotation.Nonnull;
 
 import org.apache.log4j.Logger;
-import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.boot.web.client.RootUriTemplateHandler;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
@@ -43,6 +49,10 @@ public class DelegatingProbe implements IProbe<DelegatingProbeAccount> {
      */
     public static class DelegatingDiscoveryRequest {
         private final int discoveryIndex;
+
+        public DelegatingDiscoveryRequest() {
+            this.discoveryIndex = 0;
+        }
 
         public DelegatingDiscoveryRequest(final int discoveryIndex) {
             this.discoveryIndex = discoveryIndex;
@@ -75,16 +85,24 @@ public class DelegatingProbe implements IProbe<DelegatingProbeAccount> {
         requestHeaders.setContentType(MediaType.APPLICATION_JSON);
         requestHeaders.setAccept(Collections.singletonList(MediaType.APPLICATION_OCTET_STREAM));
 
-        final RestTemplate restTemplate = new RestTemplateBuilder()
-            .rootUri(accountValues.getDriverRootUri())
-            .build();
+        // Using the default list of message converters is error-prone inside a probe due to
+        // the way probes get wrapped in the mediation component. We explicitly define only
+        // the converters we want to use - a JSON converter and an OCTET_STREAM converter - and
+        // create a Rest Template with those.
+        final List<HttpMessageConverter<?>> messageConverters = new ArrayList<>();
+        messageConverters.add(new ByteArrayHttpMessageConverter());
+        final GsonHttpMessageConverter gsonHttpMessageConverter = new GsonHttpMessageConverter();
+        gsonHttpMessageConverter.setGson(ComponentGsonFactory.createGson());
+        messageConverters.add(gsonHttpMessageConverter);
+
+        final RestTemplate restTemplate = new RestTemplate(messageConverters);
+        RootUriTemplateHandler.addTo(restTemplate, accountValues.getDriverRootUri());
 
         final DelegatingDiscoveryRequest request = new DelegatingDiscoveryRequest(discoveryIndex.getAndIncrement());
         final ResponseEntity<byte[]> response =
-            restTemplate.exchange("/" + accountValues.getDriverEndpoint(), HttpMethod.GET,
-                new HttpEntity<>(request, requestHeaders), byte[].class);
-
-        return parseDiscoveryResponse(response.getBody());
+                restTemplate.exchange("/" + accountValues.getDriverEndpoint(), HttpMethod.POST,
+                        new HttpEntity<>(request, requestHeaders), byte[].class);
+        return parseDiscoveryResponse(response.getBody() == null ? new byte[]{} : response.getBody());
     }
 
     /**

@@ -107,7 +107,7 @@ public class DelegatingProbeTest {
          */
         @ApiOperation(value = "Run a discovery")
         @RequestMapping(path = "/test/discover",
-            method = RequestMethod.GET,
+            method = RequestMethod.POST,
             consumes = {MediaType.APPLICATION_JSON_VALUE},
             produces = {MediaType.APPLICATION_OCTET_STREAM_VALUE})
         @ResponseBody

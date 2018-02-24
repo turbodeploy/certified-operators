@@ -26,6 +26,7 @@ import com.vmturbo.api.serviceinterfaces.ISettingsService;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -200,11 +201,15 @@ public class SettingsService implements ISettingsService {
                 throw new IllegalArgumentException("Setting name is invalid: " + name);
             }
 
-            Setting updatedSetting = settingServiceBlockingStub.getGlobalSetting(
+            final GetGlobalSettingResponse response = settingServiceBlockingStub.getGlobalSetting(
                     GetSingleGlobalSettingRequest.newBuilder()
                             .setSettingSpecName(name)
                             .build());
-            return SettingsMapper.toSettingApiDto(updatedSetting);
+            if (response.hasSetting()) {
+                return SettingsMapper.toSettingApiDto(response.getSetting());
+            } else {
+                throw new UnknownObjectException("Unknown setting: " + name);
+            }
         }
     }
 

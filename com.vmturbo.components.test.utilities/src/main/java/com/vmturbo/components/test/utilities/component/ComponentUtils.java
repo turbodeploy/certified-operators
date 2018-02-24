@@ -30,21 +30,18 @@ public class ComponentUtils {
     private ComponentUtils() {}
 
     /**
-     * (roman, March 16 2017) This route was added to support contacting the host in
-     * docker for Docker for Mac, as well as (presumably) other versions of docker.
-     * As long as it works, it's a better alternative than programmatically getting
-     * the local IP of the host on the network because:
-     *    - It works even if the host is offline.
-     *    - It's less error prone (no need to handle various configuration options).
+     * (roman, Feb 22 2017) This is a magic route that only works with docker 17.12 onwards.
      *
-     * The obvious disadvantage is that it's an undocumented feature, and may go
-     * away during docker upgrades.
+     * From the docs:
      *
-     * See: https://github.com/docker/docker/issues/22753#issuecomment-282725489
+     * From 17.12 onwards our recommendation is to connect to the special Mac-only DNS
+     * name docker.for.mac.host.internal, which resolves to the internal IP address used by the host.
+     *
+     * See: https://docs.docker.com/docker-for-mac/networking/#per-container-ip-addressing-is-not-possible
      *
      * Note that this address does NOT work on Linux.
      */
-    public static final String DOCKER_FOR_MAC_HOST_ROUTE = "192.168.65.1";
+    public static final String DOCKER_FOR_MAC_HOST_ROUTE = "docker.for.mac.host.internal";
 
     /**
      * This route is the "docker0" interface on Linux. For more details see

@@ -16,6 +16,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
@@ -107,7 +108,7 @@ public class SettingRpcService extends SettingServiceImplBase {
      */
     @Override
     public void getGlobalSetting(GetSingleGlobalSettingRequest request,
-                                  StreamObserver<Setting> responseObserver) {
+                                  StreamObserver<GetGlobalSettingResponse> responseObserver) {
 
         if (!request.hasSettingSpecName()) {
             responseObserver.onCompleted();
@@ -118,9 +119,9 @@ public class SettingRpcService extends SettingServiceImplBase {
             Optional<Setting> setting = settingStore.getGlobalSetting(
                     request.getSettingSpecName());
 
-            if (setting.isPresent()) {
-                responseObserver.onNext(setting.get());
-            }
+            GetGlobalSettingResponse.Builder response = GetGlobalSettingResponse.newBuilder();
+            setting.ifPresent(response::setSetting);
+            responseObserver.onNext(response.build());
             responseObserver.onCompleted();
         } catch (InvalidProtocolBufferException e) {
             responseObserver.onError(

@@ -38,7 +38,9 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -225,13 +227,19 @@ public class PlanProjectExecutor {
      */
     @VisibleForTesting
     Set<Group> restrictNumberOfClusters(Set<Group> clusters) {
-        Float maxPlanInstancesPerPlan = settingService.getGlobalSetting(
+        final GetGlobalSettingResponse response = settingService.getGlobalSetting(
                 GetSingleGlobalSettingRequest.newBuilder()
                         .setSettingSpecName(GlobalSettingSpecs.MaxPlanInstancesPerPlan
                                 .getSettingName())
-                        .build())
-                .getNumericSettingValue()
-                .getValue();
+                        .build());
+
+        final Float maxPlanInstancesPerPlan;
+        if (response.hasSetting()) {
+            maxPlanInstancesPerPlan = response.getSetting().getNumericSettingValue().getValue();
+        } else {
+            maxPlanInstancesPerPlan = GlobalSettingSpecs.MaxPlanInstancesPerPlan.createSettingSpec()
+                .getNumericSettingValueType().getDefault();
+        }
 
         if (clusters.size() <= maxPlanInstancesPerPlan) {
             return clusters;
