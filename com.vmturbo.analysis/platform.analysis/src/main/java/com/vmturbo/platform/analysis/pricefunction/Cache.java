@@ -136,8 +136,10 @@ class Cache {
                 Topology topo = e.getTopology();
                 // Price calculation happens from places which don't require
                 // this information so skip calling external pf.
-                // FIXME: Clone creation is not notified to matrix interface today
-                if (topo == null || shoppingList == null || seller.getCloneOf() != -1) {
+                // Buyer or seller clones will not be in matrix yet.
+                // FIXME: Clone creation is not notified to matrix interface
+                if (topo == null || shoppingList == null || seller.getCloneOf() != -1
+                                || shoppingList.getBuyer().getCloneOf() != -1) {
                     return price;
                 }
                 String topoId = String.valueOf(topo.getTopologyId());

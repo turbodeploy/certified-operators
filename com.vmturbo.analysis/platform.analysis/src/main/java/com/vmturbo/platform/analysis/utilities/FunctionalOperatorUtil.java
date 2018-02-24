@@ -227,8 +227,9 @@ public class FunctionalOperatorUtil {
                         if (take) {
                             Topology topology = economy.getTopology();
                             // check if topology or shopping list are null
-                            // Make sure we do not call place for a clone
-                            if (topology == null || buyer == null || seller.getCloneOf() != -1) {
+                            // Make sure we do not call place for a clone of buyer or seller
+                            if (topology == null || buyer == null || seller.getCloneOf() != -1
+                                            || buyer.getBuyer().getCloneOf() != -1) {
                                 return new double[] {0, 0};
                             }
                             String topoId = String.valueOf(topology.getTopologyId());
