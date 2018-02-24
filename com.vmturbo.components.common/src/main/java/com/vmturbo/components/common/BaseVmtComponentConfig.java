@@ -1,5 +1,7 @@
 package com.vmturbo.components.common;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,12 +14,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
+import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.KeyValueStoreConfig;
 
 /**
  * Create Spring Beans provided by com.vmturbo.components.common.
  **/
 @Configuration
-@Import({BaseVmtComponentConfig.DebugSwaggerConfig.class})
+@Import({BaseVmtComponentConfig.DebugSwaggerConfig.class, KeyValueStoreConfig.class})
 public class BaseVmtComponentConfig {
 
     @Value("${deadlockCheckIntervalSecs:900}")
@@ -86,6 +90,16 @@ public class BaseVmtComponentConfig {
     public MemoryMonitor memoryMonitor() {
         // creates a memory monitor that reports unhealthy when old gen seems to be full
         return new MemoryMonitor(maxHealthyUsedMemoryRatio);
+    }
+
+    @Bean
+    public KeyValueStoreConfig keyValueStoreConfig() {
+        return new KeyValueStoreConfig();
+    }
+
+    @Bean
+    public KeyValueStore keyValueStore() {
+        return keyValueStoreConfig().keyValueStore();
     }
 
     /**

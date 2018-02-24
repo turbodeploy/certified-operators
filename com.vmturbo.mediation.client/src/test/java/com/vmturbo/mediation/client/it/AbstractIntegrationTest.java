@@ -301,6 +301,8 @@ public abstract class AbstractIntegrationTest {
             environment.setProperty("spring.cloud.consul.enabled", "false");
             environment.setProperty("spring.cloud.consul.config.enabled", "false");
             environment.setProperty("spring.cloud.consul.port", "0");
+            environment.setProperty("kvStoreRetryIntervalMillis", "1000");
+
             // Alter JMX domain in order to start multiple spring-boot applications inside one
             // JVM
             environment.setProperty("spring.jmx.default-domain",
