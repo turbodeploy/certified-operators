@@ -258,10 +258,9 @@ public class StatsService implements IStatsService {
                     // Duplicate the set of stat filters and add "current" as a prefix to the filter name.
                     List<StatApiInputDTO> currentStatFilters =
                             statsFilters.stream()
+                                    .filter(filter -> filter.getName() != null)
                                     .map(filter -> STAT_FILTER_PREFIX +
                                         CaseFormat.LOWER_CAMEL.to(CaseFormat.UPPER_CAMEL, filter.getName()))
-                                    .collect(Collectors.toList())
-                                    .stream()
                                     .map(filterName -> {
                                         StatApiInputDTO currentFilter = new StatApiInputDTO();
                                         currentFilter.setName(filterName);
