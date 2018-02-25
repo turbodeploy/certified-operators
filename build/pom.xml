@@ -6,7 +6,7 @@
 
     <groupId>com.vmturbo</groupId>
     <artifactId>Turbonomic-XL</artifactId>
-    <version>7.0.b13-SNAPSHOT</version>
+    <version>7.0.b14-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <properties>
