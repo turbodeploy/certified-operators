@@ -12,13 +12,19 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 
 /**
- * A small helper class that bundles latency and IOPS commodities together.
+ * A small helper class that bundles Storage latency and Access commodities together.
  *
- * StorageAccess is another term for IOPS (input/output per second)
+ * StorageAccess is often referred to as IOPS (input/output operations per second)
  */
 public class AccessAndLatency {
+    /**
+     * Storage latency in milliseconds
+     */
     public final Optional<Double> latency;
 
+    /**
+     * Storage access in IOPS (input/output operations per second)
+     */
     public final Optional<Double> access;
 
     public AccessAndLatency(@Nonnull final Optional<Double> optionalAccess,
