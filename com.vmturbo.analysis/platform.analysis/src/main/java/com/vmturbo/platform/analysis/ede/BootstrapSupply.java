@@ -357,15 +357,16 @@ public class BootstrapSupply {
         // clone one of the sellers or reactivate an inactive seller that the VM can fit in
         if (sellerThatFits.getState() == TraderState.ACTIVE) {
             action = new ProvisionBySupply(economy, sellerThatFits).take();
+            actions.add(action);
             newSeller = ((ProvisionBySupply)action).getProvisionedSeller();
             actions.addAll(((ProvisionBySupply)action).getSubsequentActions());
         } else {
             action = new Activate(economy, sellerThatFits, market, sellerThatFits)
                             .take();
+            actions.add(action);
             newSeller = sellerThatFits;
         }
         ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
-        actions.add(action);
         return newSeller;
     }
 
