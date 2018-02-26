@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -149,29 +150,26 @@ public class RepositoryPerformanceTest {
         final TopologyAndContext topologyAndContext = topologyStoredFuture.get(10, TimeUnit.MINUTES);
 
         // Request the global supply chain.
-        getSupplyChain(Optional.empty(), topologyAndContext.getTopologyContextId());
+        getSupplyChain(Optional.empty(), topologyAndContext.getTopologyContextId(), "Global Supply Chain:\n");
 
         // Request the single source supply chain.
-        getSupplyChain(Optional.of(datacenterId), topologyAndContext.getTopologyContextId());
+        getSupplyChain(Optional.of(datacenterId), topologyAndContext.getTopologyContextId(),
+            "Single Source Supply Chain from Datacenter:\n");
     }
 
-    private void getSupplyChain(@Nonnull final Optional<Long> startingEntityOid, final long contextId) {
-        try {
-            final SupplyChainRequest.Builder supplyChainRequest = SupplyChainRequest.newBuilder()
-                .setContextId(contextId);
-            startingEntityOid.ifPresent(supplyChainRequest::addStartingEntityOid);
+    private void getSupplyChain(@Nonnull final Optional<Long> startingEntityOid,
+                                final long contextId,
+                                @Nonnull final String message) {
+        final SupplyChainRequest.Builder supplyChainRequest = SupplyChainRequest.newBuilder()
+            .setContextId(contextId);
+        startingEntityOid.ifPresent(supplyChainRequest::addStartingEntityOid);
 
-            final Iterable<SupplyChainNode> supplyChain =
-                () -> supplyChainService.getSupplyChain(supplyChainRequest.build());
+        final Iterable<SupplyChainNode> supplyChain =
+            () -> supplyChainService.getSupplyChain(supplyChainRequest.build());
 
-            StreamSupport.stream(supplyChain.spliterator(), false)
-                .forEach(supplyChainNode ->
-                    logger.info(supplyChainNode.getMemberOidsCount() + " " + supplyChainNode.getEntityType()));
-        } catch (RuntimeException e) {
-            // TODO: Remove the try/catch when the bug for single-source supply chain is fixed.
-            // TODO: https://vmturbo.atlassian.net/browse/OM-19193
-            logger.error("Exception while fetching supply chain: ", e);
-        }
+        logger.info(message + StreamSupport.stream(supplyChain.spliterator(), false)
+            .map(supplyChainNode -> supplyChainNode.getMemberOidsCount() + " " + supplyChainNode.getEntityType())
+            .collect(Collectors.joining("\n")));
     }
 
     /**
