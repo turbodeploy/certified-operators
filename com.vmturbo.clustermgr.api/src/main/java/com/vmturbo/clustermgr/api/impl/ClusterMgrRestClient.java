@@ -88,7 +88,7 @@ class ClusterMgrRestClient extends ComponentRestClient
      * We are using this approach instead of calling ComponentRestTemplate.create() and handling
      * this REST client as a special case.
      *
-     * @return
+     * @return The properly configured {@link RestTemplate} for {@link ClusterMgrRestClient}
      */
     @Nonnull
     private RestTemplate prepareRestTemplate() {
