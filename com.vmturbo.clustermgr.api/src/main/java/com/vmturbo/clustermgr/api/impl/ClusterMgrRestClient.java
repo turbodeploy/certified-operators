@@ -2,11 +2,11 @@ package com.vmturbo.clustermgr.api.impl;
 
 import java.io.OutputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import com.google.common.io.ByteStreams;
 
 import javax.annotation.Nonnull;
 import javax.ws.rs.core.UriBuilder;
@@ -16,15 +16,19 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.http.converter.json.GsonHttpMessageConverter;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RequestCallback;
 import org.springframework.web.client.ResponseExtractor;
 import org.springframework.web.client.RestTemplate;
 
+import com.google.common.io.ByteStreams;
+
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.api.serviceinterfaces.IClusterService;
-import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.ComponentRestClient;
 
@@ -70,12 +74,29 @@ class ClusterMgrRestClient extends ComponentRestClient
         uriBase = restUri + REST_API_PREFIX;
 
         // set up the RestTemplate to re-use in forwarding requests to RepositoryComponent
-        restTemplate = ComponentRestTemplate.create();
+        restTemplate = prepareRestTemplate();
         // set up a RestTemplate to re-use in streaming a large response; the response data will not be buffered locally.
-        streamingRestTemplate = ComponentRestTemplate.create();
+        streamingRestTemplate = prepareRestTemplate();
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setBufferRequestBody(false);
         streamingRestTemplate.setRequestFactory(requestFactory);
+    }
+
+    /**
+     * Create a RestTemplate by specifying the list converters explicitly.
+     * This REST client uses the MappingJackson2HttpMessageConverter.
+     * We are using this approach instead of calling ComponentRestTemplate.create() and handling
+     * this REST client as a special case.
+     *
+     * @return
+     */
+    @Nonnull
+    private RestTemplate prepareRestTemplate() {
+        final List<HttpMessageConverter<?>> converters = new ArrayList<>();
+        converters.add(new ByteArrayHttpMessageConverter());
+        converters.add(new StringHttpMessageConverter());
+        converters.add(new MappingJackson2HttpMessageConverter());
+        return new RestTemplate(converters);
     }
 
     // return the single restTemplate to be reused by all requests

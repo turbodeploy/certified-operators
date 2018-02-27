@@ -1,7 +1,6 @@
 package com.vmturbo.components.api;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
