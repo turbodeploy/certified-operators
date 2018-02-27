@@ -18,6 +18,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
@@ -83,7 +84,7 @@ public class ReservationPolicyFactoryTest {
                 .setId(123L)
                 .build();
         final GetMembersResponse response = GetMembersResponse.newBuilder()
-                .addAllMemberId(Lists.newArrayList(1L, 3L))
+                .setMembers(Members.newBuilder().addAllIds(Lists.newArrayList(1L, 3L)))
                 .build();
         Mockito.when(groupServiceMole.getMembers(request)).thenReturn(response);
         final PlacementPolicy placementPolicy = reservationPolicyFactory.generatePolicyForInitialPlacement(topologyGraph,

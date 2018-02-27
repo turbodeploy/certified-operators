@@ -12,8 +12,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -29,6 +27,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DeleteGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -129,7 +128,7 @@ public class GroupService extends GroupServiceImplBase {
             return;
         }
 
-        logger.info("Getting a group: {}", gid);
+        logger.info("Attempting to retrieve group: {}", gid);
 
         try {
             // Try the temporary group cache first because it's much faster.
@@ -152,9 +151,8 @@ public class GroupService extends GroupServiceImplBase {
     public void getGroups(GetGroupsRequest request, StreamObserver<Group> responseObserver) {
         logger.info("Get all user groups");
 
-        boolean resolveClusterFilters = request.hasResolveClusterSearchFilters()
-                ? request.getResolveClusterSearchFilters()
-                : false;
+        boolean resolveClusterFilters = request.hasResolveClusterSearchFilters() &&
+            request.getResolveClusterSearchFilters();
 
         final Set<Long> requestedIds = new HashSet<>(request.getIdList());
         try {
@@ -329,9 +327,9 @@ public class GroupService extends GroupServiceImplBase {
         logger.debug("Static group ({}) and its first 10 members {}",
                 groupId,
                 Stream.of(memberIds).limit(10).collect(Collectors.toList()));
-        return GroupDTO.GetMembersResponse.newBuilder()
-                .addAllMemberId(memberIds)
-                .build();
+        return GetMembersResponse.newBuilder()
+            .setMembers(Members.newBuilder().addAllIds(memberIds))
+            .build();
     }
 
     @Override
@@ -373,7 +371,7 @@ public class GroupService extends GroupServiceImplBase {
                     } else {
                         try {
                             final List<SearchParameters> searchParameters
-                                    = groupInfo.getSearchParametersCollection().getSearchParametersList();
+                                = groupInfo.getSearchParametersCollection().getSearchParametersList();
 
                             // Convert any ClusterMemberFilters to static set member checks based
                             // on current group membership info
@@ -385,7 +383,7 @@ public class GroupService extends GroupServiceImplBase {
                             } catch (DatabaseException de) {
                                 logger.error("Failed to resolve cluster filters: ", de);
                                 responseObserver.onError(Status.INTERNAL
-                                        .withDescription(de.getLocalizedMessage()).asRuntimeException());
+                                    .withDescription(de.getLocalizedMessage()).asRuntimeException());
                                 return;
 
                             }
@@ -393,17 +391,17 @@ public class GroupService extends GroupServiceImplBase {
                             final Search.SearchResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
                             final List<Long> searchResults = searchResponse.getEntitiesList();
                             logger.debug("Dynamic group ({}) and its first 10 members {}",
-                                    groupId,
-                                    Stream.of(searchResults).limit(10).collect(Collectors.toList()));
+                                groupId,
+                                Stream.of(searchResults).limit(10).collect(Collectors.toList()));
 
-                            resp = GroupDTO.GetMembersResponse.newBuilder()
-                                    .addAllMemberId(searchResults)
-                                    .build();
+                            resp = GetMembersResponse.newBuilder()
+                                .setMembers(Members.newBuilder().addAllIds(searchResults))
+                                .build();
                         } catch (RuntimeException e) {
                             final String errMsg = "Exception encountered while resolving group " + groupId;
                             logger.error(errMsg, e);
                             responseObserver.onError(Status.ABORTED.withCause(e)
-                                    .withDescription(e.getMessage()).asRuntimeException());
+                                .withDescription(e.getMessage()).asRuntimeException());
                             return;
                         }
                     }
@@ -415,6 +413,10 @@ public class GroupService extends GroupServiceImplBase {
                     throw new IllegalStateException("Invalid group returned.");
             }
             responseObserver.onNext(resp);
+            responseObserver.onCompleted();
+        } else if (!request.getExpectPresent()){
+            logger.debug("Did not find group with id {} ; this may be expected behavior", groupId);
+            responseObserver.onNext(GetMembersResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } else {
             final String errMsg = "Cannot find a group with id " + groupId;

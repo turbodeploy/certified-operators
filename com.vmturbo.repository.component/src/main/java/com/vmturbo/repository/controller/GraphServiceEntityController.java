@@ -103,7 +103,7 @@ public class GraphServiceEntityController {
     @ResponseBody
     @ApiOperation("Search for a service entity by ID")
     public ResponseEntity<Collection<ServiceEntityApiDTO>> searchServiceEntityById(@PathVariable("id") final String id) {
-        LOGGER.info("Searching service entity with id {}", id);
+        LOGGER.debug("Searching service entity with id {}", id);
         Either<String, Collection<ServiceEntityApiDTO>> results = graphDBService.searchServiceEntityById(id);
 
         return Match(results).of(

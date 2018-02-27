@@ -13,7 +13,6 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.google.common.collect.Sets;
 
-import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -96,19 +95,15 @@ public class GroupExpander {
             // try to fetch the members for a Group with the given OID
             long oid = Long.valueOf(uuidString);
             GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                    .setId(oid)
-                    .build();
-            try {
-                GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
-                answer.addAll(groupMembersResp.getMemberIdList());
-            } catch (StatusRuntimeException e) {
-                // if there is no group found with this OID, add the OID to the expanded list
-                if (e.getStatus().getCode() == Status.NOT_FOUND.getCode()) {
-                    answer.add(oid);
-                } else {
-                    // some other gRPC error - reflect that upwards
-                    throw e;
-                }
+                .setId(oid)
+                .setExpectPresent(false)
+                .build();
+            GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
+
+            if (groupMembersResp.hasMembers()){
+                answer.addAll(groupMembersResp.getMembers().getIdsList());
+            } else {
+                answer.add(oid);
             }
         }
         return answer;

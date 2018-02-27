@@ -35,6 +35,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateTempGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -431,9 +433,6 @@ public class GroupServiceTest {
     public void testUpdateGroupFail() throws Exception {
         final long id = 1234L;
 
-        final GroupDTO.Group group = GroupDTO.Group.newBuilder()
-                .setId(id)
-                .build();
         final GroupInfo newInfo = GroupInfo.newBuilder().setName("new").build();
         final StreamObserver<GroupDTO.UpdateGroupResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -486,8 +485,8 @@ public class GroupServiceTest {
 
         groupService.getMembers(req, mockObserver);
 
-        final GroupDTO.GetMembersResponse expectedResponse = GroupDTO.GetMembersResponse.newBuilder()
-                .addAllMemberId(mockSearchResults)
+        final GroupDTO.GetMembersResponse expectedResponse = GetMembersResponse.newBuilder()
+                .setMembers(Members.newBuilder().addAllIds(mockSearchResults))
                 .build();
 
         verify(mockObserver, never()).onError(any(Exception.class));
@@ -518,8 +517,8 @@ public class GroupServiceTest {
 
         groupService.getMembers(req, mockObserver);
 
-        final GroupDTO.GetMembersResponse expectedResponse = GroupDTO.GetMembersResponse.newBuilder()
-                .addAllMemberId(staticGroupMembers)
+        final GroupDTO.GetMembersResponse expectedResponse = GetMembersResponse.newBuilder()
+                .setMembers(Members.newBuilder().addAllIds(staticGroupMembers))
                 .build();
 
         verify(mockObserver, never()).onError(any(Exception.class));
@@ -624,7 +623,7 @@ public class GroupServiceTest {
 
         private final AtomicReference<List<Long>> mockDataReference;
 
-        public SearchServiceHandler(final AtomicReference<List<Long>> mockDataReference) {
+        SearchServiceHandler(final AtomicReference<List<Long>> mockDataReference) {
             this.mockDataReference = mockDataReference;
         }
 

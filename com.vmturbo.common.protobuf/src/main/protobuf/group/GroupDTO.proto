@@ -267,10 +267,19 @@ message GetGroupsRequest {
 message GetMembersRequest {
     // The group ID to get members for.
     optional int64 id = 1;
+
+    // If true, return an error if the ID does not refer to a group.
+    // If false, the ID may or may not refer to a group.
+    optional bool expect_present = 2 [default = true];
 }
 
 message GetMembersResponse {
-    repeated int64 member_id = 1;
+
+    optional Members members = 1;
+
+    message Members {
+        repeated int64 ids = 1;
+    }
 }
 
 message StoreDiscoveredGroupsRequest {

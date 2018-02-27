@@ -628,7 +628,7 @@ public class GroupsService implements IGroupsService {
                 GetMembersResponse groupResp = groupServiceRpc.getMembers(GetMembersRequest.newBuilder()
                         .setId(id)
                         .build());
-                memberIds = groupResp.getMemberIdList();
+                memberIds = groupResp.getMembers().getIdsList();
             } catch (StatusRuntimeException e) {
                 if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                     throw new UnknownObjectException("Can't find group " + groupUuid);

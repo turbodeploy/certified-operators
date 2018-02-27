@@ -46,6 +46,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -241,7 +242,7 @@ public class GroupsServiceTest {
                     .setId(1L)
                     .build()))
             .thenReturn(GetMembersResponse.newBuilder()
-                .addMemberId(memberId)
+                .setMembers(Members.newBuilder().addIds(memberId))
                 .build());
         Optional<Collection<Long>> retIds = groupsService.getMemberIds("1");
         assertTrue(retIds.isPresent());

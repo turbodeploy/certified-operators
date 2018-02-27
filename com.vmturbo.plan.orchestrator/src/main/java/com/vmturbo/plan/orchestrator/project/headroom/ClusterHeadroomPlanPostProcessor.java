@@ -205,7 +205,7 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         GetMembersResponse response = groupRpcService.getMembers(GetMembersRequest.newBuilder()
                 .setId(cluster.getId())
                 .build());
-        List<Long> memberIds = response.getMemberIdList();
+        List<Long> memberIds = response.getMembers().getIdsList();
 
         // Use the supply chain service to get all VM nodes that belong to the physical machines
         Iterator<SupplyChainNode> supplyChainNodeIterator = supplyChainRpcService.getSupplyChain(

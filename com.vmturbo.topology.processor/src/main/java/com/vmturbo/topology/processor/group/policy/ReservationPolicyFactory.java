@@ -168,7 +168,7 @@ public class ReservationPolicyFactory {
                         .setId(constraint.getConstraintId())
                         .build();
                 final GetMembersResponse response = groupServiceBlockingStub.getMembers(request);
-                final Set<TopologyEntity> topologyEntities = response.getMemberIdList().stream()
+                final Set<TopologyEntity> topologyEntities = response.getMembers().getIdsList().stream()
                         .map(graph::getEntity)
                         .flatMap(entity -> entity.isPresent() ? Stream.of(entity.get()) :
                                 Stream.empty())

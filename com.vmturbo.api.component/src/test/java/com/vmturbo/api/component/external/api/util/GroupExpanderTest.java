@@ -20,6 +20,8 @@ import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse.Members;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -76,9 +78,10 @@ public class GroupExpanderTest {
     @Test
     public void testExpandNonGroupNonMarketUuid() throws Exception {
         when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
-                .setId(1234L)
-                .build()))
-                .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+            .setId(1234L)
+            .setExpectPresent(false)
+            .build()))
+            .thenReturn(GetMembersResponse.getDefaultInstance());
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(1));
         assertThat(expandedOids.iterator().next(), equalTo(1234L));
@@ -107,12 +110,13 @@ public class GroupExpanderTest {
     public void testExpandGroupUuid() throws Exception {
         when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
                 .setId(1234L)
+            .setExpectPresent(false)
                 .build()))
-                .thenReturn(GroupDTO.GetMembersResponse.newBuilder()
-                        .addMemberId(10)
-                        .addMemberId(11)
-                        .addMemberId(12)
-                        .build());
+                .thenReturn(GetMembersResponse.newBuilder().setMembers(Members.newBuilder()
+                    .addIds(10)
+                    .addIds(11)
+                    .addIds(12))
+                    .build());
 
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(3));
@@ -128,9 +132,10 @@ public class GroupExpanderTest {
     @Test(expected = StatusRuntimeException.class)
     public void testErrorInGroupGrpcCall() throws Exception {
         when(groupServiceSpy.getMembers(GroupDTO.GetMembersRequest.newBuilder()
-                .setId(1234L)
-                .build()))
-                .thenThrow(new StatusRuntimeException(Status.ABORTED));
+            .setId(1234L)
+            .setExpectPresent(false)
+            .build()))
+            .thenThrow(new StatusRuntimeException(Status.ABORTED));
         Set<Long> expandedOids = groupExpander.expandUuid("1234");
         assertThat(expandedOids.size(), equalTo(1));
         assertThat(expandedOids.iterator().next(), equalTo(1234L));
