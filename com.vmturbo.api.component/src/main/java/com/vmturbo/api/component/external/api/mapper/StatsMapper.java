@@ -234,7 +234,7 @@ public class StatsMapper {
                         .collect(Collectors.joining("\n")));
                 }
                 if (stat.getRelatedEntityType() != null) {
-                    logger.warn("Unhandled related entity type: {}", stat.getRelatedEntityType());
+                    requestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
                 }
                 if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
                     logger.warn("Unhandled group-by for stats:\n {}",

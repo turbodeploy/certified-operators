@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.reports.db.abstraction.tables.PmStatsLatest.PM_STATS_LATEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyList;
@@ -17,6 +18,7 @@ import org.assertj.core.util.Lists;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Select;
+import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -24,12 +26,47 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.abstraction.tables.PmStatsLatest;
+import com.vmturbo.reports.db.VmtDbException;
 import com.vmturbo.reports.db.abstraction.tables.records.PmStatsLatestRecord;
 
 public class LiveStatsReaderTest {
 
     private static long LATEST_TABLE_TIME_WINDOW_MS = 60000;
+    private LiveStatsReader liveStatsReader;
+    private List<Long> entities;
+    private Timestamp latestFromDb;
+    private Result queryResultsMock;
+    private HistorydbIO mockHistorydbIO;
+
+    @Before
+    public void setup() throws VmtDbException {
+        mockHistorydbIO = Mockito.mock(HistorydbIO.class);
+
+        // set up the return value for entity id -> entity type lookup
+        entities = Lists.newArrayList(1L);
+        List<String> entityUuids = Lists.newArrayList("1");
+        String entityType = "PhysicalMachine";
+        Map<String, String> entityTypeMap = ImmutableMap.of("1", entityType);
+        when(mockHistorydbIO.getTypesForEntities(entityUuids)).thenReturn(entityTypeMap);
+        // set up for the "timestamp for latest DB record" query
+        latestFromDb = Timestamp.from(Instant.ofEpochSecond(1000));
+        when(mockHistorydbIO.getMostRecentTimestamp()).thenReturn(Optional.of(latestFromDb));
+        // set up for the stats query - return two "normal" stats values, "A" and "B"
+        Select dbSelectMock = Mockito.mock(Select.class);
+        when(mockHistorydbIO.getStatsSelect(anyObject(), anyList(), anyList(), anyObject()))
+                .thenReturn(dbSelectMock);
+        queryResultsMock = Mockito.mock(Result.class);
+        // create two stats values to be returned as the "normal" part of the stats query
+        final PmStatsLatestRecord testRecord1 = createStatsRecord(latestFromDb, "A", "SubA");
+        final PmStatsLatestRecord testRecord2 = createStatsRecord(latestFromDb, "B", "SubB");
+        Record[] resultList = {
+                testRecord1,
+                testRecord2
+        };
+        when(queryResultsMock.toArray()).thenReturn(resultList);
+        when(mockHistorydbIO.execute(BasedbIO.Style.FORCED, dbSelectMock))
+                .thenReturn(queryResultsMock);
+    }
 
     /**
      * Test that the timestamp of the counted-values match the timestamp returned from the DB.
@@ -42,34 +79,8 @@ public class LiveStatsReaderTest {
     @Test
     public void testGetStatsRecordsTimestamps() throws Exception {
         // arrange
-        HistorydbIO mockHistorydbIO = Mockito.mock(HistorydbIO.class);
-
-        LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0, LATEST_TABLE_TIME_WINDOW_MS);
-
-        // set up the return value for entity id -> entity type lookup
-        List<Long> entities = Lists.newArrayList(1L);
-        List<String> entityUuids = Lists.newArrayList("1");
-        String entityType = "PhysicalMachine";
-        Map<String, String> entityTypeMap = ImmutableMap.of("1", entityType);
-        when(mockHistorydbIO.getTypesForEntities(entityUuids)).thenReturn(entityTypeMap);
-        // set up for the "timestamp for latest DB record" query
-        final Timestamp latestFromDb = Timestamp.from(Instant.ofEpochSecond(1000));
-        when(mockHistorydbIO.getMostRecentTimestamp()).thenReturn(Optional.of(latestFromDb));
-        // set up for the stats query - return two "normal" stats values, "A" and "B"
-        Select dbSelectMock = Mockito.mock(Select.class);
-        when(mockHistorydbIO.getStatsSelect(anyObject(), anyList(), anyList(), anyObject()))
-                .thenReturn(dbSelectMock);
-        Result queryResultsMock = Mockito.mock(Result.class);
-        // create two stats values to be returned as the "normal" part of the stats query
-        final PmStatsLatestRecord testRecord1 = createStatsRecord(latestFromDb, "A", "SubA");
-        final PmStatsLatestRecord testRecord2 = createStatsRecord(latestFromDb, "B", "SubB");
-        Record[] resultList = {
-                testRecord1,
-                testRecord2
-        };
-        when(queryResultsMock.toArray()).thenReturn(resultList);
-        when(mockHistorydbIO.execute(BasedbIO.Style.FORCED, dbSelectMock))
-                .thenReturn(queryResultsMock);
+        LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0,
+                LATEST_TABLE_TIME_WINDOW_MS);
 
         // act
         List<Record> records = liveStatsReader.getStatsRecords(
@@ -82,10 +93,25 @@ public class LiveStatsReaderTest {
         // There are 8 count records always generated + 2 stat records we created for this test
         assertThat(records.size(), equalTo(10));
         // check the timestamps all match
-        records.forEach(r -> assertThat(r.getValue(PmStatsLatest.PM_STATS_LATEST.SNAPSHOT_TIME),
+        records.forEach(r -> assertThat(r.getValue(PM_STATS_LATEST.SNAPSHOT_TIME),
                 equalTo(latestFromDb)));
     }
 
+    @Test
+    public void testGetStatsRecordsForType() throws VmtDbException {
+        // arrange
+
+        LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0,
+                LATEST_TABLE_TIME_WINDOW_MS);
+
+        // act
+        List<Record> records = liveStatsReader.getStatsRecordsForType("PhysicalMachine",
+                null, null, Lists.emptyList());
+
+        // assert
+        // two stats records in the setup; there are no count stats generated for this call
+        assertThat(records.size(), equalTo(2));
+    }
     /**
      * Create a DB record for the PmStatsLatest table with the given timestamp, propertyType, and
      * propertySubtype. The value fields are not set, as the test above does not require it.

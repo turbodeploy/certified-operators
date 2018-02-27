@@ -95,9 +95,9 @@ public class LiveStatsReader {
 
     // Partition the list of entities to read into chunks of this size in order not to flood the DB.
     private static final int ENTITIES_PER_CHUNK = 50000;
-    // time (MS) to specify a window before startTime and after endTime = 10 min (must be even #)
-    private final long latestTableTimeWindowMS;// = Duration.of(10, ChronoUnit.MINUTES).toMillis();
-    private final long latestTableHalfTimeWindowMS;// = latestTableTimeWindowMS / 2;
+    // time (MS) to specify a window before startTime and after endTime, e.g. (10 min / 2) = 5 min
+    private final long latestTableTimeWindowMS;
+    private final long latestTableHalfTimeWindowMS;
 
     private final HistorydbIO historydbIO;
 
@@ -143,7 +143,7 @@ public class LiveStatsReader {
     public @Nonnull List<Record> getStatsRecords(@Nonnull List<String> entityIds,
                                                  @Nullable Long startTime,
                                                  @Nullable Long endTime,
-                                                 @Nonnull List<String> commodityNames)
+                                                 @Nullable List<String> commodityNames)
             throws VmtDbException {
 
 
@@ -213,6 +213,52 @@ public class LiveStatsReader {
     }
 
     /**
+     * Fetch rows from the stats tables based on an entity type, startTime, endTime, and restricted
+     * to a specific set of commodityNames. If either startTime or endTime are null, then the current
+     * time is used. If the commodityNames list is null then all commodities are returned.
+     *
+     * The combination of startTime, endTime, and entitType determine which DB table to query, e.g.
+     * "PhysicalMachine", now, now -> PM_STATS_LATEST; "VirtualMachine", '3 days ago' -> VM_STATS_BY_DAY.
+     *
+     * @param entityType the type of entity to query
+     * @param startTime the first (oldest) timestamp in the time range; null -> now
+     * @param endTime the last (most recent) timestamp in the time range; null -> now
+     * @param commodityNames the list of commodity names to include in the answer; null -> all
+     * @return the DB records from the table corresponding to entityType for the given time range,
+     * filtered by the commodityNames (if specified)
+     * @throws VmtDbException if there is an error reading from the DB
+     */
+    public @Nonnull List<Record> getStatsRecordsForType(@Nonnull String entityType,
+                                                 @Nullable Long startTime,
+                                                 @Nullable Long endTime,
+                                                 @Nullable List<String> commodityNames)
+            throws VmtDbException {
+
+        // get most recent date from _latest database
+        final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp();
+        if (!mostRecentDbTimestamp.isPresent()) {
+            // no data persisted yet; just return an empty answer
+            return Collections.emptyList();
+        }
+        long mostRecentTimestamp = mostRecentDbTimestamp.get().getTime();
+        startTime = applyTimeDefault(startTime, mostRecentTimestamp);
+        endTime = applyTimeDefault(endTime, mostRecentTimestamp);
+
+        EntityType dbEntityType = EntityType.getTypeForName(entityType).orElseThrow(
+                () -> new IllegalArgumentException("DB Entity type not found for clsName "
+                        + entityType)
+        );
+
+        Select<?> query = getQueryString(Collections.emptyList(), dbEntityType,
+                commodityNames, startTime, endTime, AGGREGATE.NO_AGG)
+                .orElseThrow(() -> new IllegalArgumentException("DB Entity type not found for clsName "
+                        + entityType)
+        );
+
+        return Lists.newArrayList(historydbIO.execute(Style.FORCED, query));
+    }
+
+    /**
      * Get the full-market stats table to use, based on the time frame we're looking at.
      * @param timeFrame The time frame.
      * @return The table to use. */
@@ -248,7 +294,7 @@ public class LiveStatsReader {
     public @Nonnull List<Record> getFullMarketStatsRecords(
                                                  @Nullable Long startTime,
                                                  @Nullable Long endTime,
-                                                 @Nonnull List<String> commodityNames)
+                                                 @Nullable List<String> commodityNames)
             throws VmtDbException {
 
         // get most recent date from _latest database
@@ -296,7 +342,7 @@ public class LiveStatsReader {
         final List<Record> answer = new ArrayList<>(results);
 
         final Set<String> requestedRatioProps = new HashSet<>(countPerSEsMetrics);
-        if (!commodityNames.isEmpty()) {
+        if (commodityNames != null && !commodityNames.isEmpty()) {
             // This does countStats.size() lookups in commodityNames, which is a list.
             // This is acceptable because the asked-for commodityNames is supposed to be
             // a small ( < 10) list.
@@ -339,7 +385,7 @@ public class LiveStatsReader {
             // Go through the entity counts by time, and for each timestamp create
             // ratio properties based on the various counts.
             entityCountsByTime.forEach((snapshotTime, entityCounts) -> requestedRatioProps.forEach(ratioPropName -> {
-                double ratio;
+                final double ratio;
                 switch (ratioPropName) {
                     case NUM_VMS_PER_HOST: {
                         final Float numHosts = entityCounts.get(NUM_HOSTS);
@@ -510,11 +556,11 @@ public class LiveStatsReader {
      * CLUSTER has no Hourly and Latest tables.
      */
     private @Nonnull Optional<Select<?>> getQueryString(@Nonnull List<String> entityIdChunk,
-                             EntityType entityType,
-                             List<String> commodityNames,
+                             @Nonnull EntityType entityType,
+                             @Nullable List<String> commodityNames,
                              long startTime,
                              long endTime,
-                             AGGREGATE agg) {
+                             @Nonnull AGGREGATE agg) {
 
         TimeFrame tFrame = millis2TimeFrame(startTime);
 
@@ -527,8 +573,9 @@ public class LiveStatsReader {
         // accumulate the conditions for this query
         List<Condition> whereConditions = new ArrayList<>();
 
-        // adjust time range for LATEST queries with zero width
+        // adjust time range for LATEST queries with width less than the time window
         if (tFrame.equals(TimeFrame.LATEST) && startTime == endTime) {
+//        if (tFrame.equals(TimeFrame.LATEST) && (endTime - startTime) < latestTableTimeWindowMS) {
             startTime = startTime - latestTableHalfTimeWindowMS;
             endTime = endTime + latestTableHalfTimeWindowMS;
         }

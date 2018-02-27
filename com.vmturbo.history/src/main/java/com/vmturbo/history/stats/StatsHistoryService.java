@@ -220,8 +220,10 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                         commodityNames);
             } else {
                 // read from live topologies
-                returnLiveMarketStats(responseObserver, startDate, endDate, entitiesList,
-                        commodityNames);
+                String relatedEntityType = (request.getFilter().hasRelatedEntityType()) ?
+                        request.getFilter().getRelatedEntityType() : null;
+                returnLiveMarketStats(responseObserver, startDate, endDate, commodityNames,
+                        entitiesList, relatedEntityType);
             }
 
             timer.observeDuration();
@@ -285,15 +287,9 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         final long clusterId = request.getClusterId();
         final StatsFilter filter = request.getStats();
 
-        Long now = System.currentTimeMillis();
-        Long startDate = now;
-        if (filter.hasStartDate()) {
-            startDate = filter.getStartDate();
-        }
-        Long endDate = now;
-        if (filter.hasEndDate()) {
-            endDate = filter.getEndDate();
-        }
+        long now = System.currentTimeMillis();
+        long startDate = (filter.hasStartDate()) ? filter.getStartDate() : now;
+        long endDate = filter.hasEndDate()? filter.getEndDate() : now;
         if (startDate > endDate) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("Invalid date range for retrieving cluster statistics.")
@@ -306,7 +302,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         try {
             Multimap<java.sql.Date, StatRecord> resultMap = HashMultimap.create();
 
-            if (startDate != null && endDate != null && isUseMonthlyData(startDate, endDate)) {
+            if (isUseMonthlyData(startDate, endDate)) {
                 final List<ClusterStatsByMonthRecord> statDBRecordsByMonth =
                         clusterStatsReader.getStatsRecordsByMonth(clusterId, startDate, endDate, commodityNames);
 
@@ -330,7 +326,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
             // Each snapshot may have several record types (e.g. "headroomVMs", "numVMs")
             for (java.sql.Date recordDate : resultMap.keySet()) {
                 StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
-                resultMap.get(recordDate).forEach((record)-> statSnapshotResponseBuilder.addStatRecords(record));
+                resultMap.get(recordDate).forEach(statSnapshotResponseBuilder::addStatRecords);
                 statSnapshotResponseBuilder.setSnapshotDate(LocalDateTime.ofInstant(
                         Instant.ofEpochMilli(recordDate.getTime()), ZoneOffset.systemDefault())
                         .toString());
@@ -358,11 +354,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      */
     private boolean isUseMonthlyData(@Nullable Long startDate, @Nullable Long endDate) {
         if (startDate != null && endDate != null) {
-            final int numberOfMillisInADay = MILLIS_PER_DAY;
-            final float numberOfDaysInDateRange = (endDate - startDate) / numberOfMillisInADay;
-            if (numberOfDaysInDateRange > 40) {
-                return true;
-            }
+            final float numberOfDaysInDateRange = (endDate - startDate) / MILLIS_PER_DAY;
+            return numberOfDaysInDateRange > 40;
         }
         return false;
     }
@@ -370,8 +363,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
     /**
      * Helper method to create StatRecord objects, which nest inside StatSnapshot objects.
      *
-     * @param dbRecord
-     * @return
+     * @param dbRecord the database record to begin with
+     * @return a newly initialized {@link StatRecord} protobuf
      */
     private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord) {
         return buildStatRecord(
@@ -540,30 +533,53 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * ServiceEntity type (e.g. pm_stats_yyy and vm_stats_yyy) and by time frame, e.g.
      * xxx_stats_latest, xxx_stats__by_hour, xxx_stats_by_day, xxx_stats_by_month.
      *
+     * If the 'entities' list is empty and no relatedEntityType is given, then this is a request
+     * for averaged stats from the full live market.
+     *
+     * If there is an empty 'entities' list and a 'relatedEntityType' is given, then only
+     * entities of that type are included in the averaged stats returned.
+     *
+     * If there are entity OIDs specified in the 'entities' list, then the 'relatedEntityType' is
+     * ignored and only those entities listed are included in the stats averages returned.
+     *
      * @param responseObserver the chunking channel on which the response should be returned
      * @param startDate return stats with date equal to or after this date
      * @param endDate return stats with date before this date
-     * @param entities A list of service entity OIDs; an empty list implies full market
      * @param commodityNames the names of the commodities to include.
+     * @param entities A list of service entity OIDs; an empty list implies full market, which
+     *                 may be filtered based on relatedEntityType
+     * @param relatedEntityType entityType to sample if entities list is empty; or all entity types
+     *                         if null; not usused if the 'entities' list is not empty
      * @throws VmtDbException if error writing to the db
      */
-    private void returnLiveMarketStats(StreamObserver<StatSnapshot> responseObserver,
-                                       Long startDate, Long endDate, List<Long> entities,
-                                       List<String> commodityNames) throws VmtDbException {
+    private void returnLiveMarketStats(@Nonnull StreamObserver<StatSnapshot> responseObserver,
+                                       @Nullable Long startDate, @Nullable Long endDate,
+                                       @Nullable List<String> commodityNames,
+                                       @Nonnull List<Long> entities,
+                                       @Nullable String relatedEntityType) throws VmtDbException {
 
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
-        final boolean fullMarket = entities.size() == 0;
+        final boolean fullMarket = entities.size() == 0 && relatedEntityType == null;
         if (fullMarket) {
             statDBRecords = liveStatsReader.getFullMarketStatsRecords(startDate, endDate,
                     commodityNames);
         } else {
-            // partial request
-            statDBRecords = liveStatsReader.getStatsRecords(
-                    entities.stream()
-                        .map(id -> Long.toString(id))
-                        .collect(Collectors.toList()),
-                    startDate, endDate, commodityNames);
+            // partial request, either a request based on entityType or list of entity OIDs
+            if (entities.size() == 0) {
+                statDBRecords = liveStatsReader.getStatsRecordsForType(relatedEntityType,
+                        startDate, endDate, commodityNames);
+            } else {
+                if (!StringUtils.isEmpty(relatedEntityType)) {
+                    logger.warn("'relatedEntityType' ({}) is ignored when specific entities listed",
+                            relatedEntityType);
+                }
+                statDBRecords = liveStatsReader.getStatsRecords(
+                        entities.stream()
+                                .map(id -> Long.toString(id))
+                                .collect(Collectors.toList()),
+                        startDate, endDate, commodityNames);
+            }
         }
 
         // organize the stats DB records into StatSnapshots and return them to the caller
@@ -581,7 +597,6 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * @param fullMarket is this a query against the full market table vs. individual SE type
      * @param handleSnapshot a function ({@link Consumer}) to call for each new {@link StatSnapshot}
      */
-
     private void createStatSnapshots(@Nonnull List<Record> statDBRecords,
                                      boolean fullMarket,
                                      @Nonnull Consumer<StatSnapshot.Builder> handleSnapshot) {
@@ -594,7 +609,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
             StatSnapshot.Builder statSnapshotBuilder = StatSnapshot.newBuilder();
             statSnapshotBuilder.setSnapshotDate(DateTimeUtil.toString(timestamp.getTime()));
 
-            // process all the stats records for a given commodity for the curren snapshot_time
+            // process all the stats records for a given commodity for the current snapshot_time
             // - might be 1, many for group, or none if time range didn't overlap recorded stats
             commodityMap.asMap().forEach((commodityName, dbStatRecordList) -> {
                 if (!dbStatRecordList.isEmpty()) {
@@ -684,7 +699,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * @return a map from each unique Timestamp to the map of properties to DB stats records for
      * that property and timestamp
      */
-    private TreeMap<Timestamp, Multimap<String, Record>> organizeStatsRecordsByTime(List<Record> statDBRecords) {
+    private TreeMap<Timestamp, Multimap<String, Record>> organizeStatsRecordsByTime(
+            @Nonnull List<Record> statDBRecords) {
         // organize the statRecords by SNAPSHOT_TIME and then by PROPERTY_TYPE + PROPERTY_SUBTYPE
         TreeMap<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity = new TreeMap<>();
         for (Record dbStatRecord : statDBRecords) {
@@ -842,7 +858,6 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
         try {
             historydbIO.getStatsRetentionSettings()
-                .stream()
                 .forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (DataAccessException | VmtDbException e) {
