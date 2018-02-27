@@ -269,7 +269,9 @@ public class BootstrapSupply {
                     // log shoppingLists that need ProvisionBySupply in slsThatNeedProvBySupply
                     slsThatNeedProvBySupply.put(sl, commonClique);
                 } else { // provision by demand
-                    // TODO: maybe pick a better seller instead of the first one
+                    // For clarity of the produced action, pick current supplier as model
+                    // even if not cloneable (as long as a seller in this market is cloneable,
+                    // it does not matter which one you pick in provision by demand)
                     List<Trader> clonableSellers = sellers.stream().filter(s ->
                             s.getSettings().isCloneable()).collect(Collectors.toList());
                     if (clonableSellers.isEmpty()) {
@@ -277,7 +279,9 @@ public class BootstrapSupply {
                                     sl.getBuyer().getDebugInfoNeverUseInCode()
                                     + " has an infinity quote");
                     } else {
-                        action = new ProvisionByDemand(economy, sl, clonableSellers.get(0)).take();
+                        action = new ProvisionByDemand(economy, sl,
+                                sl.getSupplier() != null ? sl.getSupplier() : clonableSellers.get(0))
+                                .take();
                         ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
                         newSeller = ((ProvisionByDemand)action).getProvisionedSeller();
                         // provisionByDemand does not place the provisioned trader. We try finding
@@ -548,10 +552,10 @@ public class BootstrapSupply {
             slsThatNeedProvBySupply.put(shoppingList, new Long(0));
             return Collections.emptyList();
         } else if (!activeSellers.isEmpty()) {
-            // if none of the existing sellers can fit the shoppingList, provision customSeller
-            // TODO: maybe pick a better seller to base the clone out off
-            bootstrapAction = new ProvisionByDemand(economy, shoppingList, activeSellers.get(0))
-                                    .take();
+            // if none of the existing sellers can fit the shoppingList, provision current seller
+            bootstrapAction = new ProvisionByDemand(economy, shoppingList,
+                    shoppingList.getSupplier() != null ? shoppingList.getSupplier() :
+                            activeSellers.get(0)).take();
             ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
             provisionedSeller = ((ProvisionByDemand)bootstrapAction).getProvisionedSeller();
             provisionRelatedActionList.add(bootstrapAction);
