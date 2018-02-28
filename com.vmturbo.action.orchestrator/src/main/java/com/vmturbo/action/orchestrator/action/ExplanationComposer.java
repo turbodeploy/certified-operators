@@ -1,13 +1,17 @@
 package com.vmturbo.action.orchestrator.action;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -112,23 +116,26 @@ public class ExplanationComposer {
 
     /**
      * Build move explanation for compliance.
-     * @param commodities a list of missing commodity base types
+     * @param commodityTypes a list of missing commodity types
      * @return explanation
      */
-    public static String buildComplianceExplanation(List<Integer> commodities) {
+    public static String buildComplianceExplanation(List<TopologyDTO.CommodityType> commodityTypes) {
         StringBuilder sb = new StringBuilder().append(MOVE_COMPLIANCE_EXPLANATION);
-        commodities.forEach(c -> sb.append(CommodityType.forNumber(c)).append(" "));
+        sb.append(commodityTypes.stream()
+            .map(commodityType -> CommodityType.forNumber(commodityType.getType()).toString())
+            .collect(Collectors.joining(" ")));
+
         return sb.toString();
     }
 
     /**
      * Build move explanation for congestion.
-     * @param commodities a list of congested commodity base types
+     * @param commodityTypes a list of congested commodity types
      * @return explanation
      */
-    public static String buildCongestionExplanation(List<Integer> commodities) {
+    public static String buildCongestionExplanation(List<TopologyDTO.CommodityType> commodityTypes) {
         StringBuilder sb = new StringBuilder().append(MOVE_CONGESTION_EXPLANATION);
-        commodities.forEach(c -> sb.append(CommodityType.forNumber(c)));
+        commodityTypes.forEach(c -> sb.append(CommodityType.forNumber(c.getType())));
         return sb.toString();
     }
 
@@ -180,12 +187,12 @@ public class ExplanationComposer {
 
     /**
      * Build activate explanation.
-     * @param commodity the most expensive commodity base type
+     * @param commodityType the most expensive commodity type
      * @return explanation
      */
-    public static String buildActivateExplanation(int commodity) {
+    public static String buildActivateExplanation(@Nonnull final TopologyDTO.CommodityType commodityType) {
         return new StringBuilder().append(ACTIVATE_EXPLANATION)
-            .append(CommodityType.forNumber(commodity)).toString();
+            .append(CommodityType.forNumber(commodityType.getType())).toString();
     }
 
     /**
@@ -193,17 +200,18 @@ public class ExplanationComposer {
      * @return explanation
      */
     public static String buildDeactivateExplanation() {
-        return new StringBuilder().append(DEACTIVATE_EXPLANATION).toString();
+        return DEACTIVATE_EXPLANATION;
     }
 
     /**
      * Build reconfigure explanation.
-     * @param commodities a list of missing commodity base types
+     * @param commodityTypes a list of missing commodity types
      * @return explanation
      */
-    public static String buildReconfigureExplanation(List<Integer> commodities) {
+    public static String buildReconfigureExplanation(
+        @Nonnull final Collection<TopologyDTO.CommodityType> commodityTypes) {
         StringBuilder sb = new StringBuilder().append(RECONFIGURE_EXPLANATION);
-        commodities.forEach(c -> sb.append(CommodityType.forNumber(c)));
+        commodityTypes.forEach(commodityType -> sb.append(CommodityType.forNumber(commodityType.getType())));
         return sb.toString();
     }
 

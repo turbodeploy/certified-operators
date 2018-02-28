@@ -29,13 +29,13 @@ message Explanation {
         // A move explanation suggesting unavailability of commodities.
         message Compliance {
             // A list of commodities' base type which are missing in current supplier.
-            repeated int32 missing_commodities = 1;
+            repeated topology.CommodityType missing_commodities = 1;
         }
 
         // A move explanation suggesting commodity congestion.
         message Congestion {
             // A list of commodities' base type which are cheaper at the destination.
-            repeated int32 congested_commodities = 1;
+            repeated topology.CommodityType congested_commodities = 1;
         }
 
         // A move explanation suggesting evacuation of buyers.
@@ -59,7 +59,7 @@ message Explanation {
 
     // An activate explanation contains the base type of the most expensive commodity.
     message ActivateExplanation {
-        required int32 most_expensive_commodity = 1;
+        required topology.CommodityType most_expensive_commodity = 1;
     }
 
     // Deactivate explanation will always be improve overall efficiency.
@@ -67,7 +67,7 @@ message Explanation {
 
     // Reconfigure explanation contains the base type of the reconfigure commodity.
     message ReconfigureExplanation {
-        repeated int32 reconfigure_commodity = 1;
+        repeated topology.CommodityType reconfigure_commodity = 1;
     }
 
     message ProvisionExplanation {
@@ -77,6 +77,7 @@ message Explanation {
         }
         // Provision by supply explanation contains the base type of the most expensive commodity.
         message ProvisionBySupplyExplanation {
+            // TODO: Change this to topology.CommodityType when M2 provides sufficient information to do so.
             required int32 most_expensive_commodity = 1;
         }
 
@@ -97,6 +98,7 @@ message Explanation {
             // capacity needs to be changed to satisfy the demand. The value is the new capacity for
             // that commodity.
             message CommodityNewCapacityEntry {
+                // TODO: Change this to topology.CommodityType when M2 provides sufficient information to do so.
                 required int32 commodity_base_type = 1;
                 required float new_capacity = 2;
             }
@@ -105,6 +107,7 @@ message Explanation {
             // commodity whose requested quantity can not be satisfied. The value is the max amount that
             // from any provider in market and the requested amount from the buyer.
             message CommodityMaxAmountAvailableEntry {
+                // TODO: Change this to topology.CommodityType when M2 provides sufficient information to do so.
                 required int32 commodity_base_Type = 1;
                 required float max_amount_available = 2;
                 required float requested_amount = 3;

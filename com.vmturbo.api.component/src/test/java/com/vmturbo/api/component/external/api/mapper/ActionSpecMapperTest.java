@@ -103,8 +103,8 @@ public class ActionSpecMapperTest {
             .setMove(MoveExplanation.newBuilder()
                 .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                     .setCompliance(Compliance.newBuilder()
-                        .addMissingCommodities(21)
-                        .addMissingCommodities(40)
+                        .addMissingCommodities(commodityMem)
+                        .addMissingCommodities(commodityCpu)
                         .build())
                     .build())
                 .build())
@@ -162,8 +162,8 @@ public class ActionSpecMapperTest {
                 .setMove(MoveExplanation.newBuilder()
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                         .setCompliance(Compliance.newBuilder()
-                                .addMissingCommodities(21)
-                                .addMissingCommodities(40).build())
+                                .addMissingCommodities(commodityMem)
+                                .addMissingCommodities(commodityCpu).build())
                         .build())
                     .build())
                 .build();
@@ -186,12 +186,16 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapReconfigure() throws Exception {
+        final CommodityType cpuAllocation = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE)
+            .build();
+
         ActionInfo moveInfo = ActionInfo.newBuilder().setReconfigure(
                         Reconfigure.newBuilder().setTargetId(0).setSourceId(1).build()).build();
         Explanation reconfigure =
                         Explanation.newBuilder()
                                         .setReconfigure(ReconfigureExplanation.newBuilder()
-                                                        .addReconfigureCommodity(2).build())
+                                                        .addReconfigureCommodity(cpuAllocation).build())
                                         .build();
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                         .thenReturn(oidToEntityMap(
@@ -282,7 +286,7 @@ public class ActionSpecMapperTest {
         Explanation activate =
                         Explanation.newBuilder()
                                         .setActivate(ActivateExplanation.newBuilder()
-                                                        .setMostExpensiveCommodity(40).build())
+                                                        .setMostExpensiveCommodity(commodityCpu).build())
                                         .build();
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                         .thenReturn(oidToEntityMap(

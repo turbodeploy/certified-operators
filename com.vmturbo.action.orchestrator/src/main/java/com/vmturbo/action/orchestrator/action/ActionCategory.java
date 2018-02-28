@@ -1,10 +1,10 @@
 package com.vmturbo.action.orchestrator.action;
 
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -16,9 +16,8 @@ public class ActionCategory {
 
     public static final String CATEGORY_ERROR = "Can not decide the category";
 
-    public static final Set<Integer> SEGMENTATION_COMMODITY_SET =
-                    new HashSet<Integer>(Arrays.asList(CommodityType.SEGMENTATION_VALUE,
-                                    CommodityType.DRS_SEGMENTATION_VALUE));
+    public static final Set<Integer> SEGMENTATION_COMMODITY_SET = ImmutableSet.of(
+        CommodityType.SEGMENTATION_VALUE, CommodityType.DRS_SEGMENTATION_VALUE);
 
     // TODO: Both action orchestrator and UI have to use the four category strings below
     public static final String CATEGORY_PERFORMANCE_ASSURANCE = "Performance Assurance";
@@ -70,7 +69,7 @@ public class ActionCategory {
                 }
             case ACTIVATE:
                 if (SEGMENTATION_COMMODITY_SET
-                                .contains(explanation.getActivate().getMostExpensiveCommodity())) {
+                                .contains(explanation.getActivate().getMostExpensiveCommodity().getType())) {
                     // if activation is due to segmentation commodity(DRS is a subclass of it)
                     return CATEGORY_COMPLIANCE;
                 } else {

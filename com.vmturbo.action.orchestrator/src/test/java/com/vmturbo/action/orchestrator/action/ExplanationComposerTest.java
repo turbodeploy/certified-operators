@@ -14,11 +14,24 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * Tests for Action Explanation generation in the {@link ExplanationComposer} class.
  */
 public class ExplanationComposerTest {
+    private static final CommodityType MEM = CommodityType.newBuilder()
+        .setType(CommodityDTO.CommodityType.MEM_VALUE)
+        .build();
+
+    private static final CommodityType CPU = CommodityType.newBuilder()
+        .setType(CommodityDTO.CommodityType.CPU_VALUE)
+        .build();
+
+    private static final CommodityType SEGMENTATION = CommodityType.newBuilder()
+        .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+        .build();
 
     @Test
     public void testMoveExplanation() throws Exception {
@@ -26,13 +39,13 @@ public class ExplanationComposerTest {
             .setMove(MoveExplanation.newBuilder()
                 .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                     .setCompliance(Compliance.newBuilder()
-                        .addMissingCommodities(21)
-                        .addMissingCommodities(40).build())
+                        .addMissingCommodities(MEM)
+                        .addMissingCommodities(CPU).build())
                     .build())
                 .build())
             .build();
 
-        assertEquals("Current supplier can not satisfy the request for resource(s) MEM CPU ",
+        assertEquals("Current supplier can not satisfy the request for resource(s) MEM CPU",
             ExplanationComposer.composeExplanation(compliance));
     }
 
@@ -41,7 +54,7 @@ public class ExplanationComposerTest {
         Explanation reconfigure =
             Explanation.newBuilder()
                 .setReconfigure(ReconfigureExplanation.newBuilder()
-                    .addReconfigureCommodity(34).build())
+                    .addReconfigureCommodity(SEGMENTATION).build())
                 .build();
 
         assertEquals("Enable supplier to offer requested resource(s) SEGMENTATION",
@@ -75,7 +88,7 @@ public class ExplanationComposerTest {
         Explanation activate =
             Explanation.newBuilder()
                 .setActivate(ActivateExplanation.newBuilder()
-                    .setMostExpensiveCommodity(40).build())
+                    .setMostExpensiveCommodity(CPU).build())
                 .build();
 
         assertEquals("Address high utilization of CPU", ExplanationComposer.composeExplanation(activate));

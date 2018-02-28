@@ -50,8 +50,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Map an ActionSpec returned from the ActionOrchestrator into an {@link ActionApiDTO} to be
@@ -429,13 +429,13 @@ public class ActionSpecMapper {
         setEntityDtoFields(actionApiDTO.getCurrentEntity(), resize.getTargetId(), context);
         setEntityDtoFields(actionApiDTO.getNewEntity(), resize.getTargetId(), context);
 
-        final CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
+        final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
                 resize.getCommodityType().getType());
         Objects.requireNonNull(commodityType, "Commodity for number "
                 + resize.getCommodityType().getType());
         actionApiDTO.getRisk().setReasonCommodity(commodityType.name());
         actionApiDTO.setDetails(MessageFormat.format("Resize commodity {0} on entity {1} from {2} to {3}",
-                readableCommodityTypes(Collections.singletonList(resize.getCommodityType().getType())),
+                readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
                 readableEntityTypeAndName(actionApiDTO.getTarget()),
                 resize.getOldCapacity(),
                 resize.getNewCapacity()));
@@ -454,7 +454,7 @@ public class ActionSpecMapper {
                 activate.getTriggeringCommoditiesList().stream()
                         .map(commodityType -> CommodityDTO.CommodityType
                                 .forNumber(commodityType.getType()))
-                        .map(CommodityType::name)
+                        .map(CommodityDTO.CommodityType::name)
                         .collect(Collectors.toList());
 
         actionApiDTO.getRisk().setReasonCommodity(reasonCommodityNames.stream()
@@ -482,7 +482,7 @@ public class ActionSpecMapper {
                 deactivate.getTriggeringCommoditiesList().stream()
                         .map(commodityType -> CommodityDTO.CommodityType
                                 .forNumber(commodityType.getType()))
-                        .map(CommodityType::name)
+                        .map(CommodityDTO.CommodityType::name)
                         .collect(Collectors.toList());
 
         actionApiDTO.getRisk().setReasonCommodity(
@@ -523,16 +523,12 @@ public class ActionSpecMapper {
      *
      * Example: BALLOONING, SWAPPING, CPU_ALLOCATION -> Ballooning, Swapping, Cpu Allocation
      *
-     * @param commodityTypes numerical commodity types
+     * @param commodityTypes commodity types
      * @return comma-separated string commodity types
      */
-    private String readableCommodityTypes(@Nonnull final List<Integer> commodityTypes) {
+    private String readableCommodityTypes(@Nonnull final List<TopologyDTO.CommodityType> commodityTypes) {
         return commodityTypes.stream()
-            .map(commodityTypeInt -> {
-                final CommodityType type = CommodityType.forNumber(commodityTypeInt);
-                // This is a short-term workaround until OM-29420 is fixed.
-                return type == null ? CommodityType.UNKNOWN.name() : type.name();
-            })
+            .map(commodityType -> CommodityDTO.CommodityType.forNumber(commodityType.getType()).name())
             .map(name -> formatString(CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, name)))
             .collect(Collectors.joining(", "));
     }

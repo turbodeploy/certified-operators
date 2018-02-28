@@ -16,6 +16,7 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -36,6 +37,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * Test various actions.
@@ -72,6 +74,37 @@ public class InterpretActionTest {
                         .setType(1)
                         .setBaseType(2)
                         .build();
+    }
+
+    @Test
+    public void testCommodityIdsAreInvertible() {
+        final TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
+
+        final CommodityType segmentationFoo = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+            .setKey("foo")
+            .build();
+        final CommodityType segmentationBar = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+            .setKey("bar")
+            .build();
+        final CommodityType cpu = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+            .build();
+        final CommodityType cpuRed = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+            .setKey("red")
+            .build();
+
+        int segmentationFooId = converter.toMarketCommodityId(segmentationFoo);
+        int segmentationBarId = converter.toMarketCommodityId(segmentationBar);
+        int cpuId = converter.toMarketCommodityId(cpu);
+        int cpuRedId = converter.toMarketCommodityId(cpuRed);
+
+        assertEquals(segmentationFoo, converter.commodityIdToCommodityType(segmentationFooId));
+        assertEquals(segmentationBar, converter.commodityIdToCommodityType(segmentationBarId));
+        assertEquals(cpu, converter.commodityIdToCommodityType(cpuId));
+        assertEquals(cpuRed, converter.commodityIdToCommodityType(cpuRedId));
     }
 
     @Test
@@ -200,9 +233,22 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretActivateAction() throws Exception {
+        // Insert the commodity type into the converter's mapping
+        final CommodityType expectedCommodityType = CommodityType.newBuilder()
+            .setType(12)
+            .setKey("Foo")
+            .build();
+
         final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, REALTIME_TOPOLOGY_INFO));
+        final int marketCommodityId = converter.toMarketCommodityId(expectedCommodityType);
+        final  CommodityDTOs.CommoditySpecificationTO economyCommodity =
+            CommodityDTOs.CommoditySpecificationTO.newBuilder()
+                .setType(marketCommodityId)
+                .setBaseType(marketCommodityId)
+                .build();
+
         Mockito.doReturn(Optional.of(topologyCommodity1))
-               .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity1));
+               .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity));
         Mockito.doReturn(Optional.of(topologyCommodity2))
                 .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity2));
 
@@ -213,17 +259,20 @@ public class InterpretActionTest {
                 .setActivate(ActivateTO.newBuilder()
                     .setTraderToActivate(entityToActivate)
                     .setModelSeller(2)
-                    .setMostExpensiveCommodity(economyCommodity1.getBaseType())
-                    .addTriggeringBasket(economyCommodity1)
+                    .setMostExpensiveCommodity(economyCommodity.getType())
+                    .addTriggeringBasket(economyCommodity)
                     .addTriggeringBasket(economyCommodity2))
                 .build();
-        final ActionInfo actionInfo = converter.interpretAction(activateAction).get().getInfo();
+        final Action action = converter.interpretAction(activateAction).get();
+        final ActionInfo actionInfo = action.getInfo();
 
         assertEquals(ActionTypeCase.ACTIVATE, actionInfo.getActionTypeCase());
         assertEquals(entityToActivate, actionInfo.getActivate().getTargetId());
         assertThat(actionInfo.getActivate().getTriggeringCommoditiesList(),
                 IsIterableContainingInAnyOrder.containsInAnyOrder(topologyCommodity1,
                         topologyCommodity2));
+        assertEquals(expectedCommodityType,
+            action.getExplanation().getActivate().getMostExpensiveCommodity());
     }
 
     @Test

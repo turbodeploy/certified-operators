@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.catalina.filters.AddDefaultCharsetFilter;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -97,6 +96,7 @@ public class TopologyConverter {
             EntityType.CONTAINER_VALUE);
 
     private static final Logger logger = LogManager.getLogger();
+    public static final String COMMODITY_TYPE_KEY_SEPARATOR = "|";
 
     // TODO: In legacy this is taken from LicenseManager and is currently false
     private boolean includeGuaranteedBuyer = INCLUDE_GUARANTEED_BUYER_DEFAULT;
@@ -479,10 +479,10 @@ public class TopologyConverter {
             @Nonnull final CommodityDTOs.CommodityBoughtTO commBoughtTO) {
         return economyToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> TopologyDTO.CommodityBoughtDTO.newBuilder()
-                        .setUsed(commBoughtTO.getQuantity())
-                        .setCommodityType(commType)
-                        .setPeak(commBoughtTO.getPeakQuantity())
-                        .build());
+                    .setUsed(commBoughtTO.getQuantity())
+                    .setCommodityType(commType)
+                    .setPeak(commBoughtTO.getPeakQuantity())
+                    .build());
     }
 
     private EconomyDTOs.TraderTO topologyDTOtoTraderTO(
@@ -1041,7 +1041,7 @@ public class TopologyConverter {
             @Nonnull final CommodityType topologyCommodity) {
         final CommodityDTOs.CommoditySpecificationTO economyCommodity =
                         CommodityDTOs.CommoditySpecificationTO.newBuilder()
-            .setType(commodityType(topologyCommodity))
+            .setType(toMarketCommodityId(topologyCommodity))
             .setBaseType(topologyCommodity.getType())
             .setDebugInfoNeverUseInCode(commodityDebugInfo(topologyCommodity))
             .build();
@@ -1093,11 +1093,36 @@ public class TopologyConverter {
      * @param commType a commodity description that contains the numeric type and the key
      * @return and integer identifying the type
      */
-    private int commodityType(@Nonnull final CommodityType commType) {
+    @VisibleForTesting
+    int toMarketCommodityId(@Nonnull final CommodityType commType) {
+        return commodityTypeAllocator.allocate(commodityTypeToString(commType));
+    }
+
+    @Nonnull
+    private String commodityTypeToString(@Nonnull final CommodityType commType) {
         int type = commType.getType();
-        String key = commType.getKey();
-        String allocationKey = type + (key != null ? "|" + key : "");
-        return commodityTypeAllocator.allocate(allocationKey);
+        return type + (commType.hasKey() ? COMMODITY_TYPE_KEY_SEPARATOR + commType.getKey() : "");
+    }
+
+    @VisibleForTesting
+    @Nonnull
+    CommodityType commodityIdToCommodityType(final int marketCommodityId) {
+        return stringToCommodityType(commodityTypeAllocator.getName(marketCommodityId));
+    }
+
+    @Nonnull
+    private CommodityType stringToCommodityType(@Nonnull final String commodityTypeString) {
+        int separatorIndex = commodityTypeString.indexOf(COMMODITY_TYPE_KEY_SEPARATOR);
+        if (separatorIndex > 0) {
+            return CommodityType.newBuilder()
+                .setType(Integer.parseInt(commodityTypeString.substring(0, separatorIndex)))
+                .setKey(commodityTypeString.substring(separatorIndex + 1, commodityTypeString.length()))
+                .build();
+        } else {
+            return CommodityType.newBuilder()
+                .setType(Integer.parseInt(commodityTypeString))
+                .build();
+        }
     }
 
     /**
@@ -1216,7 +1241,8 @@ public class TopologyConverter {
 
     private ActivateExplanation interpretActivateExplanation(ActivateTO activateTO) {
         return ActivateExplanation.newBuilder()
-                        .setMostExpensiveCommodity(activateTO.getMostExpensiveCommodity())
+                        .setMostExpensiveCommodity(
+                            commodityIdToCommodityType(activateTO.getMostExpensiveCommodity()))
                         .build();
     }
 
@@ -1275,40 +1301,48 @@ public class TopologyConverter {
     private ReconfigureExplanation
                     interpretReconfigureExplanation(ReconfigureTO reconfTO) {
         return ReconfigureExplanation.newBuilder()
-                        .addAllReconfigureCommodity(reconfTO.getCommodityToReconfigureList())
+                        .addAllReconfigureCommodity(reconfTO.getCommodityToReconfigureList().stream()
+                            .map(this::commodityIdToCommodityType)
+                            .collect(Collectors.toList()))
                         .build();
     }
 
-    private static MoveExplanation interpretCompoundMoveExplanation(List<MoveTO> moveTOs) {
+    private MoveExplanation interpretCompoundMoveExplanation(List<MoveTO> moveTOs) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
         moveTOs.stream()
             .map(MoveTO::getMoveExplanation)
-            .map(TopologyConverter::changeExplanation)
+            .map(this::changeExplanation)
             .forEach(moveExpBuilder::addChangeProviderExplanation);
         return moveExpBuilder.build();
     }
 
-    private static MoveExplanation interpretMoveExplanation(MoveTO moveTO) {
+    private MoveExplanation interpretMoveExplanation(MoveTO moveTO) {
         MoveExplanation.Builder moveExpBuilder = MoveExplanation.newBuilder();
         moveExpBuilder.addChangeProviderExplanation(changeExplanation(moveTO.getMoveExplanation()));
         return moveExpBuilder.build();
     }
 
-    private static ChangeProviderExplanation changeExplanation(
+    private ChangeProviderExplanation changeExplanation(
             com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation moveExplanation) {
         switch (moveExplanation.getExplanationTypeCase()) {
             case COMPLIANCE:
                 return ChangeProviderExplanation.newBuilder()
                         .setCompliance(ChangeProviderExplanation.Compliance.newBuilder()
                             .addAllMissingCommodities(
-                                moveExplanation.getCompliance().getMissingCommoditiesList())
+                                moveExplanation.getCompliance()
+                                    .getMissingCommoditiesList().stream()
+                                    .map(this::commodityIdToCommodityType)
+                                    .collect(Collectors.toList())
+                            )
                             .build())
                         .build();
             case CONGESTION:
                 return ChangeProviderExplanation.newBuilder()
                         .setCongestion(ChangeProviderExplanation.Congestion.newBuilder()
                             .addAllCongestedCommodities(
-                                moveExplanation.getCongestion().getCongestedCommoditiesList())
+                                moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
+                                    .map(this::commodityIdToCommodityType)
+                                    .collect(Collectors.toList()))
                             .build())
                         .build();
             case EVACUATION:

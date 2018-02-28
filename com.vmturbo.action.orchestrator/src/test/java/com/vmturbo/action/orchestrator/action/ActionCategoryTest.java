@@ -19,9 +19,19 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class ActionCategoryTest {
+    private static final TopologyDTO.CommodityType CPU = TopologyDTO.CommodityType.newBuilder()
+        .setType(CommodityDTO.CommodityType.CPU_VALUE)
+        .build();
+
+    private static final TopologyDTO.CommodityType DRS_SEGMENTATION = TopologyDTO.CommodityType.newBuilder()
+        .setType(CommodityDTO.CommodityType.DRS_SEGMENTATION_VALUE)
+        .build();
+
     @Test
     public void testComplianceCategory() {
         Explanation compliance = Explanation.newBuilder()
@@ -37,7 +47,7 @@ public class ActionCategoryTest {
         Explanation congestion = Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
             .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
             .setCongestion(Congestion.newBuilder()
-                .addCongestedCommodities(CommodityType.CPU_VALUE).build())
+                .addCongestedCommodities(CPU).build())
             .build()).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE, ActionCategory.assignActionCategory(congestion));
@@ -119,7 +129,7 @@ public class ActionCategoryTest {
     @Test
     public void testActivatePerformanceAssurance() {
         Explanation activate1 = Explanation.newBuilder().setActivate(ActivateExplanation.newBuilder()
-            .setMostExpensiveCommodity(103).build()).build();
+            .setMostExpensiveCommodity(CPU).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE,
             ActionCategory.assignActionCategory(activate1));
@@ -128,7 +138,7 @@ public class ActionCategoryTest {
     @Test
     public void testActivateCompliance() {
         Explanation activate2 = Explanation.newBuilder().setActivate(ActivateExplanation.newBuilder()
-            .setMostExpensiveCommodity(CommodityType.DRS_SEGMENTATION_VALUE).build()).build();
+            .setMostExpensiveCommodity(DRS_SEGMENTATION).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_COMPLIANCE,
             ActionCategory.assignActionCategory(activate2));

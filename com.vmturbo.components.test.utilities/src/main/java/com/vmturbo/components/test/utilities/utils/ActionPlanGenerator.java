@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * Utilities for constructing action plans for use in tests.
@@ -244,8 +245,13 @@ public class ActionPlanGenerator {
          *
          * @return A random commodity type.
          */
-        public int commodityType() {
-            return com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.values()[random.nextInt(com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.values().length)].getNumber();
+        public CommodityType commodityType() {
+            final int typeNumber = CommodityDTO.CommodityType.values()
+                [random.nextInt(CommodityDTO.CommodityType.values().length)].getNumber();
+
+            return CommodityType.newBuilder()
+                .setType(typeNumber)
+                .build();
         }
     }
 
@@ -414,9 +420,7 @@ public class ActionPlanGenerator {
                 ActionInfo.newBuilder()
                     .setActivate(Activate.newBuilder()
                         .setTargetId(chooser.topologyOid())
-                        .addTriggeringCommodities(
-                            CommodityType.newBuilder()
-                                .setType(chooser.commodityType()))),
+                        .addTriggeringCommodities(chooser.commodityType())),
                 chooser
             );
         }
@@ -439,9 +443,7 @@ public class ActionPlanGenerator {
                 ActionInfo.newBuilder()
                     .setDeactivate(Deactivate.newBuilder()
                         .setTargetId(chooser.topologyOid())
-                        .addTriggeringCommodities(CommodityType.newBuilder()
-                            .setType(chooser.commodityType())
-                            .build())
+                        .addTriggeringCommodities(chooser.commodityType())
                         .build()),
                 chooser);
         }
