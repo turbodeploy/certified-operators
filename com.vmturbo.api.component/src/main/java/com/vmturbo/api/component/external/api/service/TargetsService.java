@@ -85,6 +85,12 @@ public class TargetsService implements ITargetsService {
     static final String UI_VALIDATED_STATUS = "Validated";
 
     /**
+     * The display name of the category for all targets that are not functional.
+     * That is usually caused by their corresponding probe not running.
+     */
+    private static final String UI_TARGET_CATEGORY_INOPERATIVE_TARGETS = "Inoperative Targets";
+
+    /**
      * Map from the target statuses as defined in Topology Processor's TargetController to those
      * defined in the UI. This it pretty ugly - when we convert statuses to gRPC we should have
      * an enum instead! The UI handling of statuses is also very strange, but nothing we can do
@@ -620,6 +626,7 @@ public class TargetsService implements ITargetsService {
         // is currently registered. In that case we can't fill in most
         // of the information.
         if (probeInfo == null) {
+            targetApiDTO.setCategory(UI_TARGET_CATEGORY_INOPERATIVE_TARGETS);
             logger.warn("target " + targetInfo.getId() + " - probe info not found, id: " + probeId);
             targetApiDTO.setInputFields(targetInfo.getAccountData().stream()
                     .map(this::createSimpleInputField)
