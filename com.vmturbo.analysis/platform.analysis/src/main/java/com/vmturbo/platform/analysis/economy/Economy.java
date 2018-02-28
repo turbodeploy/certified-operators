@@ -723,7 +723,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             cloneCommSold.setQuantity(commSold.getQuantity());
             cloneCommSold.setPeakQuantity(commSold.getPeakQuantity());
             cloneCommSold.getSettings().setPriceFunction(commSold.getSettings().getPriceFunction());
-            cloneCommSold.getSettings().setUpdatingFunction(commSold.getSettings().getUpdatingFunction());
         }
     }
 
