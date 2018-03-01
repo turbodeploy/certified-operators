@@ -28,6 +28,8 @@ class DiscoveredGroupConstants {
 
     static final long TARGET_ID = 1L;
 
+    public static final String GROUP_NAME = "group";
+
     static final String DISPLAY_NAME = "Freedom is slavery.";
 
     static final String PLACEHOLDER_PROP_NAME = "prop";
@@ -76,7 +78,7 @@ class DiscoveredGroupConstants {
     static final CommonDTO.GroupDTO SELECTION_DTO = CommonDTO.GroupDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE)
             .setDisplayName(DISPLAY_NAME)
-            .setGroupName("group")
+            .setGroupName(GROUP_NAME)
             .setSelectionSpecList(SelectionSpecList.newBuilder()
                     .addSelectionSpec(SelectionSpec.newBuilder()
                             .setProperty("prop1")
@@ -91,7 +93,7 @@ class DiscoveredGroupConstants {
     static final CommonDTO.GroupDTO STATIC_MEMBER_DTO = CommonDTO.GroupDTO.newBuilder()
             .setEntityType(EntityType.VIRTUAL_MACHINE)
             .setDisplayName(DISPLAY_NAME)
-            .setGroupName("group")
+            .setGroupName(GROUP_NAME)
             .setMemberList(MembersList.newBuilder()
                     .addMember("1"))
             .build();

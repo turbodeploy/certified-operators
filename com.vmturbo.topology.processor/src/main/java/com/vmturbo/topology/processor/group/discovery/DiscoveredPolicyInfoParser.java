@@ -13,8 +13,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.tools.StringUtils;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
@@ -176,7 +176,7 @@ public class DiscoveredPolicyInfoParser {
     private DiscoveredPolicyInfo parsePolicy(@Nonnull CommonDTO.GroupDTO buyers,
                                              @Nonnull CommonDTO.GroupDTO sellers) {
         return parsePolicyInternal(buyers)
-                .setSellersGroupStringId(GroupProtoUtil.discoveredIdFromName(sellers))
+                .setSellersGroupStringId(sellers.getConstraintInfo().getConstraintName())
                 .build();
     }
 
@@ -199,9 +199,12 @@ public class DiscoveredPolicyInfoParser {
      */
     private DiscoveredPolicyInfo.Builder parsePolicyInternal(@Nonnull CommonDTO.GroupDTO buyers) {
         final CommonDTO.GroupDTO.ConstraintInfo constraintInfo = buyers.getConstraintInfo();
+        final String constraintName = StringUtils.isEmpty(constraintInfo.getConstraintDisplayName())
+                        ? buyers.getDisplayName()
+                        : constraintInfo.getConstraintDisplayName();
         return DiscoveredPolicyInfo.newBuilder()
-                .setPolicyName(constraintInfo.getConstraintName())
-                .setBuyersGroupStringId(GroupProtoUtil.discoveredIdFromName(buyers))
+                .setPolicyName(constraintName)
+                .setBuyersGroupStringId(buyers.getConstraintInfo().getConstraintName())
                 .setConstraintType(buyers.getConstraintInfo().getConstraintType().getNumber());
     }
 }

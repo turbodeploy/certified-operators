@@ -164,7 +164,9 @@ class DiscoveredGroupInterpreter {
                                            final long targetId) {
         final GroupInfo.Builder builder = GroupInfo.newBuilder();
         builder.setEntityType(sdkDTO.getEntityType().getNumber());
-        builder.setName(sdkDTO.getDisplayName());
+        builder.setName(sdkDTO.hasGroupName()
+                        ? sdkDTO.getGroupName()
+                        : sdkDTO.getConstraintInfo().getConstraintName());
 
         switch (sdkDTO.getInfoCase()) {
             case GROUP_NAME:

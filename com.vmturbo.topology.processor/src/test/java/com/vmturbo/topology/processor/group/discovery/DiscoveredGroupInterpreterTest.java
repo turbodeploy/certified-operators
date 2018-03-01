@@ -117,7 +117,7 @@ public class DiscoveredGroupInterpreterTest {
 
         final GroupInfo groupInfo = groupInfoOpt.get().build();
         // ID should be assigned.
-        assertEquals(DISPLAY_NAME, groupInfo.getName());
+        assertEquals(DiscoveredGroupConstants.GROUP_NAME, groupInfo.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupInfo.getEntityType());
         assertTrue(groupInfo.hasStaticGroupMembers());
         final StaticGroupMembers members = groupInfo.getStaticGroupMembers();
@@ -148,7 +148,7 @@ public class DiscoveredGroupInterpreterTest {
         assertTrue(infoOpt.isPresent());
 
         final GroupInfo info = infoOpt.get().build();
-        assertEquals(DISPLAY_NAME, info.getName());
+        assertEquals(DiscoveredGroupConstants.GROUP_NAME, info.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, info.getEntityType());
         assertTrue(info.hasSearchParametersCollection());
         assertEquals(1, info.getSearchParametersCollection().getSearchParametersCount());

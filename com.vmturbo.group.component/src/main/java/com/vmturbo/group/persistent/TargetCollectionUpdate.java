@@ -279,7 +279,7 @@ abstract class TargetCollectionUpdate<InstanceType, SpecType> {
 
         @Override
         protected Function<GroupInfo, String> infoIdGetter() {
-            return GroupProtoUtil::discoveredIdFromName;
+            return GroupInfo::getName;
         }
 
         @Override
