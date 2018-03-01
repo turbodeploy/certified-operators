@@ -9,10 +9,12 @@ import org.junit.Test;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
+
 public class TopologyRelationshipRecorderTest {
 
     @Test
-    public void testDiags() {
+    public void testDiags() throws DiagnosticsException {
         TopologyRelationshipRecorder relationshipRecorder = new TopologyRelationshipRecorder();
 
         Multimap<String, String> rels = HashMultimap.create();

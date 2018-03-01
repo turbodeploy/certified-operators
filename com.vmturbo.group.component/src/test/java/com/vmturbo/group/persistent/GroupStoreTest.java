@@ -24,7 +24,6 @@ import org.mockito.runners.MockitoJUnitRunner;
 import com.arangodb.ArangoCollection;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
-import com.arangodb.ArangoDatabase;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;

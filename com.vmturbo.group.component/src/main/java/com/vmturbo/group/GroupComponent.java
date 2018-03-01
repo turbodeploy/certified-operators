@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.group.api.server.GroupApiSecurityConfig;
+import com.vmturbo.group.diagnostics.GroupDiagnosticsConfig;
 import com.vmturbo.group.persistent.TemporaryGroupCache;
 import com.vmturbo.group.service.DiscoveredGroupsRpcService;
 import com.vmturbo.group.service.GroupService;
@@ -40,7 +41,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         GrpcConfig.class,
         SettingConfig.class,
         SQLDatabaseConfig.class,
-        GroupApiSecurityConfig.class})
+        GroupApiSecurityConfig.class,
+        GroupDiagnosticsConfig.class})
 @EnableAutoConfiguration
 public class GroupComponent extends BaseVmtComponent {
 

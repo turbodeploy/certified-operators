@@ -35,11 +35,11 @@ import org.springframework.web.client.RestTemplate;
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
 import com.vmturbo.repository.RepositoryDiagnosticsHandler.DefaultTopologyDiagnostics;
-import com.vmturbo.repository.RepositoryDiagnosticsHandler.DiagnosticsException;
 import com.vmturbo.repository.RepositoryDiagnosticsHandler.TopologyDiagnostics;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
@@ -261,7 +261,7 @@ public class RepositoryDiagnosticsHandlerTest {
     }
 
     @Test
-    public void testRestoreProjectedExceptio() throws DiagnosticsException {
+    public void testRestoreProjectedException() throws DiagnosticsException {
         final Diags idMgrDiags = mock(Diags.class);
         when(idMgrDiags.getName()).thenReturn(ID_MGR_FILE);
         when(idMgrDiags.getLines()).thenReturn(idMgrDiagLines);
@@ -370,7 +370,7 @@ public class RepositoryDiagnosticsHandlerTest {
     }
 
     @Test
-    public void testRestoreWrongDiags() {
+    public void testRestoreWrongDiags() throws DiagnosticsException {
         // Set up all diags to return nulls for the data they're supposed to contain.
         final Diags idMgrDiags = mock(Diags.class);
         when(idMgrDiags.getName()).thenReturn(ID_MGR_FILE);

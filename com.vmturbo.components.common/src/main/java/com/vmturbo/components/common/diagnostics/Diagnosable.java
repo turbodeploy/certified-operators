@@ -22,17 +22,38 @@ public interface Diagnosable {
     /**
      * Save the diags as a list of strings {@link Diagnosable#restoreDiags(List<String>)}.
      *
+     * @throws DiagnosticsException When an exception occurs during diagnostics collection.
+     *
      * @return The diags as a list of strings. The strings should NOT have newline characters.
      */
     @Nonnull
-    List<String> collectDiags();
+    List<String> collectDiags() throws DiagnosticsException;
 
     /**
      * Restore the diags saved by {@link Diagnosable#collectDiags()}.
      *
      * @param collectedDiags The diags collected from a previous call to
      *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     * @throws DiagnosticsException When an exception occurs during diagnostics restoration.
      */
-    void restoreDiags(@Nonnull final List<String> collectedDiags);
+    void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException;
 
+    /**
+     * An exception that can occur when capturing or restoring diagnostics.
+     */
+    class DiagnosticsException extends Exception {
+
+        /**
+         * Descriptions of all the errors that occurred.
+         */
+        private final List<String> errors;
+
+        public DiagnosticsException(@Nonnull final List<String> errors) {
+            this.errors = errors;
+        }
+
+        public List<String> getErrors() {
+            return errors;
+        }
+    }
 }

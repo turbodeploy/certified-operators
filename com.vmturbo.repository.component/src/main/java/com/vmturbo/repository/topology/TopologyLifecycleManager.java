@@ -96,7 +96,7 @@ public class TopologyLifecycleManager implements Diagnosable {
 
     @Nonnull
     @Override
-    public List<String> collectDiags() {
+    public List<String> collectDiags() throws DiagnosticsException {
         return topologyIdByContextAndType.values().stream()
                 .flatMap(idsByType -> idsByType.values().stream())
                 // Save the database names in the diags.
@@ -105,7 +105,7 @@ public class TopologyLifecycleManager implements Diagnosable {
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
         // Overwrite whatever is in the lifecycle manager with the restored diags.
         // We rely on the diags handler to actually do the restoration of the database
         // to arangodb.

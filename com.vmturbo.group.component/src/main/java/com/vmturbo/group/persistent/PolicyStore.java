@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -18,17 +19,20 @@ import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.google.common.collect.ImmutableMap;
+import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.group.ArangoDriverFactory;
 import com.vmturbo.group.GroupDBDefinition;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetPolicyUpdate;
 import com.vmturbo.group.policy.DiscoveredPoliciesMapper;
 
-public class PolicyStore {
+public class PolicyStore implements Diagnosable {
 
     private final static Logger logger = LogManager.getLogger();
 
@@ -199,6 +203,74 @@ public class PolicyStore {
         }
     }
 
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final Collection<InputPolicy> policies = getAll();
+        logger.info("Collected diags for {} policies.", policies.size());
+
+        return Collections.singletonList(ComponentGsonFactory
+            .createGsonNoPrettyPrint().toJson(policies));
+    }
+
+    /**
+     * {@inheritDoc}
+     * Restore policies to the {@link PolicyStore} from the collected diags.
+     *
+     * @param collectedDiags The diags collected from a previous call to
+     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     * @throws DiagnosticsException If there is a problem writing the policies
+     *         to the store.
+     */
+    @Override
+    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+        // Replace all existing groups with the ones in the collected diags.
+        Collection<InputPolicy> policies = ComponentGsonFactory.createGsonNoPrettyPrint()
+            .fromJson(collectedDiags.get(0), new TypeToken<Collection<InputPolicy>>() { }.getType());
+        logger.info("Attempting to restore {} policies from diagnostics.", policies.size());
+
+        try {
+            deleteAll();
+            storeAll(policies);
+        } catch (DatabaseException e) {
+            throw new DiagnosticsException(Collections.singletonList(e.getMessage() + ": " +
+                ExceptionUtils.getStackTrace(e)));
+        }
+
+    }
+
+
+    private void deleteAll() throws DatabaseException {
+        ArangoDB arangoDB = arangoDriverFactory.getDriver();
+
+        try {
+            final ArangoCollection groupCollection = arangoDB
+                .db(groupDBDefinition.databaseName())
+                .collection(groupDBDefinition.policyCollection());
+
+            groupCollection.truncate();
+        } catch (ArangoDBException e) {
+            throw new DatabaseException("Failed to delete all groups", e);
+        } finally {
+            arangoDB.shutdown();
+        }
+    }
+
+    private void storeAll(@Nonnull final Collection<InputPolicy> policies) throws DatabaseException {
+        ArangoDB arangoDB = arangoDriverFactory.getDriver();
+
+        try {
+            final ArangoCollection policyCollection = arangoDB
+                .db(groupDBDefinition.databaseName())
+                .collection(groupDBDefinition.policyCollection());
+
+            policyCollection.insertDocuments(policies);
+        } catch (ArangoDBException e) {
+            throw new DatabaseException("Failed to store " + policies.size() + " policies.", e);
+        } finally {
+            arangoDB.shutdown();
+        }
+    }
     /**
      * A custom exception for policy delete failure.
      */

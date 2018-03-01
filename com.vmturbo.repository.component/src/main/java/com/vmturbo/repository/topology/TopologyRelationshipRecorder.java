@@ -49,13 +49,13 @@ public class TopologyRelationshipRecorder implements Diagnosable {
 
     @Nonnull
     @Override
-    public List<String> collectDiags() {
+    public List<String> collectDiags() throws DiagnosticsException {
         return Collections.singletonList(ComponentGsonFactory.createGsonNoPrettyPrint()
             .toJson(globalSupplyChainProviderRels.asMap()));
     }
 
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
         Map<String, Collection<String>> map =
             ComponentGsonFactory.createGsonNoPrettyPrint().fromJson(collectedDiags.get(0),
                 new TypeToken<Map<String, Collection<String>>>(){}.getType());

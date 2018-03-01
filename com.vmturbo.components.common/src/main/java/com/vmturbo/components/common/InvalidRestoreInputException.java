@@ -1,4 +1,4 @@
-package com.vmturbo.action.orchestrator.diagnostics;
+package com.vmturbo.components.common;
 
 import javax.annotation.Nonnull;
 

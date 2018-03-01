@@ -27,6 +27,7 @@ import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
@@ -159,13 +160,21 @@ public class RepositoryDiagnosticsHandler {
 
         // Dumps the SE provider relationship
         logger.info("Dumping provider relationships");
-        diagnosticsWriter.writeZipEntry(SUPPLY_CHAIN_RELATIONSHIP_FILE,
+        try {
+            diagnosticsWriter.writeZipEntry(SUPPLY_CHAIN_RELATIONSHIP_FILE,
                 globalSupplyChainRecorder.collectDiags(), diagnosticZip);
+        } catch (DiagnosticsException e) {
+            errors.addAll(e.getErrors());
+        }
 
         // Dumps the topology id and database name
         logger.info("Dumping topology IDs and database names");
-        diagnosticsWriter.writeZipEntry(ID_MGR_FILE,
+        try {
+            diagnosticsWriter.writeZipEntry(ID_MGR_FILE,
                 topologyLifecycleManager.collectDiags(), diagnosticZip);
+        } catch (DiagnosticsException e) {
+            errors.addAll(e.getErrors());
+        }
 
         if (!errors.isEmpty()) {
             diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);
@@ -198,17 +207,25 @@ public class RepositoryDiagnosticsHandler {
                     errors.add("The file " + ID_MGR_FILE + " was not saved as lines of strings " +
                             "with the appropriate suffix!");
                 } else {
-                    topologyLifecycleManager.restoreDiags(diags.getLines());
-                    idRestored = true;
-                    logger.info("Restored {} ", ID_MGR_FILE);
+                    try {
+                        topologyLifecycleManager.restoreDiags(diags.getLines());
+                        idRestored = true;
+                        logger.info("Restored {} ", ID_MGR_FILE);
+                    } catch (DiagnosticsException e) {
+                        errors.addAll(e.getErrors());
+                    }
                 }
             } else if (name.equals(SUPPLY_CHAIN_RELATIONSHIP_FILE)) {
                 if (diags.getLines() == null) {
                     errors.add("The file " + SUPPLY_CHAIN_RELATIONSHIP_FILE + " was not saved as" +
                             " lines of strings with the appropriate suffix!");
                 } else {
-                    globalSupplyChainRecorder.restoreDiags(diags.getLines());
-                    logger.info("Restored {} ", SUPPLY_CHAIN_RELATIONSHIP_FILE);
+                    try {
+                        globalSupplyChainRecorder.restoreDiags(diags.getLines());
+                        logger.info("Restored {} ", SUPPLY_CHAIN_RELATIONSHIP_FILE);
+                    } catch (DiagnosticsException e) {
+                        errors.addAll(e.getErrors());
+                    }
                 }
             } else if (name.equals(SOURCE_TOPOLOGY_DUMP_FILE)) {
                 // We'll handle this later, if the Repository's internal state gets initialized
@@ -387,19 +404,6 @@ public class RepositoryDiagnosticsHandler {
             }
 
             return retBytes;
-        }
-    }
-
-    public static class DiagnosticsException extends Exception {
-
-        private final List<String> errors;
-
-        public DiagnosticsException(@Nonnull final List<String> errors) {
-            this.errors = errors;
-        }
-
-        public List<String> getErrors() {
-            return errors;
         }
     }
 }

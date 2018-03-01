@@ -25,8 +25,7 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
-import com.vmturbo.action.orchestrator.diagnostics.ActionOrchestratorDiagnostics;
-import com.vmturbo.action.orchestrator.diagnostics.InvalidRestoreInputException;
+import com.vmturbo.components.common.InvalidRestoreInputException;
 
 /**
  * The REST endpoints to get and restore the internal state

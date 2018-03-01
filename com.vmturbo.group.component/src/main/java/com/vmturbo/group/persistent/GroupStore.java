@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -20,6 +21,7 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
@@ -27,13 +29,15 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.group.ArangoDriverFactory;
 import com.vmturbo.group.GroupDBDefinition;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetClusterUpdate;
 import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetGroupUpdate;
 
-public class GroupStore {
+public class GroupStore implements Diagnosable {
 
     private final static Logger logger = LogManager.getLogger();
 
@@ -268,6 +272,43 @@ public class GroupStore {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        try {
+            final Collection<Group> groups = getAll();
+            logger.info("Collected diags for {} groups.", groups.size());
+
+            return Collections.singletonList(ComponentGsonFactory
+                .createGsonNoPrettyPrint().toJson(groups));
+        } catch (DatabaseException e) {
+            throw new DiagnosticsException(Collections.singletonList(e.getMessage() + ": " +
+                ExceptionUtils.getStackTrace(e)));
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+        // Replace all existing groups with the ones in the collected diags.
+        Collection<Group> groups = ComponentGsonFactory.createGsonNoPrettyPrint()
+            .fromJson(collectedDiags.get(0), new TypeToken<Collection<Group>>() { }.getType());
+        logger.info("Attempting to restore {} groups from diagnostics.", groups.size());
+
+        try {
+            deleteAll();
+            storeAll(groups);
+        } catch (DatabaseException e) {
+            throw new DiagnosticsException(Collections.singletonList(e.getMessage() + ": " +
+                ExceptionUtils.getStackTrace(e)));
+        }
+    }
+
+    /**
      * Check if there is a duplicate group.
      * A duplicate group has the same name as the groupInfo but a different id.
      * If multiple groups already have the same name, the group will be considered a duplicate
@@ -365,6 +406,38 @@ public class GroupStore {
                     .deleteDocument(Long.toString(id));
         } catch (ArangoDBException e) {
             throw new DatabaseException("Failed to delete group " + id, e);
+        } finally {
+            arangoDB.shutdown();
+        }
+    }
+
+    private void deleteAll() throws DatabaseException {
+        ArangoDB arangoDB = arangoDriverFactory.getDriver();
+
+        try {
+            final ArangoCollection groupCollection = arangoDB
+                .db(groupDBDefinition.databaseName())
+                .collection(groupDBDefinition.groupCollection());
+
+            groupCollection.truncate();
+        } catch (ArangoDBException e) {
+            throw new DatabaseException("Failed to delete all groups", e);
+        } finally {
+            arangoDB.shutdown();
+        }
+    }
+
+    private void storeAll(@Nonnull final Collection<Group> groups) throws DatabaseException {
+        ArangoDB arangoDB = arangoDriverFactory.getDriver();
+
+        try {
+            final ArangoCollection groupCollection = arangoDB
+                .db(groupDBDefinition.databaseName())
+                .collection(groupDBDefinition.groupCollection());
+
+            groupCollection.insertDocuments(groups);
+        } catch (ArangoDBException e) {
+            throw new DatabaseException("Failed to store " + groups.size() + " groups.", e);
         } finally {
             arangoDB.shutdown();
         }

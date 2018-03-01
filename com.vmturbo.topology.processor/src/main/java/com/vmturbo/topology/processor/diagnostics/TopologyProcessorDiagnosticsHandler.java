@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileIn
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -181,8 +182,13 @@ public class TopologyProcessorDiagnosticsHandler {
             );
         }
 
-        diagnosticsWriter.writeZipEntry(ID_DIAGS_FILE_NAME, identityProvider.collectDiags(),
-            diagnosticZip);
+        try {
+            diagnosticsWriter.writeZipEntry(ID_DIAGS_FILE_NAME,
+                identityProvider.collectDiags(),
+                diagnosticZip);
+        } catch (DiagnosticsException e) {
+            logger.error(e.getErrors());
+        }
     }
 
     /**
@@ -191,8 +197,43 @@ public class TopologyProcessorDiagnosticsHandler {
      * @param diagnosticZip the ZipOutputStream to dump diags to
      */
     public void dumpAnonymizedDiags(ZipOutputStream diagnosticZip) {
-        dumpDiags(diagnosticZip, IdentifiedEntityDTO::toJsonAnonymized,
-            Target::getNoSecretAnonymousDto);
+        // Targets
+        List<Target> targets = targetStore.getAll();
+        diagnosticsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME,
+                                         targets.stream()
+                                                .map(Target::getNoSecretAnonymousDto)
+                                                .map(GSON::toJson)
+                                                .collect(Collectors.toList()),
+                                         diagnosticZip);
+
+        // Schedules
+        diagnosticsWriter.writeZipEntry(SCHEDULES_DIAGS_FILE_NAME,
+                                         targets.stream()
+                                                .map(Target::getId)
+                                                .map(scheduler::getDiscoverySchedule)
+                                                .filter(Optional::isPresent).map(Optional::get)
+                                                .map(schedule -> GSON.toJson(schedule, TargetDiscoverySchedule.class))
+                                                .collect(Collectors.toList()),
+                                         diagnosticZip);
+
+        // Entities (one file per target)
+        for (Target target : targets) {
+            // TODO(Shai): add tartgetId to the content of the file (not just part of the name)
+            diagnosticsWriter.writeZipEntry("Entities." + target.getId() + ".diags",
+                                             entityStore.discoveredByTarget(target.getId()).entrySet().stream()
+                                                        .map(entry -> new IdentifiedEntityDTO(entry.getKey(), entry.getValue()))
+                                                        .map(IdentifiedEntityDTO::toJsonAnonymized)
+                                                        .collect(Collectors.toList()),
+                                             diagnosticZip);
+        }
+
+        try {
+            diagnosticsWriter.writeZipEntry(ID_DIAGS_FILE_NAME,
+                identityProvider.collectDiags(),
+                diagnosticZip);
+        } catch (DiagnosticsException e) {
+            logger.error(e.getErrors());
+        }
     }
 
     private static final Pattern ENTITIES_PATTERN =

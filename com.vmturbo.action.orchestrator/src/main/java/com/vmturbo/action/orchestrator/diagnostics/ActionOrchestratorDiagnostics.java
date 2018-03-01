@@ -30,6 +30,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.InvalidRestoreInputException;
 
 /**
  * Represents the diagnostics of the action
