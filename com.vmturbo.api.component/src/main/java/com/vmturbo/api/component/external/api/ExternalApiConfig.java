@@ -47,7 +47,10 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
             // This is the base currently used in the new UX.
             "/vmturbo/rest/*",
             // This should be the future, to align with the V1 API which is at /api/
-            "/vmturbo/api/v2/*");
+            "/vmturbo/api/v2/*",
+            // We are also supporting /api as of OM-32218
+            "/api/*"
+            );
 
     /**
      * A logging filter to log requests coming in to the API component.
