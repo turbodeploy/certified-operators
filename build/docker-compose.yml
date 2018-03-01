@@ -478,6 +478,7 @@ services:
       component_type: mediation-stressprobe
       instance_id: mediation-stressprobe-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STRESSPROBE_XMX_MB}M ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES}"
+      kvStoreRetryIntervalMillis : 1000
     volumes:
       - mediation-stressprobe:/home/turbonomic/data
     mem_limit: ${MEDIATION_STRESSPROBE_MEM_LIMIT_MB}M
@@ -495,6 +496,7 @@ services:
       component_type: mediation-stressprobe
       instance_id: mediation-storagestressprobe-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STORAGESTRESSPROBE_XMX_MB}M ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES}"
+      kvStoreRetryIntervalMillis : 1000
     volumes:
       - mediation-storagestressprobe:/home/turbonomic/data
     mem_limit: ${MEDIATION_STORAGESTRESSPROBE_MEM_LIMIT_MB}M
@@ -512,6 +514,7 @@ services:
       component_type: mediation-delegatingprobe
       instance_id: mediation-delegatingprobe-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_DELEGATINGPROBE_XMX_MB}M ${MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES}"
+      kvStoreRetryIntervalMillis : 1000
     volumes:
       - mediation-delegatingprobe:/home/turbonomic/data
     mem_limit: ${MEDIATION_DELEGATINGPROBE_MEM_LIMIT_MB}M
