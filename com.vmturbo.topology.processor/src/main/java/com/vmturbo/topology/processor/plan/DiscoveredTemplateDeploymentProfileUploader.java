@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.plan;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -93,10 +94,9 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
      * @param deploymentProfileDTOs A list of discovered deployment profiles.
      */
     @Override
-    public void setTargetsTemplateDeploymentProfile(@Nonnull long targetId,
-                                                    @Nonnull Collection<EntityProfileDTO> entityProfileDTOs,
-                                                    @Nonnull Collection<DeploymentProfileDTO> deploymentProfileDTOs) {
-        Objects.requireNonNull(targetId);
+    public void setTargetsTemplateDeploymentProfile(long targetId,
+                                @Nonnull Collection<EntityProfileDTO> entityProfileDTOs,
+                                @Nonnull Collection<DeploymentProfileDTO> deploymentProfileDTOs) {
         Objects.requireNonNull(entityProfileDTOs);
         Objects.requireNonNull(deploymentProfileDTOs);
 
@@ -108,6 +108,40 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         synchronized (storeLock) {
             DiscoveredTemplateToDeploymentProfile.put(targetId, templateToDeploymentProfileMap);
             orphanedDeploymentProfile.put(targetId, deploymentProfileNoTemplates);
+        }
+
+    }
+
+    /**
+     * Store discovered templates and deployment profile in memory map and also keep track of relationship
+     * between discovered templates with deployment profiles.
+     *
+     * @param targetId Id of target object.
+     * @param profileTemplateMap mapping of deployment profile to set of templates
+     */
+    public void setTargetsTemplateDeploymentProfileInfos(long targetId,
+                @Nonnull Map<DeploymentProfileInfo, Set<EntityProfileDTO>> profileTemplateMap) {
+        Objects.requireNonNull(profileTemplateMap);
+
+        Map<EntityProfileDTO, Set<DeploymentProfileInfo>> reverseMap = new HashMap<>();
+
+        profileTemplateMap.forEach((profile, templateSet) ->
+            templateSet.forEach(template -> {
+                if (reverseMap.containsKey(template)) {
+                    reverseMap.get(template).add(profile);
+                } else {
+                    reverseMap.put(template, Sets.newHashSet(profile));
+                }
+            })
+        );
+        synchronized (storeLock) {
+            DiscoveredTemplateToDeploymentProfile.replace(targetId,
+                new EntityProfileToDeploymentProfileMap(reverseMap));
+            orphanedDeploymentProfile.replace(targetId,
+                profileTemplateMap.entrySet().stream()
+                    .filter(entry -> entry.getValue().isEmpty()).map(Entry::getKey)
+                    .collect(Collectors.toSet())
+            );
         }
 
     }
@@ -131,8 +165,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                             .setTargetId(entry.getKey());
                     addEntityProfileToDeploymentProfile(entry.getValue(), targetRequest);
                     Optional.ofNullable(orphanedDeploymentProfile.get(entry.getKey()))
-                        .ifPresent(DeploymentProfileInfos ->
-                            targetRequest.addAllDeploymentProfileWihtoutTemplates(DeploymentProfileInfos));
+                        .ifPresent(targetRequest::addAllDeploymentProfileWithoutTemplates);
                     targetRequest.build();
                     request.addTargetRequest(targetRequest);
                 });
@@ -144,6 +177,43 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
             throw new CommunicationException("Unable to upload templates and deployment profile.", e);
         }
 
+    }
+
+    /**
+     * Retrieve discovered deployment profiles organized by target, whether or not they are
+     * associated with a template.
+     *
+     * @return a mapping of target id to a mapping of deployment profiles to templates associated
+     *         with each discovered profile
+     */
+    public Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>>
+                                                        getDiscoveredDeploymentProfilesByTarget() {
+        final Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>> result = new HashMap<>();
+        DiscoveredTemplateToDeploymentProfile.forEach((targetId, templateToProfileMap) -> {
+            final Map<DeploymentProfileInfo, Set<EntityProfileDTO>> interior = new HashMap<>();
+            templateToProfileMap.entityProfileDTOSetMap.forEach((template, profileSet) ->
+                profileSet.forEach(profile -> {
+                    if (interior.containsKey(profile)) {
+                        interior.get(profile).add(template);
+                    } else {
+                        interior.put(profile, Sets.newHashSet(template));
+                    }
+                })
+            );
+            result.put(targetId, interior);
+        });
+
+        orphanedDeploymentProfile.forEach((targetId, profiles) -> {
+            if (result.containsKey(targetId)) {
+                profiles.forEach(profile -> result.get(targetId).put(profile, Collections.emptySet()));
+            } else {
+                final Map<DeploymentProfileInfo, Set<EntityProfileDTO>> interior = new HashMap<>();
+                profiles.forEach(profile -> interior.put(profile, Collections.emptySet()));
+                result.put(targetId, interior);
+            }
+
+        });
+        return result;
     }
 
     /**
@@ -163,16 +233,16 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
 
     /**
      * Generate a Map which key is entity profile, and value is list of attached deployment profile.
-     * This map will send to Plan component database and the relationship between templates with
+     * This map will be sent to Plan component database and the relationship between templates with
      * deployment profile will also be stored.
      *
      * @param targetId Id of target object.
      * @param entityProfileDTOs A list of discovered templates.
      * @param deploymentProfileDTOs A list of discovered deployment profiles.
-     * @return
+     * @return map of discovered templates to deployment profiles
      */
     private EntityProfileToDeploymentProfileMap getTemplateToDeploymentProfileMapping(
-        @Nonnull long targetId,
+        long targetId,
         @Nonnull Collection<EntityProfileDTO> entityProfileDTOs,
         @Nonnull Collection<DeploymentProfileDTO> deploymentProfileDTOs) {
         final Map<String, EntityProfileDTO> templateIdMap = Sets.newHashSet(entityProfileDTOs).stream()

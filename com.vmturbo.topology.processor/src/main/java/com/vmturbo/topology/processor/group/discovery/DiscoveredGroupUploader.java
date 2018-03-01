@@ -14,12 +14,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 
 import io.grpc.Channel;
@@ -31,7 +29,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -60,8 +57,6 @@ import com.vmturbo.topology.processor.entity.EntityStore;
  */
 @ThreadSafe
 public class DiscoveredGroupUploader {
-
-    private static final Logger logger = LogManager.getLogger();
 
     /**
      * Having this keyword in the group_name field of a GroupDTO coming from VCenter means
@@ -130,6 +125,22 @@ public class DiscoveredGroupUploader {
     }
 
     /**
+     * Set the discovered setting policies for a target. This overwrites any existing discovered
+     * setting policies for that target.
+     *
+     * @param targetId the id of the target whose settings policies were discovered
+     * @param settings the discovered setting policies for the target
+     */
+    public void setTargetDiscoveredSettingPolicies(final long targetId,
+                                    @Nonnull final List<DiscoveredSettingPolicyInfo> settings) {
+        synchronized (latestGroupByTarget) {
+            latestSettingPoliciesByTarget.get(targetId).clear();
+            latestSettingPoliciesByTarget.putAll(targetId, settings);
+        }
+
+    }
+
+    /**
      * Insert discovered groups and setting policies for a target in an additive manner. Does not
      * overwrite previous discovered groups and setting policies, instead it appends the provided
      * {@link InterpretedGroup}s and {@link DiscoveredSettingPolicyInfo}s to the existing ones.
@@ -192,9 +203,19 @@ public class DiscoveredGroupUploader {
         synchronized (latestGroupByTarget) {
             final Collection<DiscoveredSettingPolicyInfo> targetDiscoveredSettingPolicies =
                 latestSettingPoliciesByTarget.get(targetId);
-            return targetDiscoveredSettingPolicies == null ?
-                Optional.empty() :
-                Optional.of(ImmutableList.copyOf(targetDiscoveredSettingPolicies));
+            return Optional.ofNullable(targetDiscoveredSettingPolicies).map(ImmutableList::copyOf);
+        }
+    }
+
+    /**
+     * Get a copy of the setting policies for all targets.
+     *
+     * @return a copy of the setting policies for all targets.
+     */
+    @Nonnull
+    public Multimap<Long, DiscoveredSettingPolicyInfo> getDiscoveredSettingPolicyInfoByTarget() {
+        synchronized (latestGroupByTarget) {
+            return ImmutableMultimap.copyOf(latestSettingPoliciesByTarget);
         }
     }
 

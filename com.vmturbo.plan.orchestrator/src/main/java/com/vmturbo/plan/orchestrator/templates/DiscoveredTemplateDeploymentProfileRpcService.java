@@ -47,7 +47,7 @@ public class DiscoveredTemplateDeploymentProfileRpcService extends DiscoveredTem
                     templateInfoSetMap.put(templateInfo, profile.getDeploymentProfileList());
                 }
                 targetProfileMap.put(targetRequest.getTargetId(), templateInfoSetMap);
-                orphanedDeploymentProfile.put(targetRequest.getTargetId(), targetRequest.getDeploymentProfileWihtoutTemplatesList());
+                orphanedDeploymentProfile.put(targetRequest.getTargetId(), targetRequest.getDeploymentProfileWithoutTemplatesList());
             }
             templateDeploymentProfileDao.setDiscoveredTemplateDeploymentProfile(targetProfileMap, orphanedDeploymentProfile);
             responseObserver.onNext(SetDiscoveredTemplateDeploymentProfileResponse.getDefaultInstance());

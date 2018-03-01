@@ -135,7 +135,7 @@ message SetTargetDiscoveredTemplateDeploymentProfileRequest {
     repeated EntityProfileToDeploymentProfile entity_profile_to_deployment_profile = 2;
 
     // Store discovered deployment profiles which have no referenced templates.
-    repeated DeploymentProfileInfo deployment_profile_wihtout_templates = 3;
+    repeated DeploymentProfileInfo deployment_profile_without_templates = 3;
 }
 
 // Request for set discovered templates and deployment profiles within one discover.

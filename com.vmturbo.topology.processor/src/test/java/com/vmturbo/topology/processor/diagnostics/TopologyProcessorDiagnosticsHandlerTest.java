@@ -13,9 +13,12 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -26,25 +29,69 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
+import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.DeploymentProfileContextData;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.Scope;
+import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.ScopeAccessType;
+import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
+import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.kvstore.MapKeyValueStore;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.BuyerMetaData;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.ExpressionType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpec.PropertyStringList;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.SelectionSpecList;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
+import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.DBProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.LicenseMapEntry;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.PMProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO.DedicatedStorageNetworkState;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
+import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.DeploymentProfileWithTemplate;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
@@ -66,6 +113,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private final Scheduler scheduler = Mockito.mock(Scheduler.class);
     private final EntityStore entityStore = Mockito.mock(EntityStore.class);
+    private final DiscoveredGroupUploader groupUploader = Mockito.mock(DiscoveredGroupUploader.class);
+    private final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader =
+        Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
     private final EntityDTO nwDto =
             EntityDTO.newBuilder().setId("NW-1").setEntityType(EntityType.NETWORK).build();
@@ -83,12 +133,23 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             "{\"oid\":\"199\",\"entity\":"
             + "{\"entityType\":\"NETWORK\",\"id\":\"NW-1\"}}";
 
+    private final Map<Long, List<DiscoveredGroupInfo>> discoveredGroupMap = new HashMap<>();
+    private final Multimap<Long, DiscoveredSettingPolicyInfo> discoveredSettingPolicyMap =
+        ArrayListMultimap.create();
+    private final Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>> discoveredProfileMap
+        = new HashMap<>();
+
     @Before
     public void setup() {
         Mockito.when(targetStore.getAll()).thenReturn(targets);
         Map<Long, EntityDTO> map = ImmutableMap.of(199L, nwDto);
         Mockito.when(entityStore.discoveredByTarget(100001)).thenReturn(map);
         Mockito.when(entityStore.getTargetLastUpdatedTime(100001)).thenReturn(Optional.of(12345L));
+        Mockito.doReturn(discoveredGroupMap).when(groupUploader).getDiscoveredGroupInfoByTarget();
+        Mockito.doReturn(discoveredSettingPolicyMap).when(groupUploader)
+            .getDiscoveredSettingPolicyInfoByTarget();
+        Mockito.doReturn(discoveredProfileMap).when(templateDeploymentProfileUploader)
+            .getDiscoveredDeploymentProfilesByTarget();
     }
 
     private ZipInputStream dumpDiags() throws IOException {
@@ -96,19 +157,20 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         ZipOutputStream zos = new ZipOutputStream(zipBytes);
         TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(targetStore, scheduler, entityStore,
-                        identityProvider, new DiagnosticsWriter());
+                    groupUploader, templateDeploymentProfileUploader, identityProvider,
+                    new DiagnosticsWriter());
         handler.dumpDiags(zos);
         zos.close();
         return new ZipInputStream(new ByteArrayInputStream(zipBytes.toByteArray()));
     }
 
-    @Test
     /**
      * Test case with no targets (and no schedules).
      * The generated diags should be empty.
      *
      * @throws IOException
      */
+    @Test
     public void testNoTargets() throws IOException {
         ZipInputStream zis = dumpDiags();
 
@@ -190,7 +252,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 .build();
         final TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(targetStore, scheduler, entityStore,
-                        identityProvider, new DiagnosticsWriter());
+                    groupUploader, templateDeploymentProfileUploader, identityProvider,
+                    new DiagnosticsWriter());
         // Valid json, but not a target info
         final String invalidJsonTarget = GSON.toJson(targetSpecBuilder.setProbeId(3));
         // Invalid json
@@ -211,14 +274,19 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     }
 
     /**
-     * Test case with some targets/schedules.
+     * Test case with some targets, schedules, discovered groups, discovered policies, and
+     * discovered settings policies.
      *
-     * @throws IOException
+     * @throws IOException in case of IO error reading/writing
      */
     @Test
     public void testSomeTargets() throws IOException {
         long[] targetIds = new long[]{100001,200001};
         long[] probeIds = new long[]{101,201};
+        String[] entities = new String[]{
+            IDENTIFIED_ENTITY,
+            null
+        };
         TargetInfo[] targetInfos = new TargetInfo[]{
                 TargetInfo.newBuilder()
                         .setId(targetIds[0])
@@ -229,15 +297,33 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                         .setSpec(targetSpecBuilder.setProbeId(probeIds[1]))
                         .build(),
         };
+        long[] times = new long[]{12345, 23456};
         TargetDiscoverySchedule[] schedules = new TargetDiscoverySchedule[]{
                 null,
                 Mockito.mock(TargetDiscoverySchedule.class)};
 
+        DiscoveredGroupInfo[] groups = new DiscoveredGroupInfo[]{
+            makeDiscoveredGroupInfo(makeClusterInfo()),
+            makeDiscoveredGroupInfo(makeGroupInfo())
+        };
+        DiscoveredSettingPolicyInfo[] settingPolicies = new DiscoveredSettingPolicyInfo[]{
+            makeDiscoveredSettingPolicyInfo("settingPolicy1"),
+            makeDiscoveredSettingPolicyInfo("settingPolicy2")
+        };
+        EntityProfileDTO[] templates = new EntityProfileDTO[]{
+            makeDiscoveredTemplate("123456789"),
+            makeDiscoveredTemplate("abcdefg")
+        };
+        DeploymentProfileInfo[] profiles = new DeploymentProfileInfo[]{
+            makeDiscoveredProfile("123456789"),
+            makeDiscoveredProfile("abcdefg")
+        };
         for (int i = 0; i < 2; ++i) {
-            targets.add(mockTarget(targetIds[i], targetInfos[i], schedules[i]));
+            targets.add(mockTarget(targetIds[i], targetInfos[i], schedules[i], groups[i],
+                settingPolicies[i], times[i], templates[i], profiles[i]));
+
         }
 
-        Mockito.when(entityStore.getTargetLastUpdatedTime(200001)).thenReturn(Optional.of(23456L));
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
@@ -253,22 +339,48 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         zis.read(bytes);
         assertEquals(SCHEDULE_JSON, new String(bytes, 0, SCHEDULE_JSON.length()));
 
-        ze = zis.getNextEntry();
-        assertEquals("Entities." + targetIds[0] + "-12345.diags", ze.getName());
-        bytes = new byte[100];
-        zis.read(bytes);
-        String json = new String(bytes, 0, IDENTIFIED_ENTITY.length());
-        assertEquals(IDENTIFIED_ENTITY, json);
+        for (int i = 0; i < targetIds.length; i++) {
+            final String suffix = "." + targetIds[i] + "-" + times[i] + ".diags";
 
-        IdentifiedEntityDTO dto = IdentifiedEntityDTO.fromJson(json);
-        assertEquals(199, dto.getOid());
-        assertEquals(nwDto, dto.getEntity());
+            ze = zis.getNextEntry();
+            assertEquals("Entities" + suffix, ze.getName());
+            bytes = new byte[100];
+            zis.read(bytes);
 
-        ze = zis.getNextEntry();
-        assertEquals("Entities." + targetIds[1] + "-23456.diags", ze.getName());
-        bytes = new byte[100];
-        zis.read(bytes);
-        assertEquals(0, bytes[0]);
+            if (entities[i] != null) {
+                String json = new String(bytes, 0, entities[i].length());
+                assertEquals(entities[i], json);
+
+                IdentifiedEntityDTO dto = IdentifiedEntityDTO.fromJson(json);
+                assertEquals(199, dto.getOid());
+                assertEquals(nwDto, dto.getEntity());
+            } else {
+                assertEquals(0, bytes[0]);
+            }
+
+            ze = zis.getNextEntry();
+            assertEquals("DiscoveredGroupsAndPolicies" + suffix, ze.getName());
+            bytes = new byte[2048];
+            zis.read(bytes);
+            String result = new String(bytes, 0, 2048).split("\n")[0];
+            assertEquals(groups[i], GSON.fromJson(result, DiscoveredGroupInfo.class));
+
+            ze = zis.getNextEntry();
+            assertEquals("DiscoveredSettingPolicies" + suffix, ze.getName());
+            bytes = new byte[2048];
+            zis.read(bytes);
+            result = new String(bytes, 0, 2048).split("\n")[0];
+            assertEquals(settingPolicies[i], GSON.fromJson(result, DiscoveredSettingPolicyInfo.class));
+
+            ze = zis.getNextEntry();
+            assertEquals("DiscoveredDeploymentProfilesAndTemplates" + suffix, ze.getName());
+            bytes = new byte[2048];
+            zis.read(bytes);
+            result = new String(bytes, 0, 2048).trim();
+            assertEquals(profiles[i], GSON.fromJson(result, DeploymentProfileWithTemplate.class).getProfile());
+            assertEquals(templates[i],
+                GSON.fromJson(result, DeploymentProfileWithTemplate.class).getTemplates().iterator().next());
+        }
 
         ze = zis.getNextEntry();
         assertEquals("Identity.diags", ze.getName());
@@ -287,7 +399,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                         Mockito.mock(ProbeStore.class));
         TopologyProcessorDiagnosticsHandler handler =
                 new TopologyProcessorDiagnosticsHandler(simpleTargetStore, scheduler, entityStore,
-                        identityProvider, new DiagnosticsWriter());
+                    groupUploader, templateDeploymentProfileUploader, identityProvider,
+                    new DiagnosticsWriter());
 
         handler.restore(new FileInputStream(new File(fullPath("diags/compressed/diags0.zip"))));
         List<Target> targets = simpleTargetStore.getAll();
@@ -300,18 +413,31 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                     Mockito.eq(target.getId()),
                     Mockito.anyLong(),
                     Mockito.anyMapOf(Long.class, EntityDTO.class));
+            Mockito.verify(groupUploader).setTargetDiscoveredGroups(
+                Mockito.eq(target.getId()), Mockito.anyListOf(GroupDTO.class));
+            Mockito.verify(groupUploader).setTargetDiscoveredSettingPolicies(
+                Mockito.eq(target.getId()), Mockito.anyListOf(DiscoveredSettingPolicyInfo.class));
+            Mockito.verify(templateDeploymentProfileUploader)
+                .setTargetsTemplateDeploymentProfileInfos(Mockito.eq(target.getId()), Mockito.anyMap());
         }
         Mockito.verify(identityProvider).restoreDiags(any());
     }
 
     private Target mockTarget(long targetId,
                               TargetInfo targetInfo,
-                              TargetDiscoverySchedule schedule) {
+                              TargetDiscoverySchedule schedule,
+                              DiscoveredGroupInfo groupInfo,
+                              DiscoveredSettingPolicyInfo settingPolicyInfo,
+                              long time, EntityProfileDTO template, DeploymentProfileInfo profile) {
         Target target = Mockito.mock(Target.class);
         Mockito.when(target.getId()).thenReturn(targetId);
         Mockito.when(target.getNoSecretDto()).thenReturn(targetInfo);
         Mockito.when(scheduler.getDiscoverySchedule(targetId))
                .thenReturn(Optional.ofNullable(schedule));
+        discoveredGroupMap.put(targetId, Collections.singletonList(groupInfo));
+        discoveredSettingPolicyMap.put(targetId, settingPolicyInfo);
+        discoveredProfileMap.put(targetId, ImmutableMap.of(profile, Collections.singleton(template)));
+        Mockito.when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
         return target;
     }
 
@@ -326,4 +452,160 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         URL fileUrl = this.getClass().getClassLoader().getResources(fileName).nextElement();
         return Paths.get(fileUrl.toURI()).toString();
     }
+
+
+    /**
+     * Note: the groups, policies, and settings policies below are created solely for testing and
+     * are almost certainly self-contradictory and meaningless. They should not be taken as
+     * realistic examples of what such structures may look like. Here they only exist to test
+     * that such complex objects can be accurately dumped and restored.
+     */
+
+    private DiscoveredSettingPolicyInfo makeDiscoveredSettingPolicyInfo(String name) {
+        return DiscoveredSettingPolicyInfo.newBuilder()
+            .addDiscoveredGroupNames("discovered group name")
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setName(name)
+            .addSettings(Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.IOPSCapacity.getSettingName())
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(250).build()))
+            .build();
+    }
+
+    private DiscoveredGroupInfo makeDiscoveredGroupInfo(GroupInfo groupInfo) {
+        return DiscoveredGroupInfo.newBuilder()
+            .setDiscoveredGroup(makeGroupDTO())
+            .setInterpretedGroup(groupInfo)
+            .build();
+    }
+
+    private DiscoveredGroupInfo makeDiscoveredGroupInfo(ClusterInfo clusterInfo) {
+        return DiscoveredGroupInfo.newBuilder()
+            .setDiscoveredGroup(makeGroupDTO())
+            .setInterpretedCluster(clusterInfo)
+            .build();
+    }
+
+    private GroupDTO makeGroupDTO() {
+        return GroupDTO.newBuilder()
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .setDisplayName("displayName")
+            .setConstraintInfo(ConstraintInfo.newBuilder()
+                .setConstraintType(ConstraintType.CLUSTER)
+                .setConstraintId("constraintId")
+                .setBuyerMetaData(BuyerMetaData.newBuilder()
+                    .setSellerType(EntityType.PHYSICAL_MACHINE))
+                .setConstraintName("constraintName")
+                .setConstraintDisplayName("constraintDisplayName"))
+            .setSelectionSpecList(SelectionSpecList.newBuilder()
+                .addSelectionSpec(SelectionSpec.newBuilder()
+                    .setProperty("property")
+                    .setExpressionType(ExpressionType.CONTAINED_BY)
+                    .setPropertyValueStringList(PropertyStringList.newBuilder()
+                        .addPropertyValue("propertyValue"))))
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setNamespace("namespace")
+                .setName("name")
+                .setValue("value"))
+            .build();
+    }
+
+    private ClusterInfo makeClusterInfo() {
+        return ClusterInfo.newBuilder()
+            .setName("name")
+            .setClusterType(Type.COMPUTE)
+            .setMembers(StaticGroupMembers.newBuilder()
+                .addStaticMemberOids(4815162342108L))
+            .build();
+    }
+
+    private GroupInfo makeGroupInfo() {
+        return GroupInfo.newBuilder()
+            .setName("name")
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                .addSearchParameters(SearchParameters.newBuilder()
+                    .setStartingFilter(PropertyFilter.newBuilder()
+                        .setPropertyName("propertyName")
+                        .setNumericFilter(NumericFilter.newBuilder()
+                            .setComparisonOperator(ComparisonOperator.GT)
+                            .setValue(123)))
+                    .addSearchFilter(SearchFilter.newBuilder()
+                        .setTraversalFilter(TraversalFilter.newBuilder()
+                            .setTraversalDirection(TraversalDirection.CONSUMES)
+                            .setStoppingCondition(StoppingCondition.newBuilder()
+                                .setNumberHops(3))))))
+            .build();
+    }
+
+    private EntityProfileDTO makeDiscoveredTemplate(String id) {
+        EntityProfileDTO.Builder result = EntityProfileDTO.newBuilder()
+            .setId(id)
+            .setDisplayName("displayName" + id)
+            .setEntityType(EntityType.PHYSICAL_MACHINE)
+            .addCommodityProfile(CommodityProfileDTO.newBuilder()
+                .setCommodityType(CommodityType.BALLOONING)
+                .setCapacity(1.5f)
+                .setConsumedFactor(1.5f)
+                .setConsumed(1.5f)
+                .setReservation(1.5f)
+                .setOverhead(1.5f))
+            .setModel("tyra banks")
+            .setVendor("vendor")
+            .setDescription("description")
+            .setEnableProvisionMatch(true)
+            .setEnableResizeMatch(false)
+            .addEntityProperties(EntityProperty.newBuilder()
+                .setName("name").setValue("value").setNamespace("namespace"));
+        if (id.startsWith("123")) {
+            result.setVmProfileDTO(VMProfileDTO.newBuilder()
+                .setNumVCPUs(3)
+                .setVCPUSpeed(1.5f)
+                .setNumStorageConsumed(3)
+                .setDiskType("diskType")
+                .setFamily("kennedy")
+                .setNumberOfCoupons(3)
+                .setDedicatedStorageNetworkState(DedicatedStorageNetworkState.CONFIGURED_DISABLED)
+                .addLicense(LicenseMapEntry.newBuilder()
+                    .setRegion("region")
+                    .addLicenseName("license")
+                )
+                .setClonedUuid("CT-21-0408")
+            );
+        } else if (id.startsWith("456")) {
+            result.setPmProfileDTO(PMProfileDTO.newBuilder()
+                .setNumCores(3)
+                .setCpuCoreSpeed(1.5f)
+            );
+        } else {
+            result.setDbProfileDTO(DBProfileDTO.newBuilder()
+                .addRegion("region")
+                .setDbCode(3)
+                .addDbEdition("edition")
+                .addDbEngine("thomas the tank engine")
+                .addDeploymentOption("option")
+                .setNumVCPUs(3)
+                .addLicense(LicenseMapEntry.newBuilder()
+                    .setRegion("region")
+                    .addLicenseName("license")
+                )
+            );
+        }
+        return result.build();
+    }
+
+    private DeploymentProfileInfo makeDiscoveredProfile(String name) {
+        return DeploymentProfileInfo.newBuilder()
+            .setName(name)
+            .setDiscovered(true)
+            .addContextData(DeploymentProfileContextData.newBuilder()
+                .setKey("key")
+                .setValue("value"))
+            .addScopes(Scope.newBuilder()
+                .addIds(123456)
+                .setScopeAccessType(ScopeAccessType.And))
+            .setProbeDeploymentProfileId("something")
+            .build();
+    }
+
 }

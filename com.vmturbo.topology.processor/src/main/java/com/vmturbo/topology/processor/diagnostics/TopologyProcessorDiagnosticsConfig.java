@@ -14,8 +14,10 @@ import com.vmturbo.proactivesupport.DataCollectorFramework;
 import com.vmturbo.proactivesupport.bridge.TCPAggregatorBridge;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
+import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ldcf.DataMetricTopology;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
@@ -23,8 +25,8 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
  * Configuration for the Topology package in TopologyProcessor.
  */
 @Configuration
-@Import({TargetConfig.class, SchedulerConfig.class, EntityConfig.class,
-        IdentityProviderConfig.class})
+@Import({TargetConfig.class, SchedulerConfig.class, EntityConfig.class, GroupConfig.class,
+    PlanConfig.class, IdentityProviderConfig.class})
 public class TopologyProcessorDiagnosticsConfig {
     /**
      * The urgent collection interval setting.
@@ -68,6 +70,12 @@ public class TopologyProcessorDiagnosticsConfig {
     private EntityConfig entityConfig;
 
     @Autowired
+    private GroupConfig groupConfig;
+
+    @Autowired
+    private PlanConfig planConfig;
+
+    @Autowired
     private KVConfig kvConfig;
 
     @Autowired
@@ -88,6 +96,8 @@ public class TopologyProcessorDiagnosticsConfig {
         return new TopologyProcessorDiagnosticsHandler(targetConfig.targetStore(),
                 schedulerConfig.scheduler(),
                 entityConfig.entityStore(),
+                groupConfig.discoveredGroupUploader(),
+                planConfig.discoveredTemplatesUploader(),
                 identityProviderConfig.identityProvider(),
                 diagnosticsWriter());
     }
