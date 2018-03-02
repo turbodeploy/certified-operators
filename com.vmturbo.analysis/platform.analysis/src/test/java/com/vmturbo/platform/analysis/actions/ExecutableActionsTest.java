@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.actions;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import org.apache.logging.log4j.Logger;
@@ -212,58 +211,6 @@ public class ExecutableActionsTest {
             // resize up executable, resize down executable
             assertTrue(actions.size() == 1);
             assertTrue(classifier.getExecutable() == 1);
-            logger.info(classifier.getExecutable());
-        }
-        catch (Exception e) {
-            logger.error("Error classifying actions .." + e);
-        }
-    }
-
-    /**
-     * Test classification of Provision actions.
-     *
-     */
-    @Test
-    public final void testMarkProvisionsNonExecutable_Action() {
-        Economy economy = new Economy();
-
-        Basket BASKET = new Basket(new CommoditySpecification(0), new CommoditySpecification(1));
-        Basket BASKET2 = new Basket(new CommoditySpecification(2));
-
-        Trader v1 = economy.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY, BASKET);
-        Trader p1 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET, BASKET2);
-        Trader ds1 =  economy.addTrader(2, TraderState.ACTIVE, EMPTY);
-        ShoppingList s1 = economy.addBasketBought(v1, BASKET);
-
-        // suppose the sequence for actions are : ProvisionByDemand -> Deactivate
-        ProvisionByDemand provisionByDemand = (ProvisionByDemand)new ProvisionByDemand(economy, s1, p1).take();
-        economy.getMarketsAsBuyer(provisionByDemand.getActionTarget()).keySet().forEach(a -> a.move(ds1));;
-        Basket b1 = new Basket(new CommoditySpecification(100));
-        Basket b2 = new Basket(new CommoditySpecification(200));
-        Basket b3 = new Basket(new CommoditySpecification(300));
-        Trader t1 = economy.addTrader(0, TraderState.ACTIVE, b1, b2);
-        Trader t2 = economy.addTrader(0, TraderState.ACTIVE, b1, b2);
-        Trader t3 = economy.addTrader(0, TraderState.ACTIVE, b2, b3);
-
-        ShoppingList shoplist1 = economy.addBasketBought(t1, b2);
-        shoplist1.move(t3);
-        ShoppingList shoplist2 = economy.addBasketBought(t2, b2);
-        shoplist2.move(t3);
-
-        ProvisionBySupply provisionBySupply1 = (ProvisionBySupply) new ProvisionBySupply(economy, t2).take();
-        ProvisionBySupply provisionBySupply2 = (ProvisionBySupply) new ProvisionBySupply(economy, t2).take();
-
-        List<Action> actions = Arrays.asList(provisionByDemand, provisionBySupply1, provisionBySupply2);
-
-        logger.info(actions.size());
-
-        ActionClassifier classifier;
-        try {
-            classifier = new ActionClassifier(economy);
-            classifier.classify(actions);
-            // resize up non-executable, resize down executable
-            assertTrue(actions.size() == 3);
-            assertTrue(classifier.getExecutable() == 0);
             logger.info(classifier.getExecutable());
         }
         catch (Exception e) {
