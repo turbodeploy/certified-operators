@@ -80,8 +80,11 @@ public class Resizer {
                     if (expenses > 0) {
                         try {
                             double desiredROI = getDesiredROI(incomeStatement);
-                            double newRevenue = desiredROI * (Double.isInfinite(expenses) ?
-                                        incomeStatement.getMaxDesiredExpenses() : expenses);
+                            double newRevenue = expenses < incomeStatement.getMinDesiredExpenses()
+                                    ? incomeStatement.getDesiredRevenues()
+                                    : desiredROI * (Double.isInfinite(expenses)
+                                        ? incomeStatement.getMaxDesiredExpenses()
+                                        : expenses);
                             double currentRevenue = incomeStatement.getRevenues();
                             double desiredCapacity =
                                calculateDesiredCapacity(commoditySold, newRevenue

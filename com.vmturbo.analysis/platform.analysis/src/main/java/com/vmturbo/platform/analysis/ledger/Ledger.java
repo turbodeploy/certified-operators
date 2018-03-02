@@ -227,7 +227,7 @@ public class Ledger {
             }
         }
         // compute total revenue with the top 2 commodities
-        double[] tempCurrMinMaxRev = new double[3];
+        double[] tempCurrMinMaxRev = new double[4];
         IntStream.range(0, topRev.length).forEach(i -> {
             if (Double.isFinite(tempCurrMinMaxRev[0])) {
                 CommoditySold cs = topSellingComm[i];
@@ -238,13 +238,17 @@ public class Ledger {
                                                                          , null , seller, cs, economy);
                     tempCurrMinMaxRev[2] = tempCurrMinMaxRev[2] + pf.unitPrice(sellerMaxDesUtil
                                                                           , null , seller, cs, economy);
+                    tempCurrMinMaxRev[3] = tempCurrMinMaxRev[3] + pf.unitPrice((sellerMaxDesUtil +
+                                    sellerMinDesUtil) / 2, null , seller, cs, economy);
                 }
             }
         });
 
         sellerIncomeStmt.setRevenues(tempCurrMinMaxRev[0])
                         .setMinDesiredRevenues(tempCurrMinMaxRev[1] * sellerMinDesUtil)
-                        .setMaxDesiredRevenues(tempCurrMinMaxRev[2] * sellerMaxDesUtil);
+                        .setMaxDesiredRevenues(tempCurrMinMaxRev[2] * sellerMaxDesUtil)
+                        .setDesiredRevenues(tempCurrMinMaxRev[3] *
+                                (sellerMinDesUtil + sellerMaxDesUtil) / 2);
 
         calculateExpensesForSeller(economy, seller);
         return new MostExpensiveCommodityDetails(
@@ -423,6 +427,7 @@ public class Ledger {
                 commSoldIS.setRevenues(pf.unitPrice(commSoldUtil, null, buyer, cs, economy)*commSoldUtil);
                 commSoldIS.setMaxDesiredRevenues(pf.unitPrice(maxDesUtil, null, buyer, cs, economy)*maxDesUtil);
                 commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil, null, buyer, cs, economy)*minDesUtil);
+                commSoldIS.setDesiredRevenues(pf.unitPrice((minDesUtil + maxDesUtil) / 2, null, buyer, cs, economy) * (maxDesUtil + minDesUtil) / 2);
 
                 List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
                                                              .get(commSoldIndex).getBaseType());

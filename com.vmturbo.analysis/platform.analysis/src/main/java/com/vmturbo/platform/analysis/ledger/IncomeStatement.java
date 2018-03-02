@@ -21,6 +21,7 @@ public class IncomeStatement {
     private double maxDesiredExpenses_;
     private double minDesiredRevenues_;
     private double maxDesiredRevenues_;
+    private double desiredRevenues_;
 
     // Constructors
 
@@ -35,6 +36,7 @@ public class IncomeStatement {
         maxDesiredExpenses_ = 0;
         minDesiredRevenues_ = 0;
         maxDesiredRevenues_ = 0;
+        desiredRevenues_ = 0;
     }
 
 
@@ -248,6 +250,38 @@ public class IncomeStatement {
     }
 
     /**
+    *
+    * <p>
+    *  For a trader T: the desired revenues of T, while all the commodities it sells to its customers are within the desired utilization range.
+    *  For a commodity C sold by a trader: the desired revenues of C, while C remains within the desired utilization range.
+    *  For a commodity C bought by a trader: N/A
+    * </p>
+    *
+    * @return desired revenue for this entity
+    * @see #setDesiredRevenues()
+    */
+    public double getDesiredRevenues() {
+        return desiredRevenues_;
+    }
+
+    /**
+     * Sets the value of the <b>desiredRevenues_</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param desiredRevenues the new value for the field. Must be non-negative.
+     * @return {@code this}
+     *
+     * @see #getDesiredRevenues()
+     */
+    protected @NonNull IncomeStatement setDesiredRevenues(final double desiredRevenues) {
+        this.desiredRevenues_ = desiredRevenues;
+        return this;
+    }
+
+    /**
      * Returns the "Return On Investment" of a Trader or a Commodity sold, using the corresponding revenues and expenses of the Trader or Commodity
      *
      * @see #setRevenues()
@@ -302,8 +336,8 @@ public class IncomeStatement {
         maxDesiredExpenses_ = 0;
         minDesiredRevenues_ = 0;
         maxDesiredRevenues_ = 0;
+        desiredRevenues_ = 0;
 
         return this;
     }
-
 } // end class IncomeStatement
