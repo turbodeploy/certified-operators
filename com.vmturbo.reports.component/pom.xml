@@ -536,6 +536,12 @@
             <artifactId>org.eclipse.datatools.sqltools.result</artifactId>
             <version>1.1.6.v201402080246</version>
         </dependency>
+        <!-- other dependencies for BIRT runtime -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>3.9</version>
+        </dependency>
 
         <!-- Dependencies from 4.5.0: -->
         <dependency>

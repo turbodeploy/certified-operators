@@ -49,14 +49,30 @@ public class ComponentReportRunnerTest {
     }
 
     /**
-     * Tests the existing report and verifies, that size of generated PDF is non-zero.
+     * Tests the existing PDF report and verifies, that size of generated PDF is non-zero.
      *
      * @throws Exception in any exceptions occurred.
      */
     @Test
-    public void testComponentReportRunner() throws Exception {
+    public void testComponentReportRunnerPdf() throws Exception {
         final ReportRequest request =
                 new ReportRequest(EXISTING_REPORT_ID, ReportOutputFormat.PDF,
+                        Collections.emptyMap());
+        final File outputFile = tmpFolder.newFile();
+        reportRunner.createReport(request, outputFile);
+        Assert.assertTrue(outputFile.isFile());
+        Assert.assertTrue(outputFile.length() > 0);
+    }
+
+    /**
+     * Tests the existing XLS report and verifies, that size of generated PDF is non-zero.
+     *
+     * @throws Exception in any exceptions occurred.
+     */
+    @Test
+    public void testComponentReportRunnerXls() throws Exception {
+        final ReportRequest request =
+                new ReportRequest(EXISTING_REPORT_ID, ReportOutputFormat.XLSX,
                         Collections.emptyMap());
         final File outputFile = tmpFolder.newFile();
         reportRunner.createReport(request, outputFile);
