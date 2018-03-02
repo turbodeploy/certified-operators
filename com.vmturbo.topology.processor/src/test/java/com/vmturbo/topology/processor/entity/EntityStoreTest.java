@@ -322,6 +322,43 @@ public class EntityStoreTest {
         assertEquals(target2Id, entityByLocalId(graph, "werewolf").getTargetId());
     }
 
+    @Test
+    public void testEntitiesRestored() {
+        final String id1 = "en-target1";
+        final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setId(id1).build();
+        Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(1L, entity1);
+        entityStore.entitiesRestored(targetId, 5678L, entitiesMap);
+
+        Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
+        Assert.assertTrue(entityStore.getEntity(1L).isPresent());
+        Assert.assertTrue(entityStore.discoveredByTarget(targetId).equals(entitiesMap));
+    }
+
+    @Test
+    public void testRestoreMultipleEntitiesSameOidDifferentTargets() {
+        final String sharedId = "en-target1";
+        final long sharedOid = 1L;
+
+        final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setId(sharedId).build();
+        Map<Long, EntityDTO> target1Map = ImmutableMap.of(sharedOid, entity1);
+        entityStore.entitiesRestored(targetId, 5678L, target1Map);
+
+        final long target2Id = 9137L;
+        final EntityDTO entity2 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setId(sharedId).build();
+        Map<Long, EntityDTO> target2Map = ImmutableMap.of(sharedOid, entity2);
+        entityStore.entitiesRestored(target2Id, 87942L, target2Map);
+
+        Assert.assertTrue(entityStore.getTargetEntityIdMap(targetId).isPresent());
+        Assert.assertTrue(entityStore.getTargetEntityIdMap(target2Id).isPresent());
+        Assert.assertEquals(2, entityStore.getEntity(sharedOid).get().getPerTargetInfo().size());
+
+        Assert.assertTrue(entityStore.discoveredByTarget(targetId).equals(target1Map));
+        Assert.assertTrue(entityStore.discoveredByTarget(target2Id).equals(target1Map));
+    }
+
     private TopologyStitchingEntity entityByLocalId(@Nonnull final TopologyStitchingGraph graph,
                                                     @Nonnull final String id) {
         return graph.entities()

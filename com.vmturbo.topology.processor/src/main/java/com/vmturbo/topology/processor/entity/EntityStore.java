@@ -415,29 +415,39 @@ public class EntityStore {
 
     /**
      * Puts restored entities in a target's entities map.
-     * Also populates the (global) entities map with the new entities. If entities
-     * with same OIDs already exist in the global map, then replace them with the
-     * new ones.
+     * Also populates the (global) entities map with the new entities.
+     *
+     * If entities with same OIDs already exist in the global map, then add the additional
+     * data as new per-target information just as we would for the same entity being
+     * discovered by multiple targets.
      *
      * @param targetId the ID of the target with which the entities are associated
      * @param restoredMap a map from entity OID to entity
      */
     public void entitiesRestored(long targetId, long lastUpdatedTime, Map<Long, EntityDTO> restoredMap) {
-        // If there are entities in the (global) entities map that have the same OIDs as entities
-        // in the restored map, then first remove those entities from the entities map.
-        restoredMap.keySet().forEach(entityMap::remove);
         // Create a new per-target map with the restored entities
         final ImmutableSet.Builder<Long> newTargetEntitiesBuilder = new ImmutableSet.Builder<>();
         final ImmutableMap.Builder<String, Long> newEntitiesByLocalIdBuilder = new ImmutableMap.Builder<>();
         for (Entry<Long, EntityDTO> entry : restoredMap.entrySet()) {
             final EntityDTO dto = entry.getValue();
             final long oid = entry.getKey();
+            final Entity existingEntity = entityMap.get(oid);
+
             newTargetEntitiesBuilder.add(oid);
             newEntitiesByLocalIdBuilder.put(dto.getId(), oid);
-            final Entity entity = new Entity(oid, entry.getValue().getEntityType());
-            entity.addTargetInfo(targetId, dto);
-            entityMap.put(oid, entity);
+
+            if (existingEntity == null) {
+                // No information about this entity yet. Create new information to add.
+                final Entity newEntity = new Entity(oid, entry.getValue().getEntityType());
+                newEntity.addTargetInfo(targetId, dto);
+                entityMap.put(oid, newEntity);
+            } else {
+                // The entity already exists. Append additional per-target information
+                // to the existing information.
+                existingEntity.addTargetInfo(targetId, dto);
+            }
         }
+
         TargetEntityIdInfo idInfo = new TargetEntityIdInfo(newTargetEntitiesBuilder.build(),
             newEntitiesByLocalIdBuilder.build(),
             lastUpdatedTime);
