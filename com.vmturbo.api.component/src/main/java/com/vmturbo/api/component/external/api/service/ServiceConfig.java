@@ -29,6 +29,12 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         ApiWebsocketConfig.class, RepositoryClientConfig.class, ReportingClientConfig.class})
 public class ServiceConfig {
 
+    /**
+     * A path prefix to access reports data (implemented in Legacy as CGI-script) using
+     * {@link ReportCgiServlet}.
+     */
+    public static final String REPORT_CGI_PATH = "/cgi-bin/vmtreport.cgi";
+
     @Value("${targetValidationTimeoutSeconds}")
     private Long targetValidationTimeoutSeconds;
 
@@ -179,7 +185,7 @@ public class ServiceConfig {
 
     @Bean
     public ServletRegistrationBean servletRegistrationBean() {
-        return new ServletRegistrationBean(reportServlet(), "/cgi-bin/vmtreport.cgi");
+        return new ServletRegistrationBean(reportServlet(), REPORT_CGI_PATH);
     }
 
     @Bean

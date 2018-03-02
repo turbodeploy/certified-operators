@@ -10,10 +10,14 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportData;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
@@ -48,18 +52,50 @@ public class ReportCgiServlet extends HttpServlet {
             if (StringUtils.isNumeric(reportId)) {
                 final ReportInstanceId reportInstanceId =
                         ReportInstanceId.newBuilder().setId(Long.valueOf(reportId)).build();
-                final ReportData report = reportingService.getReportData(reportInstanceId);
-                try (final OutputStream os = resp.getOutputStream()) {
-                    os.write(report.getData().toByteArray());
+                final ReportData report;
+                try {
+                    report = reportingService.getReportData(reportInstanceId);
+                } catch (StatusRuntimeException e) {
+                    logger.info("Error retrieving report with id " + reportId, e);
+                    resp.sendError(grpc2httpStatusCode(e.getStatus().getCode()), e.getMessage());
+                    return;
                 }
-                resp.setHeader("Content-Type", "application/" + report.getFormat());
+                final ReportOutputFormat format = ReportOutputFormat.get(report.getFormat());
+                if (format != null) {
+                    resp.setHeader("Content-Type",
+                            "application/" + format.getLiteral().toLowerCase());
+                    resp.setHeader("Content-Disposition",
+                            "inline; filename=\"" + Long.toString(reportInstanceId.getId()) +
+                                    format.getOutputExtension() + '\"');
+                    try (final OutputStream os = resp.getOutputStream()) {
+                        os.write(report.getData().toByteArray());
+                    }
+                } else {
+                    logger.warn("Could not determine format {} for report {}", reportId,
+                            report.getFormat());
+                    resp.sendError(501, "Could not determine report format " + report.getFormat());
+                }
             } else {
-                resp.sendError(400,
-                        "Report Id is not a numeric value: " + reportId);
+                resp.sendError(400, "Report Id is not a numeric value: " + reportId);
             }
         } else {
             logger.warn("Unknown request arrived with parameters: " + req.getParameterMap());
             resp.sendError(501, "Not implemented");
+        }
+    }
+
+    /**
+     * Performs mapping from GRPC status codes into HTTP status codes.
+     *
+     * @param code GRPC status code
+     * @return HTTP status code
+     */
+    private static int grpc2httpStatusCode(@Nonnull final Code code) {
+        switch (code) {
+            case NOT_FOUND:
+                return 404;
+            default:
+                return 501;
         }
     }
 }
