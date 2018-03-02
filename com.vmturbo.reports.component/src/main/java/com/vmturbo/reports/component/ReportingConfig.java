@@ -15,9 +15,11 @@ import org.eclipse.birt.core.exception.BirtException;
 import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.web.DispatcherServletAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -26,6 +28,7 @@ import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
+import com.vmturbo.reporting.api.protobuf.ReportingREST.ReportingServiceController;
 import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
@@ -149,4 +152,18 @@ public class ReportingConfig {
         return new KafkaProducerHealthMonitor(baseKafkaProducerConfig.kafkaMessageSender());
     }
 
+    @Bean
+    public ReportingServiceController reportingServiceController() {
+        return new ReportingServiceController(reportingService());
+    }
+
+    /**
+     * Creates bean to support all the HTTP requests.
+     *
+     * @return dispatcher servlet bean.
+     */
+    @Bean
+    public DispatcherServlet dispatcherServlet() {
+        return new DispatcherServlet();
+    }
 }
