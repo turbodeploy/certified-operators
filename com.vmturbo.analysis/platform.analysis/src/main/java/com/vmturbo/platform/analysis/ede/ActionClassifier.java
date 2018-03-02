@@ -10,6 +10,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
+import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
@@ -109,24 +110,29 @@ public class ActionClassifier {
         // we will mark provision executable if the provision action target is a mandatory supplier
         // or if the action target consumes only mandatory supplier
         for (Action a : actions) {
-            if (a instanceof ProvisionByDemand) {
-                ProvisionByDemand provDemand = (ProvisionByDemand)a;
-                if (provDemand.getActionTarget().getSettings().isMandatorySupplier() || Utility
-                                .isBuyerConsumeOnlyMandatorySeller(provDemand.getActionTarget(),
-                                                                   provDemand.getEconomy())) {
-                    provDemand.setExecutable(true);
-                } else {
-                    provDemand.setExecutable(false);
+            try {
+                if (a instanceof ProvisionByDemand) {
+                    ProvisionByDemand provDemand = (ProvisionByDemand)a;
+                    if (provDemand.getActionTarget().getSettings().isMandatorySupplier() || Utility
+                                    .isBuyerConsumeOnlyMandatorySeller(provDemand.getActionTarget(),
+                                                    provDemand.getEconomy())) {
+                        provDemand.setExecutable(true);
+                    } else {
+                        provDemand.setExecutable(false);
+                    }
+                } else if (a instanceof ProvisionBySupply) {
+                    ProvisionBySupply provSupply = (ProvisionBySupply)a;
+                    if (provSupply.getActionTarget().getSettings().isMandatorySupplier() || Utility
+                                    .isBuyerConsumeOnlyMandatorySeller(provSupply.getActionTarget(),
+                                                    provSupply.getEconomy())) {
+                        provSupply.setExecutable(true);
+                    } else {
+                        provSupply.setExecutable(false);
+                    }
                 }
-            } else if (a instanceof ProvisionBySupply) {
-                ProvisionBySupply provSupply = (ProvisionBySupply)a;
-                if (provSupply.getActionTarget().getSettings().isMandatorySupplier() || Utility
-                                .isBuyerConsumeOnlyMandatorySeller(provSupply.getActionTarget(),
-                                                                   provSupply.getEconomy())) {
-                    provSupply.setExecutable(true);
-                } else {
-                    provSupply.setExecutable(false);
-                }
+            } catch (Exception ex) {
+                a.setExecutable(true);
+                printLogMessageInDebugForExecutableFlag(a);
             }
         }
     }
@@ -137,15 +143,19 @@ public class ActionClassifier {
      * @param actions The list of actions to be classified.
      */
     private void markSuspensionsNonEmptyTradersNonExecutable(@NonNull List<Action> actions) {
-        actions.stream().filter(a -> a instanceof Deactivate)
-                        .forEach(a -> {
-                                          Deactivate s = (Deactivate) a;
-                                          Trader suspensionCandidate = s.getActionTarget();
-                                          if (suspensionCandidate.getCustomers() != null &&
-                                                          !suspensionCandidate.getCustomers().isEmpty()) {
-                                              s.setExecutable(false);
-                                          }
-                                      });
+        actions.stream().filter(a -> a instanceof Deactivate).forEach(a -> {
+            try {
+                Deactivate s = (Deactivate)a;
+                Trader suspensionCandidate = s.getActionTarget();
+                if (suspensionCandidate.getCustomers() != null
+                                && !suspensionCandidate.getCustomers().isEmpty()) {
+                    s.setExecutable(false);
+                }
+            } catch (Exception ex) {
+                a.setExecutable(true);
+                printLogMessageInDebugForExecutableFlag(a);
+            }
+        });
     }
 
     /**
@@ -154,19 +164,23 @@ public class ActionClassifier {
      * @param actions The list of actions to be classified.
      */
     private void markSuspensionsEmptyTradersExecutable(@NonNull List<Action> actions) {
-        actions.stream().filter(a -> a instanceof Deactivate)
-        .forEach(a -> {
-                          Deactivate s = (Deactivate) a;
-                          Trader suspensionCandidate = s.getActionTarget();
-                          Trader simSuspensionCandidate =
-                                          lookupTraderInSimulationEconomy(suspensionCandidate);
-                          if (simSuspensionCandidate == null ||
-                                          simSuspensionCandidate.getCustomers().isEmpty()) {
-                              s.setExecutable(true);
-                          } else {
-                              s.setExecutable(false);
-                          }
-                      });
+        actions.stream().filter(a -> a instanceof Deactivate).forEach(a -> {
+            try {
+                Deactivate s = (Deactivate)a;
+                Trader suspensionCandidate = s.getActionTarget();
+                Trader simSuspensionCandidate =
+                                lookupTraderInSimulationEconomy(suspensionCandidate);
+                if (simSuspensionCandidate == null
+                                || simSuspensionCandidate.getCustomers().isEmpty()) {
+                    s.setExecutable(true);
+                } else {
+                    s.setExecutable(false);
+                }
+            } catch (Exception ex) {
+                a.setExecutable(true);
+                printLogMessageInDebugForExecutableFlag(a);
+            }
+        });
     }
 
     /**
@@ -175,13 +189,18 @@ public class ActionClassifier {
      * @param actions The list of actions to be classified.
      */
     private void markResizeDownsExecutable(@NonNull List<Action> actions) {
-        actions.stream().filter(a -> a instanceof Resize)
-        .forEach(a -> {
-                          Resize r = (Resize) a;
-                          if (r.getNewCapacity() < r.getOldCapacity()) {
-                              r.setExecutable(true);
-                          }
-                      });
+        actions.stream().filter(a -> a instanceof Resize).forEach(a -> {
+            try {
+                Resize r = (Resize)a;
+                if (r.getNewCapacity() < r.getOldCapacity()) {
+                    r.setExecutable(true);
+                }
+            } catch (Exception ex) {
+                a.setExecutable(true);
+                printLogMessageInDebugForExecutableFlag(a);
+            }
+
+        });
     }
 
     /**
@@ -190,13 +209,17 @@ public class ActionClassifier {
      * @param actions The list of actions to be classified.
      */
     private void markResizeUpsExecutable(@NonNull List<Action> actions) {
-        actions.stream().filter(a -> a instanceof Resize)
-        .forEach(a -> {
-                          Resize r = (Resize) a;
-                          if (r.getNewCapacity() > r.getOldCapacity()) {
-                                r.setExecutable(true);
-                          }
-                      });
+        actions.stream().filter(a -> a instanceof Resize).forEach(a -> {
+            try {
+                Resize r = (Resize)a;
+                if (r.getNewCapacity() > r.getOldCapacity()) {
+                    r.setExecutable(true);
+                }
+            } catch (Exception ex) {
+                a.setExecutable(true);
+                printLogMessageInDebugForExecutableFlag(a);
+            }
+        });
     }
 
     /**
@@ -225,28 +248,43 @@ public class ActionClassifier {
      * @param m The {@link Move} to be classified.
      */
     private void classifyAndMarkMove (Move move) {
-        Trader currentSupplierCopy = move.getSource() != null ?
-                        lookupTraderInSimulationEconomy(move.getSource()) : null;
-        Trader newSupplierCopy = lookupTraderInSimulationEconomy(move.getDestination());
-        if (newSupplierCopy == null || newSupplierCopy.isClone()) {
-            move.setExecutable(false);
-            return;
-        }
-        ShoppingList targetCopy = findTargetInEconomyCopy(move.getTarget());
-        if (targetCopy == null) {
-            move.setExecutable(false);
-            return;
-        }
+        try {
+            Trader currentSupplierCopy = move.getSource() != null
+                            ? lookupTraderInSimulationEconomy(move.getSource()) : null;
+            Trader newSupplierCopy = lookupTraderInSimulationEconomy(move.getDestination());
+            if (newSupplierCopy == null || newSupplierCopy.isClone()) {
+                move.setExecutable(false);
+                return;
+            }
+            ShoppingList targetCopy = findTargetInEconomyCopy(move.getTarget());
+            if (targetCopy == null) {
+                move.setExecutable(false);
+                return;
+            }
 
-        final double[] quote = EdeCommon.quote(simulationEconomy_, targetCopy, newSupplierCopy, Double.POSITIVE_INFINITY, false);
-        if (quote[0] < Double.POSITIVE_INFINITY) {
-            move.simulateChangeDestinationOnly(simulationEconomy_, currentSupplierCopy, newSupplierCopy, targetCopy);
+            final double[] quote = EdeCommon.quote(simulationEconomy_, targetCopy, newSupplierCopy,
+                            Double.POSITIVE_INFINITY, false);
+            if (quote[0] < Double.POSITIVE_INFINITY) {
+                move.simulateChangeDestinationOnly(simulationEconomy_, currentSupplierCopy,
+                                newSupplierCopy, targetCopy);
+                move.setExecutable(true);
+            } else {
+                move.setExecutable(false);
+            }
+        } catch (Exception ex) {
             move.setExecutable(true);
-        } else {
-            move.setExecutable(false);
+            printLogMessageInDebugForExecutableFlag(move);
         }
     }
 
+    private void printLogMessageInDebugForExecutableFlag(Action a) {
+        if (logger.isDebugEnabled()) {
+            String addtionalInfo = a.getActionTarget() != null
+                            ? a.getActionTarget().getDebugInfoNeverUseInCode() : a.toString();
+            ActionType actionType = a.getType();
+            logger.debug("Setting executable true for " + actionType + " target : " + addtionalInfo);
+       }
+    }
     /**
      * Find the corresponding {@link Trader} in the cloned {@link Economy}.
      *

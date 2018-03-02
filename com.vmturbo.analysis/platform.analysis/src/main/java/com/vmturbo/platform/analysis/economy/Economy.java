@@ -704,6 +704,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         cloneTrader.setDebugInfoNeverUseInCode(
                 trader.getDebugInfoNeverUseInCode() + SIM_CLONE_SUFFIX);
         cloneTrader.getSettings().setQuoteFunction(trader.getSettings().getQuoteFunction());
+        cloneTrader.getSettings().setBalanceAccount(trader.getSettings().getBalanceAccount());
+        cloneTrader.getSettings().setCostFunction(trader.getSettings().getCostFunction());
         cloneCommoditiesSold(trader, cloneTrader);
         cloneShoppingLists(trader, cloneTrader);
     }
@@ -723,6 +725,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             cloneCommSold.setQuantity(commSold.getQuantity());
             cloneCommSold.setPeakQuantity(commSold.getPeakQuantity());
             cloneCommSold.getSettings().setPriceFunction(commSold.getSettings().getPriceFunction());
+            cloneCommSold.getSettings().setUpdatingFunction(commSold.getSettings().getUpdatingFunction());
         }
     }
 

@@ -232,11 +232,12 @@ public class ExecutableActionsTest {
 
         Trader v1 = economy.addTrader(TYPE_VM, TraderState.ACTIVE, EMPTY, BASKET);
         Trader p1 = economy.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET, BASKET2);
+        Trader ds1 =  economy.addTrader(2, TraderState.ACTIVE, EMPTY);
         ShoppingList s1 = economy.addBasketBought(v1, BASKET);
 
         // suppose the sequence for actions are : ProvisionByDemand -> Deactivate
         ProvisionByDemand provisionByDemand = (ProvisionByDemand)new ProvisionByDemand(economy, s1, p1).take();
-
+        economy.getMarketsAsBuyer(provisionByDemand.getActionTarget()).keySet().forEach(a -> a.move(ds1));;
         Basket b1 = new Basket(new CommoditySpecification(100));
         Basket b2 = new Basket(new CommoditySpecification(200));
         Basket b3 = new Basket(new CommoditySpecification(300));
@@ -249,8 +250,8 @@ public class ExecutableActionsTest {
         ShoppingList shoplist2 = economy.addBasketBought(t2, b2);
         shoplist2.move(t3);
 
-        ProvisionBySupply provisionBySupply1 = new ProvisionBySupply(economy, t2);
-        ProvisionBySupply provisionBySupply2 = new ProvisionBySupply(economy, t2);
+        ProvisionBySupply provisionBySupply1 = (ProvisionBySupply) new ProvisionBySupply(economy, t2).take();
+        ProvisionBySupply provisionBySupply2 = (ProvisionBySupply) new ProvisionBySupply(economy, t2).take();
 
         List<Action> actions = Arrays.asList(provisionByDemand, provisionBySupply1, provisionBySupply2);
 
