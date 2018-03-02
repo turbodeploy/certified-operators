@@ -75,6 +75,12 @@ public class GroupExpander {
      *
      * If the list contains the special UUID "Market", then return an empty list.
      *
+     * Note: Performance optimization
+     * Currently, we just checked that if they are the same type (entity, market, group).
+     * Although there is a use case where we migrate some onprem VMs into a Cloud Group,
+     * so the scope of the plan is both VMs and Group, and the widget use that list.
+     * According to Gabriele, UI team can change the widget to do separate calls (OM-32442)
+     *
      * @param uuidSet a list of UUIDs for which Cluster or Group UUIDs will be expanded.
      * @return UUIDs from each Group or Cluster in the input list; other UUIDs are passed through
      * @throws StatusRuntimeException if there is an error (other than NOT_FOUND) from the
@@ -82,26 +88,37 @@ public class GroupExpander {
      */
     public @Nonnull Set<Long> expandUuids(@Nonnull Set<String> uuidSet) {
         Set<Long> answer = Sets.newHashSet();
+
+        boolean isEntity = false;
         for (String uuidString : uuidSet) {
             // sanity-check the uuidString
             if (StringUtils.isEmpty(uuidString)) {
                 throw new IllegalArgumentException("Empty uuid string given: " + uuidSet);
             }
-            // is this the special "Market" uuid string?
+            // is this the special "Market" uuid string? if yes, we just return.
             if (uuidString.equals(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
                 return Collections.emptySet();
             }
 
-            // try to fetch the members for a Group with the given OID
+            // If it's group, try to fetch the members for a Group with the given OID
             long oid = Long.valueOf(uuidString);
-            GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
-                .setId(oid)
-                .setExpectPresent(false)
-                .build();
-            GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
+            // Assume it's group type at the beginning
+            // For subsequent items, if it's group type, we continue the RPC call to Group component.
+            // If not, we know it's entity type, and will just add oids to return set.
+            if (!isEntity) {
+                // If we know it's group, we can further optimize the codes to do multi olds RPC call.
+                GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
+                        .setId(oid)
+                        .setExpectPresent(false)
+                        .build();
+                GetMembersResponse groupMembersResp = groupServiceGrpc.getMembers(getGroupMembersReq);
 
-            if (groupMembersResp.hasMembers()){
-                answer.addAll(groupMembersResp.getMembers().getIdsList());
+                if (groupMembersResp.hasMembers()) {
+                    answer.addAll(groupMembersResp.getMembers().getIdsList());
+                } else {
+                    answer.add(oid);
+                    isEntity = true;
+                }
             } else {
                 answer.add(oid);
             }
