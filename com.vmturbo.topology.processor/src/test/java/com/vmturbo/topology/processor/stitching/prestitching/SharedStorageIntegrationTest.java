@@ -40,6 +40,7 @@ import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
@@ -98,7 +99,9 @@ public class SharedStorageIntegrationTest {
     public void setup() {
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         postStitchingOperationLibrary =
-            new PostStitchingOperationLibrary(statsServiceClient);
+            new PostStitchingOperationLibrary(
+                new SetCommodityMaxQuantityPostStitchingOperationConfig(
+                    statsServiceClient, 30, 10)); //set some fake values.
         when(targetA.getId()).thenReturn(targetAId);
         when(targetB.getId()).thenReturn(targetBId);
     }

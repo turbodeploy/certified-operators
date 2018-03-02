@@ -234,8 +234,7 @@ class DiscoveredGroupInterpreter {
      * identifiers, since the input members list has UUID's as reported by the probe, and
      * the output members list has OIDs.
      *
-     * @param membersList The {@link CommonDTO.GroupDTO.MembersList} describing members of
-     *                    a discovered group.
+     * @param groupDTO The {@link CommonDTO.GroupDTO}
      * @param targetId The target that discovered the group containing the members.
      * @return An optional containing the {@link StaticGroupMembers} equivalent of the input
      *         members list. If the input is empty, the output should be an optional containing
@@ -289,9 +288,12 @@ class DiscoveredGroupInterpreter {
                                 } else {
                                     logger.warn("EntityType: {} and groupType: {} doesn't match for oid: {}"
                                         + ". Not adding to the group/cluster members list for groupName: {}, " +
-                                        "groupDisplayName: {}.",
+                                        " groupDisplayName: {}.",
                                         entity.get().getEntityType(), groupDTO.getEntityType(), optOid.get(),
-                                        groupDTO.getGroupName(), groupDTO.getDisplayName());
+                                        groupDTO.hasGroupName() ?
+                                            groupDTO.getGroupName() :
+                                            groupDTO.getConstraintInfo().getConstraintName(),
+                                        groupDTO.getDisplayName());
                                 }
                             }
                          } else {

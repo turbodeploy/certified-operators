@@ -69,7 +69,8 @@ public class PlanDeletionTask {
      */
     public void start() {
 
-        logger.info("Start the plan deletion task with the cron settings {}", cronTrigger.getExpression());
+        logger.info("Start the plan deletion task with the cron settings {}, batchSize: {}",
+            cronTrigger.getExpression(), batchSize);
         threadPoolTaskScheduler.schedule(this::deleteOldPlans, cronTrigger);
     }
 

@@ -34,9 +34,8 @@ public class ClassicEnumMapper {
     public static CommodityType commodityType(@Nonnull final String classicCommodityTypeName) {
         final CommodityType commodityType = COMMODITY_TYPE_MAPPINGS.get(classicCommodityTypeName);
         if (commodityType == null) {
-            logger.info("Missing commodity type information for: " + classicCommodityTypeName);
+            throw new IllegalArgumentException("No mapping for commodityType " + classicCommodityTypeName);
         }
-
         return commodityType;
     }
 
@@ -141,6 +140,7 @@ public class ClassicEnumMapper {
             .put("SegmentationCommodity",       CommodityType.SEGMENTATION)
             .put("VDCCommodity",                CommodityType.VDC)
             .put("HOST_LUN_ACCESS",             CommodityType.HOST_LUN_ACCESS)
+            .put("DISK_ARRAY_ACCESS",           CommodityType.DISK_ARRAY_ACCESS)
             .put("Unknown",                     CommodityType.UNKNOWN)
             .build();
 

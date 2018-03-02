@@ -60,7 +60,7 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
      *  Currently this just limits the number of old planIDs fetched from the DB.
      */
     @Value("${planDeletionBatchSize}")
-    private int batchSize = 500;
+    private int batchSize;
 
     /**
      * We will be busy looping and deleting the plans one by one. The concern is
@@ -69,7 +69,7 @@ public class PlanDeletionSchedulerConfig implements SchedulingConfigurer {
      * for other tasks instead of hogging the disk for plan deletion.
      */
     @Value("${planDeletionDelayBetweenDeletesSeconds}")
-    private int delayBetweenDeletesInSeconds = 120;
+    private int delayBetweenDeletesInSeconds;
 
     @Bean
     public PlanDeletionTask planDeletionTask() {

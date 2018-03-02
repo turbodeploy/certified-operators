@@ -13,6 +13,7 @@ import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
@@ -27,6 +28,12 @@ public class StitchingConfig {
 
     @Value("${server.grpcPort}")
     private int grpcPort;
+
+    @Value("${maxValuesBackgroundLoadFrequencyMinutes}") // default to 3 hours
+    private long maxValuesBackgroundLoadFrequencyMinutes;
+
+    @Value("${maxValuesBackgroundLoadDelayOnInitFailureMinutes}")
+    private long maxValuesBackgroundLoadDelayOnInitFailureMinutes;
 
     /**
      * No associated @Import because it adds a circular import dependency.
@@ -64,7 +71,11 @@ public class StitchingConfig {
 
     @Bean
     public PostStitchingOperationLibrary postStitchingOperationStore() {
-        return new PostStitchingOperationLibrary(historyClient());
+        return new PostStitchingOperationLibrary(
+            new SetCommodityMaxQuantityPostStitchingOperationConfig(
+                historyClient(),
+                maxValuesBackgroundLoadFrequencyMinutes,
+                maxValuesBackgroundLoadDelayOnInitFailureMinutes));
     }
 
     @Bean

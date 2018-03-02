@@ -2,19 +2,20 @@ package com.vmturbo.stitching;
 
 import java.util.List;
 
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.IndependentStorageAccessPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmCpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.DiskArrayStorageAccessPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.LogicalPoolStorageAccessPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.StorageControllerStorageAccessPostStitchingOperation;
@@ -48,9 +49,11 @@ public class PostStitchingOperationLibrary {
      *  - DiskArrayStorageAccessPostStitchingOperation must be executed before
      *    LogicalPoolStorageAccessPostStitchingOperation.
      *
-     * @param statsServiceClient Stats/History client
+     * @param setMaxValuesConfig Configuration parameters for SetCommodityMaxQuantityPostStitchingOperation
      */
-    public PostStitchingOperationLibrary(StatsHistoryServiceBlockingStub statsServiceClient) {
+    public PostStitchingOperationLibrary(
+        @Nonnull SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig) {
+
         postStitchingOperations = ImmutableList.of(
             new PropagateStorageAccessAndLatencyPostStitchingOperation(),
             new MemoryProvisionedPostStitchingOperation(),
@@ -70,7 +73,7 @@ public class PostStitchingOperationLibrary {
             new StorageControllerStorageAccessPostStitchingOperation(),
             new DiskArrayStorageAccessPostStitchingOperation(),
             new LogicalPoolStorageAccessPostStitchingOperation(),
-            new SetCommodityMaxQuantityPostStitchingOperation(statsServiceClient)
+            new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig)
         );
     }
 

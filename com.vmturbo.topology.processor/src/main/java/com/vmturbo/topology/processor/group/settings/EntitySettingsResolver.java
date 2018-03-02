@@ -430,7 +430,7 @@ public class EntitySettingsResolver {
                 settingPolicyServiceClient.uploadEntitySettings(request.build());
             } catch (StatusRuntimeException sre) {
                 logger.error("Failed to upload EntitySettings map to group component"
-                    + " for topology {}. Error:", topologyInfo, sre.getMessage());
+                    + " for topology {}.", topologyInfo, sre);
             }
         }
     }

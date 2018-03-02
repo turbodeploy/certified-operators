@@ -1,5 +1,6 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,7 +15,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Value;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -22,10 +22,12 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricGauge;
@@ -52,7 +54,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      */
     private static final DataMetricSummary COMMODITY_MAX_VALUES_LOAD_TIME_SUMMARY =
         DataMetricSummary.builder()
-            .withName("tp_commodity_max_values_load_time_seconds")
+            .withName("tp_max_values_load_time_seconds")
             .withHelp("Time taken to load the max values from history.")
             .withLabelNames("loading_phase")
             .build();
@@ -78,11 +80,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      * This configuration value controls how often the commodity max values are
      * loaded from history component.
      */
-    // TODO: karthikt - Move this to StitchingConfig and pass a Property object
-    // to PostStichingLibrary which has the config values for the various
-    // operations.
-    @Value("${maxValuesBackgroundLoadFrequencyMinutes}")
-    private long maxValuesBackgroundLoadFrequencyMinutes = 180; //3 hours
+    private long maxValuesBackgroundLoadFrequencyMinutes;
 
     /**
      *  This configuration value controls the initial delay before triggering
@@ -91,8 +89,17 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      *  the delay will be based on the maxValuesBackgroundLoadFrequencyMinutes
      *  config value.
      */
-    @Value("${maxValuesBackgroundLoadDelayOnInitFailureMinutes}")
-    private long maxValuesBackgroundLoadDelayOnInitFailureMinutes = 30;
+    private long maxValuesBackgroundLoadDelayOnInitFailureMinutes;
+
+    /**
+     * Used to age out any max values in TP. The max retention settings are
+     * stored in history. It will be loaded from history when we load the max values.
+     * Here we initialize it to the most conservative value which is the
+     * max value for the setting.
+     */
+    private long statsDaysRetentionSettingInSeconds = Math.round(
+            GlobalSettingSpecs.StatsRetentionDays.createSettingSpec()
+                .getNumericSettingValueType().getMax()) * (24 * 60 * 60);
 
     /**
      * We exclude all the access commodities.
@@ -159,8 +166,12 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      *  with a smaller delay. Otherwise we start the next load after a delay
      *  of maxValuesBackgroundLoadFrequencyMinutes.
      */
-    public SetCommodityMaxQuantityPostStitchingOperation(StatsHistoryServiceBlockingStub statsHistoryClient) {
-        this.statsHistoryClient = statsHistoryClient;
+    public SetCommodityMaxQuantityPostStitchingOperation(SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig) {
+        this.statsHistoryClient = setMaxValuesConfig.getStatsClient();
+        this.maxValuesBackgroundLoadFrequencyMinutes =
+            setMaxValuesConfig.getMaxValuesBackgroundLoadFrequencyMinutes();
+        this.maxValuesBackgroundLoadDelayOnInitFailureMinutes =
+            setMaxValuesConfig.getMaxValuesBackgroundLoadDelayOnInitFailureMinutes();
         // Initialize the maxQuantities map by fetching from history component.
         boolean wasInitialized = initializeMaxQuantityMap();
         long initialDelay = ( wasInitialized ?
@@ -186,8 +197,10 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      */
     private boolean initializeMaxQuantityMap() {
         try {
+
             final DataMetricTimer loadDurationTimer =
                 COMMODITY_MAX_VALUES_LOAD_TIME_SUMMARY.labels("initial").startTimer();
+
             statsHistoryClient
                 .getEntityCommoditiesMaxValues(request)
                     .forEachRemaining(entityCommodityMaxValues -> {
@@ -201,8 +214,11 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                                         createCommodityMaxValue(ValueSource.DB, commodityMaxValue.getMaxValue()));
                             });
                     });
-            loadDurationTimer.observe();
-            logger.info("Size of maxValues map after initial load {}", entityCommodityToMaxQuantitiesMap.size());
+            double loadTime = loadDurationTimer.observe();
+            logger.info("Stats retention  days: {}. Size of maxValues map after initial load {}. Load time {}",
+                statsDaysRetentionSettingInSeconds,
+                entityCommodityToMaxQuantitiesMap.size(),
+                loadTime);
         } catch (StatusRuntimeException e) {
             logger.error("Failed initializing max value map", e);
             return false;
@@ -231,50 +247,65 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         @Override
         public void run() {
             try {
+
+                // first fetch stats rentention setting value.
+                statsHistoryClient
+                    .getStatsDataRetentionSettings(
+                        GetStatsDataRetentionSettingsRequest
+                            .getDefaultInstance())
+                    .forEachRemaining(setting -> {
+                        if (setting.getSettingSpecName().equals(
+                                GlobalSettingSpecs.StatsRetentionDays.getSettingName())
+                            && setting.hasNumericSettingValue()) {
+                            statsDaysRetentionSettingInSeconds = Math.round(
+                                setting.getNumericSettingValue().getValue());
+                        }
+                    });
+
                 final DataMetricTimer loadDurationTimer =
                     COMMODITY_MAX_VALUES_LOAD_TIME_SUMMARY.labels("background").startTimer();
+
                 statsClient
                     .getEntityCommoditiesMaxValues(request)
                         .forEachRemaining(entityCommodityMaxValues -> {
                             entityCommodityMaxValues.getCommodityMaxValuesList()
-                                .forEach(commodityMaxValue -> {
+                                .forEach(dbMaxValue -> {
                                     EntityCommodityKey key =
                                         createEntityCommodityKey(entityCommodityMaxValues.getOid(),
-                                            commodityMaxValue.getCommodityType());
+                                            dbMaxValue.getCommodityType());
                                     // Atomically set the values as the background thread may be concurrently mutating the map.
                                     CommodityMaxValue currentMax =
                                         entityCommodityToMaxQuantitiesMap
-                                            .compute(key, (k, v) -> {
-                                                if (v == null) {
-                                                    return createCommodityMaxValue(ValueSource.DB, commodityMaxValue.getMaxValue());
+                                            .compute(key, (k, currValue) -> {
+                                                if (currValue == null) {
+                                                    return createCommodityMaxValue(ValueSource.DB, dbMaxValue.getMaxValue());
                                                 } else {
                                                     // If the existing value source is from DB, then overwrite it with the currently
                                                     // fetched value. This is to age out old maxes as we are only interested in the
                                                     // max value within the stats retention period.
-                                                    // If the existing value source is from TP, then no need to replace it as it must be the
-                                                    // maxValue(unless there is an issue/bug).
-                                                    //
-                                                    if (v.getValueSource() == ValueSource.DB) {
-                                                        return createCommodityMaxValue(ValueSource.DB, commodityMaxValue.getMaxValue());
+                                                    // If the existing value source is from TP, replace it with the one from DB, if
+                                                    //  (a) the value has been in the cache for too long i.e. beyond the retention period
+                                                    //          OR
+                                                    //  (b) tp_value < db_value.
+                                                    if (currValue.getValueSource() == ValueSource.DB
+                                                        || currValue.getAge() > statsDaysRetentionSettingInSeconds
+                                                        || (Double.compare(currValue.getMaxValue(), dbMaxValue.getMaxValue()) < 0)) {
+                                                        return createCommodityMaxValue(ValueSource.DB, dbMaxValue.getMaxValue());
                                                     } else {
-                                                        if (v.getMaxValue() < commodityMaxValue.getMaxValue()) {
-                                                            logger.warn("Somethin ain't right. TP_Max_Value={} , DB_Max_Value={}",
-                                                                v.getMaxValue(), commodityMaxValue.getMaxValue());
-                                                        }
-                                                        return v;
+                                                        return currValue;
                                                     }
                                                 }
                                             });
                                 });
                         });
 
-                loadDurationTimer.observe();
-                logger.info("Size of maxValues map after background load {}", entityCommodityToMaxQuantitiesMap.size());
+                double loadTime = loadDurationTimer.observe();
+                logger.info("Size of maxValues map after background load: {}. Load time: {}",
+                    entityCommodityToMaxQuantitiesMap.size(), loadTime);
             } catch (Throwable t) {
                 logger.error("Error while fetching max values", t);
             }
         }
-
     }
 
     private ThreadFactory threadFactory() {
@@ -314,7 +345,11 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                 // Atomically set the values as the background thread might also be mutating the map concurrently.
                 newMax = entityCommodityToMaxQuantitiesMap
                             .merge(key, newMax,
-                                    (oldValue, newValue) -> ((oldValue.getMaxValue() < newValue.getMaxValue()) ? newValue : oldValue));
+                                    (oldValue, newValue) ->
+                                        // equality check is there to keep the newer value when the values are equal.
+                                        // This way max value age gets updated.
+                                        ((Double.compare(oldValue.getMaxValue(), newValue.getMaxValue()) <= 0)
+                                            ? newValue : oldValue));
                 commoditySoldDTO.setMaxQuantity(newMax.getMaxValue());
                 commoditiesCount++;
             }
@@ -343,6 +378,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     }
 
     private float calculateMapOccupancyPercentage(long commoditiesCount) {
+        if (entityCommodityToMaxQuantitiesMap.size() == 0) return 0f;
+
         return ((((Math.abs(entityCommodityToMaxQuantitiesMap.size() - commoditiesCount)) * 1f)
                     / entityCommodityToMaxQuantitiesMap.size()) * 100);
     }
@@ -401,16 +438,21 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         TP  // max value set by TP. TP value takes precedendce over DB as it is more current.
     }
 
-    // Don't compare objects of this type for equality
+    /**
+     * Don't compare objects of this type for equality.
+     */
     private class CommodityMaxValue {
 
         private final ValueSource valueSource;
 
         private final double maxValue;
 
+        private final long insertTime;
+
         CommodityMaxValue(ValueSource valSource, double maxValue) {
             this.valueSource = valSource;
             this.maxValue = maxValue;
+            this.insertTime = Instant.now().getEpochSecond();
         }
 
         public double getMaxValue() {
@@ -421,9 +463,23 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             return valueSource;
         }
 
+        /**
+         * Returns the age of the max value.
+         * If the system clock goes back in time, this method can return
+         * negative age.
+         *
+         */
+        public long getAge() {
+            long age = Instant.now().getEpochSecond() - insertTime;
+            if (age < 0) {
+                logger.warn("Negative age. Clock must have gone back.");
+            }
+            return age;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(valueSource, maxValue);
+            return Objects.hash(valueSource, maxValue, insertTime);
         }
 
         @Override
@@ -433,7 +489,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                 return (valueSource == other.getValueSource()
                             // should add an epsilon bounds check instead of
                             // checking for pure equality.
-                            && (maxValue == other.maxValue));
+                            && (Double.compare(maxValue, other.maxValue) == 0)
+                            && insertTime == other.insertTime);
             } else {
                 return false;
             }
@@ -443,9 +500,11 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         public String toString() {
             return new StringBuilder()
                     .append("valSource=")
-                    .append(getValueSource())
+                    .append(valueSource)
                     .append(", maxValue=")
-                    .append(getMaxValue())
+                    .append(maxValue)
+                    .append(", insertTime=")
+                    .append(insertTime)
                     .toString();
         }
     }
