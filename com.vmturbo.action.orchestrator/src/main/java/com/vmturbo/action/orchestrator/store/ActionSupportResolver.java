@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -16,9 +17,8 @@ import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
-import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
+import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
-import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
@@ -41,8 +41,8 @@ public class ActionSupportResolver {
      */
     public ActionSupportResolver(@Nonnull final ActionCapabilitiesStore actionCapabilitiesStore,
             @Nonnull final ActionExecutor actionExecutor) {
-        this.actionCapabilitiesStore = actionCapabilitiesStore;
-        this.actionExecutor = actionExecutor;
+        this.actionCapabilitiesStore = Objects.requireNonNull(actionCapabilitiesStore);
+        this.actionExecutor = Objects.requireNonNull(actionExecutor);
     }
 
     /**
@@ -67,7 +67,7 @@ public class ActionSupportResolver {
                     .stream()
                     .forEach(entry -> filteredForUiActions.add(resolveActionProbeSupport(entry)));
             return filteredForUiActions;
-        } catch (TargetResolutionException | UnsupportedActionException ex) {
+        } catch (EntitiesResolutionException ex) {
             logger.warn("Cannot resolve support level for request for " + actions.size() + " actions", ex);
             return actions;
         }
@@ -87,8 +87,8 @@ public class ActionSupportResolver {
         return entry.getKey();
     }
 
-    private Action setIfActionSupported(Action action,
-            ActionCapabilityElement element) {
+    @Nonnull
+    private Action setIfActionSupported(Action action, ActionCapabilityElement element) {
         return new Action(action, getSupportLevel(element));
     }
 

@@ -100,18 +100,20 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
 
     /**
      * Resolves target for action which can be executed by multiple targets.
-     * Resolving is based on probe category prorities which are hardcoded inside.
+     * Resolving is based on probe category priorities which are hardcoded inside.
      *
      * @param action action to be executed.
      * @param targets targets which can execute the action
      * @return resolved targetId
-     * @throws TargetResolutionException when either provided action was null or set of targets
-     * was null or empty
      */
     @Override
-    public long resolveExecutantTarget(@Nonnull ActionDTO.Action action, @Nonnull Set<Long> targets)
-            throws TargetResolutionException {
-        checkForNullActionAndTargets(action, targets);
+    public long resolveExecutantTarget(@Nonnull ActionDTO.Action action,
+            @Nonnull Set<Long> targets) {
+        Objects.requireNonNull(action);
+        Objects.requireNonNull(targets);
+        if (targets.isEmpty()) {
+            throw new IllegalArgumentException("targets set must not be empty");
+        }
         if (targets.size() == 1) {
             return targets.iterator().next();
         }
@@ -208,13 +210,6 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
         return probeInfosOptionalsOfTargets
                 .entrySet().stream().filter(entry -> entry.getValue().isPresent())
                 .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().get()));
-    }
-
-    private void checkForNullActionAndTargets(@Nonnull Action action, @Nonnull Set<Long> targets)
-            throws TargetResolutionException {
-        if (action == null || CollectionUtils.isEmpty(targets)) {
-            throw new TargetResolutionException("Cannot resolve target for action");
-        }
     }
 
     private <T> Optional<T> getProbeOrTarget(long id, GetByIdFunction<T> getTargetOrProbe) {

@@ -16,11 +16,10 @@ public interface ActionTargetResolver {
      * Resolves which target from provided targets should actually execute the action.
      *
      * @param action action to be executed.
-     * @param targets targets which discover some entity of action.
+     * @param targets targets which discover some entity of action. Must not be empty.
      * @return id of target which should execute the action.
-     * @throws TargetResolutionException when action is null or provided targets set is null or
-     * empty
+     * @throws NullPointerException if either {@code action} or {@code targets} is null
+     * @throws IllegalArgumentException if {@code targets} is empty
      */
-    long resolveExecutantTarget(@Nonnull ActionDTO.Action action, @Nonnull Set<Long> targets)
-            throws TargetResolutionException;
+    long resolveExecutantTarget(@Nonnull ActionDTO.Action action, @Nonnull Set<Long> targets);
 }

@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -16,10 +15,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
@@ -111,23 +110,19 @@ public class AutomatedActionExecutor {
      */
     private Map<Long, Set<Long>> mapActionsToTarget(Map<Long, Action> allActions,
                                         Map<Long, Map<Long, EntityInfo>> actionEntityMapMap) {
-        Map<Long, Set<Long>> result = new HashMap<>();
+        final Map<Long, Set<Long>> result = new HashMap<>();
         for (final Entry<Long, Map<Long, EntityInfo>> actionEntry : actionEntityMapMap.entrySet()) {
-            try {
-                long targetId = actionExecutor.getEntitiesTarget(
-                        allActions.get(actionEntry.getKey()).getRecommendation(),
-                        actionEntry.getValue());
-                if (result.containsKey(targetId)) {
-                    Set<Long> targetActions = result.get(targetId);
-                    targetActions.add(actionEntry.getKey());
-                    result.put(targetId, targetActions);
-                } else {
-                    result.put(targetId,
-                            new HashSet<>(Collections.singletonList(actionEntry.getKey())));
-                }
-            } catch (TargetResolutionException e) {
-                String message = String.format(TARGET_RESOLUTION_MSG, actionEntry.getKey());
-                logger.error(message, e);
+            final Optional<Long> targetId = actionExecutor.getEntitiesTarget(
+                    allActions.get(actionEntry.getKey()).getRecommendation(),
+                    actionEntry.getValue());
+            if (targetId.isPresent()) {
+                final Set<Long> targetActions =
+                        result.computeIfAbsent(targetId.get(), tgt -> new HashSet<>());
+                targetActions.add(actionEntry.getKey());
+                result.put(targetId.get(), targetActions);
+            } else {
+                final String message = String.format(TARGET_RESOLUTION_MSG, actionEntry.getKey());
+                logger.debug(message);
             }
         }
         return result;

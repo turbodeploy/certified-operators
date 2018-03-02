@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -76,16 +77,17 @@ public class ActionExecutor implements ActionExecutionListener {
     }
 
     /**
-     * Returns probeId for each provided action.
+     * Returns probeId for each provided action. If action is not supported, it will be omitted in
+     * the result map.
      *
      * @param actions actions to determine probeIds of these.
      * @return provided actions and determined probeIds
-     * @throws TargetResolutionException will be thrown if there is no probe for some of actions
-     * @throws UnsupportedActionException will be thrown if type of action if unknown
+     * @throws EntitiesResolutionException if some entities failed to resolve agains
+     *         TopologyProcessor
      */
     @Nonnull
     public Map<Action, Long> getProbeIdsForActions(@Nonnull Collection<Action> actions)
-            throws TargetResolutionException, UnsupportedActionException {
+            throws EntitiesResolutionException {
         final Map<Long, Map<Long, EntityInfo>> actionsInvolvedEntities =
                 getActionsInvolvedEntities(actions.stream()
                         .map(Action::getRecommendation)
@@ -96,6 +98,8 @@ public class ActionExecutor implements ActionExecutionListener {
         final Map<Long, Long> recomendationsProbes =
                 getActionDTOsProbes(recomendationsById, actionsInvolvedEntities);
         return actions.stream()
+                .filter(action -> recomendationsProbes.containsKey(
+                        action.getRecommendation().getId()))
                 .collect(Collectors.toMap(Function.identity(),
                         action -> recomendationsProbes.get(action.getRecommendation().getId())));
     }
@@ -105,36 +109,46 @@ public class ActionExecutor implements ActionExecutionListener {
      * {@link ActionDTO.Action} recommendation.
      *
      * @param action Action which target or probe id it returnes.
-     * probe id.
+     *         probe id.
      * @return targetId or probeId for the action.
-     * @throws TargetResolutionException will be thrown if it will not able to determine id
+     * @throws EntitiesResolutionException if entities related to the target failed to
+     *         resolve in TopologyProcessor
+     * @throws UnsupportedActionException if action is not supported by XL
+     * @throws TargetResolutionException if no target found for this action suitable for execution
      */
-    public long getTargetId(@Nonnull ActionDTO.Action action) throws TargetResolutionException {
-        try {
-            final Map<Long, EntityInfo> involvedEntityInfos = getActionInvolvedEntities(action);
-            // Find the target that discovered all the involved entities.
-            return getEntitiesTarget(action, involvedEntityInfos);
-        } catch (UnsupportedActionException e) {
-            throw new TargetResolutionException(
-                    "Action: " + action.getId() + " has unsupported type: " + e.getActionType(), e);
-        } catch (TargetResolutionException e) {
-            throw new TargetResolutionException(("Action: " + action.getId() +
-                    " has no overlapping targets between the entities involved."), e);
-        }
+    public long getTargetId(@Nonnull ActionDTO.Action action)
+            throws EntitiesResolutionException, UnsupportedActionException,
+            TargetResolutionException {
+        final Map<Long, EntityInfo> involvedEntityInfos = getActionInvolvedEntities(action);
+        // Find the target that discovered all the involved entities.
+        final Optional<Long> targetId = getEntitiesTarget(action, involvedEntityInfos);
+        return targetId.orElseThrow(() -> new TargetResolutionException(
+                ("Action: " + action.getId() +
+                        " has no overlapping targets between the entities involved.")));
     }
 
     @Nonnull
     private Map<Long, Long> getActionDTOsProbes(@Nonnull Map<Long, ActionDTO.Action> actions,
-            @Nonnull Map<Long, Map<Long, EntityInfo>> actionsInvolvedEntities)
-            throws TargetResolutionException {
+            @Nonnull Map<Long, Map<Long, EntityInfo>> actionsInvolvedEntities) {
         final Map<Long, Long> actionDTOsProbes = new HashMap<>();
         for (Map.Entry<Long, Map<Long, EntityInfo>> entry : actionsInvolvedEntities.entrySet()) {
-            final long targetId = getEntitiesTarget(actions.get(entry.getKey()), entry.getValue());
-            // We can just get probeId for the first entityInfo because if all provided entities
-            // have common target then they have common probe for this target
-            final long probeId = entry.getValue().values().iterator().next()
-                    .getTargetIdToProbeIdMap().get(targetId);
-            actionDTOsProbes.put(entry.getKey(), probeId);
+            final Optional<Long> targetId =
+                    getEntitiesTarget(actions.get(entry.getKey()), entry.getValue());
+            // TODO this logic should be changed when support for cross-target actions is added
+            if (targetId.isPresent()) {
+                // We can just get probeId for the first entityInfo because if all provided entities
+                // have common target then they have common probe for this target
+                final long probeId = entry.getValue()
+                        .values()
+                        .iterator()
+                        .next()
+                        .getTargetIdToProbeIdMap()
+                        .get(targetId.get());
+                actionDTOsProbes.put(entry.getKey(), probeId);
+            } else {
+                logger.debug("There is no common target for action {} across entities {}," +
+                        " skipping the action", entry::getKey, () -> entry.getValue().keySet());
+            }
         }
         return actionDTOsProbes;
     }
@@ -145,11 +159,10 @@ public class ActionExecutor implements ActionExecutionListener {
      * @param action action to be passed to the targetResolver if conflict occurs
      * @param involvedEntityInfos map of entity id to entity info.
      * @return id of the common target
-     * @throws TargetResolutionException if there is no common target
      */
     @Nonnull
-    Long getEntitiesTarget(@Nonnull ActionDTO.Action action,
-            @Nonnull Map<Long, EntityInfo> involvedEntityInfos) throws TargetResolutionException {
+    public Optional<Long> getEntitiesTarget(@Nonnull ActionDTO.Action action,
+            @Nonnull Map<Long, EntityInfo> involvedEntityInfos) {
         Set<Long> overlappingTarget = null;
         for (final EntityInfo info : involvedEntityInfos.values()) {
             final Set<Long> curInfoTargets = new HashSet<>(info.getTargetIdToProbeIdMap().keySet());
@@ -160,27 +173,32 @@ public class ActionExecutor implements ActionExecutionListener {
             }
         }
         if (CollectionUtils.isEmpty(overlappingTarget)) {
-            throw new TargetResolutionException(
-                    "Entities: " + involvedEntityInfos.keySet() + " has no overlapping " +
-                            "targets between the entities involved.");
+            // A lot of actions' entities have bothing in common. We hust need to filter them out.
+            logger.warn(
+                    "Entities: {} have no overlapping " + "targets between the entities involved.",
+                    involvedEntityInfos::keySet);
+            return Optional.empty();
         }
-        return targetResolver.resolveExecutantTarget(action, overlappingTarget);
+        return Optional.of(targetResolver.resolveExecutantTarget(action, overlappingTarget));
     }
 
     @Nonnull
     private Map<Long, EntityInfo> getActionInvolvedEntities(@Nonnull final ActionDTO.Action action)
-            throws UnsupportedActionException, TargetResolutionException {
+            throws UnsupportedActionException, EntitiesResolutionException {
         return getInvolvedEntityInfos(getIdsOfInvolvedEntitities(action));
     }
 
     @Nonnull
     private Map<Long, Map<Long, EntityInfo>> getActionsInvolvedEntities(
-            @Nonnull final Set<ActionDTO.Action> actions)
-            throws UnsupportedActionException, TargetResolutionException {
+            @Nonnull final Set<ActionDTO.Action> actions) throws EntitiesResolutionException  {
         final Map<Long, Set<Long>> actionEntitiesIds = new HashMap<>();
         for (ActionDTO.Action action : actions) {
-            final Set<Long> involvedEntities = getIdsOfInvolvedEntitities(action);
-            actionEntitiesIds.put(action.getId(), involvedEntities);
+            try {
+                final Set<Long> involvedEntities = getIdsOfInvolvedEntitities(action);
+                actionEntitiesIds.put(action.getId(), involvedEntities);
+            } catch (UnsupportedActionException e) {
+                logger.warn("Ignoring action (hiding it): " + action, e);
+            }
         }
         final Set<Long> allEntities = actionEntitiesIds.values()
                 .stream()
@@ -196,10 +214,10 @@ public class ActionExecutor implements ActionExecutionListener {
 
     @Nonnull
     private Map<Long, EntityInfo> getInvolvedEntityInfos(@Nonnull final Set<Long> entities)
-            throws TargetResolutionException {
+            throws EntitiesResolutionException {
         final Map<Long, EntityInfo> involvedEntityInfos = getEntityInfo(entities);
         if (!involvedEntityInfos.keySet().containsAll(entities)) {
-            throw new TargetResolutionException(
+            throw new EntitiesResolutionException(
                     "Entities: " + entities + " Some entities not found in Topology Processor.");
         }
         return involvedEntityInfos;

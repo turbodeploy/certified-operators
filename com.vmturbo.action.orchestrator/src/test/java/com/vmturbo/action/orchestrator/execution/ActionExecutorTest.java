@@ -2,11 +2,20 @@ package com.vmturbo.action.orchestrator.execution;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -16,6 +25,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mockito;
@@ -24,6 +34,7 @@ import org.mockito.MockitoAnnotations;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.action.ActionTest;
+import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -41,6 +52,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 public class ActionExecutorTest {
 
     private ActionExecutor actionExecutor;
+    private ActionSupportResolver resolver;
 
     private final long probeId = 10;
     private final long targetId = 7;
@@ -52,6 +64,7 @@ public class ActionExecutorTest {
 
     private final EntityServiceMole entityServiceMole =
             Mockito.spy(new EntityServiceMole());
+    private final AtomicLong actionId = new AtomicLong();
 
     @Captor
     private ArgumentCaptor<ExecuteActionRequest> actionSpecCaptor;
@@ -59,6 +72,8 @@ public class ActionExecutorTest {
     @Rule
     public final GrpcTestServer server =
             GrpcTestServer.newServer(actionExecutionBackend, entityServiceMole);
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @Before
     public void setup() throws IOException, TargetResolutionException {
@@ -103,11 +118,50 @@ public class ActionExecutorTest {
         Assert.assertEquals(3, move.getChanges(0).getDestinationId());
     }
 
-    @Test(expected = TargetResolutionException.class)
+    @Test
     public void testMoveWithNotExistEntity() throws Exception {
         final ActionDTO.Action action = buildMoveAction(1, 2, 4);
-
+        expectedException.expect(EntitiesResolutionException.class);
+        expectedException.expectMessage("entities not found");
         actionExecutor.getTargetId(action);
+    }
+
+    /**
+     * Method tests, that actions, associated with different targets are ignored and do not harm any
+     * other actions filtering.
+     *
+     * @throws Exception if some error occurred
+     */
+    @Test
+    public void testMoveDifferentTargets() throws Exception {
+        final List<EntityInfo> entityInfos = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            entityInfos.add(EntityInfo.newBuilder()
+                    .setEntityId(i)
+                    .putTargetIdToProbeId(1000 + i, probeId)
+                    .build());
+        }
+        for (int i = 3; i < 6; i++) {
+            entityInfos.add(EntityInfo.newBuilder()
+                    .setEntityId(i)
+                    .putTargetIdToProbeId(1000, probeId)
+                    .build());
+        }
+        Mockito.when(entityServiceMole.getEntitiesInfo(any()))
+                .thenReturn(entityInfos);
+        Mockito.when(actionTargetResolver.resolveExecutantTarget(any(),
+                eq(ImmutableSet.of(1001L, 1002L, 1003L)))).thenReturn(1001L);
+        Mockito.when(actionTargetResolver.resolveExecutantTarget(any(),
+                eq(ImmutableSet.of(1000L)))).thenReturn(1000L);
+        final com.vmturbo.action.orchestrator.action.Action crossTargetAction =
+                new com.vmturbo.action.orchestrator.action.Action(buildMoveAction(0, 1, 2),
+                        LocalDateTime.now(), 444L);
+        final com.vmturbo.action.orchestrator.action.Action sameTargetAction =
+                new com.vmturbo.action.orchestrator.action.Action(buildMoveAction(3, 4, 5),
+                        LocalDateTime.now(), 444L);
+        final Map<com.vmturbo.action.orchestrator.action.Action, Long> result =
+                actionExecutor.getProbeIdsForActions(Arrays.asList(crossTargetAction, sameTargetAction));
+        Assert.assertEquals(Collections.singleton(sameTargetAction), result.keySet());
     }
 
     /**
@@ -118,7 +172,7 @@ public class ActionExecutorTest {
      * action
      */
     @Test
-    public void testGetTargetForActionWithConflict() throws TargetResolutionException {
+    public void testGetTargetForActionWithConflict() throws Exception {
         when(entityServiceMole.getEntitiesInfo(any()))
             .thenReturn(Stream.of(1, 2, 3)
                 .map(id ->
@@ -140,7 +194,7 @@ public class ActionExecutorTest {
 
     @Nonnull
     private Action buildMoveAction(long targetId, long sourceId, long destinationId) {
-        return Action.newBuilder().setId(1).setImportance(1)
+        return Action.newBuilder().setId(actionId.getAndIncrement()).setImportance(1)
                 .setExplanation(Explanation.newBuilder().build())
                 .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destinationId))
                 .build();
@@ -165,7 +219,7 @@ public class ActionExecutorTest {
                 .thenReturn(targetId);
 
         Assert.assertEquals(Long.valueOf(targetId),
-                actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg));
+                actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg).get());
     }
 
     @Test
@@ -182,12 +236,7 @@ public class ActionExecutorTest {
                 .build();
         mapArg.put(1L, info1);
         mapArg.put(2L, info2);
-        try {
-            actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg);
-            Assert.fail();
-        } catch (TargetResolutionException e) {
-            Assert.assertTrue(e.getMessage()
-                    .endsWith(" has no overlapping targets between the entities involved."));
-        }
+        Assert.assertFalse(
+                actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg).isPresent());
     }
 }

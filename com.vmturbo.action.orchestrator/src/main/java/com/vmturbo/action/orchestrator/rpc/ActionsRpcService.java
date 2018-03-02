@@ -33,6 +33,7 @@ import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
+import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
 import com.vmturbo.action.orchestrator.execution.ExecutionStartException;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -43,6 +44,7 @@ import com.vmturbo.auth.api.auditing.AuditLogEntry;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -412,8 +414,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         Optional<FailureEvent> failure = Optional.empty();
 
         try {
+            // TODO change the behaviour when supporting cross-target moves
             actionTargetId = actionExecutor.getTargetId(action.getRecommendation());
-        } catch (TargetResolutionException e) {
+        } catch (TargetResolutionException | UnsupportedActionException | EntitiesResolutionException e) {
             logger.error("Failed to resolve target id for action {} due to error: {}", action.getId(), e);
             failure = Optional.of(new FailureEvent("Failed to resolve target id due to error: " + e.getMessage()));
         }

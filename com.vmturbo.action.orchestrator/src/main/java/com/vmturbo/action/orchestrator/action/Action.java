@@ -85,7 +85,7 @@ public class Action implements ActionView {
      */
     private final EntitySettingsCache entitySettings;
 
-    private EntityTypeMap entityTypeMap;
+    private final EntityTypeMap entityTypeMap;
 
     /**
      * The translation for this action.
@@ -160,6 +160,7 @@ public class Action implements ActionView {
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
         this.entitySettings = null;
+        this.entityTypeMap = null;
         this.actionTypeSettingFilter = loadSettingFilterMap(false);
         this.actionTypeSettingDefault = loadSettingDefaultMap(false);
     }
@@ -175,6 +176,7 @@ public class Action implements ActionView {
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = null;
+        this.entityTypeMap = null;
         this.actionTypeSettingFilter = loadSettingFilterMap(false);
         this.actionTypeSettingDefault = loadSettingDefaultMap(false);
     }
@@ -207,6 +209,7 @@ public class Action implements ActionView {
         this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
                 .setSupportingLevel(supportLevel).build();
         this.entitySettings = prototype.entitySettings;
+        this.entityTypeMap = null;
         this.actionTypeSettingFilter = loadSettingFilterMap(this.entitySettings != null);
         this.actionTypeSettingDefault = loadSettingDefaultMap(this.entitySettings != null);
     }
@@ -432,6 +435,9 @@ public class Action implements ActionView {
      */
     @Nonnull
     private EntitySettingSpecs determineMoveType() {
+        if (entityTypeMap == null) {
+            return EntitySettingSpecs.Move;
+        }
         boolean allStorageMoves = recommendation.getInfo().getMove().getChangesList().stream()
                         .map(ChangeProvider::getDestinationId)
                         .map(entityTypeMap::getTypeForEntity)
