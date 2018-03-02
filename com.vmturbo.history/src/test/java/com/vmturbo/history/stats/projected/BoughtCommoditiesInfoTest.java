@@ -125,20 +125,20 @@ public class BoughtCommoditiesInfoTest {
                 .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
                 .setOid(1)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(7)
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(COMMODITY_TYPE)
-                        .setUsed(1)
-                        .setPeak(2))
-                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
-                        .setCommodityType(COMMODITY_TYPE)
-                        .setUsed(3)
-                        .setPeak(4)))
+                        .setProviderId(7)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(COMMODITY_TYPE)
+                                .setUsed(1)
+                                .setPeak(2))
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(COMMODITY_TYPE)
+                                .setUsed(3)
+                                .setPeak(4)))
                 .build();
 
         final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
         final double providerCapacity = 5.0;
-        Mockito.when(soldCommoditiesInfo.getCapacity( Mockito.eq(COMMODITY), Mockito.eq(7L)))
+        Mockito.when(soldCommoditiesInfo.getCapacity(Mockito.eq(COMMODITY), Mockito.eq(7L)))
                 .thenReturn(Optional.of(providerCapacity));
         final BoughtCommoditiesInfo info = BoughtCommoditiesInfo.newBuilder()
                 .addEntity(vm)
@@ -147,7 +147,7 @@ public class BoughtCommoditiesInfoTest {
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity((float)providerCapacity)
+                .setCapacity((float) providerCapacity)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 // Current value is the avg of used.
@@ -163,7 +163,67 @@ public class BoughtCommoditiesInfoTest {
                 info.getAccumulatedRecord(COMMODITY, Collections.singleton(vm.getOid()))
                         .orElseThrow(() -> new RuntimeException("expected record"));
         assertEquals(expectedStatRecord, record);
+    }
 
+    /**
+     * Test registering exactly the same commodity - {type, key} - twice. The first is taken;
+     * the second is ignored.
+     */
+    @Test
+    public void testBuyingTwiceSameProvider() {
+
+        final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
+        final double providerCapacity = 5.0;
+
+        CommoditiesBoughtFromProvider commoditiesBoughtFromProvider1 = CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(7)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(COMMODITY_TYPE)
+                        .setUsed(2)
+                        .setPeak(2))
+                .build();
+
+        CommoditiesBoughtFromProvider commoditiesBoughtFromProvider2 = CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(7)
+                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(COMMODITY_TYPE)
+                        .setUsed(4)
+                        .setPeak(4))
+                .build();
+
+        final TopologyEntityDTO vmBuyingTwiceSameProvider = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .setOid(2)
+                .addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider1)
+                .addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider2)
+                .build();
+
+        Mockito.when(soldCommoditiesInfo.getCapacity( Mockito.eq(COMMODITY), Mockito.eq(7L)))
+                .thenReturn(Optional.of(providerCapacity));
+        final BoughtCommoditiesInfo boughtTwiceSameProvider = BoughtCommoditiesInfo.newBuilder()
+                .addEntity(vmBuyingTwiceSameProvider)
+                .build(soldCommoditiesInfo);
+
+        final StatRecord record =
+                boughtTwiceSameProvider.getAccumulatedRecord(COMMODITY, Collections.singleton(vmBuyingTwiceSameProvider.getOid()))
+                        .orElseThrow(() -> new RuntimeException("expected record"));
+
+        final StatRecord expectedStatRecord = StatRecord.newBuilder()
+                .setName(COMMODITY)
+                // For now, capacity is the total capacity.
+                .setCapacity((float)providerCapacity * 2)
+                .setUnits(COMMODITY_UNITS)
+                .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+                // Current value is the avg of used.
+                .setCurrentValue(3)
+                .setProviderUuid(Long.toString(7))
+                // Used and values are the same thing
+                .setUsed(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
+                .setValues(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
+                .setPeak(StatValue.newBuilder().setAvg(3).setMax(4).setMin(2).setTotal(6).build())
+                .build();
+
+        assertEquals(expectedStatRecord, record);
     }
 
     @Test
