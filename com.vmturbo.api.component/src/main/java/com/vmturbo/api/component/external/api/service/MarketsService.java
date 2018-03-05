@@ -46,7 +46,9 @@ import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.MergePolicyType;
@@ -507,6 +509,21 @@ public class MarketsService implements IMarketsService {
     public List<StatSnapshotApiDTO> getNotificationCountStatsByUuid(final String s,
                                                         final ActionApiInputDTO actionApiInputDTO)
                 throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<EntityStatsApiDTO> getStatsByEntitiesInMarketQuery(final String marketUuid,
+                                                                   final StatScopesApiInputDTO statScopesApiInputDTO)
+            throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<EntityStatsApiDTO> getStatsByEntitiesInGroupInMarketQuery(final String marketUuid,
+                                                                          final String groupUuid,
+                                                                          final StatScopesApiInputDTO statScopesApiInputDTO)
+            throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
