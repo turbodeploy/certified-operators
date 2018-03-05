@@ -101,6 +101,8 @@ public class TopologySnapshotRegistry {
      */
     public void registerTopologySnapshot(long topologyContextId, @Nonnull TopologyOrganizer snapshotInfo) {
         synchronized (this) {
+            logger.debug("register topology snapshot for organizer: {} context {} topology id {}",
+                    snapshotInfo, snapshotInfo.getTopologyContextId(), snapshotInfo.getTopologyId());
             if (invalidTopologyIds.contains(snapshotInfo.getTopologyId())) {
                 logger.warn("Inconsistent state - registering previously failed topology " +
                         "snapshot for {} {}; failure marker ignored.",
@@ -146,6 +148,7 @@ public class TopologySnapshotRegistry {
             }
             topologyOrganizer = topologySnapshotMap.get(topologyContextId);
             if (topologyOrganizer != null) {
+                logger.debug("topology organizer for {} already exists", topologyContextId);
                 topologySnapshotMap.remove(topologyContextId);
             } else {
                 logger.info("PriceIndexInfo pending topology context ID: {}, topology id: {}",

@@ -16,7 +16,6 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
-import com.vmturbo.history.stats.LiveStatsWriter;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.history.stats.PriceIndexWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
@@ -28,19 +27,23 @@ import com.vmturbo.market.component.api.PriceIndexListener;
 import com.vmturbo.reports.db.VmtDbException;
 
 /**
- * Receive and process new price index values calculated by Market analysis.
+ * Receive and process both projected topologyies and new price index values calculated by
+ * Market analysis.
+ *
+ * Note that this applies to both Live Market topologies and Plan Market topologies.
  *
  * The processing sequence is:
  * <ol>
  *     <li>TopologyProcessor:  topology ->  Market
- *     <li>Market: priceIndexMessage -> MarketListener.
+ *     <li>Market: projectedTopology -> ProjectedTopologyListener.
+ *     <li>Market: priceIndexMessage -> PriceIndexListener.
  * </ol>
+ * There is no assurance of ordering between the ProjectedTopology and PriceIndex messages.
  */
 public class MarketListener implements ProjectedTopologyListener, PriceIndexListener {
 
     private static Logger logger = LogManager.getLogger(MarketListener.class);
 
-    private final LiveStatsWriter liveStatsWriter;
     private final PlanStatsWriter planStatsWriter;
     private final PriceIndexWriter priceIndexWriter;
     private final long realtimeTopologyContextId;
@@ -48,25 +51,18 @@ public class MarketListener implements ProjectedTopologyListener, PriceIndexList
     private final ProjectedStatsStore projectedStatsStore;
 
     /**
-     * Constructs a listener class for the Price Index information produced by the Market.
-     * Note that the PriceIndex API is currently websocket based.
+     * Constructs a listener class for the Projected Topologies and Price Index information
+     * produced by the Market.
      *
-     * @param liveStatsWriter the DB access class for the stats from the Live topology
      * @param planStatsWriter the DB access class for the stats from the plan topology
-     * @param snapshotRegistry a {@link TopologySnapshotRegistry} for where a Topology is
-     *                         cached so that when the corresponding priceIndex message
-     *                         arrives the processing has access to the original topology.
      * @param realtimeTopologyContextId the context ID of a realtime topology.
      * @param statsAvailabilityTracker sends notifications when stats are available.
      */
-    public MarketListener(@Nonnull final LiveStatsWriter liveStatsWriter,
-                          @Nonnull final PlanStatsWriter planStatsWriter,
+    public MarketListener(@Nonnull final PlanStatsWriter planStatsWriter,
                           @Nonnull final PriceIndexWriter priceIndexWriter,
-                          @Nonnull final TopologySnapshotRegistry snapshotRegistry,
                           final long realtimeTopologyContextId,
                           @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker,
                           @Nonnull final ProjectedStatsStore projectedStatsStore) {
-        this.liveStatsWriter = Objects.requireNonNull(liveStatsWriter);
         this.planStatsWriter = Objects.requireNonNull(planStatsWriter);
         this.priceIndexWriter = priceIndexWriter;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -130,11 +126,11 @@ public class MarketListener implements ProjectedTopologyListener, PriceIndexList
                                              TopologyInfo sourceTopologyInfo,
                                              RemoteIterator<TopologyDTO.TopologyEntityDTO> dtosIterator) {
         final long topologyContextId = sourceTopologyInfo.getTopologyContextId();
-        logger.info("Receiving projected live topology, context: {}, projected id: {}, "
-                    + "source id: {} (ignoring)",
+        logger.info("Receiving projected live topology, context: {}, projected id: {}, source id: {}",
                     topologyContextId, projectedTopologyId, sourceTopologyInfo.getTopologyId());
         try {
             final long numEntities = projectedStatsStore.updateProjectedTopology(dtosIterator);
+            logger.info("{} entities updated", numEntities);
 
             availabilityTracker.projectedTopologyAvailable(topologyContextId, TopologyContextType.LIVE);
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM

@@ -24,7 +24,6 @@ import static com.vmturbo.reports.db.jooq.JooqUtils.relType;
 import static com.vmturbo.reports.db.jooq.JooqUtils.str;
 import static com.vmturbo.reports.db.jooq.JooqUtils.timestamp;
 
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -36,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -250,7 +250,7 @@ public class HistorydbIO extends BasedbIO {
     @Override
     public int addSubscription(String email, Period period, DayOfWeek dayOfWeek, String scope,
                                ReportType reportType, int reportId, ReportOutputFormat format,
-                               Map<Integer, String> attrs, String userName) throws VmtDbException {
+                               Map<Integer, String> attrs, String userName) {
         return 0;
     }
 
@@ -260,7 +260,7 @@ public class HistorydbIO extends BasedbIO {
     }
 
     @Override
-    public String httpExecuteReport(String reportUrl) throws IOException {
+    public String httpExecuteReport(String reportUrl) {
         return null;
     }
 
@@ -321,27 +321,6 @@ public class HistorydbIO extends BasedbIO {
             return null;
         }
         return entityDBInfo.get().getDayTable();
-    }
-
-    /**
-     * Return the "_stats_by_month" table for the given Entity Type based on the ID.
-     *
-     * The table prefix depends on the entity type.
-     *
-     * Returns null if the table prefix cannot be determined. This may represent an entity
-     * that is not to be persisted, or an internal system configuration error.
-     *
-     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
-     * @return a DB Table object for the _stats_by_month table for the entity type of this entity,
-     * or null if the entity table cannot be determined.
-     */
-    private Table<?> getMonthStatsDbTableForEntityType(int entityTypeId) {
-
-        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
-        if (!entityDBInfo.isPresent()) {
-            return null;
-        }
-        return entityDBInfo.get().getMonthTable();
     }
 
     /**
@@ -458,7 +437,7 @@ public class HistorydbIO extends BasedbIO {
         if (commodityKey != null && commodityKey.length() > COMMODITY_KEY_MAX_LENGTH) {
             String longCommditiyKey = commodityKey;
             commodityKey = commodityKey.substring(0, COMMODITY_KEY_MAX_LENGTH-1);
-            logger.warn("shortening commodity key {} ({}) to {}", longCommditiyKey,
+            logger.trace("shortening commodity key {} ({}) to {}", longCommditiyKey,
                     longCommditiyKey.length(), commodityKey);
         }
         // populate the other fields; all fields are nullable based on DB design; Is that best?
@@ -537,19 +516,28 @@ public class HistorydbIO extends BasedbIO {
      * @throws VmtDbException if there was an error accessing the database
      */
     public Map<Long, EntitiesRecord> getEntities(List<String> entityIds) throws VmtDbException {
-        logger.trace("get {} entities: {}", entityIds.size(), entityIds);
+        logger.debug("get {} entities", entityIds.size());
         final Map<Long, EntitiesRecord> map = new HashMap<>();
         for (List<String> idsChunk : Lists.partition(entityIds, entitiesChunkSize)) {
-            final List<EntitiesRecord> listRecords =
-                    execute(JooqBuilder().select(Entities.ENTITIES.ID,
-                            Entities.ENTITIES.DISPLAY_NAME, Entities.ENTITIES.CREATION_CLASS)
-                            .from(Entities.ENTITIES)
-                            .where(Entities.ENTITIES.UUID.in(idsChunk))).into(EntitiesRecord.class);
-            for (EntitiesRecord record : listRecords) {
-                map.put(record.getId(), record);
+            try (Connection conn = getAutoCommitConnection()) {
+                final List<EntitiesRecord> listRecords = using(conn)
+                        .fetch(Entities.ENTITIES, Entities.ENTITIES.UUID.in(idsChunk));
+                for (EntitiesRecord record : listRecords) {
+                    map.put(record.getId(), record);
+                }
+            } catch (SQLException e) {
+                throw new VmtDbException(VmtDbException.READ_ERR, e);
             }
         }
-        logger.trace("getEntities returning {} entities : {}", map::size, map::toString);
+        if (logger.isDebugEnabled()) {
+            logger.debug("getEntities returning {} entities", map::size);
+            // calculate the keys in the query that are not part of the result map
+            Set<Long> missingKeys = entityIds.stream()
+                    .map(Long::valueOf)
+                    .filter(oid -> !map.keySet().contains(oid))
+                    .collect(Collectors.toSet());
+            logger.debug("didn't find: {}", missingKeys);
+        }
         return map;
     }
 
@@ -614,23 +602,6 @@ public class HistorydbIO extends BasedbIO {
                 .where(whereConditions)
                 .groupBy(orderGroupFields)
                 .orderBy(orderGroupFields);
-    }
-
-    /**
-     * Return all known entity IDs.
-     *
-     * TODO: add a filter by entity type.
-     *
-     * @return a list of OIDs, as String, for all the entities known.
-     * @throws VmtDbException if there is an error executing the jooq query
-     */
-    private @Nonnull List<String> getAllEntityIds() throws VmtDbException {
-        Result<? extends Record> result = execute(JooqBuilder()
-                .selectDistinct(Entities.ENTITIES.UUID)
-                .from(Entities.ENTITIES));
-        return result.stream()
-                .map(x -> x.getValue(Entities.ENTITIES.UUID, String.class))
-                .collect(Collectors.toList());
     }
 
     /**
@@ -830,7 +801,7 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * Persist multiple entitites (insert or update, dependeing on the record source). If a record
+     * Persist multiple entitites (insert or update, depending on the record source). If a record
      * has been initially returned from the DB, UPDATE will be executed. If a record is a newly
      * created INSERT will be executed.
      *
@@ -842,12 +813,12 @@ public class HistorydbIO extends BasedbIO {
      */
     public void persistEntities(@Nonnull List<EntitiesRecord> entitiesRecords)
             throws VmtDbException {
-        logger.trace("Persisting {} entities", entitiesRecords.size());
+        logger.debug("Persisting {} entities", entitiesRecords.size());
         final Connection connection = transConnection();
         try {
             for (Collection<EntitiesRecord> chunk : Lists.partition(entitiesRecords,
                     entitiesChunkSize)) {
-                logger.trace("Persisting next chunk if {} entities to the DB", chunk::size);
+                logger.debug("Persisting next chunk of {} entities to the DB", chunk::size);
                 using(connection).batchStore(chunk).execute();
             }
             connection.commit();
@@ -858,7 +829,7 @@ public class HistorydbIO extends BasedbIO {
         } finally {
             close(connection);
         }
-        logger.trace("Successfully persisted entities");
+        logger.debug("Successfully persisted entities");
     }
 
     /**
@@ -1080,7 +1051,7 @@ public class HistorydbIO extends BasedbIO {
             maxStatsRecords
             .stream()
             .collect(Collectors.groupingBy(
-                rec -> { return rec.getValue(str(dField(tbl, UUID))); }));
+                rec -> rec.getValue(str(dField(tbl, UUID)))));
         // Create the protobuf messages
         entityIdToRecordGrouping.forEach((key, records) -> {
             EntityCommoditiesMaxValues.Builder entityMaxValuesBuilder =
@@ -1090,7 +1061,7 @@ public class HistorydbIO extends BasedbIO {
             records.forEach(record -> {
                 CommodityMaxValue commodityMaxValue =
                     CommodityMaxValue.newBuilder()
-                        .setMaxValue(record.getValue((Field<Double>)DSL.field(MAX_COLUMN_NAME, Double.class)))
+                        .setMaxValue(record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class)))
                         .setCommodityType(
                     CommodityType.newBuilder()
                         .setType(ClassicEnumMapper.commodityType(

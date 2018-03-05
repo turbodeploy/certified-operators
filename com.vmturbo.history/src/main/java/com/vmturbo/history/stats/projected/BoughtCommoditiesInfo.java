@@ -196,8 +196,8 @@ class BoughtCommoditiesInfo {
                 // no previous commodity with this same key; save the new one
                 commoditiesBoughtMultimap.put(providerId, commodityToAdd);
             } else {
-                // previous commodity with the same key; print a warning and don't save it
-                logger.warn("Entity {} selling commodity type { {} } more than once.",
+                // previous commodity with the same key, i.e. sold to multiple buyers; don't save it
+                logger.trace("Entity {} selling commodity type { {} } more than once.",
                     providerId, commodityToAdd.getCommodityType());
             }
         }

@@ -13,7 +13,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.history.HistoryComponent;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.stats.PriceIndexWriter;
@@ -63,10 +62,9 @@ public class MarketListenerConfig {
      */
     @Bean
     public MarketListener marketListener() {
-        return new MarketListener(statsConfig.liveStatsWriter(),
+        return new MarketListener(
                 statsConfig.planStatsWriter(),
                 marketListenerConfig.priceIndexWriter(),
-                statsConfig.topologySnapshotRegistry(),
                 realtimeTopologyContextId,
                 apiConfig.statsAvailabilityTracker(),
                 statsConfig.projectedStatsStore());

@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -13,6 +14,7 @@ import org.jooq.Query;
 import org.jooq.Table;
 
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.history.SharedMetrics;
@@ -106,14 +108,13 @@ public class PriceIndexWriter {
             // accumulate a batch of SQL statements to insert the commodity rows; execute in batches
             List<Query> commodityInsertStatements = Lists.newArrayList();
 
+            final Set<Long> missingEntityOids = Sets.newHashSet();
+
             for (PriceIndexDTOs.PriceIndexMessagePayload priceIndexInfo : priceIndexPayloadList) {
                 final long entityId = priceIndexInfo.getOid();
                 final Optional<Integer> entityTypeId = topologyOrganizer.getEntityType(entityId);
                 if (!entityTypeId.isPresent()) {
-                    logger.warn("missing entity DTO for entity ID {}, topology context {};  " +
-                                    "topology ID {};  skipping", entityId,
-                            topologyOrganizer.getTopologyContextId(),
-                            topologyOrganizer.getTopologyId());
+                    missingEntityOids.add(entityId);
                     continue;
                 }
 
@@ -141,6 +142,13 @@ public class PriceIndexWriter {
                     historydbIO.execute(BasedbIO.Style.FORCED, commodityInsertStatements);
                     commodityInsertStatements = new ArrayList<Query>(writeTopologyChunkSize);
                 }
+            }
+            if (missingEntityOids.size() > 0) {
+                logger.warn("missing entity DTOs from topology context {};  " +
+                                "topology ID {};  skipping {}",
+                        topologyOrganizer.getTopologyContextId(),
+                        topologyOrganizer.getTopologyId(),
+                        missingEntityOids);
             }
             // now execute the remaining batch of updates, if any
             if (commodityInsertStatements.size() > 0) {

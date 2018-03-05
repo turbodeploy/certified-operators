@@ -1,7 +1,5 @@
 package com.vmturbo.history.stats;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
@@ -62,9 +60,9 @@ public class PlanStatsWriter {
 
         SharedMetrics.UPDATE_PRICE_INDEX_DURATION_SUMMARY
             .labels(SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-            .time(() -> {
-                persistPlanPriceIndexInternal(priceIndexMessage, topologyContextId, topologyId, snapshotTime, payloadList);
-            });
+            .time(
+                    () -> persistPlanPriceIndexInternal(priceIndexMessage, topologyContextId,
+                            topologyId, snapshotTime, payloadList));
     }
 
     private void persistPlanPriceIndexInternal(PriceIndexMessage priceIndexMessage, long topologyContextId,

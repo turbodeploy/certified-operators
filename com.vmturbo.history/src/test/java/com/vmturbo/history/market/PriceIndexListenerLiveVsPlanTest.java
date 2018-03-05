@@ -88,8 +88,8 @@ public class PriceIndexListenerLiveVsPlanTest {
                 .addPayload(priceIndexMessagePayload)
                 .build();
 
-        MarketListener listenerUnderTest = new MarketListener(statsWriter,
-                planStatsWriter, priceIndexWriter, snapshotRegistry,
+        MarketListener listenerUnderTest = new MarketListener(
+                planStatsWriter, priceIndexWriter,
                 REALTIME_TOPOLOGY_CONTEXT_ID,
                 availabilityTracker, projectedStatsStore);
 
