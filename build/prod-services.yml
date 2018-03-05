@@ -197,7 +197,6 @@ services:
       - arangodb:/var/lib/arangodb3
       - arangodb-apps:/var/lib/arangodb3-apps
       - arangodb-dump:/home/arangodb/arangodb-dump
-    mem_limit: 1024M
     stop_grace_period: '30m'
     restart: always
 

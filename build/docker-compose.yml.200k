@@ -156,6 +156,7 @@ services:
     extends:
       file: prod-services.yml
       service: arangodb-prod
+    mem_limit: 3G
 
   repository:
     extends:

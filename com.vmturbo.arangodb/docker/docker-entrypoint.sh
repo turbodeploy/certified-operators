@@ -2,6 +2,9 @@
 # Makes sure the first command in the piped series fails the entire thing.
 set -eo pipefail
 
+DEFAULT_ARANGO_CONF=/etc/arangodb3/arangod.conf
+ARANGO_CONF=/var/lib/arangodb3/arangod.conf
+
 # rsyslog
 /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
@@ -10,7 +13,7 @@ set -eo pipefail
 
 # if command starts with an option, prepend arangod
 if [ "${1:0:1}" = '-' ]; then
-	set -- arangod "$@"
+	set -- arangod --configuration $ARANGO_CONF "$@"
 fi
 
 # Remove the lock. We will not be running multiple instances on the same Docker host
@@ -58,8 +61,12 @@ if [ "$1" = 'arangod' ]; then
 	# prepend --authentication as the FIRST argument
 	# (so it is overridable via command line as well)
 	shift
+	set -- arangod --server.authentication="true" --configuration $ARANGO_CONF "$@"
+fi
 
-	set -- arangod --server.authentication="true" "$@"
+if [ ! -f $ARANGO_CONF ]; then
+    echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF" | logger --tag arangodb -u /tmp/log.sock
+    cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | logger --tag arangodb -u /tmp/log.sock
 fi
 
 exec "$@" 2>&1 | logger --tag arangodb -u /tmp/log.sock
