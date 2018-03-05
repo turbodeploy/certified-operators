@@ -263,6 +263,11 @@ if [[ "$1" == "init" ]]; then
               mv /etc/docker/turbonomic_info.txt /etc/turbonomic_info.txt.$(date +"%Y_%M_%d") >/dev/null 2>&1
               cp /media/cdrom/turbonomic_info.txt /etc/docker/turbonomic_info.txt
           fi
+          if [ -f "/media/cdrom/turboctl.py" ]; then
+              mv /etc/docker/turboctl.py /etc/turboctl.py.$(date +"%Y_%M_%d") >/dev/null 2>&1
+              cp /media/cdrom/turboctl.py /etc/docker/turboctl.py
+              chmod +x /etc/docker/turboctl.py
+          fi
           if [ -f "/media/cdrom/turbonomic_sums.txt" ]; then
               mv /etc/docker/turbonomic_sums.txt /etc/turbonomic_sums.txt.$(date +"%Y_%M_%d") >/dev/null 2>&1
               cp /media/cdrom/turbonomic_sums.txt /etc/docker/turbonomic_sums.txt
