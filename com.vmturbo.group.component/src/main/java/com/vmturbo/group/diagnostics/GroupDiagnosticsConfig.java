@@ -9,16 +9,20 @@ import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory.DefaultRecursiveZipReaderFactory;
 import com.vmturbo.group.ArangoDBConfig;
+import com.vmturbo.group.SettingConfig;
 
 /**
  * Configuration for group component diagnostics.
  */
 @Configuration
-@Import({ArangoDBConfig.class})
+@Import({ArangoDBConfig.class, SettingConfig.class})
 public class GroupDiagnosticsConfig {
 
     @Autowired
     private ArangoDBConfig arangoDBConfig;
+
+    @Autowired
+    private SettingConfig settingConfig;
 
     @Bean
     public DiagnosticsWriter diagnosticsWriter() {
@@ -33,7 +37,7 @@ public class GroupDiagnosticsConfig {
     @Bean
     public GroupDiagnosticsHandler diagsHandler() {
         return new GroupDiagnosticsHandler(arangoDBConfig.groupStore(), arangoDBConfig.policyStore(),
-            recursiveZipReaderFactory(), diagnosticsWriter());
+            settingConfig.settingStore(), recursiveZipReaderFactory(), diagnosticsWriter());
     }
 
     @Bean

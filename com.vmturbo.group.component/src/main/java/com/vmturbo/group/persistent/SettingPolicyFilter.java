@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
  * {@link SettingStore}. It's closely tied to the setting_policy SQL table, and is
  * meant as a utility to provide an easier way to define simple searches
  * over the policies in the table.
+ *
+ * Conditions in the filter are applied by AND-ing them together.
  */
 @Immutable
 public class SettingPolicyFilter {
@@ -106,6 +108,24 @@ public class SettingPolicyFilter {
         }
     }
 
+    /**
+     * Builder for a {@link SettingPolicyFilter}.
+     *
+     * Multiple values on the same "with" condition are OR'ed together.
+     * Multiple conditions on the filter are "AND'ed together.
+     *
+     * For example,
+     * SettingPolicyFilter.newBuilder()
+     *     .withType(Type.USER)
+     *     .withType(Type.DEFAULT)
+     *     .withName("foo")
+     *     .withName("bar)
+     *     .build()
+     *
+     * will create a filter that finds all USER or DEFAULT settings that ALSO have the name "foo" or "bar".
+     *
+     * An empty filter can be used to find all settings.
+     */
     public static class Builder {
         private Set<Type> type = new HashSet<>();
         private Set<Long> ids = new HashSet<>();

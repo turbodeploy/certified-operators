@@ -1,8 +1,11 @@
 package com.vmturbo.components.common.diagnostics;
 
+import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+
+import org.apache.commons.lang.exception.ExceptionUtils;
 
 /**
  * The {@link Diagnosable} is an object that should be included into the diagnostics provided
@@ -52,8 +55,25 @@ public interface Diagnosable {
             this.errors = errors;
         }
 
+        public DiagnosticsException(@Nonnull final String error) {
+            this.errors = Collections.singletonList(error);
+        }
+
+        public DiagnosticsException(@Nonnull final Throwable cause) {
+            super(cause);
+            this.errors = Collections.emptyList();
+        }
+
         public List<String> getErrors() {
-            return errors;
+            if (hasErrors()) {
+                return errors;
+            } else {
+                return Collections.singletonList(ExceptionUtils.getStackTrace(this));
+            }
+        }
+
+        public boolean hasErrors() {
+            return !errors.isEmpty();
         }
     }
 }

@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -233,10 +232,8 @@ public class PolicyStore implements Diagnosable {
             deleteAll();
             storeAll(policies);
         } catch (DatabaseException e) {
-            throw new DiagnosticsException(Collections.singletonList(e.getMessage() + ": " +
-                ExceptionUtils.getStackTrace(e)));
+            throw new DiagnosticsException(e);
         }
-
     }
 
 

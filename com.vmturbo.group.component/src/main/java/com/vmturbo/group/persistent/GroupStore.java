@@ -284,8 +284,7 @@ public class GroupStore implements Diagnosable {
             return Collections.singletonList(ComponentGsonFactory
                 .createGsonNoPrettyPrint().toJson(groups));
         } catch (DatabaseException e) {
-            throw new DiagnosticsException(Collections.singletonList(e.getMessage() + ": " +
-                ExceptionUtils.getStackTrace(e)));
+            throw new DiagnosticsException(e);
         }
     }
 

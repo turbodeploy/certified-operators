@@ -6,6 +6,7 @@ import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 import java.sql.SQLException;
 import java.sql.SQLTransientException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -17,10 +18,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
+import org.jooq.InsertValuesStep4;
 import org.jooq.Record1;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -29,14 +32,22 @@ import org.springframework.retry.annotation.Retryable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterators;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
@@ -48,7 +59,7 @@ import com.vmturbo.group.persistent.TargetCollectionUpdate.TargetSettingPolicyUp
  * The {@link SettingStore} class is used to store settings-related objects, and retrieve them
  * in an efficient way.
  */
-public class SettingStore {
+public class SettingStore implements Diagnosable {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -589,6 +600,112 @@ public class SettingStore {
     public Optional<SettingProto.SettingPolicy> getSettingPolicy(@Nonnull final String name) {
         return getSettingPolicies(
                 SettingPolicyFilter.newBuilder().withName(name).build()).findFirst();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+
+        try {
+            return Arrays.asList(
+                gson.toJson(getAllGlobalSettings()),
+                gson.toJson(getSettingPolicies(SettingPolicyFilter.newBuilder().build())
+                    .collect(Collectors.toList())));
+        } catch (DataAccessException | InvalidProtocolBufferException e) {
+            throw new DiagnosticsException(e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void restoreDiags(@Nonnull List<String> collectedDiags) throws DiagnosticsException {
+        final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
+        final List<String> errors = new ArrayList<>();
+
+        if (collectedDiags.size() != 2) {
+            throw new DiagnosticsException("Wrong number of diagnostics lines: "
+                + collectedDiags.size() + ". Expected: 2.");
+        }
+
+        try {
+            final List<Setting> globalSettingsToRestore =
+                gson.fromJson(collectedDiags.get(0), new TypeToken<List<Setting>>() { }.getType());
+            logger.info("Attempting to restore {} global settings.", globalSettingsToRestore.size());
+
+            // Attempt to restore global settings.
+            deleteAllGlobalSettings();
+            insertGlobalSettings(globalSettingsToRestore);
+
+
+        } catch (DataAccessException | InvalidProtocolBufferException e) {
+            errors.add("Failed to restore global settings: " + e.getMessage() + ": " +
+                ExceptionUtils.getStackTrace(e));
+        }
+
+        try {
+            // Attempt to restore setting policies.
+            final List<SettingProto.SettingPolicy> settingPoliciesToRestore =
+                gson.fromJson(collectedDiags.get(1),
+                    new TypeToken<List<SettingProto.SettingPolicy>>() { }.getType());
+            logger.info("Attempting to restore {} setting policies.", settingPoliciesToRestore.size());
+
+            // Attempt to restore setting policies.
+            deleteAllSettingPolicies();
+            insertAllSettingPolicies(settingPoliciesToRestore);
+
+        } catch (DataAccessException | SQLTransientException e) {
+            errors.add("Failed to restore setting policies: " + e.getMessage() + ": " +
+                ExceptionUtils.getStackTrace(e));
+        }
+
+        if (!errors.isEmpty()) {
+            throw new DiagnosticsException(errors);
+        }
+    }
+
+    /**
+     * Delete all global settings.
+     */
+    private void deleteAllGlobalSettings() {
+        dslContext.truncate(GLOBAL_SETTINGS).execute();
+    }
+
+    /**
+     * Delete all setting policies.
+     */
+    private void deleteAllSettingPolicies() {
+        dslContext.truncate(SETTING_POLICY).execute();
+    }
+
+    /**
+     * Insert all the setting policies in the list into the database.
+     * For internal use only when restoring setting policies from diagnostics.
+     *
+     * @param settingPolicies The setting policies to insert.
+     */
+    private void insertAllSettingPolicies(@Nonnull final List<SettingProto.SettingPolicy> settingPolicies)
+        throws SQLTransientException, DataAccessException{
+        // It should be unusual to have a a very high number of setting policies, so
+        // creating them iteratively should be ok. If there is a performance issue here,
+        // consider batching or performing dump/restore via the SQL dump/restore feature.
+        for (SettingProto.SettingPolicy settingPolicy : settingPolicies) {
+            final SettingPolicyInfo settingPolicyInfo = settingPolicy.getInfo();
+
+            final SettingPolicy jooqSettingPolicy = new SettingPolicy(
+                settingPolicy.getId(),
+                settingPolicyInfo.getName(),
+                settingPolicyInfo.getEntityType(),
+                settingPolicyInfo,
+                SettingPolicyTypeConverter.typeToDb(settingPolicy.getSettingPolicyType()),
+                settingPolicyInfo.getTargetId());
+            dslContext.newRecord(SETTING_POLICY, jooqSettingPolicy).store();
+        }
     }
 
     /**

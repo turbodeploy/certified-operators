@@ -18,7 +18,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Optional;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
@@ -34,6 +33,7 @@ import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
 import com.vmturbo.group.persistent.GroupStore;
 import com.vmturbo.group.persistent.PolicyStore;
+import com.vmturbo.group.persistent.SettingStore;
 
 /**
  * Tests for {@link GroupDiagnosticsHandler}.
@@ -48,12 +48,17 @@ public class GroupDiagnosticsHandlerTest {
 
     private PolicyStore policyStore;
 
+    private SettingStore settingStore;
+
     private final List<String> groupLines = Collections.singletonList("some groups");
+    private final List<String> policyLines = Collections.singletonList("some policies");
+    private final List<String> settingLines = Collections.singletonList("some settings");
 
     @Before
     public void setUp() throws Exception {
         groupStore = mock(GroupStore.class);
         policyStore = mock(PolicyStore.class);
+        settingStore = mock(SettingStore.class);
     }
 
     @Test
@@ -61,13 +66,17 @@ public class GroupDiagnosticsHandlerTest {
         setupDump();
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore,
+            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore,
                 zipReaderFactory, diagnosticsWriter);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
         handler.dump(zos);
 
         verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.GROUPS_DUMP_FILE),
             eq(groupLines), eq(zos));
+        verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.POLICIES_DUMP_FILE),
+            eq(policyLines), eq(zos));
+        verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE),
+            eq(settingLines), eq(zos));
         verify(diagnosticsWriter, times(0)).writeZipEntry(
             eq(GroupDiagnosticsHandler.ERRORS_FILE), anyList(), any());
     }
@@ -77,19 +86,30 @@ public class GroupDiagnosticsHandlerTest {
         setupDump();
 
         when(groupStore.collectDiags())
-            .thenThrow(new DiagnosticsException(Collections.singletonList("ERROR")));
+            .thenThrow(new DiagnosticsException(Collections.singletonList("GROUP ERRORS")));
+        when(policyStore.collectDiags())
+            .thenThrow(new DiagnosticsException(Collections.singletonList("POLICY ERRORS")));
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore,
+            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore,
                 zipReaderFactory, diagnosticsWriter);
         final ZipOutputStream zos = mock(ZipOutputStream.class);
         final List<String> errors = handler.dump(zos);
 
-        assertThat(errors, containsInAnyOrder("ERROR"));
+        assertThat(errors, containsInAnyOrder("GROUP ERRORS", "POLICY ERRORS"));
 
-        // Topology Dump file shouldn't get written.
+        // Group Dump file shouldn't get written.
         verify(diagnosticsWriter, never())
             .writeZipEntry(eq(GroupDiagnosticsHandler.GROUPS_DUMP_FILE), anyList(), eq(zos));
+
+        // Policy Dump file shouldn't get written.
+        verify(diagnosticsWriter, never())
+            .writeZipEntry(eq(GroupDiagnosticsHandler.GROUPS_DUMP_FILE), anyList(), eq(zos));
+
+        // Setting Dump file SHOULD get written because it does not generate errors.
+        verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE),
+            eq(settingLines), eq(zos));
+
         verify(diagnosticsWriter).writeZipEntry(
             eq(GroupDiagnosticsHandler.ERRORS_FILE), eq(errors), eq(zos));
     }
@@ -100,15 +120,25 @@ public class GroupDiagnosticsHandlerTest {
         when(groupDiags.getName()).thenReturn(GroupDiagnosticsHandler.GROUPS_DUMP_FILE);
         when(groupDiags.getLines()).thenReturn(groupLines);
 
-        setupRestore(groupDiags);
+        final Diags policyDiags = mock(Diags.class);
+        when(policyDiags.getName()).thenReturn(GroupDiagnosticsHandler.POLICIES_DUMP_FILE);
+        when(policyDiags.getLines()).thenReturn(policyLines);
+
+        final Diags settingDiags = mock(Diags.class);
+        when(settingDiags.getName()).thenReturn(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE);
+        when(settingDiags.getLines()).thenReturn(settingLines);
+
+        setupRestore(groupDiags, policyDiags, settingDiags);
 
         final GroupDiagnosticsHandler handler =
-            new GroupDiagnosticsHandler(groupStore, policyStore,
+            new GroupDiagnosticsHandler(groupStore, policyStore, settingStore,
                 zipReaderFactory, diagnosticsWriter);
         List<String> errors = handler.restore(mock(ZipInputStream.class));
         assertTrue(errors.isEmpty());
 
         verify(groupStore).restoreDiags(eq(groupLines));
+        verify(policyStore).restoreDiags(eq(policyLines));
+        verify(settingStore).restoreDiags(eq(settingLines));
     }
 
     /**
@@ -119,6 +149,8 @@ public class GroupDiagnosticsHandlerTest {
      */
     private void setupDump() throws DiagnosticsException {
         doReturn(groupLines).when(groupStore).collectDiags();
+        doReturn(policyLines).when(policyStore).collectDiags();
+        doReturn(settingLines).when(settingStore).collectDiags();
     }
 
     private void setupRestore(Diags diags, Diags... otherDiags) {
