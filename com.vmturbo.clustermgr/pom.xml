@@ -10,8 +10,52 @@
     <artifactId>com.vmturbo.clustermgr</artifactId>
 
     <properties>
+        <swagger.component.name>ClusterMgr</swagger.component.name>
+        <swagger.basepath>/</swagger.basepath>
+        <base.generated.docs.dir>${project.build.directory}/generated-docs/</base.generated.docs.dir>
+        <swagger.conf.directory>${base.generated.docs.dir}/swagger</swagger.conf.directory>
         <amazon.s3>1.11.131</amazon.s3>
     </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.github.kongchen</groupId>
+                <artifactId>swagger-maven-plugin</artifactId>
+                <configuration>
+                    <apiSources>
+                        <apiSource>
+                            <springmvc>true</springmvc>
+                            <schemes>
+                                <scheme>http</scheme>
+                            </schemes>
+                            <basePath>${swagger.basepath}</basePath>
+                            <locations>
+                                <location>com.vmturbo.clustermgr</location>
+                            </locations>
+                            <outputFormats>json</outputFormats>
+                            <info>
+                                <title>${swagger.component.name}</title>
+                                <version>${api.version}</version>
+                                <description>REST API to access the ${swagger.component.name} functionality.</description>
+                            </info>
+                            <swaggerDirectory>${swagger.conf.directory}</swaggerDirectory>
+                            <outputPath>${swagger.conf.directory}</outputPath>
+                            <attachSwaggerArtifact>true</attachSwaggerArtifact>
+                        </apiSource>
+                    </apiSources>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
     <profiles>
         <profile>
@@ -53,6 +97,10 @@
                                     <targetPath>/</targetPath>
                                     <directory>${project.build.directory}</directory>
                                     <include>${project.build.finalName}.jar</include>
+                                </resource>
+                                <resource>
+                                    <targetPath>/swagger</targetPath>
+                                    <directory>${project.build.directory}/generated-docs/swagger</directory>
                                 </resource>
                             </resources>
                         </configuration>

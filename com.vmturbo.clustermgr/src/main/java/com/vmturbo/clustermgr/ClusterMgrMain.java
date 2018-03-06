@@ -28,7 +28,7 @@ import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
  */
 @Configuration("theComponent")
 @EnableAutoConfiguration
-@Import({ClusterMgrConfig.class, KafkaConfigurationServiceConfig.class})
+@Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class})
 public class ClusterMgrMain implements CommandLineRunner {
 
     private Logger log = LogManager.getLogger();

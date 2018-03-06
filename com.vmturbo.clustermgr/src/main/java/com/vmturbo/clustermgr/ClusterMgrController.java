@@ -3,13 +3,10 @@ package com.vmturbo.clustermgr;
 import java.io.OutputStream;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.orbitz.consul.model.health.HealthCheck;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -19,9 +16,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.orbitz.consul.model.health.HealthCheck;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
 
 /**
  * REST endpoint for ClusterMgr, exposing APIs for component status, component configuration, node configuration.
@@ -59,6 +60,7 @@ import org.springframework.web.bind.annotation.RestController;
  **/
 @Component
 @RestController
+@Api("ClusterMgrController")
 @RequestMapping(path = "/api/v2",
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 
@@ -75,6 +77,7 @@ public class ClusterMgrController {
      * @return a {@link ClusterConfiguration} object containing known components,
      * components associated with each node, and property key/value maps for each component.
      */
+    @ApiOperation("Get the full cluster configuration")
     @RequestMapping(method = RequestMethod.GET)
     @ResponseBody
     @SuppressWarnings("unused")
@@ -91,6 +94,7 @@ public class ClusterMgrController {
      *
      * @return The Telemetry initialized flag.
      */
+    @ApiOperation("Return whether Proactive Support is initialized")
     @RequestMapping(path = "/proactive/initialized",
                     produces = {MediaType.APPLICATION_JSON_VALUE},
                     method = RequestMethod.GET)
@@ -104,6 +108,7 @@ public class ClusterMgrController {
      *
      * @return The Telemetry enabled flag.
      */
+    @ApiOperation("Return whether Proactive Support is enabled")
     @RequestMapping(path = "/proactive/enabled",
                     produces = {MediaType.APPLICATION_JSON_VALUE},
                     method = RequestMethod.GET)
@@ -119,6 +124,7 @@ public class ClusterMgrController {
      *
      * @param enabled The Telemetry enabled flag.
      */
+    @ApiOperation("Set the Proactive Support parameters")
     @RequestMapping(path = "/proactive/enabled",
                     consumes = {MediaType.APPLICATION_JSON_VALUE},
                     method = RequestMethod.PUT)
@@ -131,6 +137,7 @@ public class ClusterMgrController {
      *
      * @return the new Cluster configuration, read back from the key/value store.
      */
+    @ApiOperation("Replace the current Cluster Configuration with a new one.")
     @RequestMapping(
             consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
             method = RequestMethod.PUT)
@@ -146,6 +153,7 @@ public class ClusterMgrController {
      *
      * @return the map of default property-name/value pairs for the given component type
      */
+    @ApiOperation("Get the map of default (property name -> value) for a component type.")
     @RequestMapping(path = "components/{componentType}/defaults",
             method = RequestMethod.GET)
     @ResponseBody
@@ -162,6 +170,7 @@ public class ClusterMgrController {
      * @param newProperties the new default {@link ComponentProperties} to apply for this component type
      * @return the map of default property-name/value pairs for the given component type
      */
+    @ApiOperation("Replace the default ComponentProperties, (property name -> value), for a component type.")
     @RequestMapping(path = "components/{componentType}/defaults",
             consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
             method = RequestMethod.PUT)
@@ -181,6 +190,7 @@ public class ClusterMgrController {
      *
      * @return the Set of instance id's for components of this type.
      */
+    @ApiOperation("Return the Set of component instances for a given component type that are defined.")
     @RequestMapping(path = "components/{componentType}/instances",
             method = RequestMethod.GET)
     @ResponseBody
@@ -194,6 +204,7 @@ public class ClusterMgrController {
      *
      * @return the node name on which this Component Instance should be run.
      */
+    @ApiOperation("Return the node that a given Component Instance will run on.")
     @RequestMapping(path = "components/{componentType}/instances/{instanceId}/node",
             method = RequestMethod.GET)
     @ResponseBody
@@ -213,6 +224,7 @@ public class ClusterMgrController {
      *
      * @return the name of the Cluster Node on which this component will run.
      */
+    @ApiOperation("Set the name of the Ops Manager Cluster Node on which the given VMT Component Instance should run.")
     @RequestMapping(path = "components/{componentType}/instances/{instanceId}/node",
             consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
             method = RequestMethod.PUT)
@@ -229,6 +241,7 @@ public class ClusterMgrController {
      *
      * @return the map of property-name/value pairs for the given component instance
      */
+    @ApiOperation("Get the map of (property name -> value) for a component instance.")
     @RequestMapping(path = "components/{componentType}/instances/{instanceId}/properties",
             method = RequestMethod.GET)
     @ResponseBody
@@ -243,6 +256,7 @@ public class ClusterMgrController {
      *
      * @return the map of property-name/value pairs for the given component instance
      */
+    @ApiOperation("Replace the map of (property name -> value) for a component instance.")
     @RequestMapping(path = "components/{componentType}/instances/{instanceId}/properties",
             consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
             method = RequestMethod.PUT)
@@ -259,6 +273,7 @@ public class ClusterMgrController {
      *
      * @return the value of the named property for the given component type
      */
+    @ApiOperation("Get the value of a default configuration property for a VMTurbo component type.")
     @RequestMapping(path = "components/{componentType}/defaults/{propertyName}",
             method = RequestMethod.GET
     )
@@ -275,6 +290,7 @@ public class ClusterMgrController {
      *
      * @return the new value of the named property for the given component type
      */
+    @ApiOperation("Set the value of a default configuration property for a VMTurbo component type.")
     @RequestMapping(path = "components/{componentType}/defaults/{propertyName}",
             consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
             method = RequestMethod.PUT)
@@ -292,6 +308,7 @@ public class ClusterMgrController {
      *
      * @return the value of the named property for the given component instance
      */
+    @ApiOperation("Get the value of a configuration property for a VMTurbo component instance.")
     @RequestMapping(path = "components/{componentType}/instances/{instanceId}/properties/{propertyName}",
             method = RequestMethod.GET
     )
@@ -309,6 +326,7 @@ public class ClusterMgrController {
      *
      * @return the new value of the named property for the given component instance
      */
+    @ApiOperation("Set the value of a configuration property for a VMTurbo component instance.")
     @RequestMapping(path = "components/{componentType}/instances/{instanceId}/properties/{propertyName}",
             consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
             method = RequestMethod.PUT)
@@ -327,6 +345,7 @@ public class ClusterMgrController {
      *
      * @return the set of all component names known to VMTurbo.
      */
+    @ApiOperation("Get the set of components known to VMTurbo")
     @RequestMapping(path = "/components",
             method = RequestMethod.GET)
     @ResponseBody
@@ -338,6 +357,7 @@ public class ClusterMgrController {
     /**
      * Get processing state from all running VmtComponents
      */
+    @ApiOperation("Get processing state from all running VmtComponents")
     @RequestMapping(path="/state")
     @ResponseBody
     @SuppressWarnings("unused")
@@ -349,6 +369,7 @@ public class ClusterMgrController {
     /**
      * Get service health from all running VmtComponents
      */
+    @ApiOperation("Get service health from all running VmtComponents")
     @RequestMapping(path="/cluster/health")
     @ResponseBody
     @SuppressWarnings("unused")
@@ -359,6 +380,7 @@ public class ClusterMgrController {
     /**
      * Get diagnostics from all running VmtComponents
      */
+    @ApiOperation("Get diagnostics from all running VmtComponents")
     @RequestMapping(path="/diagnostics",
             produces={"application/zip"})
     @ResponseBody
@@ -373,6 +395,7 @@ public class ClusterMgrController {
      *
      * @return anything, in this case "true"; it is the "ok" HTTP response code that matters.
      */
+    @ApiOperation("Health-check API used by Consul to determine whether a component is alive.")
     @RequestMapping(path = "/health",
             method = RequestMethod.GET)
     @ResponseBody
