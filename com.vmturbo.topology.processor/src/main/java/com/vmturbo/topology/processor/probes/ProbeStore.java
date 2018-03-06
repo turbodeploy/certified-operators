@@ -85,6 +85,18 @@ public interface ProbeStore {
     Map<Long, ProbeInfo> getProbes();
 
     /**
+     * Updates stored information about probes with a different map of information about probes.
+     * The old map is cleared and only the entries from the new map are present.
+     * Any probes already registered remain registered, but no additional probes are registered.
+     *
+     * This method is used for restoring probe info from diags, and should not be used in
+     * normal operations.
+     *
+     * @param probeInfoMap the new probe information to store
+     */
+    void overwriteProbeInfo(@Nonnull final Map<Long, ProbeInfo> probeInfoMap);
+
+    /**
      * Add a listener for probe store events.
      *
      * @param listener The listener to add.

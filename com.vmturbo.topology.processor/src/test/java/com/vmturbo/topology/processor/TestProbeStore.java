@@ -45,13 +45,21 @@ public class TestProbeStore implements ProbeStore {
     }
 
     @Override
-    public boolean registerNewProbe(@Nonnull ProbeInfo probeInfo, ITransport<MediationServerMessage, MediationClientMessage> transport) throws ProbeException {
+    public boolean registerNewProbe(@Nonnull ProbeInfo probeInfo,
+                                    @Nonnull ITransport<MediationServerMessage,
+                                        MediationClientMessage> transport) throws ProbeException {
         long probeId = identityProvider.getProbeId(probeInfo);
         probeInfos.put(probeId, probeInfo);
         probes.put(probeId, transport);
         listeners.forEach(listener -> listener.onProbeRegistered(probeId, probeInfo));
 
         return true;
+    }
+
+    @Override
+    public void overwriteProbeInfo(@Nonnull final Map<Long, ProbeInfo> probeInfoMap) {
+        probeInfos.clear();
+        probeInfos.putAll(probeInfoMap);
     }
 
     public void removeProbe(ProbeInfo probeInfo) {

@@ -21,6 +21,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
@@ -37,6 +38,7 @@ import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.TopologyProcessorComponent;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -44,6 +46,7 @@ import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
@@ -57,19 +60,20 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * The topology processor dump is made of a zip file that contains one file for the registered
  * targets, one file for their schedules, and then one file per target with the entities
  * associated with that target.
- * TODO: add the probes
  */
 public class TopologyProcessorDiagnosticsHandler {
 
     private static final String TARGETS_DIAGS_FILE_NAME = "Targets.diags";
     private static final String SCHEDULES_DIAGS_FILE_NAME = "Schedules.diags";
     private static final String ID_DIAGS_FILE_NAME = "Identity.diags";
+    private static final String PROBES_DIAGS_FILE_NAME = "Probes.diags";
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final TargetStore targetStore;
     private final Scheduler scheduler;
     private final EntityStore entityStore;
+    private final ProbeStore probeStore;
     private final DiscoveredGroupUploader discoveredGroupUploader;
     private final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader;
     private final IdentityProvider identityProvider;
@@ -81,6 +85,7 @@ public class TopologyProcessorDiagnosticsHandler {
         @Nonnull final TargetStore targetStore,
         @Nonnull final Scheduler scheduler,
         @Nonnull final EntityStore entityStore,
+        @Nonnull final ProbeStore probeStore,
         @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
         @Nonnull final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
         @Nonnull final IdentityProvider identityProvider,
@@ -88,6 +93,7 @@ public class TopologyProcessorDiagnosticsHandler {
         this.targetStore = targetStore;
         this.scheduler = scheduler;
         this.entityStore = entityStore;
+        this.probeStore = probeStore;
         this.discoveredGroupUploader = discoveredGroupUploader;
         this.templateDeploymentProfileUploader = templateDeploymentProfileUploader;
         this.identityProvider = identityProvider;
@@ -114,6 +120,15 @@ public class TopologyProcessorDiagnosticsHandler {
     private void dumpDiags(ZipOutputStream diagnosticZip,
                            Function<IdentifiedEntityDTO, String> identifiedEntityMapper,
                            Function<Target, TargetInfo> targetMapper) {
+        // Probes
+        diagnosticsWriter.writeZipEntry(PROBES_DIAGS_FILE_NAME,
+            probeStore.getProbes().entrySet().stream()
+                .map(entry -> new ProbeInfoWithId(entry.getKey(), entry.getValue()))
+                .map(probeInfoWithId -> GSON.toJson(probeInfoWithId, ProbeInfoWithId.class))
+                .collect(Collectors.toList()),
+            diagnosticZip
+        );
+
         // Targets
         List<Target> targets = targetStore.getAll();
         diagnosticsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME,
@@ -254,19 +269,24 @@ public class TopologyProcessorDiagnosticsHandler {
      * @throws InvalidTargetException when the target is invalid
      * @throws IOException when there is a problem with I/O
      */
-    public List<Target> restore(InputStream zis)
-        throws IOException, TargetDeserializationException,
-        InvalidTargetException {
+    public List<Target> restore(InputStream zis) throws IOException, TargetDeserializationException,
+                                                            InvalidTargetException {
         for (Diags diags : new RecursiveZipReader(zis)) {
-            String diagsName = diags.getName();
+            final String diagsName = diags.getName();
+            final List<String> diagsLines = diags.getLines();
+            if (diagsLines == null) {
+                continue;
+            }
             try {
                 if (TARGETS_DIAGS_FILE_NAME.equals(diagsName)) {
-                    restoreTargets(diags.getLines());
+                    restoreTargets(diagsLines);
                 } else if (SCHEDULES_DIAGS_FILE_NAME.equals(diagsName)) {
-                    restoreSchedules(diags.getLines());
+                    restoreSchedules(diagsLines);
+                } else if (PROBES_DIAGS_FILE_NAME.equals(diagsName)){
+                    restoreProbes(diagsLines);
                 } else if (ID_DIAGS_FILE_NAME.equals(diagsName)) {
                     try {
-                        identityProvider.restoreDiags(diags.getLines());
+                        identityProvider.restoreDiags(diagsLines);
                     } catch (RuntimeException e) {
                         logger.error("Failed to restore Identity diags.", e);
                     }
@@ -278,16 +298,16 @@ public class TopologyProcessorDiagnosticsHandler {
                     if (entitiesMatcher.matches()) {
                         long targetId = Long.valueOf(entitiesMatcher.group(1));
                         long lastUpdatedTime = Long.valueOf(entitiesMatcher.group(2));
-                        restoreEntities(targetId, lastUpdatedTime, diags.getLines());
+                        restoreEntities(targetId, lastUpdatedTime, diagsLines);
                     } else if (groupsMatcher.matches()) {
                         long targetId = Long.valueOf(groupsMatcher.group(1));
-                        restoreGroupsAndPolicies(targetId, diags.getLines());
+                        restoreGroupsAndPolicies(targetId, diagsLines);
                     } else if (settingPolicyMatcher.matches()) {
                         long targetId = Long.valueOf(settingPolicyMatcher.group(1));
-                        restoreSettingPolicies(targetId, diags.getLines());
+                        restoreSettingPolicies(targetId, diagsLines);
                     } else if (deploymentProfileMatcher.matches()) {
                         long targetId = Long.valueOf(deploymentProfileMatcher.group(1));
-                        restoreTemplatesAndDeploymentProfiles(targetId, diags.getLines());
+                        restoreTemplatesAndDeploymentProfiles(targetId, diagsLines);
                     } else {
                         logger.warn("Did not recognize diags file {}", diagsName);
                     }
@@ -303,11 +323,11 @@ public class TopologyProcessorDiagnosticsHandler {
      * Clear the target store and re-populate it based on a list of serialized targets.
      *
      * @param serializedTargets a list of json-serialized targets
-     * @throws IOException if there is a problem reading the file
      * @throws TargetDeserializationException if deserialization fails
      */
-    public void restoreTargets(List<String> serializedTargets)
-            throws TargetDeserializationException, IOException {
+    @VisibleForTesting
+    void restoreTargets(@Nonnull final List<String> serializedTargets)
+                                                            throws TargetDeserializationException {
         logger.info("Attempting to restore " + serializedTargets.size() + " targets");
         targetStore.removeAllTargets();
         final long restoredTargetsCount = serializedTargets.stream()
@@ -338,13 +358,36 @@ public class TopologyProcessorDiagnosticsHandler {
     }
 
     /**
+     * Repopulate the probe store using a list of serialized probe infos.
+     *
+     * @param serializedProbes a list of json-serialized probe infos
+     */
+    private void restoreProbes(@Nonnull final List<String> serializedProbes) {
+        logger.info("Restoring {} probes", serializedProbes.size());
+
+        final Map<Long, ProbeInfo> probeMap = serializedProbes.stream()
+            .map(serialized -> {
+                try {
+                    return GSON.fromJson(serialized, ProbeInfoWithId.class);
+                } catch (JsonParseException e) {
+                    logger.error("Failed to deserialize probe info {} because of error: ",
+                        serialized, e);
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toMap(ProbeInfoWithId::getProbeId, ProbeInfoWithId::getProbeInfo));
+        probeStore.overwriteProbeInfo(probeMap);
+        logger.info("Done restoring {} probes.", probeMap.size());
+    }
+
+    /**
      * Restore target discovery schedules from a list of serialized schedules, usually produced
      * via a {@link #dumpDiags(ZipOutputStream) operation.
      *
-     * @param serializedSchedules a list of json-serialized shcedules
-     * @throws IOException if there is a problem reading the file
+     * @param serializedSchedules a list of json-serialized schedules
      */
-    public void restoreSchedules(List<String> serializedSchedules) throws IOException {
+    private void restoreSchedules(@Nonnull final List<String> serializedSchedules) {
         logger.info("Restoring " + serializedSchedules.size() + " schedules");
         Gson gson = new Gson();
         for (String json : serializedSchedules) {
@@ -369,11 +412,10 @@ public class TopologyProcessorDiagnosticsHandler {
      * @param targetId the target ID that the restored entities will be associated with in
      *        the {@link EntityStore}
      * @param serializedEntities a list of serialized entity DTOs
-     * @throws IOException if there is a problem reading the file
      * @see {@link EntityStore#entitiesDiscovered(long, long, List)
      */
-    public void restoreEntities(long targetId, long lastUpdatedTime,
-                                List<String> serializedEntities) throws IOException {
+    private void restoreEntities(final long targetId, final long lastUpdatedTime,
+                                @Nonnull final List<String> serializedEntities) {
         logger.info("Restoring " + serializedEntities.size() + " entities for target " + targetId);
         Map<Long, EntityDTO> entitiesMap = Maps.newHashMap();
         serializedEntities.stream()
@@ -390,18 +432,29 @@ public class TopologyProcessorDiagnosticsHandler {
      * @param targetId the target ID that the restored groups and policies will be associated with
      * @param serializedGroups a list of serialized DiscoveredGroupInfos to restore
      */
-    public void restoreGroupsAndPolicies(final long targetId,
+    private void restoreGroupsAndPolicies(final long targetId,
                                          @Nonnull final List<String> serializedGroups) {
-        logger.info("Restoring {} discovered groups for target {}", serializedGroups.size(), targetId);
+        logger.info("Restoring {} discovered groups for target {}", serializedGroups.size(),
+            targetId);
 
         final List<CommonDTO.GroupDTO> discovered = serializedGroups.stream()
-            .map(serialized ->
-                GSON.fromJson(serialized, DiscoveredGroupInfo.class).getDiscoveredGroup())
+            .map(serialized -> {
+                try {
+                    return GSON.fromJson(serialized, DiscoveredGroupInfo.class)
+                        .getDiscoveredGroup();
+                } catch (JsonParseException e) {
+                    logger.error("Failed to deserialize discovered group info {} for target {} " +
+                        "because of error: ", serialized, targetId, e);
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
         discoveredGroupUploader.setTargetDiscoveredGroups(targetId, discovered);
 
-        logger.info("Done restoring discovered groups for target {}", targetId);
+        logger.info("Done restoring {} discovered groups for target {}", discovered.size(),
+            targetId);
     }
 
     /**
@@ -411,18 +464,28 @@ public class TopologyProcessorDiagnosticsHandler {
      * @param targetId the target ID that the restored setting policies will be associated with
      * @param serializedSettingPolicies a list of serialized DiscoveredSettingPolicyInfos to restore
      */
-    public void restoreSettingPolicies(final long targetId,
+    private void restoreSettingPolicies(final long targetId,
                                         @Nonnull final List<String> serializedSettingPolicies) {
         logger.info("Restoring {} discovered setting policies for target {}",
             serializedSettingPolicies.size(), targetId);
 
         final List<DiscoveredSettingPolicyInfo> discovered = serializedSettingPolicies.stream()
-            .map(serialized -> GSON.fromJson(serialized, DiscoveredSettingPolicyInfo.class))
+            .map(serialized -> {
+                try {
+                    return GSON.fromJson(serialized, DiscoveredSettingPolicyInfo.class);
+                } catch (JsonParseException e) {
+                    logger.error("Failed to deserialize discovered setting policy info {} for " +
+                        "target {} because of error: ", serialized, targetId, e);
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
         discoveredGroupUploader.setTargetDiscoveredSettingPolicies(targetId, discovered);
 
-        logger.info("Done restoring discovered setting policies for target {}", targetId);
+        logger.info("Done restoring {} discovered setting policies for target {}",
+            discovered.size(), targetId);
     }
 
     /**
@@ -432,20 +495,30 @@ public class TopologyProcessorDiagnosticsHandler {
      * @param targetId the target ID associated with restored templates and deployment profiles
      * @param serialized a list of serialized DeploymentProfileWithTemplates to restore
      */
-    public void restoreTemplatesAndDeploymentProfiles(long targetId, List<String> serialized) {
+    private void restoreTemplatesAndDeploymentProfiles(final long targetId,
+                                                       @Nonnull final List<String> serialized) {
 
         logger.info("Restoring {} discovered deployment profiles and associated templates for " +
             "target {}", serialized.size(), targetId);
         Map<DeploymentProfileInfo, Set<EntityProfileDTO>> mappedProfiles = serialized.stream()
-            .map(string -> GSON.fromJson(string, DeploymentProfileWithTemplate.class))
+            .map(string -> {
+                try {
+                    return GSON.fromJson(string, DeploymentProfileWithTemplate.class);
+                } catch (JsonParseException e) {
+                    logger.error("Failed to deserialize deployment profile and template {} for " +
+                        "target {} because of error: ", string, targetId, e);
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
             .collect(Collectors.toMap(DeploymentProfileWithTemplate::getProfile,
                 DeploymentProfileWithTemplate::getTemplates));
 
         templateDeploymentProfileUploader
             .setTargetsTemplateDeploymentProfileInfos(targetId, mappedProfiles);
 
-        logger.info("Done restoring discovered deployment profiles and templates for target {}",
-            targetId);
+        logger.info("Done restoring {} discovered deployment profiles and templates for target {}",
+            mappedProfiles.size(), targetId);
     }
 
     /**
@@ -459,7 +532,7 @@ public class TopologyProcessorDiagnosticsHandler {
             return targetId;
         }
 
-        public long getScheduleIntervalMillis() {
+        long getScheduleIntervalMillis() {
             return scheduleIntervalMillis;
         }
     }
@@ -484,6 +557,28 @@ public class TopologyProcessorDiagnosticsHandler {
                                       @Nonnull final Set<EntityProfileDTO> templates) {
             this.profile = Objects.requireNonNull(profile);
             this.templates = Objects.requireNonNull(templates);
+        }
+    }
+
+    /**
+     * Internal class used for serializing and deserializing probe info to preserve
+     * links between probes and ids
+     */
+    static class ProbeInfoWithId {
+        private long probeId;
+        private ProbeInfo probeInfo;
+
+        public long getProbeId() {
+            return probeId;
+        }
+
+        ProbeInfoWithId(final long probeId, @Nonnull final ProbeInfo probeInfo) {
+            this.probeId = probeId;
+            this.probeInfo = probeInfo;
+        }
+
+        public ProbeInfo getProbeInfo() {
+            return probeInfo;
         }
     }
 }

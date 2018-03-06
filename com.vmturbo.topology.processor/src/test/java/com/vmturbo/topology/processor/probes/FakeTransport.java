@@ -7,7 +7,7 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 
 /**
- * Class holds various usefull static methods for creating fake transports.
+ * Class holds various useful static methods for creating fake transports.
  */
 public class FakeTransport {
 

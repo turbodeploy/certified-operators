@@ -102,8 +102,7 @@ public class RemoteProbeStore implements ProbeStore {
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toConcurrentMap(
-                        probeInfo -> identityProvider_.getProbeId(probeInfo),
-                        Function.identity()));
+                    identityProvider_::getProbeId, Function.identity()));
     }
 
     /**
@@ -160,6 +159,19 @@ public class RemoteProbeStore implements ProbeStore {
                 return probeExists;
             }
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void overwriteProbeInfo(@Nonnull final Map<Long, ProbeInfo> probeInfoMap) {
+        logger.info("Storing probe info");
+        synchronized (dataLock) {
+            probeInfos.clear();
+            probeInfos.putAll(probeInfoMap);
+        }
+        logger.info("Stored info from {} probes", probeInfos.size());
     }
 
     /**
