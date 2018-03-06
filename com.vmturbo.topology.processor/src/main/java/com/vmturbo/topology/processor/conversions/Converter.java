@@ -149,7 +149,7 @@ public class Converter {
             entityPropertyMap,
             availableAsProvider,
             isShopTogether,
-            calculateSuspendability(dto)
+            calculateSuspendabilityWithStitchingEntity(entity)
         );
     }
 
@@ -420,5 +420,54 @@ public class Converter {
         return entity.getOrigin() == EntityOrigin.DISCOVERED
             ? Optional.empty()
             : Optional.of(false);
+    }
+
+    /**
+     * Use {@link TopologyStitchingEntity} to check if entity should be suspendable or not.
+     * Discovered entities may be suspended. Proxy/replacable entities should never be suspended by the market.
+     * They are often the top of the supply chain if they are not removed or replaced during stitching.
+     * Thus, only unstitched proxy/replaceable entities will ever ben converted here.
+     * And also if entity is a local storage, it should not be suspendable.
+     *
+     * * TODO: Proxy/Replacable should be removed when we no longer need to support classic. Do not rely on it here.
+     *
+     * @param entity The entity whose suspendability should be calculated.
+     * @return If the entity is discovered, an empty value to indicate the default suspendability should
+     *         be retained. If the entity origin is not discovered or the entity is a local storage,
+     *         an Optional of false to indicate the entity should never be suspended by the market.
+     */
+    @VisibleForTesting
+    static Optional<Boolean> calculateSuspendabilityWithStitchingEntity(
+            @Nonnull final TopologyStitchingEntity entity) {
+        return (entity.getEntityBuilder().getOrigin() == EntityOrigin.DISCOVERED &&
+                !isLocalStorage(entity))
+                ? Optional.empty()
+                : Optional.of(false);
+    }
+
+    /**
+     * Check if the entity is a local storage, which means the entity type is storage and its
+     * localSupport is true and also attached to only one host.
+     *
+     * @param entity The entity need to check if is a local storage.
+     * @return a boolean.
+     */
+    private static boolean isLocalStorage(@Nonnull final TopologyStitchingEntity entity) {
+        return  entity.getEntityType() == EntityType.STORAGE &&
+                entity.getEntityBuilder().hasProviderPolicy() &&
+                entity.getEntityBuilder().getProviderPolicy().getLocalSupported() &&
+                attachedOnlyOneHost(entity);
+    }
+
+    /**
+     * Check if the entity has only one Host in its consumers.
+     *
+     * @param entity The entity need to check.
+     * @return a boolean.
+     */
+    private static boolean attachedOnlyOneHost(@Nonnull final TopologyStitchingEntity entity) {
+        return entity.getConsumers().stream()
+                .filter(providerEntity -> providerEntity.getEntityType() == EntityType.PHYSICAL_MACHINE)
+                .count() == 1;
     }
 }

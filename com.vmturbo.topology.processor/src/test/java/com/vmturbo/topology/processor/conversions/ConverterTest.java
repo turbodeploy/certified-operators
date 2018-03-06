@@ -28,12 +28,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ProviderPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
+import com.vmturbo.topology.processor.stitching.StitchingEntityData;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
  * Unit test for {@link Converter}.
@@ -227,6 +231,27 @@ public class ConverterTest {
             .setId("foo")
             .setEntityType(EntityType.VIRTUAL_MACHINE)
             .setOrigin(EntityOrigin.DISCOVERED)));
+    }
+
+    @Test
+    public void testEntitySuspendabiligyWithStitchingEntity() {
+        final EntityDTO.Builder pmEntityDto = EntityDTO.newBuilder()
+                .setId("foo")
+                .setEntityType(EntityType.PHYSICAL_MACHINE);
+        final StitchingEntityData pmEntity = StitchingEntityData.newBuilder(pmEntityDto)
+                .build();
+        TopologyStitchingEntity pmStitchingEntity = new TopologyStitchingEntity(pmEntity);
+        final EntityDTO.Builder storageEntityDto = EntityDTO.newBuilder()
+                .setId("bar")
+                .setEntityType(EntityType.STORAGE)
+                .setProviderPolicy(ProviderPolicy.newBuilder()
+                        .setLocalSupported(true));
+        final StitchingEntityData storageEntity = StitchingEntityData.newBuilder(storageEntityDto)
+                .build();
+        TopologyStitchingEntity storageStitchingEntity = new TopologyStitchingEntity(storageEntity);
+        storageStitchingEntity.addConsumer(pmStitchingEntity);
+        assertEquals(Optional.of(false), Converter.calculateSuspendabilityWithStitchingEntity(
+                storageStitchingEntity));
     }
 
     @Test

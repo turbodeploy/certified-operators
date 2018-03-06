@@ -230,8 +230,11 @@ public class EntitySettingsApplicator {
         @Override
         protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                           @Nonnull final Setting setting) {
-            entity.getAnalysisSettingsBuilder().setSuspendable(
-                    !setting.getEnumSettingValue().getValue().equals("DISABLED"));
+            // when setting value is DISABLED, set suspendable to false,
+            // otherwise keep the original value which could be set during converting SDK entityDTO.
+            if (setting.getEnumSettingValue().getValue().equals("DISABLED")) {
+                entity.getAnalysisSettingsBuilder().setSuspendable(false);
+            }
         }
     }
 

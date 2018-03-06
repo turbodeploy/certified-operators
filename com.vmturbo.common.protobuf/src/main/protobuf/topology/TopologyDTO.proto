@@ -75,10 +75,10 @@ message TopologyEntityDTO {
         // the list of ENABLE_PROVISION in EntitySettings.
         optional bool cloneable = 3;
 
-        // Whether the Market can suspend this entity.
-        // If unset, the suspendable value for an entity will be calculated based on its entityType from
-        // the list of ENABLE_SUSPEND types in EntitySettings.
-        optional bool suspendable = 4;
+        // Whether the Market can suspend this entity. And it's default value should be true.
+        // If unset, the suspendable value for an entity will be calculated in Market component based
+        // on its entityType from the list of ENABLE_SUSPEND types in EntitySettings.
+        optional bool suspendable = 4 [default = true];
 
         // The desired utilization target value. Together with the
         // desired_utilization_range below, they describe the min and max
