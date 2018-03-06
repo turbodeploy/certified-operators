@@ -176,6 +176,10 @@ public class AuthenticationService implements IAuthenticationService {
                 user.setUuid(dto.getUuid());
                 user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
                 user.setAuthToken(dto.getToken());
+                // just like legacy, pass the user role to UI
+                if (!dto.getRoles().isEmpty()) {
+                    user.setRoleName(dto.getRoles().get(0));
+                }
                 // TODO: it's a hack to avoid infinite loop, remove it when OM-24011 is fixed
                 setSessionMaxInactiveInterval(0);
                 return user;

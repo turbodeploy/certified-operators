@@ -3,9 +3,11 @@ package com.vmturbo.api.component.external.api.dispatcher;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.api.component.external.api.ApiSecurityConfig;
 import com.vmturbo.api.component.external.api.service.LicenseService;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
@@ -43,12 +45,19 @@ import com.vmturbo.api.xlcontroller.ClusterController;
  *
  * The controllers here should match those in
  * com.vmturbo.api.controller and com.vmturbo.api.controller.
+ *
+ * Import Spring security configuration from ApiSecurityConfig to enable method access-control for
+ * controllers.
+ * E.g.  @PreAuthorize("hasRole('ADMINISTRATOR')").
+ *
  */
 @Configuration
 @EnableWebMvc
+@Import(ApiSecurityConfig.class)
 // DO NOT import configurations outside the external.api.dispatcher package here, because
 // that will re-create the configuration's beans in the child context for the dispatcher servlet.
 // You will end up with multiple instances of the same beans, which could lead to tricky bugs.
+// Note: ApiSecurityConfig doesn't have beans.
 public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     /**
