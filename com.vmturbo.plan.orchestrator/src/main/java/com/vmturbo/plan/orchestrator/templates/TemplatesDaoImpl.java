@@ -5,6 +5,7 @@ import static com.vmturbo.plan.orchestrator.db.tables.Template.TEMPLATE;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,7 +26,10 @@ import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO;
@@ -34,6 +38,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Template;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -42,6 +47,10 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
  * Implementation of {@link TemplatesDao} using underlying DB connection.
  */
 public class TemplatesDaoImpl implements TemplatesDao {
+
+    @VisibleForTesting
+    static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
+
     private final Logger logger = LogManager.getLogger();
 
     private final DSLContext dsl;
@@ -345,6 +354,23 @@ public class TemplatesDaoImpl implements TemplatesDao {
      */
     private void updateRecordFromProto(@Nonnull final TemplateDTO.Template template,
                                        @Nonnull final TemplateRecord record) {
+        final TemplateRecord toStore = addInfoToRecord(template, record);
+
+        // This actually writes the record to the database.
+        toStore.store();
+    }
+
+    /**
+     * Overrides the fields in a {@link TemplateRecord} (which represents a row in the "template"
+     * table) with information from a {@link TemplateDTO.Template} proto in preparation for
+     * storing the record to the db.
+     *
+     * @param template The template that represents the new information.
+     * @param record The record to update. This is modified in this method and returned.
+     * @return the record parameter, modified ಠ_ಠ
+     */
+    private TemplateRecord addInfoToRecord(final @Nonnull TemplateDTO.Template template,
+                                           final @Nonnull TemplateRecord record) {
         final TemplateInfo templateInfo = template.getTemplateInfo();
         record.setId(template.getId());
         record.setName(templateInfo.getName());
@@ -357,9 +383,7 @@ public class TemplatesDaoImpl implements TemplatesDao {
             record.setProbeTemplateId(templateInfo.getProbeTemplateId());
         }
         record.setTemplateInfo(templateInfo);
-
-        // This actually writes the record to the database.
-        record.store();
+        return record;
     }
 
     @Nonnull
@@ -432,5 +456,83 @@ public class TemplatesDaoImpl implements TemplatesDao {
                 logger.info("Created default template: {}", nameToAdd);
             });
         });
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method retrieves all templates and serializes them as JSON strings.
+     *
+     * @return a list of serialized templates
+     * @throws DiagnosticsException
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final Set<TemplateDTO.Template> templates = getAllTemplates();
+        logger.info("Collecting diagnostics for {} templates", templates.size());
+        return templates.stream()
+            .map(template -> GSON.toJson(template, TemplateDTO.Template.class))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method unserializes and adds a list of serialized templates from diagnostics.
+     *
+     * @param collectedDiags The diags collected from a previous call to
+     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     * @throws DiagnosticsException if the db already contains templates, or in response
+     *                              to any errors that may occur unserializing or restoring a
+     *                              templates.
+     */
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        if (!getAllTemplates().isEmpty()) {
+            throw new DiagnosticsException("Templates cannot be restored because they are already present");
+        }
+        final List<String> errors = new ArrayList<>();
+
+        logger.info("Restoring {} serialized templates", collectedDiags.size());
+        final long count = collectedDiags.stream().map(serialized -> {
+            try {
+                return GSON.fromJson(serialized, TemplateDTO.Template.class);
+            } catch (JsonParseException e) {
+                errors.add("Failed to deserialize template " + serialized +
+                    " because of parse exception " + e.getMessage());
+                return null;
+            }
+        }).filter(Objects::nonNull).map(this::restoreTemplate).filter(optional -> {
+            optional.ifPresent(errors::add);
+            return !optional.isPresent();
+        }).count();
+        logger.info("Successfully added {} templates to database", count);
+
+        if (!errors.isEmpty()) {
+            throw new DiagnosticsException(errors);
+        }
+
+    }
+
+    /**
+     * Add a TemplateDTO.Template to the database.
+     *
+     * This is used when restoring serialized TemplateDTO.Templates from diagnostics and should
+     * not be used for normal operations.
+     *
+     * @param template the Template to add
+     * @return an optional of a string representing any error that may have occurred
+     */
+    private Optional<String> restoreTemplate(@Nonnull final TemplateDTO.Template template) {
+        final TemplateRecord templateRecord = dsl.newRecord(TEMPLATE);
+        try {
+            int r = addInfoToRecord(template, templateRecord).store();
+            return r == 1 ? Optional.empty() : Optional.of("Failed to restore template " + template);
+        } catch (DataAccessException e) {
+            return Optional.of("Could not restore template " + template +
+                " because of DataAccessException "+ e.getMessage());
+        }
     }
 }

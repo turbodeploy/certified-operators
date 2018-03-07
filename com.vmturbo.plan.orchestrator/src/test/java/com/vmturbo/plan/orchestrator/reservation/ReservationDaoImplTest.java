@@ -5,9 +5,14 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -263,5 +268,53 @@ public class ReservationDaoImplTest {
                 .getReservationTemplateBuilderList()
                 .forEach(reservationTemplate -> reservationTemplate.setTemplateId(templateId));
         return builder.build();
+    }
+
+    @Test
+    public void testCollectDiags() throws Exception {
+
+        Reservation createdFirstReservation =
+            reservationDao.createReservation(createReservationWithTemplate(testFirstReservation));
+        Reservation createdSecondReservation =
+            reservationDao.createReservation(createReservationWithTemplate(testSecondReservation));
+        final List<String> result = reservationDao.collectDiags();
+
+        final List<String> expected = Stream.of(createdFirstReservation, createdSecondReservation)
+            .map(profile -> ReservationDaoImpl.GSON.toJson(profile, Reservation.class))
+            .collect(Collectors.toList());
+
+        assertTrue(result.containsAll(expected));
+        assertTrue(expected.containsAll(result));
+    }
+
+    @Test
+    public void testRestoreFromDiags() throws Exception {
+
+        final List<String> diags = Arrays.asList(
+            "{\"id\":\"1997938755808\",\"name\":\"Test-first-reservation\",\"startDate\":" +
+                "\"1544590800000\",\"expirationDate\":\"1544850000000\",\"status\":\"FUTURE\"," +
+                "\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\"," +
+                "\"templateId\":\"1997938753776\",\"reservationInstance\":[{\"entityId\":\"456\"," +
+                "\"placementInfo\":[{\"providerId\":\"14\"}]}]}]},\"constraintInfoCollection\":" +
+                "{\"reservationConstraintInfo\":[{\"constraintId\":\"100\",\"type\":" +
+                "\"DATA_CENTER\"}]}}",
+            "{\"id\":\"1997938756368\",\"name\":\"Test-second-reservation\",\"startDate\":" +
+                "\"1574398800000\",\"expirationDate\":\"1577595600000\",\"status\":\"RESERVED\"," +
+                "\"reservationTemplateCollection\":{\"reservationTemplate\":[{\"count\":\"1\"," +
+                "\"templateId\":\"1997938755584\",\"reservationInstance\":[{\"entityId\":\"456\"," +
+                "\"placementInfo\":[{\"providerId\":\"14\"}]}]}]},\"constraintInfoCollection\":" +
+                "{\"reservationConstraintInfo\":[{\"constraintId\":\"100\",\"type\":" +
+                "\"DATA_CENTER\"}]}}"
+        );
+        reservationDao.restoreDiags(diags);
+
+        final Set<Reservation> result = reservationDao.getAllReservations();
+        assertEquals(2, result.size());
+        final List<Reservation> expected = diags.stream()
+            .map(serial -> ReservationDaoImpl.GSON.fromJson(serial, Reservation.class))
+            .collect(Collectors.toList());
+        assertTrue(expected.containsAll(result));
+        assertTrue(result.containsAll(expected));
+
     }
 }

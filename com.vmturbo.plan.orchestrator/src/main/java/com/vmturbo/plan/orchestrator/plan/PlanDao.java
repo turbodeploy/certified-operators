@@ -13,11 +13,12 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 
 /**
  * DAO for plan instance.
  */
-public interface PlanDao {
+public interface PlanDao extends Diagnosable {
 
     /**
      * Creates a plan instance, based on plan information.

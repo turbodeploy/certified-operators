@@ -2,26 +2,38 @@ package com.vmturbo.plan.orchestrator.scenario;
 
 import static com.vmturbo.plan.orchestrator.db.tables.Scenario.SCENARIO;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario;
 import com.vmturbo.plan.orchestrator.db.tables.records.ScenarioRecord;
 
 /**
  * This class provides access to the scenario db.
  */
-public class ScenarioDao {
+public class ScenarioDao implements Diagnosable {
+
+    @VisibleForTesting
+    static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final Logger logger = LogManager.getLogger();
     private final DSLContext dsl;
@@ -107,5 +119,83 @@ public class ScenarioDao {
             .setId(scenario.getId())
             .setScenarioInfo(scenario.getScenarioInfo())
             .build();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method retrieves all scenarios and serializes them as JSON strings.
+     *
+     * @return
+     * @throws DiagnosticsException
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final List<Scenario> scenarios = getScenarios();
+
+        logger.info("Collecting diagnostics for {} scenarios", scenarios.size());
+        return scenarios.stream().map(scenario -> GSON.toJson(scenario, Scenario.class))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method deserializes and adds a list of serialized scenarios from diagnostics.
+     *
+     * @param collectedDiags The diags collected from a previous call to
+     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     * @throws DiagnosticsException if the db already contains scenarios, or in response
+     *                              to any errors that may occur unserializing or restoring a
+     *                              scenario.
+     */
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        if (!getScenarios().isEmpty()) {
+            throw new DiagnosticsException("Scenarios cannot be restored because they are already present");
+        }
+
+        final List<String> errors = new ArrayList<>();
+
+        logger.info("Adding {} serialized scenarios from diagnostics", collectedDiags.size());
+
+        final long count = collectedDiags.stream().map(serialized -> {
+                try {
+                    return GSON.fromJson(serialized, Scenario.class);
+                } catch (JsonParseException e) {
+                    errors.add("Failed to deserialize scenario " + serialized +
+                        " because of parse exception " + e.getMessage());
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull).map(this::restoreScenario).filter(optional -> {
+                optional.ifPresent(errors::add);
+                return !optional.isPresent();
+            }).count();
+
+        logger.info("Added {} scenarios from diagnostics", count);
+
+        if (!errors.isEmpty()) {
+            throw new DiagnosticsException(errors);
+        }
+    }
+
+    /**
+     * Add a scenario to the database. Note that this is used for restoring scenarios from
+     * diagnostics and should NOT be used for normal operations.
+     *
+     * @param scenario the scenario to add.
+     * @return an optional of a string representing any error that may have occurred
+     */
+    private Optional<String> restoreScenario(@Nonnull final Scenario scenario) {
+        try {
+            final int r = dsl.newRecord(SCENARIO, scenario).store();
+            return r == 1 ? Optional.empty() : Optional.of("Failed to restore scenario " + scenario);
+        } catch (DataAccessException e) {
+            return Optional.of("Could not restore scenario " + scenario +
+                " because of DataAccessException "+ e.getMessage());
+        }
     }
 }

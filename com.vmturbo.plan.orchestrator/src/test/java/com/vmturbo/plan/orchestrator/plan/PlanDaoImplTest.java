@@ -2,6 +2,7 @@ package com.vmturbo.plan.orchestrator.plan;
 
 import static com.vmturbo.plan.orchestrator.db.tables.PlanInstance.PLAN_INSTANCE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.never;
@@ -10,7 +11,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -235,6 +239,41 @@ public class PlanDaoImplTest {
 
         // verify planInstanceQueue.runNextPlanInstance is called
         verify(planInstanceQueue).runNextPlanInstance();
+    }
+
+    @Test
+    public void testCollectDiags() throws Exception {
+
+        final PlanInstance first =
+            planDao.createPlanInstance(CreatePlanRequest.newBuilder().setTopologyId(1).build());
+        final PlanInstance second =
+            planDao.createPlanInstance(CreatePlanRequest.newBuilder().setTopologyId(2).build());
+        final List<PlanInstance> expected = Arrays.asList(first, second);
+
+        final List<String> result = planDao.collectDiags();
+        System.out.println(result);
+        assertEquals(2, result.size());
+        assertTrue(result.stream().map(string -> PlanDaoImpl.GSON.fromJson(string, PlanInstance.class))
+            .allMatch(expected::contains));
+
+    }
+
+    @Test
+    public void testRestoreDiags() throws Exception {
+
+        final String first = "{\"planId\":\"1992305997952\",\"topologyId\":\"212\",\"status\":" +
+            "\"READY\",\"projectType\":\"USER\"}";
+        final String second = "{\"planId\":\"1992305997760\",\"topologyId\":\"646\",\"status\":" +
+            "\"READY\",\"projectType\":\"USER\"}";
+
+        planDao.restoreDiags(Arrays.asList(first, second));
+
+        final Set<PlanInstance> result = planDao.getAllPlanInstances();
+
+        assertEquals(2, result.size());
+        assertTrue(result.contains(PlanDaoImpl.GSON.fromJson(first, PlanInstance.class)));
+        assertTrue(result.contains(PlanDaoImpl.GSON.fromJson(second, PlanInstance.class)));
+
     }
 
     /**

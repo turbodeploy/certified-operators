@@ -9,11 +9,12 @@ import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 
 /**
  * DAO for plan project.
  */
-public interface PlanProjectDao {
+public interface PlanProjectDao extends Diagnosable {
 
     /**
      * Creates a plan project, based on plan project information.

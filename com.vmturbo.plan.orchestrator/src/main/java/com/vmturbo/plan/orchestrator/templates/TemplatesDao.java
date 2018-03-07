@@ -8,12 +8,13 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 
 /**
  * Data access object, responsible for creating, updating, searching, deleting templates.
  */
-public interface TemplatesDao {
+public interface TemplatesDao extends Diagnosable {
     /**
      * Get all templates including user created and probe discovered templates.
      *

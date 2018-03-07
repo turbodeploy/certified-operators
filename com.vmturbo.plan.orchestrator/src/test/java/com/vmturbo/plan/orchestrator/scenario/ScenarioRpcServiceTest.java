@@ -62,6 +62,8 @@ public class ScenarioRpcServiceTest {
 
     private ScenarioServiceBlockingStub scenarioServiceClient;
 
+    private ScenarioDao scenarioDao;
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -87,8 +89,8 @@ public class ScenarioRpcServiceTest {
     }
 
     private void prepareGrpc() throws Exception {
-        scenarioRpcService = new ScenarioRpcService(
-            new ScenarioDao(dbConfig.dsl()), new IdentityInitializer(0));
+        scenarioDao = new ScenarioDao(dbConfig.dsl());
+        scenarioRpcService = new ScenarioRpcService(scenarioDao, new IdentityInitializer(0));
         grpcServer = GrpcTestServer.newServer(scenarioRpcService);
         grpcServer.start();
         scenarioServiceClient = ScenarioServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -226,5 +228,60 @@ public class ScenarioRpcServiceTest {
                 .setAdditionCount(2)
                 .setEntityId(1234L))
             .build();
+    }
+
+    @Test
+    public void testCollectDiags() throws Exception {
+        scenarioServiceClient.createScenario(ScenarioInfo.newBuilder()
+            .setName("FirstScenario")
+            .addChanges(topologyAdditionChange())
+            .build());
+
+        scenarioServiceClient.createScenario(ScenarioInfo.newBuilder()
+            .setName("SecondScenario")
+            .addChanges(topologyAdditionChange())
+            .build());
+
+        final List<String> scenarios = scenarioDao.getScenarios().stream()
+            .map(scenario -> ScenarioDao.GSON.toJson(scenario,
+                com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario.class))
+            .collect(Collectors.toList());
+
+        final List<String> result = scenarioDao.collectDiags();
+
+        assertEquals(2, result.size());
+        assertEquals(scenarios, result);
+    }
+
+    @Test
+    public void testRestoreFromDiags() throws Exception {
+
+        final List<String> serialized = Arrays.asList(
+            "{\"id\":\"1997624970512\",\"createTime\":{\"date\":{\"year\":2018,\"month\":3," +
+                "\"day\":12},\"time\":{\"hour\":12,\"minute\":29,\"second\":5,\"nano\":0}}," +
+                "\"updateTime\":{\"date\":{\"year\":2018,\"month\":3,\"day\":12},\"time\":" +
+                "{\"hour\":12,\"minute\":29,\"second\":5,\"nano\":0}},\"scenarioInfo\":" +
+                "{\"name\":\"FirstScenario\",\"changes\":[{\"topologyAddition\":" +
+                "{\"additionCount\":2,\"entityId\":\"1234\"}}]}}",
+            "{\"id\":\"1997624975312\",\"createTime\":{\"date\":{\"year\":2018,\"month\":3," +
+                "\"day\":12},\"time\":{\"hour\":12,\"minute\":29,\"second\":6,\"nano\":0}}," +
+                "\"updateTime\":{\"date\":{\"year\":2018,\"month\":3,\"day\":12},\"time\":" +
+                "{\"hour\":12,\"minute\":29,\"second\":6,\"nano\":0}},\"scenarioInfo\":" +
+                "{\"name\":\"SecondScenario\",\"changes\":[{\"topologyAddition\":" +
+                "{\"additionCount\":2,\"entityId\":\"1234\"}}]}}"
+        );
+
+        scenarioDao.restoreDiags(serialized);
+
+        final List<com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario> result =
+            scenarioDao.getScenarios();
+
+        assertEquals(2, result.size());
+
+        serialized.stream()
+            .map(str -> ScenarioDao.GSON.fromJson(str,
+                com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario.class))
+            .forEach(scenario -> assertTrue(scenarioDao.getScenario(scenario.getId()).isPresent()));
+
     }
 }

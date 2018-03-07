@@ -2,18 +2,29 @@ package com.vmturbo.plan.orchestrator.deployment.profile;
 
 import static com.vmturbo.plan.orchestrator.db.Tables.DEPLOYMENT_PROFILE;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.DeploymentProfile;
 import com.vmturbo.plan.orchestrator.plan.DiscoveredNotSupportedOperationException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
@@ -24,7 +35,12 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
  * {@link com.vmturbo.plan.orchestrator.templates.DiscoveredTemplateDeploymentProfileDaoImpl} class
  * is used for uploading discovered templates and deployment profiles.
  */
-public class DeploymentProfileDaoImpl {
+public class DeploymentProfileDaoImpl implements Diagnosable {
+
+    @VisibleForTesting
+    static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
+
+    private final Logger logger = LogManager.getLogger();
 
     private final DSLContext dsl;
 
@@ -123,13 +139,13 @@ public class DeploymentProfileDaoImpl {
             .where(DEPLOYMENT_PROFILE.ID.eq(id)).fetchOne().into(DeploymentProfile.class);
 
         return Optional.ofNullable(deploymentProfile)
-            .map(profile -> convertToProtoDeploymentProfile(profile));
+            .map(this::convertToProtoDeploymentProfile);
     }
 
     private Set<DeploymentProfileDTO.DeploymentProfile> convertToProtoDeploymentProfileList(
         @Nonnull List<DeploymentProfile> deploymentProfiles) {
         return deploymentProfiles.stream()
-            .map(deploymentProfile -> convertToProtoDeploymentProfile(deploymentProfile))
+            .map(this::convertToProtoDeploymentProfile)
             .collect(Collectors.toSet());
     }
 
@@ -146,5 +162,86 @@ public class DeploymentProfileDaoImpl {
 
     private static NoSuchObjectException noSuchObjectException(long id) {
         return new NoSuchObjectException("Deployment profile with id " + id + " not found");
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method retrieves all deployment profiles and serializes them as JSON strings.
+     *
+     * @return
+     * @throws DiagnosticsException
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final Set<DeploymentProfileDTO.DeploymentProfile> profiles = getAllDeploymentProfiles();
+        logger.info("Collecting diagnostics for {} deployment profiles", profiles.size());
+        return profiles.stream()
+            .map(profile -> GSON.toJson(profile, DeploymentProfileDTO.DeploymentProfile.class))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method unserializes and adds a list of serialized deployment profiles from diagnostics.
+     *
+     * @param collectedDiags The diags collected from a previous call to
+     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     * @throws DiagnosticsException if the db already contains deployment profiles, or in response
+     *                              to any errors that may occur unserializing or restoring a
+     *                              deployment profile.
+     */
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        if (!getAllDeploymentProfiles().isEmpty()) {
+            throw new DiagnosticsException(
+                "Deployment profiles cannot be restored because they are already present");
+        }
+
+        final List<String> errors = new ArrayList<>();
+
+        logger.info("Loading {} serialized deployment profiles from diags", collectedDiags.size());
+
+        final long count = collectedDiags.stream().map(serial -> {
+            try {
+                return GSON.fromJson(serial, DeploymentProfileDTO.DeploymentProfile.class);
+            } catch (JsonParseException e) {
+                errors.add("Failed to unserialize deployment profile " + serial +
+                    " because of parse exception " + e.getMessage());
+                return null;
+            }
+        }).filter(Objects::nonNull).map(this::restoreDeploymentProfile).filter(optional -> {
+            optional.ifPresent(errors::add);
+            return !optional.isPresent();
+        }).count();
+
+        logger.info("Loaded {} deployment profiles from diags", count);
+
+        if (!errors.isEmpty()) {
+            throw new DiagnosticsException(errors);
+        }
+    }
+
+    /**
+     * Add a deployment profile to the database. Note that this is used for restoring deployment
+     * profiles from diagnostics and should NOT be used for normal operations.
+     *
+     * @param profile the deployment profile to add.
+     * @return an optional of a string representing any error that may have occurred
+     */
+    private Optional<String> restoreDeploymentProfile(
+                                @Nonnull final DeploymentProfileDTO.DeploymentProfile profile) {
+        final DeploymentProfile record = new DeploymentProfile(profile.getId(), null, null,
+            profile.getDeployInfo().getName(), profile.getDeployInfo());
+        try {
+            int r = dsl.newRecord(DEPLOYMENT_PROFILE, record).store();
+            return r == 1 ? Optional.empty() :
+                Optional.of("Failed to restore deployment profile " + profile);
+        } catch (DataAccessException e) {
+            return Optional.of("Could not restore deployment profile " + profile +
+                " because of DataAccessException "+ e.getMessage());
+        }
     }
 }

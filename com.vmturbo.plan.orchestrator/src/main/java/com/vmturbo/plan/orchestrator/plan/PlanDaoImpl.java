@@ -26,6 +26,10 @@ import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+
 import io.grpc.Channel;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -48,6 +52,7 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
@@ -58,6 +63,9 @@ import com.vmturbo.repository.api.RepositoryClient;
  * DAO backed by RDBMS to hold plan instances.
  */
 public class PlanDaoImpl implements PlanDao {
+
+    @VisibleForTesting
+    static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final Logger logger = LoggerFactory.getLogger(PlanDaoImpl.class);
 
@@ -141,7 +149,6 @@ public class PlanDaoImpl implements PlanDao {
         dsl.newRecord(PLAN_INSTANCE, dbRecord).store();
         return plan;
     }
-
 
     /**
      * {@inheritDoc}
@@ -662,6 +669,89 @@ public class PlanDaoImpl implements PlanDao {
      */
     private boolean isUserOrInitialPlacementPlan(@Nonnull final PlanDTO.PlanInstance planInstance) {
         return planInstance.getProjectType().equals(PlanProjectType.USER) ||
-                planInstance.getProjectType().equals(PlanProjectType.INITAL_PLACEMENT);
+            planInstance.getProjectType().equals(PlanProjectType.INITAL_PLACEMENT);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method retrieves all plan instances and serializes them as JSON strings.
+     *
+     * @return a list of serialized plan instances
+     * @throws DiagnosticsException
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+
+        final Set<PlanDTO.PlanInstance> planInstances = getAllPlanInstances();
+        logger.info("Collecting diags for {} plan instances", planInstances.size());
+
+        return planInstances.stream()
+            .map(planInstance -> GSON.toJson(planInstance, PlanDTO.PlanInstance.class))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method deserializes and adds a list of serialized plan instances from diagnostics.
+     *
+     * @param collectedDiags The diags collected from a previous call to
+     *      Diagnosable.collectDiags(). Must be in the same order.
+     * @throws DiagnosticsException if the db already contains plan instances, or in response
+     *                              to any errors that may occur unserializing or restoring a
+     *                              plan instance.
+     */
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        if (!getAllPlanInstances().isEmpty()) {
+            throw new DiagnosticsException("Plan instances cannot be restored because they are already present");
+        }
+        final List<String> errors = new ArrayList<>();
+
+        logger.info("Loading {} plan instances from diags", collectedDiags.size());
+
+        final long count = collectedDiags.stream().map(serialized -> {
+            try {
+                return GSON.fromJson(serialized, PlanDTO.PlanInstance.class);
+            } catch (JsonParseException e) {
+                errors.add("Failed to deserialize plan instance " + serialized +
+                    " because of parse exception " + e.getMessage());
+                return null;
+            }
+        }).filter(Objects::nonNull).map(this::restorePlanInstance).filter(optional -> {
+            optional.ifPresent(errors::add);
+            return !optional.isPresent();
+        }).count();
+
+        logger.info("Loaded {} plan instances from diags", count);
+
+        if (!errors.isEmpty()) {
+            throw new DiagnosticsException(errors);
+        }
+    }
+
+    /**
+     * Convert a PlanDTO.PlanInstance to a jooq PlanInstance and add it to the database.
+     *
+     * This is used when restoring serialized PlanDTO.PlanInstances from diagnostics and should
+     * not be used for normal operations.
+     *
+     * @param planInstance the PlanDTO.PlanInstance to convert and add.
+     * @return an optional of a string representing any error that may have occurred
+     */
+    private Optional<String> restorePlanInstance(@Nonnull final PlanDTO.PlanInstance planInstance) {
+        final LocalDateTime curTime = LocalDateTime.now();
+        final PlanInstance record = new PlanInstance(planInstance.getPlanId(), curTime, curTime,
+            planInstance, planInstance.getProjectType().name(), planInstance.getStatus().name());
+        try {
+            final int r = dsl.newRecord(PLAN_INSTANCE, record).store();
+            return r == 1 ? Optional.empty() : Optional.of("Failed to restore plan instance " + planInstance);
+        } catch (DataAccessException e) {
+            return Optional.of("Could not restore plan instance " + planInstance +
+                " because of DataAccessException "+ e.getMessage());
+        }
     }
 }

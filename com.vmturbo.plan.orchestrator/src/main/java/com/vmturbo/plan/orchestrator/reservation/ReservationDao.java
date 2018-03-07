@@ -5,15 +5,15 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 
 /**
  * Data access object for creating, updating, searching, deleting reservations.
  */
-public interface ReservationDao {
+public interface ReservationDao extends Diagnosable {
 
     /**
      * Get all reservations which are stored in reservation table.

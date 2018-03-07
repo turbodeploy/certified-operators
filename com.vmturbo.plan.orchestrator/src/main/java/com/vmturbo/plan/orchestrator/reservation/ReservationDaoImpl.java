@@ -16,15 +16,23 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTimeZone;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+
 import com.vmturbo.common.protobuf.plan.ReservationDTO;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.Reservation;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationToTemplateRecord;
@@ -34,6 +42,12 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
  * Implementation of {@link ReservationDao}.
  */
 public class ReservationDaoImpl implements ReservationDao {
+
+    private final Logger logger = LogManager.getLogger();
+
+    @VisibleForTesting
+    static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
+
     private final DSLContext dsl;
 
     public ReservationDaoImpl(@Nonnull final DSLContext dsl) {
@@ -260,11 +274,10 @@ public class ReservationDaoImpl implements ReservationDao {
                                 .and(RESERVATION_TO_TEMPLATE.TEMPLATE_ID.in(templateIds)))
                     .fetch()
                     .into(RESERVATION);
-            final Set<ReservationDTO.Reservation> reservations = reservationRecords.stream()
+            return reservationRecords.stream()
                     .map(record -> record.into(Reservation.class))
                     .map(this::convertReservationToProto)
                     .collect(Collectors.toSet());
-            return reservations;
         });
     }
 
@@ -278,7 +291,7 @@ public class ReservationDaoImpl implements ReservationDao {
     private Set<ReservationDTO.Reservation> convertReservationListToProto(
             @Nonnull final List<Reservation> reservations) {
         return reservations.stream()
-                .map(reservation -> convertReservationToProto(reservation))
+                .map(this::convertReservationToProto)
                 .collect(Collectors.toSet());
     }
 
@@ -331,7 +344,7 @@ public class ReservationDaoImpl implements ReservationDao {
         return record;
     }
 
-    private LocalDateTime convertDateProtoToLocalDate(@Nonnull final long timestamp) {
+    private LocalDateTime convertDateProtoToLocalDate(final long timestamp) {
 
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(timestamp),
                 DateTimeZone.UTC.toTimeZone().toZoneId());
@@ -368,5 +381,87 @@ public class ReservationDaoImpl implements ReservationDao {
                 .getReservationTemplateList().stream()
                 .map(ReservationTemplate::getTemplateId)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method retrieves all reservations and serializes them as JSON strings.
+     *
+     * @return
+     * @throws DiagnosticsException
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final Set<ReservationDTO.Reservation> reservations = getAllReservations();
+        logger.info("Collecting diagnostics for {} reservations", reservations.size());
+        return reservations.stream()
+            .map(reservation -> GSON.toJson(reservation, ReservationDTO.Reservation.class))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method unserializes and adds a list of serialized reservations from diagnostics.
+     *
+     * @param collectedDiags The diags collected from a previous call to
+     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     * @throws DiagnosticsException if the db already contains reservations, or in response
+     *                              to any errors that may occur unserializing or restoring a
+     *                              reservation.
+     */
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        if (!getAllReservations().isEmpty()) {
+            throw new DiagnosticsException("Reservations cannot be restored because they are already present.");
+        }
+
+        final List<String> errors = new ArrayList<>();
+
+        logger.info("Restoring {} serialized reservations from diagnostics", collectedDiags.size());
+
+        final long count = collectedDiags.stream().map(serial -> {
+            try {
+                return GSON.fromJson(serial, ReservationDTO.Reservation.class);
+            } catch (JsonParseException e) {
+                errors.add("Failed to restore reservation " + serial +
+                    " because of parse exception" + e.getMessage());
+                return null;
+            }
+        }).filter(Objects::nonNull).map(this::restoreReservation).filter(optional -> {
+            optional.ifPresent(errors::add);
+            return !optional.isPresent();
+        }).count();
+
+        logger.info("Loaded {} reservations from diagnostics", count);
+        if (!errors.isEmpty()) {
+            throw new DiagnosticsException(errors);
+        }
+    }
+
+    /**
+     * Add a reservation to the database. Note that this is used for restoring reservations from
+     * diagnostics and should NOT be used for normal operations.
+     *
+     * @param reservation the reservation to add.
+     * @return an optional of a string representing any error that may have occurred
+     */
+    private Optional<String> restoreReservation(@Nonnull final ReservationDTO.Reservation reservation) {
+        final ReservationDTO.Reservation newReservation = ReservationDTO.Reservation
+            .newBuilder(reservation).setId(reservation.getId()).build();
+        try {
+            int r = dsl.transactionResult(configuration -> {
+                final DSLContext transactionDsl = DSL.using(configuration);
+                final ReservationRecord newReservationRecord = transactionDsl.newRecord(RESERVATION);
+                return updateReservationRecord(newReservation, newReservationRecord).store();
+            });
+            return r == 1 ? Optional.empty() : Optional.of("Failed to restore reservation " + reservation);
+        } catch (DataAccessException e) {
+            return Optional.of("Could not restore reservation " + reservation +
+                " because of DataAccessException "+ e.getMessage());
+        }
     }
 }

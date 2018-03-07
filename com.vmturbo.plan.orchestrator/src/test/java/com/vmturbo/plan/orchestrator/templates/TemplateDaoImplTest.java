@@ -4,13 +4,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import org.assertj.core.util.Sets;
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -24,12 +25,12 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.plan.TemplateDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -215,5 +216,38 @@ public class TemplateDaoImplTest {
         List<Template> result = templatesDao.getTemplatesByName("testVM");
         assertEquals(1, result.size());
         assertEquals("testVM", result.get(0).getTemplateInfo().getName());
+    }
+
+    @Test
+    public void testCollectDiags() throws Exception {
+        final Template foo =
+            templatesDao.createTemplate(TemplateInfo.newBuilder().setName("foo").build());
+        final Template bar =
+            templatesDao.createTemplate(TemplateInfo.newBuilder().setName("bar").build());
+        final List<Template> expected = Arrays.asList(foo, bar);
+
+
+        final List<String> diags = templatesDao.collectDiags();
+        System.out.println(diags);
+        assertEquals(2, diags.size());
+
+        assertTrue(diags.stream()
+            .map(string -> TemplatesDaoImpl.GSON.fromJson(string, Template.class))
+            .allMatch(expected::contains));
+
+    }
+
+    @Test
+    public void testRestoreDiags() throws Exception {
+        final List<String> serialized = Arrays.asList(
+            "{\"id\":\"1997522616832\",\"templateInfo\":{\"name\":\"bar\"},\"type\":\"USER\"}",
+            "{\"id\":\"1997522614816\",\"templateInfo\":{\"name\":\"foo\"},\"type\":\"USER\"}"
+        );
+
+        templatesDao.restoreDiags(serialized);
+
+        assertTrue(templatesDao.getAllTemplates().stream()
+            .map(template -> TemplatesDaoImpl.GSON.toJson(template, Template.class))
+            .allMatch(serialized::contains));
     }
 }

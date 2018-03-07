@@ -3,6 +3,7 @@ package com.vmturbo.plan.orchestrator.project;
 import static com.vmturbo.plan.orchestrator.db.tables.PlanProject.PLAN_PROJECT;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -11,15 +12,22 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanProjectRecord;
 
@@ -27,6 +35,9 @@ import com.vmturbo.plan.orchestrator.db.tables.records.PlanProjectRecord;
  * DAO backed by RDBMS to hold plan project.
  */
 public class PlanProjectDaoImpl implements PlanProjectDao {
+
+    @VisibleForTesting
+    static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final Logger logger = LoggerFactory.getLogger(PlanProjectDaoImpl.class);
 
@@ -76,7 +87,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     @Nonnull
     @Override
-    public List<PlanDTO.PlanProject> getPlanProjectsByType(PlanProjectType type) {
+    public List<PlanDTO.PlanProject> getPlanProjectsByType(@Nonnull final PlanProjectType type) {
         List<PlanProject> planProjects = dsl
                 .selectFrom(PLAN_PROJECT)
                 .where(PLAN_PROJECT.TYPE.eq(type.name()))
@@ -102,7 +113,7 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
     @Nonnull
     @Override
     public Optional<PlanDTO.PlanProject> deletePlan(long id) {
-        Optional<PlanDTO.PlanProject> planProject = dsl.transactionResult(configuration -> {
+        return dsl.transactionResult(configuration -> {
             Optional<PlanDTO.PlanProject> project =
                     getProject(DSL.using(configuration), id);
             if (project.isPresent()) {
@@ -113,8 +124,6 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
             }
             return project;
         });
-
-        return planProject;
     }
 
     /**
@@ -150,5 +159,85 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
                 .setPlanProjectId(planProject.getId())
                 .setPlanProjectInfo(planProject.getProjectInfo())
                 .build();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method retrieves all plan projects and serializes them as JSON strings.
+     *
+     * @return
+     * @throws DiagnosticsException
+     */
+    @Nonnull
+    @Override
+    public List<String> collectDiags() throws DiagnosticsException {
+        final List<PlanDTO.PlanProject> planProjects = getAllPlanProjects();
+        logger.info("Collecting diagnostics for {} plan projects", planProjects.size());
+        return planProjects.stream()
+            .map(planProject -> GSON.toJson(planProject, PlanDTO.PlanProject.class))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * This method unserializes and adds a list of serialized plan projects from diagnostics.
+     *
+     * @param collectedDiags The diags collected from a previous call to
+     *      {@link Diagnosable#collectDiags()}. Must be in the same order.
+     * @throws DiagnosticsException if the db already contains plan projects, or in response
+     *                              to any errors that may occur unserializing or restoring a
+     *                              plan project.
+     */
+    @Override
+    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+
+        if (!getAllPlanProjects().isEmpty()) {
+            throw new DiagnosticsException("Plan projects cannot be restored because they are already present");
+        }
+        final List<String> errors = new ArrayList<>();
+        logger.info("Loading {} serialized plan projects from diagnostics", collectedDiags.size());
+
+
+        final long count = collectedDiags.stream().map(serialized -> {
+            try {
+                return GSON.fromJson(serialized, PlanDTO.PlanProject.class);
+            } catch (JsonParseException e) {
+                errors.add("Failed to deserialize Plan Project " + serialized +
+                    " because of parse exception " + e.getMessage());
+                return null;
+            }
+        }).filter(Objects::nonNull).map(this::restorePlanProject).filter(optional -> {
+            optional.ifPresent(errors::add);
+            return !optional.isPresent();
+        }).count();
+
+        logger.info("Loaded {} plan projects from serialized diagnostics", count);
+
+        if (!errors.isEmpty()) {
+            throw new DiagnosticsException(errors);
+        }
+    }
+
+    /**
+     * Add a plan project to the database. Note that this is used for restoring plan projects from
+     * diags and should NOT be used during normal operations.
+     *
+     * @param planProject the plan project to add
+     * @return an optional of a string representing any error that may have occurred
+     */
+    private Optional<String> restorePlanProject(@Nonnull final PlanDTO.PlanProject planProject) {
+        LocalDateTime curTime = LocalDateTime.now();
+
+        PlanProject record = new PlanProject(planProject.getPlanProjectId(), curTime, curTime,
+            planProject.getPlanProjectInfo(), planProject.getPlanProjectInfo().getType().name());
+        try {
+            int r = dsl.newRecord(PLAN_PROJECT, record).store();
+            return r == 1 ? Optional.empty() : Optional.of("Failed to restore plan project " + planProject);
+        } catch (DataAccessException e) {
+            return Optional.of("Could not restore plan project " + planProject +
+                " because of DataAccessException "+ e.getMessage());
+        }
     }
 }

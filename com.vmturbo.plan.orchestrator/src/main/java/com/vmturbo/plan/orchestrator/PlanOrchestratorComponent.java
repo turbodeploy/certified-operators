@@ -1,6 +1,7 @@
 package com.vmturbo.plan.orchestrator;
 
 import java.util.Optional;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
@@ -21,6 +22,7 @@ import io.grpc.ServerBuilder;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
+import com.vmturbo.plan.orchestrator.diagnostics.PlanOrchestratorDiagnosticsConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.project.PlanProjectConfig;
 import com.vmturbo.plan.orchestrator.reservation.ReservationConfig;
@@ -48,6 +50,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         PlanProjectSchedulerConfig.class,
         PlanProjectConfig.class,
         ReservationConfig.class,
+        PlanOrchestratorDiagnosticsConfig.class,
         PlanDeletionSchedulerConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
@@ -87,6 +90,9 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
 
     @Autowired
     private PlanDeletionSchedulerConfig planDeletionSchedulerConfig;
+
+    @Autowired
+    private PlanOrchestratorDiagnosticsConfig diagnosticsConfig;
 
     @PostConstruct
     private void setup() {
@@ -132,5 +138,10 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
                 .addService(planProjectConfig.planProjectService())
                 .addService(reservationConfig.reservationRpcService())
                 .build());
+    }
+
+    @Override
+    protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
+        diagnosticsConfig.diagnosticsHandler().dump(diagnosticZip);
     }
 }
