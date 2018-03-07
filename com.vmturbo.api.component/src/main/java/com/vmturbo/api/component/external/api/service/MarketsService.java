@@ -20,8 +20,12 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -34,9 +38,11 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
+import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -53,6 +59,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
@@ -67,6 +74,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
@@ -79,6 +88,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
@@ -86,6 +97,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequ
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -516,7 +528,48 @@ public class MarketsService implements IMarketsService {
     public List<EntityStatsApiDTO> getStatsByEntitiesInMarketQuery(final String marketUuid,
                                                                    final StatScopesApiInputDTO statScopesApiInputDTO)
             throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        // TODO (roman, Mar 7 2018) OM-32684: The UI will migrate to using this endpoint for per-entity
+        // stats in both realtime and plans, so we will need to expand this method to
+        // support both.
+        if (UuidMapper.isRealtimeMarket(marketUuid)) {
+            throw ApiUtils.notImplementedInXL();
+        }
+
+        final long planId = Long.parseLong(marketUuid);
+
+        // fetch plan from plan orchestrator
+        final PlanDTO.OptionalPlanInstance planInstanceOptional =
+                planRpcService.getPlan(PlanDTO.PlanId.newBuilder()
+                        .setPlanId(planId)
+                        .build());
+        if (!planInstanceOptional.hasPlanInstance()) {
+            throw new InvalidOperationException("Invalid market id: " + marketUuid);
+        }
+
+        final PlanInstance planInstance = planInstanceOptional.getPlanInstance() ;
+        final PlanTopologyStatsRequest planStatsRequest = StatsMapper.toPlanTopologyStatsRequest(
+                planInstance, statScopesApiInputDTO);
+        // return the stats for each entity in the response
+        final List<EntityStatsApiDTO> entityStatsList = new ArrayList<>();
+        repositoryRpcService.getPlanTopologyStats(planStatsRequest).forEachRemaining(entityStats -> {
+            EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+            final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
+            ServiceEntityApiDTO serviceEntityApiDTO = ServiceEntityMapper.toServiceEntityApiDTO(planEntity);
+            entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
+            entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
+            entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
+                    planEntity.getEntityType()));
+            entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
+            final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
+                    .getStatSnapshotsList()
+                    .stream()
+                    .map(StatsMapper::toStatSnapshotApiDTO)
+                    .collect(Collectors.toList());
+            entityStatsApiDTO.setStats(statSnapshotsList);
+            entityStatsList.add(entityStatsApiDTO);
+        });
+
+        return entityStatsList;
     }
 
     @Override
@@ -524,7 +577,23 @@ public class MarketsService implements IMarketsService {
                                                                           final String groupUuid,
                                                                           final StatScopesApiInputDTO statScopesApiInputDTO)
             throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        // If there are explicit entities requested from the group, we can just request those
+        // entities directly. If there are no explicit entities, we look up the members
+        // of the group and get stats for them. If the plan was scoped to a different group
+        // we won't return anything (since the requested entities won't be found in the repository).
+        if (CollectionUtils.isEmpty(statScopesApiInputDTO.getScopes())) {
+            final GetMembersRequest getGroupMembersReq = GetMembersRequest.newBuilder()
+                    .setId(Long.parseLong(groupUuid))
+                    .setExpectPresent(false)
+                    .build();
+
+            final GetMembersResponse groupMembersResp =
+                    groupRpcService.getMembers(getGroupMembersReq);
+            statScopesApiInputDTO.setScopes(groupMembersResp.getMembers().getIdsList().stream()
+                    .map(id -> Long.toString(id))
+                    .collect(Collectors.toList()));
+        }
+        return getStatsByEntitiesInMarketQuery(marketUuid, statScopesApiInputDTO);
     }
 
     @Override

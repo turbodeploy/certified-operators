@@ -73,6 +73,12 @@ enum RepositoryOperationResponseCode {
     FAILED = 2;
 }
 
+message EntityFilter {
+    // The entities to retrieve.
+    // If empty, will not return any entities.
+    repeated int64 entity_ids = 1;
+}
+
 // A request to return stats from a plan topology - projected or plan source
 message PlanTopologyStatsRequest {
     // the ID of the plan topology to fetch stats from
@@ -80,6 +86,9 @@ message PlanTopologyStatsRequest {
 
     // The filter to apply to the stats. If not set, retrieve all stats.
     optional stats.StatsFilter filter = 2;
+
+    // The filter to apply to the entities in the topology. If not set, retrieve all entities.
+    optional EntityFilter entity_filter = 3;
 }
 
 // Return the plan stats for an entity. Includes the {@link TopologyEntityDTO} if requested.

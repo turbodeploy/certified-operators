@@ -230,11 +230,9 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
 
         // create a filter on relatedEntityType
         final Stats.StatsFilter requestFilter = request.getFilter();
-        Predicate<TopologyEntityDTO> entityTypePredicate = requestFilter.hasRelatedEntityType() ?
-                matchEntityType(requestFilter.getRelatedEntityType()) :
-                noFilterPredicate();
         logger.debug("fetch projected plan stats, entity filter {}, commodities {}",
                 requestFilter.getRelatedEntityType(), requestFilter.getCommodityNameList());
+        final Predicate<TopologyEntityDTO> entityPredicate = newEntityMatcher(request);
         final TopologyProtobufReader reader = topologyProtobufsManager.createTopologyProtobufReader(
                         projectedTopologyid, Optional.empty());
         // process the chunks of TopologyEntityDTO protobufs as received
@@ -243,8 +241,8 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                 List<TopologyEntityDTO> chunk = reader.nextChunk();
                 logger.debug("chunk size: {}", chunk.size());
                 for (TopologyEntityDTO entityDTO : chunk) {
-                    // apply the filtering predicate - i.e. match for relatedEntityType
-                    if (!entityTypePredicate.test(entityDTO)) {
+                    // apply the filtering predicate
+                    if (!entityPredicate.test(entityDTO)) {
                         logger.trace("skipping {}", entityDTO.getDisplayName());
                         continue;
                     }
@@ -369,6 +367,30 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                 .setMax(value)
                 .setTotal(value)
                 .build();
+    }
+
+    /**
+     * A predicate over a TopologyEntityDTO that will return true if the entity matches the
+     * filters in the request.
+     *
+     * @param request the External REST API version of the entity type to select
+     * @return true if the entity type of the given TopologyEntityDTO matches the given relatedEntityType
+     */
+    @Nonnull
+    private static Predicate<TopologyEntityDTO> newEntityMatcher(
+            @Nonnull final PlanTopologyStatsRequest request) {
+        final Optional<Set<Long>> requestedEntities = request.hasEntityFilter() ?
+                Optional.of(Sets.newHashSet(request.getEntityFilter().getEntityIdsList())) :
+                Optional.empty();
+        final Predicate<TopologyEntityDTO> entityTypePredicate = request.getFilter().hasRelatedEntityType() ?
+                matchEntityType(request.getFilter().getRelatedEntityType()) : noFilterPredicate();
+        return (entity) -> {
+            if (requestedEntities.isPresent() && !requestedEntities.get().contains(entity.getOid())) {
+                return false;
+            } else {
+                return entityTypePredicate.test(entity);
+            }
+        };
     }
 
     /**

@@ -495,6 +495,10 @@ public class StatsService implements IStatsService {
             return Optional.empty();
         }
 
+        // Clear the plan ID from the scope, so we treat it as an entity in the plan
+        // topology stats request.
+        inputDto.getScopes().clear();
+
         // definitely a plan instance; fetch the plan stats from the Repository client.
         PlanInstance planInstance = planInstanceOptional.getPlanInstance();
         final PlanTopologyStatsRequest planStatsRequest = StatsMapper.toPlanTopologyStatsRequest(

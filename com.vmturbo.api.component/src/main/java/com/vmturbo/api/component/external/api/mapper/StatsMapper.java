@@ -11,9 +11,11 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -26,6 +28,7 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -338,12 +341,12 @@ public class StatsMapper {
      *                 stats types, etc
      * @return a request to fetch the plan stats from the Repository
      */
-    public static @Nonnull
-    PlanTopologyStatsRequest toPlanTopologyStatsRequest(
-            @Nonnull PlanInstance planInstance,
-            @Nonnull StatScopesApiInputDTO inputDto) {
+    @Nonnull
+    public static PlanTopologyStatsRequest toPlanTopologyStatsRequest(
+            @Nonnull final PlanInstance planInstance,
+            @Nonnull final StatScopesApiInputDTO inputDto) {
 
-        Stats.StatsFilter.Builder planStatsFilter = Stats.StatsFilter.newBuilder();
+        final Stats.StatsFilter.Builder planStatsFilter = Stats.StatsFilter.newBuilder();
         if (inputDto.getPeriod() != null) {
             if (inputDto.getPeriod().getStartDate() != null) {
                 planStatsFilter.setStartDate(Long.valueOf(inputDto.getPeriod().getStartDate()));
@@ -361,15 +364,25 @@ public class StatsMapper {
                 });
             }
         }
+
         final String relatedType = inputDto.getRelatedType();
         if (relatedType != null) {
             planStatsFilter.setRelatedEntityType(normalizeRelatedType(relatedType));
         }
 
-        return PlanTopologyStatsRequest.newBuilder()
+        final PlanTopologyStatsRequest.Builder requestBuilder = PlanTopologyStatsRequest.newBuilder()
                 .setTopologyId(planInstance.getProjectedTopologyId())
-                .setFilter(planStatsFilter)
-                .build();
+                .setFilter(planStatsFilter);
+
+        // If there are scopes, set the entity filter.
+        // Note - right now if you set an entity filter but do not add any entity ids, there will
+        // be no results.
+        if (!CollectionUtils.isEmpty(inputDto.getScopes())) {
+            requestBuilder.setEntityFilter(EntityFilter.newBuilder()
+                .addAllEntityIds(Collections2.transform(inputDto.getScopes(), Long::parseLong)));
+        }
+
+        return requestBuilder.build();
     }
 
     /**
