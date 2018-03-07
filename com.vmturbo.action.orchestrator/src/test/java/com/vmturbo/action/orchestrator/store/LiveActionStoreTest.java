@@ -6,7 +6,6 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyCollection;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -15,7 +14,6 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.LinkedList;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -57,6 +55,7 @@ public class LiveActionStoreTest {
     private final long hostB = 0xB;
     private final long hostC = 0xC;
     private final long hostD = 0xD;
+    private final int vmType = 1;
 
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
 
@@ -82,9 +81,8 @@ public class LiveActionStoreTest {
         @Override
         public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                                 @Nonnull final EntitySettingsCache entitySettingsMap,
-                                @Nonnull final EntityTypeMap entityTypeMap,
                                 long actionPlanId) {
-            return spy(new Action(recommendation, entitySettingsMap, entityTypeMap, actionPlanId));
+            return spy(new Action(recommendation, entitySettingsMap, actionPlanId));
         }
 
         @Nonnull
@@ -101,7 +99,6 @@ public class LiveActionStoreTest {
     private final ActionSupportResolver filter = Mockito.mock(ActionSupportResolver.class);
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
-    private final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
 
     private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
     private ActionStore actionStore;
@@ -110,8 +107,7 @@ public class LiveActionStoreTest {
     @Before
     public void setup() throws TargetResolutionException, UnsupportedActionException {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, filter,
-                entitySettingsCache, entityTypeMap, actionHistoryDao);
-        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
+                entitySettingsCache, actionHistoryDao);
 
         when(filter.resolveActionsSupporting(anyCollection())).thenAnswer(invocationOnMock
                 -> invocationOnMock.getArguments()[0]);
@@ -122,9 +118,11 @@ public class LiveActionStoreTest {
             invocationOnMock.getArguments()[0]);
     }
 
-    private static ActionDTO.Action.Builder move(long targetId, long sourceId, long destinationId) {
+    private static ActionDTO.Action.Builder move(long targetId,
+                long sourceId, int sourceType,
+                long destinationId, int destinationType) {
         return ActionOrchestratorTestUtils.createMoveRecommendation(IdentityGenerator.next(),
-            targetId, sourceId, destinationId).toBuilder();
+            targetId, sourceId, sourceType, destinationId, destinationType).toBuilder();
     }
 
     @Test
@@ -132,8 +130,8 @@ public class LiveActionStoreTest {
         ActionPlan plan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
             .setId(firstPlanId)
-            .addAction(move(vm1, hostA, hostB))
-            .addAction(move(vm2, hostB, hostC))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
+            .addAction(move(vm2, hostB, vmType, hostC, vmType))
             .build();
 
         actionStore.populateRecommendedActions(plan);
@@ -145,8 +143,8 @@ public class LiveActionStoreTest {
         ActionPlan plan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
             .setId(firstPlanId)
-            .addAction(move(vm1, hostA, hostB))
-            .addAction(move(vm1, hostA, hostB))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .build();
 
         actionStore.populateRecommendedActions(plan);
@@ -155,7 +153,7 @@ public class LiveActionStoreTest {
 
     @Test
     public void testPopulatePreservesReRecommended() throws Exception {
-        ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
             .setId(firstPlanId)
@@ -165,7 +163,7 @@ public class LiveActionStoreTest {
         ActionPlan secondPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
             .setId(secondPlanId)
-            .addAction(move(vm1, hostA, hostB))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .build();
 
         actionStore.populateRecommendedActions(firstPlan);
@@ -181,9 +179,9 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         ActionStore actionStore =
                 new LiveActionStore(new ActionFactory(), TOPOLOGY_CONTEXT_ID, filter,
-                        entitySettingsCache, entityTypeMap, actionHistoryDao);
+                        entitySettingsCache, actionHistoryDao);
 
-        ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
@@ -206,8 +204,10 @@ public class LiveActionStoreTest {
 
     @Test
     public void testPopulateQueuedInProgressAreNotCleared() throws Exception {
-        ActionDTO.Action.Builder queuedMove = move(vm1, hostA, hostB);
-        ActionDTO.Action.Builder inProgressMove = move(vm2, hostA, hostB);
+        ActionDTO.Action.Builder queuedMove =
+            move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder inProgressMove =
+            move(vm2, hostA, vmType, hostB, vmType);
 
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
@@ -231,8 +231,10 @@ public class LiveActionStoreTest {
 
     @Test
     public void testPopulateQueuedInProgressNotDuplicated() throws Exception {
-        ActionDTO.Action.Builder queuedMove = move(vm1, hostA, hostB);
-        ActionDTO.Action.Builder inProgressMove = move(vm2, hostA, hostB);
+        ActionDTO.Action.Builder queuedMove =
+            move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder inProgressMove =
+            move(vm2, hostA, vmType, hostB, vmType);
 
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
@@ -245,8 +247,10 @@ public class LiveActionStoreTest {
         when(actionStore.getAction(queuedMove.getId()).get().getState()).thenReturn(ActionState.QUEUED);
         when(actionStore.getAction(inProgressMove.getId()).get().getState()).thenReturn(ActionState.IN_PROGRESS);
 
-        ActionDTO.Action.Builder reRecommendQueued = move(vm1, hostA, hostB);
-        ActionDTO.Action.Builder reRecommendInProgress = move(vm2, hostA, hostB);
+        ActionDTO.Action.Builder reRecommendQueued =
+            move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder reRecommendInProgress =
+            move(vm2, hostA, vmType, hostB, vmType);
 
         ActionPlan secondPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
@@ -263,9 +267,12 @@ public class LiveActionStoreTest {
 
     @Test
     public void testPopulateClearedSucceededFailedAreRemoved() throws Exception {
-        ActionDTO.Action.Builder successMove = move(vm3, hostA, hostB);
-        ActionDTO.Action.Builder failedMove = move(vm1, hostB, hostC);
-        ActionDTO.Action.Builder clearedMove = move(vm2, hostC, hostD);
+        ActionDTO.Action.Builder successMove =
+            move(vm3, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder failedMove =
+            move(vm1, hostB, vmType, hostC, vmType);
+        ActionDTO.Action.Builder clearedMove =
+            move(vm2, hostC, vmType, hostD, vmType);
 
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
@@ -294,14 +301,14 @@ public class LiveActionStoreTest {
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
             .setId(firstPlanId)
-            .addAction(move(vm1, hostA, hostB))
-            .addAction(move(vm1, hostA, hostB))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .build();
 
         ActionPlan secondPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
             .setId(secondPlanId)
-            .addAction(move(vm1, hostA, hostB))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .build();
 
         actionStore.populateRecommendedActions(firstPlan);
@@ -311,8 +318,10 @@ public class LiveActionStoreTest {
 
     @Test
     public void testPopulateReRecommendedWithAdditionalDuplicate() {
-        ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
-        ActionDTO.Action.Builder secondMove = move(vm1, hostA, hostB);
+        ActionDTO.Action.Builder firstMove =
+            move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder secondMove =
+            move(vm1, hostA, vmType, hostB, vmType);
 
         ActionPlan firstPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
@@ -324,9 +333,9 @@ public class LiveActionStoreTest {
         ActionPlan secondPlan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
             .setId(secondPlanId)
-            .addAction(move(vm1, hostA, hostB))
-            .addAction(move(vm1, hostA, hostB))
-            .addAction(move(vm1, hostA, hostB))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
+            .addAction(move(vm1, hostA, vmType, hostB, vmType))
             .build();
 
         actionStore.populateRecommendedActions(firstPlan);
@@ -338,8 +347,8 @@ public class LiveActionStoreTest {
 
     @Test
     public void testPopulation() throws Exception {
-        ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
-        ActionDTO.Action.Builder secondMove = move(vm1, hostA, hostB);
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder secondMove = move(vm1, hostA, vmType, hostB, vmType);
 
         ActionPlan plan = ActionPlan.newBuilder()
             .setTopologyId(topologyId)
@@ -357,8 +366,8 @@ public class LiveActionStoreTest {
 
     @Test
     public void testGetActionViews() throws Exception {
-        ActionDTO.Action.Builder firstMove = move(vm1, hostA, hostB);
-        ActionDTO.Action.Builder secondMove = move(vm1, hostA, hostB);
+        ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
+        ActionDTO.Action.Builder secondMove = move(vm1, hostA, vmType, hostB, vmType);
 
         ActionPlan plan = ActionPlan.newBuilder()
                 .setTopologyId(topologyId)
@@ -391,7 +400,7 @@ public class LiveActionStoreTest {
         ActionPlan plan = ActionPlan.newBuilder()
                 .setTopologyId(topologyId)
                 .setId(firstPlanId)
-                .addAction(move(vm1, hostA, hostB))
+                .addAction(move(vm1, hostA, vmType, hostB, vmType))
                 .build();
 
         actionStore.populateRecommendedActions(plan);
@@ -399,7 +408,6 @@ public class LiveActionStoreTest {
                 eq(plan.getTopologyContextId()), eq(plan.getTopologyId()));
         verify(spyActionFactory).newAction(any(),
                 eq(entitySettingsCache),
-                eq(entityTypeMap),
                 eq(firstPlanId));
         assertEquals(1, actionStore.size());
     }

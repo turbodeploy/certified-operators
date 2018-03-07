@@ -93,7 +93,7 @@ public class ActionExecutorTest {
         when(actionTargetResolver.resolveExecutantTarget(any(), eq(ImmutableSet.of(targetId))))
                 .thenReturn(targetId);
 
-        final ActionDTO.Action action = buildMoveAction(1, 2, 3);
+        final ActionDTO.Action action = buildMoveAction(1L, 2L, 1, 3L, 1);
 
         Assert.assertEquals(targetId, actionExecutor.getTargetId(action));
 
@@ -112,15 +112,15 @@ public class ActionExecutorTest {
         Assert.assertEquals(ActionTypeCase.MOVE, sentSpec.getActionInfo().getActionTypeCase());
         final Move move = sentSpec.getActionInfo().getMove();
         Assert.assertEquals(targetId, sentSpec.getTargetId());
-        Assert.assertEquals(1, move.getTargetId());
+        Assert.assertEquals(1, move.getTarget().getId());
         Assert.assertEquals(1, move.getChangesCount());
-        Assert.assertEquals(2, move.getChanges(0).getSourceId());
-        Assert.assertEquals(3, move.getChanges(0).getDestinationId());
+        Assert.assertEquals(2, move.getChanges(0).getSource().getId());
+        Assert.assertEquals(3, move.getChanges(0).getDestination().getId());
     }
 
     @Test
     public void testMoveWithNotExistEntity() throws Exception {
-        final ActionDTO.Action action = buildMoveAction(1, 2, 4);
+        final ActionDTO.Action action = buildMoveAction(1L, 2L, 1, 4L, 1);
         expectedException.expect(EntitiesResolutionException.class);
         expectedException.expectMessage("entities not found");
         actionExecutor.getTargetId(action);
@@ -154,10 +154,12 @@ public class ActionExecutorTest {
         Mockito.when(actionTargetResolver.resolveExecutantTarget(any(),
                 eq(ImmutableSet.of(1000L)))).thenReturn(1000L);
         final com.vmturbo.action.orchestrator.action.Action crossTargetAction =
-                new com.vmturbo.action.orchestrator.action.Action(buildMoveAction(0, 1, 2),
+                new com.vmturbo.action.orchestrator.action.Action(
+                    buildMoveAction(0L, 1L, 1, 2L, 1),
                         LocalDateTime.now(), 444L);
         final com.vmturbo.action.orchestrator.action.Action sameTargetAction =
-                new com.vmturbo.action.orchestrator.action.Action(buildMoveAction(3, 4, 5),
+                new com.vmturbo.action.orchestrator.action.Action(
+                    buildMoveAction(3L, 4L, 2, 5L, 2),
                         LocalDateTime.now(), 444L);
         final Map<com.vmturbo.action.orchestrator.action.Action, Long> result =
                 actionExecutor.getProbeIdsForActions(Arrays.asList(crossTargetAction, sameTargetAction));
@@ -185,18 +187,20 @@ public class ActionExecutorTest {
         when(actionTargetResolver.resolveExecutantTarget(any(),
                 eq(ImmutableSet.of(targetId, targetId + 1))))
             .thenReturn(targetId);
-        final ActionDTO.Action action = buildMoveAction(1, 2,
-                3);
+        final ActionDTO.Action action = buildMoveAction(1L, 2L, 1, 3L, 1);
 
         actionExecutor = new ActionExecutor(server.getChannel(), actionTargetResolver);
         Assert.assertEquals(targetId, actionExecutor.getTargetId(action));
     }
 
     @Nonnull
-    private Action buildMoveAction(long targetId, long sourceId, long destinationId) {
+    private Action buildMoveAction(long targetId,
+                                   long sourceId, int sourceType,
+                                   long destinationId, int destinationType) {
+
         return Action.newBuilder().setId(actionId.getAndIncrement()).setImportance(1)
                 .setExplanation(Explanation.newBuilder().build())
-                .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destinationId))
+                .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, sourceType, destinationId, destinationType))
                 .build();
     }
 
@@ -219,7 +223,7 @@ public class ActionExecutorTest {
                 .thenReturn(targetId);
 
         Assert.assertEquals(Long.valueOf(targetId),
-                actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg).get());
+                actionExecutor.getEntitiesTarget(buildMoveAction(1L, 2L, 1, 3L, 1), mapArg).get());
     }
 
     @Test
@@ -237,6 +241,6 @@ public class ActionExecutorTest {
         mapArg.put(1L, info1);
         mapArg.put(2L, info2);
         Assert.assertFalse(
-                actionExecutor.getEntitiesTarget(buildMoveAction(1, 2, 3), mapArg).isPresent());
+                actionExecutor.getEntitiesTarget(buildMoveAction(1L, 2L, 1, 3L, 1), mapArg).isPresent());
     }
 }

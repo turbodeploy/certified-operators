@@ -14,13 +14,14 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.store.ActionCapabilitiesStore;
 import com.vmturbo.action.orchestrator.store.ProbeActionCapabilitiesStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
@@ -197,7 +198,10 @@ public class ActionTargetByProbeCategoryResolverTest {
 
     private Action createAction() {
         return Action.newBuilder().setInfo(ActionInfo.newBuilder()
-                .setReconfigure(Reconfigure.newBuilder().setTargetId(1).build())
+                .setReconfigure(
+                    Reconfigure.newBuilder()
+                        .setTarget(ActionOrchestratorTestUtils.createActionEntity(1))
+                        .build())
                 .build()).setImportance(1).setExplanation(Explanation.newBuilder().build())
                 .setId(1).build();
     }

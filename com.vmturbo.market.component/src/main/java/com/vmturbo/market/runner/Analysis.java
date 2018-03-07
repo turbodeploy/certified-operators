@@ -3,12 +3,9 @@ package com.vmturbo.market.runner;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,20 +16,19 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -129,14 +125,17 @@ public class Analysis {
      */
     public boolean execute() {
         if (started.getAndSet(true)) {
-            logger.error(logPrefix + "Completed or being computed");
+            logger.error(" {} Completed or being computed", logPrefix);
             return false;
         }
         state = AnalysisState.IN_PROGRESS;
         startTime = LocalDateTime.now();
-        logger.info(logPrefix + "Started");
+        logger.info("{} Started", logPrefix);
         try {
-            final TopologyConverter converter = new TopologyConverter(includeVDC, topologyInfo);
+            final TopologyConverter converter =
+                new TopologyConverter(topologyInfo,
+                        TopologyDTOUtil.getEntityIdToEntityTypeMapping(topologyDTOs),
+                        includeVDC);
 
             Set<TraderTO> traderTOs = converter.convertToMarket(
                     Lists.newLinkedList(topologyDTOs));

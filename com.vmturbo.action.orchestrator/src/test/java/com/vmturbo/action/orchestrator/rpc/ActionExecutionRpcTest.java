@@ -14,7 +14,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.Optional;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -39,7 +38,6 @@ import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
-import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
@@ -54,7 +52,6 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Tests for action execution RPCs.
@@ -82,7 +79,6 @@ public class ActionExecutionRpcTest {
     private final ActionSupportResolver filter = mock(ActionSupportResolver.class);
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
-    private final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
 
     private static final long ACTION_PLAN_ID = 2;
     private static final long TOPOLOGY_CONTEXT_ID = 3;
@@ -100,10 +96,9 @@ public class ActionExecutionRpcTest {
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
 
-        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.of(EntityType.PHYSICAL_MACHINE));
         actionStoreSpy =
                 Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                        filter, entitySettingsCache, entityTypeMap, actionHistoryDao));
+                        filter, entitySettingsCache, actionHistoryDao));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);

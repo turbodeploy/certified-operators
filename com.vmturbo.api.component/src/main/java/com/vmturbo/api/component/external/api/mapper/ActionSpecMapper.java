@@ -264,21 +264,21 @@ public class ActionSpecMapper {
 
         wrapperDto.setActionType(initialPlacement ? ActionType.START : actionType(move, context));
         // Set entity DTO fields for target, source (if needed) and destination entities
-        setEntityDtoFields(wrapperDto.getTarget(), move.getTargetId(), context);
+        setEntityDtoFields(wrapperDto.getTarget(), move.getTarget().getId(), context);
 
         ChangeProvider primaryChange = primaryChange(move, context);
         if (!initialPlacement) {
-            long primarySourceId = primaryChange.getSourceId();
+            long primarySourceId = primaryChange.getSource().getId();
             wrapperDto.setCurrentValue(Long.toString(primarySourceId));
             setEntityDtoFields(wrapperDto.getCurrentEntity(), primarySourceId, context);
         }
-        long primaryDestinationId = primaryChange.getDestinationId();
+        long primaryDestinationId = primaryChange.getDestination().getId();
         wrapperDto.setNewValue(Long.toString(primaryDestinationId));
         setEntityDtoFields(wrapperDto.getNewEntity(), primaryDestinationId, context);
 
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : move.getChangesList()) {
-            actions.add(singleMove(wrapperDto, move.getTargetId(), change, initialPlacement, context));
+            actions.add(singleMove(wrapperDto, move.getTarget().getId(), change, initialPlacement, context));
         }
         wrapperDto.addCompoundActions(actions);
         wrapperDto.setDetails(actionDetails(initialPlacement, wrapperDto));
@@ -295,7 +295,7 @@ public class ActionSpecMapper {
     private ChangeProvider primaryChange(Move move, ActionSpecMappingContext context) {
         return move.getChangesList().stream()
                         // If a host change exists then use it
-                        .filter(change -> isHost(context.getOptionalEntity(change.getDestinationId())))
+                        .filter(change -> isHost(context.getOptionalEntity(change.getDestination().getId())))
                         .findFirst()
                         // otherwise use first change
                         .orElse(move.getChanges(0));
@@ -321,8 +321,8 @@ public class ActionSpecMapper {
         actionApiDTO.setActionState(compoundDto.getActionState());
         actionApiDTO.setDisplayName(compoundDto.getActionMode().name());
 
-        long sourceId = change.getSourceId();
-        long destinationId = change.getDestinationId();
+        long sourceId = change.getSource().getId();
+        long destinationId = change.getDestination().getId();
 
         if (!initialPlacement) {
             actionApiDTO.setCurrentValue(Long.toString(sourceId));
@@ -370,7 +370,7 @@ public class ActionSpecMapper {
         if (move.getChangesCount() > 1) {
             return ActionType.MOVE;
         }
-        long destinationId = move.getChanges(0).getDestinationId();
+        long destinationId = move.getChanges(0).getDestination().getId();
         return context.getOptionalEntity(destinationId)
                     .map(ServiceEntityApiDTO::getClassName)
                     .map(STORAGE_VALUE::equals)
@@ -386,10 +386,10 @@ public class ActionSpecMapper {
             throws UnknownObjectException {
         actionApiDTO.setActionType(ActionType.RECONFIGURE);
 
-        setEntityDtoFields(actionApiDTO.getTarget(), reconfigure.getTargetId(), context);
-        setEntityDtoFields(actionApiDTO.getCurrentEntity(), reconfigure.getSourceId(), context);
+        setEntityDtoFields(actionApiDTO.getTarget(), reconfigure.getTarget().getId(), context);
+        setEntityDtoFields(actionApiDTO.getCurrentEntity(), reconfigure.getSource().getId(), context);
 
-        actionApiDTO.setCurrentValue(Long.toString(reconfigure.getSourceId()));
+        actionApiDTO.setCurrentValue(Long.toString(reconfigure.getSource().getId()));
 
         actionApiDTO.setDetails(MessageFormat.format(
             "Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}",
@@ -405,14 +405,14 @@ public class ActionSpecMapper {
         actionApiDTO.setActionType(ActionType.PROVISION);
 
         final String provisionedSellerUuid = Long.toString(provision.getProvisionedSeller());
-        setNewEntityDtoFields(actionApiDTO.getTarget(), provision.getEntityToCloneId(),
+        setNewEntityDtoFields(actionApiDTO.getTarget(), provision.getEntityToClone().getId(),
                 provisionedSellerUuid, context);
 
-        actionApiDTO.setCurrentValue(Long.toString(provision.getEntityToCloneId()));
-        setEntityDtoFields(actionApiDTO.getCurrentEntity(), provision.getEntityToCloneId(), context);
+        actionApiDTO.setCurrentValue(Long.toString(provision.getEntityToClone().getId()));
+        setEntityDtoFields(actionApiDTO.getCurrentEntity(), provision.getEntityToClone().getId(), context);
 
         actionApiDTO.setNewValue(provisionedSellerUuid);
-        setNewEntityDtoFields(actionApiDTO.getNewEntity(), provision.getEntityToCloneId(),
+        setNewEntityDtoFields(actionApiDTO.getNewEntity(), provision.getEntityToClone().getId(),
                 provisionedSellerUuid, context);
 
         actionApiDTO.setDetails(MessageFormat.format("Clone {0}",
@@ -425,9 +425,9 @@ public class ActionSpecMapper {
             throws UnknownObjectException {
         actionApiDTO.setActionType(ActionType.RESIZE);
 
-        setEntityDtoFields(actionApiDTO.getTarget(), resize.getTargetId(), context);
-        setEntityDtoFields(actionApiDTO.getCurrentEntity(), resize.getTargetId(), context);
-        setEntityDtoFields(actionApiDTO.getNewEntity(), resize.getTargetId(), context);
+        setEntityDtoFields(actionApiDTO.getTarget(), resize.getTarget().getId(), context);
+        setEntityDtoFields(actionApiDTO.getCurrentEntity(), resize.getTarget().getId(), context);
+        setEntityDtoFields(actionApiDTO.getNewEntity(), resize.getTarget().getId(), context);
 
         final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
                 resize.getCommodityType().getType());
@@ -448,7 +448,7 @@ public class ActionSpecMapper {
                                  @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
         actionApiDTO.setActionType(ActionType.START);
-        setEntityDtoFields(actionApiDTO.getTarget(), activate.getTargetId(), context);
+        setEntityDtoFields(actionApiDTO.getTarget(), activate.getTarget().getId(), context);
 
         final List<String> reasonCommodityNames =
                 activate.getTriggeringCommoditiesList().stream()
@@ -475,7 +475,7 @@ public class ActionSpecMapper {
                                    @Nonnull final Deactivate deactivate,
                                    @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        setEntityDtoFields(actionApiDTO.getTarget(), deactivate.getTargetId(), context);
+        setEntityDtoFields(actionApiDTO.getTarget(), deactivate.getTarget().getId(), context);
         actionApiDTO.setActionType(ActionType.DEACTIVATE);
 
         final List<String> reasonCommodityNames =

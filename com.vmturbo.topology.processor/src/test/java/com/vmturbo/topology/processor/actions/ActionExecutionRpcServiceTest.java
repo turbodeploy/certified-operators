@@ -22,6 +22,7 @@ import org.mockito.MockitoAnnotations;
 import io.grpc.Status.Code;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
@@ -80,14 +81,14 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSourceId(2)
-                    .setDestinationId(3)
+                    .setSource(createActionEntity(2))
+                    .setDestination(createActionEntity((3)))
                     .build())
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSourceId(4)
-                    .setDestinationId(5)
+                    .setSource(createActionEntity(4))
+                    .setDestination(createActionEntity((5)))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -99,11 +100,11 @@ public class ActionExecutionRpcServiceTest {
 
         List<ChangeProvider> changes = moveSpec.getChangesList();
         final Map<Long, Entity> entities = initializeTopology(targetId,
-                NewEntityRequest.virtualMachine(moveSpec.getTargetId(), changes.get(0).getSourceId()),
-                NewEntityRequest.physicalMachine(changes.get(0).getSourceId()),
-                NewEntityRequest.physicalMachine(changes.get(0).getDestinationId()),
-                NewEntityRequest.storage(changes.get(1).getSourceId()),
-                NewEntityRequest.storage(changes.get(1).getDestinationId()));
+                NewEntityRequest.virtualMachine(moveSpec.getTarget().getId(), changes.get(0).getSource().getId()),
+                NewEntityRequest.physicalMachine(changes.get(0).getSource().getId()),
+                NewEntityRequest.physicalMachine(changes.get(0).getDestination().getId()),
+                NewEntityRequest.storage(changes.get(1).getSource().getId()),
+                NewEntityRequest.storage(changes.get(1).getDestination().getId()));
 
 
         actionExecutionStub.executeAction(request);
@@ -116,19 +117,19 @@ public class ActionExecutionRpcServiceTest {
         ActionItemDTOValidator.validateRequest(dtos);
 
         Assert.assertEquals(
-                entities.get(moveSpec.getTargetId())
+                entities.get(moveSpec.getTarget().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getTargetSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getChanges(0).getSourceId())
+                entities.get(moveSpec.getChanges(0).getSource().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getHostedBySE());
         Assert.assertEquals(
-                entities.get(moveSpec.getChanges(0).getSourceId())
+                entities.get(moveSpec.getChanges(0).getSource().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getCurrentSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getChanges(0).getDestinationId())
+                entities.get(moveSpec.getChanges(0).getDestination().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getNewSE());
     }
@@ -144,10 +145,10 @@ public class ActionExecutionRpcServiceTest {
 
         final long targetId = targetIdCounter.getAndIncrement();
         final ActionDTO.Move move = ActionDTO.Move.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSourceId(2)
-                    .setDestinationId(3)
+                    .setSource(createActionEntity(2))
+                    .setDestination(createActionEntity((3)))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -159,8 +160,8 @@ public class ActionExecutionRpcServiceTest {
 
         // Entity with ID 3 (destination) is missing.
         initializeTopology(targetId,
-                NewEntityRequest.virtualMachine(move.getTargetId(), move.getChanges(0).getSourceId()),
-                NewEntityRequest.physicalMachine(move.getChanges(0).getSourceId()));
+                NewEntityRequest.virtualMachine(move.getTarget().getId(), move.getChanges(0).getSource().getId()),
+                NewEntityRequest.physicalMachine(move.getChanges(0).getSource().getId()));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
@@ -179,10 +180,10 @@ public class ActionExecutionRpcServiceTest {
         final long targetId1 = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move move = ActionDTO.Move.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSourceId(2)
-                    .setDestinationId(3)
+                    .setSource(createActionEntity(2))
+                    .setDestination(createActionEntity((3)))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -194,13 +195,13 @@ public class ActionExecutionRpcServiceTest {
 
         // Target and source are on the same target
         initializeTopology(targetId1,
-                NewEntityRequest.virtualMachine(move.getTargetId(), move.getChanges(0).getSourceId()),
-                NewEntityRequest.physicalMachine(move.getChanges(0).getSourceId()));
+                NewEntityRequest.virtualMachine(move.getTarget().getId(), move.getChanges(0).getSource().getId()),
+                NewEntityRequest.physicalMachine(move.getChanges(0).getSource().getId()));
 
         // Destination is on a different target
         initializeTopology(
                 targetIdCounter.getAndIncrement(),
-                NewEntityRequest.physicalMachine(move.getChanges(0).getDestinationId()));
+                NewEntityRequest.physicalMachine(move.getChanges(0).getDestination().getId()));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
@@ -213,10 +214,10 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSourceId(2)
-                    .setDestinationId(3)
+                    .setSource(createActionEntity(2))
+                    .setDestination(createActionEntity((3)))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -227,9 +228,9 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
-                NewEntityRequest.virtualMachine(moveSpec.getTargetId(), moveSpec.getChanges(0).getSourceId()),
-                NewEntityRequest.storage(moveSpec.getChanges(0).getSourceId()),
-                NewEntityRequest.storage(moveSpec.getChanges(0).getDestinationId()));
+                NewEntityRequest.virtualMachine(moveSpec.getTarget().getId(), moveSpec.getChanges(0).getSource().getId()),
+                NewEntityRequest.storage(moveSpec.getChanges(0).getSource().getId()),
+                NewEntityRequest.storage(moveSpec.getChanges(0).getDestination().getId()));
 
 
         actionExecutionStub.executeAction(request);
@@ -242,19 +243,19 @@ public class ActionExecutionRpcServiceTest {
         ActionItemDTOValidator.validateRequest(dtos);
 
         Assert.assertEquals(
-                entities.get(moveSpec.getTargetId())
+                entities.get(moveSpec.getTarget().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getTargetSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getChanges(0).getSourceId())
+                entities.get(moveSpec.getChanges(0).getSource().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getHostedBySE());
         Assert.assertEquals(
-                entities.get(moveSpec.getChanges(0).getSourceId())
+                entities.get(moveSpec.getChanges(0).getSource().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getCurrentSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getChanges(0).getDestinationId())
+                entities.get(moveSpec.getChanges(0).getDestination().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getNewSE());
     }
@@ -264,10 +265,10 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move moveSpec = ActionDTO.Move.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSourceId(2)
-                    .setDestinationId(3)
+                    .setSource(createActionEntity(2))
+                    .setDestination(createActionEntity((3)))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -278,9 +279,9 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
-                NewEntityRequest.storage(moveSpec.getTargetId()),
-                NewEntityRequest.diskArray(moveSpec.getChanges(0).getSourceId()),
-                NewEntityRequest.diskArray(moveSpec.getChanges(0).getDestinationId()));
+                NewEntityRequest.storage(moveSpec.getTarget().getId()),
+                NewEntityRequest.diskArray(moveSpec.getChanges(0).getSource().getId()),
+                NewEntityRequest.diskArray(moveSpec.getChanges(0).getDestination().getId()));
 
         actionExecutionStub.executeAction(request);
 
@@ -292,16 +293,16 @@ public class ActionExecutionRpcServiceTest {
         ActionItemDTOValidator.validateRequest(dtos);
 
         Assert.assertEquals(
-                entities.get(moveSpec.getTargetId())
+                entities.get(moveSpec.getTarget().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getTargetSE());
         Assert.assertFalse(dtos.get(0).hasHostedBySE());
         Assert.assertEquals(
-                entities.get(moveSpec.getChanges(0).getSourceId())
+                entities.get(moveSpec.getChanges(0).getSource().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getCurrentSE());
         Assert.assertEquals(
-                entities.get(moveSpec.getChanges(0).getDestinationId())
+                entities.get(moveSpec.getChanges(0).getDestination().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getNewSE());
     }
@@ -311,10 +312,10 @@ public class ActionExecutionRpcServiceTest {
         final long targetId1 = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Move move = ActionDTO.Move.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSourceId(2)
-                    .setDestinationId(3)
+                    .setSource(createActionEntity(2))
+                    .setDestination(createActionEntity((3)))
                     .build())
                 .build();
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -325,10 +326,10 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         initializeTopology(targetId1,
-                NewEntityRequest.virtualMachine(move.getTargetId(), move.getChanges(0).getSourceId()),
-                NewEntityRequest.physicalMachine(move.getChanges(0).getSourceId()),
+                NewEntityRequest.virtualMachine(move.getTarget().getId(), move.getChanges(0).getSource().getId()),
+                NewEntityRequest.physicalMachine(move.getChanges(0).getSource().getId()),
                 // Destination is a storage, but source is a PM.
-                NewEntityRequest.storage(move.getChanges(0).getDestinationId()));
+                NewEntityRequest.storage(move.getChanges(0).getDestination().getId()));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
@@ -341,7 +342,7 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Resize resizeSpec = ActionDTO.Resize.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .setCommodityType(CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.MEM_VALUE)
                     .setKey("key"))
@@ -357,7 +358,7 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
-                        NewEntityRequest.virtualMachine(resizeSpec.getTargetId(), 7),
+                        NewEntityRequest.virtualMachine(resizeSpec.getTarget().getId(), 7),
                         NewEntityRequest.physicalMachine(7));
 
 
@@ -371,7 +372,7 @@ public class ActionExecutionRpcServiceTest {
 //        ActionItemDTOValidator.validateRequest(dto);
 
         Assert.assertEquals(
-                entities.get(resizeSpec.getTargetId())
+                entities.get(resizeSpec.getTarget().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getTargetSE());
         Assert.assertEquals(
@@ -392,7 +393,7 @@ public class ActionExecutionRpcServiceTest {
 
         final long targetId = targetIdCounter.getAndIncrement();
         final ActionDTO.Resize resizeSpec = ActionDTO.Resize.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.MEM_VALUE)
                         .setKey("key"))
@@ -421,7 +422,7 @@ public class ActionExecutionRpcServiceTest {
         final long targetId = targetIdCounter.getAndIncrement();
 
         final ActionDTO.Resize resizeSpec = ActionDTO.Resize.newBuilder()
-                .setTargetId(1)
+                .setTarget(createActionEntity(1))
                 .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.MEM_VALUE)
                         .setKey("key"))
@@ -437,7 +438,7 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         // Include a virtual machine, but no host that matches the host ID.
-        initializeTopology(targetId, NewEntityRequest.virtualMachine(resizeSpec.getTargetId(), 7));
+        initializeTopology(targetId, NewEntityRequest.virtualMachine(resizeSpec.getTarget().getId(), 7));
 
         expectedException.expect(GrpcRuntimeExceptionMatcher
                 .hasCode(Code.INVALID_ARGUMENT)
@@ -451,7 +452,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Activate activate = ActionDTO.Activate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -462,7 +463,7 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
-                NewEntityRequest.virtualMachine(activate.getTargetId(), 7),
+                NewEntityRequest.virtualMachine(activate.getTarget().getId(), 7),
                 NewEntityRequest.physicalMachine(7));
 
         actionExecutionStub.executeAction(request);
@@ -476,7 +477,7 @@ public class ActionExecutionRpcServiceTest {
 
         Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
         Assert.assertEquals(
-                entities.get(activate.getTargetId()).getTargetInfo(targetId).get().getEntityInfo(),
+                entities.get(activate.getTarget().getId()).getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getTargetSE());
         Assert.assertEquals(
                 entities.get(7L).getTargetInfo(targetId).get().getEntityInfo(),
@@ -489,7 +490,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Activate activate = ActionDTO.Activate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -513,7 +514,7 @@ public class ActionExecutionRpcServiceTest {
 
         Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
         Assert.assertEquals(
-                entities.get(activate.getTargetId()).getTargetInfo(targetId).get().getEntityInfo(),
+                entities.get(activate.getTarget().getId()).getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getTargetSE());
     }
 
@@ -523,7 +524,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Activate activate = ActionDTO.Activate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -548,7 +549,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Activate activate = ActionDTO.Activate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -574,7 +575,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Deactivate deactivate = ActionDTO.Deactivate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -585,7 +586,7 @@ public class ActionExecutionRpcServiceTest {
                 .build();
 
         final Map<Long, Entity> entities = initializeTopology(targetId,
-                NewEntityRequest.virtualMachine(deactivate.getTargetId(), 7),
+                NewEntityRequest.virtualMachine(deactivate.getTarget().getId(), 7),
                 NewEntityRequest.physicalMachine(7));
 
         actionExecutionStub.executeAction(request);
@@ -599,7 +600,7 @@ public class ActionExecutionRpcServiceTest {
 
         Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
         Assert.assertEquals(
-                entities.get(deactivate.getTargetId())
+                entities.get(deactivate.getTarget().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getTargetSE());
         Assert.assertEquals(
@@ -613,7 +614,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Deactivate deactivate = ActionDTO.Deactivate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -637,7 +638,7 @@ public class ActionExecutionRpcServiceTest {
 
         Assert.assertEquals(Long.toString(0), dtos.get(0).getUuid());
         Assert.assertEquals(
-                entities.get(deactivate.getTargetId())
+                entities.get(deactivate.getTarget().getId())
                         .getTargetInfo(targetId).get().getEntityInfo(),
                 dtos.get(0).getTargetSE());
 
@@ -649,7 +650,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Deactivate deactivate = ActionDTO.Deactivate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -674,7 +675,7 @@ public class ActionExecutionRpcServiceTest {
         final long entityId = 1;
 
         final ActionDTO.Deactivate deactivate = ActionDTO.Deactivate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .build();
 
         final ExecuteActionRequest request = ExecuteActionRequest.newBuilder()
@@ -747,5 +748,14 @@ public class ActionExecutionRpcServiceTest {
         static NewEntityRequest diskArray(final long entityId) {
             return new NewEntityRequest(entityId, Optional.empty(), EntityType.DISK_ARRAY);
         }
+    }
+
+    public static ActionEntity createActionEntity(long id) {
+        // set some fake type for now
+        final int defaultEntityType = 1;
+        return ActionEntity.newBuilder()
+                    .setId(id)
+                    .setType(defaultEntityType)
+                    .build();
     }
 }

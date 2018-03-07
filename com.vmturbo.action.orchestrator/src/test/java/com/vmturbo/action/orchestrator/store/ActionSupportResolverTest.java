@@ -14,6 +14,7 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableList;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
@@ -96,7 +97,7 @@ public class ActionSupportResolverTest {
 
     private List<Action> getTestedActions() {
         ActionDTO.Action move = ActionDTO.Action.newBuilder()
-                .setInfo(ActionTest.makeMoveInfo(probeId, probeId, probeId))
+                .setInfo(ActionTest.makeMoveInfo(probeId, probeId, 1, probeId, 1))
                 .setId(1)
                 .setImportance(1)
                 .setExplanation(Explanation.newBuilder().build())
@@ -105,7 +106,9 @@ public class ActionSupportResolverTest {
 
         ActionDTO.Action activate = ActionDTO.Action.newBuilder()
                 .setInfo(ActionInfo.newBuilder()
-                        .setActivate(Activate.newBuilder().setTargetId(probeId).build())
+                        .setActivate(Activate.newBuilder()
+                            .setTarget(ActionOrchestratorTestUtils.createActionEntity(probeId))
+                            .build())
                         .build())
                 .setId(1)
                 .setImportance(1)
@@ -115,7 +118,9 @@ public class ActionSupportResolverTest {
 
         ActionDTO.Action deactivate = ActionDTO.Action.newBuilder()
                 .setInfo(ActionInfo.newBuilder()
-                        .setDeactivate(Deactivate.newBuilder().setTargetId(probeId).build())
+                        .setDeactivate(Deactivate.newBuilder()
+                            .setTarget(ActionOrchestratorTestUtils.createActionEntity(probeId))
+                            .build())
                         .build())
                 .setId(1)
                 .setImportance(1)

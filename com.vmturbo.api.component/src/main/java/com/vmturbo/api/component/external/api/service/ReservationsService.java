@@ -337,10 +337,10 @@ public class ReservationsService implements IReservationsService {
                 .map(Action::getInfo)
                 .filter(actionInfo -> actionInfo.getActionTypeCase().equals(ActionTypeCase.MOVE))
                 .map(ActionInfo::getMove)
-                .filter(move -> !reservationEntityIds.contains(move.getTargetId()))
-                .forEach(move -> entityToProviders.putAll(move.getTargetId(),
+                .filter(move -> !reservationEntityIds.contains(move.getTarget().getId()))
+                .forEach(move -> entityToProviders.putAll(move.getTarget().getId(),
                     move.getChangesList().stream()
-                        .map(ChangeProvider::getDestinationId)
+                        .map(changeProvider -> changeProvider.getDestination().getId())
                         .collect(Collectors.toList())));
         final List<PlacementInfo> placementInfos = createPlacementInfos(entityToProviders);
         return placementInfos;

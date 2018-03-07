@@ -64,9 +64,13 @@ public class AutomatedActionExecutorTest {
     private final long targetId2 = 51L;
 
     private final long entityId1 = 111L;
+    private final int entityType1 = 1;
     private final long entityId2 = 222L;
+    private final int  entityType2 = 2;
     private final long entityId3 = 333L;
+    private final int  entityType3 = 3;
     private final long entityId4 = 444L;
+    private final int entityType4 = 4;
 
     private final EntityInfo entityInfo1 = makeEntityInfo(entityId1, targetId1);
     private final EntityInfo entityInfo2 = makeEntityInfo(entityId2, targetId1);
@@ -159,7 +163,7 @@ public class AutomatedActionExecutorTest {
         final Action noTargetAction = Mockito.mock(Action.class);
 
         final ActionDTO.Action noTargetRec = makeActionRec(99L,
-                makeMoveInfo(entityId1, entityId2, entityId4));
+                makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId4));
         entityMap.put(entityId1, entityInfo1);
         entityMap.put(entityId2, entityInfo2);
         entityMap.put(entityId4, entityInfo4);
@@ -189,7 +193,7 @@ public class AutomatedActionExecutorTest {
         final Action failedTranslationAction = Mockito.mock(Action.class);
 
         final ActionDTO.Action rec = makeActionRec(99L,
-                makeMoveInfo(entityId1, entityId2, entityId3));
+                makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId3));
         entitySet.addAll(Arrays.asList(entityId1, entityId2, entityId3));
         entityMap.put(entityId1, entityInfo1);
         entityMap.put(entityId2, entityInfo2);
@@ -227,7 +231,8 @@ public class AutomatedActionExecutorTest {
 
         final Action failedExecuteAction = Mockito.mock(Action.class);
         final ActionDTO.Action rec =
-                makeActionRec(99L, makeMoveInfo(entityId1, entityId2, entityId3));
+                makeActionRec(99L,
+                    makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId3));
         entitySet.addAll(Arrays.asList(entityId1, entityId2, entityId3));
         entityMap.put(entityId1, entityInfo1);
         entityMap.put(entityId2, entityInfo2);
@@ -271,7 +276,8 @@ public class AutomatedActionExecutorTest {
 
         final Action goodAction = Mockito.mock(Action.class);
         final ActionDTO.Action rec =
-                makeActionRec(1L, makeMoveInfo(entityId1, entityId2, entityId3));
+                makeActionRec(1L,
+                    makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId3));
         entitySet.addAll(Arrays.asList(entityId1, entityId2, entityId3));
         entityMap.put(entityId1, entityInfo1);
         entityMap.put(entityId2, entityInfo2);
@@ -320,13 +326,15 @@ public class AutomatedActionExecutorTest {
         final Action noTargetAction = Mockito.mock(Action.class);
         final long noTargetId = 97;
         final ActionDTO.Action noTargetRec =
-                makeActionRec(noTargetId, makeMoveInfo(entityId1, entityId2, entityId4));
+                makeActionRec(noTargetId,
+                    makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId4));
         setUpMocks(noTargetAction, noTargetId, noTargetRec);
 
         final Action failedTranslationAction = Mockito.mock(Action.class);
         final long noTransId = 96;
         final ActionDTO.Action noTransRec =
-                makeActionRec(noTransId, makeMoveInfo(entityId4, 555L, 666L));
+                makeActionRec(noTransId,
+                    makeMoveInfo(entityId4, 1, 555L, 1, 666L));
         final ActionTranslation badTrans = new ActionTranslation(noTransRec);
         badTrans.setTranslationFailure();
         setUpMocks(failedTranslationAction, noTransId, noTransRec);
@@ -335,7 +343,8 @@ public class AutomatedActionExecutorTest {
         final Action failedExecuteAction = Mockito.mock(Action.class);
         final long execFailId = 95;
         final ActionDTO.Action execFailRec =
-                makeActionRec(execFailId, makeMoveInfo(entityId4, 555L, 666L));
+                makeActionRec(execFailId,
+                    makeMoveInfo(entityId4, entityType4, 555L, 1, 666L));
         final ActionTranslation execFailTrans = new ActionTranslation(execFailRec);
         execFailTrans.setPassthroughTranslationSuccess();
         setUpMocks(failedExecuteAction, execFailId, execFailRec);
@@ -346,7 +355,8 @@ public class AutomatedActionExecutorTest {
         final Action goodAction = Mockito.mock(Action.class);
         final long goodId = 1L;
         final ActionDTO.Action goodRec =
-                makeActionRec(goodId, makeMoveInfo(entityId1, entityId2, entityId3));
+                makeActionRec(goodId,
+                    makeMoveInfo(entityId1, entityType1, entityId2, entityType2, entityId3));
         final ActionTranslation goodTrans = new ActionTranslation(goodRec);
         goodTrans.setPassthroughTranslationSuccess();
         setUpMocks(goodAction, goodId, goodRec);
@@ -431,8 +441,11 @@ public class AutomatedActionExecutorTest {
             .build();
     }
 
-    private ActionInfo makeMoveInfo(long sourceId, long destId, long targetId) {
-        return ActionTest.makeMoveInfo(targetId, sourceId, destId).build();
+    private ActionInfo makeMoveInfo(long sourceId, int sourceType,
+                                    long destId, int destType,
+                                    long targetId) {
+        return ActionTest.makeMoveInfo(targetId, sourceId, sourceType,
+                    destId, destType).build();
     }
 
     private EntityInfo makeEntityInfo(long entityId, long targetId) {

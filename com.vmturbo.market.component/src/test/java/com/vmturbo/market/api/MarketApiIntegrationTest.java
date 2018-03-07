@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
@@ -116,10 +117,19 @@ public class MarketApiIntegrationTest {
                 .setExplanation(ActionDTO.Explanation.newBuilder().build())
                 .setInfo(ActionInfo.newBuilder()
                         .setMove(Move.newBuilder()
-                            .setTargetId(0L)
+                            .setTarget(ActionEntity.newBuilder()
+                                    .setId(0L)
+                                    .setType(0)
+                                    .build())
                             .addChanges(ChangeProvider.newBuilder()
-                                .setSourceId(0L)
-                                .setDestinationId(0L)
+                                .setSource(ActionEntity.newBuilder()
+                                    .setId(0L)
+                                    .setType(0)
+                                    .build())
+                                .setDestination(ActionEntity.newBuilder()
+                                    .setId(0L)
+                                    .setType(0)
+                                    .build())
                                 .build())
                             .build())
                         .build())

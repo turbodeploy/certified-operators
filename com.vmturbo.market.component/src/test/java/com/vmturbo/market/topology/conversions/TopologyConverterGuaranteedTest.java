@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -12,7 +13,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -47,6 +50,8 @@ public class TopologyConverterGuaranteedTest {
             .setType(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE)
             .build();
     private static List<TopologyEntityDTO> entities;
+
+    private Map<Long, Integer> entityIdToEntityTypeMap;
 
     /**
      * Create a topology with two VDCs, one that qualifies as guaranteed buyer and one that doesn't,
@@ -94,6 +99,9 @@ public class TopologyConverterGuaranteedTest {
                         .setEntityState(EntityState.MAINTENANCE)
                         .build();
         entities = ImmutableList.of(vdc1, vdc2, dpod, pm, vm1, vm2);
+        entityIdToEntityTypeMap =
+                        TopologyDTOUtil.getEntityIdToEntityTypeMapping(
+                            ImmutableSet.copyOf(entities));
     }
 
     /**
@@ -103,7 +111,8 @@ public class TopologyConverterGuaranteedTest {
     @Test
     public void testExcludeVDCs() throws InvalidTopologyException {
         // includeVDC is false
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO);
+        TopologyConverter converter =
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToEntityTypeMap);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         // VDCs are skipped, VMs in maintenance and unknown state are skipped
         assertEquals(1, traders.size());
@@ -123,7 +132,8 @@ public class TopologyConverterGuaranteedTest {
      */
     @Test
     public void testIncludeVDCs() throws InvalidTopologyException {
-        TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
+        TopologyConverter converter =
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToEntityTypeMap, true);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(4, traders.size());
         List<Long> guaranteedBuyers = traders.stream()

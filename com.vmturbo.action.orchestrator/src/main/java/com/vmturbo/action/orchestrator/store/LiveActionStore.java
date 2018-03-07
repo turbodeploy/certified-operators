@@ -60,8 +60,6 @@ public class LiveActionStore implements ActionStore {
 
     private final EntitySeverityCache severityCache;
 
-    private final EntityTypeMap entityTypeMap;
-
     private final EntitySettingsCache entitySettingsCache;
 
     private final ActionHistoryDao actionHistoryDao;
@@ -99,21 +97,18 @@ public class LiveActionStore implements ActionStore {
      * @param topologyContextId The contextId for the live (realtime) market.
      * @param actionSupportResolver used to determine action capabilities.
      * @param entitySettingsCache caches the entity capabilities per entity
-     * @param entityTypeMap a mapping from entity oid to entity type
      * @param actionHistoryDao obtains history of actions
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
                            @Nonnull final ActionSupportResolver actionSupportResolver,
                            @Nonnull final EntitySettingsCache entitySettingsCache,
-                           @Nonnull final EntityTypeMap entityTypeMap,
                            @Nonnull final ActionHistoryDao actionHistoryDao) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(QueryFilter.VISIBILITY_FILTER);
         this.actionSupportResolver = actionSupportResolver;
         this.entitySettingsCache = entitySettingsCache;
-        this.entityTypeMap = entityTypeMap;
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
     }
 
@@ -268,7 +263,7 @@ public class LiveActionStore implements ActionStore {
             actionPlan.getActionList().forEach(recommendedAction -> {
                 final ActionInfo info = recommendedAction.getInfo();
                 final Action action = recommendations.take(info)
-                    .orElse(actionFactory.newAction(recommendedAction, entitySettingsCache, entityTypeMap, planId));
+                    .orElse(actionFactory.newAction(recommendedAction, entitySettingsCache, planId));
                 if (action.getState() == ActionState.READY) {
                     try {
                         entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntities(recommendedAction));
@@ -281,7 +276,6 @@ public class LiveActionStore implements ActionStore {
 
             entitySettingsCache.update(entitiesToRetrieve,
                     actionPlan.getTopologyContextId(), actionPlan.getTopologyId());
-            entityTypeMap.retrieveEntityTypes(entitiesToRetrieve, topologyContextId);
 
             filterActionsByCapabilityForUiDisplaying();
 

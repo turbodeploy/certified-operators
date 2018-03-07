@@ -144,7 +144,7 @@ public class PlanActionStoreTest {
 
         @Test
     public void testGetActionViews() throws Exception {
-        final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 3, 4);
+        final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
         final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
         actionStore.populateRecommendedActions(actionPlan);
 
@@ -155,7 +155,7 @@ public class PlanActionStoreTest {
 
     @Test
     public void testGetActionView() throws Exception {
-        final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 3, 4);
+        final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
         final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
         actionStore.populateRecommendedActions(actionPlan);
 
@@ -180,7 +180,7 @@ public class PlanActionStoreTest {
 
     @Test
     public void testGetAction() throws Exception {
-        final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 3, 4);
+        final ActionDTO.Action action = ActionOrchestratorTestUtils.createMoveRecommendation(1, 2, 1, 3, 1, 4);
         final ActionPlan actionPlan = actionPlan(firstPlanId, firstContextId, Collections.singletonList(action));
         actionStore.populateRecommendedActions(actionPlan);
 

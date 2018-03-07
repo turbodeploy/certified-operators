@@ -10,7 +10,11 @@ import java.util.stream.LongStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.Activate;
@@ -31,6 +35,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Utilities for constructing action plans for use in tests.
@@ -81,10 +86,13 @@ public class ActionPlanGenerator {
      * @return An action plan with the requested number of actions.
      */
     public ActionPlan generate(int numActions, long topologyId, long topologyContextId) {
-        return generate(numActions, topologyId, topologyContextId,
-            LongStream.range(0, DEFAULT_TOPOLOGY_SIZE)
-                .mapToObj(l -> l)
-                .collect(Collectors.toList()));
+        final Random random = new Random(randomSeed);
+
+        final List<GeneratedEntity> generatedEntities = LongStream.range(0, DEFAULT_TOPOLOGY_SIZE)
+            .mapToObj(oid -> GeneratedEntity.randomEntityWithOid(oid, random))
+                .collect(Collectors.toList());
+
+        return generate(numActions, topologyId, topologyContextId, generatedEntities, random);
     }
 
     /**
@@ -97,11 +105,13 @@ public class ActionPlanGenerator {
      * @param numActions The number of actions in the generated plan.
      * @param topologyId The ID of the topology.
      * @param topologyContextId The topology context ID to be associated with the action plan.
-     * @param topologyOids The OIDs of the entities in the topology to generate the action plan against.
+     * @param topologyEntities The  entities in the topology to generate the action plan against.
+     * @param random The random number generator to use.
      * @return An action plan with the requested number of actions.
      */
     public ActionPlan generate(int numActions, long topologyId, long topologyContextId,
-                               List<Long> topologyOids) {
+                               @Nonnull final List<GeneratedEntity> topologyEntities,
+                               @Nonnull final Random random) {
         if (numActions < 0) {
             throw new IllegalArgumentException("Illegal number of actions " + numActions);
         }
@@ -113,13 +123,12 @@ public class ActionPlanGenerator {
             reconfigureCount(0), provisionCount(0), resizeCount(0), activateCount(0), deactivateCount(0)));
 
         // Randomly choose an action type for each other type of action.
-        final Random random = new Random(randomSeed);
         for (int remaining = numActions - moveCount.getActionCount(); remaining > 0; remaining--) {
             counts.get(random.nextInt(counts.size())).incrementCount();
         }
 
         counts.add(moveCount);
-        return generate(topologyId, topologyContextId, topologyOids,
+        return generate(topologyId, topologyContextId, topologyEntities, random,
             counts.toArray(new ActionTypeCount[counts.size()]));
     }
 
@@ -137,19 +146,20 @@ public class ActionPlanGenerator {
      *
      * @param topologyId The ID of the topology.
      * @param topologyContextId The topology context ID to be associated with the action plan.
-     * @param topologyOids The topology to use when generating the action plan.
+     * @param topologyEntities The topology to use when generating the action plan.
+     * @param random The random number generator to use.
      * @param actionCounts The counts of each type of action to include in the plan.
      * @return the generated action plan
      */
     public ActionPlan generate(final long topologyId, final long topologyContextId,
-                               @Nonnull final List<Long> topologyOids,
+                               @Nonnull final List<GeneratedEntity> topologyEntities,
+                               @Nonnull final Random random,
                                ActionTypeCount...actionCounts) {
         final ActionPlan.Builder planBuilder = ActionPlan.newBuilder()
             .setId(IdentityGenerator.next())
             .setTopologyId(topologyId)
             .setTopologyContextId(topologyContextId);
-        final Random random = new Random(randomSeed);
-        final Chooser chooser = new Chooser(topologyOids, random);
+        final Chooser chooser = new Chooser(topologyEntities, random);
 
         for (ActionTypeCount actionTypeCount : actionCounts) {
             IntStream.range(0, actionTypeCount.getActionCount())
@@ -184,19 +194,77 @@ public class ActionPlanGenerator {
     }
 
     /**
+     * Wraps an entity OID and that entity's EntityTYpe together.
+     *
+     * We use this to ensure every time we reference the entity type of an entity, we have
+     * a consistent assignment.
+     */
+    @VisibleForTesting
+    static class GeneratedEntity {
+        private final long oid;
+        private final EntityType entityType;
+
+        /**
+         * The entity types that will be generated for entities used in the action plan.
+         */
+        public static final List<EntityType> ELIGIBLE_ENTITY_TYPES = ImmutableList.of(
+            EntityType.STORAGE,
+            EntityType.DISK_ARRAY,
+            EntityType.STORAGE_CONTROLLER,
+            EntityType.LOGICAL_POOL,
+
+            EntityType.DATACENTER,
+            EntityType.PHYSICAL_MACHINE,
+            EntityType.VIRTUAL_MACHINE,
+            EntityType.VIRTUAL_DATACENTER,
+            EntityType.APPLICATION,
+            EntityType.VIRTUAL_APPLICATION,
+            EntityType.CHASSIS,
+            EntityType.CONTAINER
+        );
+
+        public GeneratedEntity(final long oid, @Nonnull final EntityType entityType) {
+            this.oid = oid;
+            this.entityType = entityType;
+        }
+
+        public long getOid() {
+            return oid;
+        }
+
+        public EntityType getEntityType() {
+            return entityType;
+        }
+
+        public ActionEntity asActionEntity() {
+            return ActionEntity.newBuilder()
+                .setId(oid)
+                .setType(entityType.getNumber())
+                .build();
+        }
+
+        public static GeneratedEntity randomEntityWithOid(final long oid, @Nonnull final Random random) {
+            return new GeneratedEntity(oid, ELIGIBLE_ENTITY_TYPES.get(
+                random.nextInt(ELIGIBLE_ENTITY_TYPES.size())
+            ));
+        }
+    }
+
+    /**
      * A small helper utility that knows how to choose values at random.
      */
     private static class Chooser {
-        private final List<Long> topologyOids;
+        private final List<GeneratedEntity> topologyActionEntities;
         private final Random random;
         private long nextNewOid;
 
-        private Chooser(@Nonnull final List<Long> topologyOids, @Nonnull final Random random) {
-            this.topologyOids = topologyOids;
+        private Chooser(@Nonnull final List<GeneratedEntity> topologyActionEntities, @Nonnull final Random random) {
+            this.topologyActionEntities = topologyActionEntities;
             this.random = random;
 
             // Select the topologyOid new OID as 1 greater than the maximum in the topology.
-            nextNewOid = topologyOids.stream()
+            nextNewOid = topologyActionEntities.stream()
+                .map(GeneratedEntity::getOid)
                 .max(Long::compare)
                 .get() + 1;
         }
@@ -206,7 +274,24 @@ public class ActionPlanGenerator {
          * @return A random OID.
          */
         private long topologyOid() {
-            return topologyOids.get(random.nextInt(topologyOids.size()));
+            return topologyActionEntities.get(random.nextInt(topologyActionEntities.size())).getOid();
+        }
+
+        /**
+         * Get a GeneratedEntity (OID + EntityType) at random from the {@link Chooser}'s topology.
+         * @return A random OID.
+         */
+        private GeneratedEntity generatedEntity() {
+            return topologyActionEntities.get(random.nextInt(topologyActionEntities.size()));
+        }
+
+        /**
+         * Get an ActionEntity (OID + EntityType) at random from the {@link Chooser}'s topology.
+         * @return A random OID.
+         */
+        private ActionEntity actionEntity() {
+            return topologyActionEntities.get(random.nextInt(topologyActionEntities.size()))
+                .asActionEntity();
         }
 
         /**
@@ -324,10 +409,10 @@ public class ActionPlanGenerator {
                     ),
                 ActionInfo.newBuilder()
                     .setMove(Move.newBuilder()
-                        .setTargetId(chooser.topologyOid())
+                        .setTarget(chooser.actionEntity())
                         .addChanges(ChangeProvider.newBuilder()
-                            .setSourceId(chooser.topologyOid())
-                            .setDestinationId(chooser.topologyOid())
+                            .setSource(chooser.actionEntity())
+                            .setDestination(chooser.actionEntity())
                             .build())
                         .build()),
                 chooser);
@@ -349,8 +434,8 @@ public class ActionPlanGenerator {
                     .setReconfigure(ReconfigureExplanation.getDefaultInstance()),
                 ActionInfo.newBuilder()
                     .setReconfigure(Reconfigure.newBuilder()
-                        .setSourceId(chooser.topologyOid())
-                        .setTargetId(chooser.topologyOid())),
+                        .setSource(chooser.actionEntity())
+                        .setTarget(chooser.actionEntity())),
                 chooser
             );
         }
@@ -371,7 +456,7 @@ public class ActionPlanGenerator {
                     .setProvision(ProvisionExplanation.getDefaultInstance()),
                 ActionInfo.newBuilder()
                     .setProvision(Provision.newBuilder()
-                        .setEntityToCloneId(chooser.topologyOid())
+                        .setEntityToClone(chooser.actionEntity())
                         .setProvisionedSeller(chooser.nextNewOid())),
                 chooser
             );
@@ -395,7 +480,7 @@ public class ActionPlanGenerator {
                         .setEndUtilization(chooser.nextFloat())),
                 ActionInfo.newBuilder()
                     .setResize(Resize.newBuilder()
-                        .setTargetId(chooser.topologyOid())
+                        .setTarget(chooser.actionEntity())
                         .setOldCapacity(chooser.nextFloat())
                         .setNewCapacity(chooser.nextFloat())),
                 chooser
@@ -419,7 +504,7 @@ public class ActionPlanGenerator {
                         .setMostExpensiveCommodity(chooser.commodityType())),
                 ActionInfo.newBuilder()
                     .setActivate(Activate.newBuilder()
-                        .setTargetId(chooser.topologyOid())
+                        .setTarget(chooser.actionEntity())
                         .addTriggeringCommodities(chooser.commodityType())),
                 chooser
             );
@@ -442,7 +527,7 @@ public class ActionPlanGenerator {
                     .setDeactivate(DeactivateExplanation.getDefaultInstance()),
                 ActionInfo.newBuilder()
                     .setDeactivate(Deactivate.newBuilder()
-                        .setTargetId(chooser.topologyOid())
+                        .setTarget(chooser.actionEntity())
                         .addTriggeringCommodities(chooser.commodityType())
                         .build()),
                 chooser);

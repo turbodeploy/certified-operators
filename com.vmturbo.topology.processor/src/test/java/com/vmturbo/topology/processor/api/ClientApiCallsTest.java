@@ -31,6 +31,7 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -478,10 +479,19 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                 .setActionInfo(ActionInfo.newBuilder()
                     .setMove(Move.newBuilder()
                         .addChanges(ChangeProvider.newBuilder()
-                            .setSourceId(1)
-                            .setDestinationId(2)
+                            .setSource(ActionEntity.newBuilder()
+                                .setId(1)
+                                .setType(1)
+                                .build())
+                            .setDestination(ActionEntity.newBuilder()
+                                .setId(2)
+                                .setType(1)
+                                .build())
                             .build())
-                        .setTargetId(3)
+                        .setTarget(ActionEntity.newBuilder()
+                            .setId(3)
+                            .setType(1)
+                            .build())
                         .build())
                     .build())
                 .build();

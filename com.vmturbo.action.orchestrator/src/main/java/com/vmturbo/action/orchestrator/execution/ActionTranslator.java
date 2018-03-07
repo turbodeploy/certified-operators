@@ -355,7 +355,7 @@ public class ActionTranslator {
         private Stream<ActionView> translateVcpuResizes(@Nonnull final List<ActionView> resizeActions) {
             final Map<Long, List<ActionView>> resizeActionsByVmTargetId = resizeActions.stream()
                 .collect(Collectors.groupingBy(action ->
-                    action.getRecommendation().getInfo().getResize().getTargetId()));
+                    action.getRecommendation().getInfo().getResize().getTarget().getId()));
 
             try {
                 // Note: It is important to force evaluation of the gRPC stream here in order

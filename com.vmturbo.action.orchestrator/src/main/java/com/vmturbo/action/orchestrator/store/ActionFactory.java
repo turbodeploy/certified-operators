@@ -32,9 +32,8 @@ public class ActionFactory implements IActionFactory {
     @Nonnull
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
                             final EntitySettingsCache entitySettingsCache,
-                            final EntityTypeMap entityTypeMap,
                             final long actionPlanId) {
-        return new Action(recommendation, entitySettingsCache, entityTypeMap, actionPlanId);
+        return new Action(recommendation, entitySettingsCache, actionPlanId);
     }
 
     /**

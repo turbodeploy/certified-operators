@@ -36,8 +36,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final EntitySettingsCache entitySettingsCache;
 
-    private final EntityTypeMap entityTypeMap;
-
     private static final String PLAN_CONTEXT_TYPE_NAME = "plan";
     private static final String LIVE_CONTEXT_TYPE_NAME = "live";
 
@@ -53,15 +51,13 @@ public class ActionStoreFactory implements IActionStoreFactory {
      * @param topologyProcessorChannel Grpc Channel for topology processor.
      * @param topologyProcessor Topology processor client.
      * @param entitySettingsCache cache of entity settings.
-     * @param entityTypeMap map from entity oid to entity type.
      */
     public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
                               final long realtimeTopologyContextId,
                               @Nonnull final DSLContext databaseDslContext,
                               @Nonnull final Channel topologyProcessorChannel,
                               @Nonnull final TopologyProcessor topologyProcessor,
-                              @Nonnull final EntitySettingsCache entitySettingsCache,
-                              @Nonnull EntityTypeMap entityTypeMap) {
+                              @Nonnull final EntitySettingsCache entitySettingsCache) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -71,7 +67,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionCapabilitiesStore = new ProbeActionCapabilitiesStore(actionCapabilitiesService);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
-        this.entityTypeMap = Objects.requireNonNull(entityTypeMap);
     }
 
     /**
@@ -87,7 +82,6 @@ public class ActionStoreFactory implements IActionStoreFactory {
                     new ActionTargetByProbeCategoryResolver(topologyProcessor, actionCapabilitiesStore));
             return new LiveActionStore(actionFactory, topologyContextId,
                     new ActionSupportResolver(actionCapabilitiesStore, actionExecutor), entitySettingsCache,
-                    entityTypeMap,
                     new ActionHistoryDaoImpl(databaseDslContext));
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId);

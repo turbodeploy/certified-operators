@@ -13,6 +13,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -24,12 +25,14 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator.ActivateCount;
 import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator.DeactivateCount;
+import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator.GeneratedEntity;
 import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator.MoveCount;
 import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator.ProvisionCount;
 import com.vmturbo.components.test.utilities.utils.ActionPlanGenerator.ReconfigureCount;
@@ -72,10 +75,15 @@ public class ActionPlanGeneratorTest {
 
     @Test
     public void testGeneratePicksOidsFromTopology() {
-        List<Long> oids = LongStream.range(0, 10)
-            .mapToObj(l -> l)
+        final Random random = new Random();
+        final List<GeneratedEntity> generatedEntities = LongStream.range(0, 10)
+            .mapToObj(oid -> GeneratedEntity.randomEntityWithOid(oid, random))
             .collect(Collectors.toList());
-        final ActionPlan plan = generator.generate(30, 1, 2, oids);
+        final List<ActionEntity> actionEntities = generatedEntities.stream()
+            .map(GeneratedEntity::asActionEntity)
+            .collect(Collectors.toList());
+
+        final ActionPlan plan = generator.generate(30, 1, 2, generatedEntities, random);
 
         plan.getActionList().stream()
             .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.MOVE)
@@ -83,18 +91,19 @@ public class ActionPlanGeneratorTest {
             .forEach(move -> {
              // TODO(COMPOUND): add compound moves with more than 1 change
                 assertEquals(1, move.getChangesCount());
-                assertThat(oids, hasItem(move.getChanges(0).getSourceId()));
-                assertThat(oids, hasItem(move.getChanges(0).getDestinationId()));
-                assertThat(oids, hasItem(move.getTargetId()));
+                assertThat(actionEntities, hasItem(move.getChanges(0).getSource()));
+                assertThat(actionEntities, hasItem(move.getChanges(0).getDestination()));
+                assertThat(actionEntities, hasItem(move.getTarget()));
             });
     }
 
     @Test
     public void testGenerateSpecificTypesOfActions() {
-        List<Long> oids = LongStream.range(0, 10)
-            .mapToObj(l -> l)
+        final Random random = new Random();
+        final List<GeneratedEntity> generatedEntities = LongStream.range(0, 10)
+            .mapToObj(oid -> GeneratedEntity.randomEntityWithOid(oid, random))
             .collect(Collectors.toList());
-        final ActionPlan plan = generator.generate(1, 2, oids,
+        final ActionPlan plan = generator.generate(1, 2, generatedEntities, random,
             reconfigureCount(2), moveCount(10), activateCount(1),
             resizeCount(3), provisionCount(6), deactivateCount(2));
 

@@ -12,6 +12,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionTest;
@@ -34,9 +35,12 @@ public class ActionsRpcServiceTest {
 
     @Test
     public void testGetActionCountsByDateResponseBuilder() throws Exception {
-        final ActionView actionView1 = executableMoveAction(123L, 1L, 2L, 10L, ActionState.SUCCEEDED);
-        final ActionView actionView2 = executableMoveAction(124L, 1L, 3L, 11L, ActionState.SUCCEEDED);
-        final ActionView actionView3 = executableMoveAction(125L, 4L, 2L, 12L, ActionState.FAILED);
+        final ActionView actionView1 =
+            executableMoveAction(123L, 1L, 1/*srcType*/, 2L, 1/*desType*/, 10L/*tgtId*/, ActionState.SUCCEEDED);
+        final ActionView actionView2 =
+            executableMoveAction(124L, 1L, 2/*srcType*/, 3L, 2/*destType*/, 11L, ActionState.SUCCEEDED);
+        final ActionView actionView3 =
+            executableMoveAction(125L, 4L, 3/*srcType*/, 2L, 3/*destType*/, 12L, ActionState.FAILED);
 
         List<ActionView> actionViewList = ImmutableList.of(actionView1, actionView2, actionView3);
         final long k1 = 1111L;
@@ -54,9 +58,12 @@ public class ActionsRpcServiceTest {
 
     @Test
     public void testGetActionCountsByDateResponseBuilderWithTwoTypes() throws Exception {
-        final ActionView actionView1 = executableMoveAction(123L, 1L, 2L, 10L, ActionState.SUCCEEDED);
-        final ActionView actionView2 = executableMoveAction(124L, 1L, 3L, 11L, ActionState.SUCCEEDED);
-        final ActionView actionView3 = executableMoveAction(125L, 4L, 2L, 12L, ActionState.FAILED);
+        final ActionView actionView1 =
+            executableMoveAction(123L, 1L, 1/*srcType*/, 2L, 1/*desType*/, 10L/*tgtId*/, ActionState.SUCCEEDED);
+        final ActionView actionView2 =
+            executableMoveAction(124L, 1L, 2/*srcType*/, 3L, 2/*destType*/, 11L, ActionState.SUCCEEDED);
+        final ActionView actionView3 =
+            executableMoveAction(125L, 4L, 3/*srcType*/, 2L, 3/*destType*/, 12L, ActionState.FAILED);
 
         final ActionView actionView4 = executableActivateAction(126L, 13L);
         final ActionView actionView5 = executableActivateAction(127L, 14L);
@@ -76,13 +83,20 @@ public class ActionsRpcServiceTest {
         assertEquals(k2, builder.getActionCountsByDateBuilderList().get(1).getDate());
     }
 
-    private ActionView executableMoveAction(long id, long sourceId, long destId, long targetId, ActionState state) {
+    private ActionView executableMoveAction(
+                long id,
+                long sourceId,
+                int sourceType,
+                long destId,
+                int destType,
+                long targetId,
+                ActionState state) {
         final ActionDTO.Action action = ActionDTO.Action.newBuilder()
                 .setId(id)
                 .setImportance(0)
                 .setExecutable(true)
                 .setExplanation(Explanation.newBuilder().build())
-                .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destId))
+                .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
                 .build();
 
         SerializationState orchesratorAction = new SerializationState(ACTION_PLAN_ID,
@@ -103,8 +117,10 @@ public class ActionsRpcServiceTest {
                 .setExplanation(Explanation.newBuilder().build())
                 .setInfo(ActionInfo.newBuilder()
                         .setActivate(Activate.newBuilder()
-                                .setTargetId(targetId))
-                ).build();
+                                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId))
+                                .build())
+                        .build())
+                .build();
 
         return spy(new Action(action, ACTION_PLAN_ID));
     }

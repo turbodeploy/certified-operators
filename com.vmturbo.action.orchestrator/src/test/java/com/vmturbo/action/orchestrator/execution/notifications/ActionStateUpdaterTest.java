@@ -2,7 +2,6 @@ package com.vmturbo.action.orchestrator.execution.notifications;
 
 import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.makeActionModeSetting;
 import static org.junit.Assert.assertEquals;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -25,7 +24,6 @@ import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
-import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -53,19 +51,17 @@ public class ActionStateUpdaterTest {
     private final ActionDTO.Action recommendation = ActionDTO.Action.newBuilder()
         .setId(actionId)
         .setImportance(0)
-        .setInfo(ActionTest.makeMoveInfo(3, 2, 1))
+        .setInfo(ActionTest.makeMoveInfo(3, 2, 1, 1, 1))
         .setExplanation(Explanation.newBuilder().build())
         .build();
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
-    private final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
 
     private Action testAction;
 
     @Before
     public void setup() {
-        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
-        testAction = new Action(recommendation, entitySettingsCache, entityTypeMap, 4);
+        testAction = new Action(recommendation, entitySettingsCache, 4);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(actionId))).thenReturn(Optional.of(testAction));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());

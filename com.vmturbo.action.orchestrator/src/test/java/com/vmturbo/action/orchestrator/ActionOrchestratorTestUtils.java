@@ -12,6 +12,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ExecutableStep;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -19,6 +20,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Utility methods for Action Orchestrator tests.
@@ -31,6 +33,10 @@ public class ActionOrchestratorTestUtils {
 
     private static final AtomicLong idCounter = new AtomicLong();
 
+    private static int entityType = 1;
+
+    private static final int DEFAULT_ENTITY_TYPE = EntityType.VIRTUAL_MACHINE_VALUE;
+
     @Nonnull
     public static Action createMoveAction(final long actionId, final long actionPlanId) {
         return new Action(createMoveRecommendation(actionId), actionPlanId);
@@ -38,15 +44,19 @@ public class ActionOrchestratorTestUtils {
 
     @Nonnull
     public static ActionDTO.Action createMoveRecommendation(final long actionId) {
-        return createMoveRecommendation(actionId, idCounter.incrementAndGet(), idCounter.incrementAndGet(),
-            idCounter.incrementAndGet());
+        return createMoveRecommendation(actionId, idCounter.incrementAndGet(),
+            idCounter.incrementAndGet(), entityType,
+            idCounter.incrementAndGet(), entityType);
     }
 
     @Nonnull
     public static ActionDTO.Action createMoveRecommendation(final long actionId, final long targetId,
-                                                            final long sourceId, final long destinationId) {
+                                                            final long sourceId, final int sourceType,
+                                                            final long destinationId, final int destType) {
         return baseAction(actionId)
-                        .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destinationId))
+                        .setInfo(
+                            ActionTest.makeMoveInfo(targetId, sourceId, sourceType,
+                                destinationId, destType))
                         .build();
     }
 
@@ -62,7 +72,7 @@ public class ActionOrchestratorTestUtils {
                     .setCommodityType(CommodityType.newBuilder().setType(resizeCommodity.getNumber()))
                     .setOldCapacity((float)oldCapacity)
                     .setNewCapacity((float)newCapacity)
-                    .setTargetId(targetId)))
+                    .setTarget(createActionEntity(targetId))))
             .build();
     }
 
@@ -139,4 +149,11 @@ public class ActionOrchestratorTestUtils {
                 .build());
     }
 
+    public static ActionEntity createActionEntity(long id) {
+        return ActionEntity.newBuilder()
+                    .setId(id)
+                     // set some fake type for now
+                    .setType(DEFAULT_ENTITY_TYPE)
+                    .build();
+    }
 }

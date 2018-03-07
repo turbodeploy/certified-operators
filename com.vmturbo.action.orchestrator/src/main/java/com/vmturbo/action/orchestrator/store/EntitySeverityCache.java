@@ -20,7 +20,6 @@ import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Maintain a cache of entity severities. Refreshing the entire cache causes the recomputation of the
@@ -86,10 +85,7 @@ public class EntitySeverityCache {
      */
     public void refresh(@Nonnull final Action action, @Nonnull final ActionStore actionStore) {
         try {
-            Map<Long, EntityType> types = actionStore.getActionView(action.getId())
-                            .map(ActionView::getTypes)
-                            .orElse(Collections.emptyMap());
-            long severityEntity = ActionDTOUtil.getSeverityEntity(action, types);
+            long severityEntity = ActionDTOUtil.getSeverityEntity(action);
 
             visibleReadyActionViews(actionStore)
                 .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
@@ -123,7 +119,7 @@ public class EntitySeverityCache {
         try {
             final long severityEntity =
                             ActionDTOUtil.getSeverityEntity(
-                                actionView.getRecommendation(), actionView.getTypes());
+                                actionView.getRecommendation());
             final Severity nextSeverity = ActionDTOUtil.mapImportanceToSeverity(
                 actionView.getRecommendation().getImportance());
 
@@ -149,7 +145,7 @@ public class EntitySeverityCache {
         try {
             long specSeverityEntity =
                             ActionDTOUtil.getSeverityEntity(
-                                actionView.getRecommendation(), actionView.getTypes());
+                                actionView.getRecommendation());
             return specSeverityEntity == severityEntity;
         } catch (UnsupportedActionException e) {
             return false;

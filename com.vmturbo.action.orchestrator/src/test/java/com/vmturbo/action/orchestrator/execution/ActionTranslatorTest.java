@@ -225,8 +225,8 @@ public class ActionTranslatorTest {
         assertEquals(OLD_VCPU_MHZ / CPU_SPEED_MHZ, translatedResize.getInfo().getResize().getOldCapacity(), 0.0f);
         assertEquals(CommodityType.VCPU.getNumber(),
             translatedResize.getInfo().getResize().getCommodityType().getType());
-        assertEquals(translatedResize.getInfo().getResize().getTargetId(),
-            translatedResize.getInfo().getResize().getTargetId());
+        assertEquals(translatedResize.getInfo().getResize().getTarget().getId(),
+            translatedResize.getInfo().getResize().getTarget().getId());
     }
 
     private static HostInfo hostInfo(final int cpuSpeedMhz, final long hostId) {

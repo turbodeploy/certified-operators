@@ -67,13 +67,6 @@ public class ActionStoreConfig {
         return new EntitySettingsCache(groupClientConfig.groupChannel());
     }
 
-    @Bean EntityTypeMap entityTypeMap() {
-        return new EntityTypeMap(serviceRestTemplate(),
-            repositoryClientConfig.getRepositoryHost(), httpPort,
-            Executors.newSingleThreadExecutor(), entityTypeMaxRetries,
-            entityTypeRetryIntervalMillis);
-    }
-
     @Bean
     public RestTemplate serviceRestTemplate() {
         // for communication with repository component
@@ -94,7 +87,7 @@ public class ActionStoreConfig {
             databaseConfig.dsl(),
             actionOrchestratorGlobalConfig.topologyProcessorChannel(),
             actionOrchestratorGlobalConfig.topologyProcessor(),
-            entitySettingsCache(), entityTypeMap());
+            entitySettingsCache());
     }
 
     @Bean

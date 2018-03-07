@@ -48,6 +48,10 @@ public class TopologyEntitiesListener implements EntitiesListener {
     @Override
     public void onTopologyNotification(TopologyInfo topologyInfo,
                                        @Nonnull final RemoteIterator<TopologyEntityDTO> entityIterator) {
+        // TODO: karthikt : Do we really need a Set here. Duplicated entities
+        // can be easily detected by just checking the Ids.Computing the hash
+        // for the entire EntityDTO object would be expensive as it would need
+        // to look at all the fields.
         final Set<TopologyEntityDTO> entities = new HashSet<>();
         final long topologyContextId = topologyInfo.getTopologyContextId();
         final long topologyId = topologyInfo.getTopologyId();

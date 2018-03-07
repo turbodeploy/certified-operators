@@ -3,7 +3,6 @@ package com.vmturbo.action.orchestrator.action;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -28,14 +27,12 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
-import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -84,8 +81,6 @@ public class Action implements ActionView {
      * Cached settings for entities.
      */
     private final EntitySettingsCache entitySettings;
-
-    private final EntityTypeMap entityTypeMap;
 
     /**
      * The translation for this action.
@@ -136,11 +131,11 @@ public class Action implements ActionView {
     private static final ImmutableMap<ActionTypeCase, Function<ActionInfo, Long>>
             ACTION_TYPE_TARGET_ID_GETTER =
             ImmutableMap.<ActionTypeCase, Function<ActionInfo, Long>>builder()
-                    .put(ActionTypeCase.RESIZE, (info) -> info.getResize().getTargetId())
-                    .put(ActionTypeCase.ACTIVATE, (info) -> info.getActivate().getTargetId())
-                    .put(ActionTypeCase.DEACTIVATE, (info) -> info.getDeactivate().getTargetId())
-                    .put(ActionTypeCase.MOVE, (info) -> info.getMove().getTargetId())
-                    .put(ActionTypeCase.RECONFIGURE, (info) -> info.getReconfigure().getTargetId())
+                    .put(ActionTypeCase.RESIZE, (info) -> info.getResize().getTarget().getId())
+                    .put(ActionTypeCase.ACTIVATE, (info) -> info.getActivate().getTarget().getId())
+                    .put(ActionTypeCase.DEACTIVATE, (info) -> info.getDeactivate().getTarget().getId())
+                    .put(ActionTypeCase.MOVE, (info) -> info.getMove().getTarget().getId())
+                    .put(ActionTypeCase.RECONFIGURE, (info) -> info.getReconfigure().getTarget().getId())
                     .build();
 
     /**
@@ -160,7 +155,6 @@ public class Action implements ActionView {
         this.stateMachine = ActionStateMachine.newInstance(this, savedState.currentState);
         this.actionTranslation = savedState.actionTranslation;
         this.entitySettings = null;
-        this.entityTypeMap = null;
         this.actionTypeSettingFilter = loadSettingFilterMap(false);
         this.actionTypeSettingDefault = loadSettingDefaultMap(false);
     }
@@ -176,7 +170,6 @@ public class Action implements ActionView {
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = null;
-        this.entityTypeMap = null;
         this.actionTypeSettingFilter = loadSettingFilterMap(false);
         this.actionTypeSettingDefault = loadSettingDefaultMap(false);
     }
@@ -184,7 +177,6 @@ public class Action implements ActionView {
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final LocalDateTime recommendationTime,
                   @Nonnull final EntitySettingsCache entitySettings,
-                  @Nonnull final EntityTypeMap entityTypeMap,
                   final long actionPlanId) {
         this.recommendation = Objects.requireNonNull(recommendation);
         this.actionPlanId = actionPlanId;
@@ -194,7 +186,6 @@ public class Action implements ActionView {
         this.decision = new Decision();
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.entitySettings = Objects.requireNonNull(entitySettings);
-        this.entityTypeMap = Objects.requireNonNull(entityTypeMap);
         this.actionTypeSettingFilter = loadSettingFilterMap(true);
         this.actionTypeSettingDefault = loadSettingDefaultMap(true);
     }
@@ -209,7 +200,6 @@ public class Action implements ActionView {
         this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
                 .setSupportingLevel(supportLevel).build();
         this.entitySettings = prototype.entitySettings;
-        this.entityTypeMap = null;
         this.actionTypeSettingFilter = loadSettingFilterMap(this.entitySettings != null);
         this.actionTypeSettingDefault = loadSettingDefaultMap(this.entitySettings != null);
     }
@@ -221,9 +211,8 @@ public class Action implements ActionView {
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
                   @Nonnull final EntitySettingsCache entitySettings,
-                  @Nonnull final EntityTypeMap entityTypeMap,
                   final long actionPlanId) {
-        this(recommendation, LocalDateTime.now(), entitySettings, entityTypeMap, actionPlanId);
+        this(recommendation, LocalDateTime.now(), entitySettings, actionPlanId);
     }
 
     /**
@@ -435,15 +424,9 @@ public class Action implements ActionView {
      */
     @Nonnull
     private EntitySettingSpecs determineMoveType() {
-        if (entityTypeMap == null) {
-            return EntitySettingSpecs.Move;
-        }
         boolean allStorageMoves = recommendation.getInfo().getMove().getChangesList().stream()
-                        .map(ChangeProvider::getDestinationId)
-                        .map(entityTypeMap::getTypeForEntity)
-                        .filter(Optional::isPresent)
-                        .map(Optional::get)
-                        .allMatch(type -> type == EntityType.STORAGE);
+                        .map(cp -> cp.getDestination().getType())
+                        .allMatch(type -> type == EntityType.STORAGE_VALUE);
         return allStorageMoves
                         ? EntitySettingSpecs.StorageMove
                         : EntitySettingSpecs.Move;
@@ -772,11 +755,4 @@ public class Action implements ActionView {
         }
     }
 
-    @Override
-    @Nonnull
-    public Map<Long, EntityType> getTypes() {
-        return entityTypeMap == null
-                        ? Collections.emptyMap()
-                        : entityTypeMap.getMap();
-    }
 }

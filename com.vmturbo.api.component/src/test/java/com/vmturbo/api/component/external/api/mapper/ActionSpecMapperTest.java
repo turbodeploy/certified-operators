@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -190,13 +191,18 @@ public class ActionSpecMapperTest {
             .setType(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE)
             .build();
 
-        ActionInfo moveInfo = ActionInfo.newBuilder().setReconfigure(
-                        Reconfigure.newBuilder().setTargetId(0).setSourceId(1).build()).build();
+        ActionInfo moveInfo =
+                    ActionInfo.newBuilder().setReconfigure(
+                            Reconfigure.newBuilder()
+                            .setTarget(ApiUtilsTest.createActionEntity(0))
+                            .setSource(ApiUtilsTest.createActionEntity(1))
+                            .build())
+                    .build();
         Explanation reconfigure =
-                        Explanation.newBuilder()
-                                        .setReconfigure(ReconfigureExplanation.newBuilder()
-                                                        .addReconfigureCommodity(cpuAllocation).build())
-                                        .build();
+                    Explanation.newBuilder()
+                            .setReconfigure(ReconfigureExplanation.newBuilder()
+                                    .addReconfigureCommodity(cpuAllocation).build())
+                            .build();
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                         .thenReturn(oidToEntityMap(
                                 entityApiDTO(TARGET, 0L, "C0"),
@@ -221,8 +227,11 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapProvision() throws Exception {
-        ActionInfo provisionInfo = ActionInfo.newBuilder().setProvision(Provision.newBuilder()
-                        .setEntityToCloneId(0).setProvisionedSeller(-1).build()).build();
+        ActionInfo provisionInfo =
+                ActionInfo.newBuilder()
+                    .setProvision(Provision.newBuilder()
+                        .setEntityToClone(ApiUtilsTest.createActionEntity(0))
+                        .setProvisionedSeller(-1).build()).build();
         Explanation provision = Explanation.newBuilder().setProvision(ProvisionExplanation
                         .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
                                         .newBuilder().setMostExpensiveCommodity(21).build())
@@ -251,7 +260,7 @@ public class ActionSpecMapperTest {
         final long targetId = 1;
         final ActionInfo resizeInfo = ActionInfo.newBuilder()
                 .setResize(Resize.newBuilder()
-                    .setTargetId(targetId)
+                    .setTarget(ApiUtilsTest.createActionEntity(targetId))
                     .setOldCapacity(9)
                     .setNewCapacity(10)
                     .setCommodityType(commodityCpu))
@@ -279,7 +288,7 @@ public class ActionSpecMapperTest {
     public void testMapActivate() throws Exception {
         final long targetId = 1;
         final ActionInfo activateInfo = ActionInfo.newBuilder()
-                        .setActivate(Activate.newBuilder().setTargetId(targetId)
+                        .setActivate(Activate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
                                         .addTriggeringCommodities(commodityCpu)
                                         .addTriggeringCommodities(commodityMem))
                         .build();
@@ -307,7 +316,7 @@ public class ActionSpecMapperTest {
     public void testMapDeactivate() throws Exception {
         final long targetId = 1;
         final ActionInfo deactivateInfo = ActionInfo.newBuilder()
-                        .setDeactivate(Deactivate.newBuilder().setTargetId(targetId)
+                        .setDeactivate(Deactivate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
                                         .addTriggeringCommodities(commodityCpu)
                                         .addTriggeringCommodities(commodityMem))
                         .build();
@@ -358,17 +367,17 @@ public class ActionSpecMapperTest {
         final long goodTarget = 10L;
 
         final ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
-                .setTargetId(badTarget)
+                .setTarget(ApiUtilsTest.createActionEntity(badTarget))
                 .addChanges(ChangeProvider.newBuilder()
-                    .setSourceId(badSource)
-                    .setDestinationId(badDestination)
+                    .setSource(ApiUtilsTest.createActionEntity(badSource))
+                    .setDestination(ApiUtilsTest.createActionEntity(badDestination))
                     .build())
                 .build())
         .build();
 
         final ActionInfo resizeInfo = ActionInfo.newBuilder()
             .setResize(Resize.newBuilder()
-                .setTargetId(goodTarget)
+                .setTarget(ApiUtilsTest.createActionEntity(goodTarget))
                 .setOldCapacity(11)
                 .setNewCapacity(12)
                 .setCommodityType(commodityCpu))
@@ -425,10 +434,10 @@ public class ActionSpecMapperTest {
 
     private ActionInfo getMoveActionInfo(final String srcAndDestType) {
         ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
-            .setTargetId(0)
+            .setTarget(ApiUtilsTest.createActionEntity(0))
             .addChanges(ChangeProvider.newBuilder()
-                .setSourceId(1)
-                .setDestinationId(2)
+                .setSource(ApiUtilsTest.createActionEntity(1))
+                .setDestination(ApiUtilsTest.createActionEntity(2))
                 .build())
             .build())
         .build();

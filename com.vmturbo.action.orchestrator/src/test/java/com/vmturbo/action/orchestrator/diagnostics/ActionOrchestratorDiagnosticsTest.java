@@ -1,5 +1,10 @@
 package com.vmturbo.action.orchestrator.diagnostics;
 
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Base64;
@@ -36,17 +41,11 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
-import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.components.common.DiagnosticsWriter;
-
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link ActionOrchestratorDiagnostics}.
@@ -242,11 +241,9 @@ public class ActionOrchestratorDiagnosticsTest {
             throws Exception {
         final ActionDTO.Action rec = ActionOrchestratorTestUtils.createMoveRecommendation(1);
         final EntitySettingsCache settingsCache = mock(EntitySettingsCache.class);
-        final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
-        when(settingsCache.getSettingsForEntity(eq(rec.getInfo().getMove().getTargetId())))
+        when(settingsCache.getSettingsForEntity(eq(rec.getInfo().getMove().getTarget().getId())))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
-        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
-        final Action action = actionFactory.newAction(rec, settingsCache, entityTypeMap, 0L);
+        final Action action = actionFactory.newAction(rec, settingsCache, 0L);
         if (actionModifier != null) {
             actionModifier.accept(action);
         }

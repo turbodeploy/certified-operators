@@ -105,11 +105,11 @@ public class AnalysisResultsMatchers {
                     .map(Action::getInfo)
                     .filter(ActionInfo::hasMove)
                     .map(ActionInfo::getMove)
-                    .filter(move -> move.getTargetId() == vmId)
+                    .filter(move -> move.getTarget().getId() == vmId)
                     .map(Move::getChangesList)
                     .flatMap(List::stream)
-                    .anyMatch(change -> change.getSourceId() == fromHost.getFromId()
-                                     && change.getDestinationId() == toHost.getToId());
+                    .anyMatch(change -> change.getSource().getId() == fromHost.getFromId()
+                                     && change.getDestination().getId() == toHost.getToId());
             }
 
             @Override
@@ -137,7 +137,7 @@ public class AnalysisResultsMatchers {
                     .map(Action::getInfo)
                     .filter(ActionInfo::hasMove)
                     .map(ActionInfo::getMove)
-                    .anyMatch(move -> move.getTargetId() == vmId);
+                    .anyMatch(move -> move.getTarget().getId() == vmId);
             }
 
             @Override

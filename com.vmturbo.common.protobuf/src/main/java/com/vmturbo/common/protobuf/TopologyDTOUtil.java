@@ -1,14 +1,23 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 
 /**
  * Utilities for dealing with protobuf messages in topology/TopologyDTO.proto.
  */
-public class TopologyDTOUtil {
+public final class TopologyDTOUtil {
+
+    private TopologyDTOUtil() {
+    }
+
     /**
      * Determine whether or not an entity is placed in whatever topology it belongs to.
      *
@@ -44,5 +53,16 @@ public class TopologyDTOUtil {
     public static boolean isPlanType(@Nonnull final PlanProjectType type,
                                      @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
         return isPlan(topologyInfo) && topologyInfo.getPlanInfo().getPlanType() == type;
+    }
+
+    /**
+     * Create a mapping from entityId to its type.
+     *
+     * @param entityDTOs Set of TopologyDTOs
+     * @return Mapping from the entityId to its type.
+     */
+    public static Map<Long, Integer> getEntityIdToEntityTypeMapping(@Nonnull Set<TopologyEntityDTO> entityDTOs) {
+            return entityDTOs.stream()
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, TopologyEntityDTO::getEntityType));
     }
 }

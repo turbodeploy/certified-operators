@@ -15,6 +15,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
+import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -171,10 +172,10 @@ public class ReservationServiceTest {
                                     .build())
                                 .setInfo(ActionInfo.newBuilder()
                                     .setMove(Move.newBuilder()
-                                        .setTargetId(111L)
+                                        .setTarget(ApiUtilsTest.createActionEntity(111L))
                                         .addChanges(ChangeProvider.newBuilder()
-                                            .setSourceId(0L)
-                                            .setDestinationId(78910)
+                                            .setSource(ApiUtilsTest.createActionEntity(0L))
+                                            .setDestination(ApiUtilsTest.createActionEntity(78910))
                                             .build())
                                         .build())
                                     .build())
@@ -195,10 +196,10 @@ public class ReservationServiceTest {
                             .build())
                         .setInfo(ActionInfo.newBuilder()
                             .setMove(Move.newBuilder()
-                                .setTargetId(222L)
+                                .setTarget(ApiUtilsTest.createActionEntity(222L))
                                 .addChanges(ChangeProvider.newBuilder()
-                                    .setSourceId(0L)
-                                    .setDestinationId(78911)
+                                    .setSource(ApiUtilsTest.createActionEntity(0L))
+                                    .setDestination(ApiUtilsTest.createActionEntity(78911))
                                     .build())
                                 .build())
                             .build())

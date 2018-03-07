@@ -48,7 +48,7 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshVisibleReady() {
-        ActionView action = actionView(executableMove(0, DEFAULT_SOURCE_ID, 2, Severity.CRITICAL));
+        ActionView action = actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL));
         when(actionStore.getActionViews())
             .thenReturn(Maps.newHashMap(action.getRecommendation().getId(), action));
 
@@ -58,7 +58,7 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshVisibleNotReady() {
-        ActionView action = spy(actionView(executableMove(0, DEFAULT_SOURCE_ID, 2, Severity.CRITICAL)));
+        ActionView action = spy(actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL)));
         when(action.getState()).thenReturn(ActionState.CLEARED);
 
         final Map<Long, ActionView> actionViews = ImmutableMap.of(action.getRecommendation().getId(), action);
@@ -70,7 +70,7 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshNotVisibleReady() {
-        ActionView action = actionView(notExecutableMove(0, DEFAULT_SOURCE_ID, 2, Severity.CRITICAL));
+        ActionView action = actionView(notExecutableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL));
         when(actionStore.getActionViews())
             .thenReturn(Maps.newHashMap(action.getRecommendation().getId(), action));
 
@@ -80,9 +80,9 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshPicksMaxSeverity() {
-        ActionView action1 = actionView(executableMove(0, DEFAULT_SOURCE_ID, 2, Severity.MINOR));
-        ActionView action2 = actionView(executableMove(3, DEFAULT_SOURCE_ID, 4, Severity.CRITICAL));
-        ActionView action3 = actionView(executableMove(5, DEFAULT_SOURCE_ID, 6, Severity.MAJOR));
+        ActionView action1 = actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.MINOR));
+        ActionView action2 = actionView(executableMove(3, DEFAULT_SOURCE_ID, 1, 4, 1, Severity.CRITICAL));
+        ActionView action3 = actionView(executableMove(5, DEFAULT_SOURCE_ID, 1, 6, 1, Severity.MAJOR));
 
         when(actionStore.getActionViews()).thenReturn(ImmutableMap.of(
             action1.getRecommendation().getId(), action1,
@@ -95,10 +95,10 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshIndividualAction() {
-        ActionView action1 = actionView(executableMove(0, DEFAULT_SOURCE_ID, 2, Severity.MINOR));
-        ActionView action2 = spy(actionView(executableMove(3, DEFAULT_SOURCE_ID, 4, Severity.CRITICAL)));
-        ActionView action3 = actionView(executableMove(5, DEFAULT_SOURCE_ID, 6, Severity.MAJOR));
-        ActionView unrelatedAction = actionView(executableMove(5, 999, 6, Severity.CRITICAL));
+        ActionView action1 = actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.MINOR));
+        ActionView action2 = spy(actionView(executableMove(3, DEFAULT_SOURCE_ID, 1, 4, 1, Severity.CRITICAL)));
+        ActionView action3 = actionView(executableMove(5, DEFAULT_SOURCE_ID, 1, 6, 1, Severity.MAJOR));
+        ActionView unrelatedAction = actionView(executableMove(5, 999, 1, 6, 1, Severity.CRITICAL));
 
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
             action1.getRecommendation().getId(), action1,
@@ -131,20 +131,26 @@ public class EntitySeverityCacheTest {
         return actionFactory.newAction(recommendation, ACTION_PLAN_ID);
     }
 
-    private static ActionDTO.Action executableMove(final long targetId, final long sourceId, final long destinationId,
-                                                   Severity severity) {
+    private static ActionDTO.Action executableMove(final long targetId,
+                    final long sourceId, int sourceType,
+                    final long destinationId, int destinationType,
+                    Severity severity) {
         return ActionDTO.Action.newBuilder()
             .setExecutable(true)
             .setId(IdentityGenerator.next())
             .setImportance(mapSeverityToImportance(severity))
-            .setInfo(ActionTest.makeMoveInfo(targetId, sourceId, destinationId))
+            .setInfo(
+                ActionTest.makeMoveInfo(targetId, sourceId, sourceType,
+                    destinationId, destinationType))
             .setExplanation(Explanation.newBuilder().build())
             .build();
     }
 
-    private static ActionDTO.Action notExecutableMove(final long targetId, final long sourceId,
-                                                      final long destinationId, Severity severity) {
-        return executableMove(targetId, sourceId, destinationId, severity)
+    private static ActionDTO.Action notExecutableMove(final long targetId,
+                                                      final long sourceId, final int sourceType,
+                                                      final long destinationId, final int destinationType,
+                                                      Severity severity) {
+        return executableMove(targetId, sourceId, sourceType, destinationId, destinationType, severity)
             .toBuilder()
             .setExecutable(false)
             .build();

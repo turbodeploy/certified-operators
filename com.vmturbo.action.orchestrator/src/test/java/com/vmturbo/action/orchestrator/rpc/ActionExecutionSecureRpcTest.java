@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.Collections;
-import java.util.Optional;
 
 import org.junit.After;
 import org.junit.AfterClass;
@@ -39,7 +38,6 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionSupportResolver;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
-import com.vmturbo.action.orchestrator.store.EntityTypeMap;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
@@ -101,7 +99,6 @@ public class ActionExecutionSecureRpcTest {
             (ActionSupportResolver.class);
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
-    private final EntityTypeMap entityTypeMap = mock(EntityTypeMap.class);
     private final ActionsRpcService actionsRpcService =
             new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
@@ -159,8 +156,7 @@ public class ActionExecutionSecureRpcTest {
 
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                filter, entitySettingsCache, entityTypeMap, actionHistoryDao));
-        when(entityTypeMap.getTypeForEntity(anyLong())).thenReturn(Optional.empty());
+                filter, entitySettingsCache, actionHistoryDao));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

@@ -119,26 +119,37 @@ message Explanation {
 
 // Change one or more providers of an entity.
 message Move {
-    // ID of the entity which providers are being changed.
-    required int64 target_id = 1;
+    // Entity whose providers are being changed.
+    optional ActionEntity target = 1;
 
     // Details of the providers changes
     repeated ChangeProvider changes = 2;
 }
 
 message ChangeProvider {
-    // ID of the entity's current provider.
-    required int64 source_id = 2;
 
-    // ID of the entity's new provider.
-    required int64 destination_id = 3;
+    // Both the fields are required.
+    // Current provider.
+    optional ActionEntity source = 1;
+
+    // New provider.
+    optional ActionEntity destination = 2;
+}
+
+message ActionEntity {
+    // Both the fields are required.
+    // ID of the entity provider.
+    optional int64 id = 1;
+
+    // Type of the entity provider.
+    optional int32 type = 2;
 }
 
 // Resize a commodity on a specific
 // entity.
 message Resize {
-    // ID of the entity where the resize should take place.
-    required int64 target_id = 1;
+    // Entity where the resize should take place.
+    optional ActionEntity target = 1;
 
     // The commodity that's being resized.
     optional topology.CommodityType commodityType = 2;
@@ -152,8 +163,8 @@ message Resize {
 
 // Activate an existing deactivated entity.
 message Activate {
-    // ID of the entity to activate.
-    required int64 target_id = 1;
+    // Entity to activate.
+    optional ActionEntity target = 1;
 
     // The in-demand commodities that triggered the activation
     // recommendation. These are guaranteed to be a subset of
@@ -163,8 +174,8 @@ message Activate {
 
 // Deactivate an existing active entity.
 message Deactivate {
-    // ID of the entity to deactivate.
-    required int64 target_id = 1;
+    // Entity to deactivate.
+    optional ActionEntity target = 1;
 
     // The not-in-demand commodities that triggered the deactivation
     // recommendation. These are guaranteed to be a subset of
@@ -183,24 +194,26 @@ message Deactivate {
 // not mounted on the host that the VM is currently running on. For both configuration issues, another remedy
 // is to move the VM to a host that does have access to the network/storage.
 message Reconfigure {
-    // The OID of the entity to reconfigure.
-    required int64 target_id = 1;
+    // Entity to reconfigure.
+    optional ActionEntity target = 1;
 
-    // The OID of the current supplier. Assumed null if missing. It is included for the cases where
+    // The current supplier. Assumed null if missing. It is included for the cases where
     // a trader is buying a particular shopping list from a supplier that isn't supplying the
     // complete list and no supplier can supply the complete list.
-    optional int64 source_id = 2;
+    optional ActionEntity source = 2;
 
     // TODO (davidblinn, July 2016): We also need to record the shopping list that caused the change.
 }
 
 // An action to provision an entity that matches another entity already existing in the system.
 message Provision {
-    // The OID of an entity to clone.
-    required int64 entity_to_clone_id = 1;
+    // Entity to clone.
+    optional ActionEntity entity_to_clone = 1;
 
     // The OID of the newly provisioned entity (that does not yet exist in the system).
     // TODO: Make this non-negative per feedback from Jerry. Need to coordinate this with the market folks.
+    // Since this is a special case, we will just use the EntityId. The entity
+    // type will be the same as the entity_to_clone.
     optional sint64 provisioned_seller = 2;
 }
 

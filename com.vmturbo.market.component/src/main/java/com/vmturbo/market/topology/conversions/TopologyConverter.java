@@ -20,6 +20,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
@@ -31,6 +32,7 @@ import com.google.gson.Gson;
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
@@ -140,26 +142,35 @@ public class TopologyConverter {
 
     private final TopologyInfo topologyInfo;
 
+    // Mapping from the entity Id to it's type.
+    private final Map<Long, Integer> entityIdToEntityType;
+
     public static final float CAPACITY_FACTOR = 0.999999f;
 
     /**
      * A non-shop-together TopologyConverter.
      *
      * @param topologyInfo Information about the topology.
+     * @param entityIdToType Mapping from entityId to entityType
      */
-    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo) {
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             @Nonnull final Map<Long, Integer> entityIdToType) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.entityIdToEntityType = Objects.requireNonNull(entityIdToType);
     }
 
     /**
      * Constructor with includeGuaranteedBuyer parameter.
      *
-     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      * @param topologyInfo Information about the topology.
+     * @param entityIdToType Mapping from entityId to entityType
+     * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
      */
-    public TopologyConverter(final boolean includeGuaranteedBuyer,
-                             @Nonnull final TopologyInfo topologyInfo) {
-        this(topologyInfo);
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
+                             @Nonnull final Map<Long, Integer> entityIdToType,
+                             final boolean includeGuaranteedBuyer) {
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.entityIdToEntityType = Objects.requireNonNull(entityIdToType);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
     }
 
@@ -1194,8 +1205,10 @@ public class TopologyConverter {
     private ActionDTO.Provision interpretProvisionByDemand(
                     @Nonnull final ProvisionByDemandTO provisionByDemandTO) {
         return ActionDTO.Provision.newBuilder()
-                .setEntityToCloneId(provisionByDemandTO.getModelSeller())
-                .setProvisionedSeller(provisionByDemandTO.getProvisionedSeller()).build();
+                .setEntityToClone(createActionEntity(
+                    provisionByDemandTO.getModelSeller()))
+                .setProvisionedSeller(provisionByDemandTO.getProvisionedSeller())
+                .build();
     }
 
     private Explanation interpretExplanation(ActionTO actionTO) {
@@ -1373,11 +1386,10 @@ public class TopologyConverter {
             throw new IllegalStateException(
                             "Market returned invalid shopping list for MOVE: " + moveTO);
         } else {
-            return ActionDTO.Move.newBuilder().setTargetId(shoppingList.buyerId)
-                            .addChanges(ChangeProvider.newBuilder()
-                                .setSourceId(moveTO.getSource())
-                                .setDestinationId(moveTO.getDestination())
-                                .build())
+            return ActionDTO.Move.newBuilder()
+                            .setTarget(
+                                    createActionEntity(shoppingList.buyerId))
+                            .addChanges(createChangeProvider(moveTO))
                             .build();
         }
     }
@@ -1401,19 +1413,35 @@ public class TopologyConverter {
                     + " in COMPOUND_MOVE:" + compoundMoveTO);
         }
 
-        return ActionDTO.Move.newBuilder().setTargetId(targetIds.iterator().next())
+        return ActionDTO.Move.newBuilder()
+                        .setTarget(createActionEntity(
+                            targetIds.iterator().next()))
                         .addAllChanges(moves.stream()
-                            .map(TopologyConverter::changeProvider)
+                            .map(move -> createChangeProvider(move))
                             .collect(Collectors.toList()))
                             .build();
     }
 
     @Nonnull
-    private static ActionDTO.ChangeProvider changeProvider(MoveTO move) {
-        return ActionDTO.ChangeProvider.newBuilder()
-                        .setSourceId(move.getSource())
-                        .setDestinationId(move.getDestination())
-                        .build();
+    private ChangeProvider createChangeProvider(MoveTO move) {
+        Preconditions.checkArgument(
+            entityIdToEntityType.containsKey(move.getSource()),
+            "Missing entityType in the map for source entity %s", move.getSource());
+
+        Preconditions.checkArgument(
+            entityIdToEntityType.containsKey(move.getSource()),
+            "Missing entityType in the map for destination entity %s", move.getDestination());
+
+        return ChangeProvider.newBuilder()
+                    .setSource(ActionEntity.newBuilder()
+                        .setId(move.getSource())
+                        .setType(entityIdToEntityType.get(move.getSource()))
+                        .build())
+                    .setDestination(ActionEntity.newBuilder()
+                        .setId(move.getDestination())
+                        .setType(entityIdToEntityType.get(move.getDestination()))
+                        .build())
+                    .build();
     }
 
     @Nonnull
@@ -1426,8 +1454,9 @@ public class TopologyConverter {
                 "Market returned invalid shopping list for RECONFIGURE: " + reconfigureTO);
         } else {
             return ActionDTO.Reconfigure.newBuilder()
-                .setTargetId(shoppingList.buyerId)
-                .setSourceId(reconfigureTO.getSource()).build();
+                .setTarget(createActionEntity(shoppingList.buyerId))
+                .setSource(createActionEntity(reconfigureTO.getSource()))
+                .build();
         }
     }
 
@@ -1435,8 +1464,10 @@ public class TopologyConverter {
     private ActionDTO.Provision interpretProvisionBySupply(
                     @Nonnull final ProvisionBySupplyTO provisionBySupplyTO) {
         return ActionDTO.Provision.newBuilder()
-                .setEntityToCloneId(provisionBySupplyTO.getModelSeller())
-                .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller()).build();
+                .setEntityToClone(createActionEntity(
+                    provisionBySupplyTO.getModelSeller()))
+                .setProvisionedSeller(provisionBySupplyTO.getProvisionedSeller())
+                .build();
     }
 
     @Nonnull
@@ -1448,7 +1479,7 @@ public class TopologyConverter {
                         "Resize commodity can't be converted to topology commodity format! "
                             + resizeTO.getSpecification()));
         return ActionDTO.Resize.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .setNewCapacity(resizeTO.getNewCapacity())
                 .setOldCapacity(resizeTO.getOldCapacity())
                 .setCommodityType(topologyCommodity)
@@ -1465,7 +1496,7 @@ public class TopologyConverter {
                         .map(Optional::get)
                         .collect(Collectors.toList());
         return ActionDTO.Activate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .addAllTriggeringCommodities(topologyCommodities)
                 .build();
     }
@@ -1480,7 +1511,7 @@ public class TopologyConverter {
                         .map(Optional::get)
                         .collect(Collectors.toList());
         return ActionDTO.Deactivate.newBuilder()
-                .setTargetId(entityId)
+                .setTarget(createActionEntity(entityId))
                 .addAllTriggeringCommodities(topologyCommodities)
                 .build();
     }
@@ -1547,5 +1578,12 @@ public class TopologyConverter {
                     new ShoppingListInfo(l.getNewShoppingList(), l.getBuyer(), null,
                             null, Lists.newArrayList())));
         return;
+    }
+
+    private ActionEntity createActionEntity(long id) {
+        return ActionEntity.newBuilder()
+                    .setId(id)
+                    .setType(entityIdToEntityType.get(id))
+                    .build();
     }
 }

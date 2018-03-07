@@ -30,14 +30,12 @@ public interface IActionFactory {
      *
      * @param recommendation The market recommendation for the action in the environment.
      * @param entitySettingsCache Entities and associated settings
-     * @param entityTypeMap a mapping from entity oid to entity type
      * @param actionPlanId The ID of the ActionPlan the recommendation was a part of.
      * @return A new {@link Action} instance.
      */
     @Nonnull
     Action newAction(@Nonnull final ActionDTO.Action recommendation,
                      final EntitySettingsCache entitySettingsCache,
-                     final EntityTypeMap entityTypeMap,
                      final long actionPlanId);
 
     /**

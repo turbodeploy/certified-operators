@@ -3,7 +3,6 @@ package com.vmturbo.common.protobuf;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -39,11 +38,10 @@ public class ActionDTOUtil {
      * applies. This will be one of the entities involved in the action.
      *
      * @param action The action in question.
-     * @param types a map from entity oid to entity type.
      * @return The ID of the entity whose severity is affected by the action.
      * @throws UnsupportedActionException If the type of the action is not supported.
      */
-    public static long getSeverityEntity(@Nonnull final ActionDTO.Action action, Map<Long, EntityType> types)
+    public static long getSeverityEntity(@Nonnull final ActionDTO.Action action)
             throws UnsupportedActionException {
         final ActionInfo actionInfo = action.getInfo();
 
@@ -54,24 +52,24 @@ public class ActionDTOUtil {
                 // since we're moving the load off of the source.
                 List<ChangeProvider> changes = actionInfo.getMove().getChangesList();
                 return changes.stream()
-                    .filter(provider -> types.get(provider.getSourceId()) == EntityType.PHYSICAL_MACHINE)
+                    .filter(provider -> provider.getSource().getType() == EntityType.PHYSICAL_MACHINE_VALUE)
                     .findFirst()
                     // If a PM move exists then use the source ID as the severity entity
-                    .map(ChangeProvider::getSourceId)
+                    .map(cp -> cp.getSource().getId())
                     // Otherwise use the source ID of the first provider change
-                    .orElse(changes.get(0).getSourceId());
+                    .orElse(changes.get(0).getSource().getId());
             case RESIZE:
-                return actionInfo.getResize().getTargetId();
+                return actionInfo.getResize().getTarget().getId();
             case ACTIVATE:
-                return actionInfo.getActivate().getTargetId();
+                return actionInfo.getActivate().getTarget().getId();
             case DEACTIVATE:
-                return actionInfo.getDeactivate().getTargetId();
+                return actionInfo.getDeactivate().getTarget().getId();
             case PROVISION:
                 // The entity to clone is the target of the action. The
                 // newly provisioned entity is the result of the clone.
-                return actionInfo.getProvision().getEntityToCloneId();
+                return actionInfo.getProvision().getEntityToClone().getId();
             case RECONFIGURE:
-                return actionInfo.getReconfigure().getTargetId();
+                return actionInfo.getReconfigure().getTarget().getId();
             default:
                 throw new UnsupportedActionException(action.getId(), actionInfo);
         }
@@ -112,29 +110,29 @@ public class ActionDTOUtil {
         switch (action.getInfo().getActionTypeCase()) {
             case MOVE:
                 final ActionDTO.Move move = action.getInfo().getMove();
-                Set<Long> involvedEntities = Sets.newHashSet(move.getTargetId());
+                Set<Long> involvedEntities = Sets.newHashSet(move.getTarget().getId());
                 for (ChangeProvider change : move.getChangesList()) {
-                    long sourceId = change.getSourceId();
+                    long sourceId = change.getSource().getId();
                     if (sourceId != 0) {
                         involvedEntities.add(sourceId);
                     }
-                    involvedEntities.add(change.getDestinationId());
+                    involvedEntities.add(change.getDestination().getId());
                 }
                 return ImmutableSet.copyOf(involvedEntities);
             case RESIZE:
-                return ImmutableSet.of(action.getInfo().getResize().getTargetId());
+                return ImmutableSet.of(action.getInfo().getResize().getTarget().getId());
             case ACTIVATE:
-                return ImmutableSet.of(action.getInfo().getActivate().getTargetId());
+                return ImmutableSet.of(action.getInfo().getActivate().getTarget().getId());
             case DEACTIVATE:
-                return ImmutableSet.of(action.getInfo().getDeactivate().getTargetId());
+                return ImmutableSet.of(action.getInfo().getDeactivate().getTarget().getId());
             case PROVISION:
-                return ImmutableSet.of(action.getInfo().getProvision().getEntityToCloneId());
+                return ImmutableSet.of(action.getInfo().getProvision().getEntityToClone().getId());
             case RECONFIGURE:
                 final ActionDTO.Reconfigure reconfigure = action.getInfo().getReconfigure();
-                if (reconfigure.hasSourceId()) {
-                    return ImmutableSet.of(reconfigure.getTargetId(), reconfigure.getSourceId());
+                if (reconfigure.hasSource()) {
+                    return ImmutableSet.of(reconfigure.getTarget().getId(), reconfigure.getSource().getId());
                 } else {
-                    return ImmutableSet.of(reconfigure.getTargetId());
+                    return ImmutableSet.of(reconfigure.getTarget().getId());
                 }
             default:
                 throw new UnsupportedActionException(action);

@@ -108,7 +108,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     @Nonnull final ActionDTO.Activate activateAction)
                                     throws ActionExecutionException {
         final PerTargetInfo targetInfo =
-                        getPerTargetInfo(targetId, activateAction.getTargetId(), "target");
+                        getPerTargetInfo(targetId, activateAction.getTarget().getId(), "target");
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
         actionBuilder.setActionType(ActionType.START);
@@ -126,7 +126,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     @Nonnull final ActionDTO.Deactivate deactivateAction)
                                     throws ActionExecutionException {
         final PerTargetInfo targetInfo =
-                        getPerTargetInfo(targetId, deactivateAction.getTargetId(), "target");
+                        getPerTargetInfo(targetId, deactivateAction.getTarget().getId(), "target");
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
         actionBuilder.setActionType(ActionType.SUSPEND);
@@ -146,7 +146,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                                     throws InterruptedException, ProbeException, TargetNotFoundException,
                                     CommunicationException, ActionExecutionException {
         final PerTargetInfo targetInfo =
-                        getPerTargetInfo(targetId, resizeAction.getTargetId(), "target");
+                        getPerTargetInfo(targetId, resizeAction.getTarget().getId(), "target");
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
 
@@ -183,7 +183,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                                     TargetNotFoundException, CommunicationException, ActionExecutionException {
 
         List<ActionItemDTO> actions = Lists.newArrayList();
-        final PerTargetInfo targetInfo = getPerTargetInfo(targetId, moveAction.getTargetId(), "target");
+        final PerTargetInfo targetInfo = getPerTargetInfo(targetId, moveAction.getTarget().getId(), "target");
         for (ChangeProvider change : moveAction.getChangesList()) {
             actions.add(actionItemDto(targetId, change, actionId, targetInfo));
         }
@@ -191,8 +191,8 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     }
 
     private ActionItemDTO actionItemDto(long targetId, ChangeProvider change, long actionId, PerTargetInfo targetInfo) throws ActionExecutionException {
-        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, change.getSourceId(), "source");
-        final PerTargetInfo destInfo = getPerTargetInfo(targetId, change.getDestinationId(), "destination");
+        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, change.getSource().getId(), "source");
+        final PerTargetInfo destInfo = getPerTargetInfo(targetId, change.getDestination().getId(), "destination");
 
         // Set the action type depending on the type of the entity being moved.
         final EntityType srcEntityType = sourceInfo.getEntityInfo().getEntityType();

@@ -19,6 +19,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
@@ -171,7 +172,7 @@ public class CompoundMoveTest {
         return genericActionStuff()
                         .setInfo(ActionInfo.newBuilder()
                             .setMove(Move.newBuilder()
-                                .setTargetId(t)
+                                .setTarget(ApiUtilsTest.createActionEntity(t))
                                 .addChanges(makeChange(s1, d1))
                                 .build())
                             .build())
@@ -182,7 +183,7 @@ public class CompoundMoveTest {
         return genericActionStuff()
                         .setInfo(ActionInfo.newBuilder()
                             .setMove(Move.newBuilder()
-                                .setTargetId(t)
+                                .setTarget(ApiUtilsTest.createActionEntity(t))
                                 .addChanges(makeChange(s1, d1))
                                 .addChanges(makeChange(s2, d2))
                                 .build())
@@ -201,8 +202,8 @@ public class CompoundMoveTest {
 
     private static ChangeProvider makeChange(long source, long destination) {
         return ChangeProvider.newBuilder()
-                        .setSourceId(source)
-                        .setDestinationId(destination)
+                        .setSource(ApiUtilsTest.createActionEntity(source))
+                        .setDestination(ApiUtilsTest.createActionEntity(destination))
                         .build();
     }
 

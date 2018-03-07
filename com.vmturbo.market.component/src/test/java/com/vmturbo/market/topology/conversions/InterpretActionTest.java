@@ -6,6 +6,8 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -14,6 +16,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -48,6 +51,9 @@ public class InterpretActionTest {
             .setTopologyType(TopologyType.REALTIME)
             .build();
 
+    private static final Map<Long, Integer> entityIdToEntityTypeMap =
+        Collections.emptyMap();
+
     private CommodityDTOs.CommoditySpecificationTO economyCommodity1;
     private CommodityType topologyCommodity1;
     private CommodityDTOs.CommoditySpecificationTO economyCommodity2;
@@ -78,7 +84,9 @@ public class InterpretActionTest {
 
     @Test
     public void testCommodityIdsAreInvertible() {
-        final TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
+        final TopologyConverter converter =
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO,
+                entityIdToEntityTypeMap, true);
 
         final CommodityType segmentationFoo = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
@@ -109,7 +117,12 @@ public class InterpretActionTest {
 
     @Test
     public void testExecutableFlag() {
-        final TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
+        long modelSeller = 1234;
+        int modelType = 1;
+        final Map<Long, Integer> entityIdToTypeMap =
+            ImmutableMap.of(modelSeller, modelType);
+        final TopologyConverter converter =
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToTypeMap, true);
 
         final ActionTO executableActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -118,7 +131,7 @@ public class InterpretActionTest {
                 // we really care about is the executable flag.
                 .setProvisionBySupply(ProvisionBySupplyTO.newBuilder()
                         .setProvisionedSeller(-1)
-                        .setModelSeller(1234)
+                        .setModelSeller(modelSeller)
                         .build())
                 .build();
 
@@ -132,9 +145,20 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretMoveAction() throws IOException, InvalidTopologyException {
-        TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
+        long srcId = 1234;
+        long destId = 5678;
+        int srcType = 0;
+        int destType = 1;
         TopologyDTO.TopologyEntityDTO entityDTO =
                 TopologyConverterTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+
+        Map<Long, Integer> entityIdTypeMap =
+            ImmutableMap.of(srcId, srcType,
+                            destId, destType,
+                            entityDTO.getOid(), entityDTO.getEntityType());
+
+        final TopologyConverter converter =
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdTypeMap, true);
 
         Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(entityDTO));
         final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
@@ -147,8 +171,8 @@ public class InterpretActionTest {
                 .setCompoundMove(CompoundMoveTO.newBuilder()
                     .addMoves(MoveTO.newBuilder()
                         .setShoppingListToMove(shoppingList.getOid())
-                        .setSource(1234)
-                        .setDestination(5678)
+                        .setSource(srcId)
+                        .setDestination(destId)
                         .setMoveExplanation(MoveExplanation.newBuilder().build())
                         .build())
                     .build())
@@ -157,15 +181,25 @@ public class InterpretActionTest {
         System.out.println(actionInfo);
         assertEquals(ActionTypeCase.MOVE, actionInfo.getActionTypeCase());
         assertEquals(1, actionInfo.getMove().getChangesList().size());
-        assertEquals(1234, actionInfo.getMove().getChanges(0).getSourceId());
-        assertEquals(5678, actionInfo.getMove().getChanges(0).getDestinationId());
+        assertEquals(srcId, actionInfo.getMove().getChanges(0).getSource().getId());
+        assertEquals(srcType, actionInfo.getMove().getChanges(0).getSource().getType());
+        assertEquals(destId, actionInfo.getMove().getChanges(0).getDestination().getId());
+        assertEquals(destType, actionInfo.getMove().getChanges(0).getDestination().getType());
     }
 
     @Test
     public void testInterpretReconfigureAction() throws IOException, InvalidTopologyException {
-        TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
+        long reconfigureSourceId = 1234;
+        int reconfigureSourceType = 1;
+
         TopologyDTO.TopologyEntityDTO topologyDTO =
                         TopologyConverterTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        final Map<Long, Integer> entityIdToTypeMap =
+            ImmutableMap.of(
+                reconfigureSourceId, reconfigureSourceType,
+                topologyDTO.getOid(), topologyDTO.getEntityType());
+        final TopologyConverter converter =
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToTypeMap, true);
 
         Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(topologyDTO));
         final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
@@ -177,17 +211,22 @@ public class InterpretActionTest {
                 .setIsNotExecutable(false)
                 .setReconfigure(ReconfigureTO.newBuilder()
                     .setShoppingListToReconfigure(shoppingList.getOid())
-                    .setSource(1234)
+                    .setSource(reconfigureSourceId)
                     .build())
                 .build()).get().getInfo();
 
         assertEquals(ActionTypeCase.RECONFIGURE, actionInfo.getActionTypeCase());
-        assertEquals(1234, actionInfo.getReconfigure().getSourceId());
+        assertEquals(reconfigureSourceId, actionInfo.getReconfigure().getSource().getId());
     }
 
     @Test
     public void testInterpretProvisionBySupplyAction() throws Exception {
-        TopologyConverter converter = new TopologyConverter(true, REALTIME_TOPOLOGY_INFO);
+        long modelSeller = 1234;
+        int modelType = 1;
+        final Map<Long, Integer> entityIdToTypeMap =
+            ImmutableMap.of(modelSeller, modelType);
+        final TopologyConverter converter =
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToTypeMap, true);
 
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()
@@ -195,22 +234,26 @@ public class InterpretActionTest {
                     .setIsNotExecutable(false)
                     .setProvisionBySupply(ProvisionBySupplyTO.newBuilder()
                         .setProvisionedSeller(-1)
-                        .setModelSeller(1234)
+                        .setModelSeller(modelSeller)
                         .build())
                     .build()).get().getInfo();
 
         assertEquals(ActionTypeCase.PROVISION, actionInfo.getActionTypeCase());
         assertEquals(-1, actionInfo.getProvision().getProvisionedSeller());
-        assertEquals(1234, actionInfo.getProvision().getEntityToCloneId());
+        assertEquals(modelSeller, actionInfo.getProvision().getEntityToClone().getId());
     }
 
     @Test
     public void testInterpretResizeAction() throws Exception {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, REALTIME_TOPOLOGY_INFO));
+        long entityToResize = 1;
+        int  entityType = 1;
+        final Map<Long, Integer> entityIdToTypeMap =
+            ImmutableMap.of(entityToResize, entityType);
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToTypeMap, true));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity1));
 
-        final long entityToResize = 1;
         final long oldCapacity = 10;
         final long newCapacity = 9;
         final ActionTO resizeAction = ActionTO.newBuilder()
@@ -225,7 +268,7 @@ public class InterpretActionTest {
         final ActionInfo actionInfo = converter.interpretAction(resizeAction).get().getInfo();
 
         assertEquals(ActionTypeCase.RESIZE, actionInfo.getActionTypeCase());
-        assertEquals(entityToResize, actionInfo.getResize().getTargetId());
+        assertEquals(entityToResize, actionInfo.getResize().getTarget().getId());
         assertEquals(topologyCommodity1, actionInfo.getResize().getCommodityType());
         assertEquals(oldCapacity, actionInfo.getResize().getOldCapacity(), 0);
         assertEquals(newCapacity, actionInfo.getResize().getNewCapacity(), 0);
@@ -233,13 +276,18 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretActivateAction() throws Exception {
+        long entityToActivate = 1;
+        int  entityType = 1;
+        final Map<Long, Integer> entityIdToTypeMap =
+            ImmutableMap.of(entityToActivate, entityType);
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToTypeMap, true));
         // Insert the commodity type into the converter's mapping
         final CommodityType expectedCommodityType = CommodityType.newBuilder()
             .setType(12)
             .setKey("Foo")
             .build();
 
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, REALTIME_TOPOLOGY_INFO));
         final int marketCommodityId = converter.toMarketCommodityId(expectedCommodityType);
         final  CommodityDTOs.CommoditySpecificationTO economyCommodity =
             CommodityDTOs.CommoditySpecificationTO.newBuilder()
@@ -252,7 +300,6 @@ public class InterpretActionTest {
         Mockito.doReturn(Optional.of(topologyCommodity2))
                 .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity2));
 
-        final long entityToActivate = 1;
         final ActionTO activateAction = ActionTO.newBuilder()
                 .setImportance(0.)
                 .setIsNotExecutable(false)
@@ -267,7 +314,7 @@ public class InterpretActionTest {
         final ActionInfo actionInfo = action.getInfo();
 
         assertEquals(ActionTypeCase.ACTIVATE, actionInfo.getActionTypeCase());
-        assertEquals(entityToActivate, actionInfo.getActivate().getTargetId());
+        assertEquals(entityToActivate, actionInfo.getActivate().getTarget().getId());
         assertThat(actionInfo.getActivate().getTriggeringCommoditiesList(),
                 IsIterableContainingInAnyOrder.containsInAnyOrder(topologyCommodity1,
                         topologyCommodity2));
@@ -277,13 +324,17 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretDeactivateAction() throws Exception {
-        final TopologyConverter converter = Mockito.spy(new TopologyConverter(true, REALTIME_TOPOLOGY_INFO));
+        long entityToDeactivate = 1;
+        int  entityType = 1;
+        final Map<Long, Integer> entityIdToTypeMap =
+            ImmutableMap.of(entityToDeactivate, entityType);
+        final TopologyConverter converter = Mockito.spy(
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToTypeMap, true));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                 .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity1));
         Mockito.doReturn(Optional.of(topologyCommodity2))
                 .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity2));
 
-        final long entityToDeactivate = 1;
         final ActionTO deactivateAction = ActionTO.newBuilder()
                 .setImportance(0.)
                 .setIsNotExecutable(false)
@@ -296,11 +347,9 @@ public class InterpretActionTest {
         final ActionInfo actionInfo = converter.interpretAction(deactivateAction).get().getInfo();
 
         assertEquals(ActionTypeCase.DEACTIVATE, actionInfo.getActionTypeCase());
-        assertEquals(entityToDeactivate, actionInfo.getDeactivate().getTargetId());
+        assertEquals(entityToDeactivate, actionInfo.getDeactivate().getTarget().getId());
         assertThat(actionInfo.getDeactivate().getTriggeringCommoditiesList(),
                 IsIterableContainingInAnyOrder.containsInAnyOrder(topologyCommodity1,
                         topologyCommodity2));
     }
-
-
 }

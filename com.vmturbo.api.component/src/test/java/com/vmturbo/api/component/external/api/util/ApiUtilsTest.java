@@ -24,6 +24,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 
 /**
  * Test {@link ApiUtils#generateJWTCallCredential()} and {@link ApiUtils#getClientIp(HttpServletRequest)}
@@ -72,5 +73,21 @@ public class ApiUtilsTest {
         when(request.getRemoteAddr()).thenReturn(_10_0_0_200);
         Optional<String> ipAddress = ApiUtils.getClientIp(request);
         assertEquals("IP address should be available", _10_0_0_1, ipAddress.get());
+    }
+
+    public static ActionEntity createActionEntity(long id) {
+        // set some fake type for now
+        final int defaultEntityType = 1;
+        return ActionEntity.newBuilder()
+                    .setId(id)
+                    .setType(defaultEntityType)
+                    .build();
+    }
+
+    public static ActionEntity createActionEntity(long id, int type) {
+        return ActionEntity.newBuilder()
+                    .setId(id)
+                    .setType(type)
+                    .build();
     }
 }
