@@ -112,12 +112,16 @@ public class GroupMapper {
                 " not found in supply chain for scopes: " + apiDTO.getScope());
         }
 
-        return TempGroupInfo.newBuilder()
+        TempGroupInfo.Builder tempGroupInfoBuilder = TempGroupInfo.newBuilder()
                 .setEntityType(ServiceEntityMapper.fromUIEntityType(apiDTO.getGroupType()))
                 .setMembers(StaticGroupMembers.newBuilder()
                         .addAllStaticMemberOids(node.getMemberOidsList()))
-                .setName(apiDTO.getDisplayName())
-                .build();
+                .setName(apiDTO.getDisplayName());
+        // check if the temp group's scope is Market or not.
+        final boolean isGlobalScopeGroup = apiDTO.getScope().size() == 1 &&
+                apiDTO.getScope().get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR);
+        tempGroupInfoBuilder.setIsGlobalScopeGroup(isGlobalScopeGroup);
+        return tempGroupInfoBuilder.build();
     }
 
     /**

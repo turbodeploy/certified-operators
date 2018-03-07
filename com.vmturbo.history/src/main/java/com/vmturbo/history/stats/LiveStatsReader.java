@@ -105,6 +105,9 @@ public class LiveStatsReader {
     private final int numRetainedHours;
     private final int numRetainedDays;
 
+    // TODO: After StringConstants class add entity type constant, we can use it from StringConstants.
+    private final String ENTITY_TYPE = "entity_type";
+
 
     public LiveStatsReader(HistorydbIO historydbIO, int numRetainedMinutes, int numRetainedHours,
                            int numRetainedDays, long latestTableTimeWindowMS) {
@@ -287,6 +290,7 @@ public class LiveStatsReader {
      * @param startTime beginning time range to query
      * @param endTime end time range
      * @param commodityNames the list of commodities to search
+     * @param entityType optional of entity type
      * @return an ImmutableList of DB Stats Records containing the result from searching all the stats tables
      * for the given time range and commodity names
      * @throws VmtDbException if there's an exception querying the data
@@ -294,7 +298,8 @@ public class LiveStatsReader {
     public @Nonnull List<Record> getFullMarketStatsRecords(
                                                  @Nullable Long startTime,
                                                  @Nullable Long endTime,
-                                                 @Nullable List<String> commodityNames)
+                                                 @Nullable List<String> commodityNames,
+                                                 @Nonnull Optional<String> entityType)
             throws VmtDbException {
 
         // get most recent date from _latest database
@@ -327,6 +332,10 @@ public class LiveStatsReader {
         // leave out the were clause and thereby include all commodities.
         Optional<Condition> commodityNamesCond = commodityNamesCond(commodityNames, table);
         commodityNamesCond.ifPresent(whereConditions::add);
+
+        // if no entity type provided, it will include all entity type.
+        Optional<Condition> entityTypeCond = entityTypeCond(entityType, table);
+        entityTypeCond.ifPresent(whereConditions::add);
 
         // Format the query.
         // No need to order or group by anything, since when preparing the response
@@ -679,6 +688,21 @@ public class LiveStatsReader {
         final Condition whereInCommodityNames = str(dField(table, PROPERTY_TYPE))
                 .in(commodityNames);
         return Optional.of(whereInCommodityNames);
+    }
+
+    /**
+     * Create a Jooq conditional clause to filter on entity type if it is present.
+     *
+     * @param entityType entity type need to filter on.
+     * @param table the DB table from which these stats will be collected
+     * @return an Optional contains a Jooq condition to filter on entity type.
+     */
+    private Optional<Condition> entityTypeCond(@Nonnull final Optional<String> entityType,
+                                               @Nonnull final Table<?> table) {
+        return entityType
+                .filter(serviceEntityType -> !serviceEntityType.isEmpty())
+                .map(serviceEntityType ->
+                        str(dField(table, ENTITY_TYPE)).in(serviceEntityType));
     }
 
     /**

@@ -522,8 +522,8 @@ public class GroupMapperTest {
         final GroupApiDTO apiDTO = new GroupApiDTO();
         apiDTO.setTemporary(true);
         apiDTO.setDisplayName("foo");
-        apiDTO.setScope(Collections.singletonList("Scope"));
         apiDTO.setGroupType(VM_TYPE);
+        apiDTO.setScope(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
 
         final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
         when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
@@ -537,8 +537,9 @@ public class GroupMapperTest {
         assertThat(groupInfo.getEntityType(), is(ServiceEntityMapper.fromUIEntityType(VM_TYPE)));
         assertThat(groupInfo.getMembers().getStaticMemberOidsList(), containsInAnyOrder(7L));
         assertThat(groupInfo.getName(), is("foo"));
+        assertTrue(groupInfo.getIsGlobalScopeGroup());
 
-        verify(fetcherBuilder).addSeedUuids(Collections.singletonList("Scope"));
+        verify(fetcherBuilder).addSeedUuids(Collections.singletonList(UuidMapper.UI_REAL_TIME_MARKET_STR));
         verify(fetcherBuilder).entityTypes(Collections.singletonList(VM_TYPE));
     }
 

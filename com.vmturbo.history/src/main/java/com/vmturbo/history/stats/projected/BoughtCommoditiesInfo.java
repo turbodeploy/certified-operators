@@ -113,7 +113,8 @@ class BoughtCommoditiesInfo {
                 final Multimap<Long, CommodityBoughtDTO> entitiesProviders =
                         boughtByEntityId.get(entityId);
                 if (entitiesProviders == null) {
-                    logger.warn("Entity {} not buying anything...");
+                    // it will happen, for example when API try to query VCpu commodity for VM entities.
+                    logger.debug("Entity {} not buying {}...", entityId, commodityName);
                 } else {
                     entitiesProviders.asMap().forEach((providerId, commoditiesBought) -> {
                         final Optional<Double> capacity = (providerId != null) ?

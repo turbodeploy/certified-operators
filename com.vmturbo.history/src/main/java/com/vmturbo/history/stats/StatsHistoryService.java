@@ -220,8 +220,9 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                         commodityNames);
             } else {
                 // read from live topologies
-                String relatedEntityType = (request.getFilter().hasRelatedEntityType()) ?
-                        request.getFilter().getRelatedEntityType() : null;
+                Optional<String> relatedEntityType = (request.getFilter().hasRelatedEntityType())
+                        ? Optional.of(request.getFilter().getRelatedEntityType())
+                        : Optional.empty();
                 returnLiveMarketStats(responseObserver, startDate, endDate, commodityNames,
                         entitiesList, relatedEntityType);
             }
@@ -533,8 +534,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * ServiceEntity type (e.g. pm_stats_yyy and vm_stats_yyy) and by time frame, e.g.
      * xxx_stats_latest, xxx_stats__by_hour, xxx_stats_by_day, xxx_stats_by_month.
      *
-     * If the 'entities' list is empty and no relatedEntityType is given, then this is a request
-     * for averaged stats from the full live market.
+     * If the 'entities' list is empty then this is a request for averaged stats from the full
+     * live market.
      *
      * If there is an empty 'entities' list and a 'relatedEntityType' is given, then only
      * entities of that type are included in the averaged stats returned.
@@ -548,38 +549,34 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * @param commodityNames the names of the commodities to include.
      * @param entities A list of service entity OIDs; an empty list implies full market, which
      *                 may be filtered based on relatedEntityType
-     * @param relatedEntityType entityType to sample if entities list is empty; or all entity types
-     *                         if null; not usused if the 'entities' list is not empty
-     * @throws VmtDbException if error writing to the db
+     * @param relatedEntityType optional of entityType to sample if entities list is empty;
+     *                          or all entity types if null; not used if the 'entities' list is
+     *                          not empty.
+     * @throws VmtDbException if error writing to the db.
      */
     private void returnLiveMarketStats(@Nonnull StreamObserver<StatSnapshot> responseObserver,
                                        @Nullable Long startDate, @Nullable Long endDate,
                                        @Nullable List<String> commodityNames,
                                        @Nonnull List<Long> entities,
-                                       @Nullable String relatedEntityType) throws VmtDbException {
+                                       @Nonnull Optional<String> relatedEntityType) throws VmtDbException {
 
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
-        final boolean fullMarket = entities.size() == 0 && relatedEntityType == null;
+        final boolean fullMarket = entities.size() == 0;
         if (fullMarket) {
             statDBRecords = liveStatsReader.getFullMarketStatsRecords(startDate, endDate,
-                    commodityNames);
+                    commodityNames, relatedEntityType);
         } else {
-            // partial request, either a request based on entityType or list of entity OIDs
-            if (entities.size() == 0) {
-                statDBRecords = liveStatsReader.getStatsRecordsForType(relatedEntityType,
-                        startDate, endDate, commodityNames);
-            } else {
-                if (!StringUtils.isEmpty(relatedEntityType)) {
-                    logger.warn("'relatedEntityType' ({}) is ignored when specific entities listed",
-                            relatedEntityType);
-                }
-                statDBRecords = liveStatsReader.getStatsRecords(
-                        entities.stream()
-                                .map(id -> Long.toString(id))
-                                .collect(Collectors.toList()),
-                        startDate, endDate, commodityNames);
+            if (relatedEntityType.isPresent() &&
+                    !StringUtils.isEmpty(relatedEntityType.get())) {
+                logger.warn("'relatedEntityType' ({}) is ignored when specific entities listed",
+                        relatedEntityType);
             }
+            statDBRecords = liveStatsReader.getStatsRecords(
+                    entities.stream()
+                            .map(id -> Long.toString(id))
+                            .collect(Collectors.toList()),
+                    startDate, endDate, commodityNames);
         }
 
         // organize the stats DB records into StatSnapshots and return them to the caller

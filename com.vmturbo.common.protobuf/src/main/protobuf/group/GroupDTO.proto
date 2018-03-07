@@ -111,6 +111,10 @@ message TempGroupInfo {
     // A static group's members are fixed at the time they are created and that membership
     // may only be updated by an explicit call to update the group.
     optional StaticGroupMembers members = 3;
+
+    // If true, means the temp group contains all entities with same entity type in global scope.
+    // This field will speed up stats query for global scope.
+    optional bool is_global_scope_group = 4;
 }
 
 // The properties of a cluster.

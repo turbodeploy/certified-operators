@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -181,17 +182,23 @@ public class StatsMapper {
 
     /**
      * Create a {@link EntityStatsRequest} for a single UUID. Cascades into the List form.
+     * Note that if the stats query is for global temp group, we can speed up the query by set entity
+     * list as empty and set related entity type which will query pre-aggregated market stats table.
      *
      * @param entityIds gather stats for the entities with these IDs.
      * @param statApiInput a {@link StatApiInputDTO} specifying query options for this /stats query
+     * @param tempGroupEntityType a optional entity type of temp group, if present, means it will query
+     *                          stats from market stats table to speed up query.
      * @return a new instance of {@link EntityStatsRequest} protobuf with fields set from the given statApiInput
      */
     public static EntityStatsRequest toEntityStatsRequest(final Set<Long> entityIds,
-                                              @Nonnull final StatPeriodApiInputDTO statApiInput) {
-        return EntityStatsRequest.newBuilder()
-                .addAllEntities(entityIds)
-                .setFilter(newPeriodStatsFilter(statApiInput))
-                .build();
+                                                          @Nonnull final StatPeriodApiInputDTO statApiInput,
+                                                          @Nonnull final Optional<Integer> tempGroupEntityType) {
+        final EntityStatsRequest.Builder entityStatsRequest = EntityStatsRequest.newBuilder()
+                .setFilter(newPeriodStatsFilter(statApiInput, tempGroupEntityType));
+        final Set<Long> allEntityIds = tempGroupEntityType.isPresent() ? Collections.emptySet() : entityIds;
+        entityStatsRequest.addAllEntities(allEntityIds);
+        return entityStatsRequest.build();
     }
 
     /**
@@ -203,15 +210,19 @@ public class StatsMapper {
      *
      *
      * @param statApiInput a {@link StatPeriodApiInputDTO} specifying query options for
-     *                     this /stats query
+     *                     this /stats query.
+     * @param globalTempGroupEntityType a optional represent the entity type of global temporary group.
      * @return a new instance of {@link StatsFilter} protobuf with fields set from the
      *        given statApiInput
      */
     @Nonnull
     private static StatsFilter newPeriodStatsFilter(
-            @Nonnull final StatPeriodApiInputDTO statApiInput) {
+            @Nonnull final StatPeriodApiInputDTO statApiInput,
+            @Nonnull final Optional<Integer> globalTempGroupEntityType) {
         final StatsFilter.Builder requestBuilder = StatsFilter.newBuilder();
-
+        globalTempGroupEntityType.ifPresent(tempGroupEntityType ->
+                requestBuilder.setRelatedEntityType(
+                        ServiceEntityMapper.toUIEntityType(tempGroupEntityType)));
         final String inputStartDate = statApiInput.getStartDate();
         if (inputStartDate != null) {
             final Long aLong = Long.valueOf(inputStartDate);
@@ -234,6 +245,14 @@ public class StatsMapper {
                         .collect(Collectors.joining("\n")));
                 }
                 if (stat.getRelatedEntityType() != null) {
+                    if (globalTempGroupEntityType.isPresent() &&
+                            !ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get())
+                                    .equals(stat.getRelatedEntityType())) {
+                        logger.error("Api input related entity type: {} is not consistent with " +
+                                "group entity type: {}", stat.getRelatedEntityType(),
+                                ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
+                        throw new IllegalArgumentException("Related entity type is not same as group entity type");
+                    }
                     requestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
                 }
                 if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
@@ -303,10 +322,9 @@ public class StatsMapper {
             @Nonnull final StatPeriodApiInputDTO inputDto) {
         return ClusterStatsRequest.newBuilder()
                 .setClusterId(Long.parseLong(uuid))
-                .setStats(newPeriodStatsFilter(inputDto))
+                .setStats(newPeriodStatsFilter(inputDto, Optional.empty()))
                 .build();
     }
-
 
     /**
      * Format a {@link PlanTopologyStatsRequest} used to fetch stats for a Plan Topology.

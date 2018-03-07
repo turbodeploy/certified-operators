@@ -2,7 +2,6 @@ package com.vmturbo.history.stats;
 
 import static com.vmturbo.reports.db.StringConstants.USED;
 import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
-import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -246,7 +245,7 @@ public class StatsHistoryServiceTest {
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 1, "c1", "c1-subtype");
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 2, "c2", "c2-subtype");
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 3, "c3", "c3-subtype");
-        when(mockLivestatsreader.getFullMarketStatsRecords(startDate, endDate, commodityNames))
+        when(mockLivestatsreader.getFullMarketStatsRecords(startDate, endDate, commodityNames, Optional.empty()))
                 .thenReturn(statsRecordsList);
 
         // act
@@ -254,7 +253,7 @@ public class StatsHistoryServiceTest {
 
         // assert
         verify(mockLivestatsreader).getFullMarketStatsRecords(eq(startDate), eq(endDate),
-                anyObject());
+                anyObject(), anyObject());
         verify(mockStatSnapshotStreamObserver).onNext(anyObject());
         verify(mockStatSnapshotStreamObserver).onCompleted();
         verifyNoMoreInteractions(mockStatSnapshotStreamObserver);

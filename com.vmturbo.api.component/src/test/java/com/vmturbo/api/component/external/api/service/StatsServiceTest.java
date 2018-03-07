@@ -12,6 +12,7 @@ import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -22,7 +23,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -60,6 +60,7 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -183,7 +184,9 @@ public class StatsServiceTest {
     public void testGetStatsByEntityQueryWithFiltering() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
-        when(repositoryApi.getServiceEntityForUuid(apiId1.oid())).thenReturn(se1);
+        when(repositoryApi.getServiceEntitiesById(any()))
+                .thenReturn(ImmutableMap.of(1L, Optional.of(se1)));
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
 
         List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -209,8 +212,9 @@ public class StatsServiceTest {
     public void testGetStatsForFullMarket() throws Exception {
         StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid(), apiId2.oid());
-        when(repositoryApi.getServiceEntityForUuid(apiId1.oid())).thenReturn(se1);
-        when(repositoryApi.getServiceEntityForUuid(apiId2.oid())).thenReturn(se2);
+        when(repositoryApi.getServiceEntitiesById(Mockito.any()))
+                .thenReturn(ImmutableMap.of(1L, Optional.of(se1), 2L, Optional.of(se2)));
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(UuidMapper.UI_REAL_TIME_MARKET_STR))
                 .thenReturn(expandedOidList);
 
@@ -225,7 +229,7 @@ public class StatsServiceTest {
     @Test
     public void testGetStatsByEntityQueryWithAllFiltered() throws Exception {
         StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
-
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid2, inputDto);
 
         // The returned stats will be all filtered out.
@@ -237,9 +241,10 @@ public class StatsServiceTest {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
 
         final Set<Long> listOfOidsInGroup = Sets.newHashSet(apiId2.oid());
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
-        when(repositoryApi.getServiceEntityForUuid(apiId1.oid())).thenReturn(se1);
-        when(repositoryApi.getServiceEntityForUuid(apiId2.oid())).thenReturn(se2);
+        when(repositoryApi.getServiceEntitiesById(any()))
+                .thenReturn(ImmutableMap.of(2L, Optional.of(se2)));
 
         statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -256,6 +261,7 @@ public class StatsServiceTest {
         // arrange
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
 
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         final Set<Long> listOfOidsInGroup = Sets.newHashSet(7L, 8L);
         when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
 
@@ -265,8 +271,8 @@ public class StatsServiceTest {
         ServiceEntityApiDTO se8 = new ServiceEntityApiDTO();
         se8.setUuid("8");
         se8.setClassName("classname-8");
-        when(repositoryApi.getServiceEntityForUuid(7L)).thenReturn(se7);
-        when(repositoryApi.getServiceEntityForUuid(8L)).thenReturn(se8);
+        when(repositoryApi.getServiceEntitiesById(Mockito.any()))
+                .thenReturn(ImmutableMap.of(7L, Optional.of(se7), 8L, Optional.of(se8)));
 
         // act
         statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -290,13 +296,16 @@ public class StatsServiceTest {
         // arrange
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
 
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+
         // set up DataCenter id 7
         when(groupExpander.expandUuid(anyObject())).thenReturn(Sets.newHashSet(7L));
         ServiceEntityApiDTO se7 = new ServiceEntityApiDTO();
         se7.setUuid("7");
         se7.setClassName(DATACENTER.getValue());
-        when(repositoryApi.getServiceEntityForUuid(7L)).thenReturn(se7);
-
+        when(repositoryApi.getSearchResults(any(), any(),  eq(UuidMapper.UI_REAL_TIME_MARKET_STR),
+                any(), any()))
+                .thenReturn(Lists.newArrayList(se7));
 
         // set up the supplychainfetcherfactory for DC 7
         SupplyChainNodeFetcherBuilder fetcherBuilder = Mockito.mock(SupplyChainNodeFetcherBuilder.class);
@@ -335,6 +344,7 @@ public class StatsServiceTest {
         // arrange
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
 
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         // set up a group with two datacenters, OID 7 & 8
         final Set<Long> listOfOidsInGroup = Sets.newHashSet(7L, 8L);
         when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
@@ -344,9 +354,9 @@ public class StatsServiceTest {
         ServiceEntityApiDTO se8 = new ServiceEntityApiDTO();
         se8.setUuid("8");
         se8.setClassName(DATACENTER.getValue());
-        when(repositoryApi.getServiceEntityForUuid(7L)).thenReturn(se7);
-        when(repositoryApi.getServiceEntityForUuid(8L)).thenReturn(se8);
-
+        when(repositoryApi.getSearchResults(any(), any(),  eq(UuidMapper.UI_REAL_TIME_MARKET_STR),
+                any(), any()))
+                .thenReturn(Lists.newArrayList(se7, se8));
 
         // set up the supplychainfetcherfactory
         SupplyChainNodeFetcherBuilder fetcherBuilder = Mockito.mock(SupplyChainNodeFetcherBuilder.class);
@@ -387,9 +397,11 @@ public class StatsServiceTest {
         StatPeriodApiInputDTO inputDto = buildStatPeriodApiInputDTO(2000L, "1000",
                 "1500", "a");
 
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
         // just a simple SE, not group or cluster; expanded list is just the input OID
         when(groupExpander.expandUuid(oid1)).thenReturn(Sets.newHashSet(1L));
-        when(repositoryApi.getServiceEntityForUuid(apiId1.oid())).thenReturn(se1);
+        when(repositoryApi.getServiceEntitiesById(Mockito.any()))
+                .thenReturn(ImmutableMap.of(1L, Optional.of(se1)));
 
         // act
         statsService.getStatsByEntityQuery(oid1, inputDto);
@@ -427,9 +439,11 @@ public class StatsServiceTest {
         StatPeriodApiInputDTO inputDto = buildStatPeriodApiInputDTO(2000L, "2500",
                 "2500", "a");
 
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
         // just a simple SE, not group or cluster; expanded list is just the input OID
         when(groupExpander.expandUuid(oid1)).thenReturn(Sets.newHashSet(1L));
-        when(repositoryApi.getServiceEntityForUuid(apiId1.oid())).thenReturn(se1);
+        when(repositoryApi.getServiceEntitiesById(Mockito.any()))
+                .thenReturn(ImmutableMap.of(1L, Optional.of(se1)));
 
         // act
         statsService.getStatsByEntityQuery(oid1, inputDto);

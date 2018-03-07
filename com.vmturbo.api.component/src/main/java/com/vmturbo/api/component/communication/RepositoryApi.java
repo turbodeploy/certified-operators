@@ -158,7 +158,7 @@ public class RepositoryApi {
                                                             @Nullable List<String> types,
                                                             @Nonnull String scope,
                                                             @Nullable String state,
-                                                            @Nullable String groupType) throws Exception {
+                                                            @Nullable String groupType) {
         // TODO Now, we only support one type of entities in the search
         if (types == null || types.isEmpty()) {
             IllegalArgumentException e = new IllegalArgumentException(

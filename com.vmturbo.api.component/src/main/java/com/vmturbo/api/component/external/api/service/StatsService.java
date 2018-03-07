@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -54,6 +55,7 @@ import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -204,7 +206,8 @@ public class StatsService implements IStatsService {
      * @return a list of {@link StatSnapshotApiDTO}s one for each ServiceEntity in the expanded list
      */
     @Override
-    public List<StatSnapshotApiDTO> getStatsByEntityQuery(String uuid, StatPeriodApiInputDTO inputDto) {
+    public List<StatSnapshotApiDTO> getStatsByEntityQuery(String uuid, StatPeriodApiInputDTO inputDto)
+            throws Exception {
 
         logger.debug("fetch stats for {} requestInfo: {}", uuid, inputDto);
 
@@ -229,8 +232,11 @@ public class StatsService implements IStatsService {
                 stats.add(StatsMapper.toStatSnapshotApiDTO(statSnapshotIterator.next()));
             }
         } else {
+            final Optional<Group> groupOptional = groupExpander.getGroup(uuid);
             // determine the list of entity OIDs to query for this operation
-            Set<Long> expandedOidsList = groupExpander.expandUuid(uuid);
+            Set<Long> expandedOidsList = groupOptional.isPresent()
+                    ? groupExpander.expandUuid(uuid)
+                    : Sets.newHashSet(Long.valueOf(uuid));
             // if empty expansion and not "Market", must be an empty group; quick return
             if (expandedOidsList.isEmpty() && !UuidMapper.isRealtimeMarket(uuid)) {
                 return Collections.emptyList();
@@ -269,8 +275,9 @@ public class StatsService implements IStatsService {
                                     .collect(Collectors.toList());
                     statsFilters.addAll(currentStatFilters);
                 }
+                final Optional<Integer> tempGroupEntityType = getGlobalTempGroupEntityType(groupOptional);
                 final EntityStatsRequest request = StatsMapper.toEntityStatsRequest(entityStatsOids,
-                        inputDto);
+                        inputDto, tempGroupEntityType);
                 final Iterable<StatSnapshot> statsIterator = () ->
                         statsServiceRpc.getAveragedEntityStats(request);
 
@@ -383,7 +390,8 @@ public class StatsService implements IStatsService {
                 || DateTimeUtil.parseTime(inputDto.getPeriod().getStartDate()) < clockTimeNow) {
             // fetch the historical stats for the given entities using the given search spec
             Iterator<EntityStats> historicalStatsIterator = statsServiceRpc.getEntityStats(
-                    StatsMapper.toEntityStatsRequest(entityStatsMap.keySet(), inputDto.getPeriod()));
+                    StatsMapper.toEntityStatsRequest(entityStatsMap.keySet(), inputDto.getPeriod(),
+                            Optional.empty()));
             while (historicalStatsIterator.hasNext()) {
                 EntityStats entityStats = historicalStatsIterator.next();
                 final long entityOid = entityStats.getOid();
@@ -558,15 +566,20 @@ public class StatsService implements IStatsService {
     /**
      * Replace specific types of ServiceEntities with "constituents". For example, a DataCenter SE
      * is replaced by the PhysicalMachine SE's related to that DataCenter.
-     *
+     *<p>
      * ServiceEntities of other types not to be expanded are copied to the output result set.
-     *
+     *<p>
      * See 6.x method SupplyChainUtils.getUuidsFromScopesByRelatedType() which uses the
      * marker interface EntitiesProvider to determine which Service Entities to expand.
-     *
+     *<p>
      * Errors fetching the supplychain are logged and ignored - the input OID will be copied
      * to the output in case of an error or missing relatedEntityType info in the supplychain.
-     *
+     *<p>
+     * First, it will fetch entities which need to expand, then check if any input entity oid is
+     * belong to those entities. Because if input entity set is large, it will cost a lot time to
+     * fetch huge entity from Repository. Instead, if first fetch those entities which need to expand
+     * , the amount will be much less than the input entity set size since right now only DataCenter
+     * could expand.
      *
      * @param entityOidsToExpand a set of ServiceEntity OIDs to examine
      * @return a set of ServiceEntity OIDs with types that should be expanded replaced by the
@@ -574,34 +587,70 @@ public class StatsService implements IStatsService {
      */
     private Set<Long> expandGroupingServiceEntities(Set<Long> entityOidsToExpand) {
         final Set<Long> expandedEntityOids = Sets.newHashSet();
-        for (long oid : entityOidsToExpand) {
+        // get all service entities which need to expand.
+        final Set<ServiceEntityApiDTO> expandServiceEntities = ENTITY_TYPES_TO_EXPAND.keySet().stream()
+                .flatMap(entityType ->
+                        repositoryApi.getSearchResults(null, Collections.singletonList(entityType),
+                                UuidMapper.UI_REAL_TIME_MARKET_STR, null, null).stream())
+                .collect(Collectors.toSet());
+
+        final Map<Long, ServiceEntityApiDTO> expandServiceEntityMap = expandServiceEntities.stream()
+                .collect(Collectors.toMap(entity -> Long.valueOf(entity.getUuid()), Function.identity()));
+        // go through each entity and check if it needs to expand.
+        for (Long oidToExpand : entityOidsToExpand) {
             try {
-                String className = repositoryApi.getServiceEntityForUuid(oid).getClassName();
-                String relatedEntityType = ENTITY_TYPES_TO_EXPAND.get(className);
-                if (relatedEntityType != null) {
+                // if expandServiceEntityMap contains oid, it means current oid entity needs to expand.
+                if (expandServiceEntityMap.containsKey(oidToExpand)) {
+                    final ServiceEntityApiDTO expandEntity = expandServiceEntityMap.get(oidToExpand);
                     // fetch the supply chain map:  entity type -> SupplyChainNode
                     Map<String, SupplyChainNode> supplyChainMap = supplyChainFetcherFactory
                             .newNodeFetcher()
-                            .entityTypes(Collections.singletonList(relatedEntityType))
-                            .addSeedUuid(Long.toString(oid))
+                            .entityTypes(Collections.singletonList(expandEntity.getClassName()))
+                            .addSeedUuid(expandEntity.getUuid())
                             .fetch();
-                    SupplyChainNode relatedEntities = supplyChainMap.get(relatedEntityType);
+                    SupplyChainNode relatedEntities = supplyChainMap.get(
+                            ENTITY_TYPES_TO_EXPAND.get(expandEntity.getClassName()));
                     if (relatedEntities != null) {
                         expandedEntityOids.addAll(relatedEntities.getMemberOidsList());
                     } else {
                         logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
-                                        "the entity is discarded", relatedEntityType, oid);
+                                "the entity is discarded", expandEntity.getClassName(), expandEntity.getUuid());
                     }
                 } else {
-                    // this OID doesn't need expanding
-                    expandedEntityOids.add(oid);
+                    expandedEntityOids.add(oidToExpand);
                 }
-            } catch (UnknownObjectException | OperationFailedException e) {
-                logger.warn("Error fetching supplychain for {}: ", oid, e.getMessage());
+            } catch (OperationFailedException e) {
+                logger.warn("Error fetching supplychain for {}: ", oidToExpand, e.getMessage());
                 // include the OID unexpanded
-                expandedEntityOids.add(oid);
+                expandedEntityOids.add(oidToExpand);
             }
         }
         return expandedEntityOids;
+    }
+
+    /**
+     * Check if group is a temporary group with global scope. And if temp group entity need to expand,
+     * it should use expanded entity type instead of group entity type. If it is a temporary group
+     * with global scope, we can speed up query using pre-aggregate market stats table.
+     *
+     * @param groupOptional a optional of group need to check.
+     * @return return a optional of entity type, if input group is a temporary global scope group,
+     *         otherwise return empty option.
+     */
+    private Optional<Integer> getGlobalTempGroupEntityType(@Nonnull final Optional<Group> groupOptional) {
+        final boolean isGlobalTempGroup = groupOptional.isPresent() && groupOptional.get().hasTempGroup()
+                && groupOptional.get().getTempGroup().getIsGlobalScopeGroup();
+        // if it is global temp group and need to expand, should return target expand entity type.
+        if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(ServiceEntityMapper.toUIEntityType(
+                groupOptional.get().getTempGroup().getEntityType()))) {
+            return Optional.of(ServiceEntityMapper.fromUIEntityType(
+                    ENTITY_TYPES_TO_EXPAND.get(ServiceEntityMapper.toUIEntityType(
+                            groupOptional.get().getTempGroup().getEntityType()))));
+        } else if (isGlobalTempGroup) {
+            // if it is global temp group and not need to expand.
+            return Optional.of(groupOptional.get().getTempGroup().getEntityType());
+        } else {
+            return Optional.empty();
+        }
     }
 }
