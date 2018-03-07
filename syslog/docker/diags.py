@@ -13,9 +13,9 @@ class CGIHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         # Exit
-        if self.path == '/api/v2/diagnostics':
+        if self.path == '/diagnostics':
             self.run_cgi()
-        if self.path == '/api/v2/proactive':
+        if self.path == '/proactive':
             self.run_cgi_proactive()
 
     def log_request(self, code='-', size='-'):

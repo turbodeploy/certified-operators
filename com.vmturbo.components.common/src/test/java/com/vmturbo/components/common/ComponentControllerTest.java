@@ -35,7 +35,7 @@ public class ComponentControllerTest extends WebMvcConfigurerAdapter {
 
     protected static MockMvc mockMvc;
 
-    private static final String API_PREFIX="/api/v2";
+    private static final String API_PREFIX="";
     @Autowired
     IVmtComponent componentMock;
 

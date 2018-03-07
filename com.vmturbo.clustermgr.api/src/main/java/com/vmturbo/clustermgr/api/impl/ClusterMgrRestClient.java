@@ -38,7 +38,7 @@ import com.vmturbo.components.api.client.ComponentRestClient;
 class ClusterMgrRestClient extends ComponentRestClient
         implements IClusterService {
 
-    private static final String REST_API_PREFIX = "/api/v2";
+    private static final String REST_API_PREFIX = "";
 
     // the URI to access the entire cluster state
     private static String CLUSTER_CONFIG_URI = "";

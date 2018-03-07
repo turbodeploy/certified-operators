@@ -24,7 +24,7 @@ import com.vmturbo.components.api.ComponentRestTemplate;
  */
 public class ComponentHealthCheck extends ServiceHealthCheck {
 
-    public static final String HEALTH_CHECK_PATH = "/api/v2/health";
+    public static final String HEALTH_CHECK_PATH = "/health";
 
     private static final RestTemplate REST_TEMPLATE = ComponentRestTemplate.create();
 

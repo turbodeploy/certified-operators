@@ -32,9 +32,9 @@ import com.vmturbo.components.common.health.CompositeHealthMonitor;
  * REST Endpoint for an individual {@link IVmtComponent}.
  */
 @Component
-@Api(value = "/api/v2")
+@Api(value = "/")
 @RestController
-@RequestMapping(path = "/api/v2",
+@RequestMapping(path = "/",
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 public class ComponentController {
 
@@ -56,7 +56,7 @@ public class ComponentController {
      *
      * @return descriptive information about the component
      */
-    @RequestMapping(value = "/",
+    @RequestMapping(value = "/summary",
             method = RequestMethod.GET,
             produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
     @ApiOperation("Return information about the current component.")

@@ -10,8 +10,7 @@ import com.vmturbo.topology.processor.TopologyProcessorComponent;
 /**
  * Because of @EnableAutoConfiguration in {@link TopologyProcessorComponent}, Spring security
  * gets enabled in the topology processor if the spring security JARs are in the classpath.
- * We permit all communication on the /api/v2/** route to allow inter-component REST and Websocket
- * communication (as well as swagger-ui) to work without logging in.
+ * We are permitting all communication on the http interfaces to work without logging in.
  */
 @Configuration
 @EnableWebSecurity
@@ -20,6 +19,6 @@ public class TopologyProcessorApiSecurityConfig extends WebSecurityConfigurerAda
     protected void configure(HttpSecurity http) throws Exception {
         http.csrf().disable();
         http.authorizeRequests()
-                .antMatchers("/api/v2/**").permitAll();
+                .antMatchers("/**").permitAll();
     }
 }

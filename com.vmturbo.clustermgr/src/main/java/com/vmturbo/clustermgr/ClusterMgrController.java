@@ -61,7 +61,7 @@ import io.swagger.annotations.ApiOperation;
 @Component
 @RestController
 @Api("ClusterMgrController")
-@RequestMapping(path = "/api/v2",
+@RequestMapping(path = "",
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 
 public class ClusterMgrController {
@@ -120,7 +120,7 @@ public class ClusterMgrController {
     /**
      * Sets the Telemetry parameters.
      * curl -H "Content-Type:application/json" -H "Accept: application/json" -X PUT
-     * localhost:8889/api/v2/proactive/enabled -d 'false'
+     * localhost:8889/proactive/enabled -d 'false'
      *
      * @param enabled The Telemetry enabled flag.
      */

@@ -627,7 +627,7 @@ public class ClusterMgrService {
         String acceptTypes = MediaType.toString(Arrays.asList(
                 MediaType.valueOf("application/zip"),
                 MediaType.APPLICATION_OCTET_STREAM));
-        visitActiveComponents("/api/v2/diagnostics", acceptTypes, (componentInfo, entity) -> {
+        visitActiveComponents("/diagnostics", acceptTypes, (componentInfo, entity) -> {
             String componentName = componentInfo.getServiceId();
             log.info(componentInfo.toString() + " --- Begin diagnostic collection");
             try (InputStream componentDiagnosticStream = entity.getContent()) {
@@ -677,7 +677,7 @@ public class ClusterMgrService {
         // Handle the rsyslog
         // It is not part of the consul-managed set of components.
         String componentName = "rsyslog";
-        URI requestUri = getComponentInstanceUri(componentName, 8080, "/api/v2/diagnostics");
+        URI requestUri = getComponentInstanceUri(componentName, 8080, "/diagnostics");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
         try (CloseableHttpClient httpclient = HttpClients.createDefault()) {
@@ -730,7 +730,7 @@ public class ClusterMgrService {
         // Handle the rsyslog
         // It is not part of the consul-managed set of components.
         String componentName = "rsyslog";
-        URI requestUri = getComponentInstanceUri(componentName, 8080, "/api/v2/proactive");
+        URI requestUri = getComponentInstanceUri(componentName, 8080, "/proactive");
         HttpGet request = new HttpGet(requestUri);
         request.addHeader("Accept", acceptResponseTypes);
         try (CloseableHttpClient httpclient = HttpClients.createDefault()) {

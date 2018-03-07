@@ -45,7 +45,7 @@ import com.vmturbo.components.common.ComponentController;
 @NotThreadSafe
 public class ComponentHealthCheckTest {
 
-    private static final String API_PREFIX="/api/v2";
+    private static final String API_PREFIX="";
 
     private static final int MAX_WAIT_SECS = 20;
 

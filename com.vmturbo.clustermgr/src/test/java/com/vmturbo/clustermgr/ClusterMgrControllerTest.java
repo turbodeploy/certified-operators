@@ -43,7 +43,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class ClusterMgrControllerTest {
 
-    private static final String API_PREFIX="/api/v2";
+    private static final String API_PREFIX="";
 
     protected static MockMvc mockMvc;
 

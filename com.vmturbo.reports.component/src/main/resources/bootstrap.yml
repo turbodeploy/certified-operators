@@ -7,7 +7,7 @@ spring:
       port: 8500
       discovery:
         instanceId: ${instance_id}
-        healthCheckPath: /api/v2/health
+        healthCheckPath: /health
         healthCheckInterval: 30s
 server:
   port: 8080

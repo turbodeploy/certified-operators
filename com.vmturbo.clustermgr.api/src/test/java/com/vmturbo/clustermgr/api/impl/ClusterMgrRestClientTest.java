@@ -54,7 +54,7 @@ public class ClusterMgrRestClientTest {
         ComponentApiConnectionConfig connectionConfig = ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort("test-host", 4321)
                 .build();
-        baseTestURL = "http://test-host:4321/api/v2";
+        baseTestURL = "http://test-host:4321";
         // Create the class to test
         testRestClient = new ClusterMgrRestClient(connectionConfig);
         mockServer = MockRestServiceServer.createServer(testRestClient.getRestTemplate());
