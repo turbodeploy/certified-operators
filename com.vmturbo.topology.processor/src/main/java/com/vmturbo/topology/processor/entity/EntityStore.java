@@ -193,7 +193,7 @@ public class EntityStore {
                             StitchingEntityData.newBuilder(targetInfoEntry.getValue().getEntityInfo().toBuilder())
                                 .oid(oid)
                                 .targetId(targetInfoEntry.getKey())
-                                .lastUpdatedTime(targetEntities.get(targetInfoEntry.getKey()).getLastUpdatedTime())
+                                .lastUpdatedTime(getTargetLastUpdatedTime(targetInfoEntry.getKey()).orElse(0L))
                                 .build())
                         .forEach(stitchingDataMap::put);
                 });

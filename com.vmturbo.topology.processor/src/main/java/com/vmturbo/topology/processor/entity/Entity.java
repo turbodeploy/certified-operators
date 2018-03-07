@@ -46,10 +46,18 @@ public class Entity {
 
     public void addTargetInfo(final long targetId, @Nonnull final EntityDTO entityDTO) {
         Objects.requireNonNull(entityDTO, "EntityDTO shouldn't be null");
-        Preconditions.checkArgument(entityDTO.hasEntityType() &&
-                entityDTO.getEntityType() == this.entityType,
-                "EntityType from target: %s doesn't match. Expected: %s. Found: %s",
-                targetId, this.entityType, entityDTO.getEntityType());
+        if (!entityDTO.hasEntityType() || entityDTO.getEntityType() != this.entityType) {
+            throw new IllegalArgumentException(String.format(
+                "EntityType from entity %s discovered by target: %s doesn't match. " +
+                    "Expected: %s. Found: %s.\n" +
+                    "Existing per-target information: %s\n" +
+                    "New entity information: %s",
+                entityDTO.getId(), targetId, this.entityType, entityDTO.getEntityType(),
+                perTargetInfo.entrySet().stream()
+                    .map(entry -> entry.getKey() + ": " + entry.getValue())
+                    .collect(Collectors.joining("\n")),
+                entityDTO));
+        }
 
         perTargetInfo.put(targetId, new PerTargetInfo(entityDTO));
     }
