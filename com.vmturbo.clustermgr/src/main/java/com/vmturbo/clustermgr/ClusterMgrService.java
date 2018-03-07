@@ -27,6 +27,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.NotFoundException;
 
+import com.google.common.base.Optional;
 import com.google.common.base.Splitter;
 import com.google.common.net.InetAddresses;
 import com.google.common.net.InternetDomainName;
@@ -867,11 +868,15 @@ public class ClusterMgrService {
             ComponentProperties defaultProperties = getComponentDefaultProperties(componentType);
             answer.addComponentType(componentType, defaultProperties);
             Set<String> instanceIds = getComponentInstanceIds(componentType);
+            // Component version is stored in Consul by component.  Assume version of all instancese of a component is the same.
+            // TODO If version is stored by instance in the future, change the logic below to fetch version by instance.
+            Optional<String> componentVersion = consulService.getValueAsString(componentType + "/component.version");
             for (String instanceId : instanceIds) {
                 String nodeId = getNodeForComponentInstance(componentType, instanceId);
                 String instancePropertiesKey = getComponentInstancePropertiesKey(componentType, instanceId);
+                String version = componentVersion.isPresent() ? componentVersion.get() : null;
                 ComponentProperties instanceProperties = getComponentPropertiesWithPrefix(instancePropertiesKey);
-                answer.addComponentInstance(instanceId, componentType, nodeId, instanceProperties);
+                answer.addComponentInstance(instanceId, componentType, version, nodeId, instanceProperties);
             }
         }
         return answer;

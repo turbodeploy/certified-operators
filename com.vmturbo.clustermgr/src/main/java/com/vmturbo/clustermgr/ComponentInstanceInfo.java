@@ -15,14 +15,17 @@ public class ComponentInstanceInfo {
     @JsonProperty
     private String componentType;
     @JsonProperty
+    private String componentVersion;
+    @JsonProperty
     private ComponentProperties properties;
 
     private ComponentInstanceInfo() {
         // only used by Jackson Deserialize
     }
 
-    public ComponentInstanceInfo(String componentType, String node, ComponentProperties properties) {
+    public ComponentInstanceInfo(String componentType, String componentVersion, String node, ComponentProperties properties) {
         this.componentType = componentType;
+        this.componentVersion = componentVersion;
         this.node = node;
         this.properties = properties;
     }
@@ -33,6 +36,10 @@ public class ComponentInstanceInfo {
 
     public String getComponentType() {
         return componentType;
+    }
+
+    public String getComponentVersion() {
+        return componentVersion;
     }
 
     public ComponentProperties getProperties() {

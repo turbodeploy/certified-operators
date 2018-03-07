@@ -1,12 +1,12 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Properties;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +15,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.api.dto.admin.ProductVersionDTO;
+import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
+import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 
 /**
  * Test services for the /admin endpoint.
@@ -29,20 +31,33 @@ public class AdminServiceTest {
     public static final String TEST_BUILD_TIME = "test-time";
     public static final String TEST_PACKAGE_NAME = "test-package-name";
 
+    private static ClusterService clusterService = Mockito.mock(ClusterService.class);
+
     @Autowired
     AdminService serviceUnderTest;
 
     @Test
     public void testGetVersionInfo() throws Exception {
+        String instance1 = "inst1";
+        String instance2 = "inst2";
+        String instance1Type = "inst1Type";
+        String instance2Type = "inst2Type";
+        String instance1Version = "1.0.0";
+        String instance2Version = "1.1.0";
+
+        ClusterConfigurationDTO clusterConfigurationDTO = new ClusterConfigurationDTO();
+        clusterConfigurationDTO.addComponentInstance(instance1, instance1Type, instance1Version, "node", new ComponentPropertiesDTO());
+        clusterConfigurationDTO.addComponentInstance(instance2, instance2Type, instance2Version, "node", new ComponentPropertiesDTO());
+        Mockito.when(clusterService.getClusterConfiguration())
+                .thenReturn(clusterConfigurationDTO);
+
         // Arrange
         // Act
         ProductVersionDTO answer = serviceUnderTest.getVersionInfo();
         // Assert
-        assertThat(answer.getVersionInfo(), containsString(TEST_VERSION_PROPERTY));
-        assertThat(answer.getVersionInfo(), containsString(TEST_BUILD));
-        assertThat(answer.getVersionInfo(), containsString(TEST_BUILD_TIME));
-        // note that the package name is not currently used in the message string and so isn't
-        //   tested here.
+        String versionInfo = answer.getVersionInfo();
+        assertTrue(versionInfo.contains(instance1Type + ": " + instance1Version));
+        assertTrue(versionInfo.contains(instance2Type + ": " + instance2Version));
     }
 
     @Configuration
@@ -50,7 +65,7 @@ public class AdminServiceTest {
 
         @Bean
         public AdminService adminService() {
-            return new AdminService();
+            return new AdminService(clusterService);
         }
 
         @Bean

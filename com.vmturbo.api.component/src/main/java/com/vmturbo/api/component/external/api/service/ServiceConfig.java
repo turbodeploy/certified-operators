@@ -77,7 +77,7 @@ public class ServiceConfig {
 
     @Bean
     public AdminService adminService() {
-        return new AdminService();
+        return new AdminService(clusterService());
     }
 
     @Bean

@@ -34,9 +34,10 @@ public class ClusterConfiguration {
 
     public void addComponentInstance(@Nonnull String instanceId,
                                      @Nonnull String componentType,
+                                     @Nonnull String componentVersion,
                                      @Nonnull String node,
                                      @Nonnull ComponentProperties instanceConfiguration) {
-        instances.put(instanceId, new ComponentInstanceInfo(componentType, node, instanceConfiguration));
+        instances.put(instanceId, new ComponentInstanceInfo(componentType, componentVersion, node, instanceConfiguration));
     }
 
 }
