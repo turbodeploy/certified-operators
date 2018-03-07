@@ -94,7 +94,7 @@ public class ProbeRegistrationTestIT extends AbstractIntegrationTest {
                                         }));
         final Set<String> registeredTypes =
                         new HashSet<String>(Collections2.transform(getRemoteMediation()
-                                        .getRegisteredProbes(), new Function<ProbeInfo, String>() {
+                                        .getConnectedProbes(), new Function<ProbeInfo, String>() {
                             public String apply(ProbeInfo input) {
                                 return input.getProbeType();
                             }

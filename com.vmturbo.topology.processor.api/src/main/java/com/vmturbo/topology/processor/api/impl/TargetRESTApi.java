@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.api.impl;
 
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,7 +71,7 @@ public class TargetRESTApi {
          */
         private final Long targetId;
         private final TargetSpec spec;
-        private final Boolean probeRegistered;
+        private final Boolean probeConnected;
         private final List<String> errors;
         private final String status;
         private final LocalDateTime lastValidationTime;
@@ -80,17 +79,17 @@ public class TargetRESTApi {
         protected TargetInfo() {
             targetId = null;
             spec = null;
-            probeRegistered = null;
+            probeConnected = null;
             errors = null;
             status = null;
             lastValidationTime = null;
         }
 
         public TargetInfo(final Long id, final List<String> errors, final TargetSpec spec,
-                        final Boolean probeRegistered, String status, LocalDateTime lastValidationTime) {
+                        final Boolean probeConnected, String status, LocalDateTime lastValidationTime) {
             this.targetId = id;
             this.spec = spec;
-            this.probeRegistered = probeRegistered;
+            this.probeConnected = probeConnected;
             this.errors = errors;
             this.status = status;
             this.lastValidationTime = lastValidationTime;
@@ -106,9 +105,9 @@ public class TargetRESTApi {
             return spec;
         }
 
-        @ApiModelProperty(value = "If non-null, whether the probe this target is attached to is registered. If null, errors should be non-null.")
-        public boolean getProbeRegistered() {
-            return probeRegistered;
+        @ApiModelProperty(value = "If non-null, whether the probe this target is attached to is connected. If null, errors should be non-null.")
+        public boolean getProbeConnected() {
+            return probeConnected;
         }
 
         @ApiModelProperty(value = "If non-empty, the error(s) encountered during the operation. If empty, id and spec should be non-null.")

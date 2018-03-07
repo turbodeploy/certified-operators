@@ -117,7 +117,7 @@ public class TargetControllerTest {
 
         @Bean
         ProbeStore probeStore() {
-            return new RemoteProbeStore(identityService(), stitchingOperationStore());
+            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore());
         }
 
         @Bean
@@ -446,7 +446,7 @@ public class TargetControllerTest {
                 .getResponse().getContentAsString();
 
         TargetInfo resp = GSON.fromJson(getResult, TargetInfo.class);
-        Assert.assertFalse(resp.getProbeRegistered());
+        Assert.assertFalse(resp.getProbeConnected());
     }
 
     @Test
@@ -610,7 +610,7 @@ public class TargetControllerTest {
 
         Assert.assertEquals(2, targets.size());
         Assert.assertTrue(targets.containsKey(goneId));
-        Assert.assertFalse(targets.get(goneId).getProbeRegistered());
+        Assert.assertFalse(targets.get(goneId).getProbeConnected());
         Assert.assertTrue(targets.containsKey(registeredId));
         assertEqualSpecs(targets.get(registeredId).getSpec(),
                 new TargetAdder(identityProvider.getProbeId(registeredProbe)).buildSpec());
@@ -655,7 +655,7 @@ public class TargetControllerTest {
         final ProbeInfo info = ProbeInfo.newBuilder(probeInfo)
                         .addAccountDefinition(mandatoryAccountDef).build();
         probeStore.registerNewProbe(info, transport);
-        final long probeId = probeStore.getRegisteredProbes().keySet().iterator().next();
+        final long probeId = probeStore.getProbes().keySet().iterator().next();
         return probeId;
     }
 

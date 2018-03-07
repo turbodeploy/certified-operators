@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.rest;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -51,9 +50,9 @@ public final class ProbeController {
 
     @RequestMapping(method = RequestMethod.GET,
             produces = { MediaType.APPLICATION_JSON_UTF8_VALUE })
-    @ApiOperation("Get all registered probes.")
+    @ApiOperation("Get all probes.")
     public ResponseEntity<GetAllProbes> getAllProbes() {
-        final List<ProbeDescription> probeDescriptions = probeStore.getRegisteredProbes().entrySet()
+        final List<ProbeDescription> probeDescriptions = probeStore.getProbes().entrySet()
                         .stream().map(entry -> create(entry.getKey(), entry.getValue()))
                         .collect(Collectors.toList());
         return new ResponseEntity<>(new GetAllProbes(probeDescriptions), HttpStatus.OK);

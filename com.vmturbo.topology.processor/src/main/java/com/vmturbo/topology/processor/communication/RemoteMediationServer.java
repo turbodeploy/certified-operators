@@ -6,9 +6,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -163,8 +165,17 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     }
 
     @Override
-    public Set<ProbeInfo> getRegisteredProbes() {
-        return ImmutableSet.copyOf(probeStore.getRegisteredProbes().values());
+    public Set<ProbeInfo> getConnectedProbes() {
+        return ImmutableSet.copyOf(probeStore.getProbes().values().stream()
+                .filter(probeInfo -> {
+                    Optional<Long> probeId = probeStore.getProbeIdForType(probeInfo.getProbeType());
+                    if (probeId.isPresent()) {
+                        return probeStore.isProbeConnected(probeId.get());
+                    } else {
+                        return false;
+                    }
+                })
+                .collect(Collectors.toSet()));
     }
 
     /**

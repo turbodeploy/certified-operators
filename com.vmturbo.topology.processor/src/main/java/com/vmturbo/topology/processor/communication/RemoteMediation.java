@@ -26,11 +26,11 @@ import com.vmturbo.topology.processor.probes.ProbeException;
 public interface RemoteMediation {
 
     /**
-     * Returns registered probes.
+     * Returns connected probes.
      *
-     * @return set of all the probes, currently registered.
+     * @return set of all the probes that are currently connected.
      */
-    Set<ProbeInfo> getRegisteredProbes();
+    Set<ProbeInfo> getConnectedProbes();
 
     /**
      * Sends discovery request. Method returns after request is sent. Result of the request

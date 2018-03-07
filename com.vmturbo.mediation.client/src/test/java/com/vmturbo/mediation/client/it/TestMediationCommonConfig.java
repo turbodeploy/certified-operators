@@ -77,7 +77,7 @@ public class TestMediationCommonConfig {
 
     @Bean
     public ProbeStore probeStore() {
-        return new RemoteProbeStore(identityProvider(), stitchingOperationStore());
+        return new RemoteProbeStore(keyValueStore(), identityProvider(), stitchingOperationStore());
     }
 
     @Bean

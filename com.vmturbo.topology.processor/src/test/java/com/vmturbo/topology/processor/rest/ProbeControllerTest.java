@@ -9,7 +9,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
@@ -204,7 +203,7 @@ public final class ProbeControllerTest {
      */
     @Test
     public void getAllEmpty() throws Exception {
-        Mockito.when(probeStore.getRegisteredProbes()).thenReturn(new HashMap<>());
+        Mockito.when(probeStore.getProbes()).thenReturn(new HashMap<>());
         Assert.assertTrue(getAllProbes().isEmpty());
     }
 
@@ -220,7 +219,7 @@ public final class ProbeControllerTest {
         final Map<Long, ProbeInfo> retMap = new HashMap<>();
         final long id = 1;
         retMap.put(id, oneAccountFieldProbe);
-        Mockito.when(probeStore.getRegisteredProbes()).thenReturn(retMap);
+        Mockito.when(probeStore.getProbes()).thenReturn(retMap);
         final List<ProbeDescription> descriptions = getAllProbes();
         Assert.assertEquals(1, descriptions.size());
         final ProbeDescription desc = descriptions.get(0);
@@ -240,7 +239,7 @@ public final class ProbeControllerTest {
         final long id = 1;
         retMap.put(id, twoAccountFieldsProbe);
 
-        Mockito.when(probeStore.getRegisteredProbes()).thenReturn(retMap);
+        Mockito.when(probeStore.getProbes()).thenReturn(retMap);
 
         final List<ProbeDescription> descriptions = getAllProbes();
         Assert.assertEquals(1, descriptions.size());
@@ -261,7 +260,7 @@ public final class ProbeControllerTest {
         retMap.put(ids[0], oneAccountFieldProbe);
         retMap.put(ids[1], twoAccountFieldsProbe);
 
-        Mockito.when(probeStore.getRegisteredProbes()).thenReturn(retMap);
+        Mockito.when(probeStore.getProbes()).thenReturn(retMap);
 
         final List<ProbeDescription> descriptions = getAllProbes();
         Assert.assertEquals(2, descriptions.size());

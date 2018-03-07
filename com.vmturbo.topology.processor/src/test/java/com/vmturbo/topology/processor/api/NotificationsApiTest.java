@@ -508,7 +508,7 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         final ITransport<MediationServerMessage, MediationClientMessage> transport =
                         Mockito.mock(ITransport.class);
         probeStore.registerNewProbe(Probes.defaultProbe, transport);
-        final long probeId = probeStore.getRegisteredProbes().keySet().iterator().next();
+        final long probeId = probeStore.getProbes().keySet().iterator().next();
         return probeId;
     }
 

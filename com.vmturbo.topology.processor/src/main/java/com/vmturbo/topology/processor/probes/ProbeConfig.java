@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.ProbeREST.ProbeActionCapabilitiesServiceController;
+import com.vmturbo.kvstore.KeyValueStoreConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 
@@ -13,7 +14,7 @@ import com.vmturbo.topology.processor.stitching.StitchingConfig;
  * Spring configuration for the Probe package.
  */
 @Configuration
-@Import({IdentityProviderConfig.class, StitchingConfig.class})
+@Import({IdentityProviderConfig.class, StitchingConfig.class, KeyValueStoreConfig.class})
 public class ProbeConfig {
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -21,10 +22,14 @@ public class ProbeConfig {
     @Autowired
     private StitchingConfig stitchingConfig;
 
+    @Autowired
+    private KeyValueStoreConfig keyValueStoreConfig;
+
     @Bean
     public ProbeStore probeStore() {
-        return new RemoteProbeStore(identityProviderConfig.identityProvider(),
-            stitchingConfig.stitchingOperationStore());
+        return new RemoteProbeStore(keyValueStoreConfig.keyValueStore(),
+                identityProviderConfig.identityProvider(),
+                stitchingConfig.stitchingOperationStore());
     }
 
     @Bean

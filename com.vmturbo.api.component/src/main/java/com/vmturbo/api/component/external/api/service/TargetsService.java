@@ -622,12 +622,14 @@ public class TargetsService implements ITargetsService {
         final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
         final ProbeInfo probeInfo = probeMap.get(probeId);
 
-        // As of Sept 2016, probeInfo may be null if no probe of this type
-        // is currently registered. In that case we can't fill in most
-        // of the information.
+        // The probeInfo object of targets should always be present because it is stored in Consul
+        // to survive a topology processor restart. It is also not removed from the ProbeStore
+        // when a probe disconnects.
         if (probeInfo == null) {
+            // We don't expect probeInfo to be null.  Keeping this check to handling any error
+            // condition if it does occur.
             targetApiDTO.setCategory(UI_TARGET_CATEGORY_INOPERATIVE_TARGETS);
-            logger.warn("target " + targetInfo.getId() + " - probe info not found, id: " + probeId);
+            logger.error("target " + targetInfo.getId() + " - probe info not found, id: " + probeId);
             targetApiDTO.setInputFields(targetInfo.getAccountData().stream()
                     .map(this::createSimpleInputField)
                     .collect(Collectors.toList()));

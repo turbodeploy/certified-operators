@@ -143,15 +143,15 @@ public interface IOperationManager {
      * with the following exceptions:
      * 1. If a discovery is already in progress, instead of returning the existing discovery,
      * a pending discovery will be added for the target.
-     * 2. If the probe associated with the target is not currently registered, a pending discovery
+     * 2. If the probe associated with the target is not currently connected, a pending discovery
      * will be added for the target.
-     * When a target's discovery completes or its probe registers, the pending discovery will
+     * When a target's discovery completes or its probe connects, the pending discovery will
      * be removed and a new discovery will be initiated for the associated target.
      *
      * @param targetId The id of the target to discover.
      * @return An {@link Optional<Discovery>}. If there was no in progress discovery
-     * for the target and the target's probe is registered, a new discovery will be initiated.
-     * If there was an in progress discovery for the target or the target's probe is unregistered,
+     * for the target and the target's probe is connected, a new discovery will be initiated.
+     * If there was an in progress discovery for the target or the target's probe is disconnected,
      * returns {@link Optional#empty()}.
      * @throws TargetNotFoundException When the requested target cannot be found.
      * @throws CommunicationException When the external probe cannot be reached.
@@ -182,7 +182,7 @@ public interface IOperationManager {
      * @param actionDtos A list of {@link ActionExecution.ActionItemDTO}s describing the action(s) to execute.
      * @return The {@link Action} requested for the target.
      * @throws TargetNotFoundException When the requested target is not found.
-     * @throws ProbeException When the probe corresponding to the target is not registered.
+     * @throws ProbeException When the probe corresponding to the target is not connected.
      * @throws CommunicationException If there is an error sending the request to the probe.
      * @throws InterruptedException If there is an interrupt while sending the request to the
      * probe.

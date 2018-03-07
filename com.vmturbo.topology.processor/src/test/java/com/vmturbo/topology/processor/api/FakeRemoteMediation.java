@@ -52,7 +52,7 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public Set<ProbeInfo> getRegisteredProbes() {
+    public Set<ProbeInfo> getConnectedProbes() {
         return Collections.emptySet();
     }
 

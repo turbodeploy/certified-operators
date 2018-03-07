@@ -124,7 +124,7 @@ public class TargetController {
                     produces = { MediaType.APPLICATION_JSON_UTF8_VALUE })
     @ApiOperation(value = "Get all registered targets.")
     public ResponseEntity<GetAllTargetsResponse> getAllTargets() {
-        final List<TargetInfo> allTargets = targetStore.getAll().stream()
+        final List<TargetInfo> allTargets = targetStore.getAll().stream ()
                         .map(this::targetToTargetInfo)
                         .collect(Collectors.toList());
         final GetAllTargetsResponse resp = new GetAllTargetsResponse(allTargets);
@@ -192,11 +192,11 @@ public class TargetController {
                 operationManager.getLastDiscoveryForTarget(target.getId());
         final Optional<? extends Operation> latestFinished = getLatestOperationDate(validation,
                 discovery);
-        final String status = getStatus(latestFinished, validation, discovery);
         final LocalDateTime lastValidated =
                 latestFinished.isPresent() ? latestFinished.get().getCompletionTime() : null;
-        return success(target, probeStore.getProbe(target.getProbeId())
-                .isPresent(), status, lastValidated);
+        boolean isProbeConnected = probeStore.isProbeConnected(target.getProbeId());
+        final String status = getStatus(latestFinished, validation, discovery, isProbeConnected);
+        return success(target, isProbeConnected, status, lastValidated);
     }
 
     /**
@@ -209,7 +209,8 @@ public class TargetController {
      */
     @Nonnull
     private String getStatus(@Nonnull Optional<? extends Operation> latestFinished,
-            @Nonnull Optional<Validation> validation, @Nonnull Optional<Discovery> discovery) {
+            @Nonnull Optional<Validation> validation, @Nonnull Optional<Discovery> discovery,
+                             boolean isProbeConnected) {
         final String status;
         if (validation.isPresent() && validation.get()
                 .getCompletionTime() == null) {
@@ -218,7 +219,9 @@ public class TargetController {
                 .getCompletionTime() == null) {
             status = "Discovery in progress";
         } else {
-            if (latestFinished.isPresent()) {
+            if (!isProbeConnected) {
+                status = "Probe disconnected";
+            } else if (latestFinished.isPresent()) {
                 status = latestFinished.get().getStatus() ==
                         TopologyProcessorDTO.OperationStatus.Status.SUCCESS ? VALIDATED :
                         String.join(", ", latestFinished.get().getErrors());
@@ -256,12 +259,12 @@ public class TargetController {
         return new TargetInfo(null, errors, null, null, null, null);
     }
 
-    public static TargetInfo success(@Nonnull final Target target, final boolean probeRegistered,
+    public static TargetInfo success(@Nonnull final Target target, final boolean probeConnected,
             @Nonnull final String targetStatus, @Nullable final LocalDateTime lastValidation) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(targetStatus);
         return new TargetInfo(target.getId(), null, new TargetSpec(target.getNoSecretDto()
-                .getSpec()), probeRegistered, targetStatus, lastValidation);
+                .getSpec()), probeConnected, targetStatus, lastValidation);
     }
 
 }

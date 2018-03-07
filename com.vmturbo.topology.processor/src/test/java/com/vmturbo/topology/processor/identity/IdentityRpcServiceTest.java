@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -102,7 +101,7 @@ public class IdentityRpcServiceTest {
     public void testGetAllIdentityInformation() throws Exception {
         final ProbeInfo probeInfo1 = createProbeInfo(2, 1);
         final ProbeInfo probeInfo2 = createProbeInfo(2, 1);
-        Mockito.when(probeStore.getRegisteredProbes()).thenReturn(ImmutableMap.of(1L, probeInfo1, 2L, probeInfo2));
+        Mockito.when(probeStore.getProbes()).thenReturn(ImmutableMap.of(1L, probeInfo1, 2L, probeInfo2));
         final Iterator<Identity.ProbeIdentityMetadata> identityMetadata =
                 identityRpcClient.getAllProbeIdentityMetadata(GetAllProbeIdentityMetadataRequest.newBuilder().build());
         for (final ProbeIdentityMetadata metadata : Lists.newArrayList(identityMetadata)) {

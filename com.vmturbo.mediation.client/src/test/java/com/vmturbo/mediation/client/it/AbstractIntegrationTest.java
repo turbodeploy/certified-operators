@@ -241,9 +241,7 @@ public abstract class AbstractIntegrationTest {
     }
 
     private Optional<Long> findProbeId(SdkProbe probe) {
-        return getProbeStore().getRegisteredProbes().entrySet().stream()
-                        .filter(entry -> entry.getValue().getProbeType().equals(probe.getType()))
-                        .map(entry -> entry.getKey()).findFirst();
+        return getProbeStore().getProbeIdForType(probe.getType());
     }
 
     /**

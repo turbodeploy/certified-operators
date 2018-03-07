@@ -2,13 +2,13 @@ package com.vmturbo.topology.processor.probes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -21,13 +21,14 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.communication.ITransport;
-import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry.DefinitionCase;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
-import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.sdk.server.common.ProbeInfoComparator;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -39,6 +40,14 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
  */
 @ThreadSafe
 public class RemoteProbeStore implements ProbeStore {
+
+    /**
+     * Key prefix of values stored in Consul.
+     */
+    private static final String PROBE_PREFIX = "probes/";
+
+    @GuardedBy("dataLock")
+    private final KeyValueStore keyValueStore;
 
     private final Logger logger = LogManager.getLogger();
     /**
@@ -58,7 +67,7 @@ public class RemoteProbeStore implements ProbeStore {
      * map.
      */
     @GuardedBy("dataLock")
-    private final Map<Long, ProbeInfo> probeInfos = new HashMap<>();
+    private final Map<Long, ProbeInfo> probeInfos;
 
     /**
      * List of registered listeners to ProbeStore events.
@@ -70,11 +79,31 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final StitchingOperationStore stitchingOperationStore;
 
-    public RemoteProbeStore(@Nonnull IdentityProvider identityProvider,
+    public RemoteProbeStore(@Nonnull final KeyValueStore keyValueStore,
+                            @Nonnull IdentityProvider identityProvider,
                             @Nonnull final StitchingOperationStore stitchingOperationStore) {
-        Objects.requireNonNull(identityProvider);
-        identityProvider_ = identityProvider;
+        this.keyValueStore = Objects.requireNonNull(keyValueStore);
+        identityProvider_ = Objects.requireNonNull(identityProvider);
         this.stitchingOperationStore = stitchingOperationStore;
+
+        // Load ProbeInfo persisted in Consul.
+        Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_PREFIX);
+
+        this.probeInfos = persistedProbeInfos.values().stream()
+                .map(probeInfoJson -> {
+                    try {
+                        final ProbeInfo.Builder probeInfoBuilder = ProbeInfo.newBuilder();
+                        JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
+                        return probeInfoBuilder.build();
+                    } catch (InvalidProtocolBufferException e){
+                        logger.error("Failed to load probe info from Consul.");
+                        return null;
+                    }
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toConcurrentMap(
+                        probeInfo -> identityProvider_.getProbeId(probeInfo),
+                        Function.identity()));
     }
 
     /**
@@ -90,8 +119,7 @@ public class RemoteProbeStore implements ProbeStore {
         synchronized (dataLock) {
             long probeId = identityProvider_.getProbeId(probeInfo);
             final ProbeInfo existing = probeInfos.get(probeId);
-            if (existing != null && !ProbeInfoComparator.equals(existing, probeInfo) &&
-                    probes.containsKey(probeId)) {
+            if (existing != null && !ProbeInfoComparator.equals(existing, probeInfo)) {
                 throw new ProbeException("Probe configuration " + probeInfo
                                 + ", received from " + transport + " differs "
                                 + "from already registered probe with the same probe type: "
@@ -102,12 +130,28 @@ public class RemoteProbeStore implements ProbeStore {
                 stitchingOperationStore.setOperationsForProbe(probeId, probeInfo);
 
                 probes.put(probeId, transport);
-                if (!probeExists) {
+                // Store ProbeInfo only if it does not exist. It is not updated with the latest
+                // because of concerns about backward compatibility.
+                if (!probeInfos.containsKey(probeId)) {
                     probeInfos.put(probeId, probeInfo);
-                    logger.info("Registered new probe " + probeId +
-                            " type=" + probeInfo.getProbeType() +
-                            " category=" + probeInfo.getProbeCategory()
-                    );
+                    try {
+                        keyValueStore.put(PROBE_PREFIX + Long.toString(probeId),
+                                JsonFormat.printer().print(probeInfo));
+                    } catch (InvalidProtocolBufferException e) {
+                        logger.error("Failed to persist probe info in Consul. Probe ID: " + probeId);
+                    }
+
+                    if (probeExists) {
+                        logger.info("Connected probe " + probeId +
+                                " type=" + probeInfo.getProbeType() +
+                                " category=" + probeInfo.getProbeCategory()
+                        );
+                    } else {
+                        logger.info("Registered new probe " + probeId +
+                                " type=" + probeInfo.getProbeType() +
+                                " category=" + probeInfo.getProbeCategory()
+                        );
+                    }
                 }
 
                 // notify listeners
@@ -125,7 +169,7 @@ public class RemoteProbeStore implements ProbeStore {
     public Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransport(
                     long probeId) throws ProbeException {
         synchronized (dataLock) {
-            if (!probeInfos.containsKey(probeId)) {
+            if (!probes.containsKey(probeId)) {
                 throw new ProbeException("Probe for requested id is not registered: " + probeId);
             }
             return probes.get(probeId);
@@ -147,7 +191,11 @@ public class RemoteProbeStore implements ProbeStore {
                 if (entry.getValue().equals(transport)) {
                     iterator.remove();
                     if (!probes.containsKey(probeId)) {
-                        probeInfos.remove(probeId);
+                        // The ProbeInfo object that corresponds to the probeId is not removed
+                        // from probeInfos map because there can be targets configured for this
+                        // probe type, and information such as probe category and type need to be
+                        // cached. When the probe re-connects, ProbeInfo value will be refreshed.
+
                         stitchingOperationStore.removeOperationsForProbe(probeId);
                     }
                 }
@@ -200,7 +248,7 @@ public class RemoteProbeStore implements ProbeStore {
      * {@inheritDoc}
      */
     @Override
-    public Map<Long, ProbeInfo> getRegisteredProbes() {
+    public Map<Long, ProbeInfo> getProbes() {
         synchronized (dataLock) {
             return ImmutableMap.copyOf(probeInfos);
         }
@@ -224,5 +272,13 @@ public class RemoteProbeStore implements ProbeStore {
         synchronized (dataLock) {
             return listeners.remove(Objects.requireNonNull(listener));
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isProbeConnected(@Nonnull final Long probeId) {
+        return probes.containsKey(probeId);
     }
 }

@@ -60,7 +60,7 @@ public class TestProbeStore implements ProbeStore {
 
     @Override
     public Collection<ITransport<MediationServerMessage, MediationClientMessage>> getTransport(long probeId) throws ProbeException {
-        if (!probeInfos.containsKey(probeId)) {
+        if (!probes.containsKey(probeId)) {
             throw new ProbeException("Probe for requested type is not registered: " + probeId);
         }
         return probes.get(probeId);
@@ -94,7 +94,7 @@ public class TestProbeStore implements ProbeStore {
     }
 
     @Override
-    public Map<Long, ProbeInfo> getRegisteredProbes() {
+    public Map<Long, ProbeInfo> getProbes() {
         return probeInfos;
     }
 
@@ -106,5 +106,10 @@ public class TestProbeStore implements ProbeStore {
     @Override
     public boolean removeListener(@Nonnull ProbeStoreListener listener) {
         return listeners.remove(listener);
+    }
+
+    @Override
+    public boolean isProbeConnected(@Nonnull final Long probeId) {
+        return probes.containsKey(probeId);
     }
 }

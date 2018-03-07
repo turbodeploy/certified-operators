@@ -10,6 +10,7 @@ import org.mockito.Mockito;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.ContainerInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
@@ -41,6 +42,7 @@ public class ProbeRegistrationTest {
     private ProbeInfo.Builder probeInfoBuilder;
 
     private final StitchingOperationStore stitchingOperationStore = Mockito.mock(StitchingOperationStore.class);
+    private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
 
     @Before
     public final void init() {
@@ -54,7 +56,8 @@ public class ProbeRegistrationTest {
                                 Mockito.mock(IdentityDatabaseStore.class)),
                         new HeuristicsMatcher()),
                 new MapKeyValueStore(), 0L);
-        remoteMediation = new RemoteMediationServer(new RemoteProbeStore(identityProvider, stitchingOperationStore));
+        remoteMediation = new RemoteMediationServer(new RemoteProbeStore(keyValueStore,
+                identityProvider, stitchingOperationStore));
         probeInfoBuilder = ProbeInfo.newBuilder(Probes.defaultProbe);
     }
 
@@ -67,7 +70,7 @@ public class ProbeRegistrationTest {
         final ContainerInfo containerInfo = ContainerInfo.newBuilder().addProbes(probeInfo).build();
 
         remoteMediation.registerTransport(containerInfo, server);
-        Assert.assertEquals(Collections.singleton(probeInfo), remoteMediation.getRegisteredProbes());
+        Assert.assertEquals(Collections.singleton(probeInfo), remoteMediation.getConnectedProbes());
     }
 
     /**
@@ -85,7 +88,7 @@ public class ProbeRegistrationTest {
                                         .addProbes(probeInfo3).build();
         remoteMediation.registerTransport(containerInfo, server);
         Assert.assertEquals(Sets.newHashSet(probeInfo1, probeInfo2, probeInfo3),
-                        remoteMediation.getRegisteredProbes());
+                        remoteMediation.getConnectedProbes());
     }
 
     /**
@@ -99,13 +102,13 @@ public class ProbeRegistrationTest {
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
                         FakeTransport.<MediationServerMessage, MediationClientMessage>createSymmetricTransport()
                                         .getServerTransport();
-        Assert.assertEquals(Sets.newHashSet(probeInfo), remoteMediation.getRegisteredProbes());
+        Assert.assertEquals(Sets.newHashSet(probeInfo), remoteMediation.getConnectedProbes());
         remoteMediation.registerTransport(containerInfo, transport2);
-        Assert.assertEquals(Sets.newHashSet(probeInfo), remoteMediation.getRegisteredProbes());
+        Assert.assertEquals(Sets.newHashSet(probeInfo), remoteMediation.getConnectedProbes());
         server.close();
-        Assert.assertEquals(Sets.newHashSet(probeInfo), remoteMediation.getRegisteredProbes());
+        Assert.assertEquals(Sets.newHashSet(probeInfo), remoteMediation.getConnectedProbes());
         transport2.close();
-        Assert.assertEquals(Collections.emptySet(), remoteMediation.getRegisteredProbes());
+        Assert.assertEquals(Collections.emptySet(), remoteMediation.getConnectedProbes());
     }
 
     /**
@@ -120,6 +123,6 @@ public class ProbeRegistrationTest {
                         ContainerInfo.newBuilder().addProbes(probeInfo1).addProbes(probeInfo2)
                                         .build();
         remoteMediation.registerTransport(containerInfo, server);
-        Assert.assertEquals(Sets.newHashSet(probeInfo1), remoteMediation.getRegisteredProbes());
+        Assert.assertEquals(Sets.newHashSet(probeInfo1), remoteMediation.getConnectedProbes());
     }
 }

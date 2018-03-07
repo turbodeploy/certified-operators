@@ -59,7 +59,7 @@ public class IdentityRpcService extends IdentityServiceGrpc.IdentityServiceImplB
     @Override
     public void getAllProbeIdentityMetadata(GetAllProbeIdentityMetadataRequest request,
                                             StreamObserver<ProbeIdentityMetadata> responseObserver) {
-        probeStore.getRegisteredProbes().entrySet().stream()
+        probeStore.getProbes().entrySet().stream()
                 .forEach(entry -> responseObserver.onNext(
                         ProbeIdentityMetadata.newBuilder()
                                 .setProbeId(entry.getKey())

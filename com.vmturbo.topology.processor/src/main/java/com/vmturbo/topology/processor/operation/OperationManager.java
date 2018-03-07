@@ -262,7 +262,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * with the following exceptions:
      * 1. If a discovery is already in progress, instead of returning the existing discovery,
      *    a pending discovery will be added for the target.
-     * 2. If the probe associated with the target is not currently registered, a pending discovery
+     * 2. If the probe associated with the target is not currently connected, a pending discovery
      *    will be added for the target.
      *
      * When a target's discovery completes or its probe registers, the pending discovery will
@@ -270,8 +270,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      *
      * @param targetId The id of the target to discover.
      * @return An {@link Optional<Discovery>}. If there was no in progress discovery
-     *         for the target and the target's probe is registered, a new discovery will be initiated.
-     *         If there was an in progress discovery for the target or the target's probe is unregistered,
+     *         for the target and the target's probe is connected, a new discovery will be initiated.
+     *         If there was an in progress discovery for the target or the target's probe is disconnected,
      *         returns {@link Optional#empty()}.
      * @throws TargetNotFoundException When the requested target cannot be found.
      * @throws CommunicationException When the external probe cannot be reached.

@@ -24,7 +24,7 @@ public interface ProbeStore {
      * @param transport Transport to use for this probe
      * @return Whether a new probe has been registered (<code>true</code>) or this is just a new
      *         transport for existing probe (<code>false</code>).
-     * @throws ProbeException If new probe info differes from the existing probe info
+     * @throws ProbeException If new probe info differs from the existing probe info
      * @throws NullPointerException If <code>probeInfo</code> is null
      */
     boolean registerNewProbe(@Nonnull ProbeInfo probeInfo,
@@ -43,8 +43,8 @@ public interface ProbeStore {
             long probeId) throws ProbeException;
 
     /**
-     * Remove the transport (i.e. unregister an instance of the probe). If a probe has no more
-     * associated transports it's considered un-registered.
+     * Remove the transport (i.e. disconnect an instance of the probe). If a probe has no more
+     * associated transports it's considered disconnected.
      *
      * @param transport The transport to remove.
      */
@@ -77,11 +77,12 @@ public interface ProbeStore {
     List<Long> getProbeIdsForCategory(@Nonnull final ProbeCategory probeCategory);
 
     /**
-     * Retrieves the information of all registered probes.
+     * Retrieves the information of all probes that have been registered, but they may not
+     * be currently connected. (i.e. the mediation component of the probe may be stopped.)
      *
      * @return The map of probeId -> {@link ProbeInfo} provided by the probe at registration.
      */
-    Map<Long, ProbeInfo> getRegisteredProbes();
+    Map<Long, ProbeInfo> getProbes();
 
     /**
      * Add a listener for probe store events.
@@ -97,4 +98,12 @@ public interface ProbeStore {
      * @return True if the listener was successfully removed, false otherwise.
      */
     boolean removeListener(@Nonnull ProbeStoreListener listener);
+
+    /**
+     * Returns a boolean to indicate whether the probe with the given probe ID is connected.
+     *
+     * @param probeId Probe ID
+     * @return ture if probe is connected, false otherwise.
+     */
+    boolean isProbeConnected(@Nonnull Long probeId);
 }

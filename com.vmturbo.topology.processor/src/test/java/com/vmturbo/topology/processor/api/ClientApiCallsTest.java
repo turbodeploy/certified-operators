@@ -104,11 +104,11 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final long probe1 = createProbe();
         Assert.assertEquals(Collections.singleton(probe1), getTopologyProcessor().getAllProbes()
                         .stream().map(pi -> pi.getId()).collect(Collectors.toSet()));
-        assertEquals(probeStore.getRegisteredProbes(), getTopologyProcessor().getAllProbes());
+        assertEquals(probeStore.getProbes(), getTopologyProcessor().getAllProbes());
         final long probe2 = createProbe();
         Assert.assertEquals(new HashSet<>(Arrays.asList(probe1, probe2)), getTopologyProcessor()
                         .getAllProbes().stream().map(pi -> pi.getId()).collect(Collectors.toSet()));
-        assertEquals(probeStore.getRegisteredProbes(), getTopologyProcessor().getAllProbes());
+        assertEquals(probeStore.getProbes(), getTopologyProcessor().getAllProbes());
     }
 
     /**
@@ -626,7 +626,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         final MediationMessage.ProbeInfo oneMandatory =
                         Probes.createEmptyProbe().addAccountDefinition(accountDefEntry).build();
         probeStore.registerNewProbe(oneMandatory, null);
-        return probeStore.getRegisteredProbes().entrySet().stream()
+        return probeStore.getProbes().entrySet().stream()
                         .filter(e -> e.getValue().getProbeType()
                                         .equals(oneMandatory.getProbeType()))
                         .map(e -> e.getKey()).collect(Collectors.toSet()).iterator().next();

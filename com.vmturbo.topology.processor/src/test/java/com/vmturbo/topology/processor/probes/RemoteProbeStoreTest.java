@@ -9,12 +9,14 @@ import static org.mockito.Mockito.when;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -32,6 +34,8 @@ public class RemoteProbeStoreTest {
     private RemoteProbeStore store;
 
     private final ProbeInfo probeInfo = Probes.emptyProbe;
+    private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -41,7 +45,7 @@ public class RemoteProbeStoreTest {
     @Before
     public void setup() {
         idProvider = Mockito.mock(IdentityProvider.class);
-        store = new RemoteProbeStore(idProvider, stitchingOperationStore);
+        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore);
     }
 
     @Test
@@ -110,7 +114,7 @@ public class RemoteProbeStoreTest {
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 = createTransport();
         store.registerNewProbe(probe1, transport);
         store.registerNewProbe(probe2, transport2);
-        final long probeId = store.getRegisteredProbes().keySet().iterator().next();
+        final long probeId = store.getProbes().keySet().iterator().next();
         Assert.assertEquals(2, store.getTransport(probeId).size());
         verify(listener).onProbeRegistered(1234L, probe1);
     }
@@ -144,7 +148,8 @@ public class RemoteProbeStoreTest {
 
     /**
      * Tests adding a new incompatible probe with the same probe type, after the previous
-     * transport has gone away. It is expected, that new probe info will be registered.
+     * transport has gone away. A ProbeException will be thrown because a target that was created
+     * using the previous probe specification may exist.
      *
      * @throws Exception on exception occur
      */
@@ -169,8 +174,9 @@ public class RemoteProbeStoreTest {
         verify(stitchingOperationStore).removeOperationsForProbe(anyLong());
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
                 createTransport();
+        expectedException.expect(ProbeException.class);
+        expectedException.expectMessage("differs from already registered probe");
         store.registerNewProbe(probe2, transport2);
-        Assert.assertEquals(probe2, store.getProbe(probeId).get());
     }
 
     @SuppressWarnings("unchecked")

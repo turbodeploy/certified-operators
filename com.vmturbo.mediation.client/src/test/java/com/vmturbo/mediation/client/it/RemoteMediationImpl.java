@@ -140,9 +140,7 @@ public class RemoteMediationImpl implements IRemoteMediation {
     }
 
     private long getProbeId(SdkProbe probe) {
-        return probeStore.getRegisteredProbes().entrySet().stream()
-                        .filter(entry -> entry.getValue().getProbeType().equals(probe.getType()))
-                        .findFirst().get().getKey();
+        return probeStore.getProbeIdForType(probe.getType()).get();
     }
 
     /**
