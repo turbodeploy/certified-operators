@@ -200,7 +200,7 @@ public class SettingPoliciesServiceTest {
             .thenReturn(RET_SP_DTO);
 
         final SettingsPolicyApiDTO retDto =
-                settingsPoliciesService.editSettingsPolicy(Long.toString(id), inputPolicy);
+                settingsPoliciesService.editSettingsPolicy(Long.toString(id), false, inputPolicy);
         assertEquals(retDto, RET_SP_DTO);
     }
 
@@ -213,7 +213,7 @@ public class SettingPoliciesServiceTest {
         when(settingPolicyBackend.updateSettingPolicyError(any()))
                 .thenReturn(Optional.of(Status.ALREADY_EXISTS.asException()));
 
-        settingsPoliciesService.editSettingsPolicy(Long.toString(id), inputPolicy);
+        settingsPoliciesService.editSettingsPolicy(Long.toString(id), false, inputPolicy);
     }
 
     @Test(expected = UnknownObjectException.class)
@@ -225,7 +225,7 @@ public class SettingPoliciesServiceTest {
         when(settingPolicyBackend.updateSettingPolicyError(any()))
                 .thenReturn(Optional.of(Status.NOT_FOUND.asException()));
 
-        settingsPoliciesService.editSettingsPolicy(Long.toString(id), inputPolicy);
+        settingsPoliciesService.editSettingsPolicy(Long.toString(id), false, inputPolicy);
     }
 
     @Test(expected = InvalidOperationException.class)
@@ -237,12 +237,12 @@ public class SettingPoliciesServiceTest {
         when(settingPolicyBackend.updateSettingPolicyError(any()))
                 .thenReturn(Optional.of(Status.INVALID_ARGUMENT.asException()));
 
-        settingsPoliciesService.editSettingsPolicy(Long.toString(id), inputPolicy);
+        settingsPoliciesService.editSettingsPolicy(Long.toString(id), false, inputPolicy);
     }
 
     @Test(expected = NumberFormatException.class)
     public void testUpdatePolicyStringId() throws Exception {
-        settingsPoliciesService.editSettingsPolicy("blah", inputPolicy);
+        settingsPoliciesService.editSettingsPolicy("blah", false, inputPolicy);
     }
 
     @Test

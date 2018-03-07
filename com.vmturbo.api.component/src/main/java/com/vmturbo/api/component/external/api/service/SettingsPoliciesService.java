@@ -125,8 +125,20 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
         return settingsMapper.convertSettingPolicy(response.getSettingPolicy());
     }
 
+    /**
+     * edit a settings policy
+     * PUT /settingspolicies/{uuid}
+     *
+     * @param uuid          policy setting uuid
+     * @param setDefault    flag if policy setting needs to be reset to default
+     *                      Currently unsupported.
+     * @param settingPolicy setting policy to be used to edito
+     * @return updated SettingsPolicyApiDTO
+     * @throws Exception
+     */
     @Override
     public SettingsPolicyApiDTO editSettingsPolicy(String uuid,
+                                                   boolean setDefault,
                                                    SettingsPolicyApiDTO settingPolicy)
             throws Exception {
         final long id = Long.valueOf(uuid);
