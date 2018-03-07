@@ -14,6 +14,8 @@ import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.gson.Gson;
+
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
@@ -42,8 +44,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
-
-import com.google.gson.Gson;
 
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -116,9 +116,6 @@ public final class ProbeControllerTest {
 
     private ProbeInfo oneAccountFieldProbe;
     private ProbeInfo twoAccountFieldsProbe;
-
-    private static final SdkToProbeActionsConverter SDK_TO_PROBE_ACTIONS_CONVERTER
-                = new SdkToProbeActionsConverter();
 
     @Before
     public void setup() {
@@ -358,7 +355,7 @@ public final class ProbeControllerTest {
         final ProbeDescription probeDescription = parseProbeDescription(probeId);
         final List<ProbeActionCapability> responsePolicies = probeDescription.getActionPolicies();
 
-        Assert.assertEquals(SDK_TO_PROBE_ACTIONS_CONVERTER.convert(sdkActionPolicies), responsePolicies);
+        Assert.assertEquals(SdkToProbeActionsConverter.convert(sdkActionPolicies), responsePolicies);
     }
 
     private List<ActionPolicyDTO> prepareProbeStoreForTestActionPolicies(long probeId) {

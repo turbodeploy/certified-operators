@@ -196,12 +196,12 @@ public class Action implements ActionView {
         this.decision = prototype.decision;
         this.executableStep = prototype.executableStep;
         this.recommendationTime = prototype.recommendationTime;
-        this.stateMachine = prototype.stateMachine;
         this.recommendation = ActionDTO.Action.newBuilder(prototype.recommendation)
                 .setSupportingLevel(supportLevel).build();
         this.entitySettings = prototype.entitySettings;
         this.actionTypeSettingFilter = loadSettingFilterMap(this.entitySettings != null);
         this.actionTypeSettingDefault = loadSettingDefaultMap(this.entitySettings != null);
+        this.stateMachine = ActionStateMachine.newInstance(this, prototype.getState());
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,

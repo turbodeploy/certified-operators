@@ -196,7 +196,7 @@ public class ProbeActionCapabilitiesRpcServiceTest {
         @Override
         public void onNext(ProbeActionCapabilities actionCapabilitiesOfProbe) {
             probesCapabilities.put(actionCapabilitiesOfProbe.getProbeId(),
-                    actionCapabilitiesOfProbe.getActionCapabilitiesList().getActionCapabilitiesList());
+                    actionCapabilitiesOfProbe.getActionCapabilitiesList());
         }
 
         @Override

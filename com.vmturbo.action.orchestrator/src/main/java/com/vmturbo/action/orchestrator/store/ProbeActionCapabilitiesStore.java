@@ -1,12 +1,11 @@
 package com.vmturbo.action.orchestrator.store;
 
-import java.awt.font.TextHitInfo;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -44,7 +43,7 @@ public class ProbeActionCapabilitiesStore implements ActionCapabilitiesStore {
      * @return  action capabilities by id for all provided probes
      */
     @Nonnull
-    public Map<Long, List<ProbeActionCapability>> getCapabilitiesForProbes(@Nonnull Set<Long> probeIds) {
+    public Map<Long, List<ProbeActionCapability>> getCapabilitiesForProbes(@Nonnull Collection<Long> probeIds) {
         final Iterator<ProbeActionCapabilities> actionCapabilitiesIterator =
                 actionCapabilitiesBlockingStub.listProbeActionCapabilities(
                         ListProbeActionCapabilitiesRequest.newBuilder()
@@ -52,14 +51,8 @@ public class ProbeActionCapabilitiesStore implements ActionCapabilitiesStore {
                                 .build());
         final Map<Long, List<ProbeActionCapability>> probesCapabilities = new HashMap<>();
         actionCapabilitiesIterator.forEachRemaining(capabilitiesOfProbe -> {
-            if (!capabilitiesOfProbe.hasActionCapabilitiesList()) {
-                logger.warn("Cannot resolve action capabilities for probe {}",
-                        capabilitiesOfProbe.getProbeId());
-            } else {
-                probesCapabilities.put(capabilitiesOfProbe.getProbeId(),
-                        capabilitiesOfProbe.getActionCapabilitiesList()
-                                .getActionCapabilitiesList());
-            }
+            probesCapabilities.put(capabilitiesOfProbe.getProbeId(),
+                    capabilitiesOfProbe.getActionCapabilitiesList());
         });
         return probesCapabilities;
     }

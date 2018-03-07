@@ -1,11 +1,14 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -13,7 +16,6 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
@@ -21,10 +23,15 @@ import com.vmturbo.action.orchestrator.execution.EntitiesResolutionException;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
 
+/**
+ * Class is responsible for action support resolving, based on probe-supplied action capabilities.
+ */
 public class ActionSupportResolver {
 
     private Logger logger = LogManager.getLogger();
@@ -32,6 +39,20 @@ public class ActionSupportResolver {
     private ActionCapabilitiesStore actionCapabilitiesStore;
 
     private ActionExecutor actionExecutor;
+
+    private static Map<ActionTypeCase, CapabilityMatcher> ACTION_MATCHERS;
+
+    static {
+        final Map<ActionTypeCase, CapabilityMatcher> actionMatchers =
+                new EnumMap<>(ActionTypeCase.class);
+        actionMatchers.put(ActionTypeCase.ACTIVATE, new ActivateCapabilityMatcher());
+        actionMatchers.put(ActionTypeCase.DEACTIVATE, new DeactivateCapabilityMatcher());
+        actionMatchers.put(ActionTypeCase.RESIZE, new ResizeCapabilityMatcher());
+        actionMatchers.put(ActionTypeCase.RECONFIGURE, new ReconfigureCapabilityMatcher());
+        actionMatchers.put(ActionTypeCase.PROVISION, new ProvisionCapabilityMatcher());
+        actionMatchers.put(ActionTypeCase.MOVE, new MoveCapabilityMatcher());
+        ACTION_MATCHERS = Collections.unmodifiableMap(actionMatchers);
+    }
 
     /**
      * Class which determines whether action executed by probe or not.
@@ -53,9 +74,8 @@ public class ActionSupportResolver {
     public Collection<Action> resolveActionsSupporting(Collection<Action> actions) {
         try {
             final Map<Action, Long> actionsProbes = actionExecutor.getProbeIdsForActions(actions);
-            Set<Long> probeIds = new HashSet<>(actionsProbes.values());
             Map<Long, List<ProbeActionCapability>> probeCapabilities =
-                    actionCapabilitiesStore.getCapabilitiesForProbes(probeIds);
+                    actionCapabilitiesStore.getCapabilitiesForProbes(actionsProbes.values());
             Map<Action, List<ProbeActionCapability>> actionsAndCapabilities =
                     actionsProbes.entrySet()
                             .stream()
@@ -65,7 +85,8 @@ public class ActionSupportResolver {
             Set<Action> filteredForUiActions = new HashSet<>();
             actionsAndCapabilities.entrySet()
                     .stream()
-                    .forEach(entry -> filteredForUiActions.add(resolveActionProbeSupport(entry)));
+                    .forEach(entry -> filteredForUiActions.add(
+                            resolveActionProbeSupport(entry.getKey(), entry.getValue())));
             return filteredForUiActions;
         } catch (EntitiesResolutionException ex) {
             logger.warn("Cannot resolve support level for request for " + actions.size() + " actions", ex);
@@ -73,37 +94,181 @@ public class ActionSupportResolver {
         }
     }
 
-    private Action resolveActionProbeSupport(Entry<Action, List<ProbeActionCapability>> entry) {
-        if (CollectionUtils.isEmpty(entry.getValue())) {
-            return entry.getKey();
-        }
-        for (ProbeActionCapability capability : entry.getValue()) {
-            for (ActionCapabilityElement element : capability.getCapabilityElementList()) {
-                if (isActionTypesMatchesCapabilityActionType(entry, element)) {
-                    return setIfActionSupported(entry.getKey(), element);
-                }
-            }
-        }
-        return entry.getKey();
+    @Nonnull
+    private Action resolveActionProbeSupport(@Nonnull Action action,
+            @Nonnull List<ProbeActionCapability> probeCapabilities) {
+        final CapabilityMatcher matcher = Objects.requireNonNull(
+                ACTION_MATCHERS.get(action.getRecommendation().getInfo().getActionTypeCase()),
+                () -> "Action type " + action.getRecommendation().getInfo().getActionTypeCase() +
+                        " is not supported by capability matchers");
+        final Collection<ActionCapabilityElement> activeCapabilities =
+                matcher.getCapabilities(action.getRecommendation(), probeCapabilities);
+        final Optional<ActionCapability> capabilityLevel = activeCapabilities.stream()
+                .map(ActionCapabilityElement::getActionCapability)
+                .min(Comparator.comparing(ActionCapability::getNumber));
+        return setActionSupportLevel(action,
+                capabilityLevel.orElse(ActionCapability.NOT_SUPPORTED));
     }
 
     @Nonnull
-    private Action setIfActionSupported(Action action, ActionCapabilityElement element) {
-        return new Action(action, getSupportLevel(element));
-    }
-
-    private ActionDTO.Action.SupportLevel getSupportLevel(ActionCapabilityElement element) {
-        if (element.getActionCapability() == ActionCapability.NOT_SUPPORTED) {
-            return SupportLevel.UNSUPPORTED;
-        } else if (element.getActionCapability() == ActionCapability.NOT_EXECUTABLE) {
-            return SupportLevel.SHOW_ONLY;
+    private Action setActionSupportLevel(Action action, ActionCapability capability) {
+        final SupportLevel newLevel = getSupportLevel(capability);
+        if (newLevel == action.getSupportLevel()) {
+            return action;
+        } else {
+            return new Action(action, newLevel);
         }
-        return SupportLevel.SUPPORTED;
     }
 
-    private boolean isActionTypesMatchesCapabilityActionType(
-            Entry<Action, List<ProbeActionCapability>> entry, ActionCapabilityElement element) {
-        return ActionDTOUtil.getActionInfoActionType(entry.getKey().getRecommendation()) ==
-                element.getActionType();
+    @Nonnull
+    private static ActionDTO.Action.SupportLevel getSupportLevel(@Nonnull ActionCapability capability) {
+        switch (capability) {
+            case NOT_SUPPORTED:
+                return SupportLevel.UNSUPPORTED;
+            case NOT_EXECUTABLE:
+                return SupportLevel.SHOW_ONLY;
+            default:
+                return SupportLevel.SUPPORTED;
+        }
+    }
+
+    /**
+     * Interface of a matcher, which selects all the capability elements, that are related to the
+     * action specified in order.
+     */
+    private interface CapabilityMatcher {
+        @Nonnull
+        Collection<ActionCapabilityElement> getCapabilities(@Nonnull ActionDTO.Action action,
+                @Nonnull Collection<ProbeActionCapability> actionCapabilities);
+    }
+
+    /**
+     * Abstract capability matcher, holding most of the matcher logic, that could be shared between
+     * capability matchers.
+     */
+    private static abstract class AbstractCapabilityMatcher implements CapabilityMatcher {
+
+        @Nonnull
+        @Override
+        public Collection<ActionCapabilityElement> getCapabilities(@Nonnull ActionDTO.Action action,
+                @Nonnull Collection<ProbeActionCapability> actionCapabilities) {
+            final int entityType = getEntityType(action.getInfo());
+            final Optional<ProbeActionCapability> capability = actionCapabilities.stream()
+                    .filter(cpb -> cpb.getEntityType() == entityType)
+                    .findAny();
+            return capability.map(cpb -> cpb.getCapabilityElementList()
+                    .stream()
+                    .filter(cpbElement -> matches(action, cpbElement))
+                    .collect(Collectors.toList())).orElse(Collections.emptyList());
+        }
+
+        /**
+         * Returns target entity (entity the action will be executed on) type for the specified
+         * action.
+         *
+         * @param actionInfo action to exemine
+         * @return entity type for the target entity
+         */
+        protected abstract int getEntityType(@Nonnull ActionDTO.ActionInfo actionInfo);
+
+        /**
+         * Returns whether an action specified matches the action capability specified.
+         *
+         * @param action action to test
+         * @param actionCapabilityElement action capability to test
+         * @return whether the action and the capability match each other
+         */
+        protected boolean matches(@Nonnull ActionDTO.Action action,
+                @Nonnull ActionCapabilityElement actionCapabilityElement) {
+            return ActionDTOUtil.getActionInfoActionType(action) ==
+                    actionCapabilityElement.getActionType();
+        }
+    }
+
+    /**
+     * Capability matcher for move actions.
+     */
+    private static class MoveCapabilityMatcher extends AbstractCapabilityMatcher {
+
+        @Override
+        protected int getEntityType(@Nonnull ActionInfo actionInfo) {
+            return actionInfo.getMove().getTarget().getType();
+        }
+
+        @Override
+        protected boolean matches(@Nonnull ActionDTO.Action action,
+                @Nonnull ActionCapabilityElement actionCapabilityElement) {
+            if (!super.matches(action, actionCapabilityElement)) {
+                return false;
+            }
+            if (!actionCapabilityElement.hasMove() || !action.getInfo().hasMove()) {
+                return false;
+            } else {
+                final Set<Integer> actionTargetEntityTypes = action.getInfo()
+                        .getMove()
+                        .getChangesList()
+                        .stream()
+                        .map(cp -> cp.getDestination().getType())
+                        .collect(Collectors.toSet());
+                return actionCapabilityElement.getMove()
+                        .getTargetEntityTypeList()
+                        .stream()
+                        .anyMatch(actionTargetEntityTypes::contains);
+            }
+        }
+    }
+
+    /**
+     * Capability matcher for reconfigure actions.
+     */
+    private static class ReconfigureCapabilityMatcher extends AbstractCapabilityMatcher {
+        @Override
+        protected int getEntityType(@Nonnull ActionInfo actionInfo) {
+            return actionInfo.getReconfigure().getTarget().getType();
+        }
+    }
+
+    /**
+     * Capability matcher for provision actions.
+     */
+    public static class ProvisionCapabilityMatcher extends AbstractCapabilityMatcher {
+
+        @Override
+        protected int getEntityType(@Nonnull ActionInfo actionInfo) {
+            return actionInfo.getProvision().getEntityToClone().getType();
+        }
+    }
+
+    /**
+     * Capability matcher for resize actions.
+     */
+    private static class ResizeCapabilityMatcher extends AbstractCapabilityMatcher {
+
+        @Override
+        protected int getEntityType(@Nonnull ActionInfo actionInfo) {
+            return actionInfo.getResize().getTarget().getType();
+        }
+    }
+
+    /**
+     * Capability matcher for activate actions.
+     */
+    private static class ActivateCapabilityMatcher extends AbstractCapabilityMatcher {
+
+        @Override
+        protected int getEntityType(@Nonnull ActionInfo actionInfo) {
+            return actionInfo.getActivate().getTarget().getType();
+        }
+    }
+
+    /**
+     * Capability matcher for deactivate actions.
+     */
+    private static class DeactivateCapabilityMatcher extends AbstractCapabilityMatcher {
+
+        @Override
+        protected int getEntityType(@Nonnull ActionInfo actionInfo) {
+            return actionInfo.getDeactivate().getTarget().getType();
+        }
     }
 }

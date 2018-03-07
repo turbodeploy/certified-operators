@@ -120,7 +120,7 @@ message Explanation {
 // Change one or more providers of an entity.
 message Move {
     // Entity whose providers are being changed.
-    optional ActionEntity target = 1;
+    required ActionEntity target = 1;
 
     // Details of the providers changes
     repeated ChangeProvider changes = 2;
@@ -130,26 +130,26 @@ message ChangeProvider {
 
     // Both the fields are required.
     // Current provider.
-    optional ActionEntity source = 1;
+    required ActionEntity source = 1;
 
     // New provider.
-    optional ActionEntity destination = 2;
+    required ActionEntity destination = 2;
 }
 
 message ActionEntity {
     // Both the fields are required.
     // ID of the entity provider.
-    optional int64 id = 1;
+    required int64 id = 1;
 
     // Type of the entity provider.
-    optional int32 type = 2;
+    required int32 type = 2;
 }
 
 // Resize a commodity on a specific
 // entity.
 message Resize {
     // Entity where the resize should take place.
-    optional ActionEntity target = 1;
+    required ActionEntity target = 1;
 
     // The commodity that's being resized.
     optional topology.CommodityType commodityType = 2;
@@ -164,7 +164,7 @@ message Resize {
 // Activate an existing deactivated entity.
 message Activate {
     // Entity to activate.
-    optional ActionEntity target = 1;
+    required ActionEntity target = 1;
 
     // The in-demand commodities that triggered the activation
     // recommendation. These are guaranteed to be a subset of
@@ -175,7 +175,7 @@ message Activate {
 // Deactivate an existing active entity.
 message Deactivate {
     // Entity to deactivate.
-    optional ActionEntity target = 1;
+    required ActionEntity target = 1;
 
     // The not-in-demand commodities that triggered the deactivation
     // recommendation. These are guaranteed to be a subset of
@@ -195,7 +195,7 @@ message Deactivate {
 // is to move the VM to a host that does have access to the network/storage.
 message Reconfigure {
     // Entity to reconfigure.
-    optional ActionEntity target = 1;
+    required ActionEntity target = 1;
 
     // The current supplier. Assumed null if missing. It is included for the cases where
     // a trader is buying a particular shopping list from a supplier that isn't supplying the
@@ -208,7 +208,7 @@ message Reconfigure {
 // An action to provision an entity that matches another entity already existing in the system.
 message Provision {
     // Entity to clone.
-    optional ActionEntity entity_to_clone = 1;
+    required ActionEntity entity_to_clone = 1;
 
     // The OID of the newly provisioned entity (that does not yet exist in the system).
     // TODO: Make this non-negative per feedback from Jerry. Need to coordinate this with the market folks.

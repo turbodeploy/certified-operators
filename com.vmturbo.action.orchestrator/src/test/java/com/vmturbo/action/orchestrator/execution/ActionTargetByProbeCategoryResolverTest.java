@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -191,9 +192,12 @@ public class ActionTargetByProbeCategoryResolverTest {
 
     @Nonnull
     private ProbeActionCapability createProbeActionCapability(@Nonnull ActionCapability capability) {
-        return ProbeActionCapability.newBuilder().addCapabilityElement(ActionCapabilityElement
-                .newBuilder().setActionType(ActionType.RECONFIGURE)
-                .setActionCapability(capability)).build();
+        return ProbeActionCapability.newBuilder()
+                .addCapabilityElement(ActionCapabilityElement.newBuilder()
+                        .setActionType(ActionType.RECONFIGURE)
+                        .setActionCapability(capability))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
     }
 
     private Action createAction() {

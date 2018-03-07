@@ -41,9 +41,6 @@ public final class ProbeController {
 
     private final ProbeStore probeStore;
 
-    private static final SdkToProbeActionsConverter
-            actionPolicyConverter = new SdkToProbeActionsConverter();
-
     public ProbeController(@Nonnull final ProbeStore probeStore) {
         this.probeStore = Objects.requireNonNull(probeStore);
     }
@@ -89,6 +86,6 @@ public final class ProbeController {
                         .map(ad -> create(ad)).collect(Collectors.toList());
         return new ProbeDescription(probeId, probeInfo.getProbeType(), probeInfo.getProbeCategory(),
                         fields, probeInfo.getTargetIdentifierFieldList(),
-                actionPolicyConverter.convert(probeInfo.getActionPolicyList()));
+                SdkToProbeActionsConverter.convert(probeInfo.getActionPolicyList()));
     }
 }

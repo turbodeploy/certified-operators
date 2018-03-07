@@ -1,10 +1,13 @@
 package com.vmturbo.topology.processor.actions;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -15,8 +18,11 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.MoveParameters;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Class for converting Action Policies with SDK action types to
@@ -27,49 +33,79 @@ public class SdkToProbeActionsConverter {
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * SDK-XL Action types matches.
+     * All the entities except storages.
      */
-    private static final Map<ActionItemDTO.ActionType, ActionDTO.ActionType> SDK_TO_XL_ACTIONS =
-            createSdkToXlActionsMap();
+    private static final List<Integer> ENTITY_TYPES_BUT_STORAGE = Collections.unmodifiableList(
+            EnumSet.allOf(EntityType.class)
+                    .stream()
+                    .filter(type -> EntityType.STORAGE != type)
+                    .map(EntityType::getNumber)
+                    .collect(Collectors.toList()));
+    private static final Map<ActionItemDTO.ActionType, Supplier<ActionCapabilityElement.Builder>>
+            CAPABILITY_CREATORS = createSdkToXlActionsMap();
 
     /**
      * Mapping of SDK action types to XL action types.
      *
      * @return SDK-XL action types matches.
      */
-    private static Map<ActionItemDTO.ActionType, ActionDTO.ActionType> createSdkToXlActionsMap() {
-        @SuppressWarnings("unchecked")
-        Map<ActionItemDTO.ActionType, ActionDTO.ActionType> sdkToXlActions =
-                new EnumMap(ActionItemDTO.ActionType.class);
-        sdkToXlActions.put(ActionItemDTO.ActionType.NONE, ActionDTO.ActionType.NONE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.START, ActionDTO.ActionType.ACTIVATE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.MOVE, ActionDTO.ActionType.MOVE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.SUSPEND, ActionDTO.ActionType.DEACTIVATE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.TERMINATE, ActionDTO.ActionType.DEACTIVATE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.SPAWN, ActionDTO.ActionType.NONE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.ADD_PROVIDER, ActionDTO.ActionType.START);
-        sdkToXlActions.put(ActionItemDTO.ActionType.CHANGE, ActionDTO.ActionType.MOVE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.REMOVE_PROVIDER, ActionDTO.ActionType
-                .DEACTIVATE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.PROVISION, ActionDTO.ActionType.PROVISION);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RECONFIGURE, ActionDTO.ActionType.RECONFIGURE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RESIZE, ActionDTO.ActionType.RESIZE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RESIZE_CAPACITY, ActionDTO.ActionType.RESIZE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.WARN, ActionDTO.ActionType.NONE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RECONFIGURE_THRESHOLD, ActionDTO.ActionType
-                .RECONFIGURE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.DELETE, ActionDTO.ActionType.NONE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RIGHT_SIZE, ActionDTO.ActionType.RESIZE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RESERVE_ON_PM, ActionDTO.ActionType.NONE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RESERVE_ON_DS, ActionDTO.ActionType.NONE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RESIZE_FOR_EFFICIENCY, ActionDTO.ActionType
-                .RESIZE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.CROSS_TARGET_MOVE, ActionDTO.ActionType.NONE);
-        sdkToXlActions.put(ActionItemDTO.ActionType.RESERVE_ON_DA, ActionDTO.ActionType.NONE);
+    private static Map<ActionItemDTO.ActionType, Supplier<ActionCapabilityElement.Builder>> createSdkToXlActionsMap() {
+        final Map<ActionItemDTO.ActionType, Supplier<ActionCapabilityElement.Builder>>
+                capabilityBuilders = new EnumMap<>(ActionItemDTO.ActionType.class);
+        capabilityBuilders.put(ActionItemDTO.ActionType.NONE,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.START,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.ACTIVATE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.MOVE,
+                new MoveCapabilityCreator(ENTITY_TYPES_BUT_STORAGE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.SUSPEND,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.DEACTIVATE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.TERMINATE,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.DEACTIVATE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.SPAWN,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.ADD_PROVIDER,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.START));
+        capabilityBuilders.put(ActionItemDTO.ActionType.CHANGE,
+                new MoveCapabilityCreator(Collections.singleton(EntityType.STORAGE.getNumber())));
+        capabilityBuilders.put(ActionItemDTO.ActionType.REMOVE_PROVIDER,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.DEACTIVATE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.PROVISION,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.PROVISION));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RECONFIGURE,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.RECONFIGURE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RESIZE,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RESIZE_CAPACITY,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.WARN,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RECONFIGURE_THRESHOLD,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.RECONFIGURE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.DELETE,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RIGHT_SIZE,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RESERVE_ON_PM,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RESERVE_ON_DS,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RESIZE_FOR_EFFICIENCY,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.RESIZE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.CROSS_TARGET_MOVE,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
+        capabilityBuilders.put(ActionItemDTO.ActionType.RESERVE_ON_DA,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.NONE));
         // Not sure that sdk MOVE_TOGETHER IS ACTUALLY MOVE
-        sdkToXlActions.put(ActionItemDTO.ActionType.MOVE_TOGETHER, ActionDTO.ActionType.MOVE);
-        return sdkToXlActions;
+        capabilityBuilders.put(ActionItemDTO.ActionType.MOVE_TOGETHER,
+                new SimpleCapabilityCreator(ActionDTO.ActionType.MOVE));
+        return Collections.unmodifiableMap(capabilityBuilders);
     }
+
+    /**
+     * Utility class - hiding the constructor.
+     */
+    private SdkToProbeActionsConverter() {}
 
     /**
      * Converts all sdk policies in collection to xl policies.
@@ -78,7 +114,7 @@ public class SdkToProbeActionsConverter {
      * @return sdkPolicies converted to xl policies.
      */
     @Nonnull
-    public static List<ProbeActionCapability> convert(@Nonnull List<ActionPolicyDTO> sdkPolicies) {
+    public static List<ProbeActionCapability> convert(@Nonnull Collection<ActionPolicyDTO> sdkPolicies) {
         return Objects.requireNonNull(sdkPolicies).stream()
                 .map(SdkToProbeActionsConverter::convert).collect(Collectors.toList());
     }
@@ -122,18 +158,63 @@ public class SdkToProbeActionsConverter {
      */
     private static ProbeActionCapability.ActionCapabilityElement convertSdkPolicyElementToXl(
             @Nonnull ActionPolicyDTO.ActionPolicyElement sdkPolicyElement) {
-
-        ActionDTO.ActionType mapedType = SDK_TO_XL_ACTIONS.get(sdkPolicyElement.getActionType());
-        if (mapedType == ActionType.NONE) {
+        Objects.requireNonNull(sdkPolicyElement);
+        final ActionCapabilityElement.Builder builder =
+                CAPABILITY_CREATORS.get(sdkPolicyElement.getActionType()).get();
+        if (builder.getActionType() == ActionType.NONE) {
             logger.warn(sdkPolicyElement.getActionType() + " was maped into ActionType.NONE! " +
                     "Sdk policy element: " + sdkPolicyElement);
         }
-        return ProbeActionCapability.ActionCapabilityElement
-                .newBuilder()
-                .setActionCapability(ProbeActionCapability.ActionCapability
-                .forNumber(Objects.requireNonNull(sdkPolicyElement)
-                .getActionCapability().getNumber()))
-                .setActionType(mapedType)
-                .build();
+        builder.setActionCapability(convert(sdkPolicyElement.getActionCapability()));
+        return builder.build();
+    }
+
+    @Nonnull
+    private static ProbeActionCapability.ActionCapability convert(
+            @Nonnull ActionPolicyDTO.ActionCapability src) {
+        return Objects.requireNonNull(
+                ProbeActionCapability.ActionCapability.forNumber(src.getNumber()));
+    }
+
+    /**
+     * Simple capability creator is able to create builder for {@link ActionCapabilityElement} for
+     * the specified entity type.
+     */
+    private static class SimpleCapabilityCreator implements
+            Supplier<ActionCapabilityElement.Builder> {
+        private final ActionDTO.ActionType actionType;
+
+        private SimpleCapabilityCreator(ActionDTO.ActionType actionType) {
+            this.actionType = Objects.requireNonNull(actionType);
+        }
+
+        @Override
+        public ActionCapabilityElement.Builder get() {
+            return ProbeActionCapability.ActionCapabilityElement.newBuilder()
+                    .setActionType(actionType);
+        }
+    }
+
+    /**
+     * Move capability create creates a move action capability available for some specific entity
+     * types.
+     */
+    private static class MoveCapabilityCreator extends SimpleCapabilityCreator {
+        private final Collection<Integer> destinationTypesAllowed;
+
+        private MoveCapabilityCreator(@Nonnull Collection<Integer> destinationTypesAllowed) {
+            super(ActionType.MOVE);
+            this.destinationTypesAllowed = Objects.requireNonNull(destinationTypesAllowed);
+            if (destinationTypesAllowed.isEmpty()) {
+                throw new IllegalArgumentException("destination types must not be empty");
+            }
+        }
+
+        @Override
+        public ActionCapabilityElement.Builder get() {
+            return super.get()
+                    .setMove(MoveParameters.newBuilder()
+                            .addAllTargetEntityType(destinationTypesAllowed));
+        }
     }
 }

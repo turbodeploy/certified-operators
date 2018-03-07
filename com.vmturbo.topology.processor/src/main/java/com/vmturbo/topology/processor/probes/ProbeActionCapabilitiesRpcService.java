@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.probes;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -8,19 +7,18 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
-import com.vmturbo.common.protobuf.topology.Probe.ActionCapabilitiesList;
-import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
-import com.vmturbo.common.protobuf.topology.Probe.ListProbeActionCapabilitiesRequest;
-import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
+import com.vmturbo.common.protobuf.topology.Probe.ListProbeActionCapabilitiesRequest;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceImplBase;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -101,9 +99,8 @@ public class ProbeActionCapabilitiesRpcService extends ProbeActionCapabilitiesSe
         } else {
             final List<ProbeActionCapability> actionCapabilities = SdkToProbeActionsConverter
                     .convert(probeInfo.get().getActionPolicyList());
-            responseObserver.onNext(responseBuilder.setActionCapabilitiesList(
-                    ActionCapabilitiesList.newBuilder().addAllActionCapabilities(actionCapabilities)
-                            .build()).build());
+            responseObserver.onNext(
+                    responseBuilder.addAllActionCapabilities(actionCapabilities).build());
         }
     }
 

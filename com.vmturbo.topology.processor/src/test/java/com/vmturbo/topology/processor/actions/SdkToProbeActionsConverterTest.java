@@ -8,7 +8,9 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapabilities;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
@@ -52,6 +54,42 @@ public class SdkToProbeActionsConverterTest {
                 ActionDTO.ActionType.RESIZE);
         assertIsConvertedSdkPolicy(sdkPolicies.get(2), xlActionPolicies.get(2),
                 ActionDTO.ActionType.DEACTIVATE);
+    }
+
+    /**
+     * Tests MOVE action conversion. It is expected to be converted to an XL move actions across
+     * everything but storages.
+     */
+    @Test
+    public void testConvertMoveAction() {
+        final ActionPolicyDTO moveAction = SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED,
+                EntityType.PHYSICAL_MACHINE, ActionType.MOVE);
+        final ActionCapabilityElement result =
+                SdkToProbeActionsConverter.convert(moveAction).getCapabilityElement(0);
+        Assert.assertEquals(ActionDTO.ActionType.MOVE, result.getActionType());
+        Assert.assertFalse(
+                result.getMove().getTargetEntityTypeList().contains(EntityType.STORAGE_VALUE));
+        Assert.assertTrue(result.getMove()
+                .getTargetEntityTypeList()
+                .contains(EntityType.PHYSICAL_MACHINE_VALUE));
+    }
+
+    /**
+     * Tests CHANGE action conversion. It is expected to be converted to an XL move actions across
+     * storages.
+     */
+    @Test
+    public void testConvertChangeAction() {
+        final ActionPolicyDTO moveAction = SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED,
+                EntityType.PHYSICAL_MACHINE, ActionType.CHANGE);
+        final ActionCapabilityElement result =
+                SdkToProbeActionsConverter.convert(moveAction).getCapabilityElement(0);
+        Assert.assertEquals(ActionDTO.ActionType.MOVE, result.getActionType());
+        Assert.assertTrue(
+                result.getMove().getTargetEntityTypeList().contains(EntityType.STORAGE_VALUE));
+        Assert.assertFalse(result.getMove()
+                .getTargetEntityTypeList()
+                .contains(EntityType.PHYSICAL_MACHINE_VALUE));
     }
 
     /**

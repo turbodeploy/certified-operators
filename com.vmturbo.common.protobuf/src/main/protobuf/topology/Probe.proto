@@ -6,7 +6,7 @@ import "action/ActionDTO.proto";
 
 message ProbeActionCapability {
     // Entity type which the capability is applied to
-    optional int32 entity_type = 1;
+    required int32 entity_type = 1;
 
     // Action capability elements (for every supported action type)
     repeated ActionCapabilityElement capability_element = 2;
@@ -14,14 +14,19 @@ message ProbeActionCapability {
     // Capability applied to a particular action type
     message ActionCapabilityElement {
         // Action type
-        //required ActionItemDTO.ActionType actionType = 1;
-        optional action.ActionType action_type = 1;
+        required action.ActionType action_type = 1;
 
         // Action execution capability
-        optional ActionCapability action_capability = 2;
+        required ActionCapability action_capability = 2;
+
+        oneof action_parameter {
+            MoveParameters move = 3;
+        }
     }
 
     // Defines how action can be executed by the probe
+    // Order of this enum affect how the action capability will be selected if any apply to an
+    // action, as a result the one with minimal order number will be selected.
     enum ActionCapability {
         // The action does not make sense for the probe. Actions of this type should not be shown
         // to the user.
@@ -34,6 +39,14 @@ message ProbeActionCapability {
 
         // The probe supports execution of the action. Actions of this type are displayed to the user.
         SUPPORTED = 3;
+    }
+
+    message MoveParameters {
+        // Determines, what entity type is to move from and to. For example, if VMs are moved
+        // across hosts, EnityType.PhysycalMaching should be specified here
+        // This must be a non-empty collection and explicitly specify all the entity types, move is
+        // supported across
+        repeated int32 target_entity_type = 1;
     }
 }
 
@@ -65,14 +78,12 @@ message ListProbeActionCapabilitiesRequest {
 // If there is probe with provided id but there is no capabilities for this probe then
 // ActionCapabilitiesList should be initialized by empty collection
 message ProbeActionCapabilities {
+    // Probe Id
     required int64 probe_id = 1;
-    optional ActionCapabilitiesList action_capabilities_list = 2;
+    // Set of action capabilities
+    repeated ProbeActionCapability action_capabilities = 2;
 }
 
-// Represents set of action capabilities
-message ActionCapabilitiesList {
-    repeated ProbeActionCapability action_capabilities = 1;
-}
 
 // Service for getting action capabilities of probe with certain probe_id which can be filtered
 // by entity_type of action capability.

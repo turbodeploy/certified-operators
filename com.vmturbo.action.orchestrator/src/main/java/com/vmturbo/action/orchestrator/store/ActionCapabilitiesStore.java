@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,5 +21,5 @@ public interface ActionCapabilitiesStore {
      * @return  action capabilities by id for all provided probes
      */
     @Nonnull
-    Map<Long, List<ProbeActionCapability>> getCapabilitiesForProbes(@Nonnull Set<Long> probeIds);
+    Map<Long, List<ProbeActionCapability>> getCapabilitiesForProbes(@Nonnull Collection<Long> probeIds);
 }
