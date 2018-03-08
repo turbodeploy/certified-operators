@@ -169,8 +169,9 @@ public class Placement {
 
         final double cheapestQuote = minimizer.getBestQuote();
         final Trader cheapestSeller = minimizer.getBestSeller();
-        boolean isDebugTrader = shoppingList.getBuyer().isDebugEnabled();
-        boolean isSellersInfoPrinted = shoppingList.getBuyer().isSellersInfoPrinted();
+        Trader buyer = shoppingList.getBuyer();
+        boolean isDebugTrader = buyer.isDebugEnabled();
+        boolean isSellersInfoPrinted = buyer.isSellersInfoPrinted();
         String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
         if (isDebugTrader) {
             if (!isSellersInfoPrinted) {
@@ -199,7 +200,7 @@ public class Placement {
         final double currentQuote = minimizer.getCurrentQuote();
 
         // move, and update economy and state
-        if (cheapestQuote < currentQuote * economy.getSettings().getQuoteFactor()) {
+        if (cheapestQuote < currentQuote * buyer.getSettings().getQuoteFactor()) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = 0;
@@ -220,7 +221,7 @@ public class Placement {
                 if (logger.isDebugEnabled()
                              && myMarket.getExpenseBaseline() < myMarket.getPlacementSavings()) {
                     logger.debug("Total savings exceeds base expenses for buyer while shopping " +
-                                    shoppingList.getBuyer().getDebugInfoNeverUseInCode()
+                                    buyer.getDebugInfoNeverUseInCode()
                                     + " Basket " + shoppingList.getBasket());
                 }
             }
@@ -313,7 +314,7 @@ public class Placement {
             if (minimizer != null && !currentSuppliers.equals(minimizer.getBestSellers())) {
                 double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
                 if (minimizer.getBestTotalQuote() < currentTotalQuote
-                                * economy.getSettings().getQuoteFactor()) {
+                                * shoppingLists.get(0).getBuyer().getSettings().getQuoteFactor()) {
                     List<Trader> bestSellers = minimizer.getBestSellers();
                     CompoundMove compoundMove =
                                         CompoundMove.createAndCheckCompoundMoveWithExplicitSources(

@@ -99,6 +99,15 @@ public interface TraderSettings {
     @NonNull TraderSettings setSuspendable(boolean suspendable);
 
     /**
+     * Returns the quote factor of {@code this} trader.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     */
+    double getQuoteFactor();
+
+    /**
      * Sets the value of the <b>cloneable</b> field.
      *
      * <p>
@@ -198,6 +207,18 @@ public interface TraderSettings {
     @NonNull TraderSettings setMandatorySupplier(boolean mandatorySupplier);
 
     /**
+     * Sets the value of the <b>quote factor</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param quoteFactor the new value for the field. Must be 0 < quoteFactor <= 1.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setQuoteFactor(double quoteFactor);
+
+    /**
      * Sets the {@link CostFunction} for a trader.
      */
     void setCostFunction(CostFunction costFunction);
@@ -211,4 +232,5 @@ public interface TraderSettings {
      * Sets the {@link BalanceAccount} with a trader
      */
     void setBalanceAccount(BalanceAccount balanceAccount);
+
 } // end TraderSettings interface

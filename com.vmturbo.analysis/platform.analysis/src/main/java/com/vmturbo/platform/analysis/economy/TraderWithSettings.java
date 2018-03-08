@@ -34,6 +34,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private boolean isShopTogether_ = false;
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
+    private double quoteFactor_ = 0.75f;
     @Nullable private CostFunction costFunction_ = null;
     // default quote function is sum of commodity
     private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
@@ -151,6 +152,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
+    @Pure
+    public double getQuoteFactor(@ReadOnly TraderWithSettings this) {
+        return quoteFactor_;
+    }
+
+    @Override
     @Deterministic
     public @NonNull TraderWithSettings setSuspendable(boolean suspendable) {
         suspendable_ = suspendable;
@@ -214,6 +221,15 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     @Override
     public @NonNull TraderSettings setIsShopTogether(boolean isShopTogether) {
         isShopTogether_ = isShopTogether;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderWithSettings setQuoteFactor(double quoteFactor) {
+        checkArgument(quoteFactor > 0.0, "quoteFactor = " + quoteFactor);
+        checkArgument(quoteFactor <= 1.0, "quoteFactor = " + quoteFactor);
+        quoteFactor_ = quoteFactor;
         return this;
     }
 

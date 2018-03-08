@@ -87,6 +87,9 @@ message TraderSettingsTO {
 
     // Whether the trader should be forced to clone if its consumer clones
     optional bool mandatory_supplier = 11;
+
+    // The quote factor of the trader
+    optional float quote_factor = 12 [default = 0.75];
 }
 
 // The different states a trader can be in. The intention is to make this a boolean once we confirm

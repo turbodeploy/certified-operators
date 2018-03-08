@@ -267,6 +267,7 @@ public final class ProtobufToAnalysis {
         destination.setIsShopTogether(source.getIsShopTogether());
         destination.setMandatorySupplier(source.getMandatorySupplier());
         destination.setQuoteFunction(populateQuoteFunction(destination, source.getQuoteFunction()));
+        destination.setQuoteFactor(source.getQuoteFactor());
         if (source.getQuoteFunction().hasRiskBased() && source.getQuoteFunction().getRiskBased().hasCloudCost()) {
             destination.setCostFunction(
                             CostFunctionFactory.createCostFunction(source.getQuoteFunction().getRiskBased().getCloudCost()));

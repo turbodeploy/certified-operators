@@ -80,12 +80,6 @@ public class QuoteFunctionFactory {
             double budgetUtil = (spent - costOnCurrentSupplier + costOnNewSeller) / budget;
             quote[0] = (budgetUtil >= 1) ? Double.POSITIVE_INFINITY :
                     1 / ((1 - budgetUtil) * (1 - budgetUtil));
-            // We don't want to consider the quote factor for risk based entities, thus we divide
-            // by the quote factor here, because when we decide the placement actions, we multiply
-            // the current quote with the quote factor.
-            if (seller == buyer.getSupplier()) {
-                quote[0] /= economy.getSettings().getQuoteFactor();
-            }
             return quote;
         };
         return qf;
