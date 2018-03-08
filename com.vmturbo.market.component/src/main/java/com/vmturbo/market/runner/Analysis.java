@@ -1,13 +1,14 @@
 package com.vmturbo.market.runner;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
@@ -23,6 +24,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
@@ -52,15 +54,14 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * Analysis execution and properties. This can be for a scoped plan or for a real-time market.
  */
 public class Analysis {
-    public static LocalDateTime EPOCH = LocalDateTime.ofEpochSecond(0, 0, ZoneOffset.UTC);
     // Analysis started (kept true also when it is completed).
     private AtomicBoolean started = new AtomicBoolean();
     // Analysis completed (successfully or not).
     private boolean completed = false;
 
     private final boolean includeVDC;
-    private LocalDateTime startTime = EPOCH;
-    private LocalDateTime completionTime = EPOCH;
+    private Instant startTime = Instant.EPOCH;
+    private Instant completionTime = Instant.EPOCH;
     private final Set<TopologyEntityDTO> topologyDTOs;
     private final String logPrefix;
 
@@ -77,6 +78,11 @@ public class Analysis {
 
     private final TopologyInfo topologyInfo;
 
+    /**
+     * The clock used to time market analysis.
+     */
+    private final Clock clock;
+
     private SettingServiceBlockingStub settingsServiceClient;
 
     /**
@@ -90,11 +96,13 @@ public class Analysis {
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
      * @param includeVDC specify whether guaranteed buyers (VDC, VPod, DPod) are included in the
      *                     market analysis
+     * @param clock The clock used to time market analysis.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                     final boolean includeVDC,
-                    final SettingServiceBlockingStub settingsServiceClient) {
+                    final SettingServiceBlockingStub settingsServiceClient,
+                    @Nonnull final Clock clock) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs;
         this.includeVDC = includeVDC;
@@ -104,6 +112,7 @@ public class Analysis {
             topologyInfo.getTopologyId() + " : ";
         this.projectedTopologyId = IdentityGenerator.next();
         this.settingsServiceClient = settingsServiceClient;
+        this.clock = Objects.requireNonNull(clock);
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -121,6 +130,7 @@ public class Analysis {
      * Execute the analysis run. Generate the action plan, projected topology and price index message.
      * Only the first invocation of this method will actually run the analysis. Subsequent calls will
      * log an error message and immediately return {@code false}.
+     *
      * @return true if this is the first invocation of this method, false otherwise.
      */
     public boolean execute() {
@@ -129,7 +139,7 @@ public class Analysis {
             return false;
         }
         state = AnalysisState.IN_PROGRESS;
-        startTime = LocalDateTime.now();
+        startTime = clock.instant();
         logger.info("{} Started", logPrefix);
         try {
             final TopologyConverter converter =
@@ -187,24 +197,29 @@ public class Analysis {
             final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
                     .setId(IdentityGenerator.next())
                     .setTopologyId(topologyInfo.getTopologyId())
-                    .setTopologyContextId(topologyInfo.getTopologyContextId());
+                    .setTopologyContextId(topologyInfo.getTopologyContextId())
+                    .setAnalysisStartTimestamp(startTime.toEpochMilli());
             results.getActionsList().stream()
                     .map(converter::interpretAction)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(actionPlanBuilder::addAction);
-            actionPlan = actionPlanBuilder.build();
 
             priceIndexMessage = results.getPriceIndexMsg();
             logger.info(logPrefix + "Completed successfully");
             processResultTime.observe();
             state = AnalysisState.SUCCEEDED;
+
+            completionTime = clock.instant();
+            actionPlan = actionPlanBuilder.setAnalysisCompleteTimestamp(completionTime.toEpochMilli())
+                .build();
         } catch (RuntimeException e) {
             logger.error(logPrefix + e + " while running analysis", e);
             state = AnalysisState.FAILED;
+            completionTime = clock.instant();
             errorMsg = e.toString();
         }
-        completionTime = LocalDateTime.now();
+
         logger.info(logPrefix + "Execution time : "
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
@@ -269,7 +284,7 @@ public class Analysis {
      * Start time of this analysis run.
      * @return start time of this analysis run
      */
-    public LocalDateTime getStartTime() {
+    public Instant getStartTime() {
         return startTime;
     }
 
@@ -277,7 +292,7 @@ public class Analysis {
      * Completion time of this analysis run, or epoch if not yet completed.
      * @return completion time of this analysis run
      */
-    public LocalDateTime getCompletionTime() {
+    public Instant getCompletionTime() {
         return completionTime;
     }
 
@@ -552,6 +567,8 @@ public class Analysis {
         private Set<TopologyEntityDTO> topologyDTOs = Collections.emptySet();
         // specify whether the analysis should include guaranteed buyers in the market analysis
         private boolean includeVDC = false;
+        // The clock to use when generating timestamps.
+        private Clock clock = Clock.systemUTC();
 
         private SettingServiceBlockingStub settingsServiceClient = null;
 
@@ -601,12 +618,24 @@ public class Analysis {
         }
 
         /**
+         * Set the clock used to time market analysis.
+         * If not explicitly set, will use the System UTC clock.
+         *
+         * @param clock The clock used to time market analysis.
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setClock(@Nonnull final Clock clock) {
+            this.clock = Objects.requireNonNull(clock);
+            return this;
+        }
+
+        /**
          * Request a new Analysis object be built using the values specified.
          *
          * @return the newly build Analysis object initialized from the Builder fields.
          */
         public Analysis build() {
-            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsServiceClient);
+            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsServiceClient, clock);
         }
     }
 

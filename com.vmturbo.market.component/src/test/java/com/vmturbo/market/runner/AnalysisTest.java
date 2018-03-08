@@ -6,10 +6,13 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Set;
 
 import org.junit.Before;
@@ -19,6 +22,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -61,6 +65,10 @@ public class AnalysisTest {
                  spy(new SettingServiceMole());
     private SettingServiceBlockingStub settingServiceClient;
 
+    private final Clock mockClock = mock(Clock.class);
+    private static final Instant START_INSTANT = Instant.EPOCH.plus(90, ChronoUnit.MINUTES);
+    private static final Instant END_INSTANT = Instant.EPOCH.plus(100, ChronoUnit.MINUTES);
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
                      testSettingPolicyService, testSettingService);
@@ -69,6 +77,10 @@ public class AnalysisTest {
     public void before() {
         IdentityGenerator.initPrefix(0L);
         settingServiceClient = getSettingService(10.0f);
+
+        when(mockClock.instant())
+            .thenReturn(START_INSTANT)
+            .thenReturn(END_INSTANT);
     }
 
     /*
@@ -100,8 +112,8 @@ public class AnalysisTest {
         assertEquals(topologyContextId, analysis.getContextId());
         assertEquals(topologyId, analysis.getTopologyId());
         assertEquals(EMPTY, analysis.getTopology());
-        assertEquals(Analysis.EPOCH, analysis.getStartTime());
-        assertEquals(Analysis.EPOCH, analysis.getCompletionTime());
+        assertEquals(Instant.EPOCH, analysis.getStartTime());
+        assertEquals(Instant.EPOCH, analysis.getCompletionTime());
     }
 
     /**
@@ -112,13 +124,14 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
                 .setTopologyInfo(topologyInfo)
                 .setIncludeVDC(true)
+                .setClock(mockClock)
                 .setSettingsServiceClient(settingServiceClient)
                 .build();
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(analysis.getState(), AnalysisState.SUCCEEDED);
-        assertFalse(analysis.getCompletionTime().isBefore(analysis.getStartTime()));
-        assertFalse(LocalDateTime.now().isBefore(analysis.getCompletionTime()));
+        assertEquals(START_INSTANT, analysis.getStartTime());
+        assertEquals(END_INSTANT, analysis.getCompletionTime());
 
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getProjectedTopology().isPresent());
@@ -132,11 +145,12 @@ public class AnalysisTest {
     public void testFailedAnalysis() {
         Set<TopologyEntityDTO> set = Sets.newHashSet(buyer());
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
-                .setIncludeVDC(true)
-                .setTopologyDTOs(set)
+            .setIncludeVDC(true)
+            .setTopologyDTOs(set)
                 // RateOfResize negative to throw exception
                 .setSettingsServiceClient(getSettingService(-1))
-                .build();
+            .setClock(mockClock)
+            .build();
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(AnalysisState.FAILED, analysis.getState());
@@ -177,5 +191,20 @@ public class AnalysisTest {
         boolean second = analysis.execute();
         assertTrue(first);
         assertFalse(second);
+    }
+
+    @Test
+    public void testActionPlanTimestamps() {
+        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
+            .setTopologyInfo(topologyInfo)
+            .setIncludeVDC(true)
+            .setSettingsServiceClient(settingServiceClient)
+            .setClock(mockClock)
+            .build();
+
+        analysis.execute();
+        final ActionPlan actionPlan = analysis.getActionPlan().get();
+        assertEquals(actionPlan.getAnalysisStartTimestamp(), START_INSTANT.toEpochMilli());
+        assertEquals(actionPlan.getAnalysisCompleteTimestamp(), END_INSTANT.toEpochMilli());
     }
 }

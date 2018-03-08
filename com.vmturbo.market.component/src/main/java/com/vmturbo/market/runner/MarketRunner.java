@@ -1,5 +1,6 @@
 package com.vmturbo.market.runner;
 
+import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -14,7 +15,6 @@ import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.market.MarketNotificationSender;
@@ -89,6 +89,7 @@ public class MarketRunner {
                     .setTopologyDTOs(topologyDTOs)
                     .setIncludeVDC(includeVDC)
                     .setSettingsServiceClient(settingServiceClient)
+                    .setClock(Clock.systemUTC())
                     .build();
             analysisMap.put(topologyContextId, analysis);
         }

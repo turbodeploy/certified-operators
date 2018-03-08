@@ -277,6 +277,23 @@ message ActionPlan {
     // If not set, it is an error.
     optional int64 topology_context_id = 3;
 
+    // The timestamp at which the analysis that generated this action plan began.
+    //
+    // This timestamp is captured prior to constructing the economy for analysis.
+    //
+    // The time is in "system time" and not necessarily UTC, however, times on action plans
+    // are comparable. See documentation in Java's System#currentTimeMillis() for further details.
+    optional int64 analysis_start_timestamp = 4;
+
+    // The timestamp at which the analysis that generated this action plan completed.
+    //
+    // The difference between this timestamp and the analysis_start_timestamp approximates
+    // the time it took the market component to construct the economy and perform analysis.
+    //
+    // Note that these timestamps do NOT provide an indication of the time at which data for
+    // the analysis was captured from the customer's infrastructure.
+    optional int64 analysis_complete_timestamp = 5;
+
     // The order of the actions is important, and the recommendations
     // are based on actions executing in the order they appear
     // in this list.
