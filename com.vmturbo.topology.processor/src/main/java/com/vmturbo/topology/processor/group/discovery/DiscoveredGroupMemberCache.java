@@ -40,6 +40,15 @@ public class DiscoveredGroupMemberCache {
     }
 
     /**
+     * Returns groups for all targets.
+     *
+     * @return all discovered groups members
+     */
+    public Stream<DiscoveredGroupMembers> getAllDiscoveredGroupsMembers() {
+        return targetDiscoveredGroups.values().stream().flatMap(List::stream);
+    }
+
+    /**
      * Look up the discovered groups for the target/oid pair in the merge information.
      *
      * @param mergeInfo The merge information containing the target/oid pair for which discovered

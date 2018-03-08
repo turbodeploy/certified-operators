@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -14,21 +15,25 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
+import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
@@ -36,6 +41,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
+import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
@@ -79,6 +85,84 @@ public class Stages {
         @Override
         public void passthrough(final Map<Long, TopologyEntity.Builder> input) {
             discoveredGroupUploader.uploadDiscoveredGroups();
+        }
+    }
+
+
+    /**
+     * This stage adds datacenter name prefix to names of clusters for UI displaying.
+     */
+    public static class AddDatacenterPrefixToClustersStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
+
+        private final Logger logger = LogManager.getLogger();
+
+        private final DiscoveredGroupUploader discoveredGroupUploader;
+
+        public AddDatacenterPrefixToClustersStage(@Nonnull final DiscoveredGroupUploader discoveredGroupUploader) {
+            this.discoveredGroupUploader = discoveredGroupUploader;
+        }
+
+        /**
+         * Adds display name of datacenter to name of cluster as prefix.
+         * We need to do it only for UI displaying.
+         *
+         * @param input entities to search host and datacenter by oid
+         */
+        @Override
+        public void passthrough(@Nonnull Map<Long, TopologyEntity.Builder> input)
+                        throws PipelineStageException {
+            discoveredGroupUploader.buildMemberCache().getAllDiscoveredGroupsMembers()
+                            .map(members -> members.getAssociatedGroup().getDtoAsCluster())
+                            .filter(Optional::isPresent)
+                            .map(Optional::get)
+                            .forEach(cluster -> addDatacenterPrefixToClusterName(input, cluster));
+        }
+
+        /**
+         * As all hosts of cluster are located at the same datacenter, we are getting any host of cluster,
+         * and looking for any commodity which it buys from datacenter to find datacenter by oid and
+         * add name of datacenter to name of cluster.
+         *
+         * @param topologyMap to search host and datacenter entity
+         * @param cluster to change name of it
+         */
+        private void addDatacenterPrefixToClusterName(@Nonnull Map<Long, TopologyEntity.Builder> topologyMap,
+                        @Nonnull GroupDTO.ClusterInfo.Builder cluster) {
+            final List<Long> memberOidsList = cluster.getMembers().getStaticMemberOidsList();
+            if (CollectionUtils.isEmpty(memberOidsList)) {
+                logger.warn("Cannot add the datacenter prefix to the cluster. Empty cluster provided {}", cluster);
+                return;
+            }
+            final TopologyEntity.Builder host = topologyMap.get(memberOidsList.get(0));
+            if (host == null) {
+                logger.error("Topology map doesn't contain host {}", memberOidsList.get(0));
+                return;
+            }
+            final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> datacenterCommodity =
+                            getDatacenterCommodityOfHost(host);
+            if (!datacenterCommodity.isPresent()) {
+                logger.error("Host {} has no commodities bought from datacenter", host);
+                return;
+            }
+            final TopologyEntity.Builder datacenter = topologyMap.get(datacenterCommodity.get().getProviderId());
+            if (datacenter == null) {
+                logger.error(String.format("Topology map doesn't contain datacenter with OID %s for host %s"),
+                                datacenterCommodity.get().getProviderId(), host);
+                return;
+            }
+            cluster.setName(datacenter.getDisplayName() + "/" + cluster.getName());
+        }
+
+        private Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> getDatacenterCommodityOfHost(
+                        @Nonnull TopologyEntity.Builder host) {
+            return host.getEntityBuilder().getCommoditiesBoughtFromProvidersList()
+                            .stream()
+                            .filter(this::isProvidedByDatacenter)
+                            .findFirst();
+        }
+
+        private boolean isProvidedByDatacenter(@Nonnull TopologyEntityDTO.CommoditiesBoughtFromProvider commodity) {
+            return commodity.getProviderEntityType() == CommonDTO.EntityDTO.EntityType.DATACENTER_VALUE;
         }
     }
 
