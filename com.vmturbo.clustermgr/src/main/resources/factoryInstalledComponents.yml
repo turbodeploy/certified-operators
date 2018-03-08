@@ -20,6 +20,7 @@ action-orchestrator:
   repositoryHost: 'repository'
   entityTypeRetryIntervalMillis: 1000
   entityTypeMaxRetries: 6
+  maxLiveActionPlanAgeSeconds: 600
   <<: &baseVmtComponentSettings
     deadlockCheckIntervalSecs: 900
     maxHealthyUsedMemoryRatio: 0.95
