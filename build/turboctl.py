@@ -4,6 +4,9 @@ import argparse
 import os
 import string
 import subprocess
+import tempfile
+import zipfile
+import shutil
 
 import sys
 
@@ -153,6 +156,30 @@ def show_processes(parsed_args):
     """
     call_shell_cmd([DOCKER_COMPOSE_COMMAND, "ps"] + parsed_args.components)
 
+def get_diag(parsed_args):
+    """
+    Zip up all rsyslog log files.
+    """
+    logdir = '/var/lib/docker/volumes/%s_syslogdata/_data/rsyslog' % home
+
+    if not parsed_args.file:
+        outputfile = "rsyslogs.zip"
+    else:
+        outputfile = parsed_args.file
+    try:
+        zipf= zipfile.ZipFile(outputfile, 'w', zipfile.ZIP_DEFLATED)
+        zipdir(logdir, zipf)
+    except:
+        print "Error: Failed to create zip file for log files."
+    finally:
+        zipf.close()
+
+    if not parsed_args.file:
+        f = open(outputfile, 'rb')
+        shutil.copyfileobj(f, sys.stdout)
+        f.close()
+        os.remove(f.name)
+
 
 def parse_args(args=sys.argv[1:]):
     """
@@ -227,6 +254,13 @@ def parse_args(args=sys.argv[1:]):
     logs_parser.add_argument("-n", "--lines", dest="tail")
     logs_parser.set_defaults(func=logs_display)
 
+    # diag
+    diag_parser = subparsers.add_parser("diag", help="Get a zip file of all log files from "
+                                                     "the rsyslog component: \n"
+                                                     "diag [-f <zip file name>]")
+    diag_parser.add_argument("-f", "--file", default="")
+    diag_parser.set_defaults(func=get_diag)
+
     return parser.parse_args(args)
 
 
@@ -281,6 +315,22 @@ def call_shell_cmd(cmd, shell=False):
             raise OSError("error return %s from command '%s'" % (retcode, cmd))
     except KeyboardInterrupt:
         print "\n\nok"
+
+
+def zipdir(path, ziph):
+    """
+    Zip up the content of a directory.
+
+    path: path to the directory to be zipped up.
+    ziph: zip file handle, created with zipfile.Zipfile.
+    """
+    rootdir = os.path.basename(path)
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            filepath = os.path.join(root, file)
+            parentpath = os.path.relpath(filepath, path)
+            arcname = os.path.join(rootdir, parentpath)
+            ziph.write(filepath, arcname)
 
 
 if __name__ == "__main__":
