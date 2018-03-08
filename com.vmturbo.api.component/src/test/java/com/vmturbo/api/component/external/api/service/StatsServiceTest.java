@@ -214,7 +214,7 @@ public class StatsServiceTest {
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid(), apiId2.oid());
         when(repositoryApi.getServiceEntitiesById(Mockito.any()))
                 .thenReturn(ImmutableMap.of(1L, Optional.of(se1), 2L, Optional.of(se2)));
-        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
         when(groupExpander.expandUuid(UuidMapper.UI_REAL_TIME_MARKET_STR))
                 .thenReturn(expandedOidList);
 

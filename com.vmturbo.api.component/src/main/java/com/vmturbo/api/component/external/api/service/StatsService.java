@@ -234,9 +234,10 @@ public class StatsService implements IStatsService {
         } else {
             final Optional<Group> groupOptional = groupExpander.getGroup(uuid);
             // determine the list of entity OIDs to query for this operation
-            Set<Long> expandedOidsList = groupOptional.isPresent()
-                    ? groupExpander.expandUuid(uuid)
-                    : Sets.newHashSet(Long.valueOf(uuid));
+            Set<Long> expandedOidsList = (groupOptional.isPresent()
+                    || uuid.equals(UuidMapper.UI_REAL_TIME_MARKET_STR))
+                            ? groupExpander.expandUuid(uuid)
+                            : Sets.newHashSet(Long.valueOf(uuid));
             // if empty expansion and not "Market", must be an empty group; quick return
             if (expandedOidsList.isEmpty() && !UuidMapper.isRealtimeMarket(uuid)) {
                 return Collections.emptyList();
