@@ -4,6 +4,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
@@ -26,8 +28,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
-import io.grpc.Channel;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
@@ -41,13 +41,21 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
+import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
  * Unit test for {@link SearchService}.
@@ -66,23 +74,32 @@ public class SearchServiceTest {
     private final UuidMapper uuidMapper = new UuidMapper(7777777L);
     private final GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
-    private final Channel channel = Mockito.mock(Channel.class);
+    private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
+    private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
+
+        GrpcTestServer grpcTestServer = GrpcTestServer.newServer(searchServiceSpy, entitySeverityServiceSpy);
+        grpcTestServer.start();
+
         SearchServiceBlockingStub searchGrpcStub =
-                SearchServiceGrpc.newBlockingStub(channel);
+                SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        EntitySeverityServiceBlockingStub severityGrpcStub =
+                EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         searchService = new SearchService(
                 repositoryApi,
                 marketsService,
                 groupsService,
                 targetsService,
                 searchGrpcStub,
+                severityGrpcStub,
                 groupExpander,
                 supplyChainFetcherFactory,
                 groupMapper,
                 groupUseCaseParser,
-                uuidMapper
+                uuidMapper,
+                777777
         );
     }
 
@@ -204,6 +221,28 @@ public class SearchServiceTest {
         // we should get the members of cluster 1 in the static regex
         StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
         assertEquals("/^1$|^2$/", stringFilter.getStringPropertyRegex());
+
+    }
+
+    @Test
+    public void testGetMembersBasedOnFilterSeverity() {
+        GroupApiDTO request = new GroupApiDTO();
+
+        when(searchServiceSpy.searchEntities(any())).thenReturn(Arrays.asList(
+                Entity.newBuilder().setOid(1).setType(0).build(),
+                Entity.newBuilder().setOid(2).setType(0).build()
+                ));
+
+        when(entitySeverityServiceSpy.getEntitySeverities(any())).thenReturn(
+                Arrays.asList(EntitySeverity.newBuilder().setEntityId(3).setSeverity(Severity.MAJOR).build(),
+                EntitySeverity.newBuilder().setEntityId(1).setSeverity(Severity.MINOR).build(),
+                EntitySeverity.newBuilder().setEntityId(2).setSeverity(Severity.CRITICAL).build()));
+        List<BaseApiDTO> results = searchService.getMembersBasedOnFilter(request);
+        assertEquals(2, results.size());
+        assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
+        assertEquals("1", results.get(0).getUuid());
+        assertEquals("Minor", ((ServiceEntityApiDTO) results.get(0)).getSeverity());
+        assertEquals("Critical", ((ServiceEntityApiDTO) results.get(1)).getSeverity());
 
     }
 }

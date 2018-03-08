@@ -34,6 +34,7 @@ import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -48,6 +49,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISearchService;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
@@ -76,6 +78,8 @@ public class SearchService implements ISearchService {
 
     private final SearchServiceBlockingStub searchServiceRpc;
 
+    private final EntitySeverityServiceBlockingStub entitySeverityRpc;
+
     private final GroupMapper groupMapper;
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
@@ -86,26 +90,32 @@ public class SearchService implements ISearchService {
 
     private final String REPO_OID_KEY_NAME = "oid";
 
+    private final long realtimeContextId;
+
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
                   @Nonnull final GroupsService groupsService,
                   @Nonnull final TargetsService targetsService,
                   @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+                  @Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpcService,
                   @Nonnull GroupExpander groupExpander,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                   @Nonnull final GroupMapper groupMapper,
                   @Nonnull final GroupUseCaseParser groupUseCaseParser,
-                  @Nonnull UuidMapper uuidMapper) {
+                  @Nonnull UuidMapper uuidMapper,
+                  final long realtimeTopologyContextId) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
         this.groupsService = Objects.requireNonNull(groupsService);
         this.targetsService = Objects.requireNonNull(targetsService);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
+        this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpcService);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.groupUseCaseParser = groupUseCaseParser;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.uuidMapper = uuidMapper;
+        this.realtimeContextId = realtimeTopologyContextId;
     }
 
     @Override
@@ -251,7 +261,12 @@ public class SearchService implements ISearchService {
             // this is a search for a ServiceEntity
             // Right now when UI send search requests, it use class name field to store entity type
             // when UI send group service requests, it use groupType fields to store entity type.
-            return searchEntitiesByParameters(inputDTO);
+            List<ServiceEntityApiDTO> entities = searchEntitiesByParameters(inputDTO);
+            // populate the severities for the entities. Currently we're only getting these at the
+            // entity level. We'll probably want these at the cluster / group level too but will
+            // want to fetch them in a way that is efficient.
+            SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities );
+            return Collections.unmodifiableList(entities);
         }
     }
 
@@ -264,7 +279,7 @@ public class SearchService implements ISearchService {
      * @param inputDTO a Description of what search to conduct
      * @return A list of {@link BaseApiDTO} will be sent back to client
      */
-    private List<BaseApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
+    private List<ServiceEntityApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
         List<SearchParameters> searchParameters =
             groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
 
@@ -298,7 +313,7 @@ public class SearchService implements ISearchService {
         }
 
         Iterator<Entity> iterator = searchServiceRpc.searchEntities(searchRequestBuilder.build());
-        List<BaseApiDTO> list = Lists.newLinkedList();
+        List<ServiceEntityApiDTO> list = Lists.newLinkedList();
         while (iterator.hasNext()) {
             Entity entity = iterator.next();
             ServiceEntityApiDTO seDTO = SearchMapper.seDTO(entity);

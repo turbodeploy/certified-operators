@@ -223,11 +223,13 @@ public class ServiceConfig {
                 groupsService(),
                 targetService(),
                 communicationConfig.searchServiceBlockingStub(),
+                communicationConfig.entitySeverityService(),
                 communicationConfig.groupExpander(),
                 communicationConfig.supplyChainFetcher(),
                 mapperConfig.groupMapper(),
                 mapperConfig.groupUseCaseParser(),
-                mapperConfig.uuidMapper());
+                mapperConfig.uuidMapper(),
+                communicationConfig.getRealtimeTopologyContextId());
     }
 
     @Bean
