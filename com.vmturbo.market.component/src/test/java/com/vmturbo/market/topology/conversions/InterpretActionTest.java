@@ -32,6 +32,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.InitialPlacement;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
@@ -177,12 +178,30 @@ public class InterpretActionTest {
                         .build())
                     .build())
                 .build()).get().getInfo();
+        ActionInfo actionInfoWithOutSource = converter.interpretAction(
+                ActionTO.newBuilder()
+                        .setImportance(0.1)
+                        .setIsNotExecutable(false)
+                        .setCompoundMove(CompoundMoveTO.newBuilder()
+                                .addMoves(MoveTO.newBuilder()
+                                        .setShoppingListToMove(shoppingList.getOid())
+                                        .setDestination(destId)
+                                        .setMoveExplanation(MoveExplanation.newBuilder()
+                                                .setInitialPlacement(InitialPlacement
+                                                        .getDefaultInstance()))))
+                        .build())
+                .get().getInfo();
 
-        System.out.println(actionInfo);
         assertEquals(ActionTypeCase.MOVE, actionInfo.getActionTypeCase());
         assertEquals(1, actionInfo.getMove().getChangesList().size());
         assertEquals(srcId, actionInfo.getMove().getChanges(0).getSource().getId());
         assertEquals(srcType, actionInfo.getMove().getChanges(0).getSource().getType());
+        assertEquals(destId, actionInfo.getMove().getChanges(0).getDestination().getId());
+        assertEquals(destType, actionInfo.getMove().getChanges(0).getDestination().getType());
+
+        assertEquals(ActionTypeCase.MOVE, actionInfoWithOutSource.getActionTypeCase());
+        assertEquals(1, actionInfoWithOutSource.getMove().getChangesList().size());
+        assertFalse(actionInfoWithOutSource.getMove().getChanges(0).hasSource());
         assertEquals(destId, actionInfo.getMove().getChanges(0).getDestination().getId());
         assertEquals(destType, actionInfo.getMove().getChanges(0).getDestination().getType());
     }

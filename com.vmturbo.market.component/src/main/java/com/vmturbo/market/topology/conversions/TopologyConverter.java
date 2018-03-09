@@ -1424,24 +1424,24 @@ public class TopologyConverter {
 
     @Nonnull
     private ChangeProvider createChangeProvider(MoveTO move) {
+        // move action could have no source id, for example: initial placement action.
         Preconditions.checkArgument(
-            entityIdToEntityType.containsKey(move.getSource()),
+            !move.hasSource() || entityIdToEntityType.containsKey(move.getSource()),
             "Missing entityType in the map for source entity %s", move.getSource());
 
-        Preconditions.checkArgument(
-            entityIdToEntityType.containsKey(move.getSource()),
+        Preconditions.checkArgument(entityIdToEntityType.containsKey(move.getDestination()),
             "Missing entityType in the map for destination entity %s", move.getDestination());
 
-        return ChangeProvider.newBuilder()
-                    .setSource(ActionEntity.newBuilder()
-                        .setId(move.getSource())
-                        .setType(entityIdToEntityType.get(move.getSource()))
-                        .build())
+        final ChangeProvider.Builder changeProviderBuilder = ChangeProvider.newBuilder()
                     .setDestination(ActionEntity.newBuilder()
                         .setId(move.getDestination())
-                        .setType(entityIdToEntityType.get(move.getDestination()))
-                        .build())
-                    .build();
+                        .setType(entityIdToEntityType.get(move.getDestination())));
+        if (move.hasSource()) {
+            changeProviderBuilder.setSource(ActionEntity.newBuilder()
+                    .setId(move.getSource())
+                    .setType(entityIdToEntityType.get(move.getSource())));
+        }
+        return changeProviderBuilder.build();
     }
 
     @Nonnull

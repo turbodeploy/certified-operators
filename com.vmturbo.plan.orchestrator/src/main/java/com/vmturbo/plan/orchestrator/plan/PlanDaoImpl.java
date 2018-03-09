@@ -419,6 +419,7 @@ public class PlanDaoImpl implements PlanDao {
                         PlanStatus.FAILED.name()))
                 .and(PLAN_INSTANCE.STATUS.isNotNull())
                 .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.USER.name()))
+                .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.INITAL_PLACEMENT.name()))
                 .fetchOne()
                 .into(Integer.class);
     }
@@ -447,7 +448,11 @@ public class PlanDaoImpl implements PlanDao {
 
         // get number of running plan instances
         Integer numRunningInstances = getNumberOfRunningPlanInstances();
-
+        if (numRunningInstances >= maxNumOfRunningInstances) {
+            logger.info("No plan execution capacity available, there are {} executing plans " +
+                            "which exceeds the maximum execution capacity: {}.",
+                    numRunningInstances, maxNumOfRunningInstances);
+        }
         return numRunningInstances < maxNumOfRunningInstances;
     }
 
@@ -491,7 +496,6 @@ public class PlanDaoImpl implements PlanDao {
             throws IntegrityException, NoSuchObjectException {
         PlanDTO.PlanInstance planInstance = getPlanInstance(planId)
                 .orElseThrow(() -> noSuchObjectException(planId));
-        boolean isUserPlan = planInstance.getProjectType().equals(PlanProjectType.USER);
 
         if (planInstance.getStatus().equals(PlanStatus.QUEUED)) {
             return Optional.of(planInstance);
@@ -503,7 +507,7 @@ public class PlanDaoImpl implements PlanDao {
                 final DSLContext context = DSL.using(configuration);
 
                 // Proceed only if the maximum number of concurrent plan instances have not been exceeded
-                if (isUserPlan || isPlanExecutionCapacityAvailable(context)) {
+                if (isUserOrInitialPlacementPlan(planInstance) || isPlanExecutionCapacityAvailable(context)) {
                     // Select the instance record that is in READY state and has the given ID.
                     // Call "forUpdate()" to lock the record for subsequent update.
                     final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
@@ -648,5 +652,16 @@ public class PlanDaoImpl implements PlanDao {
             planLocks.remove(planId);
             setLock.notifyAll();
         }
+    }
+
+    /**
+     * Check if plan instance is a user created plan or initial placement plan.
+     *
+     * @param planInstance {@link PlanInstance} needs to check.
+     * @return return true if it is a user created plan or initial placement plan.
+     */
+    private boolean isUserOrInitialPlacementPlan(@Nonnull final PlanDTO.PlanInstance planInstance) {
+        return planInstance.getProjectType().equals(PlanProjectType.USER) ||
+                planInstance.getProjectType().equals(PlanProjectType.INITAL_PLACEMENT);
     }
 }

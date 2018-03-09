@@ -270,6 +270,38 @@ public class ConverterTest {
             .setOrigin(EntityOrigin.REPLACEABLE)));
     }
 
+    @Test
+    public void testTopologyDTOCommodityKey() {
+        final String testKey = "abc";
+        final EntityDTO.Builder pmEntityDto = EntityDTO.newBuilder()
+                .setId("foo")
+                .setEntityType(EntityType.PHYSICAL_MACHINE)
+                .addCommoditiesSold(CommodityDTO.newBuilder()
+                        .setCommodityType(CommodityType.MEM_PROVISIONED)
+                        .setCapacity(100))
+                .addCommoditiesSold(CommodityDTO.newBuilder()
+                        .setCommodityType(CommodityType.CLUSTER)
+                        .setKey(testKey));
+        final StitchingEntityData pmEntity = StitchingEntityData.newBuilder(pmEntityDto)
+                .build();
+        TopologyStitchingEntity pmStitchingEntity = new TopologyStitchingEntity(pmEntity);
+        pmEntityDto.getCommoditiesSoldList().stream()
+                .map(commodity -> commodity.toBuilder())
+                .forEach(commodity -> pmStitchingEntity.addCommoditySold(commodity, Optional.empty()));
+        final TopologyEntityDTO.Builder pmBuilder = Converter.newTopologyEntityDTO(pmStitchingEntity);
+        assertEquals(2L, pmBuilder.getCommoditySoldListCount());
+        assertFalse(pmBuilder.getCommoditySoldListList().stream()
+                .filter(commoditySold ->
+                        commoditySold.getCommodityType().getType() == CommodityType.MEM_PROVISIONED_VALUE)
+                .allMatch(commoditySold -> commoditySold.getCommodityType().hasKey()));
+        assertEquals(testKey, pmBuilder.getCommoditySoldListList().stream()
+                .filter(commoditySold ->
+                        commoditySold.getCommodityType().getType() == CommodityType.CLUSTER_VALUE)
+                .map(commoditySold -> commoditySold.getCommodityType().getKey())
+                .findFirst()
+                .get());
+    }
+
     private static boolean isAccessCommodity(CommoditySoldDTO comm) {
         int type = comm.getCommodityType().getType();
         return type == CommodityType.DSPM_ACCESS_VALUE || type == CommodityType.DATASTORE_VALUE;

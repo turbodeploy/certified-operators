@@ -625,5 +625,4 @@ public class TopologyConverterTest {
         assertTrue(traderTwo.getSettings().getClonable());
         assertTrue(traderTwo.getSettings().getSuspendable());
     }
-
 }

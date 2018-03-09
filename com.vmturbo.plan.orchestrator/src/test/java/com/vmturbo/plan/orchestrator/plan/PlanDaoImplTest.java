@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -162,9 +163,15 @@ public class PlanDaoImplTest {
         long id1 = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
                 .setTopologyId(1L)
                 .build()).getPlanId();
+        long id2 = planDao.createPlanInstance(Scenario.getDefaultInstance(),
+                PlanProjectType.INITAL_PLACEMENT)
+                .getPlanId();
         Optional<PlanDTO.PlanInstance> inst = planDao.queuePlanInstance(id1);
         assertEquals(true, inst.isPresent());
         assertEquals(PlanStatus.QUEUED, inst.get().getStatus());
+        Optional<PlanDTO.PlanInstance> initialPlacementPlan = planDao.queuePlanInstance(id2);
+        assertEquals(true, initialPlacementPlan.isPresent());
+        assertEquals(PlanStatus.QUEUED, initialPlacementPlan.get().getStatus());
 
         // throw exception if plan ID is invalid
         boolean exceptionThrown = false;
@@ -180,6 +187,9 @@ public class PlanDaoImplTest {
         inst = planDao.queuePlanInstance(id1);
         assertEquals(true, inst.isPresent());
         assertEquals(PlanStatus.QUEUED, inst.get().getStatus());
+        initialPlacementPlan = planDao.queuePlanInstance(id2);
+        assertEquals(true, initialPlacementPlan.isPresent());
+        assertEquals(PlanStatus.QUEUED, initialPlacementPlan.get().getStatus());
 
         // queue the headroom plan that is in READY state.  Since there are two plan instances
         // running and max number is 1, this plan should stay in READY status.

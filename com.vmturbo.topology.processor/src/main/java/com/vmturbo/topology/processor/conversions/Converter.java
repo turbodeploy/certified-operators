@@ -374,10 +374,12 @@ public class Converter {
     }
 
     private static CommodityType commodityType(CommonDTO.CommodityDTOOrBuilder commDTO) {
-        return CommodityType.newBuilder()
-                .setType(type(commDTO))
-                .setKey(commDTO.getKey())
-                .build();
+        final CommodityType.Builder commodityTypeBuilder = CommodityType.newBuilder()
+                .setType(type(commDTO));
+        if (commDTO.hasKey()) {
+            commodityTypeBuilder.setKey(commDTO.getKey());
+        }
+        return commodityTypeBuilder.build();
     }
 
     public static Optional<String> parseAccessKey(@Nonnull final CommonDTO.CommodityDTOOrBuilder commDTO) {
