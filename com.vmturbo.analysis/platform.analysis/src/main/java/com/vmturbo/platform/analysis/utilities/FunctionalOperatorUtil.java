@@ -2,6 +2,8 @@ package com.vmturbo.platform.analysis.utilities;
 
 import java.util.Optional;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.matrix.component.TheMatrix;
@@ -16,6 +18,7 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.Map.Entry;
 
 import com.vmturbo.platform.analysis.economy.Market;
@@ -25,6 +28,8 @@ import com.vmturbo.platform.analysis.ede.QuoteMinimizer;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 
 public class FunctionalOperatorUtil {
+
+    private static final Logger logger = LogManager.getLogger(FunctionalOperatorUtil.class);
 
     /**
      * Creates {@link CostFunction} for a given seller.
@@ -123,6 +128,18 @@ public class FunctionalOperatorUtil {
                                             () -> new QuoteMinimizer(economy, buyer), QuoteMinimizer::accept,
                                             QuoteMinimizer::combine);
                             Trader matchingTP = minimizer.getBestSeller();
+
+                            if (matchingTP == null) {
+                                logger.error("UPDATE_COUPON_COMM cannot find a best seller for:"
+                                                + buyer.getBuyer().getDebugInfoNeverUseInCode()
+                                                + " which moved to: "
+                                                + seller.getDebugInfoNeverUseInCode()
+                                                + " mutable sellers: "
+                                                + mutableSellers.stream()
+                                                                .map(Trader::getDebugInfoNeverUseInCode)
+                                                                .collect(Collectors.toList()));
+                                return new double[] {commSold.getQuantity(), 0};
+                            }
 
                             // The capacity of coupon commodity sold by the matching tp holds the
                             // number of coupons associated with the template. This is the number of
