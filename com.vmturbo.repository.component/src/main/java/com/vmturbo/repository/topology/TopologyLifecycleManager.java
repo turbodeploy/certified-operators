@@ -203,7 +203,17 @@ public class TopologyLifecycleManager implements Diagnosable {
             // Replace the previous one.
             TopologyID topologyID = idByTypeInContext.put(tid.getType(), tid);
             if (topologyID != null) {
-                graphDatabaseDriverBuilder.build(topologyID.toDatabaseName()).dropDatabase();
+                try {
+                    graphDatabaseDriverBuilder.build(topologyID.toDatabaseName()).dropDatabase();
+                } catch (ArangoDBException e) {
+                    if (e.getResponseCode().intValue() == 404) {
+                        // ignore database not found errors since we are trying to drop these anyways.
+                        LOGGER.warn("Database for previous topology {} was not found -- skipping drop.", topologyID);
+                    } else {
+                        // rethrow other errors
+                        throw e;
+                    }
+                }
             }
             return true;
         } else {
