@@ -340,9 +340,12 @@ public final class AnalysisToProtobuf {
             }
             try {
                 @NonNull UnmodifiableEconomy economy = topology.getEconomy();
-                Trader supplier = replaceNewSupplier(move, economy, newSupplier);
-                if (supplier != null) {
-                    newSupplier = supplier;
+                // TODO: Remove this workaround for OM-32457 once OM-32793 is fixed
+                if (!newSupplier.getCliques().isEmpty()) {
+                    Trader supplier = replaceNewSupplier(move, economy, newSupplier);
+                    if (supplier != null && !supplier.getCliques().isEmpty()) {
+                        newSupplier = supplier;
+                    }
                 }
                 moveTO.setCost(move.getTarget().getCost());
             } catch (Exception e) {
@@ -502,7 +505,6 @@ public final class AnalysisToProtobuf {
      */
     private static Trader replaceNewSupplier(Move move, UnmodifiableEconomy economy, Trader newSupplier) {
         ShoppingList buyer = move.getTarget();
-        // Replace current provider by the possible supplier of the current provider
         final Set<Entry<ShoppingList, Market>> shoppingListsInMarket =
                         economy.getMarketsAsBuyer(newSupplier).entrySet();
         Market market = shoppingListsInMarket.iterator().next().getValue();
