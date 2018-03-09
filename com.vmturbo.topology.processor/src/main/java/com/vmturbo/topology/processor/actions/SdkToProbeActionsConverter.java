@@ -47,6 +47,13 @@ public class SdkToProbeActionsConverter {
     /**
      * Mapping of SDK action types to XL action types.
      *
+     * Note that if multiple SDK action types map to the same XL action type the conflict must be resolved.
+     * The conflict resolution is handled in Action Orchestrator ActionSupportResolver.
+     * As of 3/9/2018, multiple conflicting action types are resolved by taking the MINIMUM support level.
+     * So for example, if SUSPEND and TERMINATE both map to DEACTIVATE, and a probe specifies
+     * NOT_SUPPORTED for SUSPEND and SUPPORTED for TERMINATE, then DEACTIVATE actions will be treated
+     * as not supported for the probe.
+     *
      * @return SDK-XL action types matches.
      */
     private static Map<ActionItemDTO.ActionType, Supplier<ActionCapabilityElement.Builder>> createSdkToXlActionsMap() {

@@ -7,6 +7,7 @@ import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -68,26 +69,31 @@ public class ActionSupportResolver {
 
     /**
      * Determines action capabilities of actions and sets value to isSupported field of each action.
+     *
+     * Note that if multiple SDK action types map to the same XL action type the conflict must be resolved.
+     * Currently, multiple conflicting action types are resolved by taking the MINIMUM support level.
+     * So for example, if SUSPEND and TERMINATE both map to DEACTIVATE, and a probe specifies
+     * NOT_SUPPORTED for SUSPEND and SUPPORTED for TERMINATE, then DEACTIVATE actions will be treated
+     * as not supported for the probe.
+     *
      * @param actions actions to resolve capabilities
-     * @return actions with setted isSupported fields
+     * @return actions with their isSupported field set.
      */
     public Collection<Action> resolveActionsSupporting(Collection<Action> actions) {
         try {
             final Map<Action, Long> actionsProbes = actionExecutor.getProbeIdsForActions(actions);
-            Map<Long, List<ProbeActionCapability>> probeCapabilities =
+            final Map<Long, List<ProbeActionCapability>> probeCapabilities =
                     actionCapabilitiesStore.getCapabilitiesForProbes(actionsProbes.values());
-            Map<Action, List<ProbeActionCapability>> actionsAndCapabilities =
+            final Map<Action, List<ProbeActionCapability>> actionsAndCapabilities =
                     actionsProbes.entrySet()
                             .stream()
-                            .collect(Collectors.toMap(actionAndProbe -> actionAndProbe.getKey(),
+                            .collect(Collectors.toMap(Entry::getKey,
                                     actionAndProbe -> probeCapabilities.get(
                                             actionAndProbe.getValue())));
-            Set<Action> filteredForUiActions = new HashSet<>();
-            actionsAndCapabilities.entrySet()
-                    .stream()
-                    .forEach(entry -> filteredForUiActions.add(
-                            resolveActionProbeSupport(entry.getKey(), entry.getValue())));
-            return filteredForUiActions;
+
+            return actionsAndCapabilities.entrySet().stream()
+                .map(entry -> resolveActionProbeSupport(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toSet());
         } catch (EntitiesResolutionException ex) {
             logger.warn("Cannot resolve support level for request for " + actions.size() + " actions", ex);
             return actions;
@@ -107,7 +113,9 @@ public class ActionSupportResolver {
                 .map(ActionCapabilityElement::getActionCapability)
                 .min(Comparator.comparing(ActionCapability::getNumber));
         return setActionSupportLevel(action,
-                capabilityLevel.orElse(ActionCapability.NOT_SUPPORTED));
+            // If the probe has not specified a support level, use a default value of NOT_EXECUTABLE
+            // (that is, show the action in the UI but do not permit execution).
+            capabilityLevel.orElse(ActionCapability.NOT_EXECUTABLE));
     }
 
     @Nonnull

@@ -195,7 +195,7 @@ public class ActionSupportResolverTest {
 
     /**
      * Tests move action, which has no capability for the specified destination type (datacenter).
-     * Action is expected to be reported as unsupported
+     * Action is expected to be reported as SHOW_ONLY
      *
      * @throws Exception if exception s occurred
      */
@@ -212,7 +212,7 @@ public class ActionSupportResolverTest {
                 filter.resolveActionsSupporting(Collections.singleton(src));
         Assert.assertEquals(1, resultCollection.size());
         final Action result = resultCollection.iterator().next();
-        Assert.assertEquals(SupportLevel.UNSUPPORTED, result.getSupportLevel());
+        Assert.assertEquals(SupportLevel.SHOW_ONLY, result.getSupportLevel());
     }
 
     @Test
@@ -254,7 +254,7 @@ public class ActionSupportResolverTest {
                 filter.resolveActionsSupporting(Collections.singletonList(action));
         Assert.assertEquals(1, resultCollection.size());
         final Action result = resultCollection.iterator().next();
-        Assert.assertEquals(SupportLevel.UNSUPPORTED, result.getSupportLevel());
+        Assert.assertEquals(SupportLevel.SHOW_ONLY, result.getSupportLevel());
     }
 
     @Test
