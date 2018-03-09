@@ -240,6 +240,7 @@ public class ActionSpecMapper {
 
     private static final String STORAGE_VALUE = UIEntityType.STORAGE.getValue();
     private static final String HOST_VALUE = UIEntityType.PHYSICAL_MACHINE.getValue();
+    private static final String DISK_ARRAY_VALUE = UIEntityType.DISKARRAY.getValue();
 
     /**
      * Populate various fields of the {@link ActionApiDTO} representing a (compound) move.
@@ -358,8 +359,9 @@ public class ActionSpecMapper {
     }
 
     /**
-     * If the move contains multiple changes then it is MOVE, if one Storage change it is a CHANGE
-     * and if one host change then a MOVE.
+     * If the move contains multiple changes then it is MOVE.
+     * If move action doesn't have the source entity/id, it's START except Storage;
+     * If one Storage change it is a CHANGE and if one host change then a MOVE.
      *
      * @param move a Move action
      * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
@@ -370,14 +372,62 @@ public class ActionSpecMapper {
         if (move.getChangesCount() > 1) {
             return ActionType.MOVE;
         }
+
         long destinationId = move.getChanges(0).getDestination().getId();
-        return context.getOptionalEntity(destinationId)
+        boolean isStorage = context.getOptionalEntity(destinationId)
+                .map(ServiceEntityApiDTO::getClassName)
+                .map(STORAGE_VALUE::equals)
+                .orElseGet(() -> false);
+        // if move action doesn't have the source entity/id, it's START except Storage
+        if (!move.getChanges(0).hasSource()) {
+            return isStorage ? ActionType.ADD_PROVIDER : ActionType.START;
+        }
+        return  isStorage ? ActionType.CHANGE : ActionType.MOVE;
+    }
+
+    /**
+     * Similar to 6.1, if entity is Disk Array, then it's DELETE, else it's SUSPEND.
+     *
+     * @param deactivate Deactivate action
+     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
+     * @return DELETE or SUSPEND type
+     */
+    private ActionType actionType(@Nonnull final Deactivate deactivate,
+                                  @Nonnull final ActionSpecMappingContext context) {
+        if (deactivate.hasTarget()) {
+            long targetId = deactivate.getTarget().getId();
+            return context.getOptionalEntity(targetId)
+                    .map(ServiceEntityApiDTO::getClassName)
+                    .map(DISK_ARRAY_VALUE::equals)
+                    .orElseGet(() -> false)
+                    ? ActionType.DELETE
+                    : ActionType.SUSPEND;
+        }
+        return ActionType.SUSPEND;
+    }
+
+    /**
+     * Similar to 6.1, if entity is STORAGE, then it's ADD_PROVIDER, else it's START.
+     *
+     * @param activate activate action
+     * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
+     * @return ADD_PROVIDER or START
+     */
+    private ActionType actionType(@Nonnull final Activate activate,
+                                  @Nonnull final ActionSpecMappingContext context) {
+
+        if (activate.hasTarget()) {
+            long targetId = activate.getTarget().getId();
+            return context.getOptionalEntity(targetId)
                     .map(ServiceEntityApiDTO::getClassName)
                     .map(STORAGE_VALUE::equals)
                     .orElseGet(() -> false)
-                        ? ActionType.CHANGE
-                        : ActionType.MOVE;
+                    ? ActionType.ADD_PROVIDER
+                    : ActionType.START;
+        }
+        return ActionType.START;
     }
+
 
     private void addReconfigureInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                     @Nonnull final Reconfigure reconfigure,
@@ -415,7 +465,7 @@ public class ActionSpecMapper {
         setNewEntityDtoFields(actionApiDTO.getNewEntity(), provision.getEntityToClone().getId(),
                 provisionedSellerUuid, context);
 
-        actionApiDTO.setDetails(MessageFormat.format("Clone {0}",
+        actionApiDTO.setDetails(MessageFormat.format("Provision {0}",
                 readableEntityTypeAndName(actionApiDTO.getCurrentEntity())));
     }
 
@@ -447,7 +497,8 @@ public class ActionSpecMapper {
                                  @Nonnull final Activate activate,
                                  @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
-        actionApiDTO.setActionType(ActionType.START);
+        ActionType actionType = actionType(activate, context);
+        actionApiDTO.setActionType(actionType);
         setEntityDtoFields(actionApiDTO.getTarget(), activate.getTarget().getId(), context);
 
         final List<String> reasonCommodityNames =
@@ -462,7 +513,7 @@ public class ActionSpecMapper {
                                                                               ",")));
 
         final StringBuilder detailStrBuilder = new StringBuilder()
-                .append("Activate ")
+                .append(actionType == ActionType.START ? "Start " : "Add provider " )
                 .append(readableEntityTypeAndName(actionApiDTO.getTarget()))
                 .append(" due to increased demand for:");
 
@@ -476,7 +527,8 @@ public class ActionSpecMapper {
                                    @Nonnull final ActionSpecMappingContext context)
             throws UnknownObjectException {
         setEntityDtoFields(actionApiDTO.getTarget(), deactivate.getTarget().getId(), context);
-        actionApiDTO.setActionType(ActionType.DEACTIVATE);
+        ActionType actionType = actionType(deactivate, context);
+        actionApiDTO.setActionType(actionType);
 
         final List<String> reasonCommodityNames =
                 deactivate.getTriggeringCommoditiesList().stream()
@@ -487,7 +539,9 @@ public class ActionSpecMapper {
 
         actionApiDTO.getRisk().setReasonCommodity(
             reasonCommodityNames.stream().collect(Collectors.joining(",")));
-        String detailStrBuilder = MessageFormat.format("Deactivate {0}.",
+        String detailStrBuilder = MessageFormat.format(CaseFormat
+                        .LOWER_CAMEL
+                        .to(CaseFormat.UPPER_CAMEL, actionType.name().toLowerCase()) + " {0}.",
                 readableEntityTypeAndName(actionApiDTO.getTarget()));
         actionApiDTO.setDetails(detailStrBuilder);
     }

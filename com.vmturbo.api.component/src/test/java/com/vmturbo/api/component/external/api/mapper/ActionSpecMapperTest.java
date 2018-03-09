@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -185,6 +186,70 @@ public class ActionSpecMapperTest {
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
     }
 
+    /**
+     * If move action doesn't have the source entity/id, it's ADD_PROVIDER for Storage.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testMapStorageMoveWithoutSourceId() throws Exception {
+        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.STORAGE.getValue(), false);
+        Explanation compliance = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder()
+                                        .addMissingCommodities(commodityMem)
+                                        .addMissingCommodities(commodityCpu).build())
+                                .build())
+                        .build())
+                .build();
+        ActionApiDTO actionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
+
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
+        assertEquals("0", actionApiDTO.getTarget().getUuid());
+
+        assertEquals(1, actionApiDTO.getCompoundActions().size());
+        ActionApiDTO first = actionApiDTO.getCompoundActions().get(0);
+        assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
+        assertEquals("2", first.getNewValue());
+
+        assertEquals(ActionType.ADD_PROVIDER, actionApiDTO.getActionType());
+        assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+    }
+
+    /**
+     * If move action doesn't have the source entity/id, it's START except Storage;
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testMapDiskArrayMoveWithoutSourceId() throws Exception {
+        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.DISKARRAY.getValue(), false);
+        Explanation compliance = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder()
+                                        .addMissingCommodities(commodityMem)
+                                        .addMissingCommodities(commodityCpu).build())
+                                .build())
+                        .build())
+                .build();
+        ActionApiDTO actionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance), contextId);
+
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
+        assertEquals("0", actionApiDTO.getTarget().getUuid());
+
+        assertEquals(1, actionApiDTO.getCompoundActions().size());
+        ActionApiDTO first = actionApiDTO.getCompoundActions().get(0);
+        assertEquals(DESTINATION, first.getNewEntity().getDisplayName());
+        assertEquals("2", first.getNewValue());
+
+        assertEquals(ActionType.START, actionApiDTO.getActionType());
+        assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+    }
+
     @Test
     public void testMapReconfigure() throws Exception {
         final CommodityType cpuAllocation = CommodityType.newBuilder()
@@ -253,6 +318,7 @@ public class ActionSpecMapperTest {
         assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
+        assertThat(actionApiDTO.getDetails(), containsString("Provision c 0 'EntityToClone'"));
     }
 
     @Test
@@ -310,6 +376,40 @@ public class ActionSpecMapperTest {
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                     CommodityDTO.CommodityType.CPU.name(),
                     CommodityDTO.CommodityType.MEM.name()));
+        assertThat(actionApiDTO.getDetails(), containsString("Start c 0"));
+    }
+
+    /**
+     * Similar to 6.1, if entity is Storage, then it's ADD_PROVIDER.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testMapStorageActivate() throws Exception {
+        final long targetId = 1;
+        final ActionInfo deactivateInfo = ActionInfo.newBuilder()
+                .setActivate(Activate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
+                        .addTriggeringCommodities(commodityCpu)
+                        .addTriggeringCommodities(commodityMem))
+                .build();
+        Explanation activate = Explanation.newBuilder()
+                .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
+        final String entityToActivateName = "EntityToActivate";
+        final String className = "Storage";
+        final String prettyClassName = "Storage";
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+                .thenReturn(oidToEntityMap(entityApiDTO(entityToActivateName, targetId, className)));
+
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+                buildActionSpec(deactivateInfo, activate), contextId);
+        assertEquals(entityToActivateName, actionApiDTO.getTarget().getDisplayName());
+        assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
+        assertEquals(ActionType.ADD_PROVIDER, actionApiDTO.getActionType());
+        assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
+                IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
+                        CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        assertThat(actionApiDTO.getDetails(), containsString("Add provider " + prettyClassName ));
     }
 
     @Test
@@ -333,11 +433,45 @@ public class ActionSpecMapperTest {
             buildActionSpec(deactivateInfo, deactivate), contextId);
         assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
-        assertEquals(ActionType.DEACTIVATE, actionApiDTO.getActionType());
+        assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                         IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
-        assertThat(actionApiDTO.getDetails(), is("Deactivate " + prettyClassName +
+        assertThat(actionApiDTO.getDetails(), is("Suspend " + prettyClassName +
+                " '" + entityToDeactivateName + "'."));
+    }
+
+    /**
+     * Similar to 6.1, if entity is Disk Array, then it's DELETE.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testMapDiskArrayDeactivate() throws Exception {
+        final long targetId = 1;
+        final ActionInfo deactivateInfo = ActionInfo.newBuilder()
+                .setDeactivate(Deactivate.newBuilder().setTarget(ApiUtilsTest.createActionEntity(targetId))
+                        .addTriggeringCommodities(commodityCpu)
+                        .addTriggeringCommodities(commodityMem))
+                .build();
+        Explanation deactivate = Explanation.newBuilder()
+                .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
+        final String entityToDeactivateName = "EntityToDeactivate";
+        final String className = "DiskArray";
+        final String prettyClassName = "Disk Array";
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+                .thenReturn(oidToEntityMap(entityApiDTO(entityToDeactivateName, targetId, className)));
+
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+                buildActionSpec(deactivateInfo, deactivate), contextId);
+        assertEquals(entityToDeactivateName, actionApiDTO.getTarget().getDisplayName());
+        assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
+        assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
+        assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
+                IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
+                        CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+        assertThat(actionApiDTO.getDetails(), is("Delete " + prettyClassName +
                 " '" + entityToDeactivateName + "'."));
     }
 
@@ -425,22 +559,28 @@ public class ActionSpecMapperTest {
     }
 
     private ActionInfo getHostMoveActionInfo() {
-        return getMoveActionInfo(UIEntityType.PHYSICAL_MACHINE.getValue());
+        return getMoveActionInfo(UIEntityType.PHYSICAL_MACHINE.getValue(), true);
     }
 
     private ActionInfo getStorageMoveActionInfo() {
-        return getMoveActionInfo(UIEntityType.STORAGE.getValue());
+        return getMoveActionInfo(UIEntityType.STORAGE.getValue(), true);
     }
 
-    private ActionInfo getMoveActionInfo(final String srcAndDestType) {
-        ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
-            .setTarget(ApiUtilsTest.createActionEntity(0))
-            .addChanges(ChangeProvider.newBuilder()
+    private ActionInfo getMoveActionInfo(final String srcAndDestType, boolean hasSource) {
+        ChangeProvider changeProvider = hasSource ? ChangeProvider.newBuilder()
                 .setSource(ApiUtilsTest.createActionEntity(1))
                 .setDestination(ApiUtilsTest.createActionEntity(2))
-                .build())
-            .build())
-        .build();
+                .build()
+                : ChangeProvider.newBuilder()
+                .setDestination(ApiUtilsTest.createActionEntity(2))
+                .build();
+
+        Move move = Move.newBuilder()
+                .setTarget(ApiUtilsTest.createActionEntity(0))
+                .addChanges(changeProvider)
+                .build();
+
+        ActionInfo moveInfo = ActionInfo.newBuilder().setMove(move).build();
 
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                 .thenReturn(oidToEntityMap(

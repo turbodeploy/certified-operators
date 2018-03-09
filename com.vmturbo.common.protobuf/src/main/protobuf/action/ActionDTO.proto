@@ -128,12 +128,13 @@ message Move {
 
 message ChangeProvider {
 
-    // Both the fields are required.
+    // Market can recommend a move action with an empty source. In this case,
+    // the action is generated in order to start the entity in the destination provider.
     // Current provider.
-    required ActionEntity source = 1;
+    optional ActionEntity source = 1;
 
     // New provider.
-    required ActionEntity destination = 2;
+    optional ActionEntity destination = 2;
 }
 
 message ActionEntity {
