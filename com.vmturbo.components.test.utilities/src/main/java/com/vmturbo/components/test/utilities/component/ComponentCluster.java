@@ -35,6 +35,8 @@ import com.palantir.docker.compose.connection.Container;
 import com.palantir.docker.compose.connection.DockerPort;
 
 import io.grpc.Channel;
+import io.grpc.ManagedChannelBuilder;
+import io.grpc.netty.NettyChannelBuilder;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -193,18 +195,34 @@ public class ComponentCluster {
 
     /**
      * Create a new gRPC channel connecting to a service.
+     *
+     * This is a convenience method for {@link ComponentCluster#newGrpcChannelBuilder(String)}
+     * followed by {@link ManagedChannelBuilder#build()}.
+     *
+     * @param service The service name.
+     * @return The gRPC channel. The caller can use this to instantiate server stubs.
+     */
+    @Nonnull
+    public Channel newGrpcChannel(@Nonnull final String service) {
+        return newGrpcChannelBuilder(service).build();
+    }
+
+    /**
+     * Create a new customizable gRPC channel builder for connecting to a service.
      * <p>
      * Each invocation of this method will create a new connection. It's the caller's responsibility
      * to close the channel.
      *
      * @param service The service name.
-     * @return The gRPC channel. The caller can use this to instantiate server stubs.
+     * @return The gRPC channel builder, preconfigured to connect to the service. The caller can
+     *         further customize the channel and build it using
+     *         {@link ManagedChannelBuilder#build()}.
      */
-    public Channel newGrpcChannel(@Nonnull final String service) {
+    @Nonnull
+    public NettyChannelBuilder newGrpcChannelBuilder(@Nonnull final String service) {
         final DockerPort dockerPort = components.get(service).getGrpcPort();
         return PingingChannelBuilder.forAddress(dockerPort.getIp(), dockerPort.getExternalPort())
-            .usePlaintext(true)
-            .build();
+                .usePlaintext(true);
     }
 
     public URI getMetricsURI(@Nonnull final String service) {

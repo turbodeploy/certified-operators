@@ -33,6 +33,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
+import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * The {@link EntitySettingStore} is responsible for managing the storage and retrieval
@@ -42,6 +45,34 @@ import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
  */
 @ThreadSafe
 public class EntitySettingStore {
+
+    private static final DataMetricSummary ENTITY_SETTING_STORE_UPDATE_DURATION = DataMetricSummary
+            .builder()
+            .withName("group_entity_setting_update_duration_seconds")
+            .withHelp("Duration in seconds it takes to update the entity setting store")
+            .build()
+            .register();
+
+    private static final DataMetricCounter ENTITY_SETTING_STORE_QUERY_HIT_COUNT = DataMetricCounter
+            .builder()
+            .withName("group_entity_setting_hit_count")
+            .withHelp("Number of query operations attempted on the entity setting store.")
+            .build()
+            .register();
+
+    private static final DataMetricCounter ENTITY_SETTING_STORE_QUERY_ERROR_COUNT = DataMetricCounter
+            .builder()
+            .withName("group_entity_setting_error_count")
+            .withHelp("Number of query errors encountered by the entity setting store.")
+            .build()
+            .register();
+
+    private static final DataMetricSummary ENTITY_SETTING_STORE_QUERY_DURATION = DataMetricSummary
+            .builder()
+            .withName("group_entity_setting_query_duration_seconds")
+            .withHelp("Duration in seconds it takes to update the entity setting store")
+            .build()
+            .register();
 
     private final Logger logger = LogManager.getLogger();
 
@@ -98,20 +129,22 @@ public class EntitySettingStore {
     public void storeEntitySettings(final long topologyContextId,
                                     final long topologyId,
                                     @Nonnull final Stream<EntitySettings> entitySettings) {
-        final Map<Long, SettingPolicy> defaultPolicies = settingStore.getSettingPolicies(
-                SettingPolicyFilter.newBuilder()
-                        .withType(Type.DEFAULT)
-                        .build())
-                .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
-        final EntitySettingSnapshot newSnapshot =
-                snapshotFactory.createSnapshot(entitySettings, defaultPolicies);
-        final ContextSettingSnapshotCache settingCache =
-                entitySettingSnapshots.computeIfAbsent(topologyContextId,
-                        k -> cacheFactory.newSnapshotCache());
-        final Optional<EntitySettingSnapshot> existing =
-                settingCache.addSnapshot(topologyId, newSnapshot);
-        existing.ifPresent(existingSnapshot -> logger.warn("Replacing existing entity setting" +
-                " snapshot for context {} and topology {}", topologyContextId, topologyId));
+        try (final DataMetricTimer timer = ENTITY_SETTING_STORE_UPDATE_DURATION.startTimer()) {
+            final Map<Long, SettingPolicy> defaultPolicies = settingStore.getSettingPolicies(
+                    SettingPolicyFilter.newBuilder()
+                            .withType(Type.DEFAULT)
+                            .build())
+                    .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
+            final EntitySettingSnapshot newSnapshot =
+                    snapshotFactory.createSnapshot(entitySettings, defaultPolicies);
+            final ContextSettingSnapshotCache settingCache =
+                    entitySettingSnapshots.computeIfAbsent(topologyContextId,
+                            k -> cacheFactory.newSnapshotCache());
+            final Optional<EntitySettingSnapshot> existing =
+                    settingCache.addSnapshot(topologyId, newSnapshot);
+            existing.ifPresent(existingSnapshot -> logger.warn("Replacing existing entity setting" +
+                    " snapshot for context {} and topology {}", topologyContextId, topologyId));
+        }
     }
 
     /**
@@ -130,24 +163,30 @@ public class EntitySettingStore {
     public Map<Long, Collection<Setting>> getEntitySettings(@Nonnull final TopologySelection topologySelection,
                                                       @Nonnull final EntitySettingFilter filter)
             throws NoSettingsForTopologyException {
-        final long contextId = topologySelection.hasTopologyContextId() ?
-                topologySelection.getTopologyContextId() : realtimeTopologyContextId;
-        final ContextSettingSnapshotCache contextCache = entitySettingSnapshots.get(contextId);
-        if (contextCache == null) {
-            throw new NoSettingsForTopologyException(contextId);
+        ENTITY_SETTING_STORE_QUERY_HIT_COUNT.increment();
+        try (final DataMetricTimer timer = ENTITY_SETTING_STORE_QUERY_DURATION.startTimer()) {
+            final long contextId = topologySelection.hasTopologyContextId() ?
+                    topologySelection.getTopologyContextId() : realtimeTopologyContextId;
+            final ContextSettingSnapshotCache contextCache = entitySettingSnapshots.get(contextId);
+            if (contextCache == null) {
+                throw new NoSettingsForTopologyException(contextId);
+            }
+            final EntitySettingSnapshot snapshot;
+            if (topologySelection.hasTopologyId()) {
+                snapshot = contextCache.getSnapshot(topologySelection.getTopologyId())
+                        .orElseThrow(() -> new NoSettingsForTopologyException(contextId,
+                                topologySelection.getTopologyId()));
+            } else {
+                snapshot = contextCache.getLatestSnapshot()
+                        // We may have a briefly empty setting cache that hasn't been fully initialized
+                        // yet. Treat it as if it doesn't exist.
+                        .orElseThrow(() -> new NoSettingsForTopologyException(contextId));
+            }
+            return snapshot.getFilteredSettings(filter);
+        } catch (NoSettingsForTopologyException | RuntimeException e) {
+            ENTITY_SETTING_STORE_QUERY_ERROR_COUNT.increment();
+            throw e;
         }
-        final EntitySettingSnapshot snapshot;
-        if (topologySelection.hasTopologyId()) {
-            snapshot = contextCache.getSnapshot(topologySelection.getTopologyId())
-                .orElseThrow(() -> new NoSettingsForTopologyException(contextId,
-                        topologySelection.getTopologyId()));
-        } else {
-            snapshot = contextCache.getLatestSnapshot()
-                // We may have a briefly empty setting cache that hasn't been fully initialized
-                // yet. Treat it as if it doesn't exist.
-                .orElseThrow(() -> new NoSettingsForTopologyException(contextId));
-        }
-        return snapshot.getFilteredSettings(filter);
     }
 
     /**

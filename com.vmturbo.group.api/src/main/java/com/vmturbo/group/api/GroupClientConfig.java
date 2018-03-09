@@ -15,6 +15,17 @@ import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 @Lazy
 public class GroupClientConfig {
 
+    /**
+     * The max message size.
+     *
+     * The call to get entity settings can return 10MB of data (or more, if we add more settings)
+     * in a 200k setting topology, so places where we need entity settings for a lot of entities
+     * will fail to deserialize with the default message size (4MB).
+     *
+     * In the long term, we should reduce the size of that message (OM-32762).
+     */
+    public static final int MAX_MSG_SIZE_BYTES = 20 * 1024 * 1024;
+
     @Value("${groupHost}")
     private String groupHost;
 
@@ -29,6 +40,9 @@ public class GroupClientConfig {
         return PingingChannelBuilder.forAddress(groupHost, grpcPort)
                 .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .usePlaintext(true)
+                // TODO (roman, Mar 8 2018) OM-32762: Go back to default max message size once the
+                // call to get entity settings is optimized.
+                .maxMessageSize(MAX_MSG_SIZE_BYTES)
                 .build();
     }
 }
