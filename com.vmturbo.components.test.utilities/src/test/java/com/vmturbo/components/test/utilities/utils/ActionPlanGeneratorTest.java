@@ -10,6 +10,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
@@ -71,6 +72,14 @@ public class ActionPlanGeneratorTest {
         assertEquals(1, plan.getTopologyId());
         assertEquals(2, plan.getTopologyContextId());
         assertEquals(ActionTypeCase.MOVE, plan.getAction(0).getInfo().getActionTypeCase());
+    }
+
+    @Test
+    public void testGenerateActionPlanHasTimestamps() {
+        final ActionPlan plan = generator.generate(1, 1, 2);
+
+        assertTrue(plan.hasAnalysisStartTimestamp());
+        assertTrue(plan.hasAnalysisCompleteTimestamp());
     }
 
     @Test

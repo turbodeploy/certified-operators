@@ -158,6 +158,8 @@ public class ActionPlanGenerator {
         final ActionPlan.Builder planBuilder = ActionPlan.newBuilder()
             .setId(IdentityGenerator.next())
             .setTopologyId(topologyId)
+            .setAnalysisStartTimestamp(System.currentTimeMillis())
+            .setAnalysisCompleteTimestamp(System.currentTimeMillis())
             .setTopologyContextId(topologyContextId);
         final Chooser chooser = new Chooser(topologyEntities, random);
 
