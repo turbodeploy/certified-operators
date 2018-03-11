@@ -688,8 +688,9 @@ public class BootstrapSupply {
         } else if (!activeSellers.isEmpty()) {
             // if none of the existing sellers can fit the shoppingList, provision current seller
             bootstrapAction = new ProvisionByDemand(economy, shoppingList,
-                    shoppingList.getSupplier() != null ? shoppingList.getSupplier() :
-                            activeSellers.get(0)).take();
+                    (shoppingList.getSupplier() != null
+                            && activeSellers.contains(shoppingList.getSupplier()))
+                            ? shoppingList.getSupplier() : activeSellers.get(0)).take();
             ((ActionImpl)bootstrapAction).setImportance(Double.POSITIVE_INFINITY);
             provisionedSeller = ((ProvisionByDemand)bootstrapAction).getProvisionedSeller();
             provisionRelatedActionList.add(bootstrapAction);
