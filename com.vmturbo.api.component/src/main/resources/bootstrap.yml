@@ -17,5 +17,5 @@ management:
 build-number:
   package: "${pom.name}"
   version: "${pom.version}"
-  build: "${env.svn.revision}"
+  build: "${turbo-version.commit.time}"
   time: "${timestamp}"
