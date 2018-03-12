@@ -261,12 +261,13 @@ public class SearchService implements ISearchService {
             // this is a search for a ServiceEntity
             // Right now when UI send search requests, it use class name field to store entity type
             // when UI send group service requests, it use groupType fields to store entity type.
-            List<ServiceEntityApiDTO> entities = searchEntitiesByParameters(inputDTO);
+            List<? extends BaseApiDTO> entities = searchEntitiesByParameters(inputDTO);
             // populate the severities for the entities. Currently we're only getting these at the
             // entity level. We'll probably want these at the cluster / group level too but will
             // want to fetch them in a way that is efficient.
-            SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities );
-            return Collections.unmodifiableList(entities);
+            SeverityPopulator.populate(entitySeverityRpc, realtimeContextId,
+                    (List<ServiceEntityApiDTO>) entities);
+            return (List<BaseApiDTO>) entities;
         }
     }
 
@@ -279,7 +280,7 @@ public class SearchService implements ISearchService {
      * @param inputDTO a Description of what search to conduct
      * @return A list of {@link BaseApiDTO} will be sent back to client
      */
-    private List<ServiceEntityApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
+    private List<? extends BaseApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
         List<SearchParameters> searchParameters =
             groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
 
