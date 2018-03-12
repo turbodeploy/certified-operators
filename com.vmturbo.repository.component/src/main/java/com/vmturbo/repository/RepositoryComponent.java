@@ -7,6 +7,7 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +21,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
 import com.arangodb.ArangoDB;
@@ -123,6 +123,10 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    private final ArangoDB arangoDB;
+
+    private final com.vmturbo.repository.RepositoryProperties.ArangoDB arangoProps;
+
     public RepositoryComponent(final RepositoryProperties repositoryProperties,
                                final FileFolderZipper fileFolderZipper,
                                final OsCommandProcessRunner osCommandProcessRunner) {
@@ -130,6 +134,16 @@ public class RepositoryComponent extends BaseVmtComponent {
         this.repositoryProperties = repositoryProperties;
         this.fileFolderZipper = fileFolderZipper;
         this.osCommandProcessRunner = osCommandProcessRunner;
+        this.arangoProps = repositoryProperties.getArangodb();
+        this.arangoDB =
+            new ArangoDB.Builder()
+                .host(arangoProps.getHost(), arangoProps.getPort())
+                .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
+                .registerDeserializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_DESERIALIZER)
+                .password(arangoProps.getPassword())
+                .user(arangoProps.getUsername())
+                .maxConnections(arangoProps.getMaxConnections())
+                .build();
     }
 
     @PostConstruct
@@ -186,18 +200,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @Bean
     public ArangoDatabaseFactory arangoDatabaseFactory() {
-        return () -> {
-            com.vmturbo.repository.RepositoryProperties.ArangoDB props =
-                    repositoryProperties.getArangodb();
-
-            return new ArangoDB.Builder()
-                    .host(props.getHost(), props.getPort())
-                    .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
-                    .registerDeserializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_DESERIALIZER)
-                    .password(props.getPassword())
-                    .user(props.getUsername())
-                    .build();
-        };
+        return () -> arangoDB;
     }
 
     @Bean
@@ -461,5 +464,13 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Override
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
         repositoryDiagnosticsHandler().dump(diagnosticZip);
+    }
+
+    @PreDestroy
+    private void destroy() {
+        if (arangoDB != null) {
+            logger.info("Closing all arangodb client connections");
+            arangoDB.shutdown();
+        }
     }
 }

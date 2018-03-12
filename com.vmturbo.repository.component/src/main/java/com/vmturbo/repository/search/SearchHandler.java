@@ -1,5 +1,6 @@
 package com.vmturbo.repository.search;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -10,6 +11,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PreDestroy;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
@@ -28,6 +32,9 @@ import com.vmturbo.repository.graph.executor.AQL;
  * Handler for the search requests.
  */
 public class SearchHandler {
+
+    private static final Logger logger = LoggerFactory.getLogger(SearchHandler.class);
+
     private static final String ALL_ENTITIES = "ALL";
 
     private final GraphDefinition graphDefinition;
@@ -77,10 +84,7 @@ public class SearchHandler {
 
         try (DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()){
             return pipeline(fusedAQLReprs).run(context(arangoDB, database));
-        } finally {
-            arangoDB.shutdown();
         }
-
     }
 
     /**
@@ -102,9 +106,19 @@ public class SearchHandler {
                             pipeline(fusedAQLReprs).run(context(arangoDB, database),
                                                    ArangoDBSearchComputation.toEntities);
             // TODO: We may want to reify the ArangoCursor later to reduce memory pressure.
-            return cursorResult.map(cursor -> cursor.asListRemaining());
-        } finally {
-            arangoDB.shutdown();
+            return cursorResult.map(cursor -> {
+                    try {
+                        return cursor.asListRemaining();
+                    } finally {
+                        try {
+                            if (cursor!=null) {
+                                cursor.close();
+                            }
+                        } catch (IOException ioe) {
+                            logger.error("Error closing arangodb cursor", ioe);
+                        }
+                    }
+            });
         }
     }
 

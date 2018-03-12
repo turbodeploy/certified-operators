@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static javaslang.API.Case;
 import static javaslang.API.Match;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -43,7 +44,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
     // TODO: Temporary place holder for topology database name.
     public static final String DEFAULT_PLACEHOLDER_DATABASE = "";
-    private final Logger logger = LoggerFactory.getLogger(ArangoDBExecutor.class);
+    private static final Logger logger = LoggerFactory.getLogger(ArangoDBExecutor.class);
 
     private final ArangoDatabaseFactory arangoDatabaseFactory;
 
@@ -174,8 +175,11 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         combinedResults.onFailure(logAQLException(Joiner.on("\n").join(providerQuery, consumerQuery)));
 
         return combinedResults.flatMap(results -> {
-            final List<SubgraphResult> providerResults = results.get(0).asListRemaining();
-            final List<SubgraphResult> consumerResults = results.get(1).asListRemaining();
+
+            final List<SubgraphResult> providerResults =
+                fetchAllResults(results.get(0));
+            final List<SubgraphResult> consumerResults =
+                fetchAllResults(results.get(1));
 
             return hasOneNonnullResult(providerResults) && hasOneNonnullResult(consumerResults)
                 ? Try.success(new SupplyChainSubgraph(providerResults.get(0), consumerResults.get(0)))
@@ -202,7 +206,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
         results.onFailure(logAQLException(searchQuery));
 
-        return results.map(ArangoCursor::asListRemaining);
+        return results.map(cursor -> fetchAllResults(cursor));
     }
 
     @Override
@@ -231,11 +235,33 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
         results.onFailure(logAQLException(searchQuery));
 
-        return results.map(ArangoCursor::asListRemaining);
+        return results.map(cursor -> fetchAllResults(cursor));
     }
 
 
     private Consumer<? super Throwable> logAQLException(final String query) {
         return exc -> logger.error("Exception encountered while executing AQL query: " + query, exc);
+    }
+
+    /**
+     *  Fetch all the results from ArangoDB.
+     *
+     *  After the fetch, close the cursor.
+     *
+     *  @param cursor ArangoDB cursor object.
+     *  @return The list of results.
+     */
+    private <T> List<T> fetchAllResults(@Nonnull ArangoCursor<T> cursor) {
+        try {
+            return cursor.asListRemaining();
+        } finally {
+            try {
+                if (cursor != null) {
+                    cursor.close();
+                }
+            } catch (IOException ioe) {
+                logger.error("Error closing arangodb cursor", ioe);
+            }
+        }
     }
 }

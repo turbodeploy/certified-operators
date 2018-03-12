@@ -50,11 +50,6 @@ public class ArangoHealthMonitor extends PollingHealthMonitor {
             // Treat all errors on this check as a sign of unhealthiness -- we'll be checking
             // again later.
             reportUnhealthy("Error:"+ t.toString());
-        } finally {
-            if (db != null) {
-                db.shutdown();
-            }
         }
     }
-
 }

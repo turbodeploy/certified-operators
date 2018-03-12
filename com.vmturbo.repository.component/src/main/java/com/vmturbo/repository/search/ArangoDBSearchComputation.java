@@ -1,6 +1,9 @@
 package com.vmturbo.repository.search;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -14,7 +17,6 @@ import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
 
 import javaslang.collection.Iterator;
-import javaslang.collection.List;
 import javaslang.collection.Seq;
 import javaslang.collection.Stream;
 import javaslang.concurrent.Future;
@@ -62,16 +64,20 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
                     .collect(Collectors.toMap(Function.identity(), v -> bindValuesMapper.get(v).apply(context)));
             bindVars.put("inputs", inputs);
 
-            LOG.info("pipeline ({}) running {} with first 10 inputs {}",
+            LOG.debug("pipeline ({}) running {} with first 10 inputs {}",
                     context.traceID(),
                     queryString,
                     Stream.ofAll(inputs).take(10).toJavaList());
             LOG.debug("pipeline ({}) running {} with bindVars {}", context.traceID(), queryString, bindVars);
 
-            final ArangoCursor<String> dbResults =
-                    context.arangoDB().db(context.databaseName()).query(queryString, bindVars, null, String.class);
-
-            return dbResults.asListRemaining();
+            List<String> results = null;
+            try (final ArangoCursor<String> cursor =
+                    context.arangoDB().db(context.databaseName()).query(queryString, bindVars, null, String.class)) {
+                results = cursor.asListRemaining();
+            } catch (IOException ioe) {
+                LOG.error("Error closing arangodb cursor", ioe);
+            }
+            return (results == null) ? Collections.emptyList() : results;
         });
     }
 
@@ -80,7 +86,8 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
                                     final Collection<String> ids) {
         try(final DataMetricTimer ignored = context.summary().startTimer()) {
             // Chunk the input
-            final Iterator<List<String>> idChunks = List.ofAll(ids).grouped(INPUT_CHUNK_SIZE);
+            final Iterator<javaslang.collection.List<String>> idChunks =
+                javaslang.collection.List.ofAll(ids).grouped(INPUT_CHUNK_SIZE);
 
             // Turn each chunk into a future
             final Iterator<Future<Collection<String>>> futures = idChunks.map(
@@ -126,7 +133,7 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
 
                 final Future<ArangoCursor<ServiceEntityRepoDTO>> cursor =
                         Future.of(ctx.executorService(), () -> {
-                            LOG.info("pipeline ({}) converting to entities using {}", ctx.traceID(), query);
+                            LOG.debug("pipeline ({}) converting to entities using {}", ctx.traceID(), query);
 
                             return ctx.arangoDB()
                                     .db(ctx.databaseName())

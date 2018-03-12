@@ -19,6 +19,8 @@ public class RepositoryProperties {
         return graphite;
     }
 
+    // TODO : karthikt - All these config values should be moved
+    // to consul. Also storing the root password for the DB is a bad idea.
     static class ArangoDB {
         String host = "127.0.0.1";
 
@@ -41,6 +43,8 @@ public class RepositoryProperties {
         String arangoRestoreInputDir = "/home/turbonomic/data/arangodb-topology";
 
         int batchSize = 100;
+
+        int maxConnections = 5;
 
         public String getHost() {
             return host;
@@ -112,6 +116,14 @@ public class RepositoryProperties {
 
         public void setBatchSize(int batchSize) {
             this.batchSize = batchSize;
+        }
+
+        public int getMaxConnections() {
+            return this.maxConnections;
+        }
+
+        public void getMaxConnections(int maxConns) {
+            this.maxConnections = maxConns;
         }
     }
 
