@@ -1,1 +1,0 @@
-jruby script/server -p 3000 -e jproduction --path=/persistence
