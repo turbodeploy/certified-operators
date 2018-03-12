@@ -1,6 +1,6 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.abstraction.tables.PmStatsLatest.PM_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.tables.PmStatsLatest.PM_STATS_LATEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyList;
@@ -24,10 +24,10 @@ import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 
 public class LiveStatsReaderTest {
 

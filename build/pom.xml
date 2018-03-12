@@ -195,6 +195,7 @@
             <modules>
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.history</module>
+                <module>../com.vmturbo.history.schema</module>
             </modules>
         </profile>
 
@@ -393,6 +394,7 @@
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
+                <module>../com.vmturbo.history.schema</module>
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
@@ -486,6 +488,7 @@
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>
                 <module>../com.vmturbo.history</module>
+                <module>../com.vmturbo.history.schema</module>
                 <module>../com.vmturbo.history.component.api</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
@@ -1041,6 +1044,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.reports.api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.history.schema</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- We keep versions of dependencies in the root pom.xml so that all

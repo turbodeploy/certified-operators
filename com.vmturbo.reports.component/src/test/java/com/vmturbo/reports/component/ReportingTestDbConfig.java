@@ -12,8 +12,6 @@ import org.mariadb.jdbc.MySQLDataSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.util.SchemaUtil;
 import com.vmturbo.sql.utils.FlywayMigrator;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 

@@ -18,13 +18,13 @@ import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.reports.db.CommodityTypes;
-import com.vmturbo.reports.db.EntityType;
-import com.vmturbo.reports.db.VmtDbException;
 
 /**
  * Handles receiving realtime topology by chunks, and while doing so

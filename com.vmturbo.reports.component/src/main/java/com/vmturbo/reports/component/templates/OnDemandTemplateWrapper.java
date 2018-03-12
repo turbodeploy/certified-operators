@@ -6,9 +6,9 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.api.enums.ReportType;
+import com.vmturbo.history.schema.abstraction.tables.records.OnDemandReportsRecord;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
-import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
 
 /**
  * Templates wrapper for on-demand templates.

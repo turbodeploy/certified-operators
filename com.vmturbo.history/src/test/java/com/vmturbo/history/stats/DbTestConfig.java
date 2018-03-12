@@ -32,10 +32,10 @@ public class DbTestConfig {
         final PropertySourcesPlaceholderConfigurer propertiesConfigureer
                 = new PropertySourcesPlaceholderConfigurer();
 
-            Properties properties = new Properties();
-            properties.setProperty("databaseName", "vmt_testdb_" + System.nanoTime());
-            properties.setProperty("adapter", "mysql");
-            properties.setProperty("hostName", "localhost");
+        Properties properties = new Properties();
+        properties.setProperty("databaseName", "vmt_testdb_" + System.nanoTime());
+        properties.setProperty("adapter", "mysql");
+        properties.setProperty("hostName", "localhost");
 
         propertiesConfigureer.setProperties(properties);
         return propertiesConfigureer;

@@ -3,8 +3,6 @@ package com.vmturbo.history.stats.projected;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
-import java.util.OptionalLong;
-
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -12,11 +10,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedSoldCommodity;
+import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedBoughtCommodity;
+import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedSoldCommodity;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.Accumulation;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.reports.db.RelationType;
 
 public class AccumulatedCommodityTest {
 

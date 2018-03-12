@@ -5,6 +5,7 @@ import static org.junit.Assert.assertSame;
 import static org.mockito.Mockito.when;
 
 import org.jooq.InsertSetMoreStep;
+import org.jooq.InsertSetStep;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -14,9 +15,8 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.topology.TopologySnapshotRegistry;
+import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.utils.TopologyOrganizer;
-import com.vmturbo.reports.db.VmtDbException;
 
 /**
  * Unit tests for {@link LiveStatsAggregator}.
@@ -27,7 +27,6 @@ public class LiveStatsAggregatorTest {
     private static LiveStatsAggregator aggregator;
     private static InsertSetMoreStep stmt;
     private static HistorydbIO historydbIO;
-    private static TopologySnapshotRegistry topologySnapshotRegistry;
 
     /**
      * Set up a topology of a few VMs and a few PMs, and test the handling of
@@ -92,15 +91,15 @@ public class LiveStatsAggregatorTest {
      * @throws VmtDbException should not happen
      */
     @Test
-    public void testRecords() throws VmtDbException {
+    public void testRecords() {
         // 10 records: 5 x Produces attributes + 2 x commodity bought + 3 x commodity sold
         Mockito.verify(stmt, Mockito.times(10)).newRecord();
         // 3 PMs produce 1 entity each
         Mockito.verify(historydbIO, Mockito.times(3)).setCommodityValues(Mockito.eq("Produces"),
-            Mockito.eq(1.0), Mockito.eq(stmt), Mockito.any());
+            Mockito.eq(1.0), Mockito.eq((InsertSetStep)stmt), Mockito.any());
         // 2 VMs produce 0 entities
         Mockito.verify(historydbIO, Mockito.times(2)).setCommodityValues(Mockito.eq("Produces"),
-            Mockito.eq(0.0), Mockito.eq(stmt), Mockito.any());
+            Mockito.eq(0.0), Mockito.eq((InsertSetStep)stmt), Mockito.any());
     }
 
     /**

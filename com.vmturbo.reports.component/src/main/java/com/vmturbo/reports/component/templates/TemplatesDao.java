@@ -5,7 +5,6 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
 import com.vmturbo.sql.utils.DbException;
 
 /**

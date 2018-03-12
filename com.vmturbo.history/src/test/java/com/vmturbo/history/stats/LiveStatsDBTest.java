@@ -1,10 +1,10 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.StringConstants.NUM_CPUS;
-import static com.vmturbo.reports.db.StringConstants.NUM_HOSTS;
-import static com.vmturbo.reports.db.StringConstants.NUM_SOCKETS;
-import static com.vmturbo.reports.db.StringConstants.NUM_STORAGES;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS;
+import static com.vmturbo.history.schema.StringConstants.NUM_CPUS;
+import static com.vmturbo.history.schema.StringConstants.NUM_HOSTS;
+import static com.vmturbo.history.schema.StringConstants.NUM_SOCKETS;
+import static com.vmturbo.history.schema.StringConstants.NUM_STORAGES;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;
@@ -12,7 +12,6 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Properties;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -30,40 +29,40 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.history.db.BasedbIO;
+import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.SchemaUtil;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.CommodityTypes;
+import com.vmturbo.history.schema.abstraction.tables.AppStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.ChStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.CntStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.DaStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.DpodStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.DsStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.Entities;
+import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.PmStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.ScStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.SwStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.VdcStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.VpodStatsLatest;
+import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.TopologyOrganizer;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.CommodityTypes;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.AppStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.ChStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.CntStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.DaStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.DpodStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.DsStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.Entities;
-import com.vmturbo.reports.db.abstraction.tables.MarketStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.PmStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.ScStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.SwStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.VdcStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.VmStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.VpodStatsLatest;
-import com.vmturbo.reports.db.abstraction.tables.records.MarketStatsLatestRecord;
-import com.vmturbo.reports.util.DBConnectionPool;
-import com.vmturbo.reports.util.IDGen;
-import com.vmturbo.reports.util.SchemaUtil;
+//import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+
+//import com.vmturbo.history.util.IDGen;
 
 /**
  * Write live stats to real DB table.
@@ -74,9 +73,6 @@ import com.vmturbo.reports.util.SchemaUtil;
 public class LiveStatsDBTest {
 
     private static final Logger logger = LogManager.getLogger();
-
-    private static final String XL_DB_MIGRATION_PATH = "db/xl-migrations";
-
 
     private static final long REALTIME_TOPOLOGY_CONTEXT_ID = 7777777;
     private static final int TEST_TOPOLOGY_ID = 5678;
@@ -98,17 +94,18 @@ public class LiveStatsDBTest {
 
     @Before
     public void before() throws Throwable {
-        IDGen.initPrefix(0);
+        IdentityGenerator.initPrefix(0);
         testDbName = dbTestConfig.testDbName();
         historydbIO = dbTestConfig.historydbIO();
-        HistorydbIO.mappedSchemaForTests = testDbName;
-        System.out.println("Initializing DB - " + testDbName);
+        // map the 'vmtdb' database name used in the code into the test DB name
+        historydbIO.setSchemaForTests(testDbName);
+        logger.info("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName, XL_DB_MIGRATION_PATH);
+        historydbIO.init(true, null, testDbName);
     }
 
     @After
-    public void after() throws Throwable {
+    public void after() {
         DBConnectionPool.instance.getInternalPool().close();
         try {
             SchemaUtil.dropDb(testDbName);

@@ -1,6 +1,6 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.StringConstants.NUM_HOSTS;
+import static com.vmturbo.history.schema.StringConstants.NUM_HOSTS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.eq;
@@ -37,12 +37,12 @@ import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
 import com.vmturbo.history.utils.TopologyOrganizer;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.abstraction.tables.records.VmStatsLatestRecord;
 
 
 /**

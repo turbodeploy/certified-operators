@@ -12,14 +12,14 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
+import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.MktSnapshotsStats;
-import com.vmturbo.reports.db.abstraction.tables.records.MktSnapshotsStatsRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.ScenariosRecord;
 
 /**
  * Persist stats from a plan topology to the mkt_snapshots tables in the relational database.

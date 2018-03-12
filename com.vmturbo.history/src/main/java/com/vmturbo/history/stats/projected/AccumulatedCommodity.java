@@ -13,8 +13,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.reports.db.CommodityTypes;
-import com.vmturbo.reports.db.RelationType;
+import com.vmturbo.history.schema.CommodityTypes;
+import com.vmturbo.history.schema.RelationType;
 
 /**
  * Accumulated information about a single type of commodity over a set of entities.

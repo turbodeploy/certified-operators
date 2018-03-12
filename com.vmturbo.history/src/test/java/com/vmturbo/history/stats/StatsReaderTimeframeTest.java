@@ -1,9 +1,9 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.abstraction.Tables.PM_STATS_BY_DAY;
-import static com.vmturbo.reports.db.abstraction.Tables.PM_STATS_BY_MONTH;
-import static com.vmturbo.reports.db.abstraction.tables.PmStatsByHour.PM_STATS_BY_HOUR;
-import static com.vmturbo.reports.db.abstraction.tables.PmStatsLatest.PM_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.tables.PmStatsByHour.PM_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.tables.PmStatsLatest.PM_STATS_LATEST;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
@@ -37,8 +37,8 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.BasedbIO;
 
 /**
  * Test methods select timeframe and table based on startTime, endTime.

@@ -16,10 +16,10 @@ import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
-import com.vmturbo.reports.db.VmtDbException;
 
 /**
  * Listen for updates to the plan topology; record them to the DB.

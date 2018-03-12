@@ -1,6 +1,6 @@
 package com.vmturbo.reports.component.templates;
 
-import static com.vmturbo.reports.db.abstraction.tables.OnDemandReports.ON_DEMAND_REPORTS;
+import static com.vmturbo.history.schema.abstraction.tables.OnDemandReports.ON_DEMAND_REPORTS;
 
 import java.util.Collection;
 import java.util.List;
@@ -13,7 +13,7 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.OnDemandReportsRecord;
 import com.vmturbo.sql.utils.DbException;
 
 /**

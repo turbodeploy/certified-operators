@@ -25,10 +25,10 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.history.api.ApiSecurityConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
+import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.market.MarketListenerConfig;
 import com.vmturbo.history.stats.StatsConfig;
 import com.vmturbo.history.topology.TopologyListenerConfig;
-import com.vmturbo.reports.db.VmtDbException;
 
 @Configuration("theComponent")
 @EnableAutoConfiguration

@@ -1,10 +1,10 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.history.schema.CommodityTypes.NUM_CPUS;
+import static com.vmturbo.history.schema.CommodityTypes.NUM_SOCKETS;
+import static com.vmturbo.history.schema.CommodityTypes.PRODUCES;
+import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
-import static com.vmturbo.reports.db.CommodityTypes.NUM_CPUS;
-import static com.vmturbo.reports.db.CommodityTypes.NUM_SOCKETS;
-import static com.vmturbo.reports.db.CommodityTypes.PRODUCES;
-import static com.vmturbo.reports.db.StringConstants.PROPERTY_SUBTYPE_USED;
 
 import java.text.MessageFormat;
 import java.util.Collection;
@@ -32,15 +32,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.history.SharedMetrics;
+import com.vmturbo.history.db.BasedbIO;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.CommodityTypes;
+import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.CommodityTypes;
-import com.vmturbo.reports.db.EntityType;
-import com.vmturbo.reports.db.RelationType;
-import com.vmturbo.reports.db.VmtDbException;
 
 /**
  * Accumulate the stats for a given Entity Type organized by the stats property_name.

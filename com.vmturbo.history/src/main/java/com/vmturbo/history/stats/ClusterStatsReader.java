@@ -1,33 +1,25 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.reports.db.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
-import static com.vmturbo.reports.db.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
-import static com.vmturbo.reports.db.jooq.JooqUtils.dField;
-import static com.vmturbo.reports.db.jooq.JooqUtils.date;
-import static com.vmturbo.reports.db.jooq.JooqUtils.str;
+import static com.vmturbo.history.db.jooq.JooqUtils.dField;
+import static com.vmturbo.history.db.jooq.JooqUtils.date;
+import static com.vmturbo.history.db.jooq.JooqUtils.str;
+import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
 
-import java.sql.Date;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.jooq.Condition;
-import org.jooq.Record;
-import org.jooq.Result;
 import org.jooq.SelectConditionStep;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
-
+import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.BasedbIO.Style;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByMonthRecord;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 
 /**
  * This class is responsible for reading data from the cluster_stats tables.

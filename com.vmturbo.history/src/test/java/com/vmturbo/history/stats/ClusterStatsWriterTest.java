@@ -1,11 +1,9 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.math.BigDecimal;
-import java.util.Properties;
 
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
@@ -15,18 +13,15 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.history.db.BasedbIO;
+import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.reports.util.DBConnectionPool;
-import com.vmturbo.reports.util.SchemaUtil;
+import com.vmturbo.history.db.SchemaUtil;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 
 /**
  * Unit test for {@link ClusterStatsWriter}
@@ -45,16 +40,15 @@ public class ClusterStatsWriterTest {
 
     private ClusterStatsWriter clusterStatsWriter;
 
-    private static final String XL_DB_MIGRATION_PATH = "db/xl-migrations";
-
     @Before
     public void setup() throws Exception {
         testDbName = dbTestConfig.testDbName();
         historydbIO = dbTestConfig.historydbIO();
-        HistorydbIO.mappedSchemaForTests = testDbName;
+        // map the 'vmtdb' database name used in the code into the test DB name
+        historydbIO.setSchemaForTests(testDbName);
         System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName, XL_DB_MIGRATION_PATH);
+        historydbIO.init(true, null, testDbName);
         clusterStatsWriter = new ClusterStatsWriter(historydbIO);
     }
 

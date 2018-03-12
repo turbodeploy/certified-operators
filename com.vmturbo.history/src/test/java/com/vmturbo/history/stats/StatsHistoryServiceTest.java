@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.StringConstants.USED;
-import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
+import static com.vmturbo.history.schema.StringConstants.USED;
+import static com.vmturbo.history.schema.StringConstants.UTILIZATION;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -68,11 +68,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.PmStatsLatestRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.ScenariosRecord;
 
 /**
  * Test gRPC methods to handle snapshot requests.
@@ -130,13 +130,13 @@ public class StatsHistoryServiceTest {
     private StreamObserver<GetAuditLogDataRetentionSettingResponse> mockGetAuditLogDataRetentionSettingObserver;
 
     @Mock
-    private StreamObserver<SetAuditLogDataRetentionSettingResponse> mockSetAuditLogDataRetentionSettingObserver;;
+    private StreamObserver<SetAuditLogDataRetentionSettingResponse> mockSetAuditLogDataRetentionSettingObserver;
 
     @Captor
     ArgumentCaptor<StatSnapshot> captor;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         MockitoAnnotations.initMocks(this);
 
         statsHistoryService =  new StatsHistoryService(REALTIME_CONTEXT_ID,
@@ -471,7 +471,7 @@ public class StatsHistoryServiceTest {
     }
 
     @Test
-    public void testGetProjectedStats() throws Exception {
+    public void testGetProjectedStats() {
         // arrange
         List<String> commodityNames = Lists.newArrayList();
         final ArrayList<Long> entityOids = Lists.newArrayList();
@@ -502,10 +502,9 @@ public class StatsHistoryServiceTest {
 
     /**
      * Request individual stats for 3 entities.
-     * @throws Exception should never happen
      */
     @Test
-    public void testGetProjectedEntityStats() throws Exception {
+    public void testGetProjectedEntityStats() {
         // arrange
         List<String> commodityNames = Lists.newArrayList("c1", "c2");
         final ArrayList<Long> entityOids = Lists.newArrayList(1L, 2L, 3L);
@@ -576,8 +575,6 @@ public class StatsHistoryServiceTest {
 
     /**
      * Test the invocation of saveClusterHeadroom api of the statsHistoryService.
-     *
-     * @throws Exception
      */
     @Test
     public void saveClusterHeadroom() throws Exception {
@@ -605,7 +602,7 @@ public class StatsHistoryServiceTest {
      * Date range is not provided in the request. Get the latest records of the record
      * types requested.
      *
-     * @throws Exception
+     * @throws Exception shouldn't happen
      */
     @Test
     public void testClusterStatsWithoutDates() throws Exception {
@@ -640,7 +637,7 @@ public class StatsHistoryServiceTest {
      * A date range is provided in the request. Verify all records within the range
      * are returned.
      *
-     * @throws Exception
+     * @throws Exception shouldn't happen
      */
     @Test
     public void testClusterStatsWithDates() throws Exception {
@@ -682,7 +679,7 @@ public class StatsHistoryServiceTest {
      * Verify that if the date range spans over a month, fetch data from the CLUSTER_STATS_BY_MONTH
      * table.
      *
-     * @throws Exception
+     * @throws Exception shouldn't happen
      */
     @Test
     public void testClusterStatsByMonth() throws Exception {
@@ -712,20 +709,20 @@ public class StatsHistoryServiceTest {
      * @param clusterId cluster ID
      * @param dates an array of dates for the generated records
      * @param commodityNames commodity names (e.g. headroomVMs)
-     * @return
+     * @return a new ClusterStatsByDayRecord
      */
     private List<ClusterStatsByDayRecord> getMockStatRecords(String clusterId,
                                                              String[] dates,
                                                              String[] commodityNames) {
         List<ClusterStatsByDayRecord> results = Lists.newArrayList();
 
-        for (int i = 0; i < dates.length; i++) {
-            for (int j = 0; j < commodityNames.length; j++) {
+        for (String date : dates) {
+            for (String commodityName : commodityNames) {
                 ClusterStatsByDayRecord record = new ClusterStatsByDayRecord();
-                record.setRecordedOn(Date.valueOf(dates[i]));
+                record.setRecordedOn(Date.valueOf(date));
                 record.setInternalName(clusterId);
-                record.setPropertyType(commodityNames[j]);
-                record.setPropertySubtype(commodityNames[j]);
+                record.setPropertyType(commodityName);
+                record.setPropertySubtype(commodityName);
                 record.setValue(BigDecimal.valueOf(20));
                 results.add(record);
             }
@@ -791,8 +788,7 @@ public class StatsHistoryServiceTest {
     }
 
     @Test
-    public void testSetStatsDataRetentionSettingMissingRequestParameters()
-        throws VmtDbException {
+    public void testSetStatsDataRetentionSettingMissingRequestParameters() {
 
         statsHistoryService.setStatsDataRetentionSetting(
             SetStatsDataRetentionSettingRequest.newBuilder()
@@ -853,8 +849,7 @@ public class StatsHistoryServiceTest {
     }
 
     @Test
-    public void testSetAuditLogDataRetentionSettingMissingRequestParameters()
-        throws VmtDbException {
+    public void testSetAuditLogDataRetentionSettingMissingRequestParameters() {
 
         statsHistoryService.setAuditLogDataRetentionSetting(
             SetAuditLogDataRetentionSettingRequest.newBuilder()

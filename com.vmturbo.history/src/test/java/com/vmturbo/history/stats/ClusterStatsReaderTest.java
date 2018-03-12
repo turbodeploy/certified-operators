@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
-import static com.vmturbo.reports.db.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
+import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
 import static org.junit.Assert.assertEquals;
 
 import java.math.BigDecimal;
@@ -19,14 +19,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.history.db.BasedbIO;
+import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.Tables;
-import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByMonthRecord;
-import com.vmturbo.reports.util.DBConnectionPool;
-import com.vmturbo.reports.util.SchemaUtil;
+import com.vmturbo.history.db.SchemaUtil;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 
 /**
  * Unit test for {@link ClusterStatsReader}

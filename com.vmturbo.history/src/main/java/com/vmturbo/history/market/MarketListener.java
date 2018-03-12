@@ -16,15 +16,15 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
+import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.history.stats.PriceIndexWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.TopologyOrganizer;
+import com.vmturbo.market.component.api.PriceIndexListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
-import com.vmturbo.market.component.api.PriceIndexListener;
-import com.vmturbo.reports.db.VmtDbException;
 
 /**
  * Receive and process both projected topologyies and new price index values calculated by

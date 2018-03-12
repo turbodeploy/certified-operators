@@ -2,15 +2,12 @@ package com.vmturbo.history.stats;
 
 import java.sql.SQLException;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.jooq.Record;
-
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.records.MktSnapshotsStatsRecord;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 
 /**
  * Read records from the PLAN topologies stats table, mkt_snapshots_stats.

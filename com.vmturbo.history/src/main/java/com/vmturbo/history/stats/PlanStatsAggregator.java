@@ -1,16 +1,14 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.StringConstants.NUM_CNT_PER_HOST;
-import static com.vmturbo.reports.db.StringConstants.NUM_CNT_PER_STORAGE;
-import static com.vmturbo.reports.db.StringConstants.NUM_CONTAINERS;
-import static com.vmturbo.reports.db.StringConstants.NUM_HOSTS;
-import static com.vmturbo.reports.db.StringConstants.NUM_STORAGES;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS_PER_STORAGE;
+import static com.vmturbo.history.schema.StringConstants.NUM_CNT_PER_HOST;
+import static com.vmturbo.history.schema.StringConstants.NUM_CNT_PER_STORAGE;
+import static com.vmturbo.history.schema.StringConstants.NUM_CONTAINERS;
+import static com.vmturbo.history.schema.StringConstants.NUM_HOSTS;
+import static com.vmturbo.history.schema.StringConstants.NUM_STORAGES;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS_PER_HOST;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS_PER_STORAGE;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Collection;
 import java.util.Collections;
@@ -22,23 +20,21 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.MktSnapshotsStats;
-import com.vmturbo.reports.db.abstraction.tables.records.MktSnapshotsStatsRecord;
 
 /**
  * Aggregates plan topology stats by commodity type and by entity type.

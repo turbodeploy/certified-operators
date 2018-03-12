@@ -1,39 +1,38 @@
 package com.vmturbo.history.stats;
 
 import static com.google.common.base.Preconditions.checkArgument;
+//import static com.vmturbo.history.db.jooq.JooqUtils.betweenStartEndCond;
+import static com.vmturbo.history.db.jooq.JooqUtils.dField;
+import static com.vmturbo.history.db.jooq.JooqUtils.floorDateTime;
+import static com.vmturbo.history.db.jooq.JooqUtils.number;
+import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
+import static com.vmturbo.history.db.jooq.JooqUtils.str;
+import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
+import static com.vmturbo.history.schema.StringConstants.CAPACITY;
+import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.history.schema.StringConstants.CONTAINER;
+import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
+import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
+import static com.vmturbo.history.schema.StringConstants.NUM_CNT_PER_HOST;
+import static com.vmturbo.history.schema.StringConstants.NUM_CNT_PER_STORAGE;
+import static com.vmturbo.history.schema.StringConstants.NUM_CONTAINERS;
+import static com.vmturbo.history.schema.StringConstants.NUM_HOSTS;
+import static com.vmturbo.history.schema.StringConstants.NUM_STORAGES;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS_PER_HOST;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS_PER_STORAGE;
+import static com.vmturbo.history.schema.StringConstants.PHYSICAL_MACHINE;
+import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
+import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.history.schema.StringConstants.RELATION;
+import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.history.schema.StringConstants.STORAGE;
+import static com.vmturbo.history.schema.StringConstants.UUID;
+import static com.vmturbo.history.schema.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.history.utils.HistoryStatsUtils.betweenStartEndTimestampCond;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countPerSEsMetrics;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
-import static com.vmturbo.reports.db.StringConstants.AVG_VALUE;
-import static com.vmturbo.reports.db.StringConstants.CAPACITY;
-import static com.vmturbo.reports.db.StringConstants.COMMODITY_KEY;
-import static com.vmturbo.reports.db.StringConstants.CONTAINER;
-import static com.vmturbo.reports.db.StringConstants.MAX_VALUE;
-import static com.vmturbo.reports.db.StringConstants.MIN_VALUE;
-import static com.vmturbo.reports.db.StringConstants.NUM_CNT_PER_HOST;
-import static com.vmturbo.reports.db.StringConstants.NUM_CNT_PER_STORAGE;
-import static com.vmturbo.reports.db.StringConstants.NUM_CONTAINERS;
-import static com.vmturbo.reports.db.StringConstants.NUM_HOSTS;
-import static com.vmturbo.reports.db.StringConstants.NUM_STORAGES;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS_PER_STORAGE;
-import static com.vmturbo.reports.db.StringConstants.PHYSICAL_MACHINE;
-import static com.vmturbo.reports.db.StringConstants.PRODUCER_UUID;
-import static com.vmturbo.reports.db.StringConstants.PROPERTY_SUBTYPE;
-import static com.vmturbo.reports.db.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.reports.db.StringConstants.RELATION;
-import static com.vmturbo.reports.db.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.reports.db.StringConstants.STORAGE;
-import static com.vmturbo.reports.db.StringConstants.UUID;
-import static com.vmturbo.reports.db.StringConstants.VIRTUAL_MACHINE;
-import static com.vmturbo.reports.db.jooq.JooqUtils.betweenStartEndCond;
-import static com.vmturbo.reports.db.jooq.JooqUtils.dField;
-import static com.vmturbo.reports.db.jooq.JooqUtils.floorDateTime;
-import static com.vmturbo.reports.db.jooq.JooqUtils.number;
-import static com.vmturbo.reports.db.jooq.JooqUtils.statsTableByTimeFrame;
-import static com.vmturbo.reports.db.jooq.JooqUtils.str;
-import static com.vmturbo.reports.db.jooq.JooqUtils.timestamp;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.min;
@@ -72,16 +71,18 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.history.db.BasedbIO;
+import com.vmturbo.history.db.BasedbIO.Style;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.BasedbIO.Style;
-import com.vmturbo.reports.db.EntityType;
-import com.vmturbo.reports.db.RelationType;
-import com.vmturbo.reports.db.TimeFrame;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.Tables;
-import com.vmturbo.reports.db.abstraction.tables.records.MarketStatsLatestRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.db.TimeFrame;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.jooq.JooqUtils;
+import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 
 /**
  * Read from the stats database tables for the "live", i.e. real, discovered topology.
@@ -377,7 +378,7 @@ public class LiveStatsReader {
                 String propName = record.getValue(str(dField(table, PROPERTY_TYPE)));
                 // containsValue is efficient in a BiMap.
                 if (countSEsMetrics.containsValue(propName)) {
-                    Timestamp statTime = record.getValue(timestamp(dField(table, SNAPSHOT_TIME)));
+                    Timestamp statTime = record.getValue(JooqUtils.timestamp(dField(table, SNAPSHOT_TIME)));
                     Map<String, Float> snapshotCounts =
                             entityCountsByTime.computeIfAbsent(statTime, key -> new HashMap<>());
                     // Each count metric should appear only once per SNAPSHOT_TIME.
@@ -590,7 +591,7 @@ public class LiveStatsReader {
         }
 
         // add where clause for time range; null if the timeframe cannot be determined
-        final Condition timeRangeCondition = betweenStartEndCond(dField(table, SNAPSHOT_TIME),
+        final Condition timeRangeCondition = betweenStartEndTimestampCond(dField(table, SNAPSHOT_TIME),
                 tFrame, startTime, endTime);
         if (timeRangeCondition != null) {
             logger.debug("table {}, timeRangeCondition: {}", table.getName(), timeRangeCondition);

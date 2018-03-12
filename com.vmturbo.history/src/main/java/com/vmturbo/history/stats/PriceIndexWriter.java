@@ -10,6 +10,7 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.InsertSetMoreStep;
+import org.jooq.InsertSetStep;
 import org.jooq.Query;
 import org.jooq.Table;
 
@@ -18,14 +19,14 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.history.SharedMetrics;
+import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.RelationType;
-import com.vmturbo.reports.db.StringConstants;
-import com.vmturbo.reports.db.VmtDbException;
 
 /**
  * Write stats derived from a PriceIndex message to the RDB.
@@ -132,10 +133,10 @@ public class PriceIndexWriter {
                 InsertSetMoreStep<?> insertStmt = historydbIO.getCommodityInsertStatement(dbTable);
                 historydbIO.initializeCommodityInsert(StringConstants.PRICE_INDEX, snapshotTime,
                         entityId, RelationType.COMMODITIES_FROM_ATTRIBUTES, null, null,
-                        null, insertStmt, dbTable);
+                        null, (InsertSetStep<?>) insertStmt, dbTable);
                 // set the values specific to used component of commodity and write
                 historydbIO.setCommodityValues(StringConstants.PRICE_INDEX, priceIndexCurrent,
-                        insertStmt, dbTable);
+                        (InsertSetStep) insertStmt, dbTable);
                 commodityInsertStatements.add(insertStmt);
                 if (commodityInsertStatements.size() > writeTopologyChunkSize) {
                     // execute a batch of updates - FORCED implies repeat until successful

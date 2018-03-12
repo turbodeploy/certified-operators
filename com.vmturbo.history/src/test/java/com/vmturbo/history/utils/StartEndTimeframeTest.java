@@ -13,17 +13,18 @@ import java.util.regex.Pattern;
 
 import org.jooq.Condition;
 import org.jooq.TableField;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.vmturbo.reports.db.TimeFrame;
-import com.vmturbo.reports.db.abstraction.tables.VmStatsByDay;
-import com.vmturbo.reports.db.abstraction.tables.VmStatsByHour;
-import com.vmturbo.reports.db.abstraction.tables.VmStatsByMonth;
-import com.vmturbo.reports.db.abstraction.tables.VmStatsLatest;
+import com.vmturbo.history.db.TimeFrame;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByDay;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsByMonth;
+import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 
 /**
  * Test the utility to create an SQL query "where" clause for start and end time for a given
@@ -44,13 +45,13 @@ public class StartEndTimeframeTest {
                         "2016-03-13 11:20:45.123",   "2016-03-13 11:59:59.0",
                         VmStatsByHour.VM_STATS_BY_HOUR.SNAPSHOT_TIME, timestampPattern},
                 {TimeFrame.DAY, "start-of-day, end-of-day",
-                        "2016-03-13 09:20:45.123", "2016-03-13",
-                        "2016-03-13 11:20:45.123",   "2016-03-13",
-                        VmStatsByDay.VM_STATS_BY_DAY.SNAPSHOT_TIME, datePattern},
+                        "2016-03-13 09:20:45.123", "2016-03-13 00:00:00.0",
+                        "2016-03-13 11:20:45.123",   "2016-03-13 23:59:59.0",
+                        VmStatsByDay.VM_STATS_BY_DAY.SNAPSHOT_TIME, timestampPattern},
                 {TimeFrame.MONTH, "start-of-month, end-of-month",
-                        "2016-03-13 09:20:45.123", "2016-03-01",
-                        "2016-03-13 11:20:45.123",   "2016-03-31",
-                        VmStatsByMonth.VM_STATS_BY_MONTH.SNAPSHOT_TIME, datePattern}
+                        "2016-03-13 09:20:45.123", "2016-03-01 00:00:00.0",
+                        "2016-03-13 11:20:45.123",   "2016-03-31 23:59:59.0",
+                        VmStatsByMonth.VM_STATS_BY_MONTH.SNAPSHOT_TIME, timestampPattern}
         });
     }
     private static final Pattern timestampPattern =

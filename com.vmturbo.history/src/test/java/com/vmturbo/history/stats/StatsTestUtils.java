@@ -20,8 +20,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.history.db.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.reports.db.EntityType;
 
 /**
  * Static utility methods to support stats class testing.

@@ -1,26 +1,26 @@
 package com.vmturbo.history.utils;
 
-import static com.vmturbo.reports.db.EntityType.APPLICATION;
-import static com.vmturbo.reports.db.EntityType.CHASSIS;
-import static com.vmturbo.reports.db.EntityType.DISK_ARRAY;
-import static com.vmturbo.reports.db.EntityType.IO_MODULE;
-import static com.vmturbo.reports.db.EntityType.STORAGE_CONTROLLER;
-import static com.vmturbo.reports.db.EntityType.SWITCH;
-import static com.vmturbo.reports.db.EntityType.VDC;
-import static com.vmturbo.reports.db.StringConstants.CONTAINER;
-import static com.vmturbo.reports.db.StringConstants.NUM_CNT_PER_HOST;
-import static com.vmturbo.reports.db.StringConstants.NUM_CNT_PER_STORAGE;
-import static com.vmturbo.reports.db.StringConstants.NUM_CONTAINERS;
-import static com.vmturbo.reports.db.StringConstants.NUM_HOSTS;
-import static com.vmturbo.reports.db.StringConstants.NUM_STORAGES;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.reports.db.StringConstants.NUM_VMS_PER_STORAGE;
-import static com.vmturbo.reports.db.StringConstants.PHYSICAL_MACHINE;
-import static com.vmturbo.reports.db.StringConstants.STORAGE;
-import static com.vmturbo.reports.db.StringConstants.VIRTUAL_MACHINE;
-import static com.vmturbo.reports.db.jooq.JooqUtils.date;
-import static com.vmturbo.reports.db.jooq.JooqUtils.timestamp;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.vmturbo.history.db.EntityType.APPLICATION;
+import static com.vmturbo.history.db.EntityType.CHASSIS;
+import static com.vmturbo.history.db.EntityType.DISK_ARRAY;
+import static com.vmturbo.history.db.EntityType.IO_MODULE;
+import static com.vmturbo.history.db.EntityType.STORAGE_CONTROLLER;
+import static com.vmturbo.history.db.EntityType.SWITCH;
+import static com.vmturbo.history.db.EntityType.VDC;
+import static com.vmturbo.history.schema.StringConstants.CONTAINER;
+import static com.vmturbo.history.schema.StringConstants.NUM_CNT_PER_HOST;
+import static com.vmturbo.history.schema.StringConstants.NUM_CNT_PER_STORAGE;
+import static com.vmturbo.history.schema.StringConstants.NUM_CONTAINERS;
+import static com.vmturbo.history.schema.StringConstants.NUM_HOSTS;
+import static com.vmturbo.history.schema.StringConstants.NUM_STORAGES;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS_PER_HOST;
+import static com.vmturbo.history.schema.StringConstants.NUM_VMS_PER_STORAGE;
+import static com.vmturbo.history.schema.StringConstants.PHYSICAL_MACHINE;
+import static com.vmturbo.history.schema.StringConstants.STORAGE;
+import static com.vmturbo.history.schema.StringConstants.VIRTUAL_MACHINE;
 
 import java.sql.Timestamp;
 import java.util.Calendar;
@@ -41,11 +41,11 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.history.db.EntityType;
+import com.vmturbo.history.db.TimeFrame;
+import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.reports.db.CommodityTypes;
-import com.vmturbo.reports.db.EntityType;
-import com.vmturbo.reports.db.TimeFrame;
 
 public class HistoryStatsUtils {
 
@@ -273,11 +273,11 @@ public class HistoryStatsUtils {
                 return timestamp(dField).between(startOfHour(new java.sql.Timestamp(startTime)),
                         endOfHour(new java.sql.Timestamp(endTime)));
             case DAY:
-                return date(dField).between(startOfDay(new Date(startTime)),
-                        endOfDay(new Date(endTime)));
+                return timestamp(dField).between(startOfDay(new Timestamp(startTime)),
+                        endOfDay(new Timestamp(endTime)));
             case MONTH:
-                return date(dField).between(startOfMonth(new Date(startTime)),
-                        endOfMonth(new Date(endTime)));
+                return timestamp(dField).between(startOfMonth(new Timestamp(startTime)),
+                        endOfMonth(new Timestamp(endTime)));
             default:
                 return null;
         }
@@ -290,7 +290,7 @@ public class HistoryStatsUtils {
      * @param timeStamp the {@link Timestamp} to clip
      * @return a {@link Timestamp} with the mins, secs, and ms set to zero
      */
-    private static java.sql.Timestamp startOfHour(Timestamp timeStamp) {
+    public static java.sql.Timestamp startOfHour(Timestamp timeStamp) {
         Calendar answer = Calendar.getInstance();
         answer.setTime(timeStamp);
         zeroMinutes(answer);
@@ -304,11 +304,11 @@ public class HistoryStatsUtils {
      * @param timeStamp the {@link Timestamp} to clip
      * @return a {@link Timestamp} with the day of month set to 1, mins, secs, and ms set to zero
      */
-    private static java.sql.Date startOfDay(Date timeStamp) {
+    public static java.sql.Timestamp startOfDay(Date timeStamp) {
         Calendar answer = Calendar.getInstance();
         answer.setTime(timeStamp);
         zeroHour(answer);
-        return new java.sql.Date(answer.getTimeInMillis());
+        return new java.sql.Timestamp(answer.getTimeInMillis());
     }
 
     /**
@@ -318,11 +318,11 @@ public class HistoryStatsUtils {
      * @param timeStamp the {@link Timestamp} to clip
      * @return a {@link Timestamp} with the day of month set to 1, mins, secs, and ms set to zero
      */
-    private static java.sql.Date startOfMonth(Date timeStamp) {
+    public static java.sql.Timestamp startOfMonth(Timestamp timeStamp) {
         Calendar answer = Calendar.getInstance();
         answer.setTime(timeStamp);
         zeroDay(answer);
-        return new java.sql.Date(answer.getTimeInMillis());
+        return new java.sql.Timestamp(answer.getTimeInMillis());
     }
 
     /**
@@ -361,7 +361,7 @@ public class HistoryStatsUtils {
      * @param timeStamp the {@link Timestamp} to roll forward
      * @return a {@link Timestamp} with the hours, mins, secs, and ms set to max
      */
-    private static java.sql.Date endOfDay(Date timeStamp) {
+    private static java.sql.Timestamp endOfDay(Timestamp timeStamp) {
         Calendar answer = Calendar.getInstance();
         answer.setTime(timeStamp);
         // back to beginning of the current day
@@ -370,7 +370,7 @@ public class HistoryStatsUtils {
         answer.add(Calendar.DATE, 1);
         // roll back 1 sec == end of day
         answer.add(Calendar.SECOND, -1);
-        return new java.sql.Date(answer.getTimeInMillis());
+        return new java.sql.Timestamp(answer.getTimeInMillis());
     }
 
     /**
@@ -385,7 +385,7 @@ public class HistoryStatsUtils {
      * @param timeStamp the {@link Timestamp} to roll forward
      * @return a {@link Timestamp} with the day-of-month set to max
      */
-    private static java.sql.Date endOfMonth(Date timeStamp) {
+    private static java.sql.Timestamp endOfMonth(Timestamp timeStamp) {
         Calendar answer = Calendar.getInstance();
         answer.setTime(timeStamp);
         // back to the beginning of the month
@@ -394,7 +394,7 @@ public class HistoryStatsUtils {
         answer.add(Calendar.MONTH, 1);
         // move back 1 sec = end of month
         answer.add(Calendar.SECOND, -1);
-        return new java.sql.Date(answer.getTimeInMillis());
+        return new java.sql.Timestamp(answer.getTimeInMillis());
     }
 
     /**
@@ -425,5 +425,23 @@ public class HistoryStatsUtils {
         answer.set(Calendar.DAY_OF_MONTH, answer.getActualMinimum(Calendar.DAY_OF_MONTH));
     }
 
+    @SuppressWarnings("unchecked")
+    public static Field<Timestamp> timestamp(Field<?> field){
+        checkNotNull(field);
+        checkFieldType(field.getType(), Timestamp.class);
+        return (Field<Timestamp>)field;
+    }
 
+    /*
+     * Type-safe wrappers for casting Fields to the required generic type.
+     */
+    private static void checkFieldType(Class<?> given, Class<?> expected){
+        checkFieldType(given, expected, false);
+    }
+
+    private static void checkFieldType(Class<?> given, Class<?> expected, boolean subClsOK){
+        checkArgument(subClsOK ? expected.isAssignableFrom(given) : given==expected,
+                "Incorrect field type %s (expected %s)",
+                given.getName(), expected.getName());
+    }
 }

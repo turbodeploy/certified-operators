@@ -29,6 +29,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.SenderReceiverPair;
 import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.history.schema.abstraction.tables.records.OnDemandReportsRecord;
 import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportNotification;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceImplBase;
@@ -42,10 +43,9 @@ import com.vmturbo.reports.component.schedules.ScheduleDAO;
 import com.vmturbo.reports.component.schedules.ScheduleDAOimpl;
 import com.vmturbo.reports.component.schedules.Scheduler;
 import com.vmturbo.reports.component.templates.OnDemandTemplatesDao;
-import com.vmturbo.reports.component.templates.TemplatesOrganizer;
-import com.vmturbo.reports.component.templates.TemplatesDao;
 import com.vmturbo.reports.component.templates.StandardTemplatesDaoImpl;
-import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
+import com.vmturbo.reports.component.templates.TemplatesDao;
+import com.vmturbo.reports.component.templates.TemplatesOrganizer;
 import com.vmturbo.sql.utils.FlywayMigrator;
 
 /**

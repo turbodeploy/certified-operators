@@ -8,8 +8,8 @@ import java.util.Optional;
 
 import org.junit.Test;
 
+import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.reports.db.CommodityTypes;
 
 /**
  * Test utilities for working with Commodity Names.

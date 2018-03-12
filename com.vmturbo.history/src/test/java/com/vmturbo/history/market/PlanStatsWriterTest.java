@@ -2,7 +2,6 @@ package com.vmturbo.history.market;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -21,10 +20,10 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.reports.db.abstraction.tables.records.ScenariosRecord;
 
 /**
  * Unit tests for writing plan output stats.

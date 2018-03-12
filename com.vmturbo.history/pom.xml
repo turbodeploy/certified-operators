@@ -12,7 +12,6 @@
 
     <properties>
         <swagger.component.name>History</swagger.component.name>
-
         <!-- these DB-related version should be in sync with ones in com.vmturbo.reports -->
         <jooq.version>3.1.0</jooq.version>
         <flyway.version>3.0</flyway.version>
@@ -59,21 +58,14 @@
         <!-- Common Dependencies shared with Legacy -->
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.reports</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>log4j</groupId>
-                    <artifactId>log4j</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.platform.sdk.common</artifactId>
         </dependency>
 
         <!-- XL dependencies -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.history.schema</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>history-component-api</artifactId>
@@ -126,10 +118,6 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-1.2-api</artifactId>
         </dependency>
     </dependencies>
 

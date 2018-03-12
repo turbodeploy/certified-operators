@@ -1,19 +1,15 @@
 package com.vmturbo.history;
 
-import java.time.Duration;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.VmtDbException;
+import com.vmturbo.history.db.VmtDbException;
 
 /**
  * Handle the creation and update of the DB.
  **/
 public class HistoryDbMigration {
-
-    private static final String XL_DB_MIGRATION_PATH="db/xl-migrations";
 
     private final static Logger log = LogManager.getLogger();
 
@@ -35,7 +31,7 @@ public class HistoryDbMigration {
      */
     public void migrate() throws VmtDbException {
         log.info("Starting DB migration");
-        historydbIO.init(false, null, historydbIO.getDatabaseName(), XL_DB_MIGRATION_PATH);
+        historydbIO.init(false, null, historydbIO.getDatabaseName());
         log.info("DB Migration complete");
     }
 }

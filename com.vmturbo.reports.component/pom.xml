@@ -30,7 +30,7 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.reports.templates</artifactId>
+            <artifactId>com.vmturbo.history.schema</artifactId>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
@@ -67,7 +67,7 @@
          <!-- Common Dependencies shared with Legacy -->
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.reports</artifactId>
+            <artifactId>com.vmturbo.reports.templates</artifactId>
         </dependency>
 
         <!-- Dependencies from 4.5.0a: -->

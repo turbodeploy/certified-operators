@@ -1,16 +1,16 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.StringConstants.AVG_VALUE;
-import static com.vmturbo.reports.db.StringConstants.CAPACITY;
-import static com.vmturbo.reports.db.StringConstants.COMMODITY_KEY;
-import static com.vmturbo.reports.db.StringConstants.MAX_VALUE;
-import static com.vmturbo.reports.db.StringConstants.MIN_VALUE;
-import static com.vmturbo.reports.db.StringConstants.PRODUCER_UUID;
-import static com.vmturbo.reports.db.StringConstants.PROPERTY_SUBTYPE;
-import static com.vmturbo.reports.db.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.reports.db.StringConstants.RELATION;
-import static com.vmturbo.reports.db.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.reports.db.StringConstants.UTILIZATION;
+import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
+import static com.vmturbo.history.schema.StringConstants.CAPACITY;
+import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
+import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
+import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
+import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.history.schema.StringConstants.RELATION;
+import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.history.schema.StringConstants.UTILIZATION;
 import static org.joda.time.DateTimeConstants.MILLIS_PER_DAY;
 
 import java.math.BigDecimal;
@@ -71,15 +71,15 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.CommodityTypes;
+import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
-import com.vmturbo.reports.db.CommodityTypes;
-import com.vmturbo.reports.db.RelationType;
-import com.vmturbo.reports.db.StringConstants;
-import com.vmturbo.reports.db.VmtDbException;
-import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.ClusterStatsByMonthRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.MktSnapshotsStatsRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.ScenariosRecord;
 
 /**
  * Handles incoming RPC calls to History Component to return Stats information.
@@ -707,7 +707,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
             );
             String commodityName = dbStatRecord.getValue(PROPERTY_TYPE, String.class);
             String propertySubType = dbStatRecord.getValue(PROPERTY_SUBTYPE, String.class);
-            // See the enum RelationType in com.vmturbo.reports.db.
+            // See the enum RelationType in com.vmturbo.history.db.
             // Commodities, CommoditiesBought, and CommoditiesFromAttributes
             // (e.g., priceIndex, numVCPUs, etc.)
             String relation = dbStatRecord.getValue(RELATION, String.class);

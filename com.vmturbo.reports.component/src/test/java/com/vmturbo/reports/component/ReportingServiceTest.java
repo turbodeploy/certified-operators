@@ -41,7 +41,7 @@ import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceB
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
 public class ReportingServiceTest {
 
-    private static long TIMEOUT_MS = 30 * 1000;
+    private static long TIMEOUT_MS = 60 * 1000;
 
     @Autowired
     private ReportingTestConfig reportingConfig;

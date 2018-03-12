@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.reports.db.abstraction.Tables.CLUSTER_STATS_BY_DAY;
-import static com.vmturbo.reports.db.abstraction.Tables.PM_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY;
+import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
@@ -29,9 +29,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.reports.db.BasedbIO;
-import com.vmturbo.reports.db.VmtDbException;
+import com.vmturbo.history.db.VmtDbException;
 
 /**
  * DB Methods to write Cluster Stats.

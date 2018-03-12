@@ -13,8 +13,8 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.enums.ReportType;
-import com.vmturbo.reports.db.abstraction.tables.records.OnDemandReportsRecord;
-import com.vmturbo.reports.db.abstraction.tables.records.StandardReportsRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.OnDemandReportsRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.StandardReportsRecord;
 import com.vmturbo.sql.utils.DbException;
 
 /**

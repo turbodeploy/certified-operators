@@ -9,6 +9,10 @@
     </Appenders>
 
     <Loggers>
+        <Root level="info">
+            <AppenderRef ref="stdout"/>
+        </Root>
         <Logger name="com.vmturbo" level="info" />
+        <logger name="org.flywaydb" level="info"/>
     </Loggers>
 </Configuration>

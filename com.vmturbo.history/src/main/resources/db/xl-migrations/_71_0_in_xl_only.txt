@@ -1,1 +1,0 @@
-# the 71.0 update is only used in XL.  pls skip this migration in OpsManager
