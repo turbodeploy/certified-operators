@@ -1,0 +1,58 @@
+{
+  "origin": {
+    "id": "72366309476093",
+    "entityType": "VirtualDataCenter"
+  },
+  "edgeCollection": [
+    {
+      "entityType": "",
+      "edges": [
+        {
+          "provider": {
+            "id": "72366309476093",
+            "entityType": "VirtualDataCenter"
+          },
+          "consumer": {
+            "id": "72366309476130",
+            "entityType": "VirtualMachine"
+          }
+        },
+        {
+          "provider": {
+            "id": "72366309476093",
+            "entityType": "VirtualDataCenter"
+          },
+          "consumer": {
+            "id": "72366309476131",
+            "entityType": "VirtualMachine"
+          }
+        }
+      ]
+    },
+    {
+      "entityType": "",
+      "edges": [
+        {
+          "provider": {
+            "id": "72366309476130",
+            "entityType": "VirtualMachine"
+          },
+          "consumer": {
+            "id": "72366309476172",
+            "entityType": "Application"
+          }
+        },
+        {
+          "provider": {
+            "id": "72366309476131",
+            "entityType": "VirtualMachine"
+          },
+          "consumer": {
+            "id": "72366309476173",
+            "entityType": "Application"
+          }
+        }
+      ]
+    }
+  ]
+}

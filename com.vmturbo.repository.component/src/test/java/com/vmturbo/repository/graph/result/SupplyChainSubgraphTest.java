@@ -113,6 +113,40 @@ public class SupplyChainSubgraphTest {
         assertThat(vmNode.getConnectedProviderTypesList(), is(empty()));
     }
 
+    /**
+     * Ensure self-loops in the supply chain introduced by VDC's that buy from other VDC's can be correctly
+     * handled. If not properly handled, the supply chain does not contain any links below VDC (ie host,
+     * datacenter, etc.)
+     *
+     * @throws Exception If the test files can't be loaded.
+     */
+    @Test
+    public void testVdcBuyingFromOtherVdc() throws Exception {
+        final SubgraphResult consumers = graphResultFromFile("protobuf/messages/supply-chain-vdc-consumers.json");
+        final SubgraphResult providers = graphResultFromFile("protobuf/messages/supply-chain-vdc-providers.json");
+
+        final SupplyChainSubgraph subgraph =
+            new SupplyChainSubgraph(providers, consumers);
+        final Map<String, SupplyChainNode> supplyChainNodes = subgraph.toSupplyChainNodes().stream()
+            .collect(Collectors.toMap(SupplyChainNode::getEntityType, Function.identity()));
+
+        assertThat(supplyChainNodes.keySet(), containsInAnyOrder(
+            RepoEntityType.APPLICATION.getValue(),
+            RepoEntityType.VIRTUAL_MACHINE.getValue(),
+            RepoEntityType.PHYSICAL_MACHINE.getValue(),
+            RepoEntityType.VIRTUAL_DATACENTER.getValue(),
+            RepoEntityType.DATACENTER.getValue(),
+            RepoEntityType.STORAGE.getValue(),
+            RepoEntityType.DISKARRAY.getValue()
+        ));
+
+        assertEquals(2, supplyChainNodes.get(RepoEntityType.VIRTUAL_DATACENTER.getValue()).getMemberOidsCount());
+        assertThat(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
+            .getConnectedConsumerTypesList(), contains(RepoEntityType.APPLICATION.getValue()));
+        assertThat(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
+                .getConnectedProviderTypesList(), contains(RepoEntityType.VIRTUAL_DATACENTER.getValue()));
+    }
+
     private static class TypeAndEdges {
         private String type;
         private List<ResultEdge> edges;

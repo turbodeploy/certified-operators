@@ -14,10 +14,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 
@@ -112,6 +114,11 @@ public class SupplyChainSubgraph {
      * end of the traversal, return the counts for each entity type that were reached
      * during the traversal.
      *
+     * Note that we make an exception for entities that buy from entities of the same type
+     * (ie VDC's). In the specific case where an entity buys from its same type, we do
+     * not count the depth as increasing and instead include all entities buying from
+     * each other of that same type.
+     *
      * @return {@link SupplyChainNode}s for the supply chain starting from the starting vertex.
      */
     public List<SupplyChainNode> toSupplyChainNodes() {
@@ -129,16 +136,17 @@ public class SupplyChainSubgraph {
          */
         final SupplyChainVertex startingVertex = graph.get(startingVertexId);
 
-        final Deque<SupplyChainVertex> frontier = new ArrayDeque<>();
+        final Deque<VertexAndNeighbor> frontier = new ArrayDeque<>();
 
         // Traverse outward from the starting vertex to collect supply chain providers
-        frontier.add(startingVertex);
+        frontier.add(new VertexAndNeighbor(startingVertex, null));
         traverseSupplyChainBFS(nodeMap, frontier, SupplyChainVertex::getProviders, 1);
 
         // Traverse outward from the starting vertex to collect supply chain consumers
         // Start from the starting vertex consumers because the starting vertex itself
         // was added in the producers traversal.
-        frontier.addAll(startingVertex.getConsumers());
+        frontier.addAll(Lists.transform(startingVertex.getConsumers(),
+            consumer -> new VertexAndNeighbor(consumer, startingVertex)));
         traverseSupplyChainBFS(nodeMap, frontier, SupplyChainVertex::getConsumers, 1);
 
         makeInstancesUnique(nodeMap);
@@ -162,19 +170,26 @@ public class SupplyChainSubgraph {
      * @param currentDepth The current depth of the BFS (ie how many hops we are from the starting vertex).
      */
     private void traverseSupplyChainBFS(@Nonnull final Map<String, SupplyChainNode.Builder> nodeMap,
-                                        @Nonnull final Deque<SupplyChainVertex> frontier,
+                                        @Nonnull final Deque<VertexAndNeighbor> frontier,
                                         @Nonnull final NeighborFunction neighborFunction,
                                         final int currentDepth) {
         // nextFrontier are the entities to be traversed at depth+1.
-        final Deque<SupplyChainVertex> nextFrontier = new ArrayDeque<>();
+        final Deque<VertexAndNeighbor> nextFrontier = new ArrayDeque<>();
         final Set<String> visitedEntityTypes = new HashSet<>();
         visitedEntityTypes.addAll(nodeMap.keySet());
 
         while (!frontier.isEmpty()) {
-            final SupplyChainVertex vertex = frontier.removeFirst();
+            final VertexAndNeighbor vertexAndNeighbor = frontier.removeFirst();
+            final SupplyChainVertex vertex = vertexAndNeighbor.vertex;
 
-            if (!visitedEntityTypes.contains(vertex.getEntityType())) {
-                nextFrontier.addAll(neighborFunction.neighborsFor(vertex));
+            /** Only add a node when we have not already visited an entity of the same type
+             *  or if the connection corresponds to a "self-loop" where an entity buys from
+             *  or sells to an entity of the same type (see {@link #toSupplyChainNodes})
+             */
+            if (!visitedEntityTypes.contains(vertex.getEntityType()) || vertexAndNeighbor.sameEntityTypes()) {
+                nextFrontier.addAll(neighborFunction.neighborsFor(vertex).stream()
+                    .map(neighbor -> new VertexAndNeighbor(neighbor, vertex))
+                    .collect(Collectors.toList()));
                 final SupplyChainNode.Builder nodeBuilder =
                     nodeMap.computeIfAbsent(vertex.getEntityType(), entityType -> SupplyChainNode.newBuilder());
 
@@ -331,6 +346,39 @@ public class SupplyChainSubgraph {
         @Nonnull
         public String getOid() {
             return oid;
+        }
+    }
+
+    /**
+     * A simple class that pairs a vertex and the neighbor from which we reached that vertex during
+     * a BFS traversal of the {@link SupplyChainSubgraph}.
+     */
+    @Immutable
+    private static class VertexAndNeighbor {
+        public final SupplyChainVertex vertex;
+        private final SupplyChainVertex sourceNeighbor;
+
+        /**
+         * Create a new {@link VertexAndNeighbor}.
+         * @param vertex A vertex in the graph.
+         * @param sourceNeighbor The neighbor of the vertex from which we reached the neighbor during a BFS
+         *                       supply-chain traversal. For the origin vertex of the BFS, the sourceNeighbor
+         *                       will be null, otherwise the sourceNeighbor will be non-null.
+         */
+        public VertexAndNeighbor(@Nonnull final SupplyChainVertex vertex,
+                                 @Nullable final SupplyChainVertex sourceNeighbor) {
+            this.vertex = Objects.requireNonNull(vertex);
+            this.sourceNeighbor = sourceNeighbor;
+        }
+
+        /**
+         * Returns true if and only if the vertex and its source neighbor have the same entity type.
+         * If the source neighbor is null, returns false.
+         *
+         * @return If the vertex and its sourceNeighbor have the same entityType.
+         */
+        public boolean sameEntityTypes() {
+            return sourceNeighbor != null && vertex.getEntityType().equals(sourceNeighbor.getEntityType());
         }
     }
 
