@@ -8,6 +8,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -15,6 +16,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 
@@ -27,7 +31,12 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -36,7 +45,9 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -62,18 +73,29 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
  * Unit tests for {@link ActionSpecMapper}.
  */
 public class ActionSpecMapperTest {
-    @InjectMocks
+
+    public static final int POLICY_ID = 10;
+    public static final String POLICY_NAME = "policy";
     private ActionSpecMapper mapper;
 
-    @Mock
     private RepositoryApi repositoryApi;
+
+    private PolicyDTOMoles.PolicyServiceMole policyMole;
+
+    private GrpcTestServer grpcServer;
+
+    private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
 
     private final long contextId = 777L;
 
@@ -86,8 +108,18 @@ public class ActionSpecMapperTest {
     private static final String DESTINATION = "Destination";
 
     @Before
-    public void setup() {
-        MockitoAnnotations.initMocks(this);
+    public void setup() throws IOException {
+        policyMole = Mockito.spy(PolicyDTOMoles.PolicyServiceMole.class);
+        final List<PolicyDTO.PolicyResponse> policyResponses = ImmutableList.of(
+                        PolicyDTO.PolicyResponse.newBuilder().setPolicy(
+                        PolicyDTO.Policy.newBuilder().setId(POLICY_ID).setName(POLICY_NAME)).build());
+        Mockito.when(policyMole.getAllPolicies(Mockito.any())).thenReturn(policyResponses);
+        grpcServer = GrpcTestServer.newServer(policyMole);
+        grpcServer.start();
+        policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        repositoryApi = Mockito.mock(RepositoryApi.class);
+        mapper = new ActionSpecMapper(repositoryApi, policyService, Executors
+                        .newCachedThreadPool(new ThreadFactoryBuilder().build()));
         commodityCpu = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.CPU_VALUE)
             .setKey("blah")
@@ -533,6 +565,42 @@ public class ActionSpecMapperTest {
                 Arrays.asList(moveSpec, resizeSpec), contextId);
         assertEquals(1, dtos.size());
         assertEquals(ActionType.RESIZE, dtos.get(0).getActionType());
+    }
+
+    @Test
+    public void testPlacementPolicyMove()
+                    throws UnsupportedActionException, UnknownObjectException, ExecutionException,
+                    InterruptedException {
+        final ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
+                        .setTarget(ApiUtilsTest.createActionEntity(1))
+                        .addChanges(ChangeProvider.newBuilder()
+                                        .setSource(ApiUtilsTest.createActionEntity(2))
+                                        .setDestination(ApiUtilsTest.createActionEntity(3))
+                                        .build())
+                        .build())
+                        .build();
+        final Map<Long, Optional<ServiceEntityApiDTO>> involvedEntities = oidToEntityMap(
+                        entityApiDTO("target", 1, "VM"),
+                        entityApiDTO("source", 2, "VM"),
+                        entityApiDTO("dest", 3, "VM")
+        );
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+                        .thenReturn(involvedEntities);
+        final Compliance compliance = Compliance.newBuilder().addMissingCommodities(
+                        CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
+                                        .setKey(String.valueOf(POLICY_ID))
+                                        .build()).build();
+        final MoveExplanation moveExplanation = MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                        .setCompliance(compliance).build())
+                        .build();
+        final List<ActionApiDTO> dtos = mapper.mapActionSpecsToActionApiDTOs(
+                        Arrays.asList(buildActionSpec(moveInfo, Explanation.newBuilder()
+                                        .setMove(moveExplanation).build())),
+                        contextId);
+        Assert.assertEquals("target doesn't comply to " + POLICY_NAME,
+                        dtos.get(0).getRisk().getDescription());
     }
 
     @Test

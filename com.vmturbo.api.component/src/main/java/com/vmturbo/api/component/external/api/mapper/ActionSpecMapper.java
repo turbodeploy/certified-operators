@@ -6,11 +6,16 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -20,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.CaseFormat;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -50,6 +56,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
@@ -59,12 +67,24 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
  */
 public class ActionSpecMapper {
 
+    private static final String STORAGE_VALUE = UIEntityType.STORAGE.getValue();
+    private static final String PHYSICAL_MACHINE_VALUE = UIEntityType.PHYSICAL_MACHINE.getValue();
+    private static final String DISK_ARRAY_VALUE = UIEntityType.DISKARRAY.getValue();
+
+    private final PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
+
     private final RepositoryApi repositoryApi;
+
+    private final ExecutorService executorService;
 
     private final Logger logger = LogManager.getLogger();
 
-    public ActionSpecMapper(@Nonnull final RepositoryApi repositoryApi) {
+    public ActionSpecMapper(@Nonnull final RepositoryApi repositoryApi,
+                    @Nonnull PolicyServiceGrpc.PolicyServiceBlockingStub policyService,
+                    @Nonnull ExecutorService executorService) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.policyService = Objects.requireNonNull(policyService);
+        this.executorService = Objects.requireNonNull(executorService);
     }
 
     /**
@@ -85,7 +105,9 @@ public class ActionSpecMapper {
     @Nonnull
     public List<ActionApiDTO> mapActionSpecsToActionApiDTOs(
             @Nonnull final Collection<ActionSpec> actionSpecs,
-            final long topologyContextId) throws UnsupportedActionException {
+            final long topologyContextId)
+                    throws UnsupportedActionException, UnknownObjectException, ExecutionException,
+                    InterruptedException {
         final List<ActionDTO.Action> recommendations =
                 actionSpecs.stream()
                         .map(ActionSpec::getRecommendation)
@@ -93,20 +115,50 @@ public class ActionSpecMapper {
 
         final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntities(recommendations);
 
-        final ActionSpecMappingContext context = new ActionSpecMappingContext(topologyContextId,
-                involvedEntities, repositoryApi);
+        final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
+        final Future<Map<Long, Optional<ServiceEntityApiDTO>>> entities = executorService
+                        .submit(() -> getEntities(topologyContextId, involvedEntities));
+        final ActionSpecMappingContext context = new ActionSpecMappingContext(entities.get(), policies.get());
 
-        return actionSpecs.stream()
-                .map(spec -> {
-                    try {
-                        return mapActionSpecToActionApiDTOInternal(spec, context);
-                    } catch (UnknownObjectException e) {
-                        logger.error("Unable to map action spec: " + e);
-                        return null;
-                    }
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
+        final ImmutableList.Builder<ActionApiDTO> actionApiDTOS = ImmutableList.builder();
+
+        for (ActionSpec spec : actionSpecs) {
+            try {
+                final ActionApiDTO actionApiDTO = mapActionSpecToActionApiDTOInternal(spec, context);
+                if (Objects.nonNull(actionApiDTO)) {
+                    actionApiDTOS.add(actionApiDTO);
+                }
+            } catch (UnknownObjectException e) {
+                logger.error(String.format("Coulnd't resolve entity from spec %s", spec), e);
+            }
+        }
+        return actionApiDTOS.build();
+    }
+
+    @Nonnull
+    private Map<Long, PolicyDTO.Policy> getPolicies() {
+        final Map<Long, PolicyDTO.Policy> policies = new HashMap<>();
+        policyService.getAllPolicies(PolicyDTO.PolicyRequest.newBuilder().build()).forEachRemaining(
+                        response -> policies
+                                        .put(response.getPolicy().getId(), response.getPolicy()));
+        return policies;
+    }
+
+    /**
+     * We always search the projected topology because the projected topology is
+     * a super-set of the source topology. All involved entities that are in
+     * the source topology will also be in the projected topology, but there will
+     * be entities that are ONLY in the projected topology (e.g. actions involving
+     * newly provisioned hosts/VMs).
+
+     * @return maped entities
+     */
+    private Map<Long, Optional<ServiceEntityApiDTO>> getEntities(long topologyContextId,
+                    @Nonnull Set<Long> involvedEntities) {
+        return repositoryApi.getServiceEntitiesById(
+                        ServiceEntitiesRequest.newBuilder(involvedEntities)
+                                        .setTopologyContextId(topologyContextId)
+                                        .searchProjectedTopology().build());
     }
 
     /**
@@ -132,19 +184,23 @@ public class ActionSpecMapper {
     @Nonnull
     public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec,
                                                     final long topologyContextId)
-            throws UnknownObjectException, UnsupportedActionException {
+                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+                    InterruptedException {
         final Set<Long> involvedEntities =
                     ActionDTOUtil.getInvolvedEntities(actionSpec.getRecommendation());
 
-        final ActionSpecMappingContext context =
-                new ActionSpecMappingContext(topologyContextId, involvedEntities, repositoryApi);
+        final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
+        final Future<Map<Long, Optional<ServiceEntityApiDTO>>> entities = executorService
+                        .submit(() -> getEntities(topologyContextId, involvedEntities));
+        final ActionSpecMappingContext context = new ActionSpecMappingContext(entities.get(), policies.get());
         return mapActionSpecToActionApiDTOInternal(actionSpec, context);
     }
 
     @Nonnull
     private ActionApiDTO mapActionSpecToActionApiDTOInternal(
             @Nonnull final ActionSpec actionSpec,
-            @Nonnull final ActionSpecMappingContext context) throws UnknownObjectException {
+            @Nonnull final ActionSpecMappingContext context)
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
         // actionID and uuid are the same
@@ -172,7 +228,8 @@ public class ActionSpecMapper {
         LogEntryApiDTO risk = new LogEntryApiDTO();
         risk.setImportance((float)recommendation.getImportance());
         // set the explanation string
-        risk.setDescription(actionSpec.getExplanation());
+
+        risk.setDescription(createRiskDescription(actionSpec, context));
         risk.setSubCategory(actionSpec.getCategory());
         risk.setSeverity(
             ActionDTOUtil.getSeverityName(ActionDTOUtil.mapImportanceToSeverity(recommendation
@@ -238,9 +295,55 @@ public class ActionSpecMapper {
         return actionApiDTO;
     }
 
-    private static final String STORAGE_VALUE = UIEntityType.STORAGE.getValue();
-    private static final String HOST_VALUE = UIEntityType.PHYSICAL_MACHINE.getValue();
-    private static final String DISK_ARRAY_VALUE = UIEntityType.DISKARRAY.getValue();
+    @Nonnull
+    private String createRiskDescription(@Nonnull final ActionSpec actionSpec,
+                    @Nonnull final ActionSpecMappingContext context) {
+        final Optional<String> policyId = tryExtractPlacementPolicyId(actionSpec.getRecommendation());
+        if (policyId.isPresent()) {
+            final long entityOid = actionSpec.getRecommendation().getInfo().getMove().getTarget().getId();
+            final long policyOid = Long.parseLong(policyId.get());
+
+            try {
+                final Optional<PolicyDTO.Policy> policy =
+                                Optional.ofNullable(context.getPolicy(policyOid));
+                if (!policy.isPresent()) {
+                    return actionSpec.getExplanation();
+                }
+                return String.format("%s doesn't comply to %s",
+                                context.getEntity(entityOid).getDisplayName(), policy.get().getName());
+            } catch (UnknownObjectException ex) {
+                logger.error(String.format("Cannot resolve VM with oid %s from context", entityOid), ex);
+            } catch (ExecutionException | InterruptedException ex) {
+                logger.error("Failed to get placement policies", ex);
+            }
+        }
+        return actionSpec.getExplanation();
+    }
+
+    private Optional<String> tryExtractPlacementPolicyId(@Nonnull ActionDTO.Action recommendation) {
+        if (!recommendation.hasExplanation()) {
+            return Optional.empty();
+        }
+        if (!recommendation.getExplanation().hasMove()) {
+            return Optional.empty();
+        }
+        if (recommendation.getExplanation().getMove().getChangeProviderExplanationCount() < 1) {
+            return Optional.empty();
+        }
+        final ActionDTO.Explanation.ChangeProviderExplanation explanation =
+                        recommendation.getExplanation().getMove().getChangeProviderExplanation(0);
+        if (!explanation.hasCompliance()) {
+            return Optional.empty();
+        }
+        if (explanation.getCompliance().getMissingCommoditiesCount() < 1) {
+            return Optional.empty();
+        }
+        if (explanation.getCompliance().getMissingCommodities(0)
+                        .getType() != CommodityDTO.CommodityType.SEGMENTATION_VALUE) {
+            return Optional.empty();
+        }
+        return Optional.of(explanation.getCompliance().getMissingCommodities(0).getKey());
+    }
 
     /**
      * Populate various fields of the {@link ActionApiDTO} representing a (compound) move.
@@ -257,7 +360,7 @@ public class ActionSpecMapper {
                              @Nonnull final Move move,
                              final MoveExplanation moveExplanation,
                              @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
 
         // Assume that if this is an initial placement then all explanations will be InitialPlacement
         final boolean initialPlacement = moveExplanation.getChangeProviderExplanationCount() > 0
@@ -293,17 +396,18 @@ public class ActionSpecMapper {
      * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
      * @return a host change if exists, first change otherwise
      */
-    private ChangeProvider primaryChange(Move move, ActionSpecMappingContext context) {
-        return move.getChangesList().stream()
-                        // If a host change exists then use it
-                        .filter(change -> isHost(context.getOptionalEntity(change.getDestination().getId())))
-                        .findFirst()
-                        // otherwise use first change
-                        .orElse(move.getChanges(0));
+    private ChangeProvider primaryChange(Move move, ActionSpecMappingContext context)
+                    throws ExecutionException, InterruptedException {
+        for (ChangeProvider change : move.getChangesList()) {
+            if (isHost(context.getOptionalEntity(change.getDestination().getId()))) {
+                return change;
+            }
+        }
+        return move.getChanges(0);
     }
 
     private boolean isHost(Optional<ServiceEntityApiDTO> entity) {
-        return entity.map(ServiceEntityApiDTO::getClassName).map(HOST_VALUE::equals).orElse(false);
+        return entity.map(ServiceEntityApiDTO::getClassName).map(PHYSICAL_MACHINE_VALUE::equals).orElse(false);
     }
 
     private ActionApiDTO singleMove(ActionApiDTO compoundDto,
@@ -311,7 +415,7 @@ public class ActionSpecMapper {
                     @Nonnull final ChangeProvider change,
                     final boolean initialPlacement,
                     @Nonnull final ActionSpecMappingContext context)
-                                    throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
 
         ActionApiDTO actionApiDTO = new ActionApiDTO();
         actionApiDTO.setTarget(new ServiceEntityApiDTO());
@@ -368,7 +472,8 @@ public class ActionSpecMapper {
      * @return CHANGE or MOVE type.
      */
     private ActionType actionType(@Nonnull final Move move,
-                    @Nonnull final ActionSpecMappingContext context) {
+                    @Nonnull final ActionSpecMappingContext context)
+                    throws ExecutionException, InterruptedException {
         if (move.getChangesCount() > 1) {
             return ActionType.MOVE;
         }
@@ -393,7 +498,8 @@ public class ActionSpecMapper {
      * @return DELETE or SUSPEND type
      */
     private ActionType actionType(@Nonnull final Deactivate deactivate,
-                                  @Nonnull final ActionSpecMappingContext context) {
+                                  @Nonnull final ActionSpecMappingContext context)
+                    throws ExecutionException, InterruptedException {
         if (deactivate.hasTarget()) {
             long targetId = deactivate.getTarget().getId();
             return context.getOptionalEntity(targetId)
@@ -414,7 +520,8 @@ public class ActionSpecMapper {
      * @return ADD_PROVIDER or START
      */
     private ActionType actionType(@Nonnull final Activate activate,
-                                  @Nonnull final ActionSpecMappingContext context) {
+                                  @Nonnull final ActionSpecMappingContext context)
+                    throws ExecutionException, InterruptedException {
 
         if (activate.hasTarget()) {
             long targetId = activate.getTarget().getId();
@@ -433,7 +540,7 @@ public class ActionSpecMapper {
                                     @Nonnull final Reconfigure reconfigure,
                                     @Nonnull final ReconfigureExplanation explanation,
                                     @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
         actionApiDTO.setActionType(ActionType.RECONFIGURE);
 
         setEntityDtoFields(actionApiDTO.getTarget(), reconfigure.getTarget().getId(), context);
@@ -451,7 +558,7 @@ public class ActionSpecMapper {
     private void addProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                   @Nonnull final Provision provision,
                                   @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
         actionApiDTO.setActionType(ActionType.PROVISION);
 
         final String provisionedSellerUuid = Long.toString(provision.getProvisionedSeller());
@@ -472,7 +579,7 @@ public class ActionSpecMapper {
     private void addResizeInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                @Nonnull final Resize resize,
                                @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
         actionApiDTO.setActionType(ActionType.RESIZE);
 
         setEntityDtoFields(actionApiDTO.getTarget(), resize.getTarget().getId(), context);
@@ -496,7 +603,7 @@ public class ActionSpecMapper {
     private void addActivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                  @Nonnull final Activate activate,
                                  @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
         ActionType actionType = actionType(activate, context);
         actionApiDTO.setActionType(actionType);
         setEntityDtoFields(actionApiDTO.getTarget(), activate.getTarget().getId(), context);
@@ -525,7 +632,7 @@ public class ActionSpecMapper {
     private void addDeactivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                    @Nonnull final Deactivate deactivate,
                                    @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
         setEntityDtoFields(actionApiDTO.getTarget(), deactivate.getTarget().getId(), context);
         ActionType actionType = actionType(deactivate, context);
         actionApiDTO.setActionType(actionType);
@@ -722,7 +829,7 @@ public class ActionSpecMapper {
                                        final long originalEntityOid,
                                        @Nonnull String newEntityOid,
                                        @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
         final ServiceEntityApiDTO originalEntity = context.getEntity(originalEntityOid);
         responseEntityApiDTO.setDisplayName("New Entity");
         responseEntityApiDTO.setUuid(newEntityOid);
@@ -745,7 +852,7 @@ public class ActionSpecMapper {
     private void setEntityDtoFields(@Nonnull final BaseApiDTO responseEntityApiDTO,
                                     final long originalEntityOid,
                                     @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+                    throws UnknownObjectException, ExecutionException, InterruptedException {
         final ServiceEntityApiDTO originalEntity = context.getEntity(originalEntityOid);
         responseEntityApiDTO.setDisplayName(originalEntity.getDisplayName());
         responseEntityApiDTO.setUuid(originalEntity.getUuid());
@@ -759,33 +866,34 @@ public class ActionSpecMapper {
      * remote calls to obtain all the information required to map a set of {@link ActionSpec}s.</p>
      */
     private static class ActionSpecMappingContext {
+
+        private final Logger logger = LogManager.getLogger();
+
         private final Map<Long, Optional<ServiceEntityApiDTO>> entities;
 
-        ActionSpecMappingContext(final long topologyContextId,
-                                 @Nonnull final Set<Long> involvedEntities,
-                                 @Nonnull final RepositoryApi repositoryApi) {
-            final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-                    // We always search the projected topology because the projected topology is
-                    // a super-set of the source topology. All involved entities that are in
-                    // the source topology will also be in the projected topology, but there will
-                    // be entities that are ONLY in the projected topology (e.g. actions involving
-                    // newly provisioned hosts/VMs).
-                    repositoryApi.getServiceEntitiesById(
-                            ServiceEntitiesRequest.newBuilder(involvedEntities)
-                                .setTopologyContextId(topologyContextId)
-                                .searchProjectedTopology()
-                                .build());
-            this.entities = Collections.unmodifiableMap(entities);
+        private final Map<Long, PolicyDTO.Policy> policies;
+
+        ActionSpecMappingContext(@Nonnull Map<Long, Optional<ServiceEntityApiDTO>> entities,
+                        @Nonnull Map<Long, PolicyDTO.Policy> policies) {
+            this.entities = Objects.requireNonNull(entities);
+            this.policies = Objects.requireNonNull(policies);
+        }
+
+        private PolicyDTO.Policy getPolicy(long id)
+                        throws ExecutionException, InterruptedException {
+            return policies.get(id);
         }
 
         @Nonnull
-        ServiceEntityApiDTO getEntity(final long oid) throws UnknownObjectException {
+        private ServiceEntityApiDTO getEntity(final long oid)
+                        throws UnknownObjectException, ExecutionException, InterruptedException {
             return Objects.requireNonNull(entities.get(oid))
                           .orElseThrow(() -> new UnknownObjectException("Entity: " + oid
                                   + " not found."));
         }
 
-        Optional<ServiceEntityApiDTO> getOptionalEntity(final long oid) {
+        private Optional<ServiceEntityApiDTO> getOptionalEntity(final long oid)
+                        throws ExecutionException, InterruptedException {
             return entities.get(oid);
         }
     }

@@ -4,11 +4,18 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Matchers.any;
 
+import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -34,18 +41,26 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
+import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
  * Test the construction of {@link ActionApiDTO} with compound moves.
  */
 public class CompoundMoveTest {
 
-    @InjectMocks
     private ActionSpecMapper mapper;
 
-    @Mock
+    private PolicyDTOMoles.PolicyServiceMole policyMole;
+
     private RepositoryApi repositoryApi;
+
+    private GrpcTestServer grpcServer;
+
+    private PolicyServiceGrpc.PolicyServiceBlockingStub policyService;
 
     private static final long TARGET_ID = 10;
     private static final String TARGET_NAME = "vm-1";
@@ -59,8 +74,18 @@ public class CompoundMoveTest {
     private static final String PM2_NAME = "host-2";
 
     @Before
-    public void setup() {
-        MockitoAnnotations.initMocks(this);
+    public void setup() throws IOException {
+        policyMole = Mockito.spy(PolicyDTOMoles.PolicyServiceMole.class);
+        final List<PolicyDTO.PolicyResponse> policyResponses = ImmutableList.of(
+                        PolicyDTO.PolicyResponse.newBuilder().setPolicy(
+                                        PolicyDTO.Policy.newBuilder().setId(1).setName("policy")).build());
+        Mockito.when(policyMole.getAllPolicies(Mockito.any())).thenReturn(policyResponses);
+        grpcServer = GrpcTestServer.newServer(policyMole);
+        grpcServer.start();
+        policyService = PolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        repositoryApi = Mockito.mock(RepositoryApi.class);
+        mapper = new ActionSpecMapper(repositoryApi, policyService, Executors
+                        .newCachedThreadPool(new ThreadFactoryBuilder().build()));
         IdentityGenerator.initPrefix(0);
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(oidToEntityMap(
@@ -96,7 +121,9 @@ public class CompoundMoveTest {
      * @throws UnsupportedActionException  not supposed to happen
      */
     @Test
-    public void testSimpleAction() throws UnknownObjectException, UnsupportedActionException {
+    public void testSimpleAction()
+                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+                    InterruptedException {
         ActionDTO.Action moveStorage = makeAction(TARGET_ID, ST1_ID, ST2_ID);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveStorage), 77L);
         assertSame(ActionType.CHANGE, apiDto.getActionType());
@@ -115,7 +142,9 @@ public class CompoundMoveTest {
      * @throws UnsupportedActionException  not supposed to happen
      */
     @Test
-    public void testCompoundAction1() throws UnknownObjectException, UnsupportedActionException {
+    public void testCompoundAction1()
+                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+                    InterruptedException {
         ActionDTO.Action moveBoth1 = makeAction(TARGET_ID, ST1_ID, ST2_ID, PM1_ID, PM2_ID);
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth1), 77L);
         assertSame(ActionType.MOVE, apiDto.getActionType());
@@ -134,7 +163,9 @@ public class CompoundMoveTest {
      * @throws UnsupportedActionException  not supposed to happen
      */
     @Test
-    public void testCompoundAction2() throws UnknownObjectException, UnsupportedActionException {
+    public void testCompoundAction2()
+                    throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+                    InterruptedException {
         ActionDTO.Action moveBoth2 = makeAction(TARGET_ID, PM1_ID, PM2_ID, ST1_ID, ST2_ID); // different order
         ActionApiDTO apiDto = mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveBoth2), 77L);
         assertSame(ActionType.MOVE, apiDto.getActionType());

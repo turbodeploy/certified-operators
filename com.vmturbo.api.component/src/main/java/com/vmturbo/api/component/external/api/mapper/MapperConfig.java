@@ -1,6 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,7 +42,8 @@ public class MapperConfig {
 
     @Bean
     public ActionSpecMapper actionSpecMapper() {
-        return new ActionSpecMapper(communicationConfig.repositoryApi());
+        return new ActionSpecMapper(communicationConfig.repositoryApi(),
+                        communicationConfig.policyRpcService(), executorService());
     }
 
     @Bean
@@ -121,5 +126,11 @@ public class MapperConfig {
                 communicationConfig.templateServiceBlockingStub(),
                 communicationConfig.groupRpcService(),
                 communicationConfig.policyRpcService());
+    }
+
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService executorService() {
+        return Executors.newCachedThreadPool(new ThreadFactoryBuilder()
+                        .setNameFormat("MapperThread-%d").build());
     }
 }
