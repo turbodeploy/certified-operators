@@ -16,6 +16,14 @@ message EntitySeverity {
     optional Severity severity = 2;
 }
 
+// How many entities map to a specific type of severity.
+message SeverityCount {
+    // The severity in question.
+    optional Severity severity = 1;
+
+    // The number of entities that map to this severity.
+    optional int64 entity_count = 2;
+}
 
 // A message used to address multiple actions within a topology context.
 message MultiEntityRequest {
@@ -27,8 +35,27 @@ message MultiEntityRequest {
     repeated int64 entity_ids = 2;
 }
 
+message SeverityCountsResponse {
+    // The counts for entities in the request to GetSeverityCounts known to the
+    // service are mapped to a specific severity.
+    repeated SeverityCount counts = 1;
+
+    // Entities unknown to the service are counted in the unknown_entity_count.
+    optional int64 unknown_entity_count = 2;
+}
+
 // A service responsible for retrieving entity severities.
 service EntitySeverityService {
     // Get severity information for service entities by the service entity ids
     rpc GetEntitySeverities(MultiEntityRequest) returns (stream EntitySeverity);
+
+    // Get the counts of how many severities in the request map to corresponding severities.
+    //
+    // There will be one entry per-contained severity. If no entities in the request
+    // matched a given severity, there will be no entry for that severity rather than
+    // an entry with 0.
+    //
+    // If the request contained an entity unknown to the service, that unknown entity will
+    // be mapped to an UNKNOWN level severity.
+    rpc GetSeverityCounts(MultiEntityRequest) returns (SeverityCountsResponse);
 }

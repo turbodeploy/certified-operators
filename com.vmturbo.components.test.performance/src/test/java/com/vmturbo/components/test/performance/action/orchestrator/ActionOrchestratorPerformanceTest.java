@@ -1,5 +1,6 @@
 package com.vmturbo.components.test.performance.action.orchestrator;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -8,8 +9,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -23,6 +26,8 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
@@ -42,12 +47,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
+import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesRequest;
 import com.vmturbo.common.protobuf.topology.Probe.GetProbeActionCapabilitiesResponse;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
+import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapability;
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability.ActionCapabilityElement;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceImplBase;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -94,9 +104,12 @@ public class ActionOrchestratorPerformanceTest {
 
     private ActionOrchestrator actionOrchestrator;
     private ActionsServiceBlockingStub actionsService;
+    private EntitySeverityServiceBlockingStub severitiesService;
     private KafkaMessageConsumer messageConsumer;
     private ExecutorService threadPool = Executors.newCachedThreadPool();
     private MarketNotificationSender marketNotificationSender;
+
+    private static final int SEVERITY_PARTITION_COUNT = 8;
 
     @Before
     public void setup() {
@@ -109,6 +122,7 @@ public class ActionOrchestratorPerformanceTest {
                         ActionOrchestratorNotificationReceiver.ACTIONS_TOPIC,
                         ActionOrchestratorNotification::parseFrom);
         actionsService = ActionsServiceGrpc.newBlockingStub(actionOrchestratorChannel);
+        severitiesService = EntitySeverityServiceGrpc.newBlockingStub(actionOrchestratorChannel);
         marketNotificationSender =
                 MarketKafkaSender.createMarketSender(componentTestRule.getKafkaMessageProducer());
         actionOrchestrator =
@@ -171,6 +185,7 @@ public class ActionOrchestratorPerformanceTest {
         fetchActions(actionsService, FilteredActionRequest.newBuilder()
                 .setTopologyContextId(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT)
                 .build(), "ALL LIVE");
+        fetchSeverities(actionPlanSize);
     }
 
     /**
@@ -233,6 +248,32 @@ public class ActionOrchestratorPerformanceTest {
             counter.get());
     }
 
+    public void fetchSeverities(long actionPlanSize) throws Exception {
+        final List<Long> entityIdsList = LongStream.range(0, actionPlanSize / 2)
+            .mapToObj(id -> id)
+            .collect(Collectors.toList());
+        final long startFetch = System.currentTimeMillis();
+
+        // Approximate the call for fetching severities for various entity types in the supply chain.
+        // The number of partition slices is equivalent to the number of nodes in the supply chain.
+        final AtomicLong total = new AtomicLong();
+        final int partitionSize = entityIdsList.size() / SEVERITY_PARTITION_COUNT;
+        Lists.partition(entityIdsList, partitionSize).forEach(subList -> {
+            final SeverityCountsResponse response = severitiesService.getSeverityCounts(
+                MultiEntityRequest.newBuilder()
+                    .addAllEntityIds(subList)
+                    .setTopologyContextId(ComponentUtils.REALTIME_TOPOLOGY_CONTEXT)
+                    .build());
+            total.getAndAdd(response.getUnknownEntityCount());
+            response.getCountsList().forEach(count -> total.getAndAdd(count.getEntityCount()));
+        });
+
+        logger.info("Took {} seconds to retrieve {} severity counts in {} calls.",
+            (System.currentTimeMillis() - startFetch) / 1000.0f,
+            total.get(),
+            SEVERITY_PARTITION_COUNT);
+    }
+
     private static class TestActionsListener implements ActionsListener {
         private final CompletableFuture<ActionPlan> actionPlanFuture;
 
@@ -257,8 +298,14 @@ public class ActionOrchestratorPerformanceTest {
         public void loadEntitiesForActionPlan(ActionPlan actionPlan) throws UnsupportedActionException {
             // create simple entities for each action in the plan
             entitiesForActionPlan = ActionDTOUtil.getInvolvedEntities(actionPlan.getActionList()).stream()
-                    .map(entityId -> EntityInfo.newBuilder().setEntityId(entityId).build())
+                    .map(entityId -> EntityInfo.newBuilder()
+                        .putTargetIdToProbeId(1L, 2L)
+                        .setEntityId(entityId).build())
                     .collect(Collectors.toMap(EntityInfo::getEntityId, Function.identity()));
+        }
+
+        public Collection<Long> getEntityIds() {
+            return entitiesForActionPlan.keySet();
         }
 
         @Override
@@ -280,7 +327,7 @@ public class ActionOrchestratorPerformanceTest {
             ProbeActionCapability supportedCapability = ProbeActionCapability.newBuilder()
                     .addCapabilityElement(ActionCapabilityElement.newBuilder()
                             .setActionType(ActionDTO.ActionType.MOVE)
-                            .setActionCapability(ProbeActionCapability.ActionCapability.SUPPORTED)
+                            .setActionCapability(ActionCapability.NOT_EXECUTABLE)
                             .build())
                     .build();
             return ImmutableList.of(supportedCapability);

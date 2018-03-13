@@ -38,6 +38,8 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCount;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
@@ -125,16 +127,20 @@ public class SupplyChainFetcherFactoryTest {
         when(supplyChainServiceBackend.getSupplyChain(any()))
                 .thenReturn(Arrays.asList(vms, hosts));
 
-        when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
-                .setTopologyContextId(LIVE_TOPOLOGY_ID)
-                .addEntityIds(1L)
-                .build()))
-            .thenReturn(Collections.singletonList(newSeverity(1L, Severity.NORMAL)));
-        when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
-                .setTopologyContextId(LIVE_TOPOLOGY_ID)
-                .addEntityIds(5L)
-                .build()))
-                .thenReturn(Collections.singletonList(newSeverity(5L, Severity.NORMAL)));
+        when(severityServiceBackend.getSeverityCounts(MultiEntityRequest.newBuilder()
+            .setTopologyContextId(LIVE_TOPOLOGY_ID)
+            .addEntityIds(1L)
+            .build()))
+            .thenReturn(SeverityCountsResponse.newBuilder()
+                .addCounts(newSeverityCount(Severity.NORMAL, 1L))
+                .build());
+        when(severityServiceBackend.getSeverityCounts(MultiEntityRequest.newBuilder()
+            .setTopologyContextId(LIVE_TOPOLOGY_ID)
+            .addEntityIds(5L)
+            .build()))
+            .thenReturn(SeverityCountsResponse.newBuilder()
+                .addCounts(newSeverityCount(Severity.NORMAL, 1L))
+                .build());
 
         final SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
                 .topologyContextId(LIVE_TOPOLOGY_ID)
@@ -252,14 +258,12 @@ public class SupplyChainFetcherFactoryTest {
         private static int MOCK_PORT = 0;
         private static long MOCK_REALTIME_CONTEXT_ID = 123;
 
-
         private Map<Long, ServiceEntityApiDTO> seMap = new HashMap<>();
 
         public RepositoryApiMock(EntitySeverityServiceBlockingStub entitySeverityRpc) {
             super(MOCK_HOSTNAME, MOCK_PORT, Mockito.mock(RestTemplate.class),
                     entitySeverityRpc,
                     MOCK_REALTIME_CONTEXT_ID);
-
         }
 
         public void putServiceEnity(long oid, String entityType, Severity severity) {
@@ -295,6 +299,15 @@ public class SupplyChainFetcherFactoryTest {
         if (severity != null) {
             builder.setSeverity(severity);
         }
+        return builder.build();
+    }
+
+    @Nonnull
+    private static SeverityCount newSeverityCount(@Nonnull Severity severity, long count) {
+        final SeverityCount.Builder builder = SeverityCount.newBuilder()
+            .setSeverity(severity)
+            .setEntityCount(count);
+
         return builder.build();
     }
 }

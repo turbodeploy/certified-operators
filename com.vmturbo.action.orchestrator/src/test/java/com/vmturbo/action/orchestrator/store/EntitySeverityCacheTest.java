@@ -1,8 +1,11 @@
 package com.vmturbo.action.orchestrator.store;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 
@@ -53,7 +56,7 @@ public class EntitySeverityCacheTest {
             .thenReturn(Maps.newHashMap(action.getRecommendation().getId(), action));
 
         entitySeverityCache.refresh(actionStore);
-        Assert.assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
+        assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
     }
 
     @Test
@@ -65,7 +68,7 @@ public class EntitySeverityCacheTest {
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         entitySeverityCache.refresh(actionStore);
-        Assert.assertEquals(Optional.empty(), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));
+        assertEquals(Optional.empty(), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));
     }
 
     @Test
@@ -75,7 +78,7 @@ public class EntitySeverityCacheTest {
             .thenReturn(Maps.newHashMap(action.getRecommendation().getId(), action));
 
         entitySeverityCache.refresh(actionStore);
-        Assert.assertEquals(Optional.empty(), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));
+        assertEquals(Optional.empty(), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));
     }
 
     @Test
@@ -90,7 +93,7 @@ public class EntitySeverityCacheTest {
             action3.getRecommendation().getId(), action3));
 
         entitySeverityCache.refresh(actionStore);
-        Assert.assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
+        assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
     }
 
     @Test
@@ -116,14 +119,40 @@ public class EntitySeverityCacheTest {
             });
 
         entitySeverityCache.refresh(actionStore);
-        Assert.assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
+        assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
 
         // Simulate changing the state of the critical action to IN_PROGRESS and refreshing for that action.
         // State should the next most critical action that applies to the entity.
         when(action2.getState()).thenReturn(ActionState.IN_PROGRESS);
 
         entitySeverityCache.refresh(action2.getRecommendation(), actionStore);
-        Assert.assertEquals(Severity.MAJOR, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
+        assertEquals(Severity.MAJOR, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
+    }
+
+    @Test
+    public void testSeverityCounts() {
+        final long sourceId1 = 111L;
+        final long sourceId2 = 222L;
+        final long sourceId3 = 333L;
+        final long missingId = 444L;
+
+        ActionView action1 = actionView(executableMove(0, sourceId1, 1, 2, 1, Severity.MINOR));
+        ActionView action2 = actionView(executableMove(3, sourceId2, 1, 4, 1, Severity.MINOR));
+        ActionView action3 = actionView(executableMove(5, sourceId3, 1, 6, 1, Severity.MAJOR));
+
+        when(actionStore.getActionViews()).thenReturn(ImmutableMap.of(
+            action1.getRecommendation().getId(), action1,
+            action2.getRecommendation().getId(), action2,
+            action3.getRecommendation().getId(), action3));
+
+        entitySeverityCache.refresh(actionStore);
+        final Map<Optional<Severity>, Long> severityCounts =
+            entitySeverityCache.getSeverityCounts(Arrays.asList(sourceId1, sourceId2, sourceId3, missingId));
+        assertEquals(2L, (long)severityCounts.get(Optional.of(Severity.MINOR)));
+        assertEquals(1L, (long)severityCounts.get(Optional.of(Severity.MAJOR)));
+        // No actions should map to critical so it should be empty.
+        assertTrue(severityCounts.get(Optional.of(Severity.CRITICAL)) == null);
+        assertEquals(1L, (long) severityCounts.get(Optional.<Severity>empty())); // The missing ID should map to null
     }
 
     @Nonnull

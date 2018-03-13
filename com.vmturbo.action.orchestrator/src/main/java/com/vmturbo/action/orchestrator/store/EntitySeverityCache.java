@@ -1,10 +1,15 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -107,6 +112,37 @@ public class EntitySeverityCache {
     @Nonnull
     public Optional<Severity> getSeverity(long entityOid) {
         return Optional.ofNullable(severities.get(entityOid));
+    }
+
+    /**
+     * Get the severity counts for the entities in the stream.
+     * Entities that are unknown to the cache are mapped to an {@link Optional#empty()} severity.
+     *
+     * Note that we calculate severity based on actions that apply to an entity and the AO only
+     * knows about entities that have actions because it doesn't receive the topology that
+     * contains the authoratitive list of all entities. So if no actions apply to an entity,
+     * the AO won't know about that entity.
+     *
+     * So this creates the following problem: if you ask for the severity of a real entity that
+     * has no actions, or if you ask for the severity of an entity that does not actually exist,
+     * the AO has to respond with "I don't know" in both cases. If querying for real entities,
+     * the AO response of "I don't know" means that there were no actions for an entity,
+     * meaning nothing is wrong with it, meaning it's in good shape (ie NORMAL severity). However,
+     * note well that it is UP TO THE CALLER to recognize if an unknown severity maps to NORMAL
+     * or to something else given the broader context of what the caller is doing.
+     *
+     * @param entityOids The oids for the entities whose severities should be retrieved.
+     *
+     * @return A map of the severities and the number of entities that have that severity.
+     *         An entity whose severity is not known by the cache will be mapped to empty.
+     */
+    @Nonnull
+    public Map<Optional<Severity>, Long> getSeverityCounts(@Nonnull final List<Long> entityOids) {
+        synchronized (severities) {
+            return entityOids.stream()
+                .map(oid -> Optional.ofNullable(severities.get(oid)))
+                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        }
     }
 
     /**

@@ -21,12 +21,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.collect.Lists;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import io.grpc.Channel;
@@ -46,6 +45,7 @@ import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -200,10 +200,11 @@ public class SupplyChainFetcherFactory {
         @Nonnull
         public SupplychainApiDTO fetch() throws OperationFailedException, InterruptedException {
             try {
-                return new SupplychainApiDTOFetcher(topologyContextId, seedUuids, entityTypes,
-                        environmentType, supplyChainDetailType, includeHealthSummary,
-                        supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
-                        supplyChainFetcherTimeoutSeconds).fetch();
+                final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId, seedUuids, entityTypes,
+                    environmentType, supplyChainDetailType, includeHealthSummary,
+                    supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
+                    supplyChainFetcherTimeoutSeconds).fetch();
+                return dto;
             } catch (ExecutionException | TimeoutException e) {
                 throw new OperationFailedException("Failed to fetch supply chain! Error: "
                         + e.getMessage());
@@ -593,29 +594,11 @@ public class SupplyChainFetcherFactory {
                                 .setTopologyContextId(getTopologyContextId())
                                 .addAllEntityIds(memberOidsList)
                                 .build();
-                        severityRpcService.getEntitySeverities(severityRequest)
-                                .forEachRemaining(entitySeverity -> {
-                                    // If no severity is provided by the AO, default to normal
-                                    Severity effectiveSeverity = entitySeverity.hasSeverity()
-                                            ? entitySeverity.getSeverity()
-                                            : Severity.NORMAL;
-                                    // if the SE is being collected, update the severity
-                                    if (supplyChainDetailType != null) {
-                                        final String oidString = Long.toString(entitySeverity.getEntityId());
-                                        if (serviceEntityApiDTOS.containsKey(oidString)) {
-                                            serviceEntityApiDTOS
-                                                    // fetch the ServiceEntityApiDTO for this ID
-                                                    .get(oidString)
-                                                    // update the severity
-                                                    .setSeverity(effectiveSeverity.name());
-                                        }
-                                    }
-                                    // if healthSummary is being created, increment the count
-                                    if (includeHealthSummary) {
-                                        severities.put(entitySeverity.getSeverity(), severities
-                                                .getOrDefault(entitySeverity.getSeverity(), 0L) + 1L);
-                                    }
-                                });
+                        if (supplyChainDetailType != null) {
+                            fetchEntitySeverities(severityRequest, serviceEntityApiDTOS, severities);
+                        } else {
+                            fetchSeverityCounts(severityRequest, severities);
+                        }
                     }
                 } catch (RuntimeException e) {
                     logger.error("Error when fetching severities: ", e);
@@ -624,9 +607,56 @@ public class SupplyChainFetcherFactory {
                     }
                 }
             }
+
             // add the results from this {@link SupplyChainNode} to the aggregate
             // {@link SupplychainApiDTO} result
             compileSupplyChainNode(supplyChainNode, severities, serviceEntityApiDTOS);
+        }
+
+        private void fetchSeverityCounts(@Nonnull final MultiEntityRequest severityCountRequest,
+                                         @Nonnull final Map<Severity, Long> severities) {
+            Preconditions.checkArgument(includeHealthSummary);
+
+            final SeverityCountsResponse response =
+                severityRpcService.getSeverityCounts(severityCountRequest);
+            response.getCountsList().stream().forEach(severityCount -> {
+                final Severity severity = severityCount.getSeverity();
+                final long currentCount = severities.getOrDefault(severity, 0L);
+                severities.put(severity, currentCount + severityCount.getEntityCount());
+            });
+
+            final long currentNormalCount = severities.getOrDefault(Severity.NORMAL, 0L);
+            severities.put(Severity.NORMAL,
+                currentNormalCount + response.getUnknownEntityCount());
+        }
+
+        private void fetchEntitySeverities(@Nonnull final MultiEntityRequest entitySeverityRequest,
+                                           @Nonnull final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS,
+                                           @Nonnull final Map<Severity, Long> severities) {
+            Objects.requireNonNull(supplyChainDetailType);
+
+            severityRpcService.getEntitySeverities(entitySeverityRequest)
+                .forEachRemaining(entitySeverity -> {
+                    // If no severity is provided by the AO, default to normal
+                    Severity effectiveSeverity = entitySeverity.hasSeverity()
+                        ? entitySeverity.getSeverity()
+                        : Severity.NORMAL;
+                    // if the SE is being collected, update the severity
+                    final String oidString = Long.toString(entitySeverity.getEntityId());
+                    if (serviceEntityApiDTOS.containsKey(oidString)) {
+                        serviceEntityApiDTOS
+                            // fetch the ServiceEntityApiDTO for this ID
+                            .get(oidString)
+                                // update the severity
+                            .setSeverity(effectiveSeverity.name());
+                    }
+
+                    // if healthSummary is being created, increment the count
+                    if (includeHealthSummary) {
+                        severities.put(entitySeverity.getSeverity(), severities
+                            .getOrDefault(entitySeverity.getSeverity(), 0L) + 1L);
+                    }
+                });
         }
 
         /**
