@@ -1,0 +1,1259 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<report xmlns="http://www.eclipse.org/birt/2005/design" version="3.2.23" id="1">
+    <property name="createdBy">Eclipse BIRT Designer Version 4.2.2.v201301221637 Build &lt;4.2.2.v20130206-1509></property>
+    <list-property name="includeScripts">
+        <property>/srv/reports/scripts/reports.js</property>
+    </list-property>
+    <property name="units">in</property>
+    <property name="iconFile">/templates/grouped_listing.gif</property>
+    <property name="cheatSheet">org.eclipse.birt.report.designer.ui.cheatsheet.groupedlisting</property>
+    <property name="layoutPreference">fixed layout</property>
+    <property name="bidiLayoutOrientation">ltr</property>
+    <property name="imageDPI">72</property>
+    <parameters>
+        <scalar-parameter name="customer_name" id="1568">
+            <property name="valueType">static</property>
+            <property name="dataType">string</property>
+            <property name="distinct">true</property>
+            <simple-property-list name="defaultValue">
+                <value type="constant">Turbonomic</value>
+            </simple-property-list>
+            <property name="paramType">simple</property>
+            <property name="controlType">text-box</property>
+            <structure name="format">
+                <property name="category">Unformatted</property>
+            </structure>
+        </scalar-parameter>
+    </parameters>
+    <data-sources>
+        <oda-data-source extensionID="org.eclipse.birt.report.data.oda.jdbc" name="vmtdb" id="706">
+            <list-property name="privateDriverProperties">
+                <ex-property>
+                    <name>contentBidiFormatStr</name>
+                    <value>ILYNN</value>
+                </ex-property>
+                <ex-property>
+                    <name>metadataBidiFormatStr</name>
+                    <value>ILYNN</value>
+                </ex-property>
+            </list-property>
+            <property name="odaDriverClass">org.mariadb.jdbc.Driver</property>
+            <property name="odaURL">jdbc:mysql://localhost/vmtdb?characterEncoding=UTF8</property>
+            <property name="odaUser">vmtplatform</property>
+            <encrypted-property name="odaPassword" encryptionID="base64">dm10dXJibw==</encrypted-property>
+        </oda-data-source>
+    </data-sources>
+    <data-sets>
+        <oda-data-set extensionID="org.eclipse.birt.report.data.oda.jdbc.JdbcSelectDataSet" name="customer_image" id="1567">
+            <list-property name="parameters">
+                <structure>
+                    <property name="name">input_cust_name</property>
+                    <property name="paramName">customer_name</property>
+                    <property name="dataType">string</property>
+                    <property name="position">1</property>
+                    <property name="isInput">true</property>
+                    <property name="isOutput">false</property>
+                </structure>
+            </list-property>
+            <structure name="cachedMetaData">
+                <list-property name="resultSet">
+                    <structure>
+                        <property name="position">1</property>
+                        <property name="name">image_name</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                    <structure>
+                        <property name="position">2</property>
+                        <property name="name">copyright</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                </list-property>
+            </structure>
+            <property name="dataSource">vmtdb</property>
+            <list-property name="resultSet">
+                <structure>
+                    <property name="position">1</property>
+                    <property name="name">image_name</property>
+                    <property name="nativeName">image_name</property>
+                    <property name="dataType">string</property>
+                </structure>
+                <structure>
+                    <property name="position">2</property>
+                    <property name="name">copyright</property>
+                    <property name="nativeName">copyright</property>
+                    <property name="dataType">string</property>
+                </structure>
+            </list-property>
+            <xml-property name="queryText"><![CDATA[select image_name, copyright
+from customer_info
+where customer_name = ?]]></xml-property>
+            <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://
+www.eclipse.org/birt/report/model/adapter/odaModel">
+  <Version>1.0</Version>
+  <design:ResultSets derivedMetaData="true">
+    <design:resultSetDefinitions>
+      <design:resultSetColumns>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:name>image_name</design:name>
+            <design:position>1</design:position>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>80</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>Nullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>image_name</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>image_name</design:label>
+            <design:formattingHints>
+              <design:displaySize>80</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+      </design:resultSetColumns>
+      <design:criteria/>
+    </design:resultSetDefinitions>
+  </design:ResultSets>
+</model:DesignValues>]]></xml-property>
+        </oda-data-set>
+        <oda-data-set extensionID="org.eclipse.birt.report.data.oda.jdbc.JdbcSelectDataSet" name="vm_stats_per_month" id="2422">
+            <list-property name="columnHints">
+                <structure>
+                    <property name="columnName">parameter</property>
+                    <property name="analysis">dimension</property>
+                    <text-property name="displayName">parameter</text-property>
+                </structure>
+                <structure>
+                    <property name="columnName">value</property>
+                    <property name="analysis">attribute</property>
+                    <text-property name="displayName">value</text-property>
+                    <text-property name="heading">value</text-property>
+                </structure>
+                <structure>
+                    <property name="columnName">Cost_VMem</property>
+                    <property name="analysis">dimension</property>
+                    <text-property name="displayName">Cost_VMem</text-property>
+                    <text-property name="heading">Cost_VMem</text-property>
+                </structure>
+            </list-property>
+            <list-property name="parameters"/>
+            <structure name="cachedMetaData">
+                <list-property name="resultSet">
+                    <structure>
+                        <property name="position">1</property>
+                        <property name="name">parameter</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                    <structure>
+                        <property name="position">2</property>
+                        <property name="name">value</property>
+                        <property name="dataType">blob</property>
+                    </structure>
+                    <structure>
+                        <property name="position">3</property>
+                        <property name="name">Cost_VMem</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                </list-property>
+            </structure>
+            <property name="dataSource">vmtdb</property>
+            <list-property name="resultSet">
+                <structure>
+                    <property name="position">1</property>
+                    <property name="name">parameter</property>
+                    <property name="nativeName">parameter</property>
+                    <property name="dataType">string</property>
+                    <property name="nativeDataType">12</property>
+                </structure>
+                <structure>
+                    <property name="position">2</property>
+                    <property name="name">value</property>
+                    <property name="nativeName">value</property>
+                    <property name="dataType">blob</property>
+                    <property name="nativeDataType">-3</property>
+                </structure>
+                <structure>
+                    <property name="position">3</property>
+                    <property name="name">Cost_VMem</property>
+                    <property name="nativeName">Cost_VMem</property>
+                    <property name="dataType">string</property>
+                    <property name="nativeDataType">12</property>
+                </structure>
+            </list-property>
+            <xml-property name="queryText"><![CDATA[select 
+	parameter , 
+	value , 
+	( select value from entity_attrs where name='cost_VMem' ) as Cost_VMem 
+
+from
+(
+	(
+	select  'VMCount' as parameter , count(DISTINCT uuid) as value 
+	from vm_stats_by_day
+	where snapshot_time between start_of_month(date_sub(now(), interval 1 month)) and end_of_month(date_sub(now(), interval 1 month))
+	) 
+union
+
+(
+select 'VMem_Capacity' as parameter , truncate(sum(capacity)/1024/1024 , 2) as value 
+from 
+(
+	select uuid, max(capacity) as capacity
+    from vm_stats_by_day
+    where
+       snapshot_time between start_of_month(date_sub(now(), interval 1 month)) and end_of_month(date_sub(now(), interval 1 month))
+	   and property_type = 'VMem'
+       and property_subtype = 'used'
+    group by uuid
+) as vms_in_month
+) 
+union
+
+(
+select 'Month_Name' as parameter , monthname(snapshot_time) as value 
+from vm_stats_by_day
+where snapshot_time between start_of_month(date_sub(now(), interval 1 month)) and end_of_month(date_sub(now(), interval 1 month))
+limit 1
+) 
+) as vm_stats_V;]]></xml-property>
+            <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://www.eclipse.org/birt/report/model/adapter/odaModel">
+  <Version>2.0</Version>
+  <design:ResultSets derivedMetaData="true">
+    <design:resultSetDefinitions>
+      <design:resultSetColumns>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:identifier>
+              <design:name>parameter</design:name>
+              <design:position>1</design:position>
+            </design:identifier>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>15</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>NotNullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>parameter</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>parameter</design:label>
+            <design:formattingHints>
+              <design:displaySize>15</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:identifier>
+              <design:name>value</design:name>
+              <design:position>2</design:position>
+            </design:identifier>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>39</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>Nullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>value</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>value</design:label>
+            <design:formattingHints>
+              <design:displaySize>39</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+      </design:resultSetColumns>
+      <design:criteria/>
+    </design:resultSetDefinitions>
+  </design:ResultSets>
+</model:DesignValues>]]></xml-property>
+        </oda-data-set>
+        <oda-data-set extensionID="org.eclipse.birt.report.data.oda.jdbc.JdbcSelectDataSet" name="clusters_name" id="2648">
+            <list-property name="columnHints">
+                <structure>
+                    <property name="columnName">cluster_name</property>
+                    <text-property name="displayName">cluster_name</text-property>
+                </structure>
+            </list-property>
+            <structure name="cachedMetaData">
+                <list-property name="resultSet">
+                    <structure>
+                        <property name="position">1</property>
+                        <property name="name">cluster_name</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                </list-property>
+            </structure>
+            <property name="dataSource">vmtdb</property>
+            <list-property name="resultSet">
+                <structure>
+                    <property name="position">1</property>
+                    <property name="name">cluster_name</property>
+                    <property name="nativeName">cluster_name</property>
+                    <property name="dataType">string</property>
+                    <property name="nativeDataType">12</property>
+                </structure>
+            </list-property>
+            <xml-property name="queryText"><![CDATA[select *
+from
+(
+	select distinct 
+		trim(substring(group_name,5)) as cluster_name
+	from
+		cluster_members
+	where 
+		group_type='PhysicalMachine'
+		and month(recorded_on)=month(date_sub(date(now()), interval 1 month)) 
+		and year(recorded_on)=year(date_sub(date(now()), interval 1 month))
+		and internal_name like '%PMsByCluster%'
+) as cluster_name_V
+where cluster_name is not null
+and cluster_name<>' '
+order by cluster_name;]]></xml-property>
+            <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://www.eclipse.org/birt/report/model/adapter/odaModel">
+  <Version>1.0</Version>
+  <design:ResultSets derivedMetaData="true">
+    <design:resultSetDefinitions>
+      <design:resultSetColumns>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:name>cluster_name</design:name>
+            <design:position>1</design:position>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>2238</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>Nullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>cluster_name</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>cluster_name</design:label>
+            <design:formattingHints>
+              <design:displaySize>2238</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+      </design:resultSetColumns>
+      <design:criteria/>
+    </design:resultSetDefinitions>
+  </design:ResultSets>
+</model:DesignValues>]]></xml-property>
+        </oda-data-set>
+        <oda-data-set extensionID="org.eclipse.birt.report.data.oda.jdbc.JdbcSelectDataSet" name="vm_month_ds" id="2652">
+            <list-property name="columnHints">
+                <structure>
+                    <property name="columnName">parameter</property>
+                    <property name="analysis">dimension</property>
+                    <text-property name="displayName">parameter</text-property>
+                </structure>
+                <structure>
+                    <property name="columnName">vmn_value</property>
+                    <property name="analysis">dimension</property>
+                    <text-property name="displayName">vmn_value</text-property>
+                    <text-property name="heading">vmn_value</text-property>
+                </structure>
+            </list-property>
+            <list-property name="parameters"/>
+            <structure name="cachedMetaData">
+                <list-property name="resultSet">
+                    <structure>
+                        <property name="position">1</property>
+                        <property name="name">parameter</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                    <structure>
+                        <property name="position">2</property>
+                        <property name="name">vmn_value</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                </list-property>
+            </structure>
+            <property name="dataSource">vmtdb</property>
+            <list-property name="resultSet">
+                <structure>
+                    <property name="position">1</property>
+                    <property name="name">parameter</property>
+                    <property name="nativeName">parameter</property>
+                    <property name="dataType">string</property>
+                    <property name="nativeDataType">12</property>
+                </structure>
+                <structure>
+                    <property name="position">2</property>
+                    <property name="name">vmn_value</property>
+                    <property name="nativeName">vmn_value</property>
+                    <property name="dataType">string</property>
+                    <property name="nativeDataType">12</property>
+                </structure>
+            </list-property>
+            <xml-property name="queryText"><![CDATA[select 'Month_Name' as parameter , monthname(snapshot_time) as vmn_value 
+from vm_stats_by_day
+where snapshot_time between start_of_month(date_sub(now(), interval 1 month)) and end_of_month(date_sub(now(), interval 1 month))
+limit 1]]></xml-property>
+            <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://www.eclipse.org/birt/report/model/adapter/odaModel">
+  <Version>2.0</Version>
+  <design:ResultSets derivedMetaData="true">
+    <design:resultSetDefinitions>
+      <design:resultSetColumns>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:identifier>
+              <design:name>parameter</design:name>
+              <design:position>1</design:position>
+            </design:identifier>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>30</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>NotNullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>parameter</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>parameter</design:label>
+            <design:formattingHints>
+              <design:displaySize>30</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:identifier>
+              <design:name>value</design:name>
+              <design:position>2</design:position>
+            </design:identifier>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>27</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>Nullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>value</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>value</design:label>
+            <design:formattingHints>
+              <design:displaySize>27</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+      </design:resultSetColumns>
+      <design:criteria/>
+    </design:resultSetDefinitions>
+  </design:ResultSets>
+</model:DesignValues>]]></xml-property>
+        </oda-data-set>
+        <oda-data-set extensionID="org.eclipse.birt.report.data.oda.jdbc.JdbcSelectDataSet" name="vm_count_ds" id="2653">
+            <list-property name="columnHints">
+                <structure>
+                    <property name="columnName">parameter</property>
+                    <property name="analysis">dimension</property>
+                    <text-property name="displayName">parameter</text-property>
+                </structure>
+                <structure>
+                    <property name="columnName">vct_value</property>
+                    <property name="analysis">measure</property>
+                    <text-property name="displayName">vct_value</text-property>
+                    <text-property name="heading">vct_value</text-property>
+                </structure>
+            </list-property>
+            <list-property name="parameters"/>
+            <structure name="cachedMetaData">
+                <list-property name="resultSet">
+                    <structure>
+                        <property name="position">1</property>
+                        <property name="name">parameter</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                    <structure>
+                        <property name="position">2</property>
+                        <property name="name">vct_value</property>
+                        <property name="dataType">decimal</property>
+                    </structure>
+                </list-property>
+            </structure>
+            <property name="dataSource">vmtdb</property>
+            <list-property name="resultSet">
+                <structure>
+                    <property name="position">1</property>
+                    <property name="name">parameter</property>
+                    <property name="nativeName">parameter</property>
+                    <property name="dataType">string</property>
+                    <property name="nativeDataType">12</property>
+                </structure>
+                <structure>
+                    <property name="position">2</property>
+                    <property name="name">vct_value</property>
+                    <property name="nativeName">vct_value</property>
+                    <property name="dataType">decimal</property>
+                    <property name="nativeDataType">-5</property>
+                </structure>
+            </list-property>
+            <xml-property name="queryText"><![CDATA[select  'VMCount' as parameter , count(DISTINCT uuid) as vct_value 
+	from vm_stats_by_day
+	where snapshot_time between start_of_month(date_sub(now(), interval 1 month)) and end_of_month(date_sub(now(), interval 1 month))
+]]></xml-property>
+            <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://www.eclipse.org/birt/report/model/adapter/odaModel">
+  <Version>2.0</Version>
+  <design:ResultSets derivedMetaData="true">
+    <design:resultSetDefinitions>
+      <design:resultSetColumns>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:identifier>
+              <design:name>parameter</design:name>
+              <design:position>1</design:position>
+            </design:identifier>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>21</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>NotNullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>parameter</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>parameter</design:label>
+            <design:formattingHints>
+              <design:displaySize>21</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:identifier>
+              <design:name>value</design:name>
+              <design:position>2</design:position>
+            </design:identifier>
+            <design:nativeDataTypeCode>-5</design:nativeDataTypeCode>
+            <design:precision>21</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>NotNullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>value</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>value</design:label>
+            <design:formattingHints>
+              <design:displaySize>21</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+      </design:resultSetColumns>
+      <design:criteria/>
+    </design:resultSetDefinitions>
+  </design:ResultSets>
+</model:DesignValues>]]></xml-property>
+        </oda-data-set>
+        <oda-data-set extensionID="org.eclipse.birt.report.data.oda.jdbc.JdbcSelectDataSet" name="vm_capacity_ds" id="2654">
+            <list-property name="columnHints">
+                <structure>
+                    <property name="columnName">parameter</property>
+                    <property name="analysis">dimension</property>
+                    <text-property name="displayName">parameter</text-property>
+                </structure>
+                <structure>
+                    <property name="columnName">vc_value</property>
+                    <property name="analysis">measure</property>
+                    <text-property name="displayName">vc_value</text-property>
+                    <text-property name="heading">vc_value</text-property>
+                </structure>
+            </list-property>
+            <list-property name="parameters"/>
+            <structure name="cachedMetaData">
+                <list-property name="resultSet">
+                    <structure>
+                        <property name="position">1</property>
+                        <property name="name">parameter</property>
+                        <property name="dataType">string</property>
+                    </structure>
+                    <structure>
+                        <property name="position">2</property>
+                        <property name="name">vc_value</property>
+                        <property name="dataType">decimal</property>
+                    </structure>
+                </list-property>
+            </structure>
+            <property name="dataSource">vmtdb</property>
+            <list-property name="resultSet">
+                <structure>
+                    <property name="position">1</property>
+                    <property name="name">parameter</property>
+                    <property name="nativeName">parameter</property>
+                    <property name="dataType">string</property>
+                    <property name="nativeDataType">12</property>
+                </structure>
+                <structure>
+                    <property name="position">2</property>
+                    <property name="name">vc_value</property>
+                    <property name="nativeName">vc_value</property>
+                    <property name="dataType">decimal</property>
+                    <property name="nativeDataType">3</property>
+                </structure>
+            </list-property>
+            <xml-property name="queryText"><![CDATA[select 'VMem_Capacity' as parameter , truncate(sum(capacity)/1024/1024 , 2) as vc_value 
+from 
+(
+	select uuid, max(capacity) as capacity
+    from vm_stats_by_day
+    where
+       snapshot_time between start_of_month(date_sub(now(), interval 1 month)) and end_of_month(date_sub(now(), interval 1 month))
+	   and property_type = 'VMem'
+       and property_subtype = 'used'
+    group by uuid
+) as vms_in_month]]></xml-property>
+            <xml-property name="designerValues"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
+<model:DesignValues xmlns:design="http://www.eclipse.org/datatools/connectivity/oda/design" xmlns:model="http://www.eclipse.org/birt/report/model/adapter/odaModel">
+  <Version>2.0</Version>
+  <design:ResultSets derivedMetaData="true">
+    <design:resultSetDefinitions>
+      <design:resultSetColumns>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:identifier>
+              <design:name>parameter</design:name>
+              <design:position>1</design:position>
+            </design:identifier>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>39</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>NotNullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>parameter</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>parameter</design:label>
+            <design:formattingHints>
+              <design:displaySize>39</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+        <design:resultColumnDefinitions>
+          <design:attributes>
+            <design:identifier>
+              <design:name>value</design:name>
+              <design:position>2</design:position>
+            </design:identifier>
+            <design:nativeDataTypeCode>12</design:nativeDataTypeCode>
+            <design:precision>38</design:precision>
+            <design:scale>0</design:scale>
+            <design:nullability>Nullable</design:nullability>
+            <design:uiHints>
+              <design:displayName>value</design:displayName>
+            </design:uiHints>
+          </design:attributes>
+          <design:usageHints>
+            <design:label>value</design:label>
+            <design:formattingHints>
+              <design:displaySize>38</design:displaySize>
+            </design:formattingHints>
+          </design:usageHints>
+        </design:resultColumnDefinitions>
+      </design:resultSetColumns>
+      <design:criteria/>
+    </design:resultSetDefinitions>
+  </design:ResultSets>
+</model:DesignValues>]]></xml-property>
+        </oda-data-set>
+    </data-sets>
+    <styles>
+        <style name="report" id="38">
+            <property name="fontFamily">sans-serif</property>
+            <property name="fontSize">10pt</property>
+        </style>
+        <style name="crosstab-cell" id="41">
+            <property name="borderBottomColor">#CCCCCC</property>
+            <property name="borderBottomStyle">solid</property>
+            <property name="borderBottomWidth">1pt</property>
+            <property name="borderLeftColor">#CCCCCC</property>
+            <property name="borderLeftStyle">solid</property>
+            <property name="borderLeftWidth">1pt</property>
+            <property name="borderRightColor">#CCCCCC</property>
+            <property name="borderRightStyle">solid</property>
+            <property name="borderRightWidth">1pt</property>
+            <property name="borderTopColor">#CCCCCC</property>
+            <property name="borderTopStyle">solid</property>
+            <property name="borderTopWidth">1pt</property>
+        </style>
+        <style name="crosstab" id="42">
+            <property name="borderBottomColor">#CCCCCC</property>
+            <property name="borderBottomStyle">solid</property>
+            <property name="borderBottomWidth">1pt</property>
+            <property name="borderLeftColor">#CCCCCC</property>
+            <property name="borderLeftStyle">solid</property>
+            <property name="borderLeftWidth">1pt</property>
+            <property name="borderRightColor">#CCCCCC</property>
+            <property name="borderRightStyle">solid</property>
+            <property name="borderRightWidth">1pt</property>
+            <property name="borderTopColor">#CCCCCC</property>
+            <property name="borderTopStyle">solid</property>
+            <property name="borderTopWidth">1pt</property>
+        </style>
+    </styles>
+    <page-setup>
+        <simple-master-page name="Simple MasterPage" id="2">
+            <property name="topMargin">0.5in</property>
+            <property name="leftMargin">0.5in</property>
+            <property name="bottomMargin">0.5in</property>
+            <property name="rightMargin">0.5in</property>
+            <property name="canShrink">false</property>
+            <property name="showFooterOnLast">true</property>
+            <property name="headerHeight">0.5in</property>
+            <property name="footerHeight">0.5in</property>
+            <page-header>
+                <grid id="1631">
+                    <property name="width">7.472222222222222in</property>
+                    <column id="1632">
+                        <property name="width">4.944444444444445in</property>
+                    </column>
+                    <column id="1633">
+                        <property name="width">2.5277777777777777in</property>
+                        <property name="textAlign">right</property>
+                    </column>
+                    <row id="1634">
+                        <cell id="1635">
+                            <text id="1636">
+                                <property name="fontFamily">"Calibri"</property>
+                                <property name="fontSize">16pt</property>
+                                <property name="fontWeight">bold</property>
+                                <property name="color">#009BC9</property>
+                                <property name="contentType">auto</property>
+                                <text-property name="content"><![CDATA[VMem Capacity Management for VM]]></text-property>
+                            </text>
+                        </cell>
+                        <cell id="1637">
+                            <image id="1999">
+                                <property name="dataSet">customer_image</property>
+                                <list-property name="boundDataColumns">
+                                    <structure>
+                                        <property name="name">image_name</property>
+                                        <expression name="expression" type="javascript">dataSetRow["image_name"]</expression>
+                                        <property name="dataType">string</property>
+                                    </structure>
+                                </list-property>
+                                <property name="source">file</property>
+                                <expression name="uri" type="javascript">row["image_name"]</expression>
+                            </image>
+                        </cell>
+                    </row>
+                </grid>
+            </page-header>
+            <page-footer>
+                <grid id="2000">
+                    <property name="marginTop">4pt</property>
+                    <property name="verticalAlign">bottom</property>
+                    <property name="canShrink">false</property>
+                    <property name="height">0.3333333333333333in</property>
+                    <property name="width">7.291666666666667in</property>
+                    <column id="2001">
+                        <property name="width">3.638888888888889in</property>
+                    </column>
+                    <column id="2002">
+                        <property name="width">3.6527777777777777in</property>
+                    </column>
+                    <row id="2003">
+                        <property name="height">0.3333333333333333in</property>
+                        <property name="verticalAlign">bottom</property>
+                        <cell id="2004">
+                            <property name="paddingTop">1pt</property>
+                            <property name="verticalAlign">top</property>
+                            <text id="2005">
+                                <property name="fontFamily">"Calibri"</property>
+                                <property name="fontSize">12pt</property>
+                                <property name="contentType">html</property>
+                                <text-property name="content"><![CDATA[Report created: <value-of>new Date()</value-of>]]></text-property>
+                            </text>
+                        </cell>
+                        <cell id="2006">
+                            <property name="textAlign">right</property>
+                            <property name="verticalAlign">top</property>
+                            <image id="2402">
+                                <property name="dataSet">customer_image</property>
+                                <list-property name="boundDataColumns">
+                                    <structure>
+                                        <property name="name">copyright</property>
+                                        <expression name="expression" type="javascript">dataSetRow["copyright"]</expression>
+                                        <property name="dataType">string</property>
+                                    </structure>
+                                </list-property>
+                                <property name="source">file</property>
+                                <expression name="uri" type="javascript">row["copyright"]</expression>
+                            </image>
+                        </cell>
+                    </row>
+                </grid>
+            </page-footer>
+        </simple-master-page>
+    </page-setup>
+    <body>
+        <text id="326">
+            <property name="marginLeft">0.5in</property>
+            <property name="marginRight">0.5in</property>
+            <property name="paddingLeft">1pt</property>
+            <property name="contentType">html</property>
+            <text-property name="content"><![CDATA[<center><h1 style="color:#7C7C7C; font-size:16pt;margin-top:12px;">Monthly VMem Capacity Report
+<value-of>
+BirtDateTime.month(BirtDateTime.today())+"/"+
+BirtDateTime.day(BirtDateTime.today())+"/"+
+BirtDateTime.year(BirtDateTime.today())
+</value-of>
+</h1>
+</center>
+<p style="margin-top:10px;">This report shows the VMem capacity over the last month, that was assigned to the VMs in the environment. Where the capacity for a VM was increased or decreased during the month, the higher value is used for the entire month. This report also lists all the clusters that were active in the month.</p>
+]]></text-property>
+        </text>
+        <label id="898">
+            <property name="fontFamily">"Calibri"</property>
+            <property name="fontSize">16pt</property>
+            <property name="color">#009BC9</property>
+            <property name="marginTop">12pt</property>
+            <property name="marginLeft">40pt</property>
+            <property name="marginBottom">8pt</property>
+            <property name="marginRight">20pt</property>
+            <property name="textAlign">center</property>
+            <property name="pageBreakBefore">auto</property>
+            <text-property name="text">Monthly VMem capacity</text-property>
+        </label>
+        <table id="2501">
+            <property name="marginLeft">40pt</property>
+            <property name="marginRight">20pt</property>
+            <property name="dataSet">vm_month_ds</property>
+            <list-property name="boundDataColumns">
+                <structure>
+                    <property name="name">parameter</property>
+                    <expression name="expression" type="javascript">dataSetRow["parameter"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+                <structure>
+                    <property name="name">vmn_value</property>
+                    <expression name="expression" type="javascript">dataSetRow["vmn_value"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+                <structure>
+                    <property name="name">month_column</property>
+                    <expression name="expression" type="javascript">dataSetRow["vmn_value"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+            </list-property>
+            <column id="2514"/>
+            <column id="2515"/>
+            <detail>
+                <row id="2505">
+                    <cell id="2506">
+                        <label id="2516">
+                            <property name="fontWeight">normal</property>
+                            <text-property name="text">Report Month</text-property>
+                        </label>
+                    </cell>
+                    <cell id="2507">
+                        <data id="2638">
+                            <structure name="numberFormat">
+                                <property name="category">Unformatted</property>
+                            </structure>
+                            <property name="resultSetColumn">month_column</property>
+                        </data>
+                    </cell>
+                </row>
+            </detail>
+        </table>
+        <table id="2477">
+            <property name="marginLeft">40pt</property>
+            <property name="marginRight">20pt</property>
+            <property name="dataSet">vm_count_ds</property>
+            <list-property name="boundDataColumns">
+                <structure>
+                    <property name="name">parameter</property>
+                    <expression name="expression" type="javascript">dataSetRow["parameter"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+                <structure>
+                    <property name="name">vct_value</property>
+                    <expression name="expression" type="javascript">dataSetRow["vct_value"]</expression>
+                    <property name="dataType">decimal</property>
+                </structure>
+                <structure>
+                    <property name="name">count_column</property>
+                    <expression name="expression" type="javascript">dataSetRow["vct_value"]</expression>
+                    <property name="dataType">integer</property>
+                </structure>
+            </list-property>
+            <column id="2487"/>
+            <column id="2488"/>
+            <detail>
+                <row id="2481">
+                    <cell id="2482">
+                        <label id="2543">
+                            <property name="fontWeight">normal</property>
+                            <text-property name="text">Total Number of VMs</text-property>
+                        </label>
+                    </cell>
+                    <cell id="2483">
+                        <data id="2546">
+                            <structure name="numberFormat">
+                                <property name="category">Unformatted</property>
+                            </structure>
+                            <property name="resultSetColumn">count_column</property>
+                        </data>
+                    </cell>
+                </row>
+            </detail>
+        </table>
+        <table id="2465">
+            <property name="marginLeft">40pt</property>
+            <property name="marginRight">20pt</property>
+            <property name="dataSet">vm_capacity_ds</property>
+            <list-property name="boundDataColumns">
+                <structure>
+                    <property name="name">parameter</property>
+                    <expression name="expression" type="javascript">dataSetRow["parameter"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+                <structure>
+                    <property name="name">vc_value</property>
+                    <expression name="expression" type="javascript">dataSetRow["vc_value"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+                <structure>
+                    <property name="name">capacity_column</property>
+                    <expression name="expression" type="javascript">dataSetRow["vc_value"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+            </list-property>
+            <column id="2475"/>
+            <column id="2476"/>
+            <detail>
+                <row id="2469">
+                    <cell id="2470">
+                        <label id="2545">
+                            <property name="fontWeight">normal</property>
+                            <text-property name="text">Total VMem Capacity (GB)</text-property>
+                        </label>
+                    </cell>
+                    <cell id="2471">
+                        <data id="2547">
+                            <structure name="numberFormat">
+                                <property name="category">Custom</property>
+                                <property name="pattern">#,###.##</property>
+                            </structure>
+                            <property name="resultSetColumn">capacity_column</property>
+                        </data>
+                    </cell>
+                </row>
+            </detail>
+        </table>
+        <label id="2650">
+            <property name="fontFamily">"Calibri"</property>
+            <property name="fontSize">16pt</property>
+            <property name="color">#009BC9</property>
+            <property name="marginTop">12pt</property>
+            <property name="marginLeft">40pt</property>
+            <property name="marginBottom">8pt</property>
+            <property name="marginRight">20pt</property>
+            <property name="textAlign">center</property>
+            <text-property name="text">Included Clusters</text-property>
+        </label>
+        <table id="2639">
+            <property name="marginLeft">40pt</property>
+            <property name="marginRight">20pt</property>
+            <property name="dataSet">clusters_name</property>
+            <list-property name="boundDataColumns">
+                <structure>
+                    <property name="name">cluster_name</property>
+                    <expression name="expression" type="javascript">dataSetRow["cluster_name"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+                <structure>
+                    <property name="name">Column Binding</property>
+                    <text-property name="displayName">cluster_name_values</text-property>
+                    <expression name="expression" type="javascript">dataSetRow["cluster_name"]</expression>
+                    <property name="dataType">string</property>
+                </structure>
+            </list-property>
+            <column id="2646"/>
+            <detail>
+                <row id="2642">
+                    <cell id="2643">
+                        <data id="2649">
+                            <structure name="numberFormat">
+                                <property name="category">Unformatted</property>
+                            </structure>
+                            <property name="resultSetColumn">Column Binding</property>
+                        </data>
+                    </cell>
+                </row>
+            </detail>
+            <footer>
+                <row id="2644">
+                    <cell id="2645"/>
+                </row>
+            </footer>
+        </table>
+    </body>
+    <list-property name="images">
+        <structure>
+            <property name="name">vmt_logo.jpg</property>
+            <property name="data">
+                /9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYa
+                HSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgo
+                KCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj//gAxSW1hZ2UgUmVzaXplZCBhdCBo
+                dHRwOi8vd3d3LnNocmlua3BpY3R1cmVzLmNvbQr/wAARCAAvAPoDASIAAhEBAxEB/8QAHwAAAQUBAQEB
+                AQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJx
+                FDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZn
+                aGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW
+                19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QA
+                tREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl
+                8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOU
+                lZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6
+                /9oADAMBAAIRAxEAPwD6pooooAKKKpazqMWk6Xc31x/q4ULEZ6nsB7k4FNJt2QpNRV2fPfi2+uL/AMQ6
+                hJdStIVndFBPCqGIAHoKyK4/XdZvb3WL2dpnj3zO2yMkAZY8VQ+33f8Az8zf99mvrIU+WKR8XNOcnK+5
+                39epfBS+uHm1CzeVmt0RZEQnIU5wcema+bvt93/z8zf99mul8D6vqVvd3Jt7+6iJQAlJWGeazxFD2tNx
+                NcNU+r1FU7H2FRXifw71LXNQ8U2sf9oXcsC5eZZJCy7AO4PvgV7ZXzuIoOhLlbufT4XErEw50rBRRRWB
+                0hRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRXk3xiv7y01mxW0u7iBWgJIjkZQTuPoa2oUXWnyJ2OfE1
+                1h6bqNXPWaKraWS2m2jMSWMSEknk/KKs1k1Z2N07q4UUUUhhRRRQAUUUUAFeQ/HHxPHarBpSPnH72VQe
+                WP8ACv8AX8RXoHi7xJa+HdNlnm/eTBCyRA8nHc+gr5R8QarPquqXOoahJ5lzO5dgO3sPQCvTy7Duc/aS
+                2R5WZ4hKHso7vf0OMvr6Z7uZgVUF2OAM96h+1z/3x/3yK07qyjmmaRVKFuSAah/sxf7zV7x5KcbbFL7X
+                P/fH5Ctfw5qF1FPMY5ACVGflHrVb+zV/vNWv4e08tdrDEmVJzIx/uihsmXK1ZI9T8B6rq+k2D3EM6pLc
+                4JJiUnaOnUfj+VdhZeKfE19cpb2tz5kznAUQp/hXHWD3l3MlvawRk9AADhR7+1ekeHHfRLciKCB7hx88
+                pU5PsOeBXl4jlV5cqbOnDc7tFSaj5He6ctwllCt7IslyFHmMowC3fFc58UdV1fQ/B13qmg+Ubm1KyOsq
+                bwY84bjI6Zz+BoXxDfMQFhhJPQAH/GtWGK51OxubfVreJbaeJo2QZywYYOfwNeSounJSklbse3zqpFwg
+                3fucH8EfiBfeMl1SDWfIF5bFHTyk2hkOQeMnoR+tUPjV8S9T8Ja3Y6boX2YytCZpzLHvxk4UDkY+6T+I
+                rzr4YSS+CvjL/ZV221Hmk0+QnjcGPyH8SEP41PpcX/CwfjvLOR5ljFcmVu48mHAX8GIUf8Cr1Hhqca7q
+                Ne4lc8xYqpKgqafvt2PVfH/i3W/Cfw107U5Tb/23O8UcgaP5FZlLMNue2MVT+CXxEvvGMup2etfZxeQB
+                ZYvJTaGQ8Nxk9Dj/AL6rE/aku9mk6DZ5/wBbPLMR/uKB/wCz1x+hwP8ADr4neG5nJSyv7S38wnpiRAr5
+                +jjd+ArOlh4VMNe3vO7Xy6GlXETp4m1/dVk/n1PWfjX47uvBml2A0ryTqF1KcCVdwEaj5jjPqVH51D8I
+                vGur+MfDOsz3Yt21O1crCI02Kcplcgn+8DXn3jSJ/iB8UddijJex0TT51XHTeiN/7Vb8lqz+y3ebdU16
+                yJ/1kMcwH+6xB/8AQxRLDwjhW7e8rP7/APgBHETnirX913S+X/BOu13xV400FIW1S3s4RMSEwqtnGM9G
+                PrWl4Y1rxnq7WV39ltG0yWQB5F2g7A2GwC2ex7VW+OH/AB7aR/vyfyWul+F//Ikad/wP/wBDas5uKw6q
+                ciu3bb1CnGbxcqLnKyV9/QwPHnjLVdD8RrZWXkeSY0b50ycknPevSe1eJfFv/kdU/wCuMf8AM17bWGJh
+                GNKm0t1/kdGEqSnWqxk9E9PxPN9M8Y6pc+P20eTyPsYuZYuE+bC7sc59hV74k+Lb7w7LaQafHAWnRmLy
+                KSRg44Ga43Q/+Svv/wBfs/8AJ60Pjf8A8hHS/wDrk/8AMV1exp+3hG2jRxfWKv1apPm1Urfka1gnj6+g
+                trpdQs44Jgr42JuCnnONvofWsP418a1p4Jz/AKOf/QjXqXhv/kXtM/69Yv8A0AV5d8bf+Q3p/wD17n/0
+                I1GFnzYhKyVr7I1xtPkwjd2723dzehg8ePp8EtrdadGgiUpCoBJGOBllPP40eEPHdzcat/ZHiGBYLwv5
+                ayKNuX/usPU+orudK/5Bdn/1xT/0EV438VlFr42Wa2+WVoo5SR/eBIB/QVNDlxEnTlFLs0ViefCwjWhJ
+                va6bueteJdbttA0qS9u8lR8qIOrsegFcJpWs+NPFCyXWkm0srMMVUuowfYEgk/XAFRfG6aTbo8OSIyJH
+                I9T8o/qfzruvBMSQ+EtIWMAKbZHOPVhk/qTUKMaNBVLJt9zSUp18TKlzNRiunU4u18baxoOsrp3i2CMo
+                2P38YwQD/FxwR+AP8q9NR1dFZSGVhkEHgivMPjfEnkaVNgeZukTPqMA1X0nxDqMWlWUaO21IUUfQKKqd
+                BVqcakFZvczp4l4erOjUbaW3c9ZrD8U69FotqDjdcSA+Wvb6mtKaZzkR8e5qhLZrMczAOf8Aa5rjgkne
+                Wx6NRyatDc8e1i7uNUkma4Jfzchy3JI9PYVzv/CM6eefso/76b/GvoD+zIP+eMX/AHyKX+zIf+eMf/fI
+                r0Y41RVkjy3gHJ3bPn//AIRjT/8An1H/AH0f8aUeGNP/AOfUf99N/jXv402D/njH/wB8il/s2D/njH/3
+                yKf19h/Z3mfP/wDwjGn/APPqP++m/wAa19F8MNK4isbYIhPzPjgfU17V/ZsH/PGP/vkVNHYjAAAC1Mse
+                2hxy7XVnJaTocOm2/lwrlj99yOWNbNro0kxBceWnqRz+Vb8FpHEc4y3qasVxTryZ3ww0Y7lSz0+3tB+7
+                QF/7561boorFtvVnQkkrI+cf2kdEfTfE2neIbMGP7SoR3Xqssf3T9SuP++a6P9mbQPs2h3+uTp+8vJPJ
+                iJ/55p1I+rEj/gNezzQxTKFmjSRQcgMoNOjjSJAkaqiDoqjAFdksa5YdULfPyOKOCUcQ69/l5nzl+0rM
+                154z0TTo+WS2BA93kI/9lFdb+0X4dW48G2WpWyfvdKcKSOvlNhT+TBP1r1yS1gkcPJDG7j+JlBNSSRrI
+                hSRQynqCMg0Rxjj7PlXw/jccsGpe05n8f4WPIf2evDxi8G3+qXgLXGsOw3PyTGuV5+rFz+Vedfs9zmw+
+                JzWj8Ga3mgI91w3/ALIa+o40WNAiKFUcAAYAqJLS3jk8xIIlfruCAH86f12/tOZfH+BP1K3s+V/B+J5t
+                8cP+PbSP9+T+S10vwv8A+RI07/gf/obV1EkUcuPMRXx03DOKVEVF2ooVR2AwKxlXvRVK2zNIYblxEq99
+                1a33f5Hknxi0i6XVYNWhjZ7YxiN2AzsYE4z7HNdDZfE7RZLNHu1uIrjb88Yj3DPfB9K7tlDAhhkHtVBt
+                F0tmLNptkzHuYFJ/lV/WITgoVI3t2M3hakKkqlGVubdNHjnhC4Go/E5Ly3STyZbiWUZHKqQ2M46da1vj
+                f/yEdL/65P8AzFesQW8Num23ijiX0RQo/SlkhilIMkaOR03AGr+uL2saijsrGay9+wlSctZO97FLw3/y
+                L2mf9esX/oAry/42K39sae+07fIIzjjO417AoCgAAADgAU2aGOZCk0aSIeqsMisaNf2VX2ljpxGG9tR9
+                le2xxNp8Q/D9vpMANxK00cSqYlibdkDp6frXJ6Lpl9428XHWLu3aHTVkDEsOCq9EHr05P1r1ZdF0tX3L
+                ptkGHO4QLn+VXlUKAAAAOgFWsRCnd0lq+rMpYWpVcVWkrLolv6nH/E3w9NrujRvZrvvLVi6J3dSPmA9+
+                Afwrm/BXju10jSl0vXI54pbbKIwTPy+hHUEdK9VqpdabZXbbruztp2HeSJWP6ilTrx9n7Korouphpe19
+                tSlZ7Pszx/xLqF18QNetrXR7aUWsGVVnHTJGXb0HA49vevVrHQ7K0sre3EKuIY1j3EcnAxmtC3t4baPy
+                7aGOJP7sahR+QqWlVxHOlCCskOhhfZylUqPmkz//2Q==
+            </property>
+        </structure>
+        <structure>
+            <property name="name">vmturbo_logo_rep.jpg</property>
+            <property name="data">
+                /9j/4QAYRXhpZgAASUkqAAgAAAAAAAAAAAAAAP/sABFEdWNreQABAAQAAAA8AAD/4QPwaHR0cDovL25z
+                LmFkb2JlLmNvbS94YXAvMS4wLwA8P3hwYWNrZXQgYmVnaW49Iu+7vyIgaWQ9Ilc1TTBNcENlaGlIenJl
+                U3pOVGN6a2M5ZCI/PiA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJB
+                ZG9iZSBYTVAgQ29yZSA1LjAtYzA2MCA2MS4xMzQ3NzcsIDIwMTAvMDIvMTItMTc6MzI6MDAgICAgICAg
+                ICI+IDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3lu
+                dGF4LW5zIyI+IDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiIHhtbG5zOnhtcE1NPSJodHRwOi8v
+                bnMuYWRvYmUuY29tL3hhcC8xLjAvbW0vIiB4bWxuczpzdFJlZj0iaHR0cDovL25zLmFkb2JlLmNvbS94
+                YXAvMS4wL3NUeXBlL1Jlc291cmNlUmVmIyIgeG1sbnM6eG1wPSJodHRwOi8vbnMuYWRvYmUuY29tL3hh
+                cC8xLjAvIiB4bWxuczpkYz0iaHR0cDovL3B1cmwub3JnL2RjL2VsZW1lbnRzLzEuMS8iIHhtcE1NOk9y
+                aWdpbmFsRG9jdW1lbnRJRD0idXVpZDo1RDIwODkyNDkzQkZEQjExOTE0QTg1OTBEMzE1MDhDOCIgeG1w
+                TU06RG9jdW1lbnRJRD0ieG1wLmRpZDozRjRFNzk2QzE4NDYxMUUwQTZFNEJCREYxM0FEQzJCNSIgeG1w
+                TU06SW5zdGFuY2VJRD0ieG1wLmlpZDozRjRFNzk2QjE4NDYxMUUwQTZFNEJCREYxM0FEQzJCNSIgeG1w
+                OkNyZWF0b3JUb29sPSJBZG9iZSBQaG90b3Nob3AgQ1M1IE1hY2ludG9zaCI+IDx4bXBNTTpEZXJpdmVk
+                RnJvbSBzdFJlZjppbnN0YW5jZUlEPSJ4bXAuaWlkOjA4ODAxMTc0MDcyMDY4MTE4NzFGRThFMEJBQzgx
+                NDFCIiBzdFJlZjpkb2N1bWVudElEPSJ4bXAuZGlkOjA3ODAxMTc0MDcyMDY4MTE4NzFGRThFMEJBQzgx
+                NDFCIi8+IDxkYzp0aXRsZT4gPHJkZjpBbHQ+IDxyZGY6bGkgeG1sOmxhbmc9IngtZGVmYXVsdCI+UHJp
+                bnQ8L3JkZjpsaT4gPC9yZGY6QWx0PiA8L2RjOnRpdGxlPiA8L3JkZjpEZXNjcmlwdGlvbj4gPC9yZGY6
+                UkRGPiA8L3g6eG1wbWV0YT4gPD94cGFja2V0IGVuZD0iciI/Pv/tAEhQaG90b3Nob3AgMy4wADhCSU0E
+                BAAAAAAADxwBWgADGyVHHAIAAAIAAgA4QklNBCUAAAAAABD84R+JyLfJeC80YjQHWHfr/+4ADkFkb2Jl
+                AGTAAAAAAf/bAIQABgQEBAUEBgUFBgkGBQYJCwgGBggLDAoKCwoKDBAMDAwMDAwQDA4PEA8ODBMTFBQT
+                ExwbGxscHx8fHx8fHx8fHwEHBwcNDA0YEBAYGhURFRofHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8f
+                Hx8fHx8fHx8fHx8fHx8fHx8fHx8f/8AAEQgAXQHbAwERAAIRAQMRAf/EAMEAAQACAwEBAQAAAAAAAAAA
+                AAAHCAQFBgMCAQEBAAIDAQEAAAAAAAAAAAAAAAUGAgMEBwEQAAEDAgIFBAoNCgQFBQAAAAEAAgMEBREG
+                ITESEwdBUWEUcYGR0SIysnMVCKGxQlJykiOzVHQ1FjbBYoKi4lOjNGQXwtJVdTNjkyRWg8OERTcRAAIB
+                AgMDCQQJBQADAQAAAAABAhEDEgQFITFRQWFxsTITMxQGgcFScvCRodHhIoI0FfFCYiNTosJDY//aAAwD
+                AQACEQMRAD8AtSgCAIAgCAIAgK/ccs/3aW/TZaoZ301vomsFUIyWmaV7A8hxGksaHAbPPjr0KayGXjhx
+                veyLzl54sK3ERqSOEIAgCAICSuDWfrta8yUVkqKh81ouEgpxBI4uEUj9Ebo8fFxdgCBoOPOuHO5eMoOS
+                7SOzK3mpJcjLJqBJYIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAg
+                CAIAgCAIAgCAIAgCAIAgCAICqfF7/wDR7352P5liseS8KJC5rxGcdiOddJzjEc6AYjnQDEc6AYjnQG7y
+                O9gzrl8lwAFyoyST/wA9i1Zjw5dD6jZZ7a6UW965Sfv4/jN76rOFk7U/WVNO9wayVjnHU0OBKUZ9qei+
+                AIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgC
+                AIDWZkzBRWC0TXKr0sj0RxjxnyO8Vg7PtLZatucqIxnNRVSnme73V3rNdxuNTg2SokDjGzQ1o2AAB2AF
+                Z8vbUYJIruZm5TbNAt5oCAIAgCAybb9o0vno/KCxluZnb7S6Tu1xEmfrXOa4OaSHA4gjQQQgLF8OK+vr
+                8m2+ornOfOQ9m8f4z2Mkc1rjjr8Ea+VQeZilcaRIWW3FVOlWg2hAEAQBAEAQBAEAQBAEAQBAEAQBAEAQ
+                BAEAQBAEAQBAEAQBAEAQBAV1vvE3PVRUz0z7iaZsb3RllK1sWBaSDg9uL/1labOQspJ4a9J53mdZzUpO
+                LnTo2fj9p2nAq4VtYb6aueSoeDTO3krnPdi7eg6XE+9XBq8FHBRU3+4mvTN2U+8xNvs7/wBRKyhS1BAE
+                AQBAEAQBAEAQBAEAQBAEBDHGrMHWbrT2WJ3yVE3e1AGozSDwQfgs8pSuRt0ji4nHmZ1dCAL79rVHZHkh
+                TVvsohb3bZgLM1BAEAQBAZNt+0aXz0flBYy3Mzt9pdJ3a4iTMy0WyoulzpbdTj5aqkbG06wMTpceho0l
+                Yzmoptn2MauhZ630NPQUNPRU7dmCmjbFGPzWjAY9KgJSbdWSaVFQ91ifQgCAIAgCAIAgCAIAgCAIAgCA
+                IAgCAIAgCAIAgCAIAgCAIAgCAIAgKp5iY1mYLmxowa2rnDR0CRwVzsP8kehHlWbVL01/k+sk71f/AP77
+                /wCJ/wC8ojWf7Pb7iz+lf/p+n/2JeUGW4IAgCAIAgCAIAgCAIAgCAIDFu1yp7Zbam4VBwhpY3SP5zsjQ
+                B0k6AsoRcmkj5J0VSsNyr56+vqK6pdjNUyOlkPJi446OhWCMUlREXJ1dTgL4QbrUEasR5IXZb7JG3u0z
+                BWZrCAIAgCAyLecK+mPNKzygvktzModpHb788y5KEhjO54WzCiuE14fTiUxNMNPicMHv8dw0HSG6O2ub
+                MwxLDU+LNd291STvv3L9Db8c/wCVcXk1xNn8m/hH37l+ht+Of8qeTXEfyb+E+os9PMjQ+jGyTgdl5J7Q
+                2V8eT5z7HUtvZOtXCSoQBAVa4rZz4l5Wz1crZDfquOic8VFANoYbibwmtGLdTDiztKw5OxauW08KrykB
+                m7123caxOh+8J+MObn57tlHf7vNWW2veaR8cxBDZJRhE4YAYHebI7BKZzJQ7tuKo0MpnJ94lJ1TLSKvE
+                +Y9yuFLbbfU3Crfu6WkifPO/mZG0uce4FlGLk0lvZjKSim3yFPblxp4j1VwqamC91FNDNK+SKmjLQyNj
+                nEtY3RqaNCs8cjaSSworcs7dbbqS/wCrvec7ZifdLxfbrUVlupw2lpYZSNh0zsHyO0AaWNDR+kozUoW4
+                UjFJMktOncnWUnVGn9YPiFmuxZxo7dY7pNQwCgjlnZEQAZHyyDTiPetC2abloTttyVdpq1DMThNKLpsI
+                v/vBxN/8iq/jN7ykPJWfhRwecu/EyyPAvN9bmfIkVRcah1TcqOolpquZ/juIIkY4/oSAdpQWoWVbuUW5
+                k5kLzuW6vejuLrcae2WusuVScKeihkqJj+ZEwvd7AXJCLk0lynVOSim3yFOZ+MnEyWaSQX+pjD3FwjaW
+                hrcTjgNGoK0LJWvhRWnnbvxMzst8X+IbsxWsVd+qZaQ1kAqInFpa+Pet22nQNBboWF3JWsLpFVoZWs5d
+                xKsnSpY7i1eLnacrMqrbUPpag1UbDIzQdkteSNPYURptqM7lJKqodevZidqxig8LxL3kNf3Gzx/rFR3R
+                3lPeRs/Cinfy+a/6SH9xs8f6xUd0d5PI2fhQ/l81/wBJD+42eP8AWKjujvJ5Gz8KH8vmv+kjfZFzhnK7
+                ZutlBNdZ5IJJtqaMkYOZG0yOadGohuC5s5lrULUpKKrQ7tM1DM3cxCDm2q7fZtJZz1m9uVbPHcTSmrMs
+                7adsQfu9LmPfiXbL/ecyhMplu+nhrTZUtmp6h5W2p0xVdOHH7iLa/jpmebFtHSUtI3kcQ+V47ZIb+qpm
+                GkW1vbZV7vqa++zGMft+n1E4Uz3Pp4nu0ucxriekjFV2S2l3g6pM5TP3EKLKXVWGidWTVbXuYN4I2t2C
+                BpOy8+65l25PJO/XbShFapqyylFhxOXPQ42y8Ysw3jMttoG01NS0dTURxSBoc+TZc7A+GXYfqrvu6Xbh
+                blKrbSIbLeoL16/CFIxjKSXP9PYTCoIuBGmbeMos1zqrXS2t0lTSvMb5Z3hjMRpDmtYHEgjSNIUtltL7
+                yKk5bHwK1n/UPczduMPzR4s8cj8XJK990fmJ8FNDSwiohMTS0BodsOYAS4uJL24aVlm9Nw4e7q6uhhpu
+                vO45u9RKKqqfToOfvXHG/wA1W70RBDS0bThHvW7yVw53HHZHYA7ZXVa0iCX5nVkfmfUt1y/1pRjz7WSP
+                w2zBe79lwXG7CISPmeyB0TSzajZgNpwJIx29oaOZRWfswt3MMeBY9HzV2/Zx3Kb9lOH9Sv8AmX8R3X65
+                UfOuVmseHHoRQM540/ml1m8yNn1+U6S6bimFRWVpgEO2SI2iLebRdh4R8cYAd1c+byffONXRKvuO7TNU
+                8pGdFWUqU4bK/eZknGfPLpdts8DG/umwt2f1sXeyta0uzTc/rNr9RZputV9R02V+OO8nZTZip2RMecBW
+                04dst+HGS44dLT2lx5jSKKtt+xkpkvUtXhvKn+S96+nQS1FLHLEyWJ4kikaHMe04tc1wxBBGsEKFao6M
+                tkZJqq3H0vh9OXzlxCsmV2COcmpuDxtRUUZAdhyOe7SGN9nmC7Mrkp3t2yPEi9R1a1lVR7Z8Pv4EY1/H
+                LNU0juqU9LSxe5Gy6R4HS5zgD8UKXhpFpb22Vm76mvt/lUYr6/p9R927jpmaGRvXqSmq4vdBodE89hwL
+                m/qr5PSLb3No+2vU19P80YyX1fT6iUso55seZ6cuonmOqjGM9HLgJGjViMNDm9I7eCh8zlJ2Xt3cS05D
+                U7WZX5dkuVPedCuUkAgCAIAgCAjDjdmIU9vprHE/B9UesVQGvdsODAfhPGP6KkMhaq3I5czOioQq95ce
+                jkClaEc3U5C8gi5z4848kLqhuOK52mYSyMAgCAIAgMi3gmvp8P3jD3HBfJbjKG9HZta57g1oLnOODQNZ
+                JXKdpKtnt7bfbYKUeMxuMhHK86XHurmk6s45Sq6mYvhiEB1GVsuPkfHcKtuETTtQRnW4jU49HNzrizF+
+                n5USeSylXjlu5DsVwEuEAQEHetDlTrNmt+ZoGYy0D+qVjgNO4mOMbnHmZJo/TUvpN6knB8pFaparFT4F
+                b4pZIpWSxuLJI3BzHjQQ4HEEKdaqQaZeXI+Y48yZStV7YQXVkDXTAYYCZvgTN0c0jXBVHMWu7m48C2WL
+                mOClxI99ZTNvovJ0VkgfhVXuTZkAOkU0JD5PjO2G9IxXbpdnFcxPdE4tTvYYYfiKtAEkADEnQAFYSALt
+                cMcqjK+R7XaXN2apsW+rdGk1E3hyA8+yTsjoCqeavd5ccuQtOVtd3bSK2+sLWCo4p3KMHEUsVNDj/wCg
+                2Q8vPIp7TY0sr2kJqMq3n7CNl3HCTl6rN+3N8u9jkd4NZAyqhB9/Tu2XAdJbLj+iojVrdYqXAldKuUk4
+                8SRfWHzB6K4cVNMx2E92ljo2YawzHeSHsFkez21w6bbxXU+G07dRuYbVOOwqQrKV0+o3vje2RhwewhzT
+                zEaQgLv5qy5BnDLtPSmpNLHK6KqbK1ok0bBwGtvv1VctmHYnWleQsOoZJZq0oVw7anCVvAmkpqOeoF4k
+                cYY3yBu4Ax2Wk4eP0KShq7bSw/aQFz0xGMW8b2Lh+JEKnConccPuHEGbKOrqJK51IaaRsYa2MP2tpuOO
+                lzVHZ3POy0qVqTmk6Qs1GTcsOF8CSMm8KKTLV6bdBXuq3sjfGyN0QYAX4DaxDncmIUVmtRd2GGlCx6fo
+                Uctd7zFi2cDF47fhGk/3CP5mZZ6P4r+X3o1ep/28fnXVIglWMopbaj/k4PNs8kKky3s9at9ldBEPH3+c
+                s3m5/KYpzRt0vYVH1T2rfQ/ccLkT8Z2X65D5YUjnPCl0MgtL/c2/mRZ5VA9OK98ZKdsWeql4GBnhhkPS
+                QwM/wK0aXKtlc1Tz31DCmab4pdVDi6ennqJ2U9PG6WaVwZHEwEuc4nAAAa13yaSqyGhFydEqtkgUvA7N
+                k1GJpZ6WnncMRTPe4uGjU5zWuaD2CVGS1a0nRJssEPTWYcatxT4Ez5ctDbPYaC2NwxpYWMeRqL8MXu7b
+                iSoC/cxzcuLLlk7Hc2ow+Ff1KzZl/Ed1+uVHzrlbrHhx6EeaZzxp/NLrMnKeUbtme4Gkt7WtbGA6oqJD
+                gyNpOAJwxJJ5AFhmczGzGsjZkchczM8MOTe+B2d94HXOhtklXQXBtfPC0vfS7oxOcBpO7O2/E9GjFcFn
+                V4ylSSwrpJnM+mpwg5Qlja5KU+rayMVLlZJs4H5llq7dU2OoftPocJaQnSdy84Ob2GO9tV/VrCjJTXLv
+                Lr6azjnB2n/btXR+HvO6zVfobDYKy6SAOMDPkmH3Ujjssb23HT0KOy9l3JqPEnc9mlYsyuPk6+QrDX19
+                XcK2atrJDNU1Di+WR2skq3wgopJbkeY3bsrknKTrJndcPeFf3joTdLjUPpre5zmQMiA3kmycHODnAtDQ
+                cRqOlRud1HunhiqyJ3SdD8xHvJvDDkpvZ48Q+GEmWKeO4UdQ6qtz3COTeACSN58XHZ0Fpw14BZZLUO+e
+                FqkjDVtFeWSnF4ofajkLNd66z3OC40Mm7qadwc08hHK1w5WuGghd121GcXGW5kRl8xOzNTg9qJ7/ALn2
+                zcb/AHDt16I9L7W0PG3246vq8beeDiq3/HyrSv8Afh+ytfqL5/NQpWmzusf24cP1naKPJoIAgCA8K+vp
+                aClkqqp4jhjGLifaCyhBydEYXLigqsrJm/MMuYMwVdzfi2OV2EEZ9zE3wWDuDT0qfs2sEUiKuXHN1NKt
+                prNbdbQ2rcJY3BkwGBx1EdOC2QnQ1XLdTVfd+v52d095Z94jT3TH3fr+dndPeTvEO6Y+79fzs7p7yd4h
+                3TH3fr+dndPeTvEO6Y+79fzs7p7yd4h3TNja7OKWTfTOD5R4obqGPLpWE51Ntu3TazsMo00c11bPK0mK
+                m8PR7/3Hf7S0y3Hy/dUV0kgekIfeu7g761YGcXfoekIfeu7g76YGO/R0GXaSkke2rro3mEaYosB4fS7E
+                +L7a5b8mtkSRyluL/NJbDsBfaMDAMkw7De+uDuWS/mIn76dpPeSdxvfTuWPMR5x6dpPeSdxvfTuWPMR5
+                z2pLnBVSGONrw4DHwgMMO0SsZW2jOF1SdEY2arBTZhy5cbLUYCOvgfCHEY7LyPAf2WPwcOwlm44TUlyH
+                27bU4uL5Si1bR1FFWT0dSwx1NNI+GaM62vjcWuB7BCt8ZJqqKnJNOjLD+q3mjfWy6ZamfjJSPFbSA/up
+                cGSgdDXhp/SUJq1qjU+OwmtKu1Thw2kYccc1nMPEKvdG/ao7aeoUuB0YQkiRw+FKXaebBSGQs4LS4vac
+                Geu47j4LYfPBHKf3j4g0EcrNuit56/WY6tmEgsaefalLQRzYpn72C0+L2HzI2sdxcFtLjqrlmKUcWazr
+                nErMcuOOzXSw/wDQO65h7xWvJxpaj0FWzcq3ZdJrKewOmyhW31oJ6nXU9K/mDZ4pXY/GjA7a2O5SajxT
+                MFbrBy4M2XCu/wDoLiDY7g52xD1lsFQeTdVAMLyfgh+12lhm7eO1JcxnlLmC5FkgetFmDrWZrbY43Yx2
+                2nM8oH72pOo9iONp7a4tJt0g5cfcdmqXKzUeBF+WMtzXr0rK3EQWq31FfO7k+SbgwY85e4KQu3cFOdpH
+                BatYq8yqaNbTUXnyFWdcyPl+qJxdLbqVzzp8bct2tf5yqOYjS5Jc7LXl3W3F8yNlefsiu+ry+QVja7S6
+                RmPDl8r6ipyuh5QTVwE+yLr9YZ5CgNY7Uegunpfw5/MuolJQxaSOeO34RpP9wj+ZmUro/iv5feiuep/2
+                8fnXVIglWMopbaj/AJODzbPJCpMt7PWrfZXQRDx9/nLN5ufymKc0bdL2FR9U9q30P3HC5E/Gdl+uQ+WF
+                I5zwpdDILS/3Nv5kWeVQPTiBON/4zZ9Ti8t6suk+F7Shepf3P6V7zT8L/wAeWjzj/mnrfqHgy+nKcei/
+                u4dL6mWTVTPSQgKq5l/Ed1+uVHzrlc7Hhx6EeV5zxp/NLrJG4Bfzl583B5T1Fazuj7Sx+lu1c6F7yZFA
+                lxKqZipm0uYLnTNGy2CrnjDRqAZI5uHsK52JVhF8UjyrNww3px4SfWdTwYqHxZ5hY0+DPBNG/sBu37bA
+                uPVI1svmaJX07NrNJcU/v9x2nHmtfHY7dRtJDaiodI/DlETMAD25FwaPCs2+CJn1RcatRjxl1f1IRVgK
+                SWfyLTMp8m2WNmp1HDIeTTKwSO9lyqGclW7LpZ6fpkFHLW0vhX27TG4mUzajIt3Y5u1sQiUdBje1+P6q
+                zyEqXomrWYYsrNc1fq2laVbDzUzPSc/Ver4nY6v1bX7jrHWPKWHdqteev2UN3fPDT/Gn/liLYKlHq4QB
+                AeNbW09HTuqKh2xGzuk8gA51lCDk6IwuXFBVZEPEvM9ZU2yR2lkczhBFGDoa1wJcTzktbgpfLWVEhJ33
+                dnV7kROSAu0yqfJJKGNT8Q+BAEAQBAEAAJIAGJOoIDurBbjRW9rXjCaQ7cg5QTqHaCxZF37mKXMbJDQb
+                2xWLfbNVVN+S1xxn3XSej21zXr1NiJDK5XF+aW46dcZLBAEBlUlvqKk4tGzHyyHV2udYSmkbIWnI31HR
+                w0seyzS4+M86yuWU3I7YW1FbD3WJmVP9YvKvobPjrlCzZpL3H1lpGgCdngTN7uy8/CVj0y9it05Yle1K
+                1huV5JHJcOs5T5QzK28RYuAp6iF8Y90ZInbsHo3oYe0unM2FdhhObLXu7liOae9z3F7yXPcSXOJxJJ1k
+                ldBoLQerRlT0blGov07NmpvMvyRI0imgJY34z9s9IwVf1S9inh+En9MtYYYviJiUWSRQzMVZ13MFzrcc
+                es1c82PnJHO6edXG1GkUuYqNyVZN85L/AApyx6c4JZypmsLpZp3Op+mWkhjnjaOkuwHbUZm7uDMQf02k
+                llLWOxNfTYQgDhpGtSxFG3zbmOrzJmCqvNXjv6rd7eOn/hxtjHsMWqzaUIqKNl645ycmTJwYysW8I853
+                aRuzLd6SrpYHEY/JQU7xtN7Mkjh+iovPXf8AfCPwtdZJ5K1/pnLin1EBqZIguZwRq+t8LLBLythkh/6M
+                z4un3iq2fjS9Is2RdbMTrbz9kV31eXyCtFrtLpNuY8OXyvqKnK6HlBNXAT7Iuv1hnkKA1jtR6C6el/Dn
+                8y6iUlDFpI547fhGk/3CP5mZSuj+K/l96K56n/bx+ddUiCVYyiltqP8Ak4PNs8kKky3s9at9ldBEPH3+
+                cs3m5/KYpzRt0vYVH1T2rfQ/ccLkT8Z2X65D5YUjnPCl0MgtL/c2/mRZ5VA9OIE43/jNn1OLy3qy6T4X
+                tKF6l/c/pXvNPwv/AB5aPOP+aet+oeDL6cpx6L+7h0vqZZNVM9JCAqrmX8R3X65UfOuVzseHHoR5XnPG
+                n80uskbgF/OXnzcHlPUVrO6PtLH6W7VzoXvJkUCXEqtmibfZlu0wwwkrah+jV4UrjoVyy6pbiv8AFdR5
+                ZnZYr83xnLrOm4MwvkzzTvbqhhme/sFmx7bguTVHSy+lEl6ei3mlzJnXcfIXm22iYeIyaVjj0va0jyCu
+                HRn+aS5iX9UxeCD52Qwp8phaTJsgkyjZHA4/9jTAnpETQfZVOzSpdl8z6z1HT3XL2/kj1GLxEm3OSLy/
+                Rpp3M0/nkM/xLPIqt6PSatWlTK3PlKyq3HmZ69Wm3e82fB2N5j+bt7vH4y+YkZ4HSv030LbqkHrQQHjW
+                VlPR0z6id2zGwaecnkA6SsoRcnRGFy4oKr3Ed32+y3CfezHdwM0RRY6APykqVs2VFUW8r+ZzLm6vccve
+                GQ3KldSyAiMkEOHjBw1ELqjGhw+Yaew5k5LGOiswHTHj/iWypt85zH59y/6z+H+2lR5zmH3L/rP4f7aV
+                HnOYfcv+s/h/tpUec5h9y/6z+H+2lR5zmH3L/rP4f7aVHnOYfcv+s/h/tpUec5gMljHTWaPN/tJUec5j
+                ZW3LtDRPEumaYanv5OwF8qabmYlLZuRtEOc3tisW+2aqqb8lrjjPuuk9HtrmvXqbESGVyuL80tx064yW
+                CA+4opJXhkbS5x5AvjdD6ot7jcUdlYzB9R4buRg8UdnnXPO9wOq3l6bzaAAAADADUAtJ0hAEBGXrCZV9
+                N8P56yJm1WWV4rYyNe6A2Zx2Ng7Z+Cu/Tb2C7TklsODUbWK3XljtKkKyldM+xWeqvN6obTSDGorp46eP
+                lAMjg3aPQ3HErC5NRi5PkM7cHKSiuUvVaLZS2q1UdspG7NNRQx08I/NjaGjHp0KoTm5Nt8pbIRUUkuQX
+                is6jaa2txw6rTyzY827YXcuPMkI1kkJypFsoMrkVAtX6stPuuHMsmGG/uE8mOOOOEcUeP6iruqv/AG+w
+                sGmL/V7Sumf7B9386Xi0BuxFS1LxA3/kvO8i/huapzL3MdtS4ohcxbwTcec0DWlxDWglxOAA0kkrcaS7
+                eWcr+huHVJl7ZIlit5hmDdZmlYXSkdmR7lU7t3FdcuctNq1htKPMUjVsKsWx9W2r3/DSOLHHqtZURcmj
+                Etl5POKuaoqXelFh011te0ki8/ZFd9Xl8gritdpdJ1Zjw5fK+oqcroeUE1cBPsi6/WGeQoDWO1HoLp6X
+                8OfzLqJSUMWkj7jhA6XJsTxqgrIpHdgskZ7b1KaS6Xf0/cV/1LGuWT4SXU0QIrIUIsXlniLlSoy9STVN
+                ygpaiGBjKmnmeGPD2NDXbLXeE8YjRs4qrZjI3VcaUW1U9FyWr5eVmLlNRaSqn9NpFfFTOduzLdaYW5rj
+                SULHsbUOBaZHPIJIadIaNnRjpUzp2Vlai8W9lV1zUYZm4sHZjy8TQ5NqYqbNlnnlOzGysg23HUAZACT2
+                F05qNbUkuDODT5qOYg3uxLrLRqnHqJAnG/8AGbPqcXlvVl0nwvaUL1L+5/Sveafhf+PLR5x/zT1v1DwZ
+                fTlOPRf3cOl9TLJqpnpIQFVcy/iO6/XKj51yudjw49CPK8540/ml1m94cZ5hypcah9TTuqKSsaxkxjI3
+                jNgkhzQcA7xtRI7K5s9lHeiqOjR3aRqays25KsZb+JId743ZeZbJvRLJ5rg9pbBtsDGMcRoc4knHZ5hr
+                UXa0m5i/NTCWHM+pLKg+7q58mwg5zi4lzji46STrJViKQ2TLwLy7LDS1l+mbs9a/7akJ5Y2Oxkd2C8Ad
+                oqB1e/VqC5NrLj6ZyjjGV1/3bF0cv29R1vEvL0t8yjVU8DdurpyKmmYNJL48cWjpcwuAXDkL/d3U3uew
+                l9Zyjv5dxXaW1ez8Ctith5sTbwr4hWNtggs90q46OrotpkT53BkckRJc3B7sGgtx2cCq/qOSnjc4qqZd
+                tD1a13Kt3JKMo8dzXSYnF7PtnqrMLHaqqOsfUPa+rlhcHxtjjO01u2PBJLwDoOjBZ6Zk5xnjkqU3GnX9
+                Utyt91balXfTdRfiQ/FFJLIyKJpfJIQ1jGjElxOAAA5Sp1um0qEU26LeTH/amu6l1XBmHoPq+3iMev8A
+                W+tYfB9zjzKB/kY1r/nX9NKFx/g54cP/AONP14sX4ErqFLWEBxmdp6upfBHRNM8UYJcG6g88vToUhlIp
+                VrsIfUpSlRR2nHSWq7yO2n07yV3q5BcpDPL3XvTPn0NdPoz1972PEx8tc4D0NdPoz072PEeWucB6Gun0
+                Z6d7HiPLXOA9DXT6M9O9jxHlrnAehrp9Genex4jy1zgPQ10+jPTvY8R5a5wHoa6fRnp3seI8tc4D0NdP
+                oz072PEeWucB6Gun0Z6d7HiPLXOB9xWG6yO2dwW87nEAL470VymUcpcfIbq3ZaggIkqiJpBpDB4gP5Vz
+                zzDe47rORUdstrN0uc7z9QGfR2eabB8vycf6x7AWqd1Lcb7dhvebunpoadmzE0NHKeU9krnlJvedcYKO
+                49FiZBAEAQHxUQQ1EElPOwSQzMdHKw6nNcMHA9kFfU6Op8aqqFMMx8Ks7Wy/V9BSWK41tJTzvZTVcFJP
+                JHJED4Dw9jC04twx0q02s3blFNySfSVi5lLkZNKLa6CRfV44b3ymzXUX2+Wypt7LdCW0TauGSBz5p8WF
+                zBI1uIZGHA/CC4dSzUXDDFp14Hbp2Wkp4pJqhY1QZNmhz7BX1GSb7TW+F1RW1NDUQU8MfjOfLGWDZ0jT
+                4S3ZdpXIt7qmnMJu3JLfQqV/Z/ib/wCO1fxW99WTztn4kV3yd34WWX4I5fudh4eUNDdKV1HXb2okmgf4
+                w2pXbJOvW0BQOfuKd1tOqJ3I23C0k1RkcesBwxzLeM20t4sFtlrmVVK2Os3IB2ZYXEAuxI8Zjmgdhd2n
+                ZqEYOMnTacOoZWUpqUVXYcjw74OZ0dnazvvVmnpbXBUNqKqaYN2NmH5QNOk+O5ob211ZnO2+7eF1Zz5f
+                J3O8WJbC2KrZYSmNVwc4kMqZWxZeqzE17gwgNOLQdGna5laVnbVO0isPJ3a9lk8ervl3MmX8tXOgvdBL
+                QOfW7+BsuA2g+JjHEAY/uwofUrkJzTi67CX063KEWpKm0k26RvltlXFG3akfDI1jRrJLCAFw23SSfOdd
+                9NwklwZW/wDtznj/AEeo7g76tfnrPxI85/iM1/zkStwbsN4s9suMVzpH0kkszHRtkABIDMCRgoXVL0Lk
+                lhddhavT2VuWYSU4uNWSGossJgX+y0d7tFTa6vHcVLdkuGtrgQ5rh0tcAVts3XbmpLejnzWWjftu3Lcy
+                vmY+Gma7JO8GjfWUgPgVdM0yNLedzW4uZ2wrPYz9q4t9HwZ5/m9GzFl9nFHitv8AQ0EVpus0u6iop5Jc
+                cN2yJ7nY82AGK6XcitraI+Ni43RRbfQdbauEGbq23VFZNCKN8cZdTUs2iWZw07Oz7jEY+Ny8nKuK5qdq
+                Mkk6+4l7GgZicHJrDs2J7393tMPLHDXNF9qPBp3UNLG8tlqqlpYGlpwIa0+E5wI5OXWQs8xn7dtb6vgj
+                TktHv33uwx4v6bSxVDBPBRwQTzmpmijaySoI2TI5owLyBjgTrVWm022lQ9EtRcYpN1aW/iRDxayjmS7Z
+                pZVW23y1VOKWNhkYARtBzyRpPSpzTczbhbpJ0dSoa9kL12/ihFyWFe81nD7JOa7fnG2VlbbJoKWF7zJK
+                8DZaDG4DHTzlbs7m7UrUkpJs5tK03MW8zCUoNRX3MndVsvZ+OOy0nAnAY4DSUDK3V2Qs8VNbUVPoaoG/
+                kfJgQCRtuLufpVshnLKSWJHm93S81KTl3ctrMt/CTOAsjLi2lLqgveJbfoEzWNw2XgY+Fjp0a9WtYfyV
+                rHhrs48hteg5jusdNvw8pzTsu5gbLuXWyrE37swSB3c2cV1d/ClcS+sjXlL1aYJV6Gdnk7g/e7nUMqL1
+                G+3W5pBdG/RPIPehmtnZd3FwZrU4QVIfml9hM6foF2663Vgh9r+72k6UlJTUlNFS00bYaeFoZFE0YBrW
+                jAAKuyk5Or3l5t24wioxVEj1WJmRXn/hA+vqZbrl7YZUSkvqKBxDGvcdbo3HQ0nlB0dKmclqeFYbm7iV
+                XVdAdyTuWd73x+4iytyrmWhkMdVa6qJw0YmJ5aew4AtPaKmYZi3LdJFWuZG/B0lCS9h92/KGabhII6S1
+                VMhOjaMbmMHZe8NaO2V8nmbcd8kZWtPv3HSMJP2e8l3h3wobZJ2XW8uZPcmaaeBnhRwn3xPun+wOnWoP
+                O6j3iww7PWW7SdC7l95c2z5FyL8SR1FFjPCrrYKZuMh8I+KwaysowbMJ3FHeaOsudRU4tx2IveD8p5V0
+                wtpHHO65dBhrYaggCAIAgCAIAgCAIAgCAID3pqKoqXYRt8HledDR21jKaW8zhbctxu6O109Pg4/KS++O
+                odgLmncbOu3ZUekzVrNwQBAEAQBAEAQBAEAQBAEAQBAEAQBAEAQBAEAQBAEAQBAEAQBAEAQBAEAQBAEA
+                QBAEAQBAEBy1Vv8ArD9/jvcfCxXbGlNhGzrXaeKyMQgCAIAgCAIAgCAIAgCA+m7OPhEgc4GP5QgRsKL0
+                RtDeF5dzyABvsE+ytM8Zvt93ym8ZsbI2MNj3OGrDowXMzsR+ofQgCAIAgCAIAgCAIAgCAIAgCAIAgCAI
+                AgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgCAIAgP/2Q==
+            </property>
+        </structure>
+    </list-property>
+</report>

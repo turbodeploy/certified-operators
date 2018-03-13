@@ -16790,3 +16790,63 @@ DELIMITER ;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2018-03-09 12:35:46
+
+-- OM-32915 Create utility views to support legacy reporting in XL
+
+-- Utilization is missing in the historical stats tables
+-- The following views mimic utilization stats by calculating utilization based on used / capacity
+-- The BiRT report templates which execute utilization queries have been changed to reference the following utilization views
+
+create view vm_stats_by_day_util as select snapshot_time, uuid,producer_uuid,property_type,'utilization' as property_subtype,
+                                      capacity, (avg_value/capacity)*100 as avg_value, (min_value/capacity)*100 as min_value,
+                                                                                           (max_value/capacity)*100 as max_value, relation, commodity_key from vm_stats_by_day where property_subtype='used';
+
+create view pm_stats_by_day_util as select snapshot_time, uuid,producer_uuid,property_type,'utilization' as property_subtype,
+                                      capacity, (avg_value/capacity)*100 as avg_value, (min_value/capacity)*100 as min_value,
+                                                                                           (max_value/capacity)*100 as max_value, relation, commodity_key from pm_stats_by_day where property_subtype='used';
+
+create view ds_stats_by_day_util as select snapshot_time, uuid,producer_uuid,property_type,'utilization' as property_subtype,
+                                      capacity, (avg_value/capacity)*100 as avg_value, (min_value/capacity)*100 as min_value,
+                                                                                           (max_value/capacity)*100 as max_value, relation, commodity_key from ds_stats_by_day where property_subtype='used';
+
+create view vm_stats_by_hour_util as select snapshot_time, uuid,producer_uuid,property_type,'utilization' as property_subtype,
+                                       capacity, (avg_value/capacity)*100 as avg_value, (min_value/capacity)*100 as min_value,
+                                                                                            (max_value/capacity)*100 as max_value, relation, commodity_key from vm_stats_by_hour where property_subtype='used';
+
+create view pm_stats_by_hour_util as select snapshot_time, uuid,producer_uuid,property_type,'utilization' as property_subtype,
+                                       capacity, (avg_value/capacity)*100 as avg_value, (min_value/capacity)*100 as min_value,
+                                                                                            (max_value/capacity)*100 as max_value, relation, commodity_key from pm_stats_by_hour where property_subtype='used';
+
+create view vm_stats_by_month_util as select snapshot_time, uuid,producer_uuid,property_type,'utilization' as property_subtype,
+                                        capacity, (avg_value/capacity)*100 as avg_value, (min_value/capacity)*100 as min_value,
+                                                                                             (max_value/capacity)*100 as max_value, relation, commodity_key from vm_stats_by_month where property_subtype='used';
+
+CREATE VIEW pm_stats_by_month_util as select snapshot_time, uuid,producer_uuid,property_type,'utilization' as property_subtype,
+                                        capacity, (avg_value/capacity)*100 as avg_value, (min_value/capacity)*100 as min_value,
+                                                                                             (max_value/capacity)*100 as max_value, relation, commodity_key from pm_stats_by_month where property_subtype='used';
+
+
+-- Capacity views based on historical stats utilization are missing in XL
+-- The following views mimic capacity views by querying the utilization views
+-- The BiRT report templates which execute capacity queries based on utilization have been changed to reference the following capacity views
+
+CREATE VIEW `vm_capacity_by_day_util` AS select 'VirtualMachine' AS `class_name`,`vm_stats_by_day_util`.`uuid` AS `uuid`,`vm_stats_by_day_util`.`producer_uuid` AS `producer_uuid`,
+                                                `vm_stats_by_day_util`.`property_type` AS `property_type`,`vm_stats_by_day_util`.`avg_value` AS `utilization`,`vm_stats_by_day_util`.`capacity` AS `capacity`,
+                                                round((`vm_stats_by_day_util`.`avg_value` * `vm_stats_by_day_util`.`capacity`),0) AS `used_capacity`,
+                                                round(((1.0 - `vm_stats_by_day_util`.`avg_value`) * `vm_stats_by_day_util`.`capacity`),0) AS `available_capacity`,cast(`vm_stats_by_day_util`.`snapshot_time` as date) AS `recorded_on`
+                                         from (`vm_stats_by_day_util` join `vm_instances`) where ((`vm_stats_by_day_util`.`uuid` = `vm_instances`.`uuid`) and (`vm_stats_by_day_util`.`property_subtype` = 'utilization')
+                                                                                                  and (`vm_stats_by_day_util`.`capacity` > 0.00));
+
+CREATE VIEW `pm_capacity_by_day_util` AS select 'PhysicalMachine' AS `class_name`,`pm_stats_by_day_util`.`uuid` AS `uuid`,`pm_stats_by_day_util`.`producer_uuid` AS `producer_uuid`,
+                                                `pm_stats_by_day_util`.`property_type` AS `property_type`,`pm_stats_by_day_util`.`avg_value` AS `utilization`,`pm_stats_by_day_util`.`capacity` AS `capacity`,
+                                                round((`pm_stats_by_day_util`.`avg_value` * `pm_stats_by_day_util`.`capacity`),0) AS `used_capacity`,
+                                                round(((1.0 - `pm_stats_by_day_util`.`avg_value`) * `pm_stats_by_day_util`.`capacity`),0) AS `available_capacity`,cast(`pm_stats_by_day_util`.`snapshot_time` as date) AS `recorded_on`
+                                         from (`pm_stats_by_day_util` join `pm_instances`) where ((`pm_stats_by_day_util`.`uuid` = `pm_instances`.`uuid`) and (`pm_stats_by_day_util`.`property_subtype` = 'utilization')
+                                                                                                  and (`pm_stats_by_day_util`.`capacity` > 0.00));
+
+CREATE VIEW `ds_capacity_by_day_util` AS select 'Storage' AS `class_name`,`ds_stats_by_day_util`.`uuid` AS `uuid`,`ds_stats_by_day_util`.`producer_uuid` AS `producer_uuid`,
+                                                `ds_stats_by_day_util`.`property_type` AS `property_type`,`ds_stats_by_day_util`.`avg_value` AS `utilization`,`ds_stats_by_day_util`.`capacity` AS `capacity`,
+                                                round((`ds_stats_by_day_util`.`avg_value` * `ds_stats_by_day_util`.`capacity`),0) AS `used_capacity`,
+                                                round(((1.0 - `ds_stats_by_day_util`.`avg_value`) * `ds_stats_by_day_util`.`capacity`),0) AS `available_capacity`,cast(`ds_stats_by_day_util`.`snapshot_time` as date) AS `recorded_on`
+                                         from (`ds_stats_by_day_util` join `ds_instances`) where ((`ds_stats_by_day_util`.`uuid` = `ds_instances`.`uuid`) and (`ds_stats_by_day_util`.`property_subtype` = 'utilization')
+                                                                                                  and (`ds_stats_by_day_util`.`capacity` > 0.00));

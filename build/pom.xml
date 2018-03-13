@@ -400,6 +400,7 @@
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
                 <module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module>
 
                 <!-- Probe components. This should only include the probes
                      that we currently support in XL. -->
@@ -494,6 +495,7 @@
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
                 <module>../com.vmturbo.reports.component</module>
+                <module>../com.vmturbo.reports.templates</module>
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.client</module>
@@ -1048,6 +1050,11 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.reports.templates</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.history.schema</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -1226,11 +1233,6 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.reports</artifactId>
-                <version>${vmturbo.mt.branch.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.reports.templates</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <dependency>

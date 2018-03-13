@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<report xmlns="http://www.eclipse.org/birt/2005/design" version="3.2.21" id="1">
+    <property name="createdBy">Eclipse BIRT Designer Version 2.5.2.v20100208 Build &lt;2.5.2.v20100210-0630></property>
+    <list-property name="includeScripts">
+        <property>/srv/reports/scripts/reports.js</property>
+    </list-property>
+    <list-property name="userProperties">
+        <structure>
+            <property name="name">Data Cube.TestDs1.x</property>
+            <property name="type">integer</property>
+            <property name="isVisible">false</property>
+        </structure>
+        <structure>
+            <property name="name">Data Cube.TestDs1.y</property>
+            <property name="type">integer</property>
+            <property name="isVisible">false</property>
+        </structure>
+        <structure>
+            <property name="name">Data Cube.TestDs1.width</property>
+            <property name="type">integer</property>
+            <property name="isVisible">false</property>
+        </structure>
+        <structure>
+            <property name="name">Data Cube.TestDs1.height</property>
+            <property name="type">integer</property>
+            <property name="isVisible">false</property>
+        </structure>
+        <structure>
+            <property name="name">Data Cube.Days-20100218-20100219.x</property>
+            <property name="type">integer</property>
+            <property name="isVisible">false</property>
+        </structure>
+        <structure>
+            <property name="name">Data Cube.Days-20100218-20100219.y</property>
+            <property name="type">integer</property>
+            <property name="isVisible">false</property>
+        </structure>
+        <structure>
+            <property name="name">day_over_day_stats.stats_by_hour.x</property>
+            <property name="type">integer</property>
+            <property name="isVisible">false</property>
+        </structure>
+        <structure>
+            <property name="name">day_over_day_stats.stats_by_hour.y</property>
+            <property name="type">integer</property>
+            <property name="isVisible">false</property>
+        </structure>
+    </list-property>
+    <property name="Data Cube.TestDs1.x">23</property>
+    <property name="Data Cube.TestDs1.y">46</property>
+    <property name="Data Cube.TestDs1.width">150</property>
+    <property name="Data Cube.TestDs1.height">200</property>
+    <property name="Data Cube.Days-20100218-20100219.x">135</property>
+    <property name="Data Cube.Days-20100218-20100219.y">80</property>
+    <property name="day_over_day_stats.stats_by_hour.x">135</property>
+    <property name="day_over_day_stats.stats_by_hour.y">80</property>
+    <property name="units">in</property>
+    <property name="iconFile">/templates/blank_report.gif</property>
+    <property name="bidiLayoutOrientation">ltr</property>
+    <property name="imageDPI">72</property>
+    <data-sources>
+        <oda-data-source extensionID="org.eclipse.birt.report.data.oda.jdbc" name="vmtdb" id="706">
+            <list-property name="privateDriverProperties">
+                <ex-property>
+                    <name>contentBidiFormatStr</name>
+                    <value>ILYNN</value>
+                </ex-property>
+                <ex-property>
+                    <name>metadataBidiFormatStr</name>
+                    <value>ILYNN</value>
+                </ex-property>
+            </list-property>
+            <property name="odaDriverClass">org.mariadb.jdbc.Driver</property>
+            <property name="odaURL">jdbc:mysql://localhost/vmtdb?characterEncoding=UTF8</property>
+            <property name="odaUser">vmtplatform</property>
+            <encrypted-property name="odaPassword" encryptionID="base64">dm10dXJibw==</encrypted-property>
+        </oda-data-source>
+    </data-sources>
+    <styles>
+        <style name="report" id="4">
+            <property name="fontFamily">sans-serif</property>
+            <property name="fontSize">10pt</property>
+        </style>
+        <style name="crosstab-cell" id="5">
+            <property name="borderBottomColor">#CCCCCC</property>
+            <property name="borderBottomStyle">solid</property>
+            <property name="borderBottomWidth">1pt</property>
+            <property name="borderLeftColor">#CCCCCC</property>
+            <property name="borderLeftStyle">solid</property>
+            <property name="borderLeftWidth">1pt</property>
+            <property name="borderRightColor">#CCCCCC</property>
+            <property name="borderRightStyle">solid</property>
+            <property name="borderRightWidth">1pt</property>
+            <property name="borderTopColor">#CCCCCC</property>
+            <property name="borderTopStyle">solid</property>
+            <property name="borderTopWidth">1pt</property>
+        </style>
+        <style name="crosstab" id="6">
+            <property name="borderBottomColor">#CCCCCC</property>
+            <property name="borderBottomStyle">solid</property>
+            <property name="borderBottomWidth">1pt</property>
+            <property name="borderLeftColor">#CCCCCC</property>
+            <property name="borderLeftStyle">solid</property>
+            <property name="borderLeftWidth">1pt</property>
+            <property name="borderRightColor">#CCCCCC</property>
+            <property name="borderRightStyle">solid</property>
+            <property name="borderRightWidth">1pt</property>
+            <property name="borderTopColor">#CCCCCC</property>
+            <property name="borderTopStyle">solid</property>
+            <property name="borderTopWidth">1pt</property>
+        </style>
+    </styles>
+    <page-setup>
+        <simple-master-page name="Simple MasterPage" id="2">
+            <page-footer>
+                <text id="3">
+                    <property name="marginLeft">8pt</property>
+                    <property name="contentType">html</property>
+                    <text-property name="content"><![CDATA[<p>Report Created <value-of>new Date()</value-of></p>]]></text-property>
+                </text>
+            </page-footer>
+        </simple-master-page>
+    </page-setup>
+    <body>
+        <image id="1959">
+            <property name="source">file</property>
+            <expression name="uri" type="constant">/srv/reports/images/logo.jpg</expression>
+        </image>
+        <text id="326">
+            <property name="marginLeft">8pt</property>
+            <property name="marginRight">6pt</property>
+            <property name="paddingLeft">1pt</property>
+            <property name="contentType">html</property>
+            <text-property name="content"><![CDATA[
+<h1 style="color:#6688AA; margin-top:4pt; margin-bottom:4pt;">Historical Data Reports - Other Group Details</h1>
+<h2 style="color:#6688AA; margin-top:8pt; margin-bottom:4pt;">Other Group</h2>
+<hr />
+
+<p style="margin-top:8pt; margin-bottom:4pt;">Summary for group <b>Other</b></p>
+
+<p style="margin-top:8pt; margin-bottom:4pt;">
+This is a placeholder for a future report detailing the selected type of managed element group.  Please speak with a Turbonomic representative about our on-going improvements and upgrades, arriving on a monthly basis.  <br /> 
+<br />
+Thank-you, <br />
+The Turbonomic Development Team
+</p>
+]]></text-property>
+        </text>
+    </body>
+    <list-property name="images">
+        <structure>
+            <property name="name">vmt_logo.jpg</property>
+            <property name="data">
+                /9j/4AAQSkZJRgABAQEBLAEsAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYa
+                HSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgo
+                KCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj//gAxSW1hZ2UgUmVzaXplZCBhdCBo
+                dHRwOi8vd3d3LnNocmlua3BpY3R1cmVzLmNvbQr/wAARCAAvAPoDASIAAhEBAxEB/8QAHwAAAQUBAQEB
+                AQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJx
+                FDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZn
+                aGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW
+                19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QA
+                tREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl
+                8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOU
+                lZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6
+                /9oADAMBAAIRAxEAPwD6pooooAKKKpazqMWk6Xc31x/q4ULEZ6nsB7k4FNJt2QpNRV2fPfi2+uL/AMQ6
+                hJdStIVndFBPCqGIAHoKyK4/XdZvb3WL2dpnj3zO2yMkAZY8VQ+33f8Az8zf99mvrIU+WKR8XNOcnK+5
+                39epfBS+uHm1CzeVmt0RZEQnIU5wcema+bvt93/z8zf99mul8D6vqVvd3Jt7+6iJQAlJWGeazxFD2tNx
+                NcNU+r1FU7H2FRXifw71LXNQ8U2sf9oXcsC5eZZJCy7AO4PvgV7ZXzuIoOhLlbufT4XErEw50rBRRRWB
+                0hRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRXk3xiv7y01mxW0u7iBWgJIjkZQTuPoa2oUXWnyJ2OfE1
+                1h6bqNXPWaKraWS2m2jMSWMSEknk/KKs1k1Z2N07q4UUUUhhRRRQAUUUUAFeQ/HHxPHarBpSPnH72VQe
+                WP8ACv8AX8RXoHi7xJa+HdNlnm/eTBCyRA8nHc+gr5R8QarPquqXOoahJ5lzO5dgO3sPQCvTy7Duc/aS
+                2R5WZ4hKHso7vf0OMvr6Z7uZgVUF2OAM96h+1z/3x/3yK07qyjmmaRVKFuSAah/sxf7zV7x5KcbbFL7X
+                P/fH5Ctfw5qF1FPMY5ACVGflHrVb+zV/vNWv4e08tdrDEmVJzIx/uihsmXK1ZI9T8B6rq+k2D3EM6pLc
+                4JJiUnaOnUfj+VdhZeKfE19cpb2tz5kznAUQp/hXHWD3l3MlvawRk9AADhR7+1ekeHHfRLciKCB7hx88
+                pU5PsOeBXl4jlV5cqbOnDc7tFSaj5He6ctwllCt7IslyFHmMowC3fFc58UdV1fQ/B13qmg+Ubm1KyOsq
+                bwY84bjI6Zz+BoXxDfMQFhhJPQAH/GtWGK51OxubfVreJbaeJo2QZywYYOfwNeSounJSklbse3zqpFwg
+                3fucH8EfiBfeMl1SDWfIF5bFHTyk2hkOQeMnoR+tUPjV8S9T8Ja3Y6boX2YytCZpzLHvxk4UDkY+6T+I
+                rzr4YSS+CvjL/ZV221Hmk0+QnjcGPyH8SEP41PpcX/CwfjvLOR5ljFcmVu48mHAX8GIUf8Cr1Hhqca7q
+                Ne4lc8xYqpKgqafvt2PVfH/i3W/Cfw107U5Tb/23O8UcgaP5FZlLMNue2MVT+CXxEvvGMup2etfZxeQB
+                ZYvJTaGQ8Nxk9Dj/AL6rE/aku9mk6DZ5/wBbPLMR/uKB/wCz1x+hwP8ADr4neG5nJSyv7S38wnpiRAr5
+                +jjd+ArOlh4VMNe3vO7Xy6GlXETp4m1/dVk/n1PWfjX47uvBml2A0ryTqF1KcCVdwEaj5jjPqVH51D8I
+                vGur+MfDOsz3Yt21O1crCI02Kcplcgn+8DXn3jSJ/iB8UddijJex0TT51XHTeiN/7Vb8lqz+y3ebdU16
+                yJ/1kMcwH+6xB/8AQxRLDwjhW7e8rP7/APgBHETnirX913S+X/BOu13xV400FIW1S3s4RMSEwqtnGM9G
+                PrWl4Y1rxnq7WV39ltG0yWQB5F2g7A2GwC2ex7VW+OH/AB7aR/vyfyWul+F//Ikad/wP/wBDas5uKw6q
+                ciu3bb1CnGbxcqLnKyV9/QwPHnjLVdD8RrZWXkeSY0b50ycknPevSe1eJfFv/kdU/wCuMf8AM17bWGJh
+                GNKm0t1/kdGEqSnWqxk9E9PxPN9M8Y6pc+P20eTyPsYuZYuE+bC7sc59hV74k+Lb7w7LaQafHAWnRmLy
+                KSRg44Ga43Q/+Svv/wBfs/8AJ60Pjf8A8hHS/wDrk/8AMV1exp+3hG2jRxfWKv1apPm1Urfka1gnj6+g
+                trpdQs44Jgr42JuCnnONvofWsP418a1p4Jz/AKOf/QjXqXhv/kXtM/69Yv8A0AV5d8bf+Q3p/wD17n/0
+                I1GFnzYhKyVr7I1xtPkwjd2723dzehg8ePp8EtrdadGgiUpCoBJGOBllPP40eEPHdzcat/ZHiGBYLwv5
+                ayKNuX/usPU+orudK/5Bdn/1xT/0EV438VlFr42Wa2+WVoo5SR/eBIB/QVNDlxEnTlFLs0ViefCwjWhJ
+                va6bueteJdbttA0qS9u8lR8qIOrsegFcJpWs+NPFCyXWkm0srMMVUuowfYEgk/XAFRfG6aTbo8OSIyJH
+                I9T8o/qfzruvBMSQ+EtIWMAKbZHOPVhk/qTUKMaNBVLJt9zSUp18TKlzNRiunU4u18baxoOsrp3i2CMo
+                2P38YwQD/FxwR+AP8q9NR1dFZSGVhkEHgivMPjfEnkaVNgeZukTPqMA1X0nxDqMWlWUaO21IUUfQKKqd
+                BVqcakFZvczp4l4erOjUbaW3c9ZrD8U69FotqDjdcSA+Wvb6mtKaZzkR8e5qhLZrMczAOf8Aa5rjgkne
+                Wx6NRyatDc8e1i7uNUkma4Jfzchy3JI9PYVzv/CM6eefso/76b/GvoD+zIP+eMX/AHyKX+zIf+eMf/fI
+                r0Y41RVkjy3gHJ3bPn//AIRjT/8An1H/AH0f8aUeGNP/AOfUf99N/jXv402D/njH/wB8il/s2D/njH/3
+                yKf19h/Z3mfP/wDwjGn/APPqP++m/wAa19F8MNK4isbYIhPzPjgfU17V/ZsH/PGP/vkVNHYjAAAC1Mse
+                2hxy7XVnJaTocOm2/lwrlj99yOWNbNro0kxBceWnqRz+Vb8FpHEc4y3qasVxTryZ3ww0Y7lSz0+3tB+7
+                QF/7561boorFtvVnQkkrI+cf2kdEfTfE2neIbMGP7SoR3Xqssf3T9SuP++a6P9mbQPs2h3+uTp+8vJPJ
+                iJ/55p1I+rEj/gNezzQxTKFmjSRQcgMoNOjjSJAkaqiDoqjAFdksa5YdULfPyOKOCUcQ69/l5nzl+0rM
+                154z0TTo+WS2BA93kI/9lFdb+0X4dW48G2WpWyfvdKcKSOvlNhT+TBP1r1yS1gkcPJDG7j+JlBNSSRrI
+                hSRQynqCMg0Rxjj7PlXw/jccsGpe05n8f4WPIf2evDxi8G3+qXgLXGsOw3PyTGuV5+rFz+Vedfs9zmw+
+                JzWj8Ga3mgI91w3/ALIa+o40WNAiKFUcAAYAqJLS3jk8xIIlfruCAH86f12/tOZfH+BP1K3s+V/B+J5t
+                8cP+PbSP9+T+S10vwv8A+RI07/gf/obV1EkUcuPMRXx03DOKVEVF2ooVR2AwKxlXvRVK2zNIYblxEq99
+                1a33f5Hknxi0i6XVYNWhjZ7YxiN2AzsYE4z7HNdDZfE7RZLNHu1uIrjb88Yj3DPfB9K7tlDAhhkHtVBt
+                F0tmLNptkzHuYFJ/lV/WITgoVI3t2M3hakKkqlGVubdNHjnhC4Go/E5Ly3STyZbiWUZHKqQ2M46da1vj
+                f/yEdL/65P8AzFesQW8Num23ijiX0RQo/SlkhilIMkaOR03AGr+uL2saijsrGay9+wlSctZO97FLw3/y
+                L2mf9esX/oAry/42K39sae+07fIIzjjO417AoCgAAADgAU2aGOZCk0aSIeqsMisaNf2VX2ljpxGG9tR9
+                le2xxNp8Q/D9vpMANxK00cSqYlibdkDp6frXJ6Lpl9428XHWLu3aHTVkDEsOCq9EHr05P1r1ZdF0tX3L
+                ptkGHO4QLn+VXlUKAAAAOgFWsRCnd0lq+rMpYWpVcVWkrLolv6nH/E3w9NrujRvZrvvLVi6J3dSPmA9+
+                Afwrm/BXju10jSl0vXI54pbbKIwTPy+hHUEdK9VqpdabZXbbruztp2HeSJWP6ilTrx9n7Korouphpe19
+                tSlZ7Pszx/xLqF18QNetrXR7aUWsGVVnHTJGXb0HA49vevVrHQ7K0sre3EKuIY1j3EcnAxmtC3t4baPy
+                7aGOJP7sahR+QqWlVxHOlCCskOhhfZylUqPmkz//2Q==
+            </property>
+        </structure>
+    </list-property>
+</report>
