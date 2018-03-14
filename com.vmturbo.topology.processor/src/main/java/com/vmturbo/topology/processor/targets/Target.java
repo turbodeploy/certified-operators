@@ -433,4 +433,9 @@ public class Target {
             return new InternalTargetInfo(itf.decrypt(sf), sf);
         }
     }
+
+    @Override
+    public String toString() {
+        return Long.toString(id);
+    }
 }

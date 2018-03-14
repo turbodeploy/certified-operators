@@ -148,6 +148,20 @@ class DiscoveredGroupInterpreter {
         return Optional.of(builder);
     }
 
+    @Nonnull
+    private String extractGroupName(@Nonnull final CommonDTO.GroupDTO sdkDTO) {
+        if (sdkDTO.hasDisplayName()) {
+            return sdkDTO.getDisplayName();
+        } else if (sdkDTO.hasGroupName()) {
+            return sdkDTO.getGroupName();
+        } else if (sdkDTO.hasConstraintInfo() && sdkDTO.getConstraintInfo().hasConstraintName()) {
+            return sdkDTO.getConstraintInfo().getConstraintName();
+        } else {
+            throw new IllegalArgumentException(
+                    "One of displayName, groupName or constraintName must be present in groupDTO");
+        }
+    }
+
     /**
      * Attempt to convert a {@link CommonDTO.GroupDTO} to a {@link GroupInfo} describing a group
      * in the XL system. This should happen after an attempt for
@@ -164,9 +178,7 @@ class DiscoveredGroupInterpreter {
                                            final long targetId) {
         final GroupInfo.Builder builder = GroupInfo.newBuilder();
         builder.setEntityType(sdkDTO.getEntityType().getNumber());
-        builder.setName(sdkDTO.hasGroupName()
-                        ? sdkDTO.getGroupName()
-                        : sdkDTO.getConstraintInfo().getConstraintName());
+        builder.setName(extractGroupName(sdkDTO));
 
         switch (sdkDTO.getInfoCase()) {
             case GROUP_NAME:

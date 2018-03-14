@@ -30,7 +30,7 @@ class DiscoveredGroupConstants {
 
     public static final String GROUP_NAME = "group";
 
-    static final String DISPLAY_NAME = "Freedom is slavery.";
+    public static final String DISPLAY_NAME = "Freedom is slavery.";
 
     static final String PLACEHOLDER_PROP_NAME = "prop";
 
@@ -105,4 +105,6 @@ class DiscoveredGroupConstants {
     static final InterpretedGroup PLACEHOLDER_INTERPRETED_CLUSTER =
             new InterpretedGroup(STATIC_MEMBER_DTO, Optional.empty(),
                     Optional.of(PLACEHOLDER_CLUSTER_INFO.toBuilder()));
+
+    private DiscoveredGroupConstants() {}
 }

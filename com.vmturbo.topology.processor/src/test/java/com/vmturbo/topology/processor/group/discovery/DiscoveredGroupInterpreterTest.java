@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.MembersList;
@@ -117,7 +118,7 @@ public class DiscoveredGroupInterpreterTest {
 
         final GroupInfo groupInfo = groupInfoOpt.get().build();
         // ID should be assigned.
-        assertEquals(DiscoveredGroupConstants.GROUP_NAME, groupInfo.getName());
+        assertEquals(DiscoveredGroupConstants.DISPLAY_NAME, groupInfo.getName());
         assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, groupInfo.getEntityType());
         assertTrue(groupInfo.hasStaticGroupMembers());
         final StaticGroupMembers members = groupInfo.getStaticGroupMembers();
@@ -145,6 +146,35 @@ public class DiscoveredGroupInterpreterTest {
 
         final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
         final Optional<GroupInfo.Builder> infoOpt = converter.sdkToGroup(SELECTION_DTO, TARGET_ID);
+        assertTrue(infoOpt.isPresent());
+
+        final GroupInfo info = infoOpt.get().build();
+        assertEquals(DiscoveredGroupConstants.DISPLAY_NAME, info.getName());
+        assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, info.getEntityType());
+        assertTrue(info.hasSearchParametersCollection());
+        assertEquals(1, info.getSearchParametersCollection().getSearchParametersCount());
+
+        SearchParameters searchParameters = info.getSearchParametersCollection().getSearchParameters(0);
+        assertEquals(PLACEHOLDER_FILTER, searchParameters.getStartingFilter());
+        assertEquals(PLACEHOLDER_FILTER, searchParameters.getSearchFilter(0).getPropertyFilter());
+    }
+
+    /**
+     * Tests group without display name. group_name should is expected to be used instead in
+     * {@code name} of the result group.
+     */
+    @Test
+    public void testGroupWithoutDisplayName() {
+        final EntityStore store = mock(EntityStore.class);
+        final PropertyFilterConverter propConverter = mock(PropertyFilterConverter.class);
+        // Just return the same property filter all the time.
+        when(propConverter.selectionSpecToPropertyFilter(any()))
+                .thenReturn(Optional.of(PLACEHOLDER_FILTER));
+
+        final DiscoveredGroupInterpreter converter = new DiscoveredGroupInterpreter(store, propConverter);
+        final Optional<GroupInfo.Builder> infoOpt =
+                converter.sdkToGroup(GroupDTO.newBuilder(SELECTION_DTO).clearDisplayName().build(),
+                        TARGET_ID);
         assertTrue(infoOpt.isPresent());
 
         final GroupInfo info = infoOpt.get().build();

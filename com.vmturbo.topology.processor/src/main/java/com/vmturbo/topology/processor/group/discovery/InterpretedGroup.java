@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.discovery;
 
+import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -20,20 +21,20 @@ import com.vmturbo.topology.processor.rpc.DiscoveredGroupRpcService;
  * {@link com.vmturbo.topology.processor.stitching.StitchingGroupFixer} for additional details.
  */
 public class InterpretedGroup {
-    private CommonDTO.GroupDTO dto;
+    private final CommonDTO.GroupDTO dto;
     private final Optional<GroupInfo.Builder> dtoAsGroup;
     private final Optional<ClusterInfo.Builder> dtoAsCluster;
 
     public InterpretedGroup(@Nonnull final CommonDTO.GroupDTO dto,
                      @Nonnull final Optional<GroupInfo.Builder> dtoAsGroup,
                      @Nonnull final Optional<ClusterInfo.Builder> dtoAsCluster) {
+        this.dto = Objects.requireNonNull(dto);
+        this.dtoAsCluster = Objects.requireNonNull(dtoAsCluster);
+        this.dtoAsGroup = Objects.requireNonNull(dtoAsGroup);
         if (dtoAsGroup.isPresent() && dtoAsCluster.isPresent()) {
             throw new IllegalArgumentException(
-                "Interpreted group must be a group OR a cluster, not both.");
+                    "Interpreted group must be a group OR a cluster, not both.");
         }
-        this.dto = dto;
-        this.dtoAsCluster = dtoAsCluster;
-        this.dtoAsGroup = dtoAsGroup;
     }
 
     /**
@@ -88,5 +89,10 @@ public class InterpretedGroup {
                 ig.dtoAsCluster.map(ClusterInfo.Builder::build)) &&
             com.google.common.base.Objects.equal(dtoAsGroup.map(GroupInfo.Builder::build),
                 ig.dtoAsGroup.map(GroupInfo.Builder::build));
+    }
+
+    @Override
+    public String toString() {
+        return "InterpretedGroup[" + dto + ']';
     }
 }
