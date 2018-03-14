@@ -2,6 +2,8 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.util.stream.Stream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -20,6 +22,9 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
  * </p>
  */
 public final class QuoteMinimizer {
+
+    private static final Logger logger = LogManager.getLogger();
+
     // Auxiliary Fields
     private final @NonNull UnmodifiableEconomy economy_; // should contain all the seller arguments to #accept.
     private final @NonNull ShoppingList shoppingList_; // the shopping list for which to get a quote.
@@ -122,6 +127,7 @@ public final class QuoteMinimizer {
 
         // keep the minimum between quotes
         if (quote[0] < bestQuote_) {
+            logMessagesForAccept(seller, quote);
             bestQuote_ = quote[0];
             bestSeller_ = seller;
         }
@@ -149,4 +155,20 @@ public final class QuoteMinimizer {
         }
     }
 
+    /**
+     * Logs messages if the logger's trace is enabled or the seller/buyer of shopping list
+     * have their debug enabled.
+     *
+     * @param seller The trader who is selling all the commodities in the shoppingList
+     * @param quote The quote given by the seller
+     */
+    private void logMessagesForAccept(Trader seller, double[] quote) {
+        if (logger.isTraceEnabled() || seller.isDebugEnabled()
+                        || shoppingList_.getBuyer().isDebugEnabled()) {
+            logger.debug("topology id = {}, buyer = {}, oldBestQuote = {}, oldBestSeller = {}, "
+                            + "newBestQuote = {}, newBestSeller = {}"
+                            , economy_.getTopology().getTopologyId(), shoppingList_.getBuyer()
+                            , bestQuote_, bestSeller_, quote[0], seller);
+        }
+    }
 } // end QuoteMinimizer class
