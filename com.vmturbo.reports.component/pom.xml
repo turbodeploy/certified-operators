@@ -636,7 +636,7 @@
                     <password>${db.password}</password>
                     <locations>
                         <!-- add a vmtplatform user just for the purpose of the flyway/jooq execution -->
-                        <location>filesystem:${basedir}/src/test/resources/jooq-setup</location>
+                        <location>filesystem:${basedir}/src/build/resources/jooq-setup</location>
                         <!-- Configure to the same location as configured in Spring Boot..-->
                         <location>filesystem:${basedir}/src/main/resources/db/reporting/migration</location>
                     </locations>
