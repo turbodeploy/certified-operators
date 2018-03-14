@@ -262,20 +262,20 @@ public class SupplyChainsServiceTest {
         final SupplychainEntryDTO pmSupplyChainEntryDTO = supplyChainTestUtils
                 .createSupplyChainEntryDTO("PhysicalMachine", 2L, 3L, 4L);
         supplyChainTestUtils.addHealthSummary(pmSupplyChainEntryDTO, ImmutableMap.of(
-                2L, "normal", 3L, "normal", 4L, "critical"));
+                2L, "NORMAL", 3L, "NORMAL", 4L, "CRITICAL"));
 
         final SupplychainEntryDTO vmSupplyChainEntryDTO = supplyChainTestUtils
                 .createSupplyChainEntryDTO("PhysicalMachine", 5L, 6L);
         // sum health summary counts should equal entity count
         supplyChainTestUtils.addHealthSummary(vmSupplyChainEntryDTO, ImmutableMap.of(
-                5L, "critical",
-                6L, "minor"
+                5L, "CRITICAL",
+                6L, "MINOR"
         ));
         final SupplychainEntryDTO appSupplyChainEntryDTO = supplyChainTestUtils
                 .createSupplyChainEntryDTO("PhysicalMachine", 7L);
 
         supplyChainTestUtils.addHealthSummary(appSupplyChainEntryDTO, ImmutableMap.of(
-                7L, "major"
+                7L, "MAJOR"
         ));
         answer.setSeMap(ImmutableMap.of(
                 "PhysicalMachine", pmSupplyChainEntryDTO,
@@ -307,16 +307,16 @@ public class SupplyChainsServiceTest {
             assertThat(statApiDTO.getFilters().size(), equalTo(1));
             final StatFilterApiDTO statFilterApiDTO = statApiDTO.getFilters().get(0);
             switch(statFilterApiDTO.getValue()) {
-                case "critical":
+                case "CRITICAL":
                     assertThat(statApiDTO.getValue(), equalTo(2.0f));
                     break;
-                case "major":
+                case "MAJOR":
                     assertThat(statApiDTO.getValue(), equalTo(1.0f));
                     break;
-                case "minor":
+                case "MINOR":
                     assertThat(statApiDTO.getValue(), equalTo(1.0f));
                     break;
-                case "normal":
+                case "NORMAL":
                     assertThat(statApiDTO.getValue(), equalTo(2.0f));
                     break;
                 default:

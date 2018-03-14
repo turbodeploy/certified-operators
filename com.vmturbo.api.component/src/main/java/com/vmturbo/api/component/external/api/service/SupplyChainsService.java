@@ -212,14 +212,18 @@ public class SupplyChainsService implements ISupplyChainsService {
         }
         // grab the 'groupBy' criteria list, if any
         final List<EntitiesCountCriteria> criteriaToGroupBy = supplyChainStatsApiInputDTO.getGroupBy();
-
         // fetch the supplychain for the list of seeds; includes group and cluster expansion
+        // and if criteria only has severity, it doesn't need to query severity stats for each entity,
+        // it just need to make one query to get the total severity count stats.
+        final boolean onlyGroupBySeverity = (criteriaToGroupBy.size() == 1 &&
+                criteriaToGroupBy.get(0) == EntitiesCountCriteria.severity);
         final SupplychainApiDTOFetcherBuilder supplyChainFetcher = this.supplyChainFetcherFactory
                 .newApiDtoFetcher()
                 .topologyContextId(liveTopologyContextId)
                 .addSeedUuids(uuids)
-                .supplyChainDetailType(SupplyChainDetailType.entity)
+                .supplyChainDetailType(onlyGroupBySeverity ? null : SupplyChainDetailType.entity)
                 .includeHealthSummary(isHealthSummaryNeeded(criteriaToGroupBy));
+
         if (types != null) {
             supplyChainFetcher.entityTypes(types);
         }
@@ -230,7 +234,13 @@ public class SupplyChainsService implements ISupplyChainsService {
 
         // count Service Entities with each unique set of filter/value for all the filters
         Map<FilterSet, Long> entityCountMap = Maps.newHashMap();
-        if (!criteriaToGroupBy.isEmpty()) {
+        if (onlyGroupBySeverity) {
+            supplyChainResponse.getSeMap().values().stream()
+                    .flatMap(supplyChainDTO -> supplyChainDTO.getHealthSummary().entrySet().stream())
+                    .forEach(severityEntrySet ->
+                            generateFilterSetForSeverity(severityEntrySet, entityCountMap));
+        }
+        else if (!criteriaToGroupBy.isEmpty()) {
             supplyChainResponse.getSeMap().forEach((entityType, supplychainDTO) -> {
                 // get the filter sets for all entities of this type
                 List<FilterSet> filtersForEntities = calculateFilters(supplychainDTO,
@@ -315,6 +325,25 @@ public class SupplyChainsService implements ISupplyChainsService {
         });
 
         return filterSetsForAllEntities;
+    }
+
+    /**
+     * Create {@link FilterSet} based on severity total count summary. And add it into entity count
+     * map.
+     *
+     * @param severityEntrySet a Map entry which key is severity type and value is count.
+     * @param entityCountMap a Map which key is {@link FilterSet}, value is entity count.
+     */
+    private void generateFilterSetForSeverity(
+            @Nonnull Map.Entry<String, Integer> severityEntrySet,
+            @Nonnull Map<FilterSet, Long> entityCountMap) {
+        // need to convert severity type to uppercase, otherwise UI will not parse it.
+        final String severityType = severityEntrySet.getKey().toUpperCase();
+        final int severityCount = severityEntrySet.getValue();
+        final FilterSet filterSet = new FilterSet();
+        filterSet.addFilter(buildStatFilter(EntitiesCountCriteria.severity.name(), severityType));
+        entityCountMap.put(filterSet,
+                entityCountMap.getOrDefault(filterSet, 0L) + severityCount);
     }
 
     /**
