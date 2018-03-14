@@ -54,12 +54,14 @@ public class TemplateSpecParserTest {
     public void testRestoreDiags() throws Exception {
         final TemplateSpec foo = TemplateSpec.newBuilder().setName("FOO").build();
         final Map<String, TemplateSpec> foomap = ImmutableMap.of("foo", foo);
+        final int initializeMapSize = templateSpecParser.getTemplateSpecMap().size();
 
         templateSpecParser.restoreDiags(Collections.singletonList(TemplateSpecParser.GSON
             .toJson(foomap, TemplateSpecParser.TYPE))
         );
 
-        assertEquals(1, templateSpecParser.getTemplateSpecMap().size());
+        // The restore is additive.
+        assertEquals(initializeMapSize + 1, templateSpecParser.getTemplateSpecMap().size());
         assertEquals(foo, templateSpecParser.getTemplateSpecMap().get("foo"));
     }
 }
