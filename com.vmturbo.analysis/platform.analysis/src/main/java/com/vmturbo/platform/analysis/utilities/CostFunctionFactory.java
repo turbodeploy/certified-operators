@@ -9,8 +9,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -39,8 +37,6 @@ import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
  * The factory class to construct cost function.
  */
 public class CostFunctionFactory {
-
-    private static final Logger logger = LogManager.getLogger();
 
     // a class to represent the minimum and maximum capacity of a commodity
     public static class CapacityLimitation {
@@ -308,7 +304,6 @@ public class CostFunctionFactory {
             }
             if (sl.getQuantities()[index] < entry.getValue().getMinCapacity()
                             || sl.getQuantities()[index] > entry.getValue().getMaxCapacity()) {
-                logMessagesForValidateRequestedAmountWithinCapacity(sl, index, entry);
                 return false;
             }
         }
@@ -316,26 +311,7 @@ public class CostFunctionFactory {
     }
 
     /**
-     * Logs messages if the logger's trace is enabled or the seller/buyer of shopping list
-     * have their debug enabled.
-     *
-     * @param sl the shopping list
-     * @param index the index of the shopping list at which the quantity is not within range
-     * @param entry the key value pair representing the commodity specification and the capacity
-     *        limitation
-     */
-    private static void logMessagesForValidateRequestedAmountWithinCapacity(ShoppingList sl, int index,
-                    Entry<CommoditySpecification, CapacityLimitation> entry) {
-        if (logger.isTraceEnabled() || sl.getBuyer().isDebugEnabled()) {
-            logger.debug("Requested amount {} of {} by {} not within range {} to {}",
-                            sl.getQuantities()[index],
-                            sl.getBasket().get(index).getDebugInfoNeverUseInCode(), sl.getBuyer(),
-                            entry.getValue().getMinCapacity(), entry.getValue().getMaxCapacity());
-        }
-    }
-
-    /**
-     * Validate if the shoppingList can fit in the seller.
+     * Validate if the shoppingList can fit in the seller
      *
      * @param sl the shopping list
      * @param seller the templateProvider that supplies the resources
@@ -356,35 +332,12 @@ public class CostFunctionFactory {
             while (!basketCommSpec.isSatisfiedBy(seller.getBasketSold().get(soldIndex))) {
                 soldIndex++;
             }
-            double soldCapacity = commsSold.get(soldIndex).getCapacity();
-            if (quantities[boughtIndex] > soldCapacity) {
-                logMessagesForvalidateRequestedAmountWithinSellerCapacity(sl.getBuyer(), seller,
-                                quantities[boughtIndex], basketCommSpec, soldCapacity);
+
+            if (quantities[boughtIndex] > commsSold.get(soldIndex).getCapacity()) {
                 return false;
             }
         }
         return true;
-    }
-
-    /**
-     * Logs messages if the logger's trace is enabled or the seller/buyer of shopping list
-     * have their debug enabled.
-     *
-     * @param buyer the buyer of the Shopping List
-     * @param seller the seller
-     * @param quantityBought the quantity of commodity requested
-     * @param boughtCommSpec the commodity spec of the commodity requested
-     * @param soldCapacity the capacity of the commodity of the seller
-     */
-    private static void logMessagesForvalidateRequestedAmountWithinSellerCapacity(Trader buyer,
-                    Trader seller, double quantityBought, CommoditySpecification boughtCommSpec,
-                    double soldCapacity) {
-        if (logger.isTraceEnabled() || seller.isDebugEnabled()
-                        || buyer.isDebugEnabled()) {
-            logger.debug("Requested amount {} of {} by {} not within {} capacity ({})",
-                            quantityBought, boughtCommSpec.getDebugInfoNeverUseInCode(),
-                            buyer, seller, soldCapacity);
-        }
     }
 
     /**
@@ -402,40 +355,11 @@ public class CostFunctionFactory {
                                                          int comm2Type) {
         int comm1BoughtIndex = sl.getBasket().indexOf(comm1Type);
         int comm2BoughtIndex = sl.getBasket().indexOf(comm2Type);
-        int comm1SoldIndex = seller.getBasketSold().indexOf(comm1Type);
-        double comm1BoughtQuantity = comm1BoughtIndex != -1 ? sl.getQuantity(comm1BoughtIndex) : 0;
-        double comm2BoughtQuantity = comm2BoughtIndex != -1 ? sl.getQuantity(comm2BoughtIndex) : 0;
-        double boughtSum = comm1BoughtQuantity + comm2BoughtQuantity;
+        int comm2SoldIndex = seller.getBasketSold().indexOf(comm1Type);
+        double boughtSum = ((comm1BoughtIndex != -1) ? sl.getQuantity(comm1BoughtIndex) : 0)
+                        + ((comm2BoughtIndex != -1) ? sl.getQuantity(comm2BoughtIndex) : 0);
 
-        double comm1SoldCapacity = seller.getCommoditiesSold().get(comm1SoldIndex).getCapacity();
-        boolean isValid = boughtSum <= comm1SoldCapacity;
-        logMessagesForValidateDependantComputeCommodities(isValid, seller, sl.getBuyer(), sl,
-                        comm1BoughtIndex, comm2BoughtIndex, comm1BoughtQuantity, comm2BoughtQuantity,
-                        seller.getBasketSold().get(comm1SoldIndex), comm1SoldCapacity);
-        return isValid;
-    }
-
-    /**
-     * Logs messages if the logger's trace is enabled or the seller/buyer of shopping list
-     * have their debug enabled.
-     */
-    private static void logMessagesForValidateDependantComputeCommodities(boolean isValid,
-                    Trader seller, Trader buyer, ShoppingList sl, int comm1BoughtIndex,
-                    int comm2BoughtIndex, double comm1BoughtQuantity, double comm2BoughtQuantity,
-                    CommoditySpecification comm1Sold, double comm1SoldCapacity) {
-        if (!isValid && (logger.isTraceEnabled() || seller.isDebugEnabled()
-                        || buyer.isDebugEnabled())) {
-            logger.debug("{} bought ({}) + {} bought ({}) by {} is greater than {} capaity ({}) "
-                            + "sold by {}", comm1BoughtIndex != -1 ?
-                                            sl.getBasket().get(comm1BoughtIndex)
-                                            .getDebugInfoNeverUseInCode() : "null",
-                            comm1BoughtQuantity, comm2BoughtIndex != -1 ?
-                                            sl.getBasket().get(comm2BoughtIndex)
-                                            .getDebugInfoNeverUseInCode() : "null",
-                            comm2BoughtQuantity, buyer, comm1Sold != null ?
-                                            comm1Sold.getDebugInfoNeverUseInCode() : "null",
-                            comm1SoldCapacity, seller);
-        }
+        return (boughtSum <= seller.getCommoditiesSold().get(comm2SoldIndex).getCapacity());
     }
 
     /**

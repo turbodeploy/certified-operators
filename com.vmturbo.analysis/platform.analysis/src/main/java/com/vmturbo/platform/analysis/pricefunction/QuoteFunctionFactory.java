@@ -17,7 +17,7 @@ import com.vmturbo.platform.analysis.utilities.CostFunction;
 
 public class QuoteFunctionFactory {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(QuoteFunctionFactory.class);
 
     /**
      * Create a quote function which sums up the cost from each commodity in the buyer's basket.
@@ -80,8 +80,6 @@ public class QuoteFunctionFactory {
             double budgetUtil = (spent - costOnCurrentSupplier + costOnNewSeller) / budget;
             quote[0] = (budgetUtil >= 1) ? Double.POSITIVE_INFINITY :
                     1 / ((1 - budgetUtil) * (1 - budgetUtil));
-            logMessagesForbudgetDepletionQuoteFunction(buyer, seller, economy,
-                            costOnNewSeller, quote);
             return quote;
         };
         return qf;
@@ -97,25 +95,5 @@ public class QuoteFunctionFactory {
     public static double computeCost(ShoppingList shoppingList, Trader seller, boolean validate, UnmodifiableEconomy economy) {
         return (seller == null || seller.getSettings().getCostFunction() == null) ? 0
                         : seller.getSettings().getCostFunction().calculateCost(shoppingList, seller, validate, economy);
-    }
-
-    /**
-     * Logs messages if the logger's trace is enabled or the seller/buyer of shopping list
-     * have their debug enabled.
-     *
-     * @param buyer the shopping list
-     * @param seller the seller providing quote
-     * @param economy the Economy
-     * @param costOnNewSeller cost on the seller
-     * @param quote the quote provided by the seller
-     */
-    private static void logMessagesForbudgetDepletionQuoteFunction(ShoppingList sl,
-                    Trader seller, Economy economy, double costOnNewSeller, double[] quote) {
-        if (logger.isTraceEnabled() || seller.isDebugEnabled() || sl.getBuyer().isDebugEnabled()) {
-            long topologyId = economy.getTopology().getTopologyId();
-            logger.debug("topology id = {}, buyer = {}, seller = {}, cost = {}, quote = {}",
-                            topologyId, sl.getBuyer(),
-                            seller, costOnNewSeller, quote[0]);
-        }
     }
 }
