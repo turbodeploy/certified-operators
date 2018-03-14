@@ -39,6 +39,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
@@ -244,7 +245,8 @@ public class EntityStoreTest {
 
     @Test
     public void testConstructStitchingGraphSingleTarget()
-        throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
+        throws EntitiesValidationException, IdentityUninitializedException,
+            IdentityMetadataMissingException, IdentityProviderException {
         final Map<Long, EntityDTO> entities = ImmutableMap.of(
             1L, virtualMachine("foo")
                 .buying(vCpuMHz().from("bar").used(100.0))
@@ -283,7 +285,8 @@ public class EntityStoreTest {
 
     @Test
     public void testConstructStitchingGraphMultipleTargets()
-        throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
+        throws EntitiesValidationException, IdentityUninitializedException,
+                IdentityMetadataMissingException, IdentityProviderException {
 
         final long target1Id = 1234L;
         final long target2Id = 5678L;
@@ -368,13 +371,15 @@ public class EntityStoreTest {
     }
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities)
-            throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
+            throws EntitiesValidationException, IdentityUninitializedException,
+                    IdentityMetadataMissingException, IdentityProviderException {
         addEntities(entities, targetId, 0);
     }
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
                              final long probeId)
-        throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
+        throws EntitiesValidationException, IdentityUninitializedException,
+                    IdentityMetadataMissingException, IdentityProviderException {
         Mockito.when(identityProvider.getIdsForEntities(
             Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))
             .thenReturn(entities);

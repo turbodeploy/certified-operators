@@ -50,6 +50,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
@@ -212,7 +213,8 @@ public class StitchingIntegrationTest {
     }
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId)
-        throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
+        throws EntitiesValidationException, IdentityUninitializedException,
+                IdentityMetadataMissingException, IdentityProviderException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
             Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))

@@ -36,6 +36,7 @@ import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
@@ -250,13 +251,16 @@ public class EntityStore {
      *         same OID only one of them will appear in this map.
      * @throws EntitiesValidationException If the input list contains {@link EntityDTO}s that
      *      contain illegal values that we don't have workarounds for.
+     * @throws IdentityProviderException If during id assignment, those assignments cannot be
+     *                                   persisted.
      */
     @Nonnull
     private Map<Long, EntityDTO> validateAndAssignIds(
                 final long probeId,
                 final long targetId,
                 @Nonnull final List<EntityDTO> entityDTOList)
-            throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
+            throws EntitiesValidationException, IdentityUninitializedException,
+                    IdentityMetadataMissingException, IdentityProviderException {
         // There may be duplicate entries (though that's a bug in the probes),
         // and we should deal with that without throwing exceptions.
         final List<EntityValidationFailure> validationFailures = new ArrayList<>();
@@ -339,7 +343,8 @@ public class EntityStore {
     public void entitiesDiscovered(final long probeId,
                                    final long targetId,
                                    @Nonnull final List<EntityDTO> entityDTOList)
-            throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
+            throws EntitiesValidationException, IdentityUninitializedException,
+        IdentityMetadataMissingException, IdentityProviderException {
 
         final Map<Long, EntityDTO> entitiesById = validateAndAssignIds(probeId, targetId, entityDTOList);
 

@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,6 +48,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
@@ -638,6 +640,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         try {
             if (success) {
+                // TODO: (DavidBlinn 3/14/2018) if information makes it into the entityStore but fails later
+                // the topological information will be inconsistent. (ie if the entities are placed in the
+                // entityStore but the discoveredGroupUploader throws an exception, the entity and group
+                // information will be inconsistent with each other because we do not roll back on failure.
                 entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
                         response.getEntityDTOList());
                 discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
@@ -651,12 +657,16 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             errListBuilder.addAll(validationException.errorDtos());
             errListBuilder.addAll(response.getErrorDTOList());
             operationComplete(discovery, false, errListBuilder.build());
-        } catch (IdentityUninitializedException | IdentityMetadataMissingException e) {
-            operationComplete(discovery, false, Collections.singletonList(
-                ErrorDTO.newBuilder()
-                    .setSeverity(ErrorSeverity.CRITICAL)
-                    .setDescription(e.getLocalizedMessage())
-                    .build()));
+        } catch (IdentityUninitializedException | IdentityMetadataMissingException |
+            IdentityProviderException | RuntimeException e) {
+            final ErrorDTO.Builder errorBuilder = ErrorDTO.newBuilder()
+                .setSeverity(ErrorSeverity.CRITICAL);
+            if (e.getLocalizedMessage() != null) {
+                errorBuilder.setDescription(e.getLocalizedMessage());
+            } else {
+                errorBuilder.setDescription(e.getClass().getSimpleName());
+            }
+            operationComplete(discovery, false, Collections.singletonList(errorBuilder.build()));
         }
         activatePendingDiscovery(targetId);
     }

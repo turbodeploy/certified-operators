@@ -17,12 +17,10 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -173,7 +171,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     @Override
     public Map<Long, EntityDTO> getIdsForEntities(final long probeId,
                                                   @Nonnull final List<EntityDTO> entityDTOs)
-            throws IdentityUninitializedException, IdentityMetadataMissingException {
+            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
         Objects.requireNonNull(entityDTOs);
         /* We expect that the probe is already registered.
          * There is a small window in getProbeId() where concurrent calls could

@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.operation;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -721,6 +723,26 @@ public class OperationManagerTest {
         operationManager.checkForExpiredOperations();
 
         Mockito.verify(mockRemoteMediationServer).checkForExpiredHandlers();
+    }
+
+    /**
+     * Test that a runtime exception during discovery response processing does not cause
+     * us to leave the operation in a state that continues to say it is in progress.
+     *
+     * @throws Exception If something goes wrong.
+     */
+    @Test
+    public void testRuntimeExceptionDuringDiscoveryResponse() throws Exception {
+        final Discovery discovery = operationManager.startDiscovery(targetId);
+        final DiscoveryResponse result = DiscoveryResponse.newBuilder()
+            .addEntityDTO(entity)
+            .build();
+        doThrow(RuntimeException.class).when(entityStore)
+            .entitiesDiscovered(anyLong(), anyLong(), anyListOf(EntityDTO.class));
+        operationManager.notifyDiscoveryResult(discovery, result);
+
+        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        Assert.assertFalse(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
     }
 
     private List<ActionItemDTO> actionItemDtos() {

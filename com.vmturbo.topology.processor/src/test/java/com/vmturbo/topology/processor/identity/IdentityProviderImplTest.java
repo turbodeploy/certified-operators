@@ -144,7 +144,8 @@ public class IdentityProviderImplTest {
      * entity doesn't have any metadata for that probe type.
      */
     @Test
-    public void testGetEntityIdNoMetadata() throws IdentityUninitializedException, IdentityMetadataMissingException {
+    public void testGetEntityIdNoMetadata() throws IdentityUninitializedException,
+        IdentityMetadataMissingException, IdentityProviderException {
         long probeId = identityProvider.getProbeId(baseProbeInfo);
 
         EntityDTO entity = EntityDTO.newBuilder()

@@ -5,7 +5,6 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -57,9 +56,10 @@ public interface IdentityProvider extends Diagnosable {
      *      is not complete.
      * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
      *         for which there is no identity metadata.
+     * @throws IdentityProviderException if unable to persist the generated entity identities.
      */
     Map<Long, EntityDTO> getIdsForEntities(long probeId, @Nonnull List<EntityDTO> entityDTOs)
-            throws IdentityUninitializedException, IdentityMetadataMissingException;
+            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException;
 
     /**
      * Get an entity ID for a clone of an entity in the topology.

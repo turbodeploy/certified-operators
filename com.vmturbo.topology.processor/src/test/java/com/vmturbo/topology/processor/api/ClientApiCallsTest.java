@@ -57,6 +57,7 @@ import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
@@ -580,7 +581,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     }
 
     private void addEntities(final long probeId, final long targetId, Map<Long, EntityDTO> entities)
-            throws EntitiesValidationException, IdentityUninitializedException, IdentityMetadataMissingException {
+            throws EntitiesValidationException, IdentityUninitializedException,
+                    IdentityMetadataMissingException, IdentityProviderException {
         Mockito.doReturn(entities)
                 .when(identityProviderSpy)
                 .getIdsForEntities(Mockito.eq(probeId),

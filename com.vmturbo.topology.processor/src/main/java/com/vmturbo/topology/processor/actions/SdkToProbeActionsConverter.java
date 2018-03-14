@@ -169,7 +169,7 @@ public class SdkToProbeActionsConverter {
         final ActionCapabilityElement.Builder builder =
                 CAPABILITY_CREATORS.get(sdkPolicyElement.getActionType()).get();
         if (builder.getActionType() == ActionType.NONE) {
-            logger.warn(sdkPolicyElement.getActionType() + " was maped into ActionType.NONE! " +
+            logger.debug(sdkPolicyElement.getActionType() + " was mapped into ActionType.NONE! " +
                     "Sdk policy element: " + sdkPolicyElement);
         }
         builder.setActionCapability(convert(sdkPolicyElement.getActionCapability()));
