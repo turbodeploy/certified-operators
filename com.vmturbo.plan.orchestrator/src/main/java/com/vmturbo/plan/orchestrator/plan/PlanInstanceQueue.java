@@ -33,9 +33,7 @@ public class PlanInstanceQueue {
             logger.info("Run plan instance {}. ", planInstance.getPlanId());
 
             // Run this plan
-            planService.runPlan(PlanId.newBuilder()
-                            .setPlanId(planInstance.getPlanId())
-                            .build(),
+            planService.runQueuedPlan(planInstance,
                     new StreamObserver<PlanInstance>() {
                         @Override
                         public void onNext(PlanInstance value) {

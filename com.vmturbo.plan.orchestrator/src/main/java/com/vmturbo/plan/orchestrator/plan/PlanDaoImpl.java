@@ -499,15 +499,8 @@ public class PlanDaoImpl implements PlanDao {
      * {@inheritDoc}
      */
     @Override
-    public Optional<PlanDTO.PlanInstance> queuePlanInstance(final long planId)
-            throws IntegrityException, NoSuchObjectException {
-        PlanDTO.PlanInstance planInstance = getPlanInstance(planId)
-                .orElseThrow(() -> noSuchObjectException(planId));
-
-        if (planInstance.getStatus().equals(PlanStatus.QUEUED)) {
-            return Optional.of(planInstance);
-        }
-
+    public Optional<PlanDTO.PlanInstance> queuePlanInstance(final PlanDTO.PlanInstance planInstance)
+            throws IntegrityException {
         try {
             // Run this logic in a transaction.
             return dsl.transactionResult(configuration -> {
@@ -518,29 +511,29 @@ public class PlanDaoImpl implements PlanDao {
                     // Select the instance record that is in READY state and has the given ID.
                     // Call "forUpdate()" to lock the record for subsequent update.
                     final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
-                            .where(PLAN_INSTANCE.ID.eq(planId))
+                            .where(PLAN_INSTANCE.ID.eq(planInstance.getPlanId()))
                             .forUpdate()
                             .fetchOne();
                     if (planInstanceRecord == null) {
-                        // No plan instance found with the give plan ID
-                        throw new NoSuchObjectException(
-                                "Plan with id " + planId + " does not exist");
-                    } else if (planInstanceRecord.get(PLAN_INSTANCE.STATUS).equals(PlanStatus.QUEUED.name())) {
-                        return Optional.of(planInstanceRecord.getPlanInstance());
+                        // This situation should not happen as the planInstance is passed in.
+                        return Optional.empty();
                     } else if (planInstanceRecord.get(PLAN_INSTANCE.STATUS).equals(PlanStatus.READY.name())) {
+                        // Change the status of the plan instance to QUEUED, indicating that the
+                        // execution of this instance can proceed.
                         return Optional.of(setQueuedStatus(context, planInstanceRecord));
                     } else {
-                        // Plan instance exists, but it has already started execution.
+                        // Plan instance exists, but it has already queued or started execution.
+                        // Return the instance without changing the status.
                         return Optional.empty();
                     }
                 } else {
+                    // The plan instance is a system plan and the maximum number of concurrent plans
+                    // has reached.  Return the plan instance without changing the status to QUEUED.
                     return Optional.empty();
                 }
             });
         } catch (DataAccessException e) {
-            if (e.getCause() instanceof NoSuchObjectException) {
-                throw (NoSuchObjectException) e.getCause();
-            } else if (e.getCause() instanceof IntegrityException) {
+            if (e.getCause() instanceof IntegrityException) {
                 throw (IntegrityException) e.getCause();
             } else {
                 throw e;

@@ -9,6 +9,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Preconditions;
+
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
@@ -123,27 +125,18 @@ public class PlanRpcService extends PlanServiceImplBase {
             // caller may get the status change notification before getting the response
             // from this RPC. For now it's benign because we also return
             // the instance.
-            planDao.queuePlanInstance(planId).ifPresent(queuedInstance -> {
-                final StartAnalysisRequest.Builder builder = StartAnalysisRequest.newBuilder();
-                builder.setPlanId(planId);
-                if (queuedInstance.hasTopologyId()) {
-                    builder.setTopologyId(queuedInstance.getTopologyId());
-                }
-                if (queuedInstance.hasScenario()) {
-                    ScenarioInfo scenarioInfo = queuedInstance.getScenario().getScenarioInfo();
-                    builder.addAllScenarioChange(scenarioInfo.getChangesList());
-                    if (scenarioInfo.hasScope()) {
-                        builder.setPlanScope(scenarioInfo.getScope());
-                    }
-                }
-
-                builder.setPlanType(queuedInstance.getProjectType());
-
-                startAnalysis(builder.build());
-
-                responseObserver.onNext(queuedInstance);
+            PlanInstance planInstance = planDao.getPlanInstance(planId)
+                    .orElseThrow(() -> new NoSuchObjectException("Invalid Plan ID: " + planId));
+            Optional<PlanInstance> queuedPlanInstance = planDao.queuePlanInstance(planInstance);
+            if (queuedPlanInstance.isPresent()) {
+                runQueuedPlan(queuedPlanInstance.get(), responseObserver);
+            } else {
+                // The plan was not queued. It may still be in READY state if the maximum number
+                // of concurrent plans has reached, or it may be executed by another process.
+                // In this case, just return the instance without initiating the analysis.
+                responseObserver.onNext(planInstance);
                 responseObserver.onCompleted();
-            });
+            }
         } catch (NoSuchObjectException e) {
             logger.warn("Plan not found while requested to trigger: " + request, e);
             responseObserver.onError(
@@ -155,6 +148,34 @@ public class PlanRpcService extends PlanServiceImplBase {
             responseObserver.onError(
                     Status.FAILED_PRECONDITION.withDescription(e.getMessage()).asException());
         }
+    }
+
+    /**
+     * Start execution of a plan instance that is already in QUEUED state. This method is package
+     * visible for PlanInstanceQueue to invoke, but it's not intended to be a public API.
+     *
+     * @param planInstance the plan instance to run.
+     * @param responseObserver the response observer.
+     */
+    void runQueuedPlan(PlanInstance planInstance, StreamObserver<PlanInstance> responseObserver) {
+        Preconditions.checkArgument(planInstance.getStatus().equals(PlanStatus.QUEUED));
+        final StartAnalysisRequest.Builder builder = StartAnalysisRequest.newBuilder();
+        builder.setPlanId(planInstance.getPlanId());
+        if (planInstance.hasTopologyId()) {
+            builder.setTopologyId(planInstance.getTopologyId());
+        }
+        if (planInstance.hasScenario()) {
+            ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
+            builder.addAllScenarioChange(scenarioInfo.getChangesList());
+            if (scenarioInfo.hasScope()) {
+                builder.setPlanScope(scenarioInfo.getScope());
+            }
+        }
+        builder.setPlanType(planInstance.getProjectType());
+        startAnalysis(builder.build());
+
+        responseObserver.onNext(planInstance);
+        responseObserver.onCompleted();
     }
 
     @Override

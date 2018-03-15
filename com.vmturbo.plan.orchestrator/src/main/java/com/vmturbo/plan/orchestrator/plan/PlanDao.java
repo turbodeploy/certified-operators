@@ -127,15 +127,14 @@ public interface PlanDao extends Diagnosable {
     Optional<PlanInstance> queueNextPlanInstance();
 
     /**
-     * Set the status of the plan instance to QUEUED if and only if the plan instance with the
-     * given ID exists and its status is READY.
+     * Set the status of the plan instance to QUEUED if and only if the criteria for queueing
+     * an instance are met.
      *
-     * @param planId Plan instance ID
-     * @return The plan instance with the updated status or an empty value if the update criteria
-     *         are not met.
+     * @param planInstance Plan instance
+     * @return The plan instance that had just been queued, or  {@link Optional#empty()} if the
+     *         plan instance does not meet the criteria for queueing.
      * @throws IntegrityException if the plan instance does not pass the integrity check
-     * @throws NoSuchObjectException if a plan instance with the give ID does not exist
      */
-    Optional<PlanInstance> queuePlanInstance(long planId)
-            throws IntegrityException, NoSuchObjectException;
+    Optional<PlanInstance> queuePlanInstance(PlanInstance planInstance)
+            throws IntegrityException;
 }

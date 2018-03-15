@@ -628,6 +628,9 @@ service PlanService {
     rpc GetAllPlans(GetPlansOptions) returns (stream PlanInstance);
 
     // Run an existing plan with the given info - topology id and scenario id
+    // Put the plan instance in QUEUED state if criteria are met and initiate the analysis process.
+    // The plan instance may remain in READY state if the maximum number
+    // of concurrent plans has reached, or it may be executed by another process.
     //
     // @param PlanId the unique ID of the PlanInstance to run
     // @returns the PlanInstance for the given plan updated with the given

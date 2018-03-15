@@ -153,51 +153,38 @@ public class PlanDaoImplTest {
                         .getSettingName())
                 .build()))
                 .thenReturn(GetGlobalSettingResponse.newBuilder()
-                    .setSetting(Setting.newBuilder()
-                        .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                .setValue(1)
-                                .build()))
-                    .build());
+                        .setSetting(Setting.newBuilder()
+                                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                                        .setValue(1)
+                                        .build()))
+                        .build());
 
         // create 3 Headroom plan instances, 2 running and 1 ready
         createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS);
         createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY);
         PlanInstance headroomPlanInstance = createHeadroomPlanInstance(PlanStatus.READY);
 
-        long id1 = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
+        PlanInstance inst1 = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
                 .setTopologyId(1L)
-                .build()).getPlanId();
-        long id2 = planDao.createPlanInstance(Scenario.getDefaultInstance(),
-                PlanProjectType.INITAL_PLACEMENT)
-                .getPlanId();
-        Optional<PlanDTO.PlanInstance> inst = planDao.queuePlanInstance(id1);
-        assertEquals(true, inst.isPresent());
-        assertEquals(PlanStatus.QUEUED, inst.get().getStatus());
-        Optional<PlanDTO.PlanInstance> initialPlacementPlan = planDao.queuePlanInstance(id2);
-        assertEquals(true, initialPlacementPlan.isPresent());
-        assertEquals(PlanStatus.QUEUED, initialPlacementPlan.get().getStatus());
-
-        // throw exception if plan ID is invalid
-        boolean exceptionThrown = false;
-        try {
-            inst = planDao.queuePlanInstance(1234);
-        } catch (Exception e) {
-            assertTrue(e instanceof NoSuchObjectException);
-            exceptionThrown = true;
-        }
-        assertEquals(true, exceptionThrown);
+                .build());
+        PlanInstance inst2 = planDao.createPlanInstance(Scenario.getDefaultInstance(),
+                PlanProjectType.INITAL_PLACEMENT);
 
         // User plan instance should always be queued.
-        inst = planDao.queuePlanInstance(id1);
+        Optional<PlanDTO.PlanInstance> inst = planDao.queuePlanInstance(inst1);
         assertEquals(true, inst.isPresent());
         assertEquals(PlanStatus.QUEUED, inst.get().getStatus());
-        initialPlacementPlan = planDao.queuePlanInstance(id2);
+        Optional<PlanDTO.PlanInstance> initialPlacementPlan = planDao.queuePlanInstance(inst2);
         assertEquals(true, initialPlacementPlan.isPresent());
         assertEquals(PlanStatus.QUEUED, initialPlacementPlan.get().getStatus());
+
+        // When trying to queue an instance that has already been queued, Optional.empty() will be returned.
+        inst = planDao.queuePlanInstance(inst1);
+        assertEquals(false, inst.isPresent());
 
         // queue the headroom plan that is in READY state.  Since there are two plan instances
         // running and max number is 1, this plan should stay in READY status.
-        inst = planDao.queuePlanInstance(headroomPlanInstance.getPlanId());
+        inst = planDao.queuePlanInstance(headroomPlanInstance);
         assertEquals(false, inst.isPresent());
         assertEquals(PlanStatus.READY, headroomPlanInstance.getStatus());
     }
