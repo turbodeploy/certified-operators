@@ -357,6 +357,10 @@ public class LiveActionStore implements ActionStore {
     @Nonnull
     @Override
     public Map<Long, ActionView> getActionViews() {
+        // TODO: (DavidBlinn) This imposes an unacceptable performance hit and
+        // seems unnecessary. Refactor to improve performance. We should probably
+        // have separate RPCs and interfaces for querying operational vs historical actions
+        // since we have to hand-roll the code to join the two in any case.
         List<ActionView> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
         List<ActionView> otherActionList = actions.values().stream()
                 .filter(action -> !isSucceededorFailed(action))

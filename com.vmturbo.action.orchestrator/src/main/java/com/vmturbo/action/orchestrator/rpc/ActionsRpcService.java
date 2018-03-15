@@ -268,10 +268,6 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         final Optional<ActionStore> contextStore =
                 actionStorehouse.getStore(request.getTopologyContextId());
         if (contextStore.isPresent()) {
-            // TODO (roman, Feb 24 2017): Using "getActionSpecs" is unnecessarily expensive
-            // because it's constructing a bunch of objects that quickly get discarded.
-            // Ideally we can just iterate over the Action map directly, but the QueryFilter
-            // (and visibility logic) currently only works with ActionSpecs.
             final Stream<ActionView> actionViewStream = request.hasFilter() ?
                     new QueryFilter(Optional.of(request.getFilter()))
                         .filteredActionViews(contextStore.get()) :

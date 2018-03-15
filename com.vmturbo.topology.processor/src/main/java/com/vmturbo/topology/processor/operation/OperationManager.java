@@ -659,6 +659,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             operationComplete(discovery, false, errListBuilder.build());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |
             IdentityProviderException | RuntimeException e) {
+            logger.error("Error processing discovery response: ", e);
+
             final ErrorDTO.Builder errorBuilder = ErrorDTO.newBuilder()
                 .setSeverity(ErrorSeverity.CRITICAL);
             if (e.getLocalizedMessage() != null) {

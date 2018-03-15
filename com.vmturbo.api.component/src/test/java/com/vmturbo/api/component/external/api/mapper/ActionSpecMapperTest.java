@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -11,6 +12,7 @@ import static org.mockito.Matchers.any;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -624,6 +626,18 @@ public class ActionSpecMapperTest {
         assertTrue(filter.hasInvolvedEntities());
         assertEquals(new HashSet<Long>(oids),
                      new HashSet<Long>(filter.getInvolvedEntities().getOidsList()));
+    }
+
+    // The UI request for "Pending Actions" does not include any action states
+    // in its filter even though it wants to exclude executed actions. When given
+    // no action states we should automatically insert the operational action states.
+    @Test
+    public void testCreateActionFilterWithNoStateFilter() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+
+        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, Optional.empty());
+        Assert.assertThat(filter.getStatesList(),
+            containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES));
     }
 
     private ActionInfo getHostMoveActionInfo() {

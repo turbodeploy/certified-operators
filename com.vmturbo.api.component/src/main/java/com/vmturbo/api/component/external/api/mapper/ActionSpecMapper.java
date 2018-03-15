@@ -7,7 +7,6 @@ import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -17,6 +16,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -78,6 +78,16 @@ public class ActionSpecMapper {
     private final ExecutorService executorService;
 
     private final Logger logger = LogManager.getLogger();
+
+    /**
+     * The set of action states for operational actions (ie actions that have not
+     * completed execution).
+     */
+    public static final ActionDTO.ActionState[] OPERATIONAL_ACTION_STATES = {
+        ActionDTO.ActionState.READY,
+        ActionDTO.ActionState.QUEUED,
+        ActionDTO.ActionState.IN_PROGRESS
+    };
 
     public ActionSpecMapper(@Nonnull final RepositoryApi repositoryApi,
                     @Nonnull PolicyServiceGrpc.PolicyServiceBlockingStub policyService,
@@ -737,6 +747,11 @@ public class ActionSpecMapper {
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .forEach(queryBuilder::addStates);
+            } else {
+                // TODO: (DavidBlinn, 3/15/2018): The UI request for "Pending Actions" does not
+                // include any action states in its filter even though it wants to exclude executed
+                // actions. Request only operational action states.
+                Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
             }
 
             // Map UI's ActionMode to ActionDTO.ActionMode and add them to filter
