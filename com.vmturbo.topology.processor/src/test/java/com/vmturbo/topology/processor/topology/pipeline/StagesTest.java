@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -44,7 +45,6 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
@@ -167,10 +167,13 @@ public class StagesTest {
                 .build();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
-        final TopologyEditStage stage = new TopologyEditStage(topologyEditor, changes);
+        GroupResolver groupResolver = mock(GroupResolver.class);
+        final TopologyEditStage stage =
+            new TopologyEditStage(topologyEditor, changes, groupResolver);
         stage.setContext(context);
         stage.execute(Collections.emptyMap());
-        verify(topologyEditor).editTopology(eq(Collections.emptyMap()), eq(Collections.emptyList()), any());
+        verify(topologyEditor).editTopology(eq(Collections.emptyMap()),
+                eq(Collections.emptyList()), any(), eq(groupResolver));
     }
 
     @Test

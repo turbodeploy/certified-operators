@@ -77,7 +77,8 @@ public class MapperConfig {
                 templatesUtils(),
                 settingManagerMappingLoader().getMapping(),
                 settingsMapper(),
-                serviceConfig.policiesService(), communicationConfig.groupRpcService());
+                serviceConfig.policiesService(),
+                communicationConfig.groupExpander());
     }
 
     @Bean

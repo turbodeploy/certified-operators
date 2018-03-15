@@ -56,10 +56,10 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
-import com.vmturbo.api.component.external.api.mapper.ScenarioMapperTest;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.controller.MarketsController;
@@ -307,7 +307,8 @@ public class MarketsServiceTest {
             return new ScenarioMapper(repositoryApi(), templatesUtils(),
                     Mockito.mock(SettingsManagerMapping.class),
                     Mockito.mock(SettingsMapper.class),
-                    policiesService(), GroupServiceGrpc.newBlockingStub(grpcTestServer().getChannel()));
+                    policiesService(),
+                    Mockito.mock(GroupExpander.class));
         }
 
         @Bean

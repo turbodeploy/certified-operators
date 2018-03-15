@@ -13,11 +13,8 @@ import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -35,6 +32,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -51,14 +49,9 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
-import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse.Builder;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
@@ -74,9 +67,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.components.api.test.GrpcTestServer;
-
-import io.grpc.stub.StreamObserver;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -90,29 +80,29 @@ public class ScenarioMapperTest {
 
     private ScenarioMapper scenarioMapper;
 
+    private GroupExpander groupExpander;
+
     private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
-
-    private TestGroupService testGroupService = new TestGroupService();
-
-    private GrpcTestServer server = GrpcTestServer.newServer(testGroupService);
 
     @Before
     public void setup() throws IOException {
         repositoryApi = Mockito.mock(RepositoryApi.class);
         templatesUtils = Mockito.mock(TemplatesUtils.class);
         policiesService = Mockito.mock(PoliciesService.class);
+        groupExpander = Mockito.mock(GroupExpander.class);
 
         // Return empty by default to keep NPE's at bay.
         when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(Collections.emptyMap());
 
+        when(groupExpander.getGroup(any()))
+            .thenReturn(Optional.empty());
 
-        server.start();
         scenarioMapper = new ScenarioMapper(repositoryApi,
-                templatesUtils, settingsManagerMapping, settingsMapper, policiesService,
-                GroupServiceGrpc.newBlockingStub(server.getChannel()));
+                templatesUtils, settingsManagerMapping, settingsMapper,
+                policiesService, groupExpander);
     }
 
     @Test
@@ -580,7 +570,7 @@ public class ScenarioMapperTest {
         Group group = Group.newBuilder().setId(1).setGroup(GroupInfo.newBuilder()
                 .setStaticGroupMembers(StaticGroupMembers.newBuilder().addStaticMemberOids(2)
                         .addStaticMemberOids(3).build()).build()).build();
-        testGroupService.whenThenReturn(group.getId(), group);
+        when(groupExpander.getGroup("1")).thenReturn(Optional.of(group));
 
         final TargetApiDTO target = new TargetApiDTO();
         target.setUuid("1");
@@ -648,26 +638,4 @@ public class ScenarioMapperTest {
         return template;
     }
 
-    /**
-     * Implementation of group service for tests.
-     */
-    private static final class TestGroupService extends GroupServiceImplBase {
-
-        private final Map<Long, Group> preparedGroups = new HashMap<>();
-
-        private void whenThenReturn(long uuid, Group group) {
-            preparedGroups.put(uuid, group);
-        }
-
-        @Override
-        public void getGroup(GroupID request, StreamObserver<GetGroupResponse> responseObserver) {
-            final Builder responseBuilder = GetGroupResponse.newBuilder();
-            final Group group = preparedGroups.get(request.getId());
-            if (group != null) {
-                responseBuilder.setGroup(group);
-            }
-            responseObserver.onNext(responseBuilder.build());
-            responseObserver.onCompleted();
-        }
-    }
 }

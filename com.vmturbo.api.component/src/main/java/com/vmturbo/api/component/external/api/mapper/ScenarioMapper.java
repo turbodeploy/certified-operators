@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -33,6 +32,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -51,15 +51,13 @@ import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
@@ -114,21 +112,21 @@ public class ScenarioMapper {
 
     private PoliciesService policiesService;
 
-    private final GroupServiceBlockingStub groupService;
+    private final GroupExpander groupExpander;
 
     public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final TemplatesUtils templatesUtils,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
                           @Nonnull final SettingsMapper settingsMapper,
                           @Nonnull final PoliciesService policiesService,
-                          @Nonnull final GroupServiceBlockingStub groupService) {
+                          @Nonnull final GroupExpander groupExpander) {
 
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.policiesService = Objects.requireNonNull(policiesService);
         this.templatesUtils = Objects.requireNonNull(templatesUtils);
         this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
-        this.groupService = Objects.requireNonNull(groupService);
+        this.groupExpander = Objects.requireNonNull(groupExpander);
     }
 
     /**
@@ -491,9 +489,10 @@ public class ScenarioMapper {
     private List<ScenarioChange> getGroupOrEntityAdditionChanges(long uuid,
             @Nonnull TopologyAddition.Builder additionBuilder) {
         final List<ScenarioChange> changes = new ArrayList<>();
-        final Group group = groupService.getGroup(GroupID.newBuilder().setId(uuid).build()).getGroup();
-        if (group.hasGroup()) {
-            final List<Long> membersOids = group.getGroup().getStaticGroupMembers()
+        final Optional<Group> group = groupExpander.getGroup(String.valueOf(uuid));
+        if (group.isPresent() && group.get().hasGroup()) {
+            // why are we only looking at static members
+            final List<Long> membersOids = group.get().getGroup().getStaticGroupMembers()
                     .getStaticMemberOidsList();
             membersOids.forEach(oid -> changes.add(ScenarioChange.newBuilder().setTopologyAddition(
                     additionBuilder.setEntityId(oid).build()).build()));
@@ -504,29 +503,45 @@ public class ScenarioMapper {
         return changes;
     }
 
-    private static ScenarioChange mapTopologyRemoval(@Nonnull final RemoveObjectApiDTO change) {
+    private ScenarioChange mapTopologyRemoval(@Nonnull final RemoveObjectApiDTO change) {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology removals must contain a target");
 
+        String uuid = change.getTarget().getUuid();
+        final Optional<Group> group = groupExpander.getGroup(uuid);
+        TopologyRemoval.Builder removalBuilder =
+            TopologyRemoval.newBuilder()
+                    .setChangeApplicationDay(projectionDay(change.getProjectionDay()));
+        if (group.isPresent()) {
+            removalBuilder.setGroupId(Long.parseLong(uuid));
+        } else {
+            removalBuilder.setEntityId(Long.parseLong(uuid));
+        }
         return ScenarioChange.newBuilder()
-            .setTopologyRemoval(TopologyRemoval.newBuilder()
-                .setChangeApplicationDay(projectionDay(change.getProjectionDay()))
-                .setEntityId(Long.parseLong(change.getTarget().getUuid())))
-            .build();
+                    .setTopologyRemoval(removalBuilder.build())
+                    .build();
     }
 
-    private static ScenarioChange mapTopologyReplace(@Nonnull final ReplaceObjectApiDTO change) {
+    private ScenarioChange mapTopologyReplace(@Nonnull final ReplaceObjectApiDTO change) {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology replace must contain a target");
         Preconditions.checkArgument(change.getTemplate() != null,
                 "Topology replace must contain a template");
 
-        return ScenarioChange.newBuilder()
-            .setTopologyReplace(TopologyReplace.newBuilder()
+        String uuid = change.getTarget().getUuid();
+        final Optional<Group> group = groupExpander.getGroup(uuid);
+        TopologyReplace.Builder replaceBuilder =
+            TopologyReplace.newBuilder()
                 .setChangeApplicationDay(projectionDay(change.getProjectionDay()))
-                .setAddTemplateId(Long.parseLong(change.getTemplate().getUuid()))
-                .setRemoveEntityId(Long.parseLong(change.getTarget().getUuid())))
-            .build();
+                .setAddTemplateId(Long.parseLong(change.getTemplate().getUuid()));
+        if (group.isPresent()) {
+            replaceBuilder.setRemoveGroupId(Long.parseLong(uuid));
+        } else {
+            replaceBuilder.setRemoveEntityId(Long.parseLong(uuid));
+        }
+        return ScenarioChange.newBuilder()
+                    .setTopologyReplace(replaceBuilder.build())
+                    .build();
     }
 
     /**

@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.topology;
 
-import java.time.Clock;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -96,7 +94,10 @@ public class TopologyConfig {
     @Bean
     public TopologyEditor topologyEditor() {
         return new TopologyEditor(identityProviderConfig.identityProvider(),
-                templateConfig.templateConverterFactory());
+                templateConfig.templateConverterFactory(),
+                // we don't use groupResolver cache here because we want
+                // up-to-date results.
+                groupConfig.groupServiceClient());
     }
 
     @Bean

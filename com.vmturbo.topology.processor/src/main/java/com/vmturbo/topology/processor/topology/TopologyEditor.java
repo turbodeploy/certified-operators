@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -23,6 +24,9 @@ import com.google.gson.Gson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
@@ -41,6 +45,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
@@ -58,13 +63,17 @@ public class TopologyEditor {
 
     private final TemplateConverterFactory templateConverterFactory;
 
+    private final GroupServiceBlockingStub groupServiceClient;
+
     private static final Set<Integer> UTILIZATION_LEVEL_TYPES = ImmutableSet
             .of(CommodityType.CPU_VALUE, CommodityType.MEM_VALUE);
 
     TopologyEditor(@Nonnull final IdentityProvider identityProvider,
-                   @Nonnull final TemplateConverterFactory templateConverterFactory) {
+                   @Nonnull final TemplateConverterFactory templateConverterFactory,
+                   @Nonnull final GroupServiceBlockingStub groupServiceClient) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.templateConverterFactory = Objects.requireNonNull(templateConverterFactory);
+        this.groupServiceClient = Objects.requireNonNull(groupServiceClient);
     }
 
     /**
@@ -77,14 +86,19 @@ public class TopologyEditor {
      */
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
                              @Nonnull final List<ScenarioChange> changes,
-                             @Nonnull final TopologyInfo topologyInfo) {
+                             @Nonnull final TopologyInfo topologyInfo,
+                             @Nonnull final GroupResolver groupResolver) {
 
         final Map<Long, Long> entityAdditions = new HashMap<>();
         final Set<Long> entitiesToRemove = new HashSet<>();
         final Set<Long> entitiesToReplace = new HashSet<>();
         final Map<Long, Long> templateToAdd = new HashMap<>();
         // Map key is template id, and value is the replaced topologyEntity.
-        final Multimap<Long, TopologyEntityDTO> templateToReplacedEntity = ArrayListMultimap.create();
+        final Multimap<Long, TopologyEntityDTO> templateToReplacedEntity =
+            ArrayListMultimap.create();
+        final Map<Long, Group> groupIdToGroupMap = getGroups(changes);
+        final TopologyGraph topologyGraph =
+            TopologyGraph.newGraph(topology);
 
         changes.forEach(change -> {
             if (change.hasTopologyAddition()) {
@@ -99,26 +113,32 @@ public class TopologyEditor {
                 }
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
-                if (removal.hasEntityId()) {
-                    entitiesToRemove.add(removal.getEntityId());
-                } else {
-                    logger.warn("Unimplemented handling for topology removal with {}",
-                            removal.getEntityOrGroupIdCase());
-                }
+                Set<Long> entities = removal.hasEntityId()
+                    ? Collections.singleton(removal.getEntityId())
+                    : groupResolver.resolve(
+                        groupIdToGroupMap.get(removal.getGroupId()),
+                        topologyGraph);
+                entities.forEach(id -> {
+                    if (!topology.containsKey(id)) {
+                        throwEntityNotFoundException(id);
+                    }
+                    entitiesToRemove.add(id);
+                });
             } else if (change.hasTopologyReplace()) {
                 final TopologyReplace replace = change.getTopologyReplace();
-                if (replace.hasRemoveEntityId()) {
-                    entitiesToReplace.add(replace.getRemoveEntityId());
-                    if (!topology.containsKey(replace.getRemoveEntityId())) {
-                        logger.error("Can not find {} in current topology", replace.getRemoveEntityId());
-                        throw TopologyEditorException.notFoundEntityException(replace.getRemoveEntityId());
+                Set<Long> entities = replace.hasRemoveEntityId()
+                    ? Collections.singleton(replace.getRemoveEntityId())
+                    : groupResolver.resolve(
+                        groupIdToGroupMap.get(replace.getRemoveGroupId()),
+                        topologyGraph);
+                entities.forEach(id -> {
+                    if (!topology.containsKey(id)) {
+                        throwEntityNotFoundException(id);
                     }
+                    entitiesToReplace.add(id);
                     templateToReplacedEntity.put(replace.getAddTemplateId(),
-                        topology.get(replace.getRemoveEntityId()).getEntityBuilder().build());
-                } else {
-                    logger.warn("Unimplemented handling for topology removal with {}",
-                            replace.getEntityOrGroupRemovalIdCase());
-                }
+                        topology.get(id).getEntityBuilder().build());
+                });
             // only change utilization when plan changes have utilization level message.
             } else if (change.hasPlanChanges() && change.getPlanChanges().hasUtilizationLevel()) {
                 final UtilizationLevel utilizationLevel =
@@ -400,8 +420,7 @@ public class TopologyEditor {
                         .build();
                 entityProperties.put(fakeProvider, oldProvider);
                 unplacedCommoditiesBoughtList.add(unplacedCommodityBoughtFromProvider);
-            }
-            else {
+            } else {
                 unplacedCommoditiesBoughtList.add(commoditiesBoughtFromProvider);
             }
         }
@@ -432,5 +451,54 @@ public class TopologyEditor {
         final long additionCount =
                 addition.hasAdditionCount() ? addition.getAdditionCount() : 1L;
         additionMap.put(key, additionMap.getOrDefault(key, 0L) + additionCount);
+    }
+
+
+    private Map<Long, Group> getGroups(List<ScenarioChange> changes) {
+        Set<Long> groupIds = new HashSet<>();
+        Map<Long, Group> groupIdToGroupMap = new HashMap<>();
+
+        changes.forEach(change -> {
+            switch (change.getDetailsCase()) {
+                case TOPOLOGY_ADDITION:
+                    TopologyAddition addition = change.getTopologyAddition();
+                    if (addition.hasGroupId()) {
+                        groupIds.add(addition.getGroupId());
+                    }
+                    break;
+                case TOPOLOGY_REMOVAL:
+                    TopologyRemoval removal = change.getTopologyRemoval();
+                    if (removal.hasGroupId()) {
+                        groupIds.add(removal.getGroupId());
+                    }
+                    break;
+                case TOPOLOGY_REPLACE:
+                    TopologyReplace replace = change.getTopologyReplace();
+                    if (replace.hasRemoveGroupId()) {
+                        groupIds.add(replace.getRemoveGroupId());
+                    }
+                    break;
+                default:
+                    logger.warn("Unknown change: {}", change);
+            }
+        });
+
+        GetGroupsRequest request =
+            GetGroupsRequest.newBuilder()
+                .addAllId(groupIds)
+                .setResolveClusterSearchFilters(true)
+                .build();
+
+        groupServiceClient.getGroups(request)
+            .forEachRemaining(
+                group -> groupIdToGroupMap.put(group.getId(), group)
+            );
+
+        return groupIdToGroupMap;
+    }
+
+    private void throwEntityNotFoundException(long id) {
+        logger.error("Cannot find entity: {} in current topology", id);
+        throw TopologyEditorException.notFoundEntityException(id);
     }
 }

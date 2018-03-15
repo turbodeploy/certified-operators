@@ -186,7 +186,10 @@ public class TopologyPipelineFactory {
                 // for the plan would also affect the live broadcast. See OM-31747.
                 .addStage(new ConstructTopologyFromStitchingContextStage())
                 .addStage(new ReservationStage(reservationManager))
-                .addStage(new TopologyEditStage(topologyEditor, changes))
+                // TODO: Move the ToplogyEditStage after the GraphCreationStage
+                // That way the editstage can work on the graph instead of a
+                // separate structure.
+                .addStage(new TopologyEditStage(topologyEditor, changes, groupResolver))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(),
@@ -221,7 +224,7 @@ public class TopologyPipelineFactory {
                 new TopologyPipelineContext(groupResolver, topologyInfo);
         return TopologyPipeline.<Long, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new TopologyAcquisitionStage(repositoryClient))
-                .addStage(new TopologyEditStage(topologyEditor, changes))
+                .addStage(new TopologyEditStage(topologyEditor, changes, groupResolver))
                 .addStage(new GraphCreationStage())
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 // TODO (roman, Nov 2017): We need to do policy and setting application for

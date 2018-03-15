@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.topology;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
@@ -23,9 +24,12 @@ import com.google.gson.Gson;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
@@ -39,8 +43,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
@@ -144,8 +150,14 @@ public class TopologyEditorTest {
 
     private TemplateConverterFactory templateConverterFactory = mock(TemplateConverterFactory.class);
 
-    private TopologyEditor topologyEditor =
-            new TopologyEditor(identityProvider, templateConverterFactory);
+    private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
+
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(groupServiceSpy);
+
+    private TopologyEditor topologyEditor;
+
+    private GroupResolver groupResolver = mock(GroupResolver.class);
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(1)
@@ -158,6 +170,8 @@ public class TopologyEditorTest {
     public void setup() {
         when(identityProvider.getCloneId(Mockito.any(TopologyEntityDTO.class)))
             .thenAnswer(invocation -> cloneId++);
+        topologyEditor = new TopologyEditor(identityProvider, templateConverterFactory,
+                GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**
@@ -169,7 +183,7 @@ public class TopologyEditorTest {
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(ADD);
 
-        topologyEditor.editTopology(topology, changes, topologyInfo);
+        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
 
         List<TopologyEntity.Builder> clones = topology.values().stream()
                         .filter(entity -> entity.getOid() != vm.getOid())
@@ -224,7 +238,7 @@ public class TopologyEditorTest {
                 UtilizationLevel.newBuilder().setPercentage(50).build()
             ).build()
         ).build());
-        topologyEditor.editTopology(topology, changes, topologyInfo);
+        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
         final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
             .getEntityBuilder()
             .getCommoditiesBoughtFromProvidersList().stream()
@@ -261,7 +275,7 @@ public class TopologyEditorTest {
                         UtilizationLevel.newBuilder().setPercentage(50).build()
                 ).build()
         ).build());
-        topologyEditor.editTopology(topology, changes, topologyInfo);
+        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
         final List<CommodityBoughtDTO> vmCommodities = topology.get(vmId)
                 .getEntityBuilder()
                 .getCommoditiesBoughtFromProvidersList().stream()
@@ -302,7 +316,7 @@ public class TopologyEditorTest {
                     .setOid(1234L)
                     .setDisplayName("Test PM1")));
 
-        topologyEditor.editTopology(topology, changes, topologyInfo);
+        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
         final List<TopologyEntityDTO> topologyEntityDTOS = topology.entrySet().stream()
                 .map(Entry::getValue)
                 .map(entity -> entity.getEntityBuilder().build())
