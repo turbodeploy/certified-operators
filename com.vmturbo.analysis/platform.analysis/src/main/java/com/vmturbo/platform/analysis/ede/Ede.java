@@ -299,6 +299,7 @@ public final class Ede {
         // only run replay in first sub round for realTime market.
         boolean isReplay = true;
         if (isRealTime) {
+            economy.getSettings().setResizeDependentCommodities(false);
             // run a round of analysis without provisions.
             actions.addAll(generateActions(economy, classifyActions, false, isSuspension,
                             isResize, collapse, isReplay, mktData));

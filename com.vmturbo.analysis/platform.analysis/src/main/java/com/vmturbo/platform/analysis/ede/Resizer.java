@@ -308,6 +308,9 @@ public class Resizer {
     public static void resizeDependentCommodities(@NonNull Economy economy,
              @NonNull Trader seller, @NonNull CommoditySold commoditySold, int commoditySoldIndex,
                                                                               double newCapacity) {
+        if (!economy.getSettings().isResizeDependentCommodities()) {
+            return;
+        }
         List<CommodityResizeSpecification> typeOfCommsBought = economy.getResizeDependency(
                                  seller.getBasketSold().get(commoditySoldIndex).getBaseType());
         if (typeOfCommsBought == null || typeOfCommsBought.isEmpty()) {

@@ -40,6 +40,7 @@ public final class EconomySettings implements Serializable {
     private float expenseMetricFactor_;
     private float rateOfResize_ = 1.0f;
     private boolean isEstimatesEnabled_ = true;
+    private boolean isResizeDependentCommodities_ = true;
 
     // Constructors
 
@@ -185,6 +186,17 @@ public final class EconomySettings implements Serializable {
     public EconomySettings setRateOfResize(float rateOfRightSize) {
         checkArgument(rateOfRightSize > 0, "rateOfRightSize = " + rateOfRightSize);
         rateOfResize_ = rateOfRightSize;
+        return this;
+    }
+
+    @Pure
+    public boolean isResizeDependentCommodities(@ReadOnly EconomySettings this) {
+        return isResizeDependentCommodities_;
+    }
+
+    @Deterministic
+    public EconomySettings setResizeDependentCommodities(boolean isResizeDependentCommodities) {
+        isResizeDependentCommodities_ = isResizeDependentCommodities;
         return this;
     }
 
