@@ -49,6 +49,8 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
@@ -339,13 +341,14 @@ public class StatsService implements IStatsService {
      * with the commodities values filled in
      */
     @Override
-    public List<EntityStatsApiDTO> getStatsByUuidsQuery(StatScopesApiInputDTO inputDto)
+    public EntityStatsPaginationResponse getStatsByUuidsQuery(StatScopesApiInputDTO inputDto,
+                                                  EntityStatsPaginationRequest paginationRequest)
             throws Exception {
 
         // check to see if this is a plan stats request
         Optional<List<EntityStatsApiDTO>> planUuidStats = getPlanUuidStats(inputDto);
         if (planUuidStats.isPresent()) {
-            return planUuidStats.get();
+            return paginationRequest.allResultsResponse(planUuidStats.get());
         }
 
         final Set<Long> expandedUuids;
@@ -368,7 +371,7 @@ public class StatsService implements IStatsService {
             // if not a global scope, then expanded OIDs are expected
             if (UuidMapper.hasLimitedScope(seedUuids) && expandedUuids.isEmpty()) {
                 // empty expanded list; return an empty stats list
-                return Lists.newArrayList();
+                return paginationRequest.allResultsResponse(Collections.emptyList());
             }
 
             // create a map of OID -> empty EntityStatsApiDTO for the Service Entity OIDs given;
@@ -437,7 +440,7 @@ public class StatsService implements IStatsService {
                 }
             }
         }
-        return Lists.newArrayList(entityStatsMap.values());
+        return paginationRequest.allResultsResponse(Lists.newArrayList(entityStatsMap.values()));
     }
 
     /**

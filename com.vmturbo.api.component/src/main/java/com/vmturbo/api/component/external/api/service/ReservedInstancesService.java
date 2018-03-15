@@ -9,6 +9,8 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
 
 public class ReservedInstancesService implements IReservedInstancesService {
@@ -24,7 +26,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
     }
 
     @Override
-    public List<EntityStatsApiDTO> getReservedInstancesStats(@Nonnull StatScopesApiInputDTO inputDto) throws Exception {
+    public EntityStatsPaginationResponse getReservedInstancesStats(
+                           @Nonnull StatScopesApiInputDTO inputDto,
+                           final EntityStatsPaginationRequest paginationRequest) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 }

@@ -55,6 +55,8 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.ActionPaginationRequest;
+import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -230,8 +232,9 @@ public class GroupsService implements IGroupsService {
      * Service Entities in the given group id.
      */
     @Override
-    public List<ActionApiDTO> getActionsByGroupUuid(String uuid,
-                                                    ActionApiInputDTO inputDto) throws Exception {
+    public ActionPaginationResponse getActionsByGroupUuid(String uuid,
+                                      ActionApiInputDTO inputDto,
+                                      ActionPaginationRequest paginationRequest) throws Exception {
         final ActionQueryFilter filter =
                         actionSpecMapper.createActionFilter(inputDto, getMemberIds(uuid));
 
@@ -245,7 +248,8 @@ public class GroupsService implements IGroupsService {
         List<ActionSpec> specs = StreamSupport.stream(actions.spliterator(), false)
             .map(ActionOrchestratorAction::getActionSpec)
             .collect(Collectors.toList());
-        return actionSpecMapper.mapActionSpecsToActionApiDTOs(specs, realtimeTopologyContextId);
+        return paginationRequest.allResultsResponse(
+                actionSpecMapper.mapActionSpecsToActionApiDTOs(specs, realtimeTopologyContextId));
     }
 
     @Override

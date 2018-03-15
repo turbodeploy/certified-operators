@@ -22,10 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
-import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -42,7 +39,6 @@ import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -61,6 +57,10 @@ import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.ActionPaginationRequest;
+import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -88,11 +88,9 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
@@ -100,9 +98,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Service implementation of Markets.
@@ -222,15 +218,18 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public List<ActionApiDTO> getCurrentActionsByMarketUuid(String uuid, EnvironmentType environmentType) throws Exception {
+    public ActionPaginationResponse getCurrentActionsByMarketUuid(String uuid,
+                                      EnvironmentType environmentType,
+                                      ActionPaginationRequest paginationRequest) throws Exception {
         ActionApiInputDTO inputDto = new ActionApiInputDTO();
         inputDto.setEnvironmentType(environmentType);
-        return getActionsByMarketUuid(uuid, inputDto);
+        return getActionsByMarketUuid(uuid, inputDto, paginationRequest);
     }
 
     @Override
-    public List<ActionApiDTO> getActionsByMarketUuid(String uuid,
-                                                     ActionApiInputDTO inputDto) throws Exception {
+    public ActionPaginationResponse getActionsByMarketUuid(String uuid,
+                                       ActionApiInputDTO inputDto,
+                                       ActionPaginationRequest paginationRequest) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         ActionQueryFilter filter =
                 actionSpecMapper.createActionFilter(inputDto, Optional.empty());
@@ -239,11 +238,11 @@ public class MarketsService implements IMarketsService {
                         .setTopologyContextId(apiId.oid())
                         .setFilter(filter)
                         .build());
-        return actionSpecMapper.mapActionSpecsToActionApiDTOs(
+        return paginationRequest.allResultsResponse(actionSpecMapper.mapActionSpecsToActionApiDTOs(
             StreamSupport.stream(result.spliterator(), false)
                 .filter(ActionOrchestratorAction::hasActionSpec)
                 .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList()), apiId.oid());
+                .collect(Collectors.toList()), apiId.oid()));
     }
 
     @Override
@@ -525,8 +524,9 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public List<EntityStatsApiDTO> getStatsByEntitiesInMarketQuery(final String marketUuid,
-                                                                   final StatScopesApiInputDTO statScopesApiInputDTO)
+    public EntityStatsPaginationResponse getStatsByEntitiesInMarketQuery(final String marketUuid,
+                                             final StatScopesApiInputDTO statScopesApiInputDTO,
+                                             final EntityStatsPaginationRequest paginationRequest)
             throws Exception {
         // TODO (roman, Mar 7 2018) OM-32684: The UI will migrate to using this endpoint for per-entity
         // stats in both realtime and plans, so we will need to expand this method to
@@ -569,13 +569,14 @@ public class MarketsService implements IMarketsService {
             entityStatsList.add(entityStatsApiDTO);
         });
 
-        return entityStatsList;
+        return paginationRequest.allResultsResponse(entityStatsList);
     }
 
     @Override
-    public List<EntityStatsApiDTO> getStatsByEntitiesInGroupInMarketQuery(final String marketUuid,
-                                                                          final String groupUuid,
-                                                                          final StatScopesApiInputDTO statScopesApiInputDTO)
+    public EntityStatsPaginationResponse getStatsByEntitiesInGroupInMarketQuery(final String marketUuid,
+                                              final String groupUuid,
+                                              final StatScopesApiInputDTO statScopesApiInputDTO,
+                                              final EntityStatsPaginationRequest paginationRequest)
             throws Exception {
         // If there are explicit entities requested from the group, we can just request those
         // entities directly. If there are no explicit entities, we look up the members
@@ -593,7 +594,7 @@ public class MarketsService implements IMarketsService {
                     .map(id -> Long.toString(id))
                     .collect(Collectors.toList()));
         }
-        return getStatsByEntitiesInMarketQuery(marketUuid, statScopesApiInputDTO);
+        return getStatsByEntitiesInMarketQuery(marketUuid, statScopesApiInputDTO, paginationRequest);
     }
 
     @Override

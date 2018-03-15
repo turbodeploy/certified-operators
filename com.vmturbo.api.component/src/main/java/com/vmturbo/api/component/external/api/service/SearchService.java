@@ -48,6 +48,8 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchService;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -137,28 +139,27 @@ public class SearchService implements ISearchService {
     }
 
     @Override
-    public List<BaseApiDTO> getSearchResults(String query,
-                                                   List<String> types,
-                                                   List<String> scopes,
-                                                   String state,
-                                                   String groupType,
-                                                   EnvironmentType environmentType) throws Exception {
+    public SearchPaginationResponse getSearchResults(String query,
+                                                     List<String> types,
+                                                     List<String> scopes,
+                                                     String state,
+                                                     String groupType,
+                                                     EnvironmentType environmentType,
+                                                     SearchPaginationRequest paginationRequest)
+            throws Exception {
         List<BaseApiDTO> result = null;
-
         // Determine which of many (many) types of searches is requested.
         // NB: this method is heavily overloaded.  The REST endpoint to be redefined
         if (types == null && scopes == null && state == null && groupType == null) {
             // "search all" - gather answer from all possible sources in parallel
-            return searchAll();
-
+            return paginationRequest.allResultsResponse(searchAll());
         } else if (StringUtils.isNotEmpty(groupType)) {
             // if 'groupType' is specified, this MUST be a search over GROUPs
 
             final List<GroupApiDTO> groups = groupsService.getGroups();
-            return groups.stream()
+            return paginationRequest.allResultsResponse(groups.stream()
                 .filter(g -> groupType.equals(g.getGroupType()))
-                .collect(Collectors.toList());
-
+                .collect(Collectors.toList()));
         } else if (types != null) {
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (types.contains(GroupMapper.GROUP)) {
@@ -181,7 +182,7 @@ public class SearchService implements ISearchService {
             }
             // if this one of the specific service queries, return the result.
             if (!CollectionUtils.isEmpty(result)) {
-                return result;
+                return paginationRequest.allResultsResponse(result);
             }
         }
 
@@ -219,7 +220,7 @@ public class SearchService implements ISearchService {
                     .collect(Collectors.toList());
         }
 
-        return result;
+        return paginationRequest.allResultsResponse(result);
     }
 
     private static ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -244,31 +245,35 @@ public class SearchService implements ISearchService {
      * @return a list of DTOs based on the type of the search: ServiceEntityApiDTO or GroupApiDTO
      */
     @Override
-    public List<BaseApiDTO> getMembersBasedOnFilter(GroupApiDTO inputDTO)  {
+    public SearchPaginationResponse getMembersBasedOnFilter(GroupApiDTO inputDTO,
+                                                            SearchPaginationRequest paginationRequest)  {
 
         // the query input is called a GroupApiDTO even though this search can apply to any type
         // what sort of search is this
+        final List<? extends BaseApiDTO> result;
         if (GroupMapper.GROUP.equals(inputDTO.getClassName())) {
             // this is a search for a group
-            return Lists.newArrayList(groupsService.getGroupsByFilter(inputDTO.getCriteriaList()));
+            result = groupsService.getGroupsByFilter(inputDTO.getCriteriaList());
         } else if (CLUSTER.equals(inputDTO.getClassName())) {
             // this is a search for a Cluster
-            return Lists.newArrayList(groupsService.getComputeClusters(inputDTO.getCriteriaList()));
+            result = groupsService.getComputeClusters(inputDTO.getCriteriaList());
         } else if (STORAGE_CLUSTER.equals(inputDTO.getClassName())) {
             // this is a search for a Cluster
-            return Lists.newArrayList(groupsService.getStorageClusters(inputDTO.getCriteriaList()));
+            result = groupsService.getStorageClusters(inputDTO.getCriteriaList());
         } else {
             // this is a search for a ServiceEntity
             // Right now when UI send search requests, it use class name field to store entity type
             // when UI send group service requests, it use groupType fields to store entity type.
-            List<? extends BaseApiDTO> entities = searchEntitiesByParameters(inputDTO);
+            List<ServiceEntityApiDTO> entities = searchEntitiesByParameters(inputDTO);
             // populate the severities for the entities. Currently we're only getting these at the
             // entity level. We'll probably want these at the cluster / group level too but will
             // want to fetch them in a way that is efficient.
-            SeverityPopulator.populate(entitySeverityRpc, realtimeContextId,
-                    (List<ServiceEntityApiDTO>) entities);
-            return (List<BaseApiDTO>) entities;
+            SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
+            result = entities;
         }
+        // Ideally, the API should require a List<? extends BaseApiDTO> response instead of a
+        // List<BaseApiDTO> response, but for now we do this totally safe cast.
+        return paginationRequest.allResultsResponse((List<BaseApiDTO>) result);
     }
 
     /**
@@ -280,7 +285,7 @@ public class SearchService implements ISearchService {
      * @param inputDTO a Description of what search to conduct
      * @return A list of {@link BaseApiDTO} will be sent back to client
      */
-    private List<? extends BaseApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
+    private List<ServiceEntityApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
         List<SearchParameters> searchParameters =
             groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
 

@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getMembersBasedOnFilter;
+import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -111,19 +113,19 @@ public class SearchServiceTest {
     @Test
     public void testGetSearchResults() throws Exception {
 
-        searchService.getSearchResults(null, Lists.newArrayList("Group"), null, null, null, EnvironmentType.ONPREM);
+        getSearchResults(searchService, null, Lists.newArrayList("Group"), null, null, null, EnvironmentType.ONPREM);
         Mockito.verify(groupsService, Mockito.times(1)).getGroups();
 
-        searchService.getSearchResults(null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM);
+        getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM);
         Mockito.verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
 
-        searchService.getSearchResults(null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM);
+        getSearchResults(searchService, null, Lists.newArrayList("Target"), null, null, null, EnvironmentType.ONPREM);
         Mockito.verify(targetsService).getTargets(null);
     }
 
     @Test
     public void testGetSearchGroup() throws Exception {
-        searchService.getSearchResults(null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM);
+        getSearchResults(searchService, null, null, null, null, "SomeGroupType", EnvironmentType.ONPREM);
         Mockito.verify(groupsService).getGroups();
         Mockito.verify(targetsService, Mockito.never()).getTargets(null);
         Mockito.verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
@@ -185,7 +187,7 @@ public class SearchServiceTest {
         when(groupExpander.expandUuids(eq(scopesSet))).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
 
         // Act
-        Collection<BaseApiDTO> results = searchService.getSearchResults(null, types, scopes, null, null, null);
+        Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes, null, null, null);
 
         // Assert
         Mockito.verify(groupsService, Mockito.never()).getGroups();
@@ -225,7 +227,7 @@ public class SearchServiceTest {
     }
 
     @Test
-    public void testGetMembersBasedOnFilterSeverity() {
+    public void testGetMembersBasedOnFilterSeverity() throws Exception {
         GroupApiDTO request = new GroupApiDTO();
 
         when(searchServiceSpy.searchEntities(any())).thenReturn(Arrays.asList(
@@ -237,7 +239,7 @@ public class SearchServiceTest {
                 Arrays.asList(EntitySeverity.newBuilder().setEntityId(3).setSeverity(Severity.MAJOR).build(),
                 EntitySeverity.newBuilder().setEntityId(1).setSeverity(Severity.MINOR).build(),
                 EntitySeverity.newBuilder().setEntityId(2).setSeverity(Severity.CRITICAL).build()));
-        List<BaseApiDTO> results = searchService.getMembersBasedOnFilter(request);
+        List<BaseApiDTO> results = getMembersBasedOnFilter(searchService, request);
         assertEquals(2, results.size());
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
         assertEquals("1", results.get(0).getUuid());

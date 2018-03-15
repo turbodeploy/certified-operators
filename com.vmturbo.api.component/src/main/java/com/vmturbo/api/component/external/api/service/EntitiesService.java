@@ -46,6 +46,8 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.ActionPaginationRequest;
+import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -138,8 +140,9 @@ public class EntitiesService implements IEntitiesService {
      * @throws Exception if there is a communication exception
      */
     @Override
-    public List<ActionApiDTO> getActionsByEntityUuid(String uuid,
-                                                     ActionApiInputDTO inputDto) throws Exception {
+    public ActionPaginationResponse getActionsByEntityUuid(String uuid,
+                                       ActionApiInputDTO inputDto,
+                                       ActionPaginationRequest paginationRequest) throws Exception {
         // The search will be on a long value, not a String
         final long entityId = Long.valueOf(uuid);
 
@@ -156,8 +159,9 @@ public class EntitiesService implements IEntitiesService {
         final Map<Long, ActionSpec> entityRelatedActionInfo = StreamSupport.stream(actions.spliterator(), false)
             .collect(Collectors.toMap(ActionOrchestratorAction::getActionId, ActionOrchestratorAction::getActionSpec));
 
-        return actionSpecMapper.mapActionSpecsToActionApiDTOs(entityRelatedActionInfo.values(),
-                realtimeTopologyContextId);
+        return paginationRequest.allResultsResponse(
+                actionSpecMapper.mapActionSpecsToActionApiDTOs(entityRelatedActionInfo.values(),
+                realtimeTopologyContextId));
     }
 
     @Override

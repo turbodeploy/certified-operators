@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.DATACENTER;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
+import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getStatsByUuidsQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -475,7 +476,7 @@ public class StatsServiceTest {
         when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
 
         // act
-        List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);
+        List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
 
         // Assert
         assertThat(result.size(), equalTo(2));
@@ -510,7 +511,7 @@ public class StatsServiceTest {
         when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
 
         // Act
-        List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);
+        List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
 
         // Assert
         assertThat(result.size(), equalTo(2));
@@ -564,7 +565,7 @@ public class StatsServiceTest {
         when(repositoryClient.getPlanStats(any())).thenReturn(entitStatsToReturn.iterator());
 
         // Act
-        List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);
+        List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
 
         // Assert
         verify(planServiceSpy).getPlan(planIdProto);
@@ -644,7 +645,7 @@ public class StatsServiceTest {
                 UuidMapper.UI_REAL_TIME_MARKET_STR, null, null)).thenReturn(searchResults);
 
         // Act
-        List<EntityStatsApiDTO> result = statsService.getStatsByUuidsQuery(inputDto);
+        List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
 
         // Assert
         // expect stats for two PMs in the search response
@@ -663,7 +664,7 @@ public class StatsServiceTest {
         inputDto.setScopes(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
 
         // Act
-        statsService.getStatsByUuidsQuery(inputDto);
+        getStatsByUuidsQuery(statsService, inputDto);
 
         // Assert
         Assert.fail("Should never get here");
