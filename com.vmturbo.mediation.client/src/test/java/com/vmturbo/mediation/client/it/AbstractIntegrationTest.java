@@ -310,11 +310,10 @@ public abstract class AbstractIntegrationTest {
 
             final String instanceId =
                             testName.getMethodName() + "-" + instanceCounter.getAndIncrement();
-            final String propertyPrefix = "instances." + instanceId + ".properties.";
             environment.setProperty("instance_id", instanceId);
             environment.setProperty("component_type", "sdk-test-" + instanceId);
             environment.setProperty("probe-directory", probeHome.toString());
-            environment.setProperty(propertyPrefix + "serverAddress",
+            environment.setProperty("serverAddress",
                     webSocketServer.getServerURI(SdkServerConfig.REMOTE_MEDIATION_PATH).toString());
             environment.setProperty("instances." + instanceId + ".identityGeneratorPrefix", "0");
             final Thread currentThread = Thread.currentThread();
