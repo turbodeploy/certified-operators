@@ -446,4 +446,12 @@ public abstract class Trader implements Serializable {
     public void setSellersInfoPrinted(boolean printed) {
         this.sellersInfoPrinted = printed;
     }
+
+    /*
+     * Returns the debugInfoNeverUseInCode
+     */
+    @Override
+    public String toString() {
+        return debugInfoNeverUseInCode_;
+    }
 } // end interface Trader

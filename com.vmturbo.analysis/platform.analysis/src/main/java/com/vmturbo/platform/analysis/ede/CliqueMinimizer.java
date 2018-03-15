@@ -4,8 +4,11 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -16,6 +19,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.utilities.M2Utils;
 
 /**
  * A mutable collector class used to find the best k-partite clique to position a number of
@@ -26,6 +30,9 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
  * </p>
  */
 final class CliqueMinimizer {
+
+    private static final Logger logger = LogManager.getLogger();
+
     // Auxiliary Fields
     private final @NonNull UnmodifiableEconomy economy_; // should contain all the shopping lists
                                                         // and cliques passed to #accept.
@@ -125,13 +132,14 @@ final class CliqueMinimizer {
      * @param clique The k-partite clique in which to ask for quotes and update internal state.
      */
     public void accept(long clique) {
-        final @NonNull QuoteSummer summer = entries_.stream()
+        final @NonNull QuoteSummer quoteSummer = entries_.stream()
             .collect(()->new QuoteSummer(economy_,clique), QuoteSummer::accept, QuoteSummer::combine);
 
         // keep the minimum between total quotes
-        if (summer.getTotalQuote() < bestTotalQuote_) {
-            bestTotalQuote_ = summer.getTotalQuote();
-            bestSellers_ = summer.getBestSellers();
+        if (quoteSummer.getTotalQuote() < bestTotalQuote_) {
+            logMessagesForAccept(clique, quoteSummer);
+            bestTotalQuote_ = quoteSummer.getTotalQuote();
+            bestSellers_ = quoteSummer.getBestSellers();
         }
     }
 
@@ -152,4 +160,32 @@ final class CliqueMinimizer {
         }
     }
 
+    /**
+     * Logs messages if the logger's trace mode is enabled or any of the quoteSummer's best
+     * sellers have their debug enabled.
+     *
+     * @param clique The k-partite clique in which to ask for quotes and update internal state.
+     * @param quoteSummer The QuoteSummer used to sum quotes
+     */
+    private void logMessagesForAccept(long clique, QuoteSummer quoteSummer) {
+        if (logger.isTraceEnabled() || quoteSummer.getBestSellers().stream()
+                        .anyMatch(Trader::isDebugEnabled)) {
+            long topologyId = M2Utils.getTopologyId(economy_);
+            logger.debug("topology id = {}, clique = {}, oldBestQuote = {}, newBestQuote = {}",
+                            topologyId, clique, bestTotalQuote_, quoteSummer.getTotalQuote());
+            String oldSellers = "";
+            if (bestSellers_ != null) {
+                oldSellers = bestSellers_.stream().map(Trader::getDebugInfoNeverUseInCode)
+                                .collect(Collectors.joining(", "));
+            }
+            String newSellers = "";
+            if (quoteSummer.getBestSellers() != null) {
+                newSellers = quoteSummer.getBestSellers().stream()
+                                .map(Trader::getDebugInfoNeverUseInCode)
+                                .collect(Collectors.joining(", "));
+            }
+            logger.debug("topology id = {}, oldBestSellers = {}", topologyId, oldSellers);
+            logger.debug("topology id = {}, newBestSellers = {}", topologyId, newSellers);
+        }
+    }
 } // end CliqueMinimizer class

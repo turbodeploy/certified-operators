@@ -13,7 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.xml.sax.SAXException;
 import org.xml.sax.SAXParseException;
 
+import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
+import com.vmturbo.platform.analysis.topology.Topology;
 
 public class M2Utils {
     public static void main(String... args) {
@@ -91,4 +93,14 @@ public class M2Utils {
         return handler.getTopology();
     }
 
+    /**
+     * Gets the topology id from the economy.
+     *
+     * @param economy Economy whose topology id needs to be extracted
+     * @return the topology id if present, otherwise -1
+     */
+    public static long getTopologyId(UnmodifiableEconomy economy) {
+        Topology topology = economy.getTopology();
+        return topology != null ? topology.getTopologyId() : -1;
+    }
 }
