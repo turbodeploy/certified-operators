@@ -25,27 +25,27 @@ public class MediationComponentConfig implements ConnectionConfig {
 
 
     // configuration value to reflect the Validator IP address - TODO: use service discovery instead of configuration
-    @Value("${instances.${instance_id}.properties.serverAddress:ws://topology-processor:8080/remoteMediation}")
+    @Value("${serverAddress:ws://topology-processor:8080/remoteMediation}")
     private String serverAddress;
 
     // ssl connection values - by default, the empty string -> no SSL connection
-    @Value("${instances.${instance_id}.properties.sslKeystorePath:''}")
+    @Value("${sslKeystorePath:''}")
     private String sslKeystorePath;
-    @Value("${instances.${instance_id}.properties.sslKeystorePassword:''}")
+    @Value("${sslKeystorePassword:''}")
     private String sslKeystorePassword;
 
     // configuration value to use for authentication when creating the connection to the Validator
-    @Value("${instances.${instance_id}.properties.userName:vmtRemoteMediation}")
+    @Value("${userName:vmtRemoteMediation}")
     private String userName;
-    @Value("${instances.${instance_id}.properties.userPassword:vmtRemoteMediation}")
+    @Value("${userPassword:vmtRemoteMediation}")
     private String userPassword;
 
     // configuration value to control the number of retries that are handled silently, i.e. not logged.
-    @Value("${instances.${instance_id}.properties.silentRetryTime:0}")
+    @Value("${silentRetryTime:0}")
     private long silentRetryTime;
 
     // configuration value to control the time interval to wait in between websocket connection attempts.
-    @Value("${instances.${instance_id}.properties.connRetryIntervalSeconds:10}")
+    @Value("${connRetryIntervalSeconds:10}")
     private long connRetryInterval;
 
     @Value("${websocket.pong.timeout:30000}")
