@@ -23,18 +23,20 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.CaseFormat;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.CaseFormat;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -58,6 +60,7 @@ import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
@@ -76,6 +79,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.reports.db.StringConstants;
 import com.vmturbo.repository.api.RepositoryClient;
 
 
@@ -106,8 +110,23 @@ public class StatsService implements IStatsService {
 
     private final TargetsService targetsService;
 
-    // "headroomVMs" is a constant specified in a query input used for requesting headroom stats
-    public static final String HEADROOM_VMS = "headroomVMs";
+    // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
+    // this set is mostly copied from com.vmturbo.platform.gateway.util.StatsUtils.headRoomMetrics,
+    // with an extra entry for headroom vm's, which is also a cluster-level stat calculated in the
+    // nightly plans.
+    //
+    // Although the UI requests them, the stats other than 'headroom vms' are not getting tracked
+    // yet in XL. Support for these would be added in OM-33084
+    // TODO: we should share the enum instead of keeping a separate copy.
+    public static final Set<String> CLUSTER_STATS =
+            ImmutableSet.of(StringConstants.CPU_HEADROOM,
+                    StringConstants.MEM_HEADROOM,
+                    StringConstants.STORAGE_HEADROOM,
+                    StringConstants.CPU_EXHAUSTION,
+                    StringConstants.MEM_EXHAUSTION,
+                    StringConstants.STORAGE_EXHAUSTION,
+                    StringConstants.VM_GROWTH,
+                    StringConstants.HEADROOM_VMS);
 
     private static final String STAT_FILTER_PREFIX = "current";
 
@@ -227,7 +246,7 @@ public class StatsService implements IStatsService {
         List<StatApiInputDTO> statsFilters = inputDto.getStatistics();
         List<String> inputQueryFilters = statsFilters == null ? Lists.newArrayList() :
                 inputDto.getStatistics().stream().map(StatApiInputDTO::getName).collect(Collectors.toList());
-        if (isClusterUuid(uuid) && inputQueryFilters.contains(HEADROOM_VMS)) {
+        if (isClusterUuid(uuid) && containsAnyClusterStats(statsFilters)) {
             // uuid belongs to a cluster. Call Stats service to retrieve cluster related stats.
             ClusterStatsRequest clusterStatsRequest = StatsMapper.toClusterStatsRequest(uuid, inputDto);
             Iterator<StatSnapshot> statSnapshotIterator = statsServiceRpc.getClusterStats(clusterStatsRequest);
@@ -343,8 +362,24 @@ public class StatsService implements IStatsService {
      * Return stats for multiple entities by expanding the scopes field
      * of the {@link StatScopesApiInputDTO}.
      *
+     * The input can request stats for entities, groups and/or clusters. The results will vary
+     * depending on what stats are being requested, and whether or not they are cluster-level
+     * stats or not.
+     *
+     * 1) If any "headroom stats" are requested, then this method will return a list of clusters
+     * with their headroom stats. All ids in the request scopes are expected to be cluster ids, and
+     * this method will log a warning if a non-cluster is requested when fetching headroom stats.
+     * 2) If no "headroom stats" are requested, then this method will expand any group/cluster
+     * id's in the scopes list into their member entities, and fetch stats on the entity-level. The
+     * result will contain a combination of all entities in the scope list and all members of any
+     * groups or clusters in the scope list, as well as all the requested (non-headroom) stats for
+     * each entity.
+     *
      * TODO: this conversion does not (yet) handle the "realtimeMarketReference" field of the
      * EntityStatsApiDTO.
+     *
+     * TODO: this method should probably be refactored (or broken into two) so the headroom and
+     * cluster-stats are handled separately, rather than mixed into the same method.
      *
      * @param inputDto contains the query arguments; the 'scopes' property indicates a
      *                 list of items to query - might be Group, Cluster, or ServiceEntity.
@@ -374,6 +409,50 @@ public class StatsService implements IStatsService {
                 entityStatsMap.put(Long.valueOf(serviceEntity.getUuid()), entityStatsApiDTO);
             });
             expandedUuids = entityStatsMap.keySet();
+        } else if (containsAnyClusterStats(inputDto.getPeriod().getStatistics())) {
+            // we are being asked for headroom stats -- we'll retrieve these from getClusterStats()
+            // without expanding the scopes.
+            logger.debug("Request is for headroom stats -- will not expand clusters");
+            // NOTE: if headroom stats are being requested, we expect that all uuids are clusters,
+            // since these stats are only relevant for clusters. If any non-clusters are detected,
+            // a warning will be logged and that entry will not be included in the results.
+
+            Iterator<Group> groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
+                            .addAllId(inputDto.getScopes().stream()
+                                .map(Long::valueOf)
+                                .collect(Collectors.toList()))
+                            .build());
+
+            // request the cluster stats for each group
+            // TODO: We are fetching the cluster stats one-at-a-time here. We should consider
+            // batching the requests for better performance. See OM-33182.
+            List<EntityStatsApiDTO> results = new ArrayList<>();
+            groups.forEachRemaining(group -> {
+                if (group.hasCluster()) {
+                    EntityStatsApiDTO statsDTO = new EntityStatsApiDTO();
+                    String uuid = String.valueOf(group.getId());
+                    statsDTO.setUuid(String.valueOf(uuid));
+                    statsDTO.setClassName(GroupMapper.GROUP);
+                    statsDTO.setDisplayName(group.getCluster().getName());
+                    statsDTO.setStats(new ArrayList<>());
+
+                    // Call Stats service to retrieve cluster related stats.
+                    ClusterStatsRequest clusterStatsRequest = StatsMapper.toClusterStatsRequest(uuid, inputDto.getPeriod());
+                    Iterator<StatSnapshot> statSnapshotIterator = statsServiceRpc.getClusterStats(clusterStatsRequest);
+                    while (statSnapshotIterator.hasNext()) {
+                        statsDTO.getStats().add(StatsMapper.toStatSnapshotApiDTO(statSnapshotIterator.next()));
+                    }
+
+                    results.add(statsDTO);
+                }
+            });
+            // did we get all the groups we expected?
+            if (results.size() != inputDto.getScopes().size()) {
+                logger.warn("Not all headroom stats were retrieved. {} scopes requested, {} stats recieved.",
+                        inputDto.getScopes().size(), results.size());
+            }
+
+            return paginationRequest.allResultsResponse(results);
         } else {
             // Expand scopes list to determine the list of entity OIDs to query for this operation
             final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
@@ -452,6 +531,17 @@ public class StatsService implements IStatsService {
             }
         }
         return paginationRequest.allResultsResponse(Lists.newArrayList(entityStatsMap.values()));
+    }
+
+    /**
+     * Does the input request contain any headroom stats?
+     *
+     * @return true if any of the input stats are headroom stats, false otherwise.
+     */
+    private boolean containsAnyClusterStats(List<StatApiInputDTO> statsRequested) {
+        return statsRequested.stream()
+                .map(StatApiInputDTO::getName)
+                .anyMatch(CLUSTER_STATS::contains);
     }
 
     /**
