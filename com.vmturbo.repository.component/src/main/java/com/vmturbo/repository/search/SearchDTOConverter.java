@@ -125,9 +125,9 @@ public class SearchDTOConverter {
 
                 final long value = propertyFilter.getNumericFilter().getValue();
                 if (propertyName.equals("entityType")) {
+                    // translate the entityType number to a string; make sure matches entire value
                     filter = Filter.stringPropertyFilter(propertyName, Filter.StringOperator.REGEX,
-                        RepoObjectType.mapEntityType(
-                            Math.toIntExact(propertyFilter.getNumericFilter().getValue())));
+                        '^' + RepoObjectType.mapEntityType(Math.toIntExact(value)) + '$');
                 }
                 else {
                     final Filter.NumericOperator numOp;

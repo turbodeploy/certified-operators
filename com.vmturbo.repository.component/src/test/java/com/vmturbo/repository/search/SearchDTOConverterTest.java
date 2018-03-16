@@ -19,6 +19,7 @@ public class SearchDTOConverterTest {
     private static final String CAPACITY = "capacity";
     private static final String ENTITY_TYPE = "entityType";
     private static final String VIRTUAL_MACHINE = "VirtualMachine";
+    private static final int VIRTUAL_MACHINE_NUMERIC = 10;
     private static final String DISPLAY_NAME = "displayName";
     private static final String FOO = "FOO";
 
@@ -26,6 +27,13 @@ public class SearchDTOConverterTest {
             .setPropertyName(ENTITY_TYPE)
             .setStringFilter(Search.PropertyFilter.StringFilter.newBuilder()
                     .setStringPropertyRegex(VIRTUAL_MACHINE)
+                    .build());
+
+    private static Search.PropertyFilter.Builder ENTITY_TYPE_VM_NUMERIC = Search.PropertyFilter.newBuilder()
+            .setPropertyName(ENTITY_TYPE)
+            .setNumericFilter(Search.PropertyFilter.NumericFilter.newBuilder()
+                    .setComparisonOperator(Search.ComparisonOperator.EQ)
+                    .setValue(VIRTUAL_MACHINE_NUMERIC)
                     .build());
 
     private static Search.PropertyFilter.Builder DISPLAY_NAME_FOO = Search.PropertyFilter.newBuilder()
@@ -103,6 +111,23 @@ public class SearchDTOConverterTest {
                         AQLRepr.fromFilters(Filter.numericPropertyFilter(CAPACITY, Filter.NumericOperator.GTE, 2L)),
                         AQLRepr.fromFilters(Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER,
                                 Filter.numericPropertyFilter(CAPACITY, Filter.NumericOperator.GTE, 2L)))
+                );
+    }
+
+    @Test
+    public void testEntityTypeNumeric() throws Throwable {
+        final SearchParameters searchParameters = SearchParameters.newBuilder()
+                .setStartingFilter(ENTITY_TYPE_VM_NUMERIC)
+                .build();
+
+        final List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameters);
+
+        // expect that the regex will be anchored to match the full string
+        assertThat(aqlReprs)
+                .hasSize(1)
+                .containsExactly(
+                        AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE,
+                                Filter.StringOperator.REGEX, '^' + VIRTUAL_MACHINE + '$'))
                 );
     }
 

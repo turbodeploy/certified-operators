@@ -104,7 +104,7 @@ public class SearchService extends SearchServiceImplBase {
     @Override
     public void searchEntities(SearchRequest request,
                                StreamObserver<Search.Entity> responseObserver) {
-        logger.info("Searching for entities with request: {}", request);
+        logger.debug("Searching for entities with request: {}", request);
 
         // Return empty result if current topology doesn't exist.
         if (!lifecycleManager.getRealtimeDatabase().isPresent()) {
