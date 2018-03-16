@@ -4,6 +4,7 @@ import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topolo
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -30,7 +31,9 @@ import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
+import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -47,6 +50,7 @@ import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
@@ -296,6 +300,39 @@ public class StagesTest {
 
         verify(broadcast).append(any());
         verify(broadcast).append(eq(entity.build()));
+    }
+
+    @Test
+    public void testEntityValidationStage() throws Exception {
+        final EntityValidator entityValidator = mock(EntityValidator.class);
+        final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
+        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+        when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
+
+        final EntityValidationStage entityValidationStage = new EntityValidationStage(entityValidator);
+        entityValidationStage.passthrough(graphWithSettings);
+        verify(entityValidator).validateTopologyEntities(any());
+    }
+
+    @Test
+    public void testEntityValidationStageFailure() throws Exception {
+        final EntityValidator entityValidator = mock(EntityValidator.class);
+        final GraphWithSettings graphWithSettings = mock(GraphWithSettings.class);
+        final TopologyGraph topologyGraph = mock(TopologyGraph.class);
+        when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
+        when(topologyGraph.entities()).thenReturn(Stream.empty());
+        doThrow(new EntitiesValidationException(Collections.emptyList()))
+            .when(entityValidator).validateTopologyEntities(any());
+
+        final EntityValidationStage entityValidationStage = new EntityValidationStage(entityValidator);
+        try {
+            entityValidationStage.passthrough(graphWithSettings);
+            fail();
+        } catch (PipelineStageException e) {
+            //expected
+        }
+        verify(entityValidator).validateTopologyEntities(any());
     }
 
     private TopologyGraph createTopologyGraph() {

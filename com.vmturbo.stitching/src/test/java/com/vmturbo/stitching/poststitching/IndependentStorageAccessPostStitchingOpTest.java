@@ -56,32 +56,6 @@ public class IndependentStorageAccessPostStitchingOpTest {
     }
 
     @Test
-    public void testEntityIsIneligible() {
-
-        final TopologyEntity.Builder ineligibleProvider1 =
-            makeTopologyEntityBuilder(EntityType.LOGICAL_POOL.getNumber(), Collections.emptyList(),
-                Collections.emptyList());
-
-        final TopologyEntity te1 = makeTopologyEntity(EntityType.STORAGE.getNumber(),
-            Collections.singletonList(emptyCommodity), Collections.emptyList(),
-            Collections.singletonList(ineligibleProvider1));
-
-        op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
-
-        final TopologyEntity.Builder ineligibleProvider2 =
-            makeTopologyEntityBuilder(EntityType.DISK_ARRAY.getNumber(), Collections.emptyList(),
-                Collections.emptyList());
-
-        final TopologyEntity te2 = makeTopologyEntity(EntityType.STORAGE.getNumber(),
-            Collections.singletonList(emptyCommodity), Collections.emptyList(),
-            Collections.singletonList(ineligibleProvider2));
-
-        op.performOperation(Stream.of(te2), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
-    }
-
-    @Test
     public void testNoCommodities() {
         final TopologyEntity te = makeTopologyEntity(EntityType.STORAGE.getNumber(), Collections.emptyList());
         op.performOperation(Stream.of(te), settingsMock, resultBuilder);

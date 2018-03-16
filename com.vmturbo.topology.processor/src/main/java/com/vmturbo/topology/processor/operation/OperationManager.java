@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,7 +42,6 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
-import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
@@ -652,11 +650,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOList().size());
             }
             operationComplete(discovery, success, response.getErrorDTOList());
-        } catch (EntitiesValidationException validationException) {
-            final ImmutableList.Builder<ErrorDTO> errListBuilder = new ImmutableList.Builder<>();
-            errListBuilder.addAll(validationException.errorDtos());
-            errListBuilder.addAll(response.getErrorDTOList());
-            operationComplete(discovery, false, errListBuilder.build());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |
             IdentityProviderException | RuntimeException e) {
             logger.error("Error processing discovery response: ", e);

@@ -76,10 +76,10 @@ public class PostStitchingOperationLibrary {
             new StorageEntityStorageProvisionedPostStitchingOperation(),
             new LogicalPoolStorageProvisionedPostStitchingOperation(),
             new MemoryAllocationPostStitchingOperation(),
-            new IndependentStorageAccessPostStitchingOperation(),
             new StorageControllerStorageAccessPostStitchingOperation(),
             new DiskArrayStorageAccessPostStitchingOperation(),
             new LogicalPoolStorageAccessPostStitchingOperation(),
+            new IndependentStorageAccessPostStitchingOperation(),
             new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig)
         );
     }

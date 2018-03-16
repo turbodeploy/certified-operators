@@ -72,14 +72,14 @@ public abstract class StorageLatencyPostStitchingOperation implements PostStitch
     /**
      * Determine whether a CommoditySoldDTO.Builder is eligible to be updated by this
      * post-stitching operation, i.e. whether it is of the correct type (StorageLatency) and
-     * whether it already has capacity set.
+     * whether it has capacity unset (which sometimes presents as capacity == 0).
      *
      * @param builder the CommoditySoldDTO.Builder to test
      * @return true if the builder should be updated, and false otherwise
      */
     private boolean isLatencyCommodityWithEmptyCapacity(final CommoditySoldDTO.Builder builder) {
-        return (builder.getCommodityType().getType() ==
-            CommodityType.STORAGE_LATENCY_VALUE) && !builder.hasCapacity();
+        return (builder.getCommodityType().getType() == CommodityType.STORAGE_LATENCY_VALUE) &&
+            (!builder.hasCapacity() || builder.getCapacity() == 0);
     }
 
     /**

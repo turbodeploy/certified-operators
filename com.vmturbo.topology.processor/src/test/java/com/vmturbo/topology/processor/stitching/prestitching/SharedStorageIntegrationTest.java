@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -41,9 +40,7 @@ import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
-import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
@@ -82,10 +79,8 @@ public class SharedStorageIntegrationTest {
     private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
-    private final EntityValidator entityValidator = Mockito.mock(EntityValidator.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
-    private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
-        entityValidator, entityClock);
+    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityClock);
 
     private final Target targetA = Mockito.mock(Target.class);
     private final Target targetB = Mockito.mock(Target.class);
@@ -124,8 +119,6 @@ public class SharedStorageIntegrationTest {
         replaceSharedStorageAndDiskArrayOid(targetAEntities);
         replaceSharedStorageAndDiskArrayOid(targetBEntities);
 
-        Mockito.doReturn(Optional.empty())
-            .when(entityValidator).validateEntityDTO(Mockito.anyLong(), Mockito.any());
         addEntities(targetAEntities, targetAId, System.currentTimeMillis() - 1000L);
         addEntities(targetBEntities, targetBId, System.currentTimeMillis()); // Make targetB more up-to-date so we keep its instance.
 
@@ -189,8 +182,7 @@ public class SharedStorageIntegrationTest {
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
                              final long discoveryTime)
-        throws EntitiesValidationException, IdentityUninitializedException,
-                IdentityMetadataMissingException, IdentityProviderException {
+        throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
             eq(probeId), eq(new ArrayList<>(entities.values()))))

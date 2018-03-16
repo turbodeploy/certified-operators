@@ -31,7 +31,6 @@ public class EntityConfig {
     public EntityStore entityStore() {
         return new EntityStore(targetConfig.targetStore(),
                 identityProviderConfig.identityProvider(),
-                entityValidator(),
                 clockConfig.clock());
     }
 

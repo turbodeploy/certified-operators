@@ -18,7 +18,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -45,9 +44,7 @@ import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
-import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
@@ -79,9 +76,8 @@ public class StitchingIntegrationTest {
     private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
-    private final EntityValidator entityValidator = Mockito.mock(EntityValidator.class);
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
-        entityValidator, Clock.systemUTC());
+        Clock.systemUTC());
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
@@ -101,8 +97,6 @@ public class StitchingIntegrationTest {
         final Map<Long, EntityDTO> hypervisorEntities =
             sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", 1L);
 
-        Mockito.doReturn(Optional.empty())
-            .when(entityValidator).validateEntityDTO(Mockito.anyLong(), Mockito.any());
         addEntities(hypervisorEntities, 2222L);
 
         stitchingOperationStore.setOperationsForProbe(vcProbeId, Collections.emptyList());
@@ -142,8 +136,6 @@ public class StitchingIntegrationTest {
         final Map<Long, EntityDTO> hypervisorEntities =
             sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", storageEntities.size() + 1L);
 
-        Mockito.doReturn(Optional.empty())
-            .when(entityValidator).validateEntityDTO(Mockito.anyLong(), Mockito.any());
         addEntities(storageEntities, netAppTargetId);
         addEntities(hypervisorEntities, 2222L);
 
@@ -196,9 +188,8 @@ public class StitchingIntegrationTest {
                 Collections.emptySet(), StitchingEntity::getProviders);
 
             assertTrue(providerSubtree.stream()
-                .filter(provider -> provider.getEntityType() == EntityType.STORAGE_CONTROLLER)
-                .findAny()
-                .isPresent());
+                .anyMatch(provider -> provider.getEntityType() == EntityType.STORAGE_CONTROLLER)
+            );
         });
     }
 
@@ -213,8 +204,7 @@ public class StitchingIntegrationTest {
     }
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId)
-        throws EntitiesValidationException, IdentityUninitializedException,
-                IdentityMetadataMissingException, IdentityProviderException {
+        throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
             Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))

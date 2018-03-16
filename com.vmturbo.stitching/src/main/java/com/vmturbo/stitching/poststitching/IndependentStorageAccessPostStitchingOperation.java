@@ -1,15 +1,12 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -28,20 +25,24 @@ import com.vmturbo.stitching.TopologyEntity;
 /**
  * Post-stitching operation for the purpose of setting Storage Access commodity capacities for
  * Storage entities, if not set through connections with Logical Pools or Disk Arrays.
+ * The Logical Pool and Disk Array Storage Access post-stitching operations occur before this one,
+ * so all Storage entities with unset Storage Access capacities are eligible.
  *
- * If the entity in question has no Logical Pool or Disk Array providers, a setting for
- * IOPS Capacity, and any Storage Access commodities with capacity unset, then the commodities'
- * capacities are set to the capacity specified by the setting.
+ * If the entity in question has a setting for IOPS Capacity and any Storage Access commodities
+ * with capacity unset, then the commodities' capacities are set to the capacity specified by the
+ * setting.
  */
 public class IndependentStorageAccessPostStitchingOperation implements PostStitchingOperation {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * If the commodity is of type STORAGE_ACCESS and has unset capacity (which sometimes
+     * presents as capacity == 0)
+     */
     private static final Predicate<CommoditySoldDTOOrBuilder> COMMODITY_CAN_UPDATE = commodity ->
         commodity.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE &&
-            !commodity.hasCapacity();
-    private static final Set<Integer> INVALID_TYPES =
-        Sets.newHashSet(EntityType.LOGICAL_POOL_VALUE, EntityType.DISK_ARRAY_VALUE);
+            (!commodity.hasCapacity() || commodity.getCapacity() == 0);
 
     @Nonnull
     @Override
@@ -56,7 +57,7 @@ public class IndependentStorageAccessPostStitchingOperation implements PostStitc
                               @Nonnull final EntitySettingsCollection settingsCollection,
                               @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
-        entities.filter(entity -> entityIsIndependent(entity) && hasCommoditiesToUpdate(entity))
+        entities.filter(this::hasCommoditiesToUpdate)
             .forEach(entity -> {
                 Optional<Setting> iopsCapacitySetting =
                     settingsCollection.getEntitySetting(entity, EntitySettingSpecs.IOPSCapacity);
@@ -101,18 +102,5 @@ public class IndependentStorageAccessPostStitchingOperation implements PostStitc
     private boolean hasCommoditiesToUpdate(@Nonnull final TopologyEntity entity) {
         return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
             .anyMatch(COMMODITY_CAN_UPDATE);
-    }
-
-    /**
-     * Determine whether an entity is eligible for independent update or if its Storage Access
-     * capacity should be set by its providers.
-     *
-     * @param entity the entity to check for eligibility
-     * @return true if the entity is independent or false if the entity has providers that should
-     *         set its Storage Access capacity.
-     */
-    private boolean entityIsIndependent(@Nonnull final TopologyEntity entity) {
-        return entity.getProviders().stream()
-            .noneMatch(provider -> INVALID_TYPES.contains(provider.getEntityType()));
     }
 }

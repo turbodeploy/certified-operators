@@ -100,14 +100,14 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
     }
 
     /**
-     * Determine whether a commodity builder has a capacity and, if it does, whether it should
-     * overwrite the capacity.
+     * Determine whether a commodity builder has a capacity greater than zero and, if it does,
+     * whether it should overwrite the capacity.
      *
      * @param commodity The commodity builder to check
      * @return true if the commodity builder should set a new capacity, and false otherwise
      */
     private boolean canUpdateCapacity(@Nonnull final CommoditySoldDTO.Builder commodity) {
-        return !commodity.hasCapacity() || shouldOverwriteCapacity();
+        return !commodity.hasCapacity() || commodity.getCapacity() == 0 || shouldOverwriteCapacity();
     }
 
     /**

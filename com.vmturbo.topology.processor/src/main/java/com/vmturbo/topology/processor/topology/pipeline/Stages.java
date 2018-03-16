@@ -37,7 +37,9 @@ import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
+import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
@@ -629,6 +631,36 @@ public class Stages {
         @Override
         public void passthrough(final GraphWithSettings input) throws PipelineStageException {
             stitchingManager.postStitch(input);
+        }
+    }
+
+    /**
+     * This stage validates all entities within a graph, and sets any illegal commodity values to
+     * appropriate substitutes.
+     *
+     * This stage should occur after post-stitching; if it happens before, some commodity values
+     * may be erroneously substituted and some necessary post-stitching operations may not occur.
+     */
+    public static class EntityValidationStage extends PassthroughStage<GraphWithSettings> {
+        private final EntityValidator entityValidator;
+
+        public EntityValidationStage(@Nonnull final EntityValidator entityValidator) {
+            this.entityValidator = entityValidator;
+        }
+
+        @Override
+        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
+            try {
+                entityValidator.validateTopologyEntities(input.getTopologyGraph().entities());
+            } catch (EntitiesValidationException e) {
+                throw new PipelineStageException(e);
+            }
+
+        }
+
+        @Override
+        protected boolean required() {
+            return true;
         }
     }
 

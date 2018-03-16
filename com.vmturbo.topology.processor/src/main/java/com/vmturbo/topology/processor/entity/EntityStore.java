@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.entity;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,7 +32,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
-import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
@@ -75,21 +73,14 @@ public class EntityStore {
     private final IdentityProvider identityProvider;
 
     /**
-     * Validator to determine if incoming {@link EntityDTO}s are valid.
-     */
-    private final EntityValidator entityValidator;
-
-    /**
      * The clock used to generate timestamps for when target information is updated.
      */
     private final Clock clock;
 
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
-                       @Nonnull final EntityValidator entityValidator,
                        @Nonnull final Clock clock) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
-        this.entityValidator = Objects.requireNonNull(entityValidator);
         this.clock = Objects.requireNonNull(clock);
         targetStore.addListener(new TargetStoreListener() {
             @Override
@@ -255,72 +246,25 @@ public class EntityStore {
      *                                   persisted.
      */
     @Nonnull
-    private Map<Long, EntityDTO> validateAndAssignIds(
-                final long probeId,
-                final long targetId,
-                @Nonnull final List<EntityDTO> entityDTOList)
-            throws EntitiesValidationException, IdentityUninitializedException,
+    private Map<Long, EntityDTO> assignIdsToEntities(final long probeId, final long targetId,
+              @Nonnull final List<EntityDTO> entityDTOList) throws IdentityUninitializedException,
                     IdentityMetadataMissingException, IdentityProviderException {
         // There may be duplicate entries (though that's a bug in the probes),
         // and we should deal with that without throwing exceptions.
-        final List<EntityValidationFailure> validationFailures = new ArrayList<>();
         final Map<Long, EntityDTO> finalEntitiesById = new HashMap<>();
 
         identityProvider.getIdsForEntities(probeId, entityDTOList).forEach((entityId, entityDto) -> {
 
-            EntityDTO finalEntityDto = entityDto;
-
-            Optional<EntityValidationFailure> error =
-                    entityValidator.validateEntityDTO(entityId, finalEntityDto);
-
-            // Massage the DTO for integration with the market.
-            // TODO (roman, Sept 23, 2016): Consider deleting this block
-            // after all the probe bugs are resolved, and/or the market becomes
-            // more resilient to errors.
-            if (error.isPresent()) {
-                finalEntityDto = EntityDTO.newBuilder(entityDto)
-                    .clearCommoditiesSold()
-                    .addAllCommoditiesSold(entityDto.getCommoditiesSoldList().stream()
-                        .map(commodityDto -> entityValidator.replaceIllegalCommodityValues(
-                                entityDto, commodityDto, true))
-                        .collect(Collectors.toList()))
-                    .clearCommoditiesBought()
-                    .addAllCommoditiesBought(entityDto.getCommoditiesBoughtList().stream()
-                        .map(commodityBought -> CommodityBought.newBuilder(commodityBought)
-                            .clearBought()
-                            .addAllBought(commodityBought.getBoughtList().stream()
-                                .map(commodityDTO -> entityValidator.replaceIllegalCommodityValues(
-                                        entityDto, commodityDTO, false))
-                                .collect(Collectors.toList()))
-                            .build())
-                        .collect(Collectors.toList()))
-                    .build();
-
-                // A post-massage re-validation, since the modifications aren't guaranteed to
-                // get rid of ALL problems with the DTO.
-                error = entityValidator.validateEntityDTO(entityId, finalEntityDto, true);
-            }
-
-            if (error.isPresent()) {
-                logger.error("Errors validating entity {}:\n{}\nFull DTO:\n{}",
-                        entityId, error.get().errorMessage, finalEntityDto);
-                validationFailures.add(error.get());
-            }
-
-            final EntityDTO existingEntry = finalEntitiesById.putIfAbsent(entityId, finalEntityDto);
+            final EntityDTO existingEntry = finalEntitiesById.putIfAbsent(entityId, entityDto);
             if (existingEntry != null) {
                 logger.error("Entity with ID {} and local ID {} appears " +
-                                "more than once in discovered entities for target {}! The descriptions are {}.\n" +
-                                "Entity 1: {}\n Entity 2: {}\n",
-                        entityId, existingEntry.getId(), targetId,
-                        existingEntry.equals(finalEntityDto) ? "equal" : "not equal",
-                        existingEntry, finalEntityDto);
+                        "more than once in discovered entities for target {}! The descriptions are {}.\n" +
+                        "Entity 1: {}\n Entity 2: {}\n",
+                    entityId, existingEntry.getId(), targetId,
+                    existingEntry.equals(entityDto) ? "equal" : "not equal",
+                    existingEntry, entityDto);
             }
         });
-
-        if (!validationFailures.isEmpty()) {
-            throw new EntitiesValidationException(targetId, validationFailures);
-        }
 
         return finalEntitiesById;
     }
@@ -334,19 +278,18 @@ public class EntityStore {
      * @param targetId The target that discovered the entities. Existing entities discovered by this
      *                 target will be purged from the repository.
      * @param entityDTOList The discovered {@link EntityDTO} objects.
-     * @throws EntitiesValidationException If some entities are illegal for the topology.
      * @throws IdentityUninitializedException If the identity service is uninitialized, and we are
      *  unable to assign IDs to discovered entities.
      * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
      *         for which there is no identity metadata.
      */
-    public void entitiesDiscovered(final long probeId,
-                                   final long targetId,
+    public void entitiesDiscovered(final long probeId, final long targetId,
                                    @Nonnull final List<EntityDTO> entityDTOList)
-            throws EntitiesValidationException, IdentityUninitializedException,
-        IdentityMetadataMissingException, IdentityProviderException {
+        throws IdentityUninitializedException, IdentityMetadataMissingException,
+                IdentityProviderException {
 
-        final Map<Long, EntityDTO> entitiesById = validateAndAssignIds(probeId, targetId, entityDTOList);
+        final Map<Long, EntityDTO> entitiesById =
+            assignIdsToEntities(probeId, targetId, entityDTOList);
 
         synchronized (topologyUpdateLock) {
             purgeTarget(targetId,
@@ -404,17 +347,17 @@ public class EntityStore {
             targetEntities.put(targetId, targetIdInfo);
 
             // Fill in the hosted-by relationships.
-            vmToProviderLocalIds.entrySet().forEach(entry -> {
-                entry.getValue().stream()
+            vmToProviderLocalIds.forEach((entityId, localIds) ->
+                localIds.stream()
                     .filter(localId -> localIdToType.get(localId) == EntityType.PHYSICAL_MACHINE)
                     .findFirst()
                     .ifPresent(localId -> {
                         // If this is null then the probe's entity information is invalid,
                         // since the VM is buying commodities from a PM that doesn't exist.
                         long pmId = Objects.requireNonNull(targetIdInfo.getLocalIdToEntityId().get(localId));
-                        Objects.requireNonNull(entityMap.get(entry.getKey())).setHostedBy(targetId, pmId);
-                    });
-            });
+                        Objects.requireNonNull(entityMap.get(entityId)).setHostedBy(targetId, pmId);
+                    })
+            );
         }
     }
 
@@ -523,9 +466,8 @@ public class EntityStore {
                 Optional<Entity> entity = getEntity(entityOid);
                 if (entity.isPresent()) {
                     Optional<PerTargetInfo> perTargetInfo = entity.get().getTargetInfo(targetId);
-                    if (perTargetInfo.isPresent()) {
-                        map.put(entityOid, perTargetInfo.get().getEntityInfo());
-                    }
+                    perTargetInfo.ifPresent(targetInfo ->
+                        map.put(entityOid, targetInfo.getEntityInfo()));
                 }
             }
         }

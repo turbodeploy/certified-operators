@@ -82,8 +82,14 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
         return resultBuilder.build();
     }
 
+    /**
+     * If the commodity is CPU and has unset capacity (which sometimes presents as capacity == 0)
+     *
+     * @param commodity the commodity to check
+     * @return true if the capacity is settable, false otherwise
+     */
     private boolean hasSettableCpuCapacity(@Nonnull final Builder commodity) {
         return commodity.getCommodityType().getType() == CommodityType.CPU_VALUE &&
-            !commodity.hasCapacity();
+            (!commodity.hasCapacity() || commodity.getCapacity() == 0);
     }
 }

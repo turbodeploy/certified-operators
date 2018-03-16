@@ -1,17 +1,23 @@
 package com.vmturbo.topology.processor.entity;
 
 import java.util.Optional;
+import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityValidator.EntityValidationFailure;
 
 /**
@@ -27,204 +33,177 @@ public class EntityValidatorTest {
     private final long entityId = 7;
 
     @Test
-    public void testEmpty() {
-        final Optional<EntityValidationFailure> error = entityValidator.validateEntityDTO(entityId,
-                entityBuilder()
-                    .setId("boo")
-                    .build());
+    public void testNoCommodities() throws Exception {
+        final Optional<EntityValidationFailure> error =
+            entityValidator.validateSingleEntity(entityBuilder());
         Assert.assertFalse(error.isPresent());
     }
 
     @Test
     public void testGoodCommodityBought() {
-        final Optional<EntityValidationFailure> error = entityValidator.validateEntityDTO(entityId,
-                entityBuilder()
-                    .addCommoditiesBought(noErrorCommBought())
-                    .build());
+        final Optional<EntityValidationFailure> error =
+            entityValidator.validateSingleEntity(
+                entityBuilder().addCommoditiesBoughtFromProviders(
+                    boughtFromProvider(goodCommodityBought())));
         Assert.assertFalse(error.isPresent());
     }
 
     @Test
     public void testBadCommodityBought() {
-        final Optional<EntityValidationFailure> error = entityValidator.validateEntityDTO(entityId,
-                entityBuilder()
-                    .addCommoditiesBought(errorCommBought())
-                    .build());
+        final Optional<EntityValidationFailure> error =
+            entityValidator.validateSingleEntity(
+                entityBuilder().addCommoditiesBoughtFromProviders(
+                    boughtFromProvider(badCommodityBought())));
         Assert.assertTrue(error.isPresent());
     }
 
     @Test
     public void testGoodCommoditySold() {
-        final Optional<EntityValidationFailure> error = entityValidator.validateEntityDTO(entityId,
-                seller(noErrorCommodity()));
+        final Optional<EntityValidationFailure> error = entityValidator.validateSingleEntity(
+                entityBuilder().addCommoditySoldList(goodCommoditySold()));
         Assert.assertFalse(error.isPresent());
     }
 
     @Test
     public void testBadCommoditySold() {
-        final Optional<EntityValidationFailure> error = entityValidator.validateEntityDTO(entityId,
-                seller(errorCommodity()));
+        final Optional<EntityValidationFailure> error = entityValidator.validateSingleEntity(
+            entityBuilder().addCommoditySoldList(badCommoditySold()));
         Assert.assertTrue(error.isPresent());
     }
 
     @Test
     public void testBadCommoditySoldAndBought() {
-        final Optional<EntityValidationFailure> error = entityValidator.validateEntityDTO(entityId,
+        final Optional<EntityValidationFailure> error = entityValidator.validateSingleEntity(
                 entityBuilder()
-                    .addCommoditiesSold(errorCommodity())
-                    .addCommoditiesBought(errorCommBought())
-                    .build());
+                    .addCommoditySoldList(badCommoditySold())
+                    .addCommoditiesBoughtFromProviders(boughtFromProvider(badCommodityBought())));
         Assert.assertTrue(error.isPresent());
     }
 
     @Test
     public void testReplaceSoldCapacity() {
-        final CommodityDTO commodity = CommodityDTO.newBuilder()
-            .setCommodityType(CommodityType.CPU)
-            .setCapacity(-1)
-            .build();
-        final EntityDTO ownerEntity = seller(commodity);
-        final CommodityDTO newCommodity =
-                entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
-        Assert.assertTrue(newCommodity.getCapacity() > 0);
+        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+            .addCommoditySoldList(badCommoditySold());
+        entityValidator
+            .replaceIllegalCommodityValues(teBuilder);
+        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getCapacity() > 0);
+        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getUsed() >= 0);
+        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getPeak() >= 0);
     }
 
     @Test
     public void testReplaceSoldZeroCapacity() {
-        final CommodityDTO commodity = CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU)
-                .setCapacity(0.0)
-                .build();
-        final EntityDTO ownerEntity = seller(commodity);
-        final CommodityDTO newCommodity =
-                entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
-        Assert.assertTrue(newCommodity.getCapacity() > 0);
+        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+            .addCommoditySoldList(zeroCapacityCommoditySold());
+        entityValidator
+            .replaceIllegalCommodityValues(teBuilder);
+        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getCapacity() > 0);
     }
 
     @Test
     public void testReplaceSoldUnsetCapacity() {
-        final CommodityDTO commodity = CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU)
-                .build();
-        final EntityDTO ownerEntity = seller(commodity);
-        final CommodityDTO newCommodity =
-                entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
-        Assert.assertTrue(newCommodity.getCapacity() > 0);
-    }
-
-    @Test
-    public void testNotReplaceBoughtCapacity() {
-        final CommodityDTO commodity = CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU)
-                .setCapacity(-1)
-                .build();
-        final EntityDTO ownerEntity = seller(commodity);
-        final CommodityDTO newCommodity =
-                entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, false);
-        Assert.assertEquals(commodity.getCapacity(), newCommodity.getCapacity(), 0.0);
-    }
-
-    @Test
-    public void testReplaceSoldUsed() {
-        final CommodityDTO commodity = CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU)
-                .setUsed(-1)
-                .build();
-        final EntityDTO ownerEntity = seller(commodity);
-        final CommodityDTO newCommodity =
-                entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, true);
-        Assert.assertTrue(newCommodity.getUsed() >= 0);
+        final TopologyEntityDTO.Builder teBuilder =
+            entityBuilder().addCommoditySoldList(noCapacityCommoditySold());
+        entityValidator
+            .replaceIllegalCommodityValues(teBuilder);
+        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getCapacity() > 0);
     }
 
     @Test
     public void testReplaceBoughtUsed() {
-        final CommodityDTO commodity = CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU)
-                .setUsed(-1)
-                .build();
-        final EntityDTO ownerEntity = entityBuilder()
-                .addCommoditiesBought(CommodityBought.newBuilder()
-                    .setProviderId("foo")
-                    .addBought(commodity))
-                .build();
-        final CommodityDTO newCommodity =
-                entityValidator.replaceIllegalCommodityValues(ownerEntity, commodity, false);
-        Assert.assertTrue(newCommodity.getUsed() >= 0);
+        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+            .addCommoditiesBoughtFromProviders(boughtFromProvider(badCommodityBought()));
+        entityValidator
+            .replaceIllegalCommodityValues(teBuilder);
+        Assert.assertTrue(
+            teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed() >= 0);
+        Assert.assertTrue(
+            teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getPeak() >= 0);
     }
 
-    private static final double PROV_CAPACITY = 13.0;
-
-    /**
-     * Verify that when a provisioned commodity exists, a call to
-     * {@link EntityValidator#validateEntityDTO(long, EntityDTO, boolean)}
-     * returns errors when the last argument is false and no errors when it is true.
-     */
     @Test
-    public void testProvisionCommodityErrors() {
-        final EntityDTO ownerEntity = seller(provisionedCommodity());
-        Optional<EntityValidationFailure> errors = entityValidator.validateEntityDTO(1L, ownerEntity, false);
-        Assert.assertFalse(errors.isPresent());
-        errors = entityValidator.validateEntityDTO(1L, ownerEntity, true);
-        Assert.assertFalse(errors.isPresent());
+    public void testEmpty() throws Exception {
+        entityValidator.validateTopologyEntities(Stream.empty());
+        //no exception thrown
     }
 
-    private EntityDTO seller(CommodityDTO commodity) {
-        return entityBuilder()
-                .addCommoditiesSold(commodity)
-                .build();
+    @Test
+    public void testEntitiesWithNoCommodities() throws Exception {
+        entityValidator.validateTopologyEntities(
+            Stream.of(TopologyEntity.newBuilder(entityBuilder()).build()));
+        //no exception thrown
     }
 
-    private EntityDTO.Builder entityBuilder() {
-        return EntityDTO.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE)
-                .setId("boo");
+    @Test
+    public void testEntitiesWithGoodCommodities() throws Exception {
+
+        entityValidator.validateTopologyEntities(Stream.of(TopologyEntity.newBuilder(entityBuilder()
+            .addCommoditiesBoughtFromProviders(boughtFromProvider(goodCommodityBought()))
+            .addCommoditySoldList(goodCommoditySold())).build()));
+        //no exception thrown
     }
 
-    private CommodityBought errorCommBought() {
-        return CommodityBought.newBuilder()
-                .setProviderId("provider")
-                .addBought(errorCommodity())
-                .build();
+    @Test
+    public void testEntitiesWithBadCommodities() throws Exception {
+        final TopologyEntity te = TopologyEntity.newBuilder(entityBuilder()
+            .addCommoditiesBoughtFromProviders(boughtFromProvider(badCommodityBought()))
+            .addCommoditySoldList(badCommoditySold())).build();
+        entityValidator.validateTopologyEntities(Stream.of(te));
+        final Builder result = te.getTopologyEntityDtoBuilder();
+        Assert.assertEquals(0,
+            result.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getPeak(), 0);
+        Assert.assertEquals(0,
+            result.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed(), 0);
+        Assert.assertEquals(0, result.getCommoditySoldList(0).getPeak(), 0);
+        Assert.assertEquals(0, result.getCommoditySoldList(0).getUsed(), 0);
+        Assert.assertTrue(result.getCommoditySoldList(0).getCapacity() > 0);
     }
 
-    private CommodityBought noErrorCommBought() {
-        return CommodityBought.newBuilder()
-                .setProviderId("provider")
-                .addBought(noErrorCommodity())
-                .build();
+    private TopologyEntityDTO.Builder entityBuilder() {
+        return TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setDisplayName("ASDF");
     }
 
-    /**
-     * Returns the worst possible commodity.
-     * If necessary, can augment this method to return a commodity with
-     * the desired number of bad fields.
-     *
-     * @return The bad commodity.
-     */
-    private CommodityDTO errorCommodity() {
-        // Negative numbers for capacity, used, and reservation are illegal.
-        return CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU)
-                .setCapacity(-1)
-                .setUsed(-1)
-                .setReservation(-1)
-                .build();
+    private CommoditiesBoughtFromProvider boughtFromProvider(
+        @Nonnull final CommodityBoughtDTO bought) {
+        return CommoditiesBoughtFromProvider.newBuilder()
+            .setProviderId(123456789)
+            .addCommodityBought(bought)
+            .build();
     }
 
-    private CommodityDTO noErrorCommodity() {
-        return CommodityDTO.newBuilder()
-                .setCommodityType(CommodityType.CPU)
-                .setCapacity(1)
-                .setUsed(0)
-                .setReservation(0)
-                .build();
-
+    private CommodityBoughtDTO goodCommodityBought() {
+        return CommodityBoughtDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(1).setUsed(1).build();
     }
 
-    private CommodityDTO provisionedCommodity() {
-        return CommodityDTO.newBuilder()
-                        .setCommodityType(CommodityType.STORAGE_PROVISIONED)
-                        .setCapacity(PROV_CAPACITY)
-                        .build();
+    private CommodityBoughtDTO badCommodityBought() {
+        return CommodityBoughtDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(-1).setUsed(-1).build();
     }
+
+    private CommoditySoldDTO goodCommoditySold() {
+        return CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(4).setPeak(4).setUsed(4)
+            .build();
+    }
+
+    private CommoditySoldDTO badCommoditySold() {
+        return CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(-4).setPeak(-4)
+            .setUsed(-4).build();
+    }
+
+    private CommoditySoldDTO zeroCapacityCommoditySold() {
+        return CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(0).setPeak(0).setUsed(0)
+            .build();
+    }
+
+    private CommoditySoldDTO noCapacityCommoditySold() {
+        return CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(0).setUsed(0).build();
+    }
+
 }

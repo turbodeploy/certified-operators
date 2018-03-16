@@ -67,15 +67,16 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
 
     /**
      * Get all the commodities that an entity is selling that need updating (commodity is
-     * of type CPU Allocation and has no capacity)
+     * of type CPU Allocation and has no capacity, which sometimes presents as capacity == 0)
      *
      * @param entity the entity to check
      * @return a list of all commodities that need updates (may be empty)
      */
     private List<CommoditySoldDTO.Builder> getFillableCommodities(@Nonnull final TopologyEntity entity) {
         return entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
-            .filter(commodity -> commodity.getCommodityType().getType() ==
-                CommodityType.CPU_ALLOCATION_VALUE && !commodity.hasCapacity())
+            .filter(commodity ->
+                commodity.getCommodityType().getType() == CommodityType.CPU_ALLOCATION_VALUE &&
+                    (!commodity.hasCapacity() || commodity.getCapacity() == 0))
             .collect(Collectors.toList());
     }
 
@@ -126,15 +127,18 @@ public class VirtualDatacenterCpuAllocationPostStitchingOperation implements Pos
     }
 
     /**
-     * Retrieves a CommoditySoldDTO of type CPU Allocation with capacity if the entity has one.
+     * Retrieves a CommoditySoldDTO of type CPU Allocation with capacity greater than zero if the
+     * entity has one.
+     *
      * @param entity The entity to search for the applicable commodity
      * @return An optional of the commodity if the entity has it and empty otherwise
      * @throws IllegalStateException if more than one qualifying commodity is found
      */
     private Optional<CommoditySoldDTO> findProviderCommodity(@Nonnull final TopologyEntity entity) {
         return entity.getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
-            .filter(commodity -> commodity.getCommodityType().getType() ==
-                CommodityType.CPU_ALLOCATION_VALUE && commodity.hasCapacity())
+            .filter(commodity ->
+                commodity.getCommodityType().getType() == CommodityType.CPU_ALLOCATION_VALUE &&
+                    commodity.hasCapacity() && commodity.getCapacity() > 0)
             .reduce((expectedCommodity, unexpectedCommodity) -> {
                 throw new IllegalStateException("Multiple CPU Allocation commodities sold by entity " +
                     entity.getOid());

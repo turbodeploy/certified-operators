@@ -89,9 +89,13 @@ public abstract class StorageAccessPostStitchingOperation implements PostStitchi
     private static final double HYBRID_FACTOR = 1.5;
     private static final double FLASH_AVAILABLE_FACTOR = 1.3;
 
+    /**
+     * If the commodity is of type STORAGE_ACCESS and has unset capacity (which sometimes
+     * presents as capacity == 0)
+     */
     private static final Predicate<CommoditySoldDTOOrBuilder> COMMODITY_CAN_UPDATE = commodity ->
         commodity.getCommodityType().getType() == CommodityType.STORAGE_ACCESS_VALUE &&
-            !commodity.hasCapacity();
+            (!commodity.hasCapacity() || commodity.getCapacity() == 0);
 
     @Nonnull
     @Override
@@ -305,7 +309,8 @@ public abstract class StorageAccessPostStitchingOperation implements PostStitchi
      * cannot be set.
      *
      * A Disk Array entity should propagate its Storage Access capacity to any Storage entities
-     * consuming from it.
+     * consuming from it. This operation must occur before the independent storage access
+     * post-stitching operation.
      */
     public static class DiskArrayStorageAccessPostStitchingOperation extends
                                                             StorageAccessPostStitchingOperation {
@@ -337,7 +342,8 @@ public abstract class StorageAccessPostStitchingOperation implements PostStitchi
      * cannot be set.
      *
      * A Logical Pool entity should propagate its Storage Access capacity to any Storage entities
-     * consuming from it.
+     * consuming from it. This operation must occur before the independent storage access
+     * post-stitching operation.
      */
     public static class LogicalPoolStorageAccessPostStitchingOperation extends
                                                             StorageAccessPostStitchingOperation {

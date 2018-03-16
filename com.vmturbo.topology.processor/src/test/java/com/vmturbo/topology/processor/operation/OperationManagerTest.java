@@ -52,10 +52,10 @@ import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
-import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -255,23 +255,21 @@ public class OperationManagerTest {
     }
 
     /**
-     * Test that discovery fails when entities fail to validate.
+     * Test that discovery fails when entities fail to identify.
      *
      * @throws Exception If anything goes wrong.
      */
     @Test
-    public void testProcessDiscoveryFailureValidation() throws Exception {
+    public void testProcessDiscoveryFailureIdentification() throws Exception {
         final Discovery discovery = operationManager.startDiscovery(targetId);
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity)
                 .build();
 
-        // Force a validation exception on the entitiesDiscovered call.
-        final EntitiesValidationException exception = Mockito.mock(EntitiesValidationException.class);
-        Mockito.when(exception.errorDtos()).thenReturn(Collections.emptyList());
+        // Force an exception on the entitiesDiscovered call.
+        final IdentityUninitializedException exception = Mockito.mock(IdentityUninitializedException.class);
         Mockito.doThrow(exception)
-               .when(entityStore).entitiesDiscovered(
-                   anyLong(), anyLong(), any());
+               .when(entityStore).entitiesDiscovered(anyLong(), anyLong(), any());
 
         operationManager.notifyDiscoveryResult(discovery, result);
         OperationTestUtilities.waitForDiscovery(operationManager, discovery);

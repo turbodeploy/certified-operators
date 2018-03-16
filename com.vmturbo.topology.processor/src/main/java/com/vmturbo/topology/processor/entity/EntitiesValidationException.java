@@ -17,17 +17,9 @@ public class EntitiesValidationException extends Exception {
     private final List<EntityValidationFailure> validationFailures;
 
     public EntitiesValidationException(
-            final long targetId,
             @Nonnull final List<EntityValidationFailure> validationFailures) {
-        super("Encountered errors with " + validationFailures.size() +
-                " entities when discovering target " + targetId);
+        super("Encountered errors with " + validationFailures.size() + " entities:\n" +
+            validationFailures);
         this.validationFailures = Objects.requireNonNull(validationFailures);
-    }
-
-    @Nonnull
-    public List<ErrorDTO> errorDtos() {
-        return validationFailures.stream()
-                .map(EntityValidationFailure::errorDto)
-                .collect(Collectors.toList());
     }
 }

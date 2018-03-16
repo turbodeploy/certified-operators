@@ -126,6 +126,7 @@ public class TopologyConfig {
                 reservationConfig.reservationManager(),
                 discoveredSettingPolicyScanner(),
                 stitchingGroupFixer(),
+                entityConfig.entityValidator(),
                 groupConfig.discoveredClusterConstraintCache());
     }
 

@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -31,6 +32,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.AddDatacenterPref
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.IgnoreConstraintsStage;
@@ -88,6 +90,8 @@ public class TopologyPipelineFactory {
 
     private final DiscoveredClusterConstraintCache discoveredClusterConstraintCache;
 
+    private final EntityValidator entityValidator;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -102,6 +106,7 @@ public class TopologyPipelineFactory {
                                    @Nonnull final ReservationManager reservationManager,
                                    @Nonnull final DiscoveredSettingPolicyScanner discoveredSettingPolicyScanner,
                                    @Nonnull final StitchingGroupFixer stitchingGroupFixer,
+                                   @Nonnull final EntityValidator entityValidator,
                                    @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
@@ -118,6 +123,7 @@ public class TopologyPipelineFactory {
         this.discoveredSettingPolicyScanner = Objects.requireNonNull(discoveredSettingPolicyScanner);
         this.stitchingGroupFixer = Objects.requireNonNull(stitchingGroupFixer);
         this.discoveredClusterConstraintCache = Objects.requireNonNull(discoveredClusterConstraintCache);
+        this.entityValidator = Objects.requireNonNull(entityValidator);
     }
 
     /**
@@ -149,6 +155,7 @@ public class TopologyPipelineFactory {
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
+                .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new BroadcastStage(topoBroadcastManager))
                 .build();
@@ -197,6 +204,7 @@ public class TopologyPipelineFactory {
                 .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
+                .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new BroadcastStage(topoBroadcastManager))
                 .build();
