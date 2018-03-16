@@ -258,11 +258,18 @@ public class PolicyService extends PolicyServiceImplBase {
                 final long id = request.getPolicyId();
                 final Optional<PolicyDTO.InputPolicy> inputPolicyOpt = policyStore.get(id);
                 // If policy has target Id, it should be added to input policy.
-                final Optional<Long> targetId = inputPolicyOpt.map(InputPolicy::getTargetId);
+                final Optional<Long> targetId = inputPolicyOpt.filter(InputPolicy::hasTargetId)
+                        .map(InputPolicy::getTargetId);
+                // For DRS policy, it set commodity type as "DrsSegmentationCommodity" in order to
+                // let UI tell if it is a imported policy, and it needs to keep its original commodity
+                // type when user try to disable/enable imported policies from API.
+                final Optional<String> commodityType = inputPolicyOpt.filter(InputPolicy::hasCommodityType)
+                        .map(InputPolicy::getCommodityType);
                 final PolicyDTO.InputPolicy reqInputPolicy = request.getInputPolicy();
                 final PolicyDTO.InputPolicy.Builder inputPolicyBuilderToStore = PolicyDTO.InputPolicy.newBuilder(reqInputPolicy)
                     .setId(id);
                 targetId.ifPresent(inputPolicyBuilderToStore::setTargetId);
+                commodityType.ifPresent(inputPolicyBuilderToStore::setCommodityType);
                 final PolicyDTO.InputPolicy inputPolicyToStore = inputPolicyBuilderToStore.build();
                 final boolean success = policyStore.save(id, inputPolicyToStore);
 

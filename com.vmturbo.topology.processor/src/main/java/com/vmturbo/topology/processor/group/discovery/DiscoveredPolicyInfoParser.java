@@ -176,7 +176,7 @@ public class DiscoveredPolicyInfoParser {
     private DiscoveredPolicyInfo parsePolicy(@Nonnull CommonDTO.GroupDTO buyers,
                                              @Nonnull CommonDTO.GroupDTO sellers) {
         return parsePolicyInternal(buyers)
-                .setSellersGroupStringId(sellers.getConstraintInfo().getConstraintName())
+                .setSellersGroupStringId(DiscoveredGroupPolicyUtil.extractGroupName(sellers))
                 .build();
     }
 
@@ -204,7 +204,7 @@ public class DiscoveredPolicyInfoParser {
                         : constraintInfo.getConstraintDisplayName();
         return DiscoveredPolicyInfo.newBuilder()
                 .setPolicyName(constraintName)
-                .setBuyersGroupStringId(buyers.getConstraintInfo().getConstraintName())
+                .setBuyersGroupStringId(DiscoveredGroupPolicyUtil.extractGroupName(buyers))
                 .setConstraintType(buyers.getConstraintInfo().getConstraintType().getNumber());
     }
 }

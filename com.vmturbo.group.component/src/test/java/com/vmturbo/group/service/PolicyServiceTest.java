@@ -185,6 +185,45 @@ public class PolicyServiceTest {
     }
 
     @Test
+    public void testEditPolicyWithCommodityType() {
+        final long id = 1234L;
+        final PolicyDTO.InputPolicy oldInputPolicy = PolicyDTO.InputPolicy.newBuilder()
+                .setId(id)
+                .setName("Test Policy")
+                .setCommodityType("DrsSegmentationCommodity")
+                .setEnabled(true)
+                .build();
+        final PolicyDTO.InputPolicy newInputPolicy = PolicyDTO.InputPolicy.newBuilder()
+                .setId(id)
+                .setName("Test Policy")
+                .setEnabled(false)
+                .build();
+        final PolicyDTO.InputPolicy finalInputPolicy = PolicyDTO.InputPolicy.newBuilder()
+                .setId(id)
+                .setName("Test Policy")
+                .setCommodityType("DrsSegmentationCommodity")
+                .setEnabled(false)
+                .build();
+        final PolicyDTO.PolicyEditRequest editRequest = PolicyDTO.PolicyEditRequest.newBuilder()
+                .setPolicyId(id)
+                .setInputPolicy(newInputPolicy)
+                .build();
+
+        final StreamObserver<PolicyDTO.PolicyEditResponse> mockObserver =
+                (StreamObserver<PolicyDTO.PolicyEditResponse>)Mockito.mock(StreamObserver.class);
+
+        given(policyStore.get(id)).willReturn(Optional.of(oldInputPolicy));
+        given(policyStore.save(id, finalInputPolicy)).willReturn(true);
+        policyService.editPolicy(editRequest, mockObserver);
+
+        verify(policyStore, Mockito.times(1)).save(id, finalInputPolicy);
+        verify(policyStore).get(id);
+        verify(mockObserver).onNext(PolicyDTO.PolicyEditResponse.getDefaultInstance());
+        verify(mockObserver).onCompleted();
+        verify(mockObserver, never()).onError(any());
+    }
+
+    @Test
     public void testEditPolicyStoreFailed() {
         final long id = 1234L;
         final PolicyDTO.InputPolicy testInputPolicy = PolicyDTO.InputPolicy.newBuilder()

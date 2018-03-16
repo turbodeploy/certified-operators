@@ -138,13 +138,7 @@ public class PolicyMapper {
                 final PolicyDTO.Policy.MustNotRunTogetherPolicy mustNotRunTogether =
                         policyProto.getMustNotRunTogether();
                 consumerGrouping = groupsByID.get(mustNotRunTogether.getGroupId());
-                // FIXME
-                // right now we are converting an internal MustNotRunTogether policy into a AtMostN
-                // because the api is not supporting it yet.
-                policyApiDTO.setType(PolicyType.AT_MOST_N);
-                // and this is also why we cannot get the capacity from the original policy
-                // so we are setting it here directly
-                policyApiDTO.setCapacity(1);
+                policyApiDTO.setType(PolicyType.MUST_NOT_RUN_TOGETHER);
                 policyApiDTO.setConsumerGroup(groupMapper.toGroupApiDto(consumerGrouping));
                 break;
             default:
@@ -292,6 +286,14 @@ public class PolicyMapper {
     }
 
     @Nonnull
+    private PolicyDTO.Policy.MustNotRunTogetherPolicy mustNotRunTogetherPolicy(
+            @Nonnull PolicyApiDTO policyApiDTO) {
+        return PolicyDTO.Policy.MustNotRunTogetherPolicy.newBuilder()
+                        .setGroupId(consumersId(policyApiDTO))
+                        .build();
+    }
+
+    @Nonnull
     private PolicyDTO.Policy.BindToGroupAndGeoRedundancyPolicy bindToGroupAndGeoRedundancyPolicy(
                     @Nonnull PolicyApiDTO policyApiDTO) {
         return PolicyDTO.Policy.BindToGroupAndGeoRedundancyPolicy.newBuilder()
@@ -428,13 +430,20 @@ public class PolicyMapper {
                     inputPolicyBuilder.setAtMostNbound(atMostNBoundPolicy);
                     break;
                 case MUST_RUN_TOGETHER:
-                    providerId = providersGroupId(policyApiInputDTO);
                     consumerId = consumersGroupId(policyApiInputDTO);
                     final PolicyDTO.InputPolicy.MustRunTogetherPolicy mustRunTogetherPolicy =
                             PolicyDTO.InputPolicy.MustRunTogetherPolicy.newBuilder()
                                     .setGroup(consumerId)
                                     .build();
                     inputPolicyBuilder.setMustRunTogether(mustRunTogetherPolicy);
+                    break;
+                case MUST_NOT_RUN_TOGETHER:
+                    consumerId = consumersGroupId(policyApiInputDTO);
+                    final PolicyDTO.InputPolicy.MustNotRunTogetherPolicy mustNotRunTogetherPolicy =
+                            PolicyDTO.InputPolicy.MustNotRunTogetherPolicy.newBuilder()
+                                    .setGroup(consumerId)
+                                    .build();
+                    inputPolicyBuilder.setMustNotRunTogether(mustNotRunTogetherPolicy);
                     break;
                 case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
                     providerId = providersGroupId(policyApiInputDTO);
