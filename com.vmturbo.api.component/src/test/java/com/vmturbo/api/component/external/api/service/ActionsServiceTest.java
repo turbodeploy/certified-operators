@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,6 +46,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRespo
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
+import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
@@ -60,8 +62,8 @@ public class ActionsServiceTest {
     /**
      * The backend the API forwards calls to (i.e. the part that's in the plan orchestrator).
      */
-    private final TestActionsRpcService actionsServiceBackend =
-            Mockito.spy(new TestActionsRpcService());
+    private final ActionsServiceMole actionsServiceBackend =
+            Mockito.spy(new ActionsServiceMole());
 
     private ActionsService actionsServiceUnderTest;
 
@@ -119,6 +121,7 @@ public class ActionsServiceTest {
     @Test
     public void testExecuteActionThrowException() throws Exception {
         expectedException.expect(UnknownObjectException.class);
+        when(actionsServiceBackend.acceptAction(any())).thenReturn(acceptanceError("Action error"));
         actionsServiceUnderTest.executeAction(UUID, true);
     }
 
@@ -149,10 +152,22 @@ public class ActionsServiceTest {
                 .addOids(2L))
             .build();
 
-        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+        when(actionsServiceBackend.getActionCountsByEntity(any()))
+            .thenReturn(GetActionCountsByEntityResponse.newBuilder()
+                .addActionCountsByEntity(ActionCountsByEntity.newBuilder()
+                    .setEntityId(1L)
+                    .addCountsByType(TypeCount.newBuilder()
+                            .setCount(2)
+                            .setType(ActionType.MOVE))
+                    .addCountsByType(TypeCount.newBuilder()
+                            .setCount(1)
+                            .setType(ActionType.DEACTIVATE)))
+                .build());
+
+        when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(serviceEntityMap);
 
-        Mockito.when(actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.of(entityIds)))
+        when(actionSpecMapper.createActionFilter(actionApiInputDTO, Optional.of(entityIds)))
             .thenReturn(filter);
 
         final List<EntityStatsApiDTO> entityStatsApiDTOS =
@@ -166,47 +181,9 @@ public class ActionsServiceTest {
         final List<StatApiDTO> statApiDTOS = statSnapshotApiDTOS.get(0).getStatistics();
         assertEquals("MOVE", statApiDTOS.get(0).getFilters().get(0).getValue());
         assertEquals(2.0f, statApiDTOS.get(0).getValue(), 0.000000001);
-        assertEquals("DEACTIVATE", statApiDTOS.get(1).getFilters().get(0).getValue());
+        assertEquals("SUSPEND", statApiDTOS.get(1).getFilters().get(0).getValue());
         assertEquals(1.0f, statApiDTOS.get(1).getValue(), 0.000000001);
 
-    }
-
-    /**
-     * This class mocks backend ActionsService RPC calls. An instance is injected into the
-     * {@link ActionsService} under test.
-     * <p>
-     * No method implementations are currently needed, but will be required as we test
-     * methods in ActionsService that make RPC calls.
-     */
-    private class TestActionsRpcService extends ActionsServiceGrpc.ActionsServiceImplBase {
-
-        /**
-         * Mock RPC accept action call return action not exist error
-         */
-        @Override
-        public void acceptAction(SingleActionRequest request,
-                                 StreamObserver<AcceptActionResponse> responseObserver) {
-            responseObserver.onNext(acceptanceError("Action not exist"));
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void getActionCountsByEntity(GetActionCountsByEntityRequest request,
-                                            StreamObserver<GetActionCountsByEntityResponse> responseObserver) {
-            GetActionCountsByEntityResponse.Builder response = GetActionCountsByEntityResponse.newBuilder();
-            ActionCountsByEntity actionCountsByEntity = ActionCountsByEntity.newBuilder()
-                .setEntityId(1L)
-                .addCountsByType(TypeCount.newBuilder()
-                    .setCount(2)
-                    .setType(ActionType.MOVE))
-                .addCountsByType(TypeCount.newBuilder()
-                    .setCount(1)
-                    .setType(ActionType.DEACTIVATE))
-                .build();
-            response.addActionCountsByEntity(actionCountsByEntity);
-            responseObserver.onNext(response.build());
-            responseObserver.onCompleted();
-        }
     }
 
     private static AcceptActionResponse acceptanceError(@Nonnull final String error) {

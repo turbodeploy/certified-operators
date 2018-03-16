@@ -1,11 +1,15 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import org.junit.Assert;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertTrue;
+
+import org.hamcrest.Matchers;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 
 /**
  * Unit tests for the {@link ActionTypeMapper}.
@@ -16,19 +20,29 @@ public class ActionTypeMapperTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     @Test
-    public void testTypeValues() {
-        for (ActionType type : ActionType.values()) {
-            if (type == ActionType.ACTIVATE) {
-                Assert.assertEquals("START", ActionTypeMapper.toApi(type));
-            } else {
-                Assert.assertEquals(type, ActionTypeMapper.fromApi(ActionTypeMapper.toApi(type)));
-            }
+    public void testAllXlTypesHaveMappings() {
+        for (ActionDTO.ActionType type : ActionDTO.ActionType.values()) {
+            assertTrue(ActionTypeMapper.XL_TO_API_APPROXIMATE_TYPE.containsKey(type));
         }
     }
 
     @Test
-    public void testIllegalApiString() {
-        expectedException.expect(IllegalArgumentException.class);
-        ActionTypeMapper.fromApi("Deer have no gall bladders.");
+    public void testTypeValues() {
+        for (ActionDTO.ActionType type : ActionDTO.ActionType.values()) {
+            assertThat(ActionTypeMapper.toApiApproximate(type),
+                    Matchers.is(ActionTypeMapper.XL_TO_API_APPROXIMATE_TYPE.get(type)));
+        }
+    }
+
+    @Test
+    public void testApiUnmatchedType() {
+        assertTrue(ActionTypeMapper.fromApi(ActionType.RESERVE_ON_DA).isEmpty());
+    }
+
+    @Test
+    public void testApiMatchedTypes() {
+        assertThat(ActionTypeMapper.fromApi(ActionType.SUSPEND),
+                Matchers.containsInAnyOrder(ActionDTO.ActionType.SUSPEND,
+                        ActionDTO.ActionType.DEACTIVATE));
     }
 }

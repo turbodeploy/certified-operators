@@ -74,7 +74,7 @@ public class ActionCountsMapper {
                         // also require a redesign of the TypeCount API in the Action Orchestrator.
                         final StatFilterApiDTO typeFilter = new StatFilterApiDTO();
                         typeFilter.setType(ACTION_TYPES_NAME);
-                        typeFilter.setValue(ActionTypeMapper.toApi(typeCount.getType()));
+                        typeFilter.setValue(ActionTypeMapper.toApiApproximate(typeCount.getType()).name());
 
                         statDto.setFilters(Collections.singletonList(typeFilter));
 

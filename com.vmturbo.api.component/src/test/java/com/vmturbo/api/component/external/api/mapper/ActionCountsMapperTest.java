@@ -154,7 +154,7 @@ public class ActionCountsMapperTest {
         Assert.assertEquals(ActionCountsMapper.ACTION_COUNT_STAT_NAME, stat.getName());
         Assert.assertEquals(1, stat.getFilters().size());
         Assert.assertEquals(ActionCountsMapper.ACTION_TYPES_NAME, stat.getFilters().get(0).getType());
-        Assert.assertEquals(ActionTypeMapper.toApi(actionType), stat.getFilters().get(0).getValue());
+        Assert.assertEquals(ActionTypeMapper.toApiApproximate(actionType).name(), stat.getFilters().get(0).getValue());
         Assert.assertEquals(Float.valueOf(val), stat.getValue());
         Assert.assertEquals(Float.valueOf(val), stat.getValues().getAvg());
         Assert.assertEquals(Float.valueOf(val), stat.getValues().getMax());

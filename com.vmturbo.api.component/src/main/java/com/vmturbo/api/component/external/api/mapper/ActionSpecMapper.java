@@ -21,6 +21,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -761,6 +762,12 @@ public class ActionSpecMapper {
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .forEach(queryBuilder::addModes);
+            }
+
+            if (CollectionUtils.isNotEmpty(inputDto.getActionTypeList())) {
+                inputDto.getActionTypeList().stream()
+                        .map(ActionTypeMapper::fromApi)
+                        .forEach(queryBuilder::addAllTypes);
             }
 
             // pass in start and end time

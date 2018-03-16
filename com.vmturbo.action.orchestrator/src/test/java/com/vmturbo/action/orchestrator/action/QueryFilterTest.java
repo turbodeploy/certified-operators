@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 
 /**
@@ -142,6 +143,24 @@ public class QueryFilterTest {
 
         assertFalse(new QueryFilter(Optional.of(succeededFilter))
                 .test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
+    public void testTypeFilterNoMatch() throws Exception {
+        final ActionView actionView =
+                notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
+        assertFalse(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
+                .addTypes(ActionType.PROVISION)
+                .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
+    public void testTypeFilterMatch() throws Exception {
+        final ActionView actionView =
+                notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
+        assertTrue(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
+                .addTypes(ActionType.MOVE)
+                .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
     }
 
     @Test

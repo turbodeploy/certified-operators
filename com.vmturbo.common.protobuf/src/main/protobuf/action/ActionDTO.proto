@@ -552,14 +552,12 @@ message ActionSpec {
 }
 
 // A filter to be supplied with action queries.
+// The conditions in the query filter will be AND-ed together, so only actions
+// that match all of them will be returned.
 message ActionQueryFilter {
     // If true, include only externally visible actions in the response.
     // If false, include only non-externally visible actions.
     // If not present, the field is not used to filter.
-    // Right now the visibility logic is baked into the Action Orchestrator
-    // via this boolean. In the future we may want to offer a more flexible
-    // query interface (e.g. support getting actions that match a particular
-    // set of modes/states/decisions).
     optional bool visible = 1;
 
     // Include only actions in the given states.
@@ -582,6 +580,9 @@ message ActionQueryFilter {
 
     // Include only actions in the given modes.
     repeated ActionMode modes = 6;
+
+    // Include only actions of the given types.
+    repeated ActionType types = 7;
 }
 
 // The number of actions of a specific type that match the criteria in

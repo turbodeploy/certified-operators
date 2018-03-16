@@ -200,6 +200,12 @@ public class QueryFilter {
             return false;
         }
 
+        if (!filter.getTypesList().isEmpty() &&
+                !filter.getTypesList().contains(
+                        ActionDTOUtil.getActionInfoActionType(actionView.getRecommendation()))) {
+            return false;
+        }
+
         // Return false if the action is not related to the specified entities.
         if (filter.hasInvolvedEntities()) {
             Set<Long> involvedEntities;

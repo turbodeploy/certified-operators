@@ -1,38 +1,85 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.Collections;
+import java.util.Objects;
+import java.util.Set;
+
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+
+import com.vmturbo.api.enums.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 
 /**
- * A static utility to map {@link ActionType} enums to action type strings
- * consumable by the UI. We need this level of indirection to insulate
- * the action types we use in XL from the action types used in legacy (which
- * are the action types the UI is built for).
+ * A static utility to map {@link ActionDTO.ActionType} enums to {@link ActionType} enums
+ * returned by the API.
  */
 public class ActionTypeMapper {
+
+    /**
+     * The approximate mappings from {@link ActionDTO.ActionType} to {@link ActionType}.
+     *
+     * They are approximate because there are a bunch of rules that determine which XL action
+     * is interpreted as which API action. If we try to capture all the possibilities here,
+     * API calls (e.g. get action counts) will return counts that are too high.
+     *
+     * For an example of the logic that gets used to get the {@link ActionType} of an action
+     * see {@link ActionSpecMapper}.
+     *
+     * The right solution (long-term) is to move all legacy <-> XL action type conversions into
+     * the action orchestrator.
+     */
+    @VisibleForTesting
+    static final ImmutableMap<ActionDTO.ActionType, ActionType> XL_TO_API_APPROXIMATE_TYPE =
+        ImmutableMap.<ActionDTO.ActionType, ActionType>builder()
+                .put(ActionDTO.ActionType.NONE, ActionType.NONE)
+                .put(ActionDTO.ActionType.START, ActionType.START)
+                .put(ActionDTO.ActionType.MOVE, ActionType.MOVE)
+                .put(ActionDTO.ActionType.SUSPEND, ActionType.SUSPEND)
+                .put(ActionDTO.ActionType.PROVISION, ActionType.PROVISION)
+                .put(ActionDTO.ActionType.RECONFIGURE, ActionType.RECONFIGURE)
+                .put(ActionDTO.ActionType.RESIZE, ActionType.RESIZE)
+                .put(ActionDTO.ActionType.ACTIVATE, ActionType.START)
+                .put(ActionDTO.ActionType.DEACTIVATE, ActionType.SUSPEND)
+                .build();
 
     private ActionTypeMapper() {}
 
     /**
-     * Convert an {@link ActionType} to a string that represents the action type in
-     * the UI and API.
-    * TODO: After UI change to support Activate type, we should change the maps to support one
-     * to one mapping.
-      */
+     * Get the {@link ActionType} that a {@link ActionDTO.ActionType} is associated with.
+     *
+     * This won't be 100% accurate, because the mappings are not directly related, and one
+     * {@link ActionDTO.ActionType} can be interpreted as different {@link ActionType}s depending
+     * on the involved entities. But we need to provide some kind of one-to-one mapping.
+     *
+     * @param actionType The XL action type.
+     * @return The most common/likely API {@link ActionType}.
+     */
     @Nonnull
-    public static String toApi(@Nonnull final ActionType actionType) {
-        return actionType == ActionType.ACTIVATE
-                        ? "START"
-                        : actionType.name();
+    public static ActionType toApiApproximate(@Nonnull final ActionDTO.ActionType actionType) {
+        ActionType apiType = XL_TO_API_APPROXIMATE_TYPE.get(actionType);
+        // API Type shouldn't be null, because we should have entries for every XL type in the map.
+        Objects.requireNonNull(apiType);
+        return apiType;
     }
 
     /**
-     * Convert an action type string provided via the UI or API to its {@link ActionType}
-     * equivalent.
+     * Get the {@link ActionDTO.ActionType}s that a {@link ActionType} may be associated with.
+     *
+     * This won't be 100% accurate, because the mappings are not directly related, and one
+     * {@link ActionDTO.ActionType} can be interpreted as different {@link ActionType}s depending
+     * on the involved entities. But we need to provide some kind of one-to-one mapping.
+     *
+     * @param actionType The API {@link ActionType}.
+     * @return A set of possible {@link ActionDTO.ActionType}s that may be associated with the
+     *         {@link ActionType}.
      */
     @Nonnull
-    public static ActionType fromApi(@Nonnull final String actionType) {
-        return ActionType.valueOf(actionType);
+    public static Set<ActionDTO.ActionType> fromApi(@Nonnull final ActionType actionType) {
+        final Set<ActionDTO.ActionType> matchingTypes =
+                XL_TO_API_APPROXIMATE_TYPE.asMultimap().inverse().get(actionType);
+        return matchingTypes == null ? Collections.emptySet() : matchingTypes;
     }
 }
