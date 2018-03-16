@@ -213,7 +213,7 @@ public class TopologyEntitiesHandler {
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,
                                            @Nonnull final Map<String, Setting> settingsMap) {
 
-        economySettings.setEstimatesEnabled(true);
+        economySettings.setEstimatesEnabled(false);
 
         String rateOfResize = GlobalSettingSpecs.RateOfResize.getSettingName();
         if (settingsMap.containsKey(rateOfResize) &&
