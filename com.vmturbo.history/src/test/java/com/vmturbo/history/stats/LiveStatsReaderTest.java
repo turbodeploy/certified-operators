@@ -31,7 +31,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord
 
 public class LiveStatsReaderTest {
 
-    private static long LATEST_TABLE_TIME_WINDOW_MS = 60000;
+    private static long LATEST_TABLE_TIME_WINDOW_MIN = 15;
     private LiveStatsReader liveStatsReader;
     private List<Long> entities;
     private Timestamp latestFromDb;
@@ -80,7 +80,7 @@ public class LiveStatsReaderTest {
     public void testGetStatsRecordsTimestamps() throws Exception {
         // arrange
         LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0,
-                LATEST_TABLE_TIME_WINDOW_MS);
+                LATEST_TABLE_TIME_WINDOW_MIN);
 
         // act
         List<Record> records = liveStatsReader.getStatsRecords(
@@ -102,7 +102,7 @@ public class LiveStatsReaderTest {
         // arrange
 
         LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0,
-                LATEST_TABLE_TIME_WINDOW_MS);
+                LATEST_TABLE_TIME_WINDOW_MIN);
 
         // act
         List<Record> records = liveStatsReader.getStatsRecordsForType("PhysicalMachine",

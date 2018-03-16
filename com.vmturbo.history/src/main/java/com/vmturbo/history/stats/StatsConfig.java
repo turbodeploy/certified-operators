@@ -32,8 +32,8 @@ public class StatsConfig {
     @Value("${numRetainedDays}")
     private int numRetainedDays;
 
-    @Value("${latestTableTimeWindowMS}")
-    private int latestTableTimeWindowMS;
+    @Value("${latestTableTimeWindowMin}")
+    private int latestTableTimeWindowMin;
 
     @Value("${writeTopologyChunkSize}")
     private int writeTopologyChunkSize;
@@ -72,7 +72,7 @@ public class StatsConfig {
     @Bean
     public LiveStatsReader liveStatsReader() {
         return new LiveStatsReader(historyDbConfig.historyDbIO(), numRetainedMinutes,
-                numRetainedHours, numRetainedDays, latestTableTimeWindowMS);
+                numRetainedHours, numRetainedDays, latestTableTimeWindowMin);
     }
 
     @Bean

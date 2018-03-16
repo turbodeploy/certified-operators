@@ -1,7 +1,6 @@
 package com.vmturbo.history.stats;
 
 import static com.google.common.base.Preconditions.checkArgument;
-//import static com.vmturbo.history.db.jooq.JooqUtils.betweenStartEndCond;
 import static com.vmturbo.history.db.jooq.JooqUtils.dField;
 import static com.vmturbo.history.db.jooq.JooqUtils.floorDateTime;
 import static com.vmturbo.history.db.jooq.JooqUtils.number;
@@ -82,7 +81,6 @@ import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
-import com.vmturbo.history.utils.HistoryStatsUtils;
 
 /**
  * Read from the stats database tables for the "live", i.e. real, discovered topology.
@@ -96,9 +94,8 @@ public class LiveStatsReader {
 
     // Partition the list of entities to read into chunks of this size in order not to flood the DB.
     private static final int ENTITIES_PER_CHUNK = 50000;
-    // time (MS) to specify a window before startTime and after endTime, e.g. (10 min / 2) = 5 min
+    // time (MS) to specify a window before startTime; the config property is latestTableTimeWindowMin
     private final long latestTableTimeWindowMS;
-    private final long latestTableHalfTimeWindowMS;
 
     private final HistorydbIO historydbIO;
 
@@ -111,13 +108,12 @@ public class LiveStatsReader {
 
 
     public LiveStatsReader(HistorydbIO historydbIO, int numRetainedMinutes, int numRetainedHours,
-                           int numRetainedDays, long latestTableTimeWindowMS) {
+                           int numRetainedDays, long latestTableTimeWindowMin) {
         this.historydbIO = historydbIO;
         this.numRetainedMinutes = numRetainedMinutes;
         this.numRetainedHours = numRetainedHours;
         this.numRetainedDays = numRetainedDays;
-        this.latestTableTimeWindowMS = latestTableTimeWindowMS;
-        latestTableHalfTimeWindowMS = latestTableTimeWindowMS / 2;
+        this.latestTableTimeWindowMS = Duration.ofMinutes(latestTableTimeWindowMin).toMillis();
     }
 
     /**
@@ -199,6 +195,10 @@ public class LiveStatsReader {
                 Result<? extends Record> statsRecords = historydbIO.execute(BasedbIO.Style.FORCED,
                         query.get());
                 int answerSize = statsRecords.size();
+                if (logger.isDebugEnabled() && answerSize == 0) {
+                    logger.debug("zero answers returned from: {}, startTime: {}, endTime: {}",
+                            query.get(), startTime, endTime);
+                }
                 answer.addAll(statsRecords);
                 logger.debug("  chunk size {}, statsRecords {}", entityIdChunk.size(), answerSize);
                 entityIndex = entityIndex + ENTITIES_PER_CHUNK;
@@ -310,8 +310,8 @@ public class LiveStatsReader {
             return ImmutableList.of();
         }
         long now = mostRecentTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, now - latestTableHalfTimeWindowMS);
-        endTime = applyTimeDefault(endTime, now + latestTableHalfTimeWindowMS);
+        startTime = applyTimeDefault(startTime, now - latestTableTimeWindowMS);
+        endTime = applyTimeDefault(endTime, now);
 
         logger.debug("getting stats for full market");
 
@@ -585,9 +585,7 @@ public class LiveStatsReader {
 
         // adjust time range for LATEST queries with width less than the time window
         if (tFrame.equals(TimeFrame.LATEST) && startTime == endTime) {
-//        if (tFrame.equals(TimeFrame.LATEST) && (endTime - startTime) < latestTableTimeWindowMS) {
-            startTime = startTime - latestTableHalfTimeWindowMS;
-            endTime = endTime + latestTableHalfTimeWindowMS;
+            startTime = startTime - latestTableTimeWindowMS;
         }
 
         // add where clause for time range; null if the timeframe cannot be determined
