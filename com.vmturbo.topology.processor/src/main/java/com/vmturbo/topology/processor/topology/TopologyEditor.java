@@ -46,6 +46,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
@@ -83,6 +84,8 @@ public class TopologyEditor {
      * @param topology The entities in the topology, arranged by ID.
      * @param changes The list of changes to make. Some of these changes may not be topology-related.
      *                We ignore those.
+     * @param topologyInfo Information describing the topology and its context.
+     * @param groupResolver The resolver to use when resolving group membership.
      */
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
                              @Nonnull final List<ScenarioChange> changes,

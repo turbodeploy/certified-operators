@@ -43,6 +43,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
@@ -345,20 +346,21 @@ public class Stages {
 
         private final TopologyEditor topologyEditor;
         private final List<ScenarioChange> changes;
-        private final GroupResolver groupResolver;
 
         public TopologyEditStage(@Nonnull final TopologyEditor topologyEditor,
-                                 @Nonnull final List<ScenarioChange> scenarioChanges,
-                                 @Nonnull final GroupResolver groupResolver) {
+                                 @Nonnull final List<ScenarioChange> scenarioChanges) {
             this.topologyEditor = Objects.requireNonNull(topologyEditor);
             this.changes = Objects.requireNonNull(scenarioChanges);
-            this.groupResolver = Objects.requireNonNull(groupResolver);
         }
 
         @Override
         public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
-            topologyEditor.editTopology(input, changes,
-                getContext().getTopologyInfo(), groupResolver);
+            // Topology editing should use a group resolver distinct from the rest of the pipeline.
+            // This is so that pre-edit group membership lookups don't get cached in the "main"
+            // group resolver, preventing post-edit group membership lookups from seeing members
+            // added or removed during editing.
+            final GroupResolver groupResolver = new GroupResolver(new TopologyFilterFactory());
+            topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
         }
 
         @Override

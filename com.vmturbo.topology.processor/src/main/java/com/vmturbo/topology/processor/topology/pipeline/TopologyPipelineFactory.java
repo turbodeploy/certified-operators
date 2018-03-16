@@ -176,10 +176,8 @@ public class TopologyPipelineFactory {
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {
-        final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
-        final GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(groupResolver, topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(topologyFilterFactory), topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager))
                 // TODO: We should fixup stitched groups but cannot because doing so would
@@ -189,7 +187,7 @@ public class TopologyPipelineFactory {
                 // TODO: Move the ToplogyEditStage after the GraphCreationStage
                 // That way the editstage can work on the graph instead of a
                 // separate structure.
-                .addStage(new TopologyEditStage(topologyEditor, changes, groupResolver))
+                .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(),
@@ -218,13 +216,11 @@ public class TopologyPipelineFactory {
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {
-        final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
-        final GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(groupResolver, topologyInfo);
+                new TopologyPipelineContext(new GroupResolver(topologyFilterFactory), topologyInfo);
         return TopologyPipeline.<Long, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new TopologyAcquisitionStage(repositoryClient))
-                .addStage(new TopologyEditStage(topologyEditor, changes, groupResolver))
+                .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
                 // TODO (roman, Nov 2017): We need to do policy and setting application for

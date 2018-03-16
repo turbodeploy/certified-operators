@@ -229,6 +229,15 @@ public class TopologyEntity {
             providers.add(provider.associatedTopologyEntity);
         }
 
+        /**
+         * Clear the consumer and provider lists. Call only if rebuilding a new graph
+         * because this will invalidate any prior graphs in which this entity was a participant.
+         */
+        public void clearConsumersAndProviders() {
+            consumers.clear();
+            providers.clear();
+        }
+
         public long getOid() {
             return associatedTopologyEntity.getOid();
         }

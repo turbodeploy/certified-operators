@@ -167,13 +167,12 @@ public class StagesTest {
                 .build();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
-        GroupResolver groupResolver = mock(GroupResolver.class);
         final TopologyEditStage stage =
-            new TopologyEditStage(topologyEditor, changes, groupResolver);
+            new TopologyEditStage(topologyEditor, changes);
         stage.setContext(context);
         stage.execute(Collections.emptyMap());
         verify(topologyEditor).editTopology(eq(Collections.emptyMap()),
-                eq(Collections.emptyList()), any(), eq(groupResolver));
+                eq(Collections.emptyList()), any(), any(GroupResolver.class));
     }
 
     @Test

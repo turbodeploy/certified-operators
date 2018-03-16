@@ -353,6 +353,19 @@ public class TopologyGraphTest {
             is(empty()));
     }
 
+    @Test
+    public void testBuildTwiceFromSameMap() {
+        TopologyGraph.newGraph(topologyMap);
+        final TopologyGraph graph2 = TopologyGraph.newGraph(topologyMap);
+
+        // Building a graph twice should not result in consumers and providers being added
+        // multiple times to the same entity.
+        graph2.entities().forEach(entity -> {
+            assertEquals(entity.getConsumers().stream().distinct().count(), entity.getConsumers().size());
+            assertEquals(entity.getProviders().stream().distinct().count(), entity.getProviders().size());
+        });
+    }
+
     private int producerCount(@Nonnull final TopologyGraph graph) {
         return graph.entities().mapToInt(
             entity -> graph.getProviders(entity)

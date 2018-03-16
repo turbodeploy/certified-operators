@@ -54,4 +54,26 @@ public class TopologyEntityTest {
             containsInAnyOrder(111L, 333L, 444L));
         assertEquals(222L, entity.getDiscoveryOrigin().get().getLastUpdatedTime());
     }
+
+    @Test
+    public void testClearConsumersAndProviders() {
+        final TopologyEntity.Builder consumer = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
+            Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(111L)
+                .withMergeFromTargetIds(333L, 444L)
+                .lastUpdatedAt(222L))));
+        final TopologyEntity.Builder provider = TopologyEntity.newBuilder(dtoBuilder.setOrigin(
+            Origin.newBuilder().setDiscoveryOrigin(DiscoveryOriginBuilder.discoveredBy(222L)
+                .lastUpdatedAt(456))));
+
+        consumer.addProvider(provider);
+        provider.addConsumer(consumer);
+        assertEquals(1, consumer.build().getProviders().size());
+        assertEquals(1, provider.build().getConsumers().size());
+
+        consumer.clearConsumersAndProviders();
+        provider.clearConsumersAndProviders();
+
+        assertEquals(0, consumer.build().getProviders().size());
+        assertEquals(0, provider.build().getConsumers().size());
+    }
 }

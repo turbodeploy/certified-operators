@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 
 /**
  * A graph built from the topology.
@@ -217,9 +218,15 @@ public class TopologyGraph {
          * Build a new {@link TopologyGraph} from this builder.
          * Builders should not be re-used more than once.
          *
+         * Note that an entity is unable to participate in multiple graphs simultaneously.
+         *
          * @return A {@link TopologyGraph} built from this builder.
          */
         public TopologyGraph build() {
+            // Clear any previously established consumers and providers because these relationships
+            // will be set up from scratch while constructing the graph.
+            topologyBuilderMap.values().forEach(TopologyEntity.Builder::clearConsumersAndProviders);
+
             topologyBuilderMap.forEach((oid, entity) -> {
                 if (oid != entity.getOid()) {
                     throw new IllegalArgumentException("Map key " + entity +
