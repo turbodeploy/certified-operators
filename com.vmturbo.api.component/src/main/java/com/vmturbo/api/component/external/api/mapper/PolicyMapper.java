@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -123,6 +124,7 @@ public class PolicyMapper {
                         break;
                 }
                 policyApiDTO.setMergeGroups(mergeGroupings.stream()
+                        .filter(Objects::nonNull)
                         .map(groupMapper::toGroupApiDto)
                         .collect(Collectors.toList()));
                 break;
