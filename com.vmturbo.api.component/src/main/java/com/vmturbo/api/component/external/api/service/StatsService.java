@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -234,23 +235,33 @@ public class StatsService implements IStatsService {
                 stats.add(StatsMapper.toStatSnapshotApiDTO(statSnapshotIterator.next()));
             }
         } else {
+            final boolean fullMarketRequest = UuidMapper.isRealtimeMarket(uuid);
             final Optional<Group> groupOptional = groupExpander.getGroup(uuid);
+
             // determine the list of entity OIDs to query for this operation
-            Set<Long> expandedOidsList = (groupOptional.isPresent()
-                    || uuid.equals(UuidMapper.UI_REAL_TIME_MARKET_STR))
-                            ? groupExpander.expandUuid(uuid)
-                            : Sets.newHashSet(Long.valueOf(uuid));
-            // if empty expansion and not "Market", must be an empty group; quick return
-            if (expandedOidsList.isEmpty() && !UuidMapper.isRealtimeMarket(uuid)) {
-                return Collections.emptyList();
+            final Set<Long> entityStatOids;
+            if (fullMarketRequest) {
+                // An empty set means a request for the full market.
+                entityStatOids = Collections.emptySet();
+            } else {
+                final Set<Long> expandedOidsList = groupOptional.isPresent() ?
+                        groupExpander.expandUuid(uuid) : Sets.newHashSet(Long.valueOf(uuid));
+                // expand any ServiceEntities that should be replaced by related ServiceEntities,
+                // e.g. DataCenter is replaced by the PhysicalMachines in the DataCenter
+                entityStatOids = expandGroupingServiceEntities(expandedOidsList);
+
+                // if empty expansion and not "Market", must be an empty group/expandable entity
+                // quick return.
+                // If we don't return here, we'll end up requesting stats for the full market!
+                if (entityStatOids.isEmpty()) {
+                    return Collections.emptyList();
+                }
             }
-            // expand any ServiceEntities that should be replaced by related ServiceEntities,
-            // e.g. DataCenter is replaced by the PhysicalMachines in the DataCenter
-            Set<Long> entityStatsOids = expandGroupingServiceEntities(expandedOidsList);
+
             if (inputDto.getEndDate() != null
                     && DateTimeUtil.parseTime(inputDto.getEndDate()) > clockTimeNow) {
                 ProjectedStatsResponse response =
-                        statsServiceRpc.getProjectedStats(StatsMapper.toProjectedStatsRequest(entityStatsOids,
+                        statsServiceRpc.getProjectedStats(StatsMapper.toProjectedStatsRequest(entityStatOids,
                                 inputDto));
                 // create a StatSnapshotApiDTO from the ProjectedStatsResponse
                 final StatSnapshotApiDTO projectedStatSnapshot = toStatSnapshotApiDTO(
@@ -279,7 +290,7 @@ public class StatsService implements IStatsService {
                     statsFilters.addAll(currentStatFilters);
                 }
                 final Optional<Integer> tempGroupEntityType = getGlobalTempGroupEntityType(groupOptional);
-                final EntityStatsRequest request = StatsMapper.toEntityStatsRequest(entityStatsOids,
+                final EntityStatsRequest request = StatsMapper.toEntityStatsRequest(entityStatOids,
                         inputDto, tempGroupEntityType);
                 final Iterable<StatSnapshot> statsIterator = () ->
                         statsServiceRpc.getAveragedEntityStats(request);
@@ -594,6 +605,12 @@ public class StatsService implements IStatsService {
      * "constituent" ServiceEntity OIDs as computed by the supply chain.
      */
     private Set<Long> expandGroupingServiceEntities(Set<Long> entityOidsToExpand) {
+        // Early return if the input is empty, to prevent making
+        // the initial RPC call.
+        if (entityOidsToExpand.isEmpty()) {
+            return Collections.emptySet();
+        }
+
         final Set<Long> expandedEntityOids = Sets.newHashSet();
         // get all service entities which need to expand.
         final Set<ServiceEntityApiDTO> expandServiceEntities = ENTITY_TYPES_TO_EXPAND.keySet().stream()
@@ -610,19 +627,20 @@ public class StatsService implements IStatsService {
                 // if expandServiceEntityMap contains oid, it means current oid entity needs to expand.
                 if (expandServiceEntityMap.containsKey(oidToExpand)) {
                     final ServiceEntityApiDTO expandEntity = expandServiceEntityMap.get(oidToExpand);
+                    final String relatedEntityType =
+                            ENTITY_TYPES_TO_EXPAND.get(expandEntity.getClassName());
                     // fetch the supply chain map:  entity type -> SupplyChainNode
                     Map<String, SupplyChainNode> supplyChainMap = supplyChainFetcherFactory
                             .newNodeFetcher()
-                            .entityTypes(Collections.singletonList(expandEntity.getClassName()))
+                            .entityTypes(Collections.singletonList(relatedEntityType))
                             .addSeedUuid(expandEntity.getUuid())
                             .fetch();
-                    SupplyChainNode relatedEntities = supplyChainMap.get(
-                            ENTITY_TYPES_TO_EXPAND.get(expandEntity.getClassName()));
+                    SupplyChainNode relatedEntities = supplyChainMap.get(relatedEntityType);
                     if (relatedEntities != null) {
                         expandedEntityOids.addAll(relatedEntities.getMemberOidsList());
                     } else {
                         logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
-                                "the entity is discarded", expandEntity.getClassName(), expandEntity.getUuid());
+                                "the entity is discarded", relatedEntityType, expandEntity.getUuid());
                     }
                 } else {
                     expandedEntityOids.add(oidToExpand);

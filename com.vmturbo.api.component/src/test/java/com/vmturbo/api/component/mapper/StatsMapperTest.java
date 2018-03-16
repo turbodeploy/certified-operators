@@ -14,9 +14,11 @@ import org.junit.Test;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.reports.db.RelationType;
@@ -73,6 +75,22 @@ public class StatsMapperTest {
 
         // Act
         StatsMapper.toStatSnapshotApiDTO(testSnapshot);
+    }
+
+    @Test
+    public void toStatApiDTOStatKeyFilter() throws Exception {
+        final String statKey = "foo";
+        StatSnapshot snapshot = StatSnapshot.newBuilder()
+            .addStatRecords(StatSnapshot.StatRecord.newBuilder()
+            .setStatKey(statKey))
+            .build();
+
+        final StatSnapshotApiDTO dto = StatsMapper.toStatSnapshotApiDTO(snapshot);
+        assertThat(dto.getStatistics().size(), is(1));
+        assertThat(dto.getStatistics().get(0).getFilters().size(), is(1));
+        StatFilterApiDTO filter = dto.getStatistics().get(0).getFilters().get(0);
+        assertThat(filter.getType(), is(StatsMapper.FILTER_NAME_KEY));
+        assertThat(filter.getValue(), is(statKey));
     }
 
     private void verifyMappedStatRecord(StatRecord test,

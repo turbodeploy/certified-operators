@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyObject;
@@ -15,6 +16,7 @@ import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -24,13 +26,12 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import javax.annotation.Nonnull;
 
 import org.assertj.core.util.Lists;
 import org.junit.Assert;
@@ -46,9 +47,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -71,16 +71,16 @@ import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.SupplyChain;
-import com.vmturbo.common.protobuf.stats.Stats;
-import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -96,7 +96,7 @@ public class StatsServiceTest {
 
     private UuidMapper uuidMapper = Mockito.mock(UuidMapper.class);
 
-    private TestStatsHistoryService testStatsHistoryService = spy(new TestStatsHistoryService());
+    private StatsHistoryServiceMole statsHistoryServiceSpy = spy(new StatsHistoryServiceMole());
 
     private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
 
@@ -151,7 +151,7 @@ public class StatsServiceTest {
                                     "VMPMAccessCommodity");
 
     @Rule
-    public GrpcTestServer testServer = GrpcTestServer.newServer(testStatsHistoryService,
+    public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy,
             groupServiceSpy, planServiceSpy);
 
     @Before
@@ -189,6 +189,13 @@ public class StatsServiceTest {
                 .thenReturn(ImmutableMap.of(1L, Optional.of(se1)));
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+        when(statsHistoryServiceSpy.getAveragedEntityStats(EntityStatsRequest.newBuilder()
+                .addEntities(Long.parseLong(oid1))
+                .setFilter(StatsFilter.getDefaultInstance())
+                .build()))
+            .thenReturn(Collections.singletonList(StatSnapshot.newBuilder().addAllStatRecords(
+                records(commodityList1))
+                .build()));
 
         List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
 
@@ -212,12 +219,13 @@ public class StatsServiceTest {
     @Test
     public void testGetStatsForFullMarket() throws Exception {
         StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
-        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid(), apiId2.oid());
-        when(repositoryApi.getServiceEntitiesById(Mockito.any()))
-                .thenReturn(ImmutableMap.of(1L, Optional.of(se1), 2L, Optional.of(se2)));
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
-        when(groupExpander.expandUuid(UuidMapper.UI_REAL_TIME_MARKET_STR))
-                .thenReturn(expandedOidList);
+        when(statsHistoryServiceSpy.getAveragedEntityStats(EntityStatsRequest.newBuilder()
+                .addAllEntities(Collections.emptySet()).setFilter(StatsFilter.getDefaultInstance()).build()))
+                .thenReturn(Collections.singletonList(StatSnapshot.newBuilder().addAllStatRecords(
+                        records(commodityList1))
+                        .build()));
+
 
         List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(
                 UuidMapper.UI_REAL_TIME_MARKET_STR, inputDto);
@@ -252,7 +260,7 @@ public class StatsServiceTest {
         ArgumentCaptor<EntityStatsRequest> requestCaptor =
                 ArgumentCaptor.forClass(EntityStatsRequest.class);
 
-        verify(testStatsHistoryService).getAveragedEntityStats(requestCaptor.capture(), any());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(requestCaptor.capture(), any());
         assertEquals(apiId1.oid(), requestCaptor.getValue().getEntitiesList().size());
         assertEquals(apiId2.oid(), (long)requestCaptor.getValue().getEntitiesList().get(0));
     }
@@ -281,7 +289,7 @@ public class StatsServiceTest {
         // assert
         ArgumentCaptor<EntityStatsRequest> requestCaptor =
                 ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(testStatsHistoryService).getAveragedEntityStats(requestCaptor.capture(), any());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(requestCaptor.capture(), any());
         assertThat(requestCaptor.getValue().getEntitiesList(), containsInAnyOrder(7L, 8L));
     }
 
@@ -328,7 +336,7 @@ public class StatsServiceTest {
         // assert
         ArgumentCaptor<EntityStatsRequest> requestCaptor =
                 ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(testStatsHistoryService).getAveragedEntityStats(requestCaptor.capture(), any());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(requestCaptor.capture(), any());
         System.out.println(requestCaptor.getValue().getEntitiesList());
         assertThat(requestCaptor.getValue().getEntitiesList(), containsInAnyOrder(101L, 102L));
     }
@@ -387,7 +395,7 @@ public class StatsServiceTest {
         // assert
         ArgumentCaptor<EntityStatsRequest> requestCaptor =
                 ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(testStatsHistoryService).getAveragedEntityStats(requestCaptor.capture(), any());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(requestCaptor.capture(), any());
         System.out.println(requestCaptor.getValue().getEntitiesList());
         assertThat(requestCaptor.getValue().getEntitiesList(), containsInAnyOrder(101L, 102L, 103L, 104L));
     }
@@ -410,14 +418,14 @@ public class StatsServiceTest {
         // assert
         ArgumentCaptor<EntityStatsRequest> entityRequestCaptor =
                 ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(testStatsHistoryService).getAveragedEntityStats(entityRequestCaptor.capture(),
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(entityRequestCaptor.capture(),
                 anyObject());
         assertThat(entityRequestCaptor.getAllValues().size(), equalTo(1));
         EntityStatsRequest entityStatsRequest = entityRequestCaptor.getAllValues().iterator().next();
         assertThat(entityStatsRequest.getEntitiesList().size(), equalTo(1));
         assertThat(entityStatsRequest.getEntitiesList().iterator().next(), equalTo(1L));
 
-        verify(testStatsHistoryService, times(0)).getProjectedStats(anyObject(), anyObject());
+        verify(statsHistoryServiceSpy, times(0)).getProjectedStats(anyObject(), anyObject());
     }
 
     public StatPeriodApiInputDTO buildStatPeriodApiInputDTO(long currentDate, String startDate, String endDate, String statName) {
@@ -450,13 +458,13 @@ public class StatsServiceTest {
         statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // assert
-        verify(testStatsHistoryService, times(0)).getAveragedEntityStats(anyObject(),
+        verify(statsHistoryServiceSpy, times(0)).getAveragedEntityStats(anyObject(),
                 anyObject());
 
         ArgumentCaptor<ProjectedStatsRequest> entityRequestCaptor =
                 ArgumentCaptor.forClass(ProjectedStatsRequest.class);
 
-        verify(testStatsHistoryService, times(1)).getProjectedStats(entityRequestCaptor.capture(),
+        verify(statsHistoryServiceSpy, times(1)).getProjectedStats(entityRequestCaptor.capture(),
                 anyObject());
     }
 
@@ -482,14 +490,14 @@ public class StatsServiceTest {
         assertThat(result.size(), equalTo(2));
         ArgumentCaptor<EntityStatsRequest> entityRequestCaptor =
                 ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(testStatsHistoryService, times(1)).getEntityStats(entityRequestCaptor.capture(),
+        verify(statsHistoryServiceSpy, times(1)).getEntityStats(entityRequestCaptor.capture(),
                 anyObject());
         EntityStatsRequest entityStatsRequest = entityRequestCaptor.getValue();
         assertThat(entityStatsRequest.getEntitiesList().size(), equalTo(2));
         assertThat(entityStatsRequest.getEntitiesList(), contains(1L, 2L));
 
 
-        verify(testStatsHistoryService, times(0)).getProjectedStats(anyObject(),
+        verify(statsHistoryServiceSpy, times(0)).getProjectedStats(anyObject(),
                 anyObject());
 
     }
@@ -517,15 +525,64 @@ public class StatsServiceTest {
         assertThat(result.size(), equalTo(2));
         ArgumentCaptor<ProjectedStatsRequest> entityRequestCaptor =
                 ArgumentCaptor.forClass(ProjectedStatsRequest.class);
-        verify(testStatsHistoryService, times(1)).getProjectedEntityStats(entityRequestCaptor.capture(),
+        verify(statsHistoryServiceSpy, times(1)).getProjectedEntityStats(entityRequestCaptor.capture(),
                 anyObject());
         ProjectedStatsRequest projectedStatsRequest = entityRequestCaptor.getValue();
         assertThat(projectedStatsRequest.getEntitiesList().size(), equalTo(2));
         assertThat(projectedStatsRequest.getEntitiesList(), contains(1L, 2L));
 
-        verify(testStatsHistoryService, times(0)).getEntityStats(anyObject(),
+        verify(statsHistoryServiceSpy, times(0)).getEntityStats(anyObject(),
                 anyObject());
 
+    }
+
+    @Test
+    public void testStatsByQueryEmptyGroupEarlyReturn() throws Exception {
+        final String groupId = "1";
+        when(groupExpander.getGroup(eq(groupId))).thenReturn(Optional.of(Group.getDefaultInstance()));
+        when(groupExpander.expandUuid(groupId)).thenReturn(Collections.emptySet());
+        final List<StatSnapshotApiDTO> dto =
+                statsService.getStatsByEntityQuery("1", new StatPeriodApiInputDTO());
+        assertTrue(dto.isEmpty());
+        // Shouldn't have called any RPCs, because there should be an early return
+        // if there are no entities to look for (since group is empty)
+        verify(supplyChainFetcherFactory, never()).newNodeFetcher();
+        verify(repositoryApi, never()).getSearchResults(any(), any(), any(), any(), any());
+        verify(statsHistoryServiceSpy, never()).getAveragedEntityStats(any());
+    }
+
+    @Test
+    public void testStatsByQueryEmptySupplyChainEarlyReturn() throws Exception {
+        final String dcId = "1";
+        final ServiceEntityApiDTO dcDto = new ServiceEntityApiDTO();
+        dcDto.setClassName(UIEntityType.DATACENTER.getValue());
+        dcDto.setUuid(dcId);
+        when(groupExpander.getGroup(eq(dcId))).thenReturn(Optional.empty());
+        // Query for entities of type DC return the dcDto
+        when(repositoryApi.getSearchResults(null,
+                Collections.singletonList(UIEntityType.DATACENTER.getValue()),
+                UuidMapper.UI_REAL_TIME_MARKET_STR, null, null))
+                .thenReturn(Collections.singletonList(dcDto));
+
+        final SupplyChainNodeFetcherBuilder fetcherBuilder = Mockito.mock(SupplyChainNodeFetcherBuilder.class);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.entityTypes(anyList())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.addSeedUuid(anyString())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.fetch())
+                .thenReturn(ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.getValue(),
+                        // Empty node!
+                        SupplyChainNode.getDefaultInstance()));
+
+        final List<StatSnapshotApiDTO> dto =
+                statsService.getStatsByEntityQuery("1", new StatPeriodApiInputDTO());
+        assertTrue(dto.isEmpty());
+        // Expect to have had a supply chain lookup for PMs related to the DC.
+        verify(fetcherBuilder).entityTypes(Collections.singletonList(UIEntityType.PHYSICAL_MACHINE.getValue()));
+        verify(fetcherBuilder).addSeedUuid(dcId);
+
+        // Shouldn't have called history service, because there should be an early return
+        // if there are no entities to look for.
+        verify(statsHistoryServiceSpy, never()).getAveragedEntityStats(any());
     }
 
     @Test
@@ -669,79 +726,6 @@ public class StatsServiceTest {
         // Assert
         Assert.fail("Should never get here");
 
-    }
-
-    private class TestStatsHistoryService extends StatsHistoryServiceGrpc.StatsHistoryServiceImplBase {
-
-        @Override
-        public void getClusterStats(ClusterStatsRequest request,
-                                    StreamObserver<StatSnapshot> responseObserver) {
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void getAveragedEntityStats(EntityStatsRequest request,
-                                   StreamObserver<StatSnapshot> responseObserver) {
-            if (request.getEntitiesList() == null || request.getEntitiesList().isEmpty()) {
-                responseObserver.onCompleted();
-                return;
-            }
-
-            final long entityOid = request.getEntitiesList().get(0);
-
-            if (Long.parseLong(oid1) == entityOid) {
-                // nextStepRoi and ApplicationCommodity will be filtered out.
-                final StatSnapshot stat = StatSnapshot.newBuilder().addAllStatRecords(
-                          records(commodityList1))
-                          .build();
-
-                responseObserver.onNext(stat);
-            } else if (Long.parseLong(oid2) == entityOid) {
-                // All records will be filtered out.
-                final StatSnapshot stat = StatSnapshot.newBuilder().addAllStatRecords(
-                          records(commodityList2))
-                          .build();
-
-                responseObserver.onNext(stat);
-            }
-
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void getEntityStats(@Nonnull Stats.EntityStatsRequest request,
-                                   @Nonnull StreamObserver<EntityStats> responseObserver) {
-            request.getEntitiesList().forEach(entityOid -> {
-
-                EntityStats statsForEntity = EntityStats.newBuilder()
-                        .setOid(entityOid)
-                        .build();
-                responseObserver.onNext(statsForEntity);
-            });
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void getProjectedStats(ProjectedStatsRequest request,
-                                      StreamObserver<ProjectedStatsResponse> responseObserver) {
-            ProjectedStatsResponse response = ProjectedStatsResponse.newBuilder()
-                    .build();
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-        }
-
-        @Override
-        public void getProjectedEntityStats(@Nonnull ProjectedStatsRequest request,
-                                            @Nonnull StreamObserver<EntityStats> responseObserver) {
-            request.getEntitiesList().forEach(entityOid ->
-                responseObserver.onNext(EntityStats.newBuilder()
-                        .setOid(entityOid)
-                        .addStatSnapshots(StatSnapshot.newBuilder()
-                                .build())
-                        .build())
-            );
-            responseObserver.onCompleted();
-        }
     }
 
     private List<StatRecord> records(final List<String> recordlist) {

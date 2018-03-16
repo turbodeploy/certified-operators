@@ -54,6 +54,7 @@ public class StatsMapper {
 
     public static final String STAT_RECORD_PREFIX_CURRENT = "current";
     public static final String FILTER_NAME_RESULTS_TYPE = "resultsType";
+    public static final String FILTER_NAME_KEY = "key";
     public static final String FILTER_TYPE_BEFORE_PLAN = "beforePlan";
 
     private static final ImmutableMap<String, Optional<String>> dbToUiStatTypes = ImmutableMap.of(
@@ -151,6 +152,14 @@ public class StatsMapper {
             resultsTypeFilter.setValue(FILTER_TYPE_BEFORE_PLAN);
             filters.add(resultsTypeFilter);
         }
+
+        if (statRecord.hasStatKey()) {
+            StatFilterApiDTO keyFilter = new StatFilterApiDTO();
+            keyFilter.setType(FILTER_NAME_KEY);
+            keyFilter.setValue(statRecord.getStatKey());
+            filters.add(keyFilter);
+        }
+
         if (filters.size() > 0) {
             statApiDTO.setFilters(filters);
         }
