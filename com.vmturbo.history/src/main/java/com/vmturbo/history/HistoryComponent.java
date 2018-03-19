@@ -56,6 +56,14 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
+        // perform the flyway migration to apply any database updates; errors -> failed spring init
+        try {
+            new HistoryDbMigration(historyDbConfig.historyDbIO())
+                    .migrate();
+        } catch (VmtDbException e) {
+            throw new RuntimeException("DB Initialization / Migration error", e);
+        }
+
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(
                 new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,historyDbConfig.historyDbIO()::connection));
@@ -74,25 +82,6 @@ public class HistoryComponent extends BaseVmtComponent {
     @Override
     public String getComponentName() {
         return componentName;
-    }
-
-    /**
-     * Begin execution of the History Component.
-     *
-     * The main task is to perform database migration. If that task fails, the component is transitioned to
-     * the FAILED state.
-     */
-    @Override
-    public void onStartComponent() {
-        try {
-            new HistoryDbMigration(historyDbConfig.historyDbIO())
-                    .migrate();
-        } catch (VmtDbException e) {
-            log.error("DB Initialization error", e);
-            failedComponent();
-            return;
-        }
-        super.onStartComponent();
     }
 
     @Override

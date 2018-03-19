@@ -1258,7 +1258,7 @@ public abstract class BasedbIO {
      */
     @VisibleForTesting
     public void init(boolean clearOldDb, Double version, String dbName,
-                     String... additionallLocations) throws VmtDbException {
+                     String... additionalLocations) throws VmtDbException {
         // Attempt to retrieve root connection:
         Connection rootConn = null;
         try {
@@ -1269,7 +1269,8 @@ public abstract class BasedbIO {
             logger.error("=  Unable to retrieve connection! Make sure MySQL is  =");
             logger.error("=  running and the root password is 'vmturbo'!        =");
             logger.error("=======================================================", sqle);
-            return;
+            throw new VmtDbException(VmtDbException.CONN_POOL_STARTUP,
+                    "Cannot retrieve root db connection", sqle);
         }
 
         // if desired, remove the previous database
@@ -1314,7 +1315,7 @@ public abstract class BasedbIO {
 
         // Initialize the tables at the latest schema:
         logger.info("Initialize tables...\n");
-        SchemaUtil.initDb(version, clearOldDb, additionallLocations);
+        SchemaUtil.initDb(version, clearOldDb, additionalLocations);
     }
 
     /**

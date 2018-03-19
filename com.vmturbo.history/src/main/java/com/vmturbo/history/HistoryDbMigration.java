@@ -27,7 +27,7 @@ public class HistoryDbMigration {
     /**
      * Perform the DB initialization and migration, if required.
      *
-     * @throws VmtDbException
+     * @throws VmtDbException if there is an error initializing the VmtDB database
      */
     public void migrate() throws VmtDbException {
         log.info("Starting DB migration");
