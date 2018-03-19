@@ -199,8 +199,8 @@ public class PlanRpcService extends PlanServiceImplBase {
             // update the previous scenario to reflect the given scenario
             planDao.updatePlanScenario(planSpec.getPlanId(),
                     planSpec.getScenarioId());
-            // Reset the planInstance to a "new" state, using the previous projectedTopologyId as the
-            // new topologyId
+            // Reset the planInstance to a "READY" state, using the previous projectedTopologyId as the
+            // new topologyId, so it can be queued and executed in runPlan method.
             PlanInstance updatedPlanInstance = planDao.updatePlanInstance(planSpec.getPlanId(),
                     planInstanceBuilder -> {
                         planInstanceBuilder
@@ -208,7 +208,7 @@ public class PlanRpcService extends PlanServiceImplBase {
                                 .setProjectedTopologyId(0)
                                 .setActionPlanId(0)
                                 .clearStatsAvailable()
-                                .setStatus(PlanStatus.QUEUED)
+                                .setStatus(PlanStatus.READY)
                                 .setStartTime(System.currentTimeMillis())
                                 .setEndTime(0);
                     });
