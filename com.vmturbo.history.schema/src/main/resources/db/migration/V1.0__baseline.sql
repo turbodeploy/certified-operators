@@ -12540,7 +12540,7 @@ where a.aggregated=0');
   a.property_type,
   a.property_subtype,
   avg(a.value) as value,
-  sum(a.value) as samples
+  count(a.value) as samples
   from cluster_stats_by_day a left join cluster_stats_by_month b
   on date_format(last_day(a.recorded_on),"%Y-%m-01")<=>b.recorded_on
   and a.internal_name<=>b.internal_name
@@ -13762,6 +13762,9 @@ CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `rotate_partition`(IN stats_table CHA
     # name of the partition that we are iterating through
     # partitions name follow this pattern: beforeYYYYMMDDHHmmSS
     DECLARE part_name CHAR(22);
+    DECLARE num_seconds INT;
+    DECLARE num_seconds_for_future  INT;
+    DECLARE retention_type CHAR(20);
 
     # cursor for iterating over existing partitions
     # the select will return only the numeric part, removing the 'before' string
@@ -13776,39 +13779,40 @@ CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `rotate_partition`(IN stats_table CHA
     set @start_of_partitioning=now();
 
     # check which table we need to rotate, and set variables for it
-    set @num_seconds = NULL;
-    set @num_seconds_for_future = NULL;
-    set @retention_type := (select substring_index(stats_table, '_', -1));
-    CASE @retention_type
+    set retention_type = substring_index(stats_table, '_', -1);
+    CASE retention_type
       WHEN 'latest' then
-      set @num_seconds := (select retention_period from retention_policies where policy_name='retention_latest_hours')*60*60;
-      # set future to 2 hours
-      set @num_seconds_for_future := 2*60*60;
+        select retention_period into num_seconds from retention_policies where policy_name='retention_latest_hours';
+        set num_seconds = num_seconds *60*60;
+        # set future to 2 hours
+        set num_seconds_for_future = 2*60*60;
 
       WHEN 'hour' THEN
-      set @num_seconds := (select retention_period from retention_policies where policy_name='retention_hours')*60*60;
-      # set future to 8 hours
-      set @num_seconds_for_future := 8*60*60;
+        select retention_period into num_seconds from retention_policies where policy_name='retention_hours';
+        set num_seconds = num_seconds *60*60;
+        # set future to 8 hours
+        set num_seconds_for_future = 8*60*60;
 
-      when 'day' then
-      set @num_seconds := (select retention_period from retention_policies where policy_name='retention_days')*24*60*60;
-      # set future to 3 days
-      set @num_seconds_for_future := 3*24*60*60;
+      WHEN 'day' THEN
+        select retention_period into num_seconds from retention_policies where policy_name='retention_days';
+        set num_seconds = num_seconds *24*60*60;
+        # set future to 3 days
+        set num_seconds_for_future = 3*24*60*60;
 
-      when 'month' then
-      set @num_seconds := (select retention_period from retention_policies where policy_name='retention_months')*31*24*60*60;
-      # set future to 3 days
-      set @num_seconds_for_future := 3*24*60*60;
+      WHEN 'month' THEN
+        select retention_period into num_seconds from retention_policies where policy_name='retention_months';
+        set num_seconds = num_seconds * 31*24*60*60;
+        # set future to 3 days
+        set num_seconds_for_future = 3*24*60*60;
     END CASE;
 
 
-
     #calculate what should be the last partition from the past
-    set @last_part := (select date_sub(current_timestamp, INTERVAL @num_seconds SECOND));
+    set @last_part := date_sub(current_timestamp, INTERVAL num_seconds SECOND);
     set @last_part_compact := YEAR(@last_part)*10000000000 + MONTH(@last_part)*100000000 + DAY(@last_part)*1000000 + hour(@last_part)*10000 + minute(@last_part)*100 + second(@last_part);
 
     # create future partitions for next X hours/days
-    set @future_part := (select date_add(current_timestamp, INTERVAL @num_seconds_for_future SECOND));
+    set @future_part := date_add(current_timestamp, INTERVAL num_seconds_for_future SECOND);
     set @future_part_compact := YEAR(@future_part)*10000000000 + MONTH(@future_part)*100000000 + DAY(@future_part)*1000000 + hour(@future_part)*10000 + minute(@future_part)*100 + second(@future_part);
 
     # var to store the maximum partition date existing right now
@@ -13849,7 +13853,7 @@ CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `rotate_partition`(IN stats_table CHA
     set @sql_statement = concat('alter table ', stats_table, ' REORGANIZE PARTITION future into (');
 
     # add the delta once
-    set @add_part := (select date_add(@max_part, INTERVAL @delta SECOND));
+    set @add_part := date_add(@max_part, INTERVAL @delta SECOND);
     set @add_part_compact := YEAR(@add_part)*10000000000 + MONTH(@add_part)*100000000 + DAY(@add_part)*1000000 + hour(@add_part)*10000 + minute(@add_part)*100 + second(@add_part);
 
     # continue adding the delta until we reach the future date
@@ -13859,7 +13863,7 @@ CREATE DEFINER=`vmtplatform`@`%` PROCEDURE `rotate_partition`(IN stats_table CHA
       set @sql_statement = concat(@sql_statement, 'partition before', @add_part_compact, ' VALUES LESS THAN (to_seconds(\'', @add_part, '\')), ');
 
       # increase the date by another delta
-      set @add_part := (select date_add(@add_part, INTERVAL @delta SECOND));
+      set @add_part := date_add(@add_part, INTERVAL @delta SECOND);
       set @add_part_compact := YEAR(@add_part)*10000000000 + MONTH(@add_part)*100000000 + DAY(@add_part)*1000000 + hour(@add_part)*10000 + minute(@add_part)*100 + second(@add_part);
 
     END WHILE;
