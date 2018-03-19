@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -17,6 +18,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecField;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
@@ -48,28 +50,48 @@ public class TemplatesMapper {
                                                   Map<String, TemplateSpec> templateSpecMap)
                                                   throws NoMatchingTemplateSpecException {
         Objects.requireNonNull(profile);
-        Optional<TemplateSpec> templateSpec = Optional.ofNullable(templateSpecMap.get(profile.getEntityType().name()));
-        if (!templateSpec.isPresent()) {
+        Optional<TemplateSpec> templateSpecOpt = Optional.ofNullable(templateSpecMap.get(profile.getEntityType().name()));
+        if (!templateSpecOpt.isPresent()) {
             throw new NoMatchingTemplateSpecException("Not find template spec for entity type " + profile.getEntityType());
         }
+        final TemplateSpec templateSpec = templateSpecOpt.get();
+        final Map<String, Float> defaultTemplateSpecFieldMap = getDefaultTemplateSpecFieldMap(templateSpec);
         return TemplateInfo.newBuilder()
             .setName(profile.getDisplayName())
             .setEntityType(profile.getEntityType().getNumber())
             .setModel(profile.getModel())
             .setVendor(profile.getVendor())
             .setDescription(profile.getDescription())
-            .setTemplateSpecId(templateSpec.get().getId())
+            .setTemplateSpecId(templateSpec.getId())
             .setProbeTemplateId(profile.getId())
-            .addAllResources(createTemplateResource(profile))
+            .addAllResources(createTemplateResource(profile, defaultTemplateSpecFieldMap))
             .build();
     }
 
     /**
-     * Convert probe discovered templates to {@link TemplateResource}
-     * @param profile EntityProfileDTO object contains discovered templates.
-     * @return list of TemplateResource
+     * Find all template spec fields which have defined default value in template spec. Return a map
+     * which contains a mapping from template spec field name to default value.
+     *
+     * @param templateSpec a {@link TemplateSpec}.
+     * @return a Map which key is template spec field name, value is default value.
      */
-    private static List<TemplateResource> createTemplateResource(@Nonnull EntityProfileDTO profile) {
+    private static Map<String, Float> getDefaultTemplateSpecFieldMap(@Nonnull final TemplateSpec templateSpec) {
+        return templateSpec.getResourcesList().stream()
+                .flatMap(templateSpecResource -> templateSpecResource.getFieldsList().stream())
+                .filter(TemplateSpecField::hasDefaultValue)
+                .collect(Collectors.toMap(TemplateSpecField::getName, TemplateSpecField::getDefaultValue));
+    }
+
+    /**
+     * Convert probe discovered templates to {@link TemplateResource}
+     *
+     * @param profile EntityProfileDTO object contains discovered templates.
+     * @param defaultTemplateSpecFieldMap a Map key is field name, value is default value.
+     * @return list of TemplateResource.
+     */
+    private static List<TemplateResource> createTemplateResource(
+            @Nonnull EntityProfileDTO profile,
+            @Nonnull final Map<String, Float> defaultTemplateSpecFieldMap) {
 
         List<TemplateResource> templateResources = new ArrayList<>();
         // Handle storage template which is not belong to one of EntityTypeSpecificData
@@ -85,11 +107,11 @@ public class TemplatesMapper {
             case VMPROFILEDTO:
                 TemplateResource vmTemplateComputeResource = TemplateResource.newBuilder()
                     .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Compute))
-                    .addAllFields(createVMTemplateComputeFields(profile))
+                    .addAllFields(createVMTemplateComputeFields(profile, defaultTemplateSpecFieldMap))
                     .build();
                 TemplateResource vmTemplateStorageResource = TemplateResource.newBuilder()
                     .setCategory(ResourcesCategory.newBuilder().setName(ResourcesCategoryName.Storage))
-                    .addAllFields(createVMTemplateStorageFields(profile))
+                    .addAllFields(createVMTemplateStorageFields(profile, defaultTemplateSpecFieldMap))
                     .build();
                 templateResources.add(vmTemplateComputeResource);
                 templateResources.add(vmTemplateStorageResource);
@@ -119,9 +141,12 @@ public class TemplatesMapper {
      * Convert for VM template compute category fields.
      *
      * @param profile  EntityProfileDTO object contains discovered templates.
+     * @param defaultTemplateSpecFieldMap a Map key is field name, value is default value.
      * @return list of TemplateFields
      */
-    private static List<TemplateField> createVMTemplateComputeFields(EntityProfileDTO profile) {
+    private static List<TemplateField> createVMTemplateComputeFields(
+            @Nonnull EntityProfileDTO profile,
+            @Nonnull final Map<String, Float> defaultTemplateSpecFieldMap) {
         final VMProfileDTO vmProfileDTO = profile.getVmProfileDTO();
         List<TemplateField> templateFields = new ArrayList<>();
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_NUM_OF_VCPU,
@@ -131,28 +156,32 @@ public class TemplatesMapper {
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_CPU_CONSUMED_FACTOR,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.CPU)
-                .map(CommodityProfileDTO::getConsumedFactor)
-                .orElse(0.0f))));
+                    .filter(CommodityProfileDTO::hasConsumedFactor)
+                    .map(CommodityProfileDTO::getConsumedFactor)
+                    .orElse(getDefaultValue(defaultTemplateSpecFieldMap,
+                            DiscoveredTemplatesConstantFields.VM_COMPUTE_CPU_CONSUMED_FACTOR)))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_MEM_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.VMEM)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_MEM_CONSUMED_FACTOR,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.MEM)
-                .map(CommodityProfileDTO::getConsumedFactor)
-                .orElse(0.0f))));
+                    .filter(CommodityProfileDTO::hasConsumedFactor)
+                    .map(CommodityProfileDTO::getConsumedFactor)
+                    .orElse(getDefaultValue(defaultTemplateSpecFieldMap,
+                            DiscoveredTemplatesConstantFields.VM_COMPUTE_MEM_CONSUMED_FACTOR)))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_IO_THROUGHPUT_CONSUMED,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.IO_THROUGHPUT)
-                .map(CommodityProfileDTO::getConsumed)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getConsumed)
+                    .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_COMPUTE_NETWORK_THROUGHPUT_CONSUMED,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.NET_THROUGHPUT)
-                .map(CommodityProfileDTO::getConsumed)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getConsumed)
+                    .orElse(0.0f))));
         return templateFields;
     }
 
@@ -160,25 +189,30 @@ public class TemplatesMapper {
      * Convert for VM template storage category fields.
      *
      * @param profile EntityProfileDTO object contains discovered templates.
+     * @param defaultTemplateSpecFieldMap a Map key is field name, value is default value.
      * @return list of TemplateField
      */
-    private static List<TemplateField> createVMTemplateStorageFields(EntityProfileDTO profile) {
+    private static List<TemplateField> createVMTemplateStorageFields(
+            @Nonnull EntityProfileDTO profile,
+            @Nonnull final Map<String, Float> defaultTemplateSpecFieldMap) {
         List<TemplateField> templateFields = new ArrayList<>();
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_STORAGE_DISK_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.VSTORAGE)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_STORAGE_DISK_IOPS_CONSUMED,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.STORAGE_ACCESS)
-                .map(CommodityProfileDTO::getConsumed)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getConsumed)
+                    .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.VM_STORAGE_DISK_CONSUMED_FACTOR,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.STORAGE)
-                .map(CommodityProfileDTO::getConsumedFactor)
-                .orElse(0.0f))));
+                    .filter(CommodityProfileDTO::hasConsumedFactor)
+                    .map(CommodityProfileDTO::getConsumedFactor)
+                    .orElse(getDefaultValue(defaultTemplateSpecFieldMap,
+                            DiscoveredTemplatesConstantFields.VM_STORAGE_DISK_CONSUMED_FACTOR)))));
 
         return templateFields;
     }
@@ -199,18 +233,18 @@ public class TemplatesMapper {
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_COMPUTE_IO_THROUGHPUT_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.IO_THROUGHPUT)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_COMPUTE_MEM_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.MEM)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_COMPUTE_NETWORK_THROUGHPUT_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.NET_THROUGHPUT)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(0.0f))));
         return templateFields;
     }
 
@@ -225,18 +259,18 @@ public class TemplatesMapper {
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_INFRA_POWER_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.POWER)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(ONE))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(ONE))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_INFRA_SPACE_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.SPACE)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(ONE))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(ONE))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.PM_INFRA_COOLING_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.COOLING)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(ONE))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(ONE))));
         return templateFields;
     }
 
@@ -251,14 +285,27 @@ public class TemplatesMapper {
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.STORAGE_DISK_IOPS,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.STORAGE_ACCESS)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(0.0f))));
         templateFields.add(createTemplateField(DiscoveredTemplatesConstantFields.STORAGE_DISK_SIZE,
             String.valueOf(getFieldFromCommodityDTO(profile.getCommodityProfileList(),
                 CommodityType.STORAGE)
-                .map(CommodityProfileDTO::getCapacity)
-                .orElse(0.0f))));
+                    .map(CommodityProfileDTO::getCapacity)
+                    .orElse(0.0f))));
         return templateFields;
+    }
+
+    /**
+     * Get default value from default template spec map, if not found, return 0.0 as default value.
+     *
+     * @param defaultTemplateSpecFieldMap a Map key is field name, value is default value.
+     * @param templateSpecFieldName template spec field name needs to get default value.
+     * @return a default float value.
+     */
+    private static float getDefaultValue(@Nonnull final Map<String, Float> defaultTemplateSpecFieldMap,
+                                         @Nonnull final String templateSpecFieldName) {
+        return Optional.ofNullable(defaultTemplateSpecFieldMap.get(templateSpecFieldName))
+                .orElse(0.0f);
     }
 
     private static TemplateField createTemplateField(String name, String value) {

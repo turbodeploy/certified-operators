@@ -27,7 +27,8 @@
             "units" : "%",
             "divisor" : "0.01f",
             "valueType" : "NUMERIC",
-            "description" : "CPU Consumed Factor"
+            "description" : "CPU Consumed Factor",
+            "defaultValue" : "0.5f"
           },
           {
             "name" : "memorySize",
@@ -43,7 +44,8 @@
             "units" : "%",
             "divisor" : "0.01f",
             "valueType" : "NUMERIC",
-            "description" : "Memory Consumed Factor"
+            "description" : "Memory Consumed Factor",
+            "defaultValue" : "0.75f"
           },
           {
             "name" : "ioThroughputConsumed",
@@ -105,7 +107,8 @@
             "units" : "%",
             "divisor" : "0.01f",
             "valueType" : "NUMERIC",
-            "description" : "Disk Consumed Factor"
+            "description" : "Disk Consumed Factor",
+            "defaultValue" : "1.0f"
           },
           {
             "name" : "diskIops",

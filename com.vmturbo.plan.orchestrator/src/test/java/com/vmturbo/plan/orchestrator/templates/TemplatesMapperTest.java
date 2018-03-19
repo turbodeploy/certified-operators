@@ -10,11 +10,13 @@ import java.util.stream.Collectors;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecResource;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -33,8 +35,25 @@ public class TemplatesMapperTest {
         TemplateSpec vmTemplateSec = TemplateSpec.newBuilder()
             .setId(1)
             .setName("VM Template Spec")
-            .addResources(TemplateSpecResource.getDefaultInstance())
-            .build();
+            .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+            .addResources(TemplateSpecResource.newBuilder()
+                .setCategory(ResourcesCategory.newBuilder()
+                    .setName(ResourcesCategoryName.Compute))
+                    .addFields(TemplateSpecField.newBuilder()
+                        .setName("numOfCpu"))
+                    .addFields(TemplateSpecField.newBuilder()
+                        .setName("cpuConsumedFactor")
+                        .setDefaultValue(0.5f))
+                    .addFields(TemplateSpecField.newBuilder()
+                        .setName("memoryConsumedFactor")
+                        .setDefaultValue(0.75f)))
+                .addResources(TemplateSpecResource.newBuilder()
+                    .setCategory(ResourcesCategory.newBuilder()
+                        .setName(ResourcesCategoryName.Storage))
+                    .addFields(TemplateSpecField.newBuilder()
+                        .setName("diskConsumedFactor")
+                        .setDefaultValue(1.0f)))
+                .build();
 
         TemplateSpec pmTemplateSec = TemplateSpec.newBuilder()
             .setId(2)
@@ -42,14 +61,14 @@ public class TemplatesMapperTest {
             .addResources(TemplateSpecResource.getDefaultInstance())
             .build();
 
-        TemplateSpec storageTempalteSpec = TemplateSpec.newBuilder()
+        TemplateSpec storageTemplateSpec = TemplateSpec.newBuilder()
             .setId(3)
             .setName("Storage Template Spec")
             .addResources(TemplateSpecResource.getDefaultInstance())
             .build();
         templateSpecMap.put(EntityType.VIRTUAL_MACHINE.toString(), vmTemplateSec);
         templateSpecMap.put(EntityType.PHYSICAL_MACHINE.toString(), pmTemplateSec);
-        templateSpecMap.put(EntityType.STORAGE.toString(), storageTempalteSpec);
+        templateSpecMap.put(EntityType.STORAGE.toString(), storageTemplateSpec);
     }
 
     @Test
@@ -63,27 +82,57 @@ public class TemplatesMapperTest {
                 .setVCPUSpeed(2.0f))
             .build();
         TemplateInfo templateInstance = TemplatesMapper.createTemplateInfo(vmProfile, templateSpecMap);
-        List<TemplateField> templateFields = templateInstance.getResourcesList().stream()
+        List<TemplateField> computeTemplateFields = templateInstance.getResourcesList().stream()
             .filter(resource -> resource.getCategory().getName().equals(ResourcesCategoryName.Compute))
             .map(TemplateResource::getFieldsList)
             .flatMap(List::stream)
             .collect(Collectors.toList());
 
-        List<TemplateField> numCpuTemplateField = templateFields.stream()
+        List<TemplateField> storageTemplateFields = templateInstance.getResourcesList().stream()
+            .filter(resource -> resource.getCategory().getName().equals(ResourcesCategoryName.Storage))
+            .map(TemplateResource::getFieldsList)
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+
+        List<TemplateField> numCpuTemplateField = computeTemplateFields.stream()
             .filter(templateField -> templateField.getName().equals("numOfCpu"))
             .collect(Collectors.toList());
 
-        List<TemplateField> vcpuSpeedTemplateField = templateFields.stream()
+        List<TemplateField> vcpuSpeedTemplateField = computeTemplateFields.stream()
             .filter(templateField -> templateField.getName().equals("cpuSpeed"))
             .collect(Collectors.toList());
 
-        assertEquals(numCpuTemplateField.size(), 1);
-        assertEquals(numCpuTemplateField.get(0).getName(), "numOfCpu");
-        assertEquals(numCpuTemplateField.get(0).getValue(), "1");
+        List<TemplateField> cpuConsumedFactor = computeTemplateFields.stream()
+             .filter(templateField -> templateField.getName().equals("cpuConsumedFactor"))
+             .collect(Collectors.toList());
 
-        assertEquals(vcpuSpeedTemplateField.size(), 1);
-        assertEquals(vcpuSpeedTemplateField.get(0).getName(), "cpuSpeed");
-        assertEquals(vcpuSpeedTemplateField.get(0).getValue(), "2.0");
+        List<TemplateField> memConsumedFactor = computeTemplateFields.stream()
+                .filter(templateField -> templateField.getName().equals("memoryConsumedFactor"))
+                .collect(Collectors.toList());
+
+        List<TemplateField> diskConsumedFactor = storageTemplateFields.stream()
+                .filter(templateField -> templateField.getName().equals("diskConsumedFactor"))
+                .collect(Collectors.toList());
+
+        assertEquals(1, numCpuTemplateField.size());
+        assertEquals("numOfCpu", numCpuTemplateField.get(0).getName());
+        assertEquals("1", numCpuTemplateField.get(0).getValue());
+
+        assertEquals(1, vcpuSpeedTemplateField.size());
+        assertEquals("cpuSpeed", vcpuSpeedTemplateField.get(0).getName());
+        assertEquals("2.0", vcpuSpeedTemplateField.get(0).getValue());
+
+        assertEquals(1, cpuConsumedFactor.size());
+        assertEquals("cpuConsumedFactor", cpuConsumedFactor.get(0).getName());
+        assertEquals("0.5", cpuConsumedFactor.get(0).getValue());
+
+        assertEquals(1, memConsumedFactor.size());
+        assertEquals("memoryConsumedFactor", memConsumedFactor.get(0).getName());
+        assertEquals("0.75", memConsumedFactor.get(0).getValue());
+
+        assertEquals(1, diskConsumedFactor.size());
+        assertEquals("diskConsumedFactor", diskConsumedFactor.get(0).getName());
+        assertEquals("1.0", diskConsumedFactor.get(0).getValue());
     }
 
     @Test
@@ -111,13 +160,13 @@ public class TemplatesMapperTest {
             .filter(templateField -> templateField.getName().equals("cpuSpeed"))
             .collect(Collectors.toList());
 
-        assertEquals(numCpuCoreTemplateField.size(), 1);
-        assertEquals(numCpuCoreTemplateField.get(0).getName(), "numOfCores");
-        assertEquals(numCpuCoreTemplateField.get(0).getValue(), "5");
+        assertEquals(1, numCpuCoreTemplateField.size());
+        assertEquals("numOfCores", numCpuCoreTemplateField.get(0).getName());
+        assertEquals("5", numCpuCoreTemplateField.get(0).getValue());
 
-        assertEquals(cpuSpeedTemplateField.size(), 1);
-        assertEquals(cpuSpeedTemplateField.get(0).getName(), "cpuSpeed");
-        assertEquals(cpuSpeedTemplateField.get(0).getValue(), "6.0");
+        assertEquals(1, cpuSpeedTemplateField.size());
+        assertEquals("cpuSpeed", cpuSpeedTemplateField.get(0).getName());
+        assertEquals("6.0", cpuSpeedTemplateField.get(0).getValue());
     }
 
     @Test
@@ -145,9 +194,9 @@ public class TemplatesMapperTest {
             .filter(templateField -> templateField.getName().equals("ioThroughputConsumed"))
             .collect(Collectors.toList());
 
-        assertEquals(ioThroughputTemplateField.size(), 1);
-        assertEquals(ioThroughputTemplateField.get(0).getName(), "ioThroughputConsumed");
-        assertEquals(ioThroughputTemplateField.get(0).getValue(), "1024.0");
+        assertEquals(1, ioThroughputTemplateField.size());
+        assertEquals("ioThroughputConsumed", ioThroughputTemplateField.get(0).getName());
+        assertEquals("1024.0", ioThroughputTemplateField.get(0).getValue());
     }
 
     @Test
@@ -178,12 +227,12 @@ public class TemplatesMapperTest {
             .filter(templateField -> templateField.getName().equals("diskSize"))
             .collect(Collectors.toList());
 
-        assertEquals(disTopsTemplateField.size(), 1);
-        assertEquals(disTopsTemplateField.get(0).getName(), "diskIops");
-        assertEquals(disTopsTemplateField.get(0).getValue(), "2.0");
+        assertEquals(1, disTopsTemplateField.size());
+        assertEquals("diskIops", disTopsTemplateField.get(0).getName());
+        assertEquals("2.0", disTopsTemplateField.get(0).getValue());
 
-        assertEquals(diskSizeSpeedTemplateField.size(), 1);
-        assertEquals(diskSizeSpeedTemplateField.get(0).getName(), "diskSize");
-        assertEquals(diskSizeSpeedTemplateField.get(0).getValue(), "1024.0");
+        assertEquals(1, diskSizeSpeedTemplateField.size());
+        assertEquals("diskSize", diskSizeSpeedTemplateField.get(0).getName());
+        assertEquals("1024.0", diskSizeSpeedTemplateField.get(0).getValue());
     }
 }
