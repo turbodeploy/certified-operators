@@ -7,6 +7,9 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.IndependentStorageAccessPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
@@ -57,8 +60,12 @@ public class PostStitchingOperationLibrary {
         postStitchingOperations = ImmutableList.of(
             new PropagateStorageAccessAndLatencyPostStitchingOperation(),
             new MemoryProvisionedPostStitchingOperation(),
+            new ComputedUsedValuePostStitchingOperation(
+                EntityType.PHYSICAL_MACHINE, CommodityType.MEM_PROVISIONED),
             new CpuCapacityPostStitchingOperation(),
             new CpuProvisionedPostStitchingOperation(),
+            new ComputedUsedValuePostStitchingOperation(
+                EntityType.PHYSICAL_MACHINE, CommodityType.CPU_PROVISIONED),
             new PmCpuAllocationPostStitchingOperation(),
             new VirtualDatacenterCpuAllocationPostStitchingOperation(),
             new StorageControllerLatencyPostStitchingOperation(),
