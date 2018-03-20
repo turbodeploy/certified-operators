@@ -110,4 +110,40 @@ public class TopologyUtils {
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toList());
     }
+
+    /**
+     * How to run:
+     * mvn  -q clean install exec:java  -DskipTests=true -Dcheckstyle.skip=true -Dexec.mainClass=com.vmturbo.components.test.utilities.utils.TopologyUtils -Dexec.args=<topology size>
+     * where topology size is an integer or an
+     *  integer optionally followed by the prefix "k" which will multiply the size by 1000.
+     *  i.e. 200k will generate a topology with StressAccount recommendation for a
+     *  topology of approximately 200,000 entities.
+     */
+    public static void main(String[] args) {
+        String helpMsg =
+        "args=<topology size> where topology size is an integer or an integer\n"+
+        "   followed by the prefix 'k' which will multiply the size by 1000.\n" +
+        "   i.e. 200k will generate a topology with StressAccount recommendation\n" +
+        "   for a topology of approximately 200,000 entities.";
+
+        if (args.length != 1 || args[0].trim().isEmpty()) {
+            System.out.println("topologySize argument missing.\n" + helpMsg);
+            System.exit(1);
+        }
+        try {
+            String input = args[0].trim();
+            int topologySize;
+            if (input.length()>1 && input.charAt(input.length()-1) == 'k') {
+                topologySize = Integer.parseInt(input.substring(0, input.length()-1));
+                topologySize = topologySize * 1000;
+            } else {
+                topologySize = Integer.parseInt(args[0]);
+            }
+            System.out.println(generateStressAccount(topologySize));
+        }
+        catch (NumberFormatException | ArithmeticException ex) {
+            System.out.println("Invalid input. Not an integer: " + args[0] + "\n" + helpMsg);
+            System.exit(1);
+        }
+    }
 }
