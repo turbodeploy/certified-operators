@@ -106,19 +106,9 @@ public class SearchHandler {
                             pipeline(fusedAQLReprs).run(context(arangoDB, database),
                                                    ArangoDBSearchComputation.toEntities);
             // TODO: We may want to reify the ArangoCursor later to reduce memory pressure.
-            return cursorResult.map(cursor -> {
-                    try {
-                        return cursor.asListRemaining();
-                    } finally {
-                        try {
-                            if (cursor!=null) {
-                                cursor.close();
-                            }
-                        } catch (IOException ioe) {
-                            logger.error("Error closing arangodb cursor", ioe);
-                        }
-                    }
-            });
+            // We don't close the cursor explicitly because it gets destroyed on the server
+            // after iterating over the results.
+            return cursorResult.map(ArangoCursor::asListRemaining);
         }
     }
 

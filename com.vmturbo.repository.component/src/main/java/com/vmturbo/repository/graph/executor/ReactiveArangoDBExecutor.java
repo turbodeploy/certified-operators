@@ -173,15 +173,16 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
 
     private <R> Flux<R> fluxify(final CheckedSupplier<ArangoCursor<String>> cursorSupplier, Class<R> klass) {
         return Flux.<R>create(fluxSink -> {
-            try (final ArangoCursor<String> resultCursor = cursorSupplier.get()) {
+            try {
+                // If there is an error in the result processing, we will leave this cursor
+                // un-closed, but Arango closes abandoned cursors after a ttl (30 sec by default).
+                final ArangoCursor<String> resultCursor = cursorSupplier.get();
                 while (resultCursor.hasNext() && !fluxSink.isCancelled()) {
                     final String next = resultCursor.next();
                     final R obj = objectMapper.readValue(next, klass);
                     fluxSink.next(obj);
                 }
                 fluxSink.complete();
-            } catch (IOException ioe) {
-                LOGGER.error("Error closing arangodb cursor", ioe);
             } catch (Throwable e) {
                 fluxSink.error(e);
             }

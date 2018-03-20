@@ -4,7 +4,6 @@ import static com.google.common.base.Preconditions.checkNotNull;
 import static javaslang.API.Case;
 import static javaslang.API.Match;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -206,7 +205,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
         results.onFailure(logAQLException(searchQuery));
 
-        return results.map(cursor -> fetchAllResults(cursor));
+        return results.map(this::fetchAllResults);
     }
 
     @Override
@@ -235,7 +234,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
 
         results.onFailure(logAQLException(searchQuery));
 
-        return results.map(cursor -> fetchAllResults(cursor));
+        return results.map(this::fetchAllResults);
     }
 
 
@@ -246,22 +245,12 @@ public class ArangoDBExecutor implements GraphDBExecutor {
     /**
      *  Fetch all the results from ArangoDB.
      *
-     *  After the fetch, close the cursor.
-     *
      *  @param cursor ArangoDB cursor object.
      *  @return The list of results.
      */
     private <T> List<T> fetchAllResults(@Nonnull ArangoCursor<T> cursor) {
-        try {
-            return cursor.asListRemaining();
-        } finally {
-            try {
-                if (cursor != null) {
-                    cursor.close();
-                }
-            } catch (IOException ioe) {
-                logger.error("Error closing arangodb cursor", ioe);
-            }
-        }
+        // We don't explicitly close the cursor because the server auto-closes it once the
+        // cursor is out of results.
+        return cursor.asListRemaining();
     }
 }

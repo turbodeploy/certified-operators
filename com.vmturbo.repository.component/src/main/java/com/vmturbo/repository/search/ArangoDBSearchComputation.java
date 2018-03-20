@@ -70,13 +70,11 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
                     Stream.ofAll(inputs).take(10).toJavaList());
             LOG.debug("pipeline ({}) running {} with bindVars {}", context.traceID(), queryString, bindVars);
 
-            List<String> results = null;
-            try (final ArangoCursor<String> cursor =
-                    context.arangoDB().db(context.databaseName()).query(queryString, bindVars, null, String.class)) {
-                results = cursor.asListRemaining();
-            } catch (IOException ioe) {
-                LOG.error("Error closing arangodb cursor", ioe);
-            }
+            // We don't close the cursor because it gets auto-closed by the server
+            // get all the results.
+            final ArangoCursor<String> cursor = context.arangoDB().db(context.databaseName())
+                    .query(queryString, bindVars, null, String.class);
+            final List<String> results = cursor.asListRemaining();
             return (results == null) ? Collections.emptyList() : results;
         });
     }
