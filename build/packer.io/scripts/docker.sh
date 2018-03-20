@@ -15,7 +15,41 @@ systemctl enable iptables.service
 mkdir -p /usr/local/bin
 cat <<'EOF' >/usr/local/bin/vmtctl
 #!/bin/bash
+
+# if there isn't at least 16 gb of memory, log a warning and don't start any more components
+MIN_VMEM=16
+
+# http port to use for SSL connections
+SSL_PORT=443
+
+# Source and destination base for the install process
+SOURCE_BASE="/media/cdrom"
+DEST_BASE="/etc/docker"
+
+# docker-compose.yml file path; also base path for docker-compose.yml.nnk files
+DOCKER_COMPOSE_DEST_BASE=${DEST_BASE}/docker-compose.yml
+
 export HOST_IP=$(/sbin/ip route get 1 | awk '{print $NF;exit}')
+
+# list of "component" images to start (not including support containers). "api" should be last on this list
+#    so that other components will all be running before the user-facing UI comes up
+XL_COMPONENTS="auth topology-processor market repository plan-orchestrator action-orchestrator group \
+        history reporting mediation-hyperv mediation-vcenter mediation-netapp mediation-ucs \
+        mediation-vmax mediation-vmm \
+        api"
+# list of "support" containers to start
+BASE_IMAGES="nginx rsyslog consul clustermgr db arangodb"
+# how many docker images to start, totalled between base server images and XL components
+N_IMAGES=$(($(echo ${XL_COMPONENTS} | wc -w) + $(echo ${BASE_IMAGES} | wc -w)))
+
+
+# log a message; also write it to the one-line file read by the status monitor webpage
+function log_message() {
+    line_no=${BASH_LINENO[*]}
+    echo $(date +"%Y-%m-%d %T") ${line_no} $@
+    echo $@ > /tmp/load_status
+}
+
 # Start the XL component and verify that it has started up successfully
 function start_and_verify_xl_component() {
     component="$1"
@@ -32,29 +66,42 @@ function start_and_verify_xl_component() {
     done
 }
 
-# Start an XL component without waiting for the startup to complete
+# Start an XL component without waiting for the startup to complete;
+#     will stop & recreate the container if image has changed
 function start_xl_component() {
     component="$1"
-    echo "Starting $component component" >/tmp/load_status
+    log_message "Starting $component component ($n_started of $N_IMAGES)"
+    n_started=$(($n_started+1))
     /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml up -d --no-color "${component}"
 }
 
 # Stop an XL component
 function stop_xl_component() {
     component="$1"
-    echo "Stopping $component component" >/tmp/load_status
+    log_message "Stopping ${component} component"
     /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml stop "${component}"
 }
 
+# Copy a file from source to dest, if found, making a copy of the old file
+function copy_cdrom_source() {
+    filename=$1
+    if [ -f ${SOURCE_BASE}/${filename} ]; then
+      mv ${DEST_BASE}/${filename} ${DEST_BASE}/${filename}$(date +"%Y_%M_%d") >/dev/null 2>&1
+      cp ${SOURCE_BASE}/${filename} ${DEST_BASE}/${filename}
+    fi
+}
+
+# If the current vmem is between the lower & upper bounds then add a symlink & return 0; else return 1
 function set_max_load() {
     vmem=$1
     suffix=$2
     lower=$3
     upper=$4
-    if [ $vmem -ge $lower ]; then
-        if [ .$upper == . ] ||  [ $vmem -lt $upper ]; then
-           ln -sf /etc/docker/docker-compose.yml.${suffix}k /etc/docker/docker-compose.yml
-           echo "Maximum load of ${suffix}K entities is set up with ${vmem}GB" >/tmp/load_status
+    if [ ${vmem} -ge ${lower} ]; then
+        if [ .${upper} == . ] ||  [ ${vmem} -lt ${upper} ]; then
+           ln -sf ${DOCKER_COMPOSE_DEST_BASE}.${suffix}k ${DOCKER_COMPOSE_DEST_BASE}
+           log_message "Maximum load of ${suffix}K entities is set up with ${vmem}GB"
+           # pause so this message may be seen on the progress monitor webpage
            sleep 10
            return 0
         fi
@@ -65,104 +112,86 @@ function set_max_load() {
 # Master start script.
 # Starts Consul, followed by the Cluster manager, followed by everything else
 function start_xl() {
+
+    # Verify that we did identify a docker-compose file to link to
+    if [ ! -f "${DOCKER_COMPOSE_DEST_BASE}" ]; then
+       log_message "!! No component configuration available"
+       return
+    fi
+
+    # Sanity-check that the correct number of docker images are available
+    NUM=$(docker images | grep latest | wc -l)
+    if [ ${NUM} -lt ${N_IMAGES} ]; then
+       log_message "!! No component images are available"
+       return
+    fi
+
     # Chose the yml file based on the size
     vmem=$(cat /proc/meminfo | grep MemTotal | awk '{total=$2/1024/1024} {if(total-int(total)>0) {total=int(total)+1}}{print total}')
 
+    # if there isn't sufficient memory, log a warning and don't start any more components
+    if [ ${vmem} -lt ${MIN_VMEM} ]; then
+       log_message "!! Insufficient memory available with ${vmem}GB"
+       return
+    fi
+
     # 15K config applies to memory sizes under 24 mb
-    set_max_load $vmem 15 1 24
+    set_max_load ${vmem} 15 1 24
     if [ $? -eq 1 ]; then
         # 25K
-        set_max_load $vmem 25 24 32
+        set_max_load ${vmem} 25 24 32
     fi
     if [ $? -eq 1 ]; then
         # 50K
-        set_max_load $vmem 50 32 48
+        set_max_load ${vmem} 50 32 48
     fi
     if [ $? -eq 1 ]; then
         # 100K
-        set_max_load $vmem 100 48 63
+        set_max_load ${vmem} 100 48 63
     fi
     if [ $? -eq 1 ]; then
         # 200K - no upper limit
-        set_max_load $vmem 200 63
+        set_max_load ${vmem} 200 63
     fi
 
-    # Verify that we did identify a docker-compose file to link to
-    if [ ! -f "/etc/docker/docker-compose.yml" ]; then
-       echo "!! No component configuration available" >/tmp/load_status
-       sleep 10
-       return
-    fi
+    # Progress feedback for starting components; how many started so far
+    n_started=1
 
-    # start nginx, if not already running -- chances are it was already started in "init" tho.
-    echo "Starting web server" >/tmp/load_status
+    # start nginx; if was already running (and container hasn't changed) will not stop previous image
+    log_message "Starting web server"
     start_xl_component nginx
 
-    # if there isn't at least 16 gb of memory, log a warning and don't start any more components
-    if [ $vmem -lt 16 ]; then
-       echo "!! Insufficient memory available with ${vmem}GB" >/tmp/load_status
-       sleep 10
-       return
-    fi
-
-    # We assume that there will be no less than 10 images loaded on master node
-    # In fact, there will be more, but at at this time we want to make sure
-    # we do not just have a couple of random images loaded from docker hub on an otherwise
-    # empty VM.
-    NUM=$(docker images | grep latest | wc -l)
-    if [ $NUM -lt 10 ]; then
-       echo "!! No component images are available" >/tmp/load_status
-       sleep 10
-       return
-    fi
-
-    # Start the remaining XL components. We use this order, in order to ensure that
-    # API starts last, so that when we connect, all other components are already there.
-    echo "Starting XL components" >/tmp/load_status
-	JAVA_MSG="Component transition from STARTING to RUNNING"
-	start_and_verify_xl_component rsyslog "rsyslogd"
-	start_and_verify_xl_component consul "New leader elected"
-	# docker-compose removes trailing decimals from the component name so the check will fail
-	# instead, we rely on the docker-compose dependencies to start both zookeeper and kafka
+    # Start the remaining XL components. It is assumed that "api" is last on the list so that
+    # API component starts last. Thus when we connect, all other components are already running.
+    log_message "Starting XL components"
+    JAVA_MSG="Component transition from STARTING to RUNNING"
+    start_and_verify_xl_component rsyslog "rsyslogd"
+    start_and_verify_xl_component consul "New leader elected"
+    # docker-compose removes trailing decimals from the component name so the check will fail
+    # instead, we rely on the docker-compose dependencies to start both zookeeper and kafka
 #	start_xl_component zoo1 "binding to port"
 #	start_xl_component kafka1 "Startup complete."
-	start_and_verify_xl_component clustermgr "Started ClusterMgrMain"
-	start_and_verify_xl_component db "port: 3306"
-	start_and_verify_xl_component arangodb "ready for business"
-	start_and_verify_xl_component auth "${JAVA_MSG}"
-	start_and_verify_xl_component topology-processor "$JAVA_MSG"
-	start_and_verify_xl_component market "$JAVA_MSG"
-	start_and_verify_xl_component repository "$JAVA_MSG"
-    start_and_verify_xl_component plan-orchestrator "$JAVA_MSG"
-	start_and_verify_xl_component action-orchestrator "$JAVA_MSG"
-	start_and_verify_xl_component group "$JAVA_MSG"
-	start_and_verify_xl_component history "$JAVA_MSG"
-	start_and_verify_xl_component reporting "$JAVA_MSG"
-	start_and_verify_xl_component mediation-hyperv "$JAVA_MSG"
-	start_and_verify_xl_component mediation-vcenter "$JAVA_MSG"
-	start_and_verify_xl_component mediation-netapp "$JAVA_MSG"
-	start_and_verify_xl_component mediation-ucs "$JAVA_MSG"
-	start_and_verify_xl_component mediation-vmax "$JAVA_MSG"
-	start_and_verify_xl_component mediation-vmm "$JAVA_MSG"
-    echo "Finalizing XL components startup" >/tmp/load_status
+    start_and_verify_xl_component clustermgr "Started ClusterMgrMain"
+    start_and_verify_xl_component db "port: 3306"
+    start_and_verify_xl_component arangodb "ready for business"
 
-    # Since we monitor for API to be up before we may proceed, we should be good
-    # with starting the API component in a delayed fashion.
-    # The auth component will have started by this time, so the initial setup should be okay.
-	start_and_verify_xl_component api "$JAVA_MSG"
+    # start all components; the API component should be last so other components are all "ready"
+    #    when the UI comes up
+    for component in ${XL_COMPONENTS}; do
+        start_and_verify_xl_component ${component} "${JAVA_MSG}"
+    done
 
-    echo "System was successfully started." >/tmp/load_status
+    log_message "System was successfully started."
 
     # wait a bit, then set one last status
     sleep 30
-    echo "Turbonomic is running." >/tmp/load_status
-	#rm /tmp/load_status
+    log_message "Turbonomic is running."
 }
 
 if [[ "$1" == "init" ]]; then
   # Configure the admin user, if this wasn't already done
   if [[ -d /root/initial_setup ]]; then
-    echo "Setting up master admin" >/tmp/load_status
+    log_message "Setting up master admin"
     pushd /root/initial_setup >/dev/null
     chmod +x setup
     /usr/bin/nohup ./setup >/tmp/setup_nohup.txt &
@@ -177,28 +206,33 @@ if [[ "$1" == "init" ]]; then
         echo "The initial admin account is being created"
         sleep 30
     done
-    echo "Master admin has been set up" >/tmp/load_status
+    log_message "Master admin has been set up"
     # Make sure the initial_setup scripts are terminated and deleted.
     # Sleep for 10 seonds to allow the initial setup GUI to pick up the status.
     # The initial setupGUI checks every 5 seconds.
     sleep 10
     # Kill the https
     # The initial setup python script is stateless, so this won't break anything.
-    curl -k "https://${HOST_IP}:443/exit" >/dev/null 2>&1
+    curl -k "https://${HOST_IP}:${SSL_PORT}/exit" >/dev/null 2>&1
     kill -9 $(ps -e -o pid,cmd | grep [p]ython | grep httpd | awk '{print $1}') >/dev/null 2>&1
     rm -rf /root/initial_setup
   fi
 
-  # start nginx
-  echo "Starting nginx" >/tmp/load_status
+  log_message "Stopping the previously running system, if any"
+  /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml stop ${XL_COMPONENTS}
+
+  # start nginx; note that this will be the "old" (i.e. pre-load) nginx
+  log_message "Starting nginx"
+  n_started=1
   start_xl_component nginx
 
   # Load docker images from ISO if needed.
   mkdir /media/cdrom >/dev/null 2>&1
-  echo Attempting to load the CDROM >/tmp/load_status
+  log_message Attempting to load the CDROM
+  umount /media/cdrom >/dev/null 2>&1
   mount /dev/cdrom /media/cdrom/ >/dev/null 2>&1
   if [[ $? == 0 ]]; then
-      echo "ISO Image has been mounted successfully" >/tmp/load_status
+      log_message "ISO Image has been mounted successfully"
       # Check whether we need to do anything
       if [ -f "/media/cdrom/turbonomic_sums.txt" ]; then
          cmp -sb /media/cdrom/turbonomic_sums.txt /etc/docker/turbonomic_sums.txt
@@ -211,72 +245,53 @@ if [[ "$1" == "init" ]]; then
       fi
 
       # Verify sha256 checksums
-      echo "Performing integrity check" >/tmp/load_status
+      log_message "Performing integrity check"
       pushd /media/cdrom
       sha256sum -c turbonomic_sums.txt
       CHECKSUM=$?
       popd
-      if [[ $CHECKSUM == 0 ]]; then
-          echo "Loading Docker images" >/tmp/load_status
+      if [[ ${CHECKSUM} == 0 ]]; then
+          log_message "Loading Docker images"
           echo Docker image checksum verification has been successful
-          for i in $(ls /media/cdrom/*tgz)
+          images=$(ls /media/cdrom/*tgz)
+          n=1
+          m=$(echo ${images} | wc -w)
+          for i in ${images}
           do
-            dimg=$(echo $i | sed 's|.*/||' | cut -d'.' -f1)
-            echo "Loading $dimg component" >/tmp/load_status
-            echo Loading docker image $i
-            docker load -i $i
+            dimg=$(echo ${i} | sed 's|.*/||' | cut -d'.' -f1)
+            log_message "Loading $dimg component ($n of $m)"
+            echo Loading docker image ${i}
+            docker load -i ${i}
+            n=$((n+1))
           done
           # Clean the dangling images
+          log_message "Cleaning old docker images"
           docker images -qa -f 'dangling=true' | xargs docker rmi
 
-          # We do that for multiple sizes
-          if [ -f "/media/cdrom/docker-compose.yml.15k" ]; then
-              mv /etc/docker/docker-compose.yml.15k /etc/docker/docker-compose.yml.15k.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/docker-compose.yml.15k /etc/docker/docker-compose.yml.15k
-          fi
-          if [ -f "/media/cdrom/docker-compose.yml.25k" ]; then
-              mv /etc/docker/docker-compose.yml.25k /etc/docker/docker-compose.yml.25k.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/docker-compose.yml.25k /etc/docker/docker-compose.yml.25k
-          fi
-          if [ -f "/media/cdrom/docker-compose.yml.50k" ]; then
-              mv /etc/docker/docker-compose.yml.50k /etc/docker/docker-compose.yml.50k.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/docker-compose.yml.50k /etc/docker/docker-compose.yml.50k
-          fi
-          if [ -f "/media/cdrom/docker-compose.yml.100k" ]; then
-              mv /etc/docker/docker-compose.yml.100k /etc/docker/docker-compose.yml.100k.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/docker-compose.yml.100k /etc/docker/docker-compose.yml.100k
-          fi
-          if [ -f "/media/cdrom/docker-compose.yml.200k" ]; then
-              mv /etc/docker/docker-compose.yml.200k /etc/docker/docker-compose.yml.200k.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/docker-compose.yml.200k /etc/docker/docker-compose.yml.200k
-          fi
-          if [ -f "/media/cdrom/common-services.yml" ]; then
-              mv /etc/docker/common-services.yml /etc/docker/common-services.yml.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/common-services.yml /etc/docker/common-services.yml
-          fi
-          if [ -f "/media/cdrom/prod-services.yml" ]; then
-              mv /etc/docker/prod-services.yml /etc/docker/prod-services.yml.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/prod-services.yml /etc/docker/prod-services.yml
+          # Copy the docker-compose.yml files for the available memory sizes
+          copy_cdrom_source docker-compose.yml.15k
+          copy_cdrom_source docker-compose.yml.25k
+          copy_cdrom_source docker-compose.yml.50k
+          copy_cdrom_source docker-compose.yml.100k
+          copy_cdrom_source docker-compose.yml.200k
+
+          copy_cdrom_source common-services.yml
+          copy_cdrom_source prod-services.yml
+          copy_cdrom_source turbonomic_info.txt
+          copy_cdrom_source turbonomic_sums.txt
+
+          # Copy the 'turboctl' command-line utility, make it executable, and add a symlink for it
+          copy_cdrom_source turboctl.py
+          chmod +x ${DEST_BASE}/turboctl.py
+          if [ ! -f /usr/bin/turboctl ]; then
+             ln -s ${DEST_BASE}/turboctl.py /usr/bin/turboctl
           fi
 
-          if [ -f "/media/cdrom/turbonomic_info.txt" ]; then
-              mv /etc/docker/turbonomic_info.txt /etc/turbonomic_info.txt.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/turbonomic_info.txt /etc/docker/turbonomic_info.txt
-          fi
-          if [ -f "/media/cdrom/turboctl.py" ]; then
-              mv /etc/docker/turboctl.py /etc/turboctl.py.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/turboctl.py /etc/docker/turboctl.py
-              chmod +x /etc/docker/turboctl.py
-          fi
-          if [ -f "/media/cdrom/turbonomic_sums.txt" ]; then
-              mv /etc/docker/turbonomic_sums.txt /etc/turbonomic_sums.txt.$(date +"%Y_%M_%d") >/dev/null 2>&1
-              cp /media/cdrom/turbonomic_sums.txt /etc/docker/turbonomic_sums.txt
-          fi
-          echo "Docker images loaded" >/tmp/load_status
+          log_message "Docker images loaded"
           echo Unmounting the CDROM
           umount /media/cdrom
       else
-          echo "!! Component checksum verification failed" >/tmp/load_status
+          log_message "!! Component checksum verification failed"
           exit 1
       fi
   else
@@ -287,11 +302,11 @@ if [[ "$1" == "init" ]]; then
 elif [[ "$1" == "info" ]]; then
   echo "Turbonomic distribution"
   echo "-----------------------"
-  cat /etc/docker/turbonomic_info.txt
+  cat ${DEST_BASE}/turbonomic_info.txt
   echo ""
   echo "Images distributed"
   echo "------------------"
-  cat /etc/docker/turbonomic_sums.txt
+  cat ${DEST_BASE}/turbonomic_sums.txt
 elif [[ "$1" == "stats" ]]; then
   if [[ $UID == 0 ]]; then
     exec docker stats $(docker ps --format '{{.Names}}')
@@ -301,15 +316,18 @@ elif [[ "$1" == "stats" ]]; then
 elif [[ "$1" == "shell" ]]; then
   exec docker exec -it "${@:2}" /bin/bash
 elif [[ "$1" == "logs" ]]; then
-  exec /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml logs -f "${@:2}"
+  exec /usr/local/bin/docker-compose -f ${DEST_BASE}/docker-compose.yml logs -f "${@:2}"
 elif [[ "$1" == "up" ]]; then
-  if [[ $# -gt 1 ]]; then
-    exec /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml up -d --no-color "${@:2}"
+  # discard the command "up"
+  shift
+  if [[ $# -gt 0 ]]; then
+    exec /usr/local/bin/docker-compose -f ${DEST_BASE}/docker-compose.yml up -d --no-color "$@"
+  else
+    start_xl
   fi
-  start_xl
 elif [[ "$1" == "stop" ]]; then
   if [[ $# -gt 1 ]]; then
-    exec /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml stop "${@:2}"
+    exec /usr/local/bin/docker-compose -f ${DEST_BASE}/docker-compose.yml stop "${@:2}"
   else
     echo "Usage: vmtctl stop <container>"
   fi
@@ -364,28 +382,7 @@ systemctl enable docker.service
 # Create a default network. Due to some bug in the docker-compose, it doesn't get created from the .yml file.
 docker network create --driver bridge --subnet 10.10.10.0/24 --gateway 10.10.10.1 docker_default
 
-# The turbonomic service
-cat <<EOF >/usr/lib/systemd/system/turbonomic.service
-[Unit]
-Description=Turbonomic
-Documentation=https://www.turbonomic.com
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=notify
-ExecStart=/usr/local/bin/vmtctl init
-MountFlags=slave
-LimitNOFILE=1048576
-LimitNPROC=1048576
-LimitCORE=infinity
-TimeoutStartSec=0
-# set delegate yes so that systemd does not reset the cgroups of docker containers
-Delegate=yes
-
-[Install]
-WantedBy=multi-user.target
-EOF
+# set up the turbonomic service
 systemctl daemon-reload
 systemctl enable turbonomic.service
 
