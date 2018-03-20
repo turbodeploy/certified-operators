@@ -96,6 +96,8 @@ public class PlanDaoImpl implements PlanDao {
 
     private final SettingServiceBlockingStub settingService;
 
+    private final int planTimeOutHours;
+
     @GuardedBy("listenerLock")
     private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
 
@@ -106,17 +108,20 @@ public class PlanDaoImpl implements PlanDao {
      * @param repositoryClient gRPC client for the repository component
      * @param actionOrchestratorClient gRPC client for action orchestrator
      * @param statsClient gRPC client for the stats/history component
+     * @param planTimeOutHours plan time out hours
      */
     public PlanDaoImpl(@Nonnull final DSLContext dsl,
                        @Nonnull final RepositoryClient repositoryClient,
                        @Nonnull final ActionsServiceBlockingStub actionOrchestratorClient,
                        @Nonnull final StatsHistoryServiceBlockingStub statsClient,
-                       @Nonnull final Channel groupChannel) {
+                       @Nonnull final Channel groupChannel,
+                       final int planTimeOutHours) {
         this.dsl = Objects.requireNonNull(dsl);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.actionOrchestratorClient = Objects.requireNonNull(actionOrchestratorClient);
         this.statsClient = Objects.requireNonNull(statsClient);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
+        this.planTimeOutHours = planTimeOutHours;
     }
 
     @Override
@@ -436,7 +441,7 @@ public class PlanDaoImpl implements PlanDao {
      *
      * @return true if max number of concurrent plan instances has not reached, false otherwise.
      */
-    private boolean isPlanExecutionCapacityAvailable(DSLContext dslContext) {
+    private boolean isPlanExecutionCapacityAvailable(DSLContext dslContext, final int timeOutHours) {
         // get maximum number of concurrent plan instance allowed
         GetGlobalSettingResponse response = settingService.getGlobalSetting(
             GetSingleGlobalSettingRequest.newBuilder()
@@ -453,6 +458,9 @@ public class PlanDaoImpl implements PlanDao {
                         .getNumericSettingValueType().getDefault();
         }
 
+        LocalDateTime expirationHour = LocalDateTime.now().minusHours(timeOutHours);
+        cleanUpFailedInstance(expirationHour);
+
         // get number of running plan instances
         Integer numRunningInstances = getNumberOfRunningPlanInstances();
         if (numRunningInstances >= maxNumOfRunningInstances) {
@@ -461,6 +469,27 @@ public class PlanDaoImpl implements PlanDao {
                     numRunningInstances, maxNumOfRunningInstances);
         }
         return numRunningInstances < maxNumOfRunningInstances;
+    }
+
+    /**
+     * Clean up plan instances if instances are running for more than timeoutHours hours.
+     * Since plan instances status could be not be updated, if some components were down
+     * during their execution.
+     *
+     * @param timeOutHours plan time out hours
+     * @throws DataAccessException db access exception
+     */
+    private void cleanUpFailedInstance(final LocalDateTime timeOutHours) throws DataAccessException {
+        dsl.update(PLAN_INSTANCE)
+                .set(PLAN_INSTANCE.UPDATE_TIME, LocalDateTime.now())
+                .set(PLAN_INSTANCE.STATUS, PlanStatus.FAILED.name())
+                .where(PLAN_INSTANCE.UPDATE_TIME.lt(timeOutHours),
+                        PLAN_INSTANCE.STATUS.notIn(
+                                PlanStatus.READY.name(),
+                                PlanStatus.SUCCEEDED.name(),
+                                PlanStatus.FAILED.name()))
+                .and(PLAN_INSTANCE.STATUS.isNotNull())
+                .execute();
     }
 
     /**
@@ -473,7 +502,7 @@ public class PlanDaoImpl implements PlanDao {
             final DSLContext context = DSL.using(configuration);
 
             // Proceed only if the maximum number of concurrent plan instances have not been exceeded
-            if (isPlanExecutionCapacityAvailable(context)) {
+            if (isPlanExecutionCapacityAvailable(context, planTimeOutHours)) {
                 // Select the instance record that is in READY state and has the oldest creation time
                 // Call "forUpdate()" to lock the record for subsequent update.
                 final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)
@@ -507,7 +536,8 @@ public class PlanDaoImpl implements PlanDao {
                 final DSLContext context = DSL.using(configuration);
 
                 // Proceed only if the maximum number of concurrent plan instances have not been exceeded
-                if (isUserOrInitialPlacementPlan(planInstance) || isPlanExecutionCapacityAvailable(context)) {
+                if (isUserOrInitialPlacementPlan(planInstance)
+                        || isPlanExecutionCapacityAvailable(context, planTimeOutHours)) {
                     // Select the instance record that is in READY state and has the given ID.
                     // Call "forUpdate()" to lock the record for subsequent update.
                     final PlanInstanceRecord planInstanceRecord = context.selectFrom(PLAN_INSTANCE)

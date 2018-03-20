@@ -216,6 +216,9 @@ plan-orchestrator:
   websocket.pong.timeout: 30000
   templateSpecFile: "defaultTemplateSpec.json"
   defaultTemplatesFile: "defaultTemplates.json"
+  # Config parameter to control the time out hours for running plan.
+  # If this value is changed, update defaultTimeOutHour value in PlanDaoImplTest#testCleanUpTimeOutedPlans
+  planTimeOutHours: 6
 
 history:
   <<: *baseVmtComponentSettings

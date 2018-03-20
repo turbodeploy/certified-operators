@@ -160,11 +160,17 @@ public class PlanTestConfig {
         return server;
     }
 
+    /**
+     * The default plan time out value (6) is set in factoryInstalledComponents.yml, if it's updated
+     * we need to change the value here too.
+     *
+     * @return plan DAO
+     */
     @Bean
     public PlanDao planDao() {
         return Mockito.spy(
                 new PlanDaoImpl(dbConfig.dsl(), repositoryClient(),
-                        actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel()));
+                        actionServiceClient(), statsServiceClient(), settingGrpcServer().getChannel(), 6));
     }
 
     @Bean

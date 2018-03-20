@@ -20,6 +20,7 @@ import javax.annotation.Nonnull;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.jooq.Result;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -109,6 +110,55 @@ public class PlanDaoImplTest {
         assertEquals(id1, inst.get().getPlanId());
     }
 
+    /**
+     * Verified cleaning up time outed plan instances.
+     * @throws Exception
+     */
+    @Test
+    public void testCleanUpTimeOutedPlans() throws Exception {
+        deleteAllPlanInstances();
+
+        Optional<PlanInstance> inst = planDao.queueNextPlanInstance();
+        assertEquals(Optional.empty(), inst);
+        // the default time out value is set in factoryInstalledComponents.yml, if it's updated
+        // we need to change the defaultTimeOut value here too
+        final int defaultTimeOutHour = 6;
+        final LocalDateTime createdTime = LocalDateTime.now().minusHours(defaultTimeOutHour + 1);
+        // create 6 time outed plan instance.
+        createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS, createdTime);
+        createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY, createdTime);
+        createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS, createdTime);
+        createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY, createdTime);
+        createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS, createdTime);
+        createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY, createdTime);
+
+        int num = planDao.getNumberOfRunningPlanInstances();
+
+        assertEquals(6, num);
+        long id1 = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
+                .setTopologyId(1L)
+                .build()).getPlanId();
+
+        // it will indirectly call PlanDaoImpl#cleanUpFailedInstance, so the previous time outed
+        // instance will be clean up (set to FAILED state).
+        inst = planDao.queueNextPlanInstance();
+        num = planDao.getNumberOfRunningPlanInstances();
+        // verify all time outed plan instances have updated status
+        assertEquals(0, num);
+
+
+        Result re = dsl.selectFrom(PLAN_INSTANCE).fetch();
+        long failedInstncesCount = re.stream()
+                .filter(result -> result.toString().contains(PlanStatus.FAILED.name()))
+                .count();
+        // verify there are 6 plan instance with 'FAILED' state.
+        assertEquals(6L, failedInstncesCount);
+
+        assertEquals(true, inst.isPresent());
+        assertEquals(PlanStatus.QUEUED, inst.get().getStatus());
+        assertEquals(id1, inst.get().getPlanId());
+    }
+
     @Test
     public void testGetNumberOfRunningPlanInstances() throws Exception {
         deleteAllPlanInstances();
@@ -121,11 +171,11 @@ public class PlanDaoImplTest {
         long id3 = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
                 .setTopologyId(1L)
                 .build()).getPlanId();
-        createHeadroomPlanInstance(PlanStatus.READY);
-        createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY); // <-- Running #1
-        createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS); // <-- Running #2
-        createHeadroomPlanInstance(PlanStatus.WAITING_FOR_RESULT); // <-- Running #3
-        createHeadroomPlanInstance(PlanStatus.SUCCEEDED);
+        createHeadroomPlanInstance(PlanStatus.READY, null);
+        createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY, null); // <-- Running #1
+        createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS, null); // <-- Running #2
+        createHeadroomPlanInstance(PlanStatus.WAITING_FOR_RESULT, null); // <-- Running #3
+        createHeadroomPlanInstance(PlanStatus.SUCCEEDED, null);
 
 
         dsl.update(PLAN_INSTANCE)
@@ -160,9 +210,9 @@ public class PlanDaoImplTest {
                         .build());
 
         // create 3 Headroom plan instances, 2 running and 1 ready
-        createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS);
-        createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY);
-        PlanInstance headroomPlanInstance = createHeadroomPlanInstance(PlanStatus.READY);
+        createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS, null);
+        createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY, null);
+        PlanInstance headroomPlanInstance = createHeadroomPlanInstance(PlanStatus.READY, null);
 
         PlanInstance inst1 = planDao.createPlanInstance(CreatePlanRequest.newBuilder()
                 .setTopologyId(1L)
@@ -272,7 +322,7 @@ public class PlanDaoImplTest {
         dsl.delete(PLAN_INSTANCE);
     }
 
-    private PlanDTO.PlanInstance createHeadroomPlanInstance(@Nonnull PlanStatus planStatus)
+    private PlanDTO.PlanInstance createHeadroomPlanInstance(@Nonnull PlanStatus planStatus, LocalDateTime createdTime)
             throws IntegrityException {
         final PlanDTO.PlanInstance.Builder builder = PlanDTO.PlanInstance.newBuilder();
         builder.setTopologyId(1L);
@@ -281,7 +331,7 @@ public class PlanDaoImplTest {
         builder.setProjectType(PlanProjectType.CLUSTER_HEADROOM);
         final PlanDTO.PlanInstance plan = builder.build();
 
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = createdTime == null ? LocalDateTime.now() : createdTime;
         final com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance dbRecord =
                 new com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance(
                         plan.getPlanId(), curTime, curTime, plan,

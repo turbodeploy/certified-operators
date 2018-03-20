@@ -48,6 +48,12 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         GroupClientConfig.class})
 public class PlanConfig {
 
+    /**
+     * This parameter is used to control the time out hours for running plans
+     */
+    @Value("${planTimeOutHours}")
+    private int planTimeOutHours;
+
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
@@ -78,10 +84,11 @@ public class PlanConfig {
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(),
-            repositoryClientConfig.repositoryClient(),
-            actionsRpcService(),
-            statsRpcService(),
-            groupClientConfig.groupChannel());
+                repositoryClientConfig.repositoryClient(),
+                actionsRpcService(),
+                statsRpcService(),
+                groupClientConfig.groupChannel(),
+                planTimeOutHours);
     }
 
     @Bean
