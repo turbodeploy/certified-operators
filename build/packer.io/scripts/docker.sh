@@ -382,7 +382,28 @@ systemctl enable docker.service
 # Create a default network. Due to some bug in the docker-compose, it doesn't get created from the .yml file.
 docker network create --driver bridge --subnet 10.10.10.0/24 --gateway 10.10.10.1 docker_default
 
-# set up the turbonomic service
+# The turbonomic service
+cat <<EOF >/usr/lib/systemd/system/turbonomic.service
+[Unit]
+Description=Turbonomic
+Documentation=https://www.turbonomic.com
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/vmtctl init
+MountFlags=slave
+LimitNOFILE=1048576
+LimitNPROC=1048576
+LimitCORE=infinity
+TimeoutStartSec=0
+# set delegate yes so that systemd does not reset the cgroups of docker containers
+Delegate=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
 systemctl daemon-reload
 systemctl enable turbonomic.service
 
