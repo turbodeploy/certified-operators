@@ -1253,9 +1253,8 @@ public class TopologyConverter {
 
     private ActivateExplanation interpretActivateExplanation(ActivateTO activateTO) {
         return ActivateExplanation.newBuilder()
-                        .setMostExpensiveCommodity(
-                            commodityIdToCommodityType(activateTO.getMostExpensiveCommodity()))
-                        .build();
+                .setMostExpensiveCommodity(activateTO.getMostExpensiveCommodity())
+                .build();
     }
 
     private ResizeExplanation interpretResizeExplanation(ResizeTO resizeTO) {

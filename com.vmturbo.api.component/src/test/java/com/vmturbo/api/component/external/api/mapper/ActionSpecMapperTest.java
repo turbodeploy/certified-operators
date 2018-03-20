@@ -395,7 +395,7 @@ public class ActionSpecMapperTest {
         Explanation activate =
                         Explanation.newBuilder()
                                         .setActivate(ActivateExplanation.newBuilder()
-                                                        .setMostExpensiveCommodity(commodityCpu).build())
+                                                        .setMostExpensiveCommodity(commodityCpu.getType()).build())
                                         .build();
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                         .thenReturn(oidToEntityMap(

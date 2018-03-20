@@ -129,7 +129,7 @@ public class ActionCategoryTest {
     @Test
     public void testActivatePerformanceAssurance() {
         Explanation activate1 = Explanation.newBuilder().setActivate(ActivateExplanation.newBuilder()
-            .setMostExpensiveCommodity(CPU).build()).build();
+            .setMostExpensiveCommodity(CPU.getType()).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE,
             ActionCategory.assignActionCategory(activate1));
@@ -138,7 +138,7 @@ public class ActionCategoryTest {
     @Test
     public void testActivateCompliance() {
         Explanation activate2 = Explanation.newBuilder().setActivate(ActivateExplanation.newBuilder()
-            .setMostExpensiveCommodity(DRS_SEGMENTATION).build()).build();
+            .setMostExpensiveCommodity(DRS_SEGMENTATION.getType()).build()).build();
 
         assertEquals(ActionCategory.CATEGORY_COMPLIANCE,
             ActionCategory.assignActionCategory(activate2));

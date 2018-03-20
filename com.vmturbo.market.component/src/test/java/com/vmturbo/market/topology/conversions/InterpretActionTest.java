@@ -307,7 +307,7 @@ public class InterpretActionTest {
         final  CommodityDTOs.CommoditySpecificationTO economyCommodity =
             CommodityDTOs.CommoditySpecificationTO.newBuilder()
                 .setType(marketCommodityId)
-                .setBaseType(marketCommodityId)
+                .setBaseType(expectedCommodityType.getType())
                 .build();
 
         Mockito.doReturn(Optional.of(topologyCommodity1))
@@ -321,7 +321,7 @@ public class InterpretActionTest {
                 .setActivate(ActivateTO.newBuilder()
                     .setTraderToActivate(entityToActivate)
                     .setModelSeller(2)
-                    .setMostExpensiveCommodity(economyCommodity.getType())
+                    .setMostExpensiveCommodity(economyCommodity.getBaseType())
                     .addTriggeringBasket(economyCommodity)
                     .addTriggeringBasket(economyCommodity2))
                 .build();
@@ -333,7 +333,7 @@ public class InterpretActionTest {
         assertThat(actionInfo.getActivate().getTriggeringCommoditiesList(),
                 IsIterableContainingInAnyOrder.containsInAnyOrder(topologyCommodity1,
                         topologyCommodity2));
-        assertEquals(expectedCommodityType,
+        assertEquals(expectedCommodityType.getType(),
             action.getExplanation().getActivate().getMostExpensiveCommodity());
     }
 

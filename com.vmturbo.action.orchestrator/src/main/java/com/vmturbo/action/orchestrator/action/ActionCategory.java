@@ -69,7 +69,7 @@ public class ActionCategory {
                 }
             case ACTIVATE:
                 if (SEGMENTATION_COMMODITY_SET
-                                .contains(explanation.getActivate().getMostExpensiveCommodity().getType())) {
+                                .contains(explanation.getActivate().getMostExpensiveCommodity())) {
                     // if activation is due to segmentation commodity(DRS is a subclass of it)
                     return CATEGORY_COMPLIANCE;
                 } else {

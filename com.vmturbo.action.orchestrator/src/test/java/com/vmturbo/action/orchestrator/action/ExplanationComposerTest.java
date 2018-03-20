@@ -88,7 +88,7 @@ public class ExplanationComposerTest {
         Explanation activate =
             Explanation.newBuilder()
                 .setActivate(ActivateExplanation.newBuilder()
-                    .setMostExpensiveCommodity(CPU).build())
+                    .setMostExpensiveCommodity(CPU.getType()).build())
                 .build();
 
         assertEquals("Address high utilization of CPU", ExplanationComposer.composeExplanation(activate));

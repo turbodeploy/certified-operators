@@ -190,9 +190,9 @@ public class ExplanationComposer {
      * @param commodityType the most expensive commodity type
      * @return explanation
      */
-    public static String buildActivateExplanation(@Nonnull final TopologyDTO.CommodityType commodityType) {
+    public static String buildActivateExplanation(final int commodityType) {
         return new StringBuilder().append(ACTIVATE_EXPLANATION)
-            .append(CommodityType.forNumber(commodityType.getType())).toString();
+            .append(CommodityType.forNumber(commodityType)).toString();
     }
 
     /**
