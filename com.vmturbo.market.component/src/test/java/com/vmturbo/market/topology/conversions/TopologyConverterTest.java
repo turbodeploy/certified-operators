@@ -83,9 +83,6 @@ public class TopologyConverterTest {
     private CommodityDTOs.CommoditySpecificationTO economyCommodity2;
     private CommodityType topologyCommodity2;
 
-    private static final Map<Long, Integer> entityIdToEntityTypeMap =
-        Collections.emptyMap();
-
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
@@ -315,7 +312,7 @@ public class TopologyConverterTest {
         // Since we create a new TopologyConverter here that's fine, as long
         // as the implementation of the ID allocator doesn't change.
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToEntityTypeMap, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
         converter.convertToMarket(Lists.newArrayList(entityDTO));
 
         assertEquals(topologyCommodity1,
@@ -343,7 +340,7 @@ public class TopologyConverterTest {
                                          @Nonnull final TopologyInfo topologyInfo)
             throws InvalidTopologyException {
 
-        return new TopologyConverter(topologyInfo, entityIdToEntityTypeMap, true)
+        return new TopologyConverter(topologyInfo, true)
                         .convertToMarket(topology);
     }
 
@@ -360,7 +357,7 @@ public class TopologyConverterTest {
                         messageFromJsonFile("protobuf/messages/pm-2.dto.json"),
                         messageFromJsonFile("protobuf/messages/vm-2.dto.json"));
         Set<TraderTO> traderTOs =
-                new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToEntityTypeMap, false)
+                new TopologyConverter(REALTIME_TOPOLOGY_INFO, false)
                         .convertToMarket(topologyDTOs.stream().collect(Collectors.toList()));
         assertEquals(2, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
@@ -387,7 +384,7 @@ public class TopologyConverterTest {
     @Test
     public void testTraderWithBicliqueCommodityConversion() throws Exception {
         TopologyConverter converter = Mockito.spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToEntityTypeMap));
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO));
         final TopologyDTO.CommoditySoldDTO topologyDSPMSold =
                     TopologyDTO.CommoditySoldDTO.newBuilder()
                         .setCommodityType(CommodityType.newBuilder()
@@ -565,7 +562,7 @@ public class TopologyConverterTest {
                         .setOid(1001L).setEntityType(26).build();
         TopologyDTO.TopologyEntityDTO actionManager = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setOid(1001L).setEntityType(22).build();
-        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToEntityTypeMap);
+        TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         assertTrue(converter.convertToMarket(Arrays.asList(container, virtualApp, actionManager))
                         .isEmpty());
     }

@@ -51,8 +51,6 @@ public class TopologyConverterGuaranteedTest {
             .build();
     private static List<TopologyEntityDTO> entities;
 
-    private Map<Long, Integer> entityIdToEntityTypeMap;
-
     /**
      * Create a topology with two VDCs, one that qualifies as guaranteed buyer and one that doesn't,
      * a DPod and a PM.
@@ -99,9 +97,6 @@ public class TopologyConverterGuaranteedTest {
                         .setEntityState(EntityState.MAINTENANCE)
                         .build();
         entities = ImmutableList.of(vdc1, vdc2, dpod, pm, vm1, vm2);
-        entityIdToEntityTypeMap =
-                        TopologyDTOUtil.getEntityIdToEntityTypeMapping(
-                            ImmutableSet.copyOf(entities));
     }
 
     /**
@@ -112,7 +107,7 @@ public class TopologyConverterGuaranteedTest {
     public void testExcludeVDCs() throws InvalidTopologyException {
         // includeVDC is false
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToEntityTypeMap);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         // VDCs are skipped, VMs in maintenance and unknown state are skipped
         assertEquals(1, traders.size());
@@ -133,7 +128,7 @@ public class TopologyConverterGuaranteedTest {
     @Test
     public void testIncludeVDCs() throws InvalidTopologyException {
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, entityIdToEntityTypeMap, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(4, traders.size());
         List<Long> guaranteedBuyers = traders.stream()

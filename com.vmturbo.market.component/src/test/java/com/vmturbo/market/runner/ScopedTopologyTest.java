@@ -15,7 +15,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -32,7 +31,6 @@ import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
-import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
@@ -74,7 +72,6 @@ public class ScopedTopologyTest {
 
     private static final Gson GSON = new Gson();
     private Set<TopologyEntityDTO> topologyDTOs;
-    private Map<Long, Integer> entityIdToEntityTypeMap;
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
     private final SettingPolicyServiceMole testSettingPolicyService =
             spy(new SettingPolicyServiceMole());
@@ -96,8 +93,6 @@ public class ScopedTopologyTest {
     @Before
     public void setup() throws FileNotFoundException, InvalidProtocolBufferException {
         topologyDTOs = Objects.requireNonNull(readTopologyFromJsonFile());
-        entityIdToEntityTypeMap =
-                        TopologyDTOUtil.getEntityIdToEntityTypeMapping(topologyDTOs);
         IdentityGenerator.initPrefix(ID_GENERATOR_PREFIX);
         TopologyDTO.TopologyInfo topoogyInfo = TopologyDTO.TopologyInfo.getDefaultInstance();
         testAnalysis = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
@@ -120,7 +115,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyCluster1() throws InvalidTopologyException {
 
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, entityIdToEntityTypeMap);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter
                 .convertToMarket(topologyDTOs);
 
@@ -139,7 +134,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyOneHost() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, entityIdToEntityTypeMap);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter
                 .convertToMarket(topologyDTOs);
 
@@ -159,7 +154,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyTwoHosts() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, entityIdToEntityTypeMap);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO);
         final Set<EconomyDTOs.TraderTO> traderTOs = converter
                 .convertToMarket(topologyDTOs);
 
@@ -180,7 +175,7 @@ public class ScopedTopologyTest {
     @Test
     public void testScopeTopologyUplacedEnities() throws InvalidTopologyException {
         final TopologyConverter converter =
-            new TopologyConverter(PLAN_TOPOLOGY_INFO, entityIdToEntityTypeMap);
+            new TopologyConverter(PLAN_TOPOLOGY_INFO);
         // add an additional VM, which should be considered unplaced
         topologyDTOs.add(TopologyEntityDTO.newBuilder()
                 .setDisplayName("VM-unplaced")

@@ -27,7 +27,6 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
@@ -143,9 +142,7 @@ public class Analysis {
         logger.info("{} Started", logPrefix);
         try {
             final TopologyConverter converter =
-                new TopologyConverter(topologyInfo,
-                        TopologyDTOUtil.getEntityIdToEntityTypeMapping(topologyDTOs),
-                        includeVDC);
+                new TopologyConverter(topologyInfo, includeVDC);
 
             Set<TraderTO> traderTOs = converter.convertToMarket(
                     Lists.newLinkedList(topologyDTOs));
@@ -199,8 +196,17 @@ public class Analysis {
                     .setTopologyId(topologyInfo.getTopologyId())
                     .setTopologyContextId(topologyInfo.getTopologyContextId())
                     .setAnalysisStartTimestamp(startTime.toEpochMilli());
+            // We shouldn't need to put the original topology entities into the map, because
+            // the entities the market operates on (i.e. has actions for) should appear in
+            // the projected topology.
+            //
+            // We look through the projected traders directly instead of the projected entities
+            // because iterating through the projected entities will actually convert all the
+            // traders (it's a lazy-transforming list at the time of this writing - Mar 20 2018).
+            final Map<Long, Integer> entityIdToType = results.getProjectedTopoEntityTOList().stream()
+                    .collect(Collectors.toMap(TraderTO::getOid, TraderTO::getType));
             results.getActionsList().stream()
-                    .map(converter::interpretAction)
+                    .map(action -> converter.interpretAction(action, entityIdToType))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(actionPlanBuilder::addAction);
