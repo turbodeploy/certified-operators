@@ -28,6 +28,7 @@ import com.google.common.collect.Maps;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -103,6 +104,7 @@ public class PlanStatsAggregator {
      */
     private void countTypes(Collection<TopologyEntityDTO> chunk) {
         chunk.stream()
+            .filter(dto -> dto.getEntityState() == EntityState.POWERED_ON)
             .map(TopologyEntityDTO::getEntityType)
             .forEach(this::increment);
 
