@@ -626,17 +626,13 @@ public class ActionSpecMapper {
                         .map(CommodityDTO.CommodityType::name)
                         .collect(Collectors.toList());
 
-        actionApiDTO.getRisk().setReasonCommodity(reasonCommodityNames.stream()
-                                                                      .collect(Collectors.joining(
-                                                                              ",")));
+        actionApiDTO.getRisk()
+                .setReasonCommodity(reasonCommodityNames.stream().collect(Collectors.joining(",")));
 
         final StringBuilder detailStrBuilder = new StringBuilder()
                 .append(actionType == ActionType.START ? "Start " : "Add provider " )
                 .append(readableEntityTypeAndName(actionApiDTO.getTarget()))
-                .append(" due to increased demand for:");
-
-        reasonCommodityNames.forEach(commodityType -> detailStrBuilder.append("\n")
-                .append(commodityType));
+                .append(" due to increased demand for resources");
         actionApiDTO.setDetails(detailStrBuilder.toString());
     }
 
