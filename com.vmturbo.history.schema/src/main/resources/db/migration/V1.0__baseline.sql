@@ -5706,7 +5706,7 @@ DROP TABLE IF EXISTS `market_stats_by_day`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `market_stats_by_day` (
-  `snapshot_time` date DEFAULT NULL,
+  `snapshot_time` datetime DEFAULT NULL,
   `topology_context_id` bigint(20) DEFAULT NULL,
   `entity_type` varchar(80) COLLATE utf8_unicode_ci DEFAULT NULL,
   `property_type` varchar(36) COLLATE utf8_unicode_ci DEFAULT NULL,
@@ -5864,7 +5864,7 @@ DROP TABLE IF EXISTS `market_stats_by_month`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `market_stats_by_month` (
-  `snapshot_time` date DEFAULT NULL,
+  `snapshot_time` datetime DEFAULT NULL,
   `topology_context_id` bigint(20) DEFAULT NULL,
   `entity_type` varchar(80) COLLATE utf8_unicode_ci DEFAULT NULL,
   `property_type` varchar(36) COLLATE utf8_unicode_ci DEFAULT NULL,
