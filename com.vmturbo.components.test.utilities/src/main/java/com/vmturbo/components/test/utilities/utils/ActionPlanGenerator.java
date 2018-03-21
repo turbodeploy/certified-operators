@@ -503,7 +503,7 @@ public class ActionPlanGenerator {
             return makeAction(
                 Explanation.newBuilder()
                     .setActivate(ActivateExplanation.newBuilder()
-                        .setMostExpensiveCommodity(chooser.commodityType())),
+                        .setMostExpensiveCommodity(chooser.commodityType().getType())),
                 ActionInfo.newBuilder()
                     .setActivate(Activate.newBuilder()
                         .setTarget(chooser.actionEntity())
