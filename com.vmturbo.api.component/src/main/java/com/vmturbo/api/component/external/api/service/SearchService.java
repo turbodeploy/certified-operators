@@ -389,7 +389,7 @@ public class SearchService implements ISearchService {
                 .build());
 
         // build the replacement filter - a regex against /^oid1$|^oid2$|.../
-        StringJoiner sj = new StringJoiner("$|^","/^","$/");
+        StringJoiner sj = new StringJoiner("$|^","^","$");
         groups.stream()
                 .map(GroupApiDTO::getMemberUuidList)
                 .flatMap(List::stream)

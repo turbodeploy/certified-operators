@@ -518,7 +518,7 @@ public class GroupService extends GroupServiceImplBase {
                 .flatMap(clusterInfo -> clusterInfo.getMembers().getStaticMemberOidsList().stream())
                 .collect(Collectors.toSet());
         // build the replacement filter - a regex against /^oid1$|^oid2$|.../
-        StringJoiner sj = new StringJoiner("$|^","/^","$/");
+        StringJoiner sj = new StringJoiner("$|^","^","$");
         matchingClusterMembers.forEach(oid -> sj.add(oid.toString()));
 
         SearchFilter searchFilter = SearchFilter.newBuilder()

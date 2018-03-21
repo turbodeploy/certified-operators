@@ -24,23 +24,10 @@ message SearchFilter {
     // There are 3 types of filters.
     // - traversal filter: used to traverse graph relationship
     // - property filter: used to specify specific criteria on properties of the element
-    // - cluster membership filter: this is a special-case filter that will target physical machines
-    // (and only physical machines) belonging to a cluster or set of clusters. Being special-purpose,
-    // there are a number of limitations:
-    //   1) It cannot be freely mixed-and-matched with the other search filters. It always produces
-    //      a set of PM oid's, which will only make sense in the filtering pipeline if the input to
-    //      the search stage is also PM's. If it is staged to filter on non-PM entities, it will produce
-    //      nonsensical results. If you want to get non-PM entities restricted by cluster, you can
-    //      pair this filter with the other filter types to navigate to them from the set of PM's
-    //      this filter returns.
-    //   2) It is primarily designed to support group creation and user-driven search queries. It
-    //      has not been tested outside of those scenarios. These target use cases will always create
-    //      a Starting Filter of "entity type = PM" and then place this filter as the first search
-    //      filter afterwards. Theoretically multiple cluster filters can be used together but the
-    //      use cases don't normally doesn't produce this setup.
-    //   3) TODO: With these limitations in mind, we will probably want to  come back and change the
-    //      data model for this use case so it works more naturally. But perhaps that is best done
-    //      coupled with other changes and improvements we will make to the filtering functionality.
+    // - cluster membership filter: this is a special-case filter that will target members of
+    // a cluster or set of clusters. This means storages or pm's. When you combine cluster filters
+    // with other filter types, take care to ensure that the input to cluster filters
+    // are storages or pm's, or you may get unexpected results (probably no results at all!).
     oneof filterType {
         TraversalFilter traversal_filter = 1;
         PropertyFilter property_filter = 2;

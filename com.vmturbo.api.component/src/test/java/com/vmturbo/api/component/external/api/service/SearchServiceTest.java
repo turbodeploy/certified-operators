@@ -223,7 +223,7 @@ public class SearchServiceTest {
 
         // we should get the members of cluster 1 in the static regex
         StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
-        assertEquals("/^1$|^2$/", stringFilter.getStringPropertyRegex());
+        assertEquals("^1$|^2$", stringFilter.getStringPropertyRegex());
 
     }
 

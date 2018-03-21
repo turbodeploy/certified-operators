@@ -1,70 +1,73 @@
 {
     "VirtualMachine" : {
         "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vmsByName"},
-            {"inputType": "*", "elements": "PhysicalMachine:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByPMName"},
-            {"inputType": "*", "elements": "Storage:PRODUCES", "filterCategory": "entity", "filterType": "vmsByStorage"},
-            {"inputType": "*", "elements": "Application:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
-            {"inputType": "*", "elements": "Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"}
+            {"inputType": "*", "elements": "VirtualMachine:displayName", "filterCategory": "property", "filterType": "vmsByName"},
+            {"inputType": "*", "elements": "PhysicalMachine:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByPMName"},
+            {"inputType": "*", "elements": "Storage:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByStorage"},
+            {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
+            {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"}
         ]
     },
 
     "VirtualDataCenter" : {
         "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vdcsByName"}
+            {"inputType": "*", "elements": "VirtualDataCenter:displayName", "filterCategory": "property", "filterType": "vdcsByName"}
         ]
     },
 
     "PhysicalMachine" : {
         "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "pmsByName"}
+            {"inputType": "*", "elements": "PhysicalMachine:displayName", "filterCategory": "property", "filterType": "pmsByName"},
+            {"inputType": "*", "elements": "PhysicalMachine:Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"}
         ]
     },
 
     "Storage" : {
         "criteria": [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageByName"},
-            {"inputType": "*", "elements": "VirtualMachine:CONSUMES", "filterCategory": "entity", "filterType": "storageByVMs"}
+            {"inputType": "*", "elements": "Storage:displayName", "filterCategory": "property", "filterType": "storageByName"},
+            {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES", "filterCategory": "entity", "filterType": "storageByVMs"},
+            {"inputType": "*", "elements": "PhysicalMachine:Cluster:CONSUMES", "filterCategory": "entity", "filterType": "storageByPMCluster"},
+            {"inputType": "*", "elements": "Storage:Cluster", "filterCategory": "entity", "filterType": "storageByStorageCluster"}
         ]
     },
 
     "Application" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appsByName"}]
+        "criteria" : [{"inputType": "*", "elements": "Application:displayName", "filterCategory": "property", "filterType": "appsByName"}]
     },
 
     "ApplicationServer" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appSrvsByName"}]
+        "criteria" : [{"inputType": "*", "elements": "ApplicationServer:displayName", "filterCategory": "property", "filterType": "appSrvsByName"}]
     },
 
     "Database" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"}]
+        "criteria" : [{"inputType": "*", "elements": "Database:displayName", "filterCategory": "property", "filterType": "databaseByName"}]
     },
 
     "VirtualApplication" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "vappsByName"}]
+        "criteria" : [{"inputType": "*", "elements": "VirtualApplication:displayName", "filterCategory": "property", "filterType": "vappsByName"}]
     },
 
     "Cluster" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "clustersByName"}]
+        "criteria" : [{"inputType": "*", "elements": "Cluster:displayName", "filterCategory": "property", "filterType": "clustersByName"}]
     },
 
     "Group" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "groupsByName"}]
+        "criteria" : [{"inputType": "*", "elements": "Group:displayName", "filterCategory": "property", "filterType": "groupsByName"}]
     },
 
     "StorageCluster" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storageClustersByName"}]
+        "criteria" : [{"inputType": "*", "elements": "StorageCluster:displayName", "filterCategory": "property", "filterType": "storageClustersByName"}]
     },
 
     "DiskArray" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "diskarrayByName"}]
+        "criteria" : [{"inputType": "*", "elements": "DiskArray:displayName", "filterCategory": "property", "filterType": "diskarrayByName"}]
     },
 
     "StorageController" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "storagecontrollerByName"}]
+        "criteria" : [{"inputType": "*", "elements": "StorageController:displayName", "filterCategory": "property", "filterType": "storagecontrollerByName"}]
     },
 
     "Switch" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "switchByName"}]
+        "criteria" : [{"inputType": "*", "elements": "Switch:displayName", "filterCategory": "property", "filterType": "switchByName"}]
     }
 }

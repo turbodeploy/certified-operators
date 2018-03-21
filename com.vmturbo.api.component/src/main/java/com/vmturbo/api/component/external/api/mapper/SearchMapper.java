@@ -7,6 +7,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -22,6 +23,9 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.Tr
  */
 public class SearchMapper {
 
+    public static final String ENTITY_TYPE_PROPERTY = "entityType";
+    public static final String DISPLAY_NAME_PROPERTY = "displayName";
+
     /**
      * Wrap an instance of {@link PropertyFilter} with a {@link SearchFilter}.
      * @param propFilter the property filter to wrap
@@ -29,6 +33,17 @@ public class SearchMapper {
      */
     public static SearchFilter searchFilterProperty(PropertyFilter propFilter) {
         return SearchFilter.newBuilder().setPropertyFilter(propFilter).build();
+    }
+
+    /**
+     * Wrap an instance of {@link ClusterMembershipFilter} with a {@link SearchFilter}.
+     * @param clusterFilter the cluster membership filter to wrap
+     * @return a search filter that wraps the argument
+     */
+    public static SearchFilter searchFilterCluster(ClusterMembershipFilter clusterFilter) {
+        return SearchFilter.newBuilder()
+                .setClusterMembershipFilter(clusterFilter)
+                .build();
     }
 
     /**
@@ -93,7 +108,7 @@ public class SearchMapper {
      * @return a property filter
      */
     public static PropertyFilter entityTypeFilter(String entityType) {
-        return numericPropertyFilter("entityType", ServiceEntityMapper.fromUIEntityType(entityType));
+        return numericPropertyFilter(ENTITY_TYPE_PROPERTY, ServiceEntityMapper.fromUIEntityType(entityType));
     }
 
     /**
@@ -113,7 +128,7 @@ public class SearchMapper {
      * @return a property filter
      */
     public static PropertyFilter nameFilter(String displayName, boolean match) {
-        return stringFilter("displayName", displayName, match);
+        return stringFilter(DISPLAY_NAME_PROPERTY, displayName, match);
     }
 
     /**
@@ -148,6 +163,17 @@ public class SearchMapper {
                         .setStoppingCondition(numHops)
                         .build();
     }
+
+    /**
+     * Create a {@link ClusterMembershipFilter} based on a cluster property type filter.
+     * @return a {@link ClusterMembershipFilter}
+     */
+    public static ClusterMembershipFilter clusterFilter(PropertyFilter propertyFilter) {
+        return ClusterMembershipFilter.newBuilder()
+                .setClusterSpecifier(propertyFilter)
+                .build();
+    }
+
 
     /**
      * Convert a {@link Search.Entity} to a {@link ServiceEntityApiDTO}.

@@ -6,18 +6,18 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.StringJoiner;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
@@ -58,6 +58,9 @@ public class GroupMapper {
     public static final String STORAGE_CLUSTER = "StorageCluster";
 
     public static final String DISPLAY_NAME = "displayName";
+
+    private static final String CONSUMES = "CONSUMES";
+    private static final String PRODUCES = "PRODUCES";
 
     public static final String ELEMENTS_DELIMITER = ":";
 
@@ -312,121 +315,202 @@ public class GroupMapper {
      * 2. <b>PhysicalMachine:PRODUCES:1</b> - start with instances of PhysicalMachine, traverse to
      * PRODUCES and stop after one hop.
      *
+     * TODO: if the filter language keeps getting expanded on, we might want to use an actual
+     * grammar and parser. This implementation is pretty loose in regards to checks and assumes the
+     * input set is controlled via groupBuilderUsescases.json. We are not checking all boundary
+     * conditions. If this becomes necessary then we'll need to update this implementation.
+     *
      * @param filter a filter
      * @param className class name of the byName filter
      * @return parameters full search parameters
      */
     private SearchParameters filter2parameters(FilterApiDTO filter,
                                                String className) {
-
         GroupUseCaseCriteria useCase = groupUseCaseParser.getUseCasesByFilterType().get(filter.getFilterType());
-        String elements = useCase.getElements();
-        if (DISPLAY_NAME.equals(elements)) {
-            final PropertyFilter byType = SearchMapper.entityTypeFilter(className);
-            final boolean match = filter.getExpType().equals(EQUAL);
-            final PropertyFilter byName = SearchMapper.nameFilter(filter.getExpVal(), match);
-            SearchParameters parameters = SearchParameters.newBuilder()
-                    .setStartingFilter(byType)
-                    .addSearchFilter(SearchMapper.searchFilterProperty(byName))
-                    .build();
-            return parameters;
-        }
-        // elements is of the form (for example) "PhysicalMachine:PRODUCES"
+
+        // build the search parameters based on the filter criteria
         SearchParameters.Builder parametersBuilder = SearchParameters.newBuilder();
 
-        // the name filter will be used for either an entity name search or cluster name search
-        PropertyFilter nameFilter = SearchMapper.nameFilter(filter.getExpVal(),
-                filter.getExpType().equals(EQUAL));
-        // if we are searching by cluster, create the cluster search parameter for that.
-        String[] elementsArray = elements.split(ELEMENTS_DELIMITER);
-        if ((elementsArray.length > 0) && (CLUSTER.equals(elementsArray[0]))) {
-            // add cluster search parameters
-            // create a cluster membership filter using the name filter as the cluster lookup function
-            ClusterMembershipFilter clusterFilter = ClusterMembershipFilter.newBuilder()
-                    .setClusterSpecifier(nameFilter)
-                    .build();
-            // we will also add a PM starting filter. The startingFilter could be refactored to
-            // allow for the ClusterFilter to be used directly too, though it may not be worth the
-            // cost of doing it just to remove this hard-coded PM filter. Another option is to
-            // extend the groupUseCase grammar so cluster member entity type can be explicit, but
-            // has a similar cost-to-benefit question.
-            PropertyFilter startingFilter = SearchMapper.entityTypeFilter(UIEntityType.PHYSICAL_MACHINE.getValue());
-            parametersBuilder
-                    .setStartingFilter(startingFilter)
-                    .addSearchFilter(SearchFilter.newBuilder().setClusterMembershipFilter(clusterFilter));
+        String[] elements = useCase.getElements().split(ELEMENTS_DELIMITER);
 
-        } else {
-            // add starting search parameters for regular entity types
-            PropertyFilter seTypeFilter = SearchMapper.entityTypeFilter(elementsArray[0]);
-            parametersBuilder
-                    .setStartingFilter(seTypeFilter)
-                    .addSearchFilter(SearchMapper.searchFilterProperty(nameFilter));
-        }
-        // add the search params for traversals as needed.
-        PropertyFilter classNameFilter = SearchMapper.entityTypeFilter(className);
-        TraversalDirection direction = TraversalDirection.valueOf(elementsArray[1]);
-        int hops = elementsArray.length > 2 ? Integer.valueOf(elementsArray[2]) : 0;
-        Function<StoppingCondition.Builder, StoppingCondition.Builder> condition =
-                builder -> (hops > 0
-                        ? builder.setNumberHops(hops)
-                        : builder.setStoppingPropertyFilter(classNameFilter));
-        StoppingCondition stop = condition.apply(StoppingCondition.newBuilder()).build();
-        TraversalFilter traversal = TraversalFilter.newBuilder()
-                .setTraversalDirection(direction)
-                .setStoppingCondition(stop)
-                .build();
-        parametersBuilder.addSearchFilter(SearchMapper.searchFilterTraversal(traversal));
-        if (hops > 0) {
-            parametersBuilder.addSearchFilter(SearchMapper.searchFilterProperty(classNameFilter));
+        int currentTokenIndex = 0;
+        while (currentTokenIndex < elements.length) {
+            String currentToken = elements[currentTokenIndex];
+            switch(currentToken) {
+                case DISPLAY_NAME:
+                    PropertyFilter nameFilter = SearchMapper.nameFilter(filter.getExpVal(),
+                            filter.getExpType().equals(EQUAL));
+                    if (parametersBuilder.hasStartingFilter()) {
+                        parametersBuilder.addSearchFilter(SearchMapper.searchFilterProperty(nameFilter));
+                    } else {
+                        parametersBuilder.setStartingFilter(nameFilter);
+                    }
+                    currentTokenIndex++;
+                    break;
+                case CLUSTER:
+                    // add a cluster member filter. Currently this assumes a name matcher, but
+                    // we may want to revisit this assumption if/when we support other cluster
+                    // identification strategies, such as by tags or other properties.
+                    // Also, the cluster filter is not expected to be used when the display name
+                    // filter is used. Technically there won't be an issue, but since both of these
+                    // filters use the same filter expression, combining them will probably lead to
+                    // non-sensical results.
+                    ClusterMembershipFilter clusterFilter = SearchMapper.clusterFilter(
+                            SearchMapper.nameFilter(filter.getExpVal(), filter.getExpType().equals(EQUAL)));
+                    // ClusterMembershipFilter could technically work as a start filter, since it
+                    // reduces to a PropertyFilter after the membership is resolved. It could produce
+                    // a faster query than an entity-type-filter-first. But we'd need to update the
+                    // SearchParameters to allow ClusterMembershipFilters as start filters first,
+                    // and that is a task for another time. (anotehr option is to remove the idea
+                    // of a separate start filter from the data structure altogher and instead rely
+                    // on a data validation to restrict or warn about unexpected filter types from
+                    // being placed at the head of the search param list.
+                    parametersBuilder.addSearchFilter(SearchMapper.searchFilterCluster(clusterFilter));
+                    currentTokenIndex++;
+                    break;
+                case CONSUMES:
+                case PRODUCES:
+                    // add a traversal filter
+                    TraversalDirection direction = TraversalDirection.valueOf(currentToken);
+                    currentTokenIndex++;
+                    StoppingCondition stopper;
+                    int hops = 0;
+                    if (currentTokenIndex < elements.length ) {
+                        // we have hops, people! Add a hop-based traversal!
+                        hops = Integer.valueOf(elements[currentTokenIndex]);
+                        currentTokenIndex++;
+                        stopper = StoppingCondition.newBuilder().setNumberHops(hops).build();
+                    } else {
+                        // it's hopless. sigh.
+                        // the traversal stops when the target entity type is encountered.
+                        stopper = StoppingCondition.newBuilder()
+                                .setStoppingPropertyFilter(SearchMapper.entityTypeFilter(className))
+                                .build();
+                    }
+                    TraversalFilter traversal = TraversalFilter.newBuilder()
+                            .setTraversalDirection(direction)
+                            .setStoppingCondition(stopper)
+                            .build();
+                    parametersBuilder.addSearchFilter(SearchMapper.searchFilterTraversal(traversal));
+                    // add a final entity type filter if we are doing a hop-count based traverse
+                    if (hops > 0) {
+                        parametersBuilder.addSearchFilter(
+                                SearchMapper.searchFilterProperty(
+                                        SearchMapper.entityTypeFilter(className)));
+                    }
+                    break;
+                default:
+                    // the token should map to an entity type. This type will be used as the
+                    // starting filter, if one wasn't set yet, otherwise it will be added as a
+                    // search param.
+                    PropertyFilter entityTypeFilter = SearchMapper.entityTypeFilter(currentToken);
+                    if (parametersBuilder.hasStartingFilter()) {
+                        parametersBuilder.addSearchFilter(SearchMapper.searchFilterProperty(entityTypeFilter));
+                    } else {
+                        parametersBuilder.setStartingFilter(entityTypeFilter);
+                    }
+                    currentTokenIndex++;
+                    break;
+            }
+            if (! parametersBuilder.hasStartingFilter()) {
+                // log a warning that no starting filter was set yet.
+                logger.warn("Starting filter wasn't specified yet after processing token {} from ({})",
+                        currentToken, useCase.getElements());
+            }
         }
         return parametersBuilder.build();
     }
 
     /**
-     * Convert one set of search parameters to a filter DTO, use group entity type to get related useCase json map value,
-     * and use starting filter's entity type to get filter type. And also through the first byName
-     * search filter to get filter expression value.
+     * Convert one set of search parameters to a filter DTO, use group entity type to get related
+     * useCase json map value, and use starting filter's entity type to get filter type. And also
+     * through the first byName search filter to get filter expression value.
+     *
+     * TODO: The logic for deriving the original filter type by reverse engineering the search params
+     * list might be fragile in the long-term. As we accumulate new filter types and new filtering
+     * options, it will be harder and harder to keep this method and filter2parameters in sync. An
+     * optimization that Roman and I (Patrick) discussed was to store the original filter type
+     * key in the SearchParameters object and boil this function down to a single lookup of that
+     * key in the use cases map. If we come back to make any other changes to these functions, we
+     * should make time to apply that simplification.
      *
      * @param searchParameters represent one search query
      * @param entityType the entity type of group
      * @return The {@link FilterApiDTO} object which contains filter rule for dynamic group
      */
     private FilterApiDTO generateFilterApiDTO(SearchParameters searchParameters, final String entityType) {
+        // map of initial filter element -> filter name for this entity type. This is what we are trying to rediscover.
         final Map<String, String> useCaseByEntityType = groupUseCaseParser.getUseCases().entrySet().stream()
                 .filter(entry -> entry.getKey().equals(entityType))
                 .map(Entry::getValue)
                 .map(GroupUseCase::getCriteria)
                 .flatMap(List::stream)
-                .collect(Collectors.toMap(map -> map.getElements().split(ELEMENTS_DELIMITER)[0],
+                .collect(Collectors.toMap(GroupUseCaseCriteria::getElements,
                     GroupUseCaseCriteria::getFilterType));
 
-        // we will recreate the FilterApiDTO differently depending on whether  a cluster filter was used.
-        Optional<ClusterMembershipFilter> optionalClusterFilter = searchParameters.getSearchFilterList().stream()
-                .filter(SearchFilter::hasClusterMembershipFilter)
-                .map(SearchFilter::getClusterMembershipFilter)
-                .findFirst();
-        final String startFilterEntityName; // the primary filter type used -- cluster or entity type
-        final Optional<PropertyFilter> entityValueFilter; // the property filter used on the primary filter type
-        if (optionalClusterFilter.isPresent()) {
-            // use the cluster filter properties to reconstruct the FilterApiDTO
-            startFilterEntityName = CLUSTER;
-            entityValueFilter = Optional.of(optionalClusterFilter.get().getClusterSpecifier());
-        } else {
-            // not a cluster filter -- create the FilterApiDTO using the standard filter props
-            PropertyFilter startingPropertyFilter = searchParameters.getStartingFilter();
-            startFilterEntityName = ServiceEntityMapper.toUIEntityType(
-                    Math.toIntExact(startingPropertyFilter.getNumericFilter().getValue()));
-            entityValueFilter = searchParameters.getSearchFilterList().stream()
-                    .filter(searchFilter -> searchFilter.getFilterTypeCase() == FilterTypeCase.PROPERTY_FILTER)
-                    .filter(searchFilter -> searchFilter.getPropertyFilter().getPropertyName().equals(DISPLAY_NAME))
-                    .map(SearchFilter::getPropertyFilter)
-                    .findFirst();
+        // try to regenerate the use case "elements" based on the search filters, so we can use this
+        // to do a map lookup to find the original filter type.
+        StringJoiner elementsJoiner = new StringJoiner(":");
+        // entityValueFilter is used to extract the dynamic part of the filter input -- this filter
+        // would contain the property value being filtered on, such as entity name, cluster name,
+        // property value threshold, etc.
+        Optional<PropertyFilter> entityValueFilter = Optional.empty();
+
+        // first add the starting filter element, which we currently assume to be either display
+        // name or entity type.
+        PropertyFilter startFilter = searchParameters.getStartingFilter();
+        switch (startFilter.getPropertyName()) {
+            case SearchMapper.ENTITY_TYPE_PROPERTY:
+                // an entity type filter element is the entity type name
+                if (startFilter.hasNumericFilter()) {
+                    // create an entity type element based on numeric match
+                    elementsJoiner.add(ServiceEntityMapper.toUIEntityType(
+                            Math.toIntExact(startFilter.getNumericFilter().getValue())));
+                } else { // create one based on string matching
+                    elementsJoiner.add(startFilter.getStringFilter().getStringPropertyRegex());
+                }
+                break;
+            case SearchMapper.DISPLAY_NAME_PROPERTY:
+                // the display name filter element is just 'displayName'
+                elementsJoiner.add(SearchMapper.DISPLAY_NAME_PROPERTY);
+                break;
         }
+
+        // add elements for each of the search filters
+        for(SearchFilter sf : searchParameters.getSearchFilterList()) {
+            switch (sf.getFilterTypeCase()) {
+                case CLUSTER_MEMBERSHIP_FILTER:
+                    // add a cluster filter element and use the expression from the cluster matcher
+                    elementsJoiner.add(CLUSTER);
+                    entityValueFilter = Optional.of(sf.getClusterMembershipFilter().getClusterSpecifier());
+                    break;
+                case TRAVERSAL_FILTER:
+                    // add a traversal filter element
+                    TraversalFilter traversalFilter = sf.getTraversalFilter();
+                    String name = traversalFilter.getTraversalDirection().getValueDescriptor().getName();
+                    elementsJoiner.add(traversalFilter.getTraversalDirection().getValueDescriptor().getName());
+                    // any hops? Add those too
+                    if (traversalFilter.getStoppingCondition().hasNumberHops()) {
+                        elementsJoiner.add(String.valueOf(traversalFilter.getStoppingCondition().getNumberHops()));
+                    }
+                    break;
+                case PROPERTY_FILTER:
+                    PropertyFilter propertyFilter = sf.getPropertyFilter();
+                    elementsJoiner.add(propertyFilter.getPropertyName());
+                    // we don't expect both a cluster filter and property filter in the same list since
+                    // only one would use the expression
+                    entityValueFilter = Optional.of(propertyFilter);
+                    break;
+            }
+        }
+        String filterElements = elementsJoiner.toString();
 
         FilterApiDTO filterApiDTO = new FilterApiDTO();
 
-        final Optional<String> filterType = Optional.ofNullable(useCaseByEntityType.get(startFilterEntityName));
-        filterApiDTO.setFilterType(filterType.orElse(useCaseByEntityType.get(DISPLAY_NAME)));
+        // try to find the filter name from the use cases map
+        final Optional<String> filterType = Optional.ofNullable(useCaseByEntityType.get(filterElements));
+        filterApiDTO.setFilterType(filterType.orElse(
+                useCaseByEntityType.get(entityType + ELEMENTS_DELIMITER + DISPLAY_NAME))); // default filter
 
         entityValueFilter.ifPresent(valueFilter -> {
             switch (valueFilter.getPropertyTypeCase()) {
@@ -446,5 +530,4 @@ public class GroupMapper {
         });
         return filterApiDTO;
     }
-
 }

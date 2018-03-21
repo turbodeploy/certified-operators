@@ -42,9 +42,10 @@ public class GroupUseCaseParserTest {
     @SuppressWarnings("unchecked")
     @Test
     public void testFirstIsByName() {
-        Map<String,  GroupUseCase> useCases = groupUseCaseParser.getUseCases();
-        useCases.values().stream()
-                .map(map -> map.getCriteria().get(0).getElements())
-                .forEach(d -> assertEquals("displayName", d));
+        Map<String, GroupUseCase> useCases = groupUseCaseParser.getUseCases();
+        useCases.forEach((key,useCase) -> {
+                    // the default use case is entity_type:displayName
+                    assertEquals(key +":displayName", useCase.getCriteria().get(0).getElements());
+                });
     }
 }

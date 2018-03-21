@@ -592,7 +592,7 @@ public class GroupServiceTest {
         StringFilter stringFilter = info.getSearchParametersCollection()
                 .getSearchParameters(0).getSearchFilter(0)
                 .getPropertyFilter().getStringFilter();
-        assertEquals("/^1$|^2$/", stringFilter.getStringPropertyRegex());
+        assertEquals("^1$|^2$", stringFilter.getStringPropertyRegex());
     }
 
     @Test

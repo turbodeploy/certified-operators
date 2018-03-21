@@ -222,6 +222,7 @@ public class GroupMapperTest {
                                         .setPropertyName("entityType")
                                         .setStringFilter(StringFilter.newBuilder()
                                                 .setStringPropertyRegex("PhysicalMachine"))))))
+
             .build();
 
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
