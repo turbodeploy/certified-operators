@@ -241,11 +241,13 @@ public class SearchService implements ISearchService {
     /**
      * A general search given a filter - may be asked to search over ServiceEntities or Groups.
      *
+     * @param query The query to run against the display name of the results.
      * @param inputDTO the specification of what to search
      * @return a list of DTOs based on the type of the search: ServiceEntityApiDTO or GroupApiDTO
      */
     @Override
-    public SearchPaginationResponse getMembersBasedOnFilter(GroupApiDTO inputDTO,
+    public SearchPaginationResponse getMembersBasedOnFilter(String query,
+                                                            GroupApiDTO inputDTO,
                                                             SearchPaginationRequest paginationRequest)  {
 
         // the query input is called a GroupApiDTO even though this search can apply to any type
@@ -271,9 +273,15 @@ public class SearchService implements ISearchService {
             SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
             result = entities;
         }
-        // Ideally, the API should require a List<? extends BaseApiDTO> response instead of a
-        // List<BaseApiDTO> response, but for now we do this totally safe cast.
-        return paginationRequest.allResultsResponse((List<BaseApiDTO>) result);
+        if (StringUtils.isEmpty(query)) {
+            // Ideally, the API should require a List<? extends BaseApiDTO> response instead of a
+            // List<BaseApiDTO> response, but for now we do this totally safe cast.
+            return paginationRequest.allResultsResponse((List<BaseApiDTO>) result);
+        } else {
+            return paginationRequest.allResultsResponse(result.stream()
+                    .filter(dto -> dto.getDisplayName() != null && dto.getDisplayName().contains(query))
+                    .collect(Collectors.toList()));
+        }
     }
 
     /**

@@ -57,13 +57,14 @@ public class PaginationTestUtil {
 
     @Nonnull
     public static List<BaseApiDTO> getMembersBasedOnFilter(ISearchService searchService,
-                                                                 GroupApiDTO inputDto) throws Exception {
+                                                         String query,
+                                                         GroupApiDTO inputDto) throws Exception {
         final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
                 ArgumentCaptor.forClass((Class)List.class);
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
         Mockito.when(paginationRequest.allResultsResponse(any()))
                 .thenReturn(Mockito.mock(SearchPaginationResponse.class));
-        searchService.getMembersBasedOnFilter(inputDto, paginationRequest);
+        searchService.getMembersBasedOnFilter(query, inputDto, paginationRequest);
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }

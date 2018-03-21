@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.assertj.core.util.Sets;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -239,12 +240,31 @@ public class SearchServiceTest {
                 Arrays.asList(EntitySeverity.newBuilder().setEntityId(3).setSeverity(Severity.MAJOR).build(),
                 EntitySeverity.newBuilder().setEntityId(1).setSeverity(Severity.MINOR).build(),
                 EntitySeverity.newBuilder().setEntityId(2).setSeverity(Severity.CRITICAL).build()));
-        List<BaseApiDTO> results = getMembersBasedOnFilter(searchService, request);
+        List<BaseApiDTO> results = getMembersBasedOnFilter(searchService, "", request);
         assertEquals(2, results.size());
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
         assertEquals("1", results.get(0).getUuid());
         assertEquals("Minor", ((ServiceEntityApiDTO) results.get(0)).getSeverity());
         assertEquals("Critical", ((ServiceEntityApiDTO) results.get(1)).getSeverity());
+    }
 
+    @Test
+    public void testGetMembersBasedOnFilterQuery() throws Exception {
+        GroupApiDTO request = new GroupApiDTO();
+
+        when(searchServiceSpy.searchEntities(any())).thenReturn(Arrays.asList(
+                Entity.newBuilder().setOid(1).setDisplayName("afoobar").setType(0).build(),
+                Entity.newBuilder().setOid(2).setDisplayName("bar").setType(0).build(),
+                Entity.newBuilder().setOid(3).setDisplayName("foo").setType(0).build()
+        ));
+
+        final List<Long> resultIds = getMembersBasedOnFilter(searchService, "foo", request)
+                .stream()
+                .map(BaseApiDTO::getUuid)
+                .map(Long::parseLong)
+                .collect(Collectors.toList());
+
+        assertThat(resultIds.size(), is(2));
+        assertThat(resultIds, containsInAnyOrder(1L, 3L));
     }
 }
