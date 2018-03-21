@@ -332,8 +332,12 @@ public class EntitySettingsApplicator {
                 final Setting utilTarget = settings.get(EntitySettingSpecs.UtilTarget);
                 if (targetBand != null && utilTarget != null) {
                     // Calculate maximum desired utilization for the desired state of this entity.
-                    final float maxDesiredUtilization = utilTarget.getNumericSettingValue().getValue() +
-                            targetBand.getNumericSettingValue().getValue() / 2.0f ;
+                    // Limit the range to [0.0-100.0]
+                    final float maxDesiredUtilization =
+                        Math.min(100f,
+                            Math.max(utilTarget.getNumericSettingValue().getValue() +
+                                targetBand.getNumericSettingValue().getValue() / 2.0f,
+                                0f));
                     applyMaxUtilizationToCapacity(entity, CommodityType.CPU, maxDesiredUtilization);
                     applyMaxUtilizationToCapacity(entity, CommodityType.MEM, maxDesiredUtilization);
                 }

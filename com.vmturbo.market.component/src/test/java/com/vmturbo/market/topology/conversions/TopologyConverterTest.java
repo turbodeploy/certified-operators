@@ -11,7 +11,6 @@ import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.URL;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -621,5 +620,99 @@ public class TopologyConverterTest {
         assertTrue(traderTwo.getSettings().getIsShopTogether());
         assertTrue(traderTwo.getSettings().getClonable());
         assertTrue(traderTwo.getSettings().getSuspendable());
+    }
+
+    @Test
+    public void testLimitFloatRangeWithinRange() {
+        assertThat(TopologyConverter.limitFloatRange(1f, 0f, 1f), is(1f));
+        assertThat(TopologyConverter.limitFloatRange(0f, 0f, 1f), is(0f));
+        assertThat(TopologyConverter.limitFloatRange(0.8f, 0f, 1f), is(0.8f));
+    }
+
+    @Test
+    public void testLimitFloatRangeLessThanMin() {
+        assertThat(TopologyConverter.limitFloatRange(-1.2f, 0f, 1f), is(0f));
+    }
+
+    @Test
+    public void testLimitFloatRangeGreaterThanMax() {
+        assertThat(TopologyConverter.limitFloatRange(100f, 0f, 1f), is(1f));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testLimitFloatRangeMinGreaterThanMax() {
+        TopologyConverter.limitFloatRange(100f, 10, 0f);
+    }
+
+    @Test
+    public void testGetMinDesiredUtilization() {
+        TopologyEntityDTO entityDTO =
+            TopologyEntityDTO.newBuilder()
+                .setEntityType(1)
+                .setOid(1)
+                .setAnalysisSettings(
+                    AnalysisSettings.newBuilder()
+                        .setDesiredUtilizationTarget(40)
+                        .setDesiredUtilizationRange(40)
+                        .build())
+                .build();
+
+        // (40 - (40/2.0))/100
+        assertThat(TopologyConverter.getMinDesiredUtilization(entityDTO),
+            is(0.2f));
+    }
+
+    @Test
+    public void testGetMinDesiredUtilizationOutofRange() {
+        TopologyEntityDTO entityDTO =
+            TopologyEntityDTO.newBuilder()
+                .setEntityType(1)
+                .setOid(1)
+                .setAnalysisSettings(
+                    AnalysisSettings.newBuilder()
+                        .setDesiredUtilizationTarget(20)
+                        .setDesiredUtilizationRange(80)
+                        .build())
+                .build();
+
+        // (20 - (80/2.0))/100
+        assertThat(TopologyConverter.getMinDesiredUtilization(entityDTO),
+            is(0f));
+    }
+
+    @Test
+    public void testGetMaxDesiredUtilization() {
+        TopologyEntityDTO entityDTO =
+            TopologyEntityDTO.newBuilder()
+                .setEntityType(1)
+                .setOid(1)
+                .setAnalysisSettings(
+                    AnalysisSettings.newBuilder()
+                        .setDesiredUtilizationTarget(20)
+                        .setDesiredUtilizationRange(80)
+                        .build())
+                .build();
+
+        // (20 + (80/2.0))/100
+        assertThat(TopologyConverter.getMaxDesiredUtilization(entityDTO),
+            is(0.6f));
+    }
+
+    @Test
+    public void testGetMaxDesiredUtilizationOutOfRange() {
+        TopologyEntityDTO entityDTO =
+            TopologyEntityDTO.newBuilder()
+                .setEntityType(1)
+                .setOid(1)
+                .setAnalysisSettings(
+                    AnalysisSettings.newBuilder()
+                        .setDesiredUtilizationTarget(80)
+                        .setDesiredUtilizationRange(60)
+                        .build())
+                .build();
+
+        // (80 + (60/2.0))/100
+        assertThat(TopologyConverter.getMaxDesiredUtilization(entityDTO),
+            is(1f));
     }
 }
