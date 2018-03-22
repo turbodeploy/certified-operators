@@ -338,6 +338,7 @@ public final class AnalysisToProtobuf {
                 logger.info("NPE newSupplier=" + newSupplier.getDebugInfoNeverUseInCode() +
                             " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode());
             }
+            Trader origSupplier = newSupplier;
             try {
                 @NonNull UnmodifiableEconomy economy = topology.getEconomy();
                 // TODO: Remove this workaround for OM-32457 once OM-32793 is fixed
@@ -348,10 +349,15 @@ public final class AnalysisToProtobuf {
                     }
                 }
                 moveTO.setCost(move.getTarget().getCost());
+                moveTO.setDestination(traderOid.get(newSupplier));
             } catch (Exception e) {
-
+                if (logger.isDebugEnabled()) {
+                    logger.debug("NPE original supplier=" + origSupplier.getDebugInfoNeverUseInCode() +
+                            " replaced supplier=" + newSupplier.getDebugInfoNeverUseInCode() +
+                            " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode() +
+                            " oid of replaced supplier=" + traderOid.get(newSupplier));
+                }
             }
-            moveTO.setDestination(traderOid.get(newSupplier));
             moveTO = explainMoveAction(move.getSource(), newSupplier, traderOid, move, moveTO,
                                        topology.getEconomy());
             builder.setMove(moveTO);
