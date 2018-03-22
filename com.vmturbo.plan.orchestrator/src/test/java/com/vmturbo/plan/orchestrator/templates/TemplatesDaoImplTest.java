@@ -6,6 +6,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.Arrays;
 import java.util.List;
@@ -32,6 +33,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
@@ -40,7 +42,7 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
     classes = {TestSQLDatabaseConfig.class}
 )
 @TestPropertySource(properties = {"originalSchemaName=plan"})
-public class TemplateDaoImplTest {
+public class TemplatesDaoImplTest {
 
     @Autowired
     protected TestSQLDatabaseConfig dbConfig;
@@ -239,13 +241,25 @@ public class TemplateDaoImplTest {
 
     @Test
     public void testRestoreDiags() throws Exception {
+
+        final Template preexisting =
+            templatesDao.createTemplate(TemplateInfo.newBuilder().setName("preexisting").build());
+
         final List<String> serialized = Arrays.asList(
             "{\"id\":\"1997522616832\",\"templateInfo\":{\"name\":\"bar\"},\"type\":\"USER\"}",
             "{\"id\":\"1997522614816\",\"templateInfo\":{\"name\":\"foo\"},\"type\":\"USER\"}"
         );
 
-        templatesDao.restoreDiags(serialized);
+        try {
+            templatesDao.restoreDiags(serialized);
+            fail();
+        } catch (DiagnosticsException e) {
+            assertTrue(e.hasErrors());
+            assertEquals(1, e.getErrors().size());
+            assertTrue(e.getErrors().get(0).contains("preexisting templates"));
+        }
 
+        assertFalse(templatesDao.getTemplate(preexisting.getId()).isPresent());
         assertTrue(templatesDao.getAllTemplates().stream()
             .map(template -> TemplatesDaoImpl.GSON.toJson(template, Template.class))
             .allMatch(serialized::contains));

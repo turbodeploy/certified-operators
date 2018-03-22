@@ -142,22 +142,39 @@ public class ScenarioDao implements Diagnosable {
     /**
      * {@inheritDoc}
      *
-     * This method deserializes and adds a list of serialized scenarios from diagnostics.
+     * This method clears all existing scenarios, then deserializes and adds a list of serialized
+     * scenarios from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
      *      {@link Diagnosable#collectDiags()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains scenarios, or in response
-     *                              to any errors that may occur unserializing or restoring a
+     *                              to any errors that may occur deserializing or restoring a
      *                              scenario.
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+        final List<String> errors = new ArrayList<>();
 
-        if (!getScenarios().isEmpty()) {
-            throw new DiagnosticsException("Scenarios cannot be restored because they are already present");
+        final List<Scenario> preexisting = getScenarios();
+        if (!preexisting.isEmpty()) {
+            final int numPreexisting = preexisting.size();
+            final String clearingMessage = "Clearing " + numPreexisting + " preexisting scenarios: " +
+                preexisting.stream().map(scenario -> scenario.getScenarioInfo().getName())
+                    .collect(Collectors.toList());
+            errors.add(clearingMessage);
+            logger.warn(clearingMessage);
+
+            final int deleted = deleteAllScenarios();
+            if (deleted != numPreexisting) {
+                final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
+                    " preexisting scenarios: " + getScenarios().stream()
+                        .map(scenario -> scenario.getScenarioInfo().getName())
+                        .collect(Collectors.toList());
+                logger.error(deletedMessage);
+                errors.add(deletedMessage);
+            }
         }
 
-        final List<String> errors = new ArrayList<>();
 
         logger.info("Adding {} serialized scenarios from diagnostics", collectedDiags.size());
 
@@ -196,6 +213,20 @@ public class ScenarioDao implements Diagnosable {
         } catch (DataAccessException e) {
             return Optional.of("Could not restore scenario " + scenario +
                 " because of DataAccessException "+ e.getMessage());
+        }
+    }
+
+    /**
+     * Delete all scenarios. Note that this method is used only for restoring scenarios from diags
+     * and should NOT be used during normal operations.
+     *
+     * @return the number of records deleted
+     */
+    private int deleteAllScenarios() {
+        try {
+            return dsl.deleteFrom(SCENARIO).execute();
+        } catch (DataAccessException e) {
+            return 0;
         }
     }
 }

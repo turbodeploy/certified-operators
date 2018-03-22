@@ -2,6 +2,7 @@ package com.vmturbo.plan.orchestrator.project;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.Arrays;
 import java.util.List;
@@ -20,9 +21,15 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Daily;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.Schedule;
+import com.vmturbo.common.protobuf.plan.PlanDTO.Recurrence.TimeOfRun;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
@@ -120,6 +127,17 @@ public class PlanProjectDaoImplTest {
     @Test
     public void testRestoreFromDiags() throws Exception {
 
+        final Recurrence recurrence = Recurrence.newBuilder()
+            .setSchedule(Schedule.newBuilder().setDaily(Daily.getDefaultInstance()))
+            .setTimeOfRun(TimeOfRun.newBuilder().setHour(5))
+            .build();
+        final PlanProjectInfo preexisting = PlanProjectInfo.newBuilder()
+            .setName("preexisting")
+            .setRecurrence(recurrence)
+            .setType(PlanProjectType.USER)
+            .build();
+        planProjectDao.createPlanProject(preexisting);
+
         final List<String> diags = Arrays.asList(
             "{\"planProjectId\":\"1997789474912\",\"planProjectInfo\":{\"name\":" +
                 "\"Plan Project 1\",\"recurrence\":{\"schedule\":{\"daily\":{}},\"timeOfRun\":" +
@@ -128,11 +146,20 @@ public class PlanProjectDaoImplTest {
                 "\"Plan Project 2\",\"recurrence\":{\"schedule\":{\"daily\":{}},\"timeOfRun\":" +
                 "{\"hour\":5}},\"type\":\"CLUSTER_HEADROOM\"}}"
         );
-        planProjectDao.restoreDiags(diags);
+        try {
+            planProjectDao.restoreDiags(diags);
+            fail();
+        } catch (DiagnosticsException e) {
+            assertTrue(e.hasErrors());
+            assertEquals(1, e.getErrors().size());
+            assertTrue(e.getErrors().get(0).contains("preexisting plan projects"));
+        }
 
         final List<PlanProject> result = planProjectDao.getAllPlanProjects();
 
         assertEquals(2, result.size());
+        assertTrue(result.stream()
+            .noneMatch(found -> found.getPlanProjectInfo().equals(preexisting)));
         assertEquals(diags.stream()
             .map(serial -> PlanProjectDaoImpl.GSON.fromJson(serial, PlanProject.class))
             .collect(Collectors.toList()),

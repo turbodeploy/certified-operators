@@ -72,7 +72,9 @@ public class TemplateSpecParser implements Diagnosable {
      * This method retrieves the map of all template specs and serializes it as a JSON string.
      *
      * @return a list of serialized template specs
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException if the db already contains template specs, or in response
+     *                              to any errors that may occur deserializing or restoring a
+     *                              templates.
      */
     @Nonnull
     @Override
@@ -84,17 +86,29 @@ public class TemplateSpecParser implements Diagnosable {
     /**
      * {@inheritDoc}
      *
-     * This method unserializes and adds a map of serialized template specs from diagnostics.
-     * There should only be one map in the list if the correct diags file is being read.
+     * This method clears the map of all existing template specs, then deserializes and adds a map
+     * of serialized template specs from diagnostics. There should only be one map in the list
+     * if the correct diags file is being read.
      *
      * @param collectedDiags The diags collected from a previous call to
      *      {@link Diagnosable#collectDiags()}. Must be in the same order.
-     * @throws DiagnosticsException
+     * @throws DiagnosticsException if template specs are already present, or in response
+     *                              to any errors that may occur deserializing or restoring the
+     *                              template spec map.
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
 
         final List<String> errors = new ArrayList<>();
+
+        final int preexisting = getTemplateSpecMap().size();
+        if (preexisting > 0) {
+            final String message = "Clearing " + preexisting + " preexisting template specs from " +
+                "template spec map: " + getTemplateSpecMap().keySet();
+            errors.add(message);
+            log.warn(message);
+            templateSpecMap.clear();
+        }
 
         final String serialized = collectedDiags.get(0);
         if (collectedDiags.size() > 1) {

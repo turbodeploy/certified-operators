@@ -3,6 +3,7 @@ package com.vmturbo.plan.orchestrator.deployment.profile;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.Arrays;
 import java.util.List;
@@ -25,6 +26,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.plan.DiscoveredNotSupportedOperationException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -150,16 +152,27 @@ public class DeploymentProfileDaoImplTest {
     @Test
     public void testRestoreFromDiags() throws Exception {
 
+        final DeploymentProfile preexisting = deploymentProfileDao.createDeploymentProfile(
+            DeploymentProfileInfo.newBuilder().setName("preexisting").build());
+
         final List<String> diags = Arrays.asList(
             "{\"id\":\"1997875644768\",\"deployInfo\":{\"name\":\"first-deployment-profile\"}}",
             "{\"id\":\"1997875644928\",\"deployInfo\":{\"name\":\"second-deployment-profile\"}}"
         );
 
-        deploymentProfileDao.restoreDiags(diags);
+        try {
+            deploymentProfileDao.restoreDiags(diags);
+            fail();
+        } catch (DiagnosticsException e) {
+            assertTrue(e.hasErrors());
+            assertEquals(1, e.getErrors().size());
+            assertTrue(e.getErrors().get(0).contains("preexisting deployment profiles"));
+        }
 
         final Set<DeploymentProfile> result = deploymentProfileDao.getAllDeploymentProfiles();
 
         assertEquals(2, result.size());
+        assertFalse(result.contains(preexisting));
         final List<DeploymentProfile> expected = diags.stream()
             .map(serial -> DeploymentProfileDaoImpl.GSON.fromJson(serial, DeploymentProfile.class))
             .collect(Collectors.toList());

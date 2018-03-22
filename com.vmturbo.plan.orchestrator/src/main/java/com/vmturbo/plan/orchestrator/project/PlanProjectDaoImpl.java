@@ -182,21 +182,42 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
     /**
      * {@inheritDoc}
      *
-     * This method unserializes and adds a list of serialized plan projects from diagnostics.
+     * This method clears all existing plan projects, then deserializes and adds a list of
+     * serialized plan projects from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
      *      {@link Diagnosable#collectDiags()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains plan projects, or in response
-     *                              to any errors that may occur unserializing or restoring a
+     *                              to any errors that may occur deserializing or restoring a
      *                              plan project.
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
 
-        if (!getAllPlanProjects().isEmpty()) {
-            throw new DiagnosticsException("Plan projects cannot be restored because they are already present");
-        }
         final List<String> errors = new ArrayList<>();
+
+        final List<PlanDTO.PlanProject> preexisting = getAllPlanProjects();
+        if (!preexisting.isEmpty()) {
+            final int numPreexisting = preexisting.size();
+            final String clearingMessage = "Clearing " + numPreexisting +
+                " preexisting plan projects: " + preexisting.stream()
+                    .map(planProject -> planProject.getPlanProjectInfo().getName())
+                    .collect(Collectors.toList());
+            errors.add(clearingMessage);
+            logger.warn(clearingMessage);
+
+            final int deleted = deleteAllPlanProjects();
+            if (deleted != numPreexisting) {
+                final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
+                    " preexisting plan projects: " + getAllPlanProjects().stream()
+                        .map(planProject -> planProject.getPlanProjectInfo().getName())
+                        .collect(Collectors.toList());
+                logger.error(deletedMessage);
+                errors.add(deletedMessage);
+            }
+        }
+
+
         logger.info("Loading {} serialized plan projects from diagnostics", collectedDiags.size());
 
 
@@ -238,6 +259,20 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
         } catch (DataAccessException e) {
             return Optional.of("Could not restore plan project " + planProject +
                 " because of DataAccessException "+ e.getMessage());
+        }
+    }
+
+    /**
+     * Deletes all plan projects. Note: this is only used when restoring plan projects
+     * from diagnostics and should NOT be used during normal operations.
+     *
+     * @return the number of records deleted
+     */
+    private int deleteAllPlanProjects() {
+        try {
+            return dsl.deleteFrom(PLAN_PROJECT).execute();
+        } catch (DataAccessException e) {
+            return 0;
         }
     }
 }

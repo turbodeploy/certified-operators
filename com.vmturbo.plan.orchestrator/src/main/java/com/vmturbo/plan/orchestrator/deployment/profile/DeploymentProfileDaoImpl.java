@@ -185,22 +185,40 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
     /**
      * {@inheritDoc}
      *
-     * This method unserializes and adds a list of serialized deployment profiles from diagnostics.
+     * This method clears all existing deployment profiles, then deserializes and adds a list of
+     * serialized deployment profiles from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
      *      {@link Diagnosable#collectDiags()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains deployment profiles, or in response
-     *                              to any errors that may occur unserializing or restoring a
+     *                              to any errors that may occur deserializing or restoring a
      *                              deployment profile.
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
-        if (!getAllDeploymentProfiles().isEmpty()) {
-            throw new DiagnosticsException(
-                "Deployment profiles cannot be restored because they are already present");
-        }
 
         final List<String> errors = new ArrayList<>();
+
+        final Set<DeploymentProfileDTO.DeploymentProfile> preexisting = getAllDeploymentProfiles();
+        if (!preexisting.isEmpty()) {
+            final int numPreexisting = preexisting.size();
+            final String clearingMessage = "Clearing " + numPreexisting +
+                " preexisting deployment profiles: " + preexisting.stream()
+                    .map(deploymentProfile -> deploymentProfile.getDeployInfo().getName())
+                    .collect(Collectors.toList());
+            errors.add(clearingMessage);
+            logger.warn(clearingMessage);
+
+            final int deleted = deleteAllDeploymentProfiles();
+            if (deleted != numPreexisting) {
+                final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
+                    " preexisting plan projects: " + getAllDeploymentProfiles().stream()
+                        .map(deploymentProfile -> deploymentProfile.getDeployInfo().getName())
+                        .collect(Collectors.toList());
+                logger.error(deletedMessage);
+                errors.add(deletedMessage);
+            }
+        }
 
         logger.info("Loading {} serialized deployment profiles from diags", collectedDiags.size());
 
@@ -208,7 +226,7 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
             try {
                 return GSON.fromJson(serial, DeploymentProfileDTO.DeploymentProfile.class);
             } catch (JsonParseException e) {
-                errors.add("Failed to unserialize deployment profile " + serial +
+                errors.add("Failed to deserialize deployment profile " + serial +
                     " because of parse exception " + e.getMessage());
                 return null;
             }
@@ -242,6 +260,20 @@ public class DeploymentProfileDaoImpl implements Diagnosable {
         } catch (DataAccessException e) {
             return Optional.of("Could not restore deployment profile " + profile +
                 " because of DataAccessException "+ e.getMessage());
+        }
+    }
+
+    /**
+     * Deletes all deployment profiles. Note: this is only used when restoring deployment profiles
+     * from diagnostics and should NOT be used during normal operations.
+     *
+     * @return the number of records deleted
+     */
+    private int deleteAllDeploymentProfiles() {
+        try {
+            return dsl.deleteFrom(DEPLOYMENT_PROFILE).execute();
+        } catch (DataAccessException e) {
+            return 0;
         }
     }
 }

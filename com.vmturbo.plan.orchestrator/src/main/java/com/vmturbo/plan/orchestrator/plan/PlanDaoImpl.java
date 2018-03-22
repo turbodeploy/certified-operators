@@ -718,21 +718,40 @@ public class PlanDaoImpl implements PlanDao {
     /**
      * {@inheritDoc}
      *
-     * This method deserializes and adds a list of serialized plan instances from diagnostics.
+     * This method clears all existing plan instances, then deserializes and adds a list of
+     * serialized plan instances from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
      *      Diagnosable.collectDiags(). Must be in the same order.
      * @throws DiagnosticsException if the db already contains plan instances, or in response
-     *                              to any errors that may occur unserializing or restoring a
+     *                              to any errors that may occur deserializing or restoring a
      *                              plan instance.
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
 
-        if (!getAllPlanInstances().isEmpty()) {
-            throw new DiagnosticsException("Plan instances cannot be restored because they are already present");
-        }
         final List<String> errors = new ArrayList<>();
+
+        final Set<PlanDTO.PlanInstance> preexisting = getAllPlanInstances();
+        if (!preexisting.isEmpty()) {
+            final int numPreexisting = preexisting.size();
+            final String clearingMessage = "Clearing " + numPreexisting +
+                " preexisting plan instances: " + preexisting.stream()
+                    .map(PlanDTO.PlanInstance::getPlanId)
+                    .collect(Collectors.toList());
+            errors.add(clearingMessage);
+            logger.warn(clearingMessage);
+
+            final int deleted = deleteAllPlanInstances();
+            if (deleted != numPreexisting) {
+                final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
+                    " preexisting plan instances: " + getAllPlanInstances().stream()
+                        .map(PlanDTO.PlanInstance::getPlanId)
+                        .collect(Collectors.toList());
+                logger.error(deletedMessage);
+                errors.add(deletedMessage);
+            }
+        }
 
         logger.info("Loading {} plan instances from diags", collectedDiags.size());
 
@@ -775,6 +794,20 @@ public class PlanDaoImpl implements PlanDao {
         } catch (DataAccessException e) {
             return Optional.of("Could not restore plan instance " + planInstance +
                 " because of DataAccessException "+ e.getMessage());
+        }
+    }
+
+    /**
+     * Deletes all plan instances. Note: this is only used when restoring plan instances
+     * from diagnostics and should NOT be used during normal operations.
+     *
+     * @return the number of records deleted
+     */
+    private int deleteAllPlanInstances() {
+        try {
+            return dsl.deleteFrom(PLAN_INSTANCE).execute();
+        } catch (DataAccessException e) {
+            return 0;
         }
     }
 }

@@ -404,22 +404,40 @@ public class ReservationDaoImpl implements ReservationDao {
     /**
      * {@inheritDoc}
      *
-     * This method unserializes and adds a list of serialized reservations from diagnostics.
+     * This method clears all existing reservations, then deserializes and adds a list of
+     * serialized reservations from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
      *      {@link Diagnosable#collectDiags()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains reservations, or in response
-     *                              to any errors that may occur unserializing or restoring a
+     *                              to any errors that may occur deserializing or restoring a
      *                              reservation.
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
 
-        if (!getAllReservations().isEmpty()) {
-            throw new DiagnosticsException("Reservations cannot be restored because they are already present.");
-        }
-
         final List<String> errors = new ArrayList<>();
+
+        final Set<ReservationDTO.Reservation> preexisting = getAllReservations();
+        if (!preexisting.isEmpty()) {
+            final int numPreexisting = preexisting.size();
+            final String clearingMessage = "Clearing " + numPreexisting +
+                " preexisting reservations: " + preexisting.stream()
+                    .map(ReservationDTO.Reservation::getName)
+                    .collect(Collectors.toList());
+            errors.add(clearingMessage);
+            logger.warn(clearingMessage);
+
+            final int deleted = deleteAllReservations();
+            if (deleted != numPreexisting) {
+                final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
+                    " preexisting reservations: " + getAllReservations().stream()
+                        .map(ReservationDTO.Reservation::getName)
+                        .collect(Collectors.toList());
+                logger.error(deletedMessage);
+                errors.add(deletedMessage);
+            }
+        }
 
         logger.info("Restoring {} serialized reservations from diagnostics", collectedDiags.size());
 
@@ -462,6 +480,20 @@ public class ReservationDaoImpl implements ReservationDao {
         } catch (DataAccessException e) {
             return Optional.of("Could not restore reservation " + reservation +
                 " because of DataAccessException "+ e.getMessage());
+        }
+    }
+
+    /**
+     * Deletes all reservations. Note: this is only used when restoring reservations
+     * from diagnostics and should NOT be used during normal operations.
+     *
+     * @return the number of records deleted
+     */
+    private int deleteAllReservations() {
+        try {
+            return dsl.deleteFrom(RESERVATION).execute();
+        } catch (DataAccessException e) {
+            return 0;
         }
     }
 }

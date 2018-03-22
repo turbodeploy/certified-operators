@@ -69,7 +69,7 @@ public class PlanOrchestratorDiagnosticsController {
             if (errors.isEmpty()) {
                 return new ResponseEntity<>("Success\n", HttpStatus.OK);
             } else {
-                final String errorMessage = "Restoration of state failed with errors:\n" +
+                final String errorMessage = "Errors occurred during restoration of state:\n" +
                     StringUtils.join(errors, "\n");
                 logger.error(errorMessage);
                 return new ResponseEntity<>(errorMessage, HttpStatus.BAD_REQUEST);

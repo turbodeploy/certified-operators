@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.Collections;
 import java.util.Map;
@@ -14,6 +15,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 public class TemplateSpecParserTest {
@@ -54,14 +56,19 @@ public class TemplateSpecParserTest {
     public void testRestoreDiags() throws Exception {
         final TemplateSpec foo = TemplateSpec.newBuilder().setName("FOO").build();
         final Map<String, TemplateSpec> foomap = ImmutableMap.of("foo", foo);
-        final int initializeMapSize = templateSpecParser.getTemplateSpecMap().size();
 
-        templateSpecParser.restoreDiags(Collections.singletonList(TemplateSpecParser.GSON
-            .toJson(foomap, TemplateSpecParser.TYPE))
-        );
+        try {
+            templateSpecParser.restoreDiags(Collections.singletonList(TemplateSpecParser.GSON
+                .toJson(foomap, TemplateSpecParser.TYPE))
+            );
+            fail();
+        } catch (DiagnosticsException e) {
+            assertTrue(e.hasErrors());
+            assertEquals(1, e.getErrors().size());
+            assertTrue(e.getErrors().get(0).contains("preexisting template specs"));
+        }
 
-        // The restore is additive.
-        assertEquals(initializeMapSize + 1, templateSpecParser.getTemplateSpecMap().size());
+        assertEquals(1, templateSpecParser.getTemplateSpecMap().size());
         assertEquals(foo, templateSpecParser.getTemplateSpecMap().get("foo"));
     }
 }

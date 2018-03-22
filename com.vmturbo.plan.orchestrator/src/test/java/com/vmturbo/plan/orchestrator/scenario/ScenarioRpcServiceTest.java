@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -43,6 +44,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -256,6 +258,12 @@ public class ScenarioRpcServiceTest {
     @Test
     public void testRestoreFromDiags() throws Exception {
 
+        scenarioServiceClient.createScenario(ScenarioInfo.newBuilder()
+            .setName("preexisting").addChanges(topologyAdditionChange()).build());
+
+        final com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario preexisting =
+            scenarioDao.getScenarios().get(0);
+
         final List<String> serialized = Arrays.asList(
             "{\"id\":\"1997624970512\",\"createTime\":{\"date\":{\"year\":2018,\"month\":3," +
                 "\"day\":12},\"time\":{\"hour\":12,\"minute\":29,\"second\":5,\"nano\":0}}," +
@@ -271,12 +279,20 @@ public class ScenarioRpcServiceTest {
                 "{\"additionCount\":2,\"entityId\":\"1234\"}}]}}"
         );
 
-        scenarioDao.restoreDiags(serialized);
+        try {
+            scenarioDao.restoreDiags(serialized);
+            fail();
+        } catch (DiagnosticsException e) {
+            assertTrue(e.hasErrors());
+            assertEquals(1, e.getErrors().size());
+            assertTrue(e.getErrors().get(0).contains("preexisting scenarios"));
+        }
 
         final List<com.vmturbo.plan.orchestrator.db.tables.pojos.Scenario> result =
             scenarioDao.getScenarios();
 
         assertEquals(2, result.size());
+        assertFalse(result.contains(preexisting));
 
         serialized.stream()
             .map(str -> ScenarioDao.GSON.fromJson(str,

@@ -479,21 +479,40 @@ public class TemplatesDaoImpl implements TemplatesDao {
     /**
      * {@inheritDoc}
      *
-     * This method unserializes and adds a list of serialized templates from diagnostics.
+     * This method clears all existing templates, then deserializes and adds a list of serialized
+     * templates from diagnostics.
      *
      * @param collectedDiags The diags collected from a previous call to
      *      {@link Diagnosable#collectDiags()}. Must be in the same order.
      * @throws DiagnosticsException if the db already contains templates, or in response
-     *                              to any errors that may occur unserializing or restoring a
-     *                              templates.
+     *                              to any errors that may occur deserializing or restoring a
+     *                              template.
      */
     @Override
     public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
 
-        if (!getAllTemplates().isEmpty()) {
-            throw new DiagnosticsException("Templates cannot be restored because they are already present");
-        }
         final List<String> errors = new ArrayList<>();
+
+        final Set<TemplateDTO.Template> preexistingTemplates = getAllTemplates();
+        if (!preexistingTemplates.isEmpty()) {
+            final int numPreexisting = preexistingTemplates.size();
+            final String clearingMessage = "Clearing " + numPreexisting +
+                " preexisting templates: " +
+                preexistingTemplates.stream().map(template -> template.getTemplateInfo().getName())
+                    .collect(Collectors.toList());
+            errors.add(clearingMessage);
+            logger.warn(clearingMessage);
+
+            final int deleted = deleteAllTemplates();
+            if (deleted != numPreexisting) {
+                final String deletedMessage = "Failed to delete " + (numPreexisting - deleted) +
+                    " preexisting templates: " + getAllTemplates().stream()
+                        .map(template -> template.getTemplateInfo().getName())
+                        .collect(Collectors.toList());
+                logger.error(deletedMessage);
+                errors.add(deletedMessage);
+            }
+        }
 
         logger.info("Restoring {} serialized templates", collectedDiags.size());
         final long count = collectedDiags.stream().map(serialized -> {
@@ -533,6 +552,22 @@ public class TemplatesDaoImpl implements TemplatesDao {
         } catch (DataAccessException e) {
             return Optional.of("Could not restore template " + template +
                 " because of DataAccessException "+ e.getMessage());
+        }
+    }
+
+    /**
+     * Deletes all templates from the database.
+     *
+     * This is used when restoring serialized TemplateDTO.Templates from diagnostics and should
+     * NOT be used for normal operations.
+     *
+     * @return the number of records deleted
+     */
+    private int deleteAllTemplates() {
+        try {
+            return dsl.deleteFrom(TEMPLATE).execute();
+        } catch (DataAccessException e) {
+            return 0;
         }
     }
 }

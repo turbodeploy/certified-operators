@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDaoImpl;
@@ -290,6 +291,9 @@ public class ReservationDaoImplTest {
     @Test
     public void testRestoreFromDiags() throws Exception {
 
+        final Reservation preexisting =
+            reservationDao.createReservation(createReservationWithTemplate(testFirstReservation));
+
         final List<String> diags = Arrays.asList(
             "{\"id\":\"1997938755808\",\"name\":\"Test-first-reservation\",\"startDate\":" +
                 "\"1544590800000\",\"expirationDate\":\"1544850000000\",\"status\":\"FUTURE\"," +
@@ -306,10 +310,18 @@ public class ReservationDaoImplTest {
                 "{\"reservationConstraintInfo\":[{\"constraintId\":\"100\",\"type\":" +
                 "\"DATA_CENTER\"}]}}"
         );
-        reservationDao.restoreDiags(diags);
+        try {
+            reservationDao.restoreDiags(diags);
+            fail();
+        } catch (DiagnosticsException e) {
+            assertTrue(e.hasErrors());
+            assertEquals(1, e.getErrors().size());
+            assertTrue(e.getErrors().get(0).contains("preexisting reservations"));
+        }
 
         final Set<Reservation> result = reservationDao.getAllReservations();
         assertEquals(2, result.size());
+        assertFalse(result.contains(preexisting));
         final List<Reservation> expected = diags.stream()
             .map(serial -> ReservationDaoImpl.GSON.fromJson(serial, Reservation.class))
             .collect(Collectors.toList());

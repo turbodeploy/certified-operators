@@ -4,6 +4,7 @@ import static com.vmturbo.plan.orchestrator.db.tables.PlanInstance.PLAN_INSTANCE
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -44,6 +45,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDaoImpl;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
@@ -288,7 +290,6 @@ public class PlanDaoImplTest {
         final List<PlanInstance> expected = Arrays.asList(first, second);
 
         final List<String> result = planDao.collectDiags();
-        System.out.println(result);
         assertEquals(2, result.size());
         assertTrue(result.stream().map(string -> PlanDaoImpl.GSON.fromJson(string, PlanInstance.class))
             .allMatch(expected::contains));
@@ -298,16 +299,27 @@ public class PlanDaoImplTest {
     @Test
     public void testRestoreDiags() throws Exception {
 
+        final PlanInstance preexisting =
+            planDao.createPlanInstance(CreatePlanRequest.newBuilder().setTopologyId(1).build());
+
         final String first = "{\"planId\":\"1992305997952\",\"topologyId\":\"212\",\"status\":" +
             "\"READY\",\"projectType\":\"USER\"}";
         final String second = "{\"planId\":\"1992305997760\",\"topologyId\":\"646\",\"status\":" +
             "\"READY\",\"projectType\":\"USER\"}";
 
-        planDao.restoreDiags(Arrays.asList(first, second));
+        try {
+            planDao.restoreDiags(Arrays.asList(first, second));
+            fail();
+        } catch (DiagnosticsException e) {
+            assertTrue(e.hasErrors());
+            assertEquals(1, e.getErrors().size());
+            assertTrue(e.getErrors().get(0).contains("preexisting plan instances"));
+        }
 
         final Set<PlanInstance> result = planDao.getAllPlanInstances();
 
         assertEquals(2, result.size());
+        assertFalse(result.contains(preexisting));
         assertTrue(result.contains(PlanDaoImpl.GSON.fromJson(first, PlanInstance.class)));
         assertTrue(result.contains(PlanDaoImpl.GSON.fromJson(second, PlanInstance.class)));
 
