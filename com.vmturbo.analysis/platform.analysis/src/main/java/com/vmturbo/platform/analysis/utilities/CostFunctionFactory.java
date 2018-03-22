@@ -123,15 +123,13 @@ public class CostFunctionFactory {
         private double price_;
         private boolean isUnitPrice_;
         private boolean isAccumulative_;
-        private double minRequestedAmount_;
 
         public PriceData(double upperBound, double price, boolean isUnitPrice,
-                        boolean isAccumulative, double minRequestedAmount) {
+                        boolean isAccumulative) {
             upperBound_ = upperBound;
             price_ = price;
             isUnitPrice_ = isUnitPrice;
             isAccumulative_ = isAccumulative;
-            minRequestedAmount_ = minRequestedAmount;
         }
 
         /**
@@ -148,14 +146,6 @@ public class CostFunctionFactory {
          */
         public double getPrice() {
             return price_;
-        }
-
-        /**
-         * Returns the minimal requested amount of commodity of any buyer
-         * @return
-         */
-        public double getMinRequestedAmount() {
-            return minRequestedAmount_;
         }
 
         /**
@@ -220,8 +210,7 @@ public class CostFunctionFactory {
                 for (CostDTOs.CostDTO.StorageResourceBundleCostDTO.PriceData priceData : cost.getPriceDataList()) {
                     CostFunctionFactory.PriceData newEntry = new PriceData(
                                     priceData.getUpperBound(), priceData.getPrice(),
-                                    priceData.getIsUnitPrice(), priceData.getIsAccumulativeCost(),
-                                    priceData.getMinRequestedAmount());
+                                    priceData.getIsUnitPrice(), priceData.getIsAccumulativeCost());
                     priceDataList.add(newEntry);
                 }
                 // make sure list is ascending based on upperbound, because we need to get the
@@ -288,13 +277,13 @@ public class CostFunctionFactory {
     }
 
     /**
-     * Validate if the requested amount of commodity is within the minimum and maximum range.
+     * Validate if the requested amount of commodity is within the maximum range.
      *
      * @param sl the shopping list
      * @param commCapacity the information of a commodity and its minimum and maximum capacity
-     * @return true if validation passes, otherwise false
+     * @return false if the requested amount more than maximum capacity, otherwise false
      */
-    private static boolean validateRequestedAmountWithinCapacity(ShoppingList sl,
+    private static boolean validateRequestedAmountWithinMaxCapacity(ShoppingList sl,
                     Map<CommoditySpecification, CapacityLimitation> commCapacity) {
         // check if the commodities bought comply with capacity limitation on seller
         for (Entry<CommoditySpecification, CapacityLimitation> entry : commCapacity.entrySet()) {
@@ -306,8 +295,7 @@ public class CostFunctionFactory {
                 // limitation check is irrelevant for such commodities, and we skip it.
                 continue;
             }
-            if (sl.getQuantities()[index] < entry.getValue().getMinCapacity()
-                            || sl.getQuantities()[index] > entry.getValue().getMaxCapacity()) {
+            if (sl.getQuantities()[index] > entry.getValue().getMaxCapacity()) {
                 logMessagesForCapacityLimitValidation(sl, index, entry);
                 return false;
             }
@@ -473,11 +461,13 @@ public class CostFunctionFactory {
      *
      * @param commodityPriceDataMap the map containing commodity and its pricing information
      * on a seller
+     * @param commCapacity the information of a commodity and its minimum and maximum capacity
      * @param sl the shopping list requests resources
      * @return the cost given by {@link CostFunction}
      */
     public static double calculateStorageCost(
                     @NonNull Map<CommoditySpecification, List<PriceData>> commodityPriceDataMap,
+                    Map<CommoditySpecification, CapacityLimitation> commCapacity,
                     @NonNull ShoppingList sl) {
         double cost = 0;
         for (Entry<CommoditySpecification, List<PriceData>> commodityPrice : commodityPriceDataMap
@@ -490,7 +480,12 @@ public class CostFunctionFactory {
                 // when trying to compute cost.
                 continue;
             }
+           // calculate cost based on amount that is adjusted due to minimum capacity constraint
             double requestedAmount = sl.getQuantities()[i];
+            if (commCapacity.containsKey(sl.getBasket().get(i))) {
+               requestedAmount = Math.max(requestedAmount,
+                                          commCapacity.get(sl.getBasket().get(i)).getMinCapacity());
+            }
             double previousUpperBound = 0;
             for (PriceData priceData : commodityPrice.getValue()) {
                 // the list of priceData is sorted based on upperbound
@@ -512,8 +507,7 @@ public class CostFunctionFactory {
                     // non accumulative cost only depends on the exact range where the requested
                     // amount falls
                     cost += (priceData.isUnitPrice() ? priceData.getPrice() *
-                                    (Math.max(priceData.getMinRequestedAmount(), requestedAmount))
-                                    : priceData.getPrice());
+                                    requestedAmount : priceData.getPrice());
                 }
                 previousUpperBound = currentUpperBound;
             }
@@ -641,13 +635,13 @@ public class CostFunctionFactory {
                             if (seller == null) {
                                 return 0;
                             }
-                            if (!validateRequestedAmountWithinCapacity(buyer, commCapacity)) {
+                            if (!validateRequestedAmountWithinMaxCapacity(buyer, commCapacity)) {
                                 return Double.POSITIVE_INFINITY;
                             }
                             if (!validateDependentCommodityAmount(buyer, seller, dependencyList)) {
                                 return Double.POSITIVE_INFINITY;
                             }
-                            return calculateStorageCost(priceDataMap, buyer);
+                            return calculateStorageCost(priceDataMap, commCapacity, buyer);
                         };
         return costFunction;
     }

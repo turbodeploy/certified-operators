@@ -30,7 +30,6 @@ message CostDTO {
             optional double price = 2; // the price
             optional bool is_unit_price = 3; // if the price is unit price or total price
             optional bool is_accumulative_cost = 4; // if the cost should be accumulated
-            optional double min_requested_amount = 5; // use if requested amount is less than it
         }
         // the dependency commodity and its base commodity and the max ratio between dependent
         // commodity's capacity and base commodity's capacity

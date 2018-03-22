@@ -17,7 +17,7 @@ public class CostFunctionTest {
     /**
      * Case: AWS IO1 storage tier as a seller. Storage amount unit price is 2, IOPS unit price is 10.
      * VM1 asks for 3GB, 90 IOPS, VM2 asks for 5GB, 500IOPS, VM3 asks for 10GB, 200IOPS
-     * Expected result: VM1 infinity cost because it is less than min storage amount capacity
+     * Expected result:
      * VM2 infinity cost because IOPS is more than max ratio of 50 storage amount,
      * VM3 cost is (10*0.125+200*0.065)
      */
@@ -27,13 +27,6 @@ public class CostFunctionTest {
         Trader io1 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
         CostFunction io1Function = TestUtils.setUpIO1CostFunction();
         io1.getSettings().setCostFunction(io1Function);
-
-        // create VM1 and get its cost from io1
-        Trader vm1 = TestUtils.createVM(economy);
-        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm1, new double[] {3, 90},
-                        null);
-        assertTrue(Double.isInfinite(io1Function.calculateCost(sl1, io1, true, economy)));
 
         // create VM2 and get its cost from io1
         Trader vm2 = TestUtils.createVM(economy);
@@ -55,7 +48,7 @@ public class CostFunctionTest {
      * Case: Azure premium managed storage tier as a seller. Storage amount price is 5.28 if 0~32GB,
      * 10.21 if 32~64 GB
      * VM1 asks for 0.5GB,  VM2 asks for 64GB
-     * Expected result: VM1 infinity cost because it is less than min storage amount capacity
+     * Expected result:
      * VM2 cost is 10.21
      */
     @Test
@@ -65,11 +58,6 @@ public class CostFunctionTest {
         CostFunction premiumManagedFunction = TestUtils.setUpPremiumManagedCostFunction();
         premiumManaged.getSettings().setCostFunction(premiumManagedFunction);
 
-        // create VM1 and get its cost
-        Trader vm1 = TestUtils.createVM(economy);
-        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
-                        Arrays.asList(TestUtils.ST_AMT), vm1, new double[] {0.5}, null);
-        assertTrue(Double.isInfinite(premiumManagedFunction.calculateCost(sl1, premiumManaged, true, economy)));
 
         // create VM2 and get its cost from io1
         Trader vm2 = TestUtils.createVM(economy);
