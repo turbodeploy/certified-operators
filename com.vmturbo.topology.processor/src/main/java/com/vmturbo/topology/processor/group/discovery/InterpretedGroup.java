@@ -6,6 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
@@ -33,8 +34,24 @@ public class InterpretedGroup {
         this.dtoAsGroup = Objects.requireNonNull(dtoAsGroup);
         if (dtoAsGroup.isPresent() && dtoAsCluster.isPresent()) {
             throw new IllegalArgumentException(
-                    "Interpreted group must be a group OR a cluster, not both.");
+                            "Interpreted group must be a group OR a cluster, not both.");
         }
+    }
+
+    /**
+     * Creates a deep copy of Interpreted group.
+     *
+     * @param source to make copy of it
+     * @return deep copy of provided group
+     */
+    public static InterpretedGroup deepCopy(@Nonnull InterpretedGroup source) {
+        final CommonDTO.GroupDTO dto = CommonDTO.GroupDTO.newBuilder(
+                        Objects.requireNonNull(source.dto)).build();
+        final Optional<GroupInfo.Builder> dtoAsGroup = source.dtoAsGroup.map(group ->
+                        GroupInfo.newBuilder(group.build()));
+        final Optional<ClusterInfo.Builder> dtoAsCluster = source.dtoAsCluster.map(cluster ->
+                        ClusterInfo.newBuilder(cluster.build()));
+        return new InterpretedGroup(dto, dtoAsGroup, dtoAsCluster);
     }
 
     /**

@@ -4,11 +4,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -24,6 +27,7 @@ import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
@@ -83,6 +87,8 @@ public class DiscoveredGroupUploader {
     private final Map<Long, List<DiscoveredPolicyInfo>> latestPoliciesByTarget = new HashMap<>();
     private final Multimap<Long, DiscoveredSettingPolicyInfo> latestSettingPoliciesByTarget =
         HashMultimap.create();
+
+    private final Map<Long, List<InterpretedGroup>> groupsToUploadByTarget = new HashMap<>();
 
     @VisibleForTesting
     DiscoveredGroupUploader(@Nonnull final Channel groupChannel,
@@ -191,6 +197,16 @@ public class DiscoveredGroupUploader {
         }
     }
 
+    public Map<Long, List<InterpretedGroup>> createDeepCopiesOfGroups() {
+        synchronized (latestGroupByTarget) {
+            groupsToUploadByTarget.clear();
+            latestGroupByTarget.forEach((targetId, targetGroups) -> groupsToUploadByTarget
+                            .put(targetId, targetGroups.stream().map(InterpretedGroup::deepCopy)
+                                            .collect(Collectors.toList())));
+        }
+        return groupsToUploadByTarget;
+    }
+
     /**
      * Get a copy of the setting policies for a target.
      *
@@ -233,7 +249,10 @@ public class DiscoveredGroupUploader {
         // while an upload is in progress so that the data structures for each type cannot be made to be
         // out of synch with each other.
         synchronized (latestGroupByTarget) {
-            latestGroupByTarget.forEach((targetId, groups) -> {
+            if (groupsToUploadByTarget.isEmpty()) {
+                createDeepCopiesOfGroups();
+            }
+            groupsToUploadByTarget.forEach((targetId, groups) -> {
                 final StoreDiscoveredGroupsRequest.Builder req =
                     StoreDiscoveredGroupsRequest.newBuilder()
                         .setTargetId(targetId);

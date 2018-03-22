@@ -47,6 +47,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -114,8 +115,9 @@ public class Stages {
         @Override
         public void passthrough(@Nonnull Map<Long, TopologyEntity.Builder> input)
                         throws PipelineStageException {
-            discoveredGroupUploader.buildMemberCache().getAllDiscoveredGroupsMembers()
-                            .map(members -> members.getAssociatedGroup().getDtoAsCluster())
+            discoveredGroupUploader.createDeepCopiesOfGroups().values().stream()
+                            .flatMap(List::stream)
+                            .map(InterpretedGroup::getDtoAsCluster)
                             .filter(Optional::isPresent)
                             .map(Optional::get)
                             .forEach(cluster -> addDatacenterPrefixToClusterName(input, cluster));
