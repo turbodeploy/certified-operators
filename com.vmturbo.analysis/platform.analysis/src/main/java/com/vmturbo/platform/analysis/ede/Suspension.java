@@ -7,6 +7,8 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -29,6 +31,9 @@ public class Suspension {
 
     // a set to keep all traders that is the sole seller in any market.
     private @NonNull Set<@NonNull Trader> soleProviders = new HashSet<@NonNull Trader>();
+
+    static final Logger logger = LogManager.getLogger();
+
     // a map to keep unprofitable sellers that should not be considered as suspension candidate in
     // any market. In general, those sellers have gone through the process in which it was selected
     // to deactivate, however, after deactivating it and run placement decisions, some customers on
@@ -68,13 +73,15 @@ public class Suspension {
                                                               @NonNull Ledger ledger, Ede ede) {
         List<@NonNull Action> allActions = new ArrayList<>();
         int round = 0;
-        // suspend entities that arent sellers in any market
+        // suspend entities that are not sellers in any market
         for (Trader seller : economy.getTraders()) {
             if (seller.getSettings().isSuspendable() && seller.getState().isActive()
-                &&
-                seller.getCustomers().isEmpty()
-                &&
-                economy.getMarketsAsSeller(seller).isEmpty()) {
+                && seller.getCustomers().isEmpty()
+                && economy.getMarketsAsSeller(seller).isEmpty()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Suspending " + seller.getDebugInfoNeverUseInCode()
+                        + " as it is not a seller in any market");
+                }
                 suspendTrader(economy, null, seller, allActions);
             }
         }
@@ -108,6 +115,10 @@ public class Suspension {
                                                 .collect(Collectors.toList()));
                 for (Trader seller : suspensionCandidates) {
                     if (seller.getCustomers().isEmpty()) {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("Suspending " + seller.getDebugInfoNeverUseInCode()
+                                            + " as there are no customers");
+                        }
                         suspendTrader(economy, market, seller, allActions);
                         continue;
                     }
@@ -124,16 +135,18 @@ public class Suspension {
             }
 
             Trader trader;
+            double oldNumActions = allActions.size();
             while ((trader = suspensionCandidateHeap_.poll()) != null) {
                 allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger));
             }
-
             // reset threshold
             adjustUtilThreshold(economy, false);
 
-            // run economy wide placements after every round of suspension
-            allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                                                                  EconomyConstants.SUPPLY_PHASE));
+            if (allActions.size() > oldNumActions) {
+                // run economy wide placements if there are new actions in this round of suspension
+                allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
+                                                                      EconomyConstants.SUPPLY_PHASE));
+            }
             round++;
         }
         return allActions;
@@ -172,9 +185,14 @@ public class Suspension {
 
         // rollback actions if the trader still has customers
         if (!trader.getCustomers().isEmpty()) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(trader.getDebugInfoNeverUseInCode() + " does not suspend"
+                        + " because of " + trader.getCustomers().size() + " customers");
+            }
             Lists.reverse(suspendActions).forEach(axn -> axn.rollback());
             return new ArrayList<>();
         } else {
+            logger.info("Suspending " + trader.getDebugInfoNeverUseInCode());
             if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
                 makeCoSellersNonSuspendable(economy, trader);
             }

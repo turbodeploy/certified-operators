@@ -33,7 +33,7 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
  */
 public class Provision {
 
-    static final Logger logger = LogManager.getLogger(Provision.class);
+    static final Logger logger = LogManager.getLogger();
 
     /*
      * The bundle contains information about the mostProfitableTrader and the revenue of the
@@ -136,8 +136,11 @@ public class Provision {
 
                         if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                         provisionedTrader, pb.getMostProfitableCommRev())) {
-                            logger.warn("rollback provisioning of a new trader if the RoI of the "
-                            + "modelSeller does not go down");
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("rollback activation of "
+                                            + mostProfitableTrader.getDebugInfoNeverUseInCode()
+                                            + " as the RoI of the modelSeller does not go down");
+                            }
                             // remove IncomeStatement from ledger and rollback actions
                             rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
                             actions.clear();
@@ -170,18 +173,19 @@ public class Provision {
                     actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
                     if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                     provisionedTrader, pb.getMostProfitableCommRev())) {
-                        logger.warn("rollback provisioning of a new trader if the RoI of the "
-                                        + "modelSeller does not go down");
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("rollback cloning of "
+                                        + mostProfitableTrader.getDebugInfoNeverUseInCode()
+                                        + " as the RoI of the modelSeller does not go down");
+                        }
                         // remove IncomeStatement from ledger and rollback actions
                         rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
                         break;
                     }
                 }
-                if (mostProfitableTrader.isDebugEnabled() || provisionedTrader.isDebugEnabled()) {
-                    logger.debug(mostProfitableTrader.getDebugInfoNeverUseInCode() + " triggered " +
-                                    ((provisionAction instanceof Activate) ? "ACTIVATION of " : "PROVISION of ")
-                                    + provisionedTrader.getDebugInfoNeverUseInCode());
-                }
+                logger.info(mostProfitableTrader.getDebugInfoNeverUseInCode() + " triggered " +
+                        ((provisionAction instanceof Activate) ? "ACTIVATION of " : "PROVISION of ")
+                        + provisionedTrader.getDebugInfoNeverUseInCode());
                 ((ActionImpl)provisionAction).setImportance(oldRevenue - ledger
                                 .getTraderIncomeStatements().get(mostProfitableTrader
                                                 .getEconomyIndex()).getRevenues());
