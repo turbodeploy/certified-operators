@@ -29,6 +29,8 @@ public class ScheduleResolverTest {
     private final LocalTime duringTime = LocalTime.of(8, 55, 20);
     private final LocalTime endTime = LocalTime.of(10, 25, 11);
     private final LocalTime afterTime = LocalTime.of(20, 30, 11);
+    private final LocalTime testEndTime = LocalTime.of(3, 10, 10);
+    private final LocalTime zeroTime = LocalTime.of(0, 0, 0);
 
     private final LocalDate beforeDate = LocalDate.of(2005, 9, 27); //A Fever You Can't Sweat Out
     private final LocalDate startDate = LocalDate.of(2008, 3, 21); //Pretty. Odd.
@@ -39,6 +41,8 @@ public class ScheduleResolverTest {
     private final Instant beforeActiveDaysBegin = makeInstant(beforeDate, duringTime);
     private final Instant startOfFirstActivePeriod = makeInstant(startDate, startTime);
     private final Instant endOfFirstActivePeriod = makeInstant(startDate, endTime);
+    private final Instant endOfFirsActiveWithDifferentDay = makeInstant(startDate.plusDays(1), testEndTime);
+    private final Instant endOfFirsActiveLastDay = makeInstant(startDate.plusDays(1), zeroTime);
 
     private final Instant duringFirstActivePeriod = makeInstant(startDate, duringTime);
     private final Instant afterLastActivePeriod =  makeInstant(endDate, afterTime);
@@ -76,6 +80,18 @@ public class ScheduleResolverTest {
     }
 
     @Test
+    public void testOneTimeWithCrossDayCase() {
+        final Schedule schedule = Schedule.newBuilder()
+                .setOneTime(OneTime.getDefaultInstance())
+                .setStartTime(startOfFirstActivePeriod.toEpochMilli())
+                .setEndTime(endOfFirsActiveWithDifferentDay.toEpochMilli())
+                .setLastDate(endOfFirsActiveLastDay.toEpochMilli())
+                .build();
+        assertFalse(scheduleAppliesAt(beforeActiveDaysBegin, schedule));
+        testActivePeriodWithCrossDay(startDate, schedule);
+    }
+
+    @Test
     public void testDailyWithEndDay() {
 
 
@@ -85,8 +101,6 @@ public class ScheduleResolverTest {
                 .setEndTime(endOfFirstActivePeriod.toEpochMilli())
                 .setLastDate(afterLastActivePeriod.toEpochMilli())
                 .build();
-
-
 
         assertFalse(scheduleAppliesAt(beforeActiveDaysBegin, schedule));
         testActivePeriod(startDate, schedule);
@@ -109,8 +123,18 @@ public class ScheduleResolverTest {
         testActivePeriod(startDate, schedule);
 
         testActivePeriod(LocalDate.of(3018, 1, 2), schedule);
+    }
 
-
+    @Test
+    public void testDailyWithCrossDayCase() {
+        final Schedule schedule = Schedule.newBuilder()
+                .setDaily(Daily.getDefaultInstance())
+                .setStartTime(startOfFirstActivePeriod.toEpochMilli())
+                .setEndTime(endOfFirsActiveWithDifferentDay.toEpochMilli())
+                .setLastDate(endOfFirsActiveLastDay.toEpochMilli())
+                .build();
+        assertFalse(scheduleAppliesAt(beforeActiveDaysBegin, schedule));
+        testActivePeriodWithCrossDay(startDate, schedule);
     }
 
     @Test
@@ -223,6 +247,17 @@ public class ScheduleResolverTest {
         assertTrue(scheduleAppliesAt(makeInstant(date, duringTime), schedule));
         assertTrue(scheduleAppliesAt(makeInstant(date, endTime), schedule));
         assertFalse(scheduleAppliesAt(makeInstant(date, afterTime), schedule));
+    }
+
+    private void testActivePeriodWithCrossDay(LocalDate date, Schedule schedule) {
+        assertFalse(scheduleAppliesAt(makeInstant(date, beforeTime), schedule));
+        assertTrue(scheduleAppliesAt(makeInstant(date, startTime), schedule));
+        assertTrue(scheduleAppliesAt(makeInstant(date, duringTime), schedule));
+        assertTrue(scheduleAppliesAt(makeInstant(date, endTime), schedule));
+        assertTrue(scheduleAppliesAt(makeInstant(date, afterTime), schedule));
+        assertTrue(scheduleAppliesAt(makeInstant(date.plusDays(1), beforeTime), schedule));
+        assertTrue(scheduleAppliesAt(makeInstant(date.plusDays(1), testEndTime), schedule));
+        assertFalse(scheduleAppliesAt(makeInstant(date.plusDays(1), endTime), schedule));
     }
 
     private boolean scheduleAppliesAt(Instant instant, Schedule schedule) {
