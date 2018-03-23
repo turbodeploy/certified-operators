@@ -39,6 +39,7 @@ import org.jooq.Record;
 import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
 import io.grpc.Status;
@@ -323,9 +324,13 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                 }
             }
 
+            // Sort stats data by date.
+            List<java.sql.Date> sortedStatsDates = Lists.newArrayList(resultMap.keySet());
+            Collections.sort(sortedStatsDates);
+
             // A StatSnapshot will be created for each date.
             // Each snapshot may have several record types (e.g. "headroomVMs", "numVMs")
-            for (java.sql.Date recordDate : resultMap.keySet()) {
+            for (java.sql.Date recordDate : sortedStatsDates) {
                 StatSnapshot.Builder statSnapshotResponseBuilder = StatSnapshot.newBuilder();
                 resultMap.get(recordDate).forEach(statSnapshotResponseBuilder::addStatRecords);
                 statSnapshotResponseBuilder.setSnapshotDate(LocalDateTime.ofInstant(
