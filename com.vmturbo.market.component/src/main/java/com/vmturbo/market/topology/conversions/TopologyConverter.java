@@ -88,7 +88,9 @@ public class TopologyConverter {
     private static final String BICLIQUE = "BICLIQUE";
 
     public static final Set<TopologyDTO.EntityState> SKIPPED_ENTITY_STATES = ImmutableSet.of(
-            TopologyDTO.EntityState.UNKNOWN, TopologyDTO.EntityState.MAINTENANCE);
+            TopologyDTO.EntityState.UNKNOWN,
+            TopologyDTO.EntityState.MAINTENANCE,
+            TopologyDTO.EntityState.FAILOVER);
 
     private static final boolean INCLUDE_GUARANTEED_BUYER_DEFAULT =
             MarketSettings.BooleanKey.INCLUDE_GUARANTEED_BUYER.value();
