@@ -644,6 +644,18 @@ public class BootstrapSupply {
                     overHeadPeak = overHeadPeak - sl.getPeakQuantity(index);
                 }
             }
+            if (overHead < 0) {
+                logger.warn("Overhead is less than 0 for seller "
+                                + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
+                                + modelSeller.getBasketSold().get(soldIndex).getDebugInfoNeverUseInCode());
+                overHead = 0;
+            }
+            if (overHeadPeak < 0) {
+                logger.warn("OverheadPeak is less than 0 for seller "
+                                + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
+                                + modelSeller.getBasketSold().get(soldIndex).getDebugInfoNeverUseInCode());
+                overHeadPeak = 0;
+            }
             if ((buyerShoppingList.getQuantities()[boughtIndex] > (commSold.getEffectiveCapacity() - overHead))
                             || (buyerShoppingList.getPeakQuantities()[boughtIndex] >
                             (commSold.getEffectiveCapacity() - overHeadPeak))) {
