@@ -36,15 +36,22 @@ class Cache {
     // Methods
 
     /*
+     * Validation function for utilization
+     */
+    private static boolean isInvalid (double utilization) {
+        return Double.isNaN(utilization) || utilization > 1;
+    }
+
+    /*
      * The standard price function used by most commodities in the first incarnation of the market.
-     * The formula is P(u) = min(w / (1-u)^2, MAX_UNIT_PRICE) for us < 1, and Double.POSITIVE_INFINITY for u > 1.
+     * The formula is P(u) = min(w / (1-u)^2, MAX_UNIT_PRICE) for us < 1, and Double.POSITIVE_INFINITY for isInvalid(u).
      */
     public static synchronized PriceFunction createStandardWeightedPriceFunction(double weight) {
         String key = "SWPF-" + weight;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
             pf = (u, sl, seller, commSold, e) ->
-                u > 1 ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
+                isInvalid(u) ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
             pfMap.put(key, pf);
         }
         return pf;
@@ -58,7 +65,7 @@ class Cache {
        PriceFunction pf = pfMap.get(key);
        if (pf == null) {
            pf = (u, sl, seller, commSold, e) ->
-               u > 1 ? MAX_UNIT_PRICE : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
+               isInvalid(u) ? MAX_UNIT_PRICE : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
            pfMap.put(key, pf);
        }
        return pf;
@@ -66,13 +73,13 @@ class Cache {
 
    /*
     * A constant function. The formula is P(u) = parameter if u <= 1
-    * and Double.POSITIVE_INFINITY for u > 1.
+    * and Double.POSITIVE_INFINITY for isInvalid(u).
     */
     public static PriceFunction createConstantPriceFunction(double constant) {
         String key = "CPF-" + constant;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, sl, seller, commSold, e) ->  u > 1 ? Double.POSITIVE_INFINITY : constant;
+            pf = (u, sl, seller, commSold, e) ->  isInvalid(u) ? Double.POSITIVE_INFINITY : constant;
             pfMap.put(key, pf);
         }
         return pf;
@@ -81,14 +88,14 @@ class Cache {
     /*
      * A step function.
      * The formula is P(u) = if u < stepAt then priceBelow else priceAbove, if u <= 1
-     * and Double.POSITIVE_INFINITY for u > 1.
+     * and Double.POSITIVE_INFINITY for isInvalid(u).
      */
     public static PriceFunction createStepPriceFunction(double stepAt, double priceBelow, double priceAbove) {
         String key = String.format("SPF-%.10f,%.10f,%.10f", stepAt, priceBelow, priceAbove);
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
             pf = (u, sl, seller, commSold, e) ->
-                u > 1 ? Double.POSITIVE_INFINITY : u < stepAt ? priceBelow : priceAbove;
+                isInvalid(u) ? Double.POSITIVE_INFINITY : u < stepAt ? priceBelow : priceAbove;
             pfMap.put(key, pf);
         }
         return pf;
@@ -102,7 +109,7 @@ class Cache {
         String key = "SPFC-" + weight;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, sl, seller, commSold, e) ->  u == 0 ? 0 : u > 1 ? Double.POSITIVE_INFINITY : weight;
+            pf = (u, sl, seller, commSold, e) ->  u == 0 ? 0 : isInvalid(u) ? Double.POSITIVE_INFINITY : weight;
             pfMap.put(key, pf);
         }
         return pf;
