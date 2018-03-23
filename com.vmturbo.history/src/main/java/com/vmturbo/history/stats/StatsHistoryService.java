@@ -711,7 +711,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     snapshotTime, k -> HashMultimap.create()
             );
             String commodityName = dbStatRecord.getValue(PROPERTY_TYPE, String.class);
-            String commodityKey = dbStatRecord.getValue(COMMODITY_KEY, String.class);
+            String commodityKey = dbStatRecord.field(COMMODITY_KEY) != null ?
+                    dbStatRecord.getValue(COMMODITY_KEY, String.class) : "";
             String propertySubType = dbStatRecord.getValue(PROPERTY_SUBTYPE, String.class);
             // See the enum RelationType in com.vmturbo.history.db.
             // Commodities, CommoditiesBought, and CommoditiesFromAttributes
