@@ -341,6 +341,9 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                     continue;
                 }
                 EntityCommodityKey key = createEntityCommodityKey(entityOid, commoditySoldDTO.getCommodityType());
+                if (commoditySoldDTO.getUsed() < 0)  {
+                    logger.warn("Commodity has -ve used value : {}", commoditySoldDTO);
+                }
                 CommodityMaxValue newMax = createCommodityMaxValue(ValueSource.TP, commoditySoldDTO.getUsed());
                 // Atomically set the values as the background thread might also be mutating the map concurrently.
                 newMax = entityCommodityToMaxQuantitiesMap
@@ -389,6 +392,12 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     }
 
     private CommodityMaxValue createCommodityMaxValue(ValueSource valSource, double maxValue) {
+        // OM-33482 : Set the value to 0 until we understand where the -ve
+        // value is coming from.
+        if (maxValue < 0) {
+            logger.warn("Max value: {} less than 0 from valSource: {}", maxValue, valSource);
+            maxValue = 0;
+        }
         return new CommodityMaxValue(valSource, maxValue);
     }
 

@@ -980,13 +980,24 @@ public class TopologyConverter {
                         .setPriceFunction(priceFunction(topologyCommSold))
                         .setUpdateFunction(updateFunction(topologyCommSold))
                         .build();
+
+        double maxQuantity = topologyCommSold.getMaxQuantity();
+        float maxQuantityFloat = (float) maxQuantity;
+        if (maxQuantity < 0) {
+            logger.warn("maxQuantity: {} is less than 0. Setting it 0.", maxQuantity);
+            maxQuantityFloat = 0;
+        } else if (maxQuantityFloat < 0) {
+            logger.warn("Float to double cast error. maxQuantity:{}. maxQuantityFloat:{}.",
+                maxQuantity, maxQuantityFloat);
+            maxQuantityFloat = 0;
+        }
         return CommodityDTOs.CommoditySoldTO.newBuilder()
                         .setPeakQuantity((float)topologyCommSold.getPeak())
                         .setCapacity(capacity)
                         .setQuantity(used)
                         // Warning: we are down casting from double to float.
                         // Market has to change this field to double
-                        .setMaxQuantity((float)topologyCommSold.getMaxQuantity())
+                        .setMaxQuantity(maxQuantityFloat)
                         .setSettings(economyCommSoldSettings)
                         .setSpecification(commoditySpecification(commodityType))
                         .setThin(topologyCommSold.getIsThin())
