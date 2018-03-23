@@ -2,11 +2,10 @@
 
 import argparse
 import os
+import re
 import string
 import subprocess
-import tempfile
 import zipfile
-import shutil
 
 import sys
 
@@ -158,27 +157,30 @@ def show_processes(parsed_args):
 
 def get_diag(parsed_args):
     """
-    Zip up all rsyslog log files.
+    Zip up host system messages log and all rsyslog files. For host system logs, we only track
+    parameter 'hostlogdir' directory and its file name has same pattern with parameter 'pattern'.
     """
     logdir = '/var/lib/docker/volumes/%s_syslogdata/_data/rsyslog' % home
+    # host system log directory
+    host_log_dir = parsed_args.hostlogdir
+    # directory name for generated zipped host system logs files
+    host_arc_dir_name = 'host-log'
+    # only zip files which name with input pattern prefix
+    host_log_file_pattern = parsed_args.pattern
 
     if not parsed_args.file:
-        outputfile = "rsyslogs.zip"
+        # if not specify output file name, it will dump binary content to stdout
+        outputfile = sys.stdout
     else:
         outputfile = parsed_args.file
     try:
-        zipf= zipfile.ZipFile(outputfile, 'w', zipfile.ZIP_DEFLATED)
+        zipf = zipfile.ZipFile(outputfile, 'w', zipfile.ZIP_DEFLATED)
         zipdir(logdir, zipf)
+        zip_with_file_pattern(host_log_dir, zipf, host_log_file_pattern, host_arc_dir_name)
     except:
         print "Error: Failed to create zip file for log files."
     finally:
         zipf.close()
-
-    if not parsed_args.file:
-        f = open(outputfile, 'rb')
-        shutil.copyfileobj(f, sys.stdout)
-        f.close()
-        os.remove(f.name)
 
 
 def parse_args(args=sys.argv[1:]):
@@ -255,10 +257,15 @@ def parse_args(args=sys.argv[1:]):
     logs_parser.set_defaults(func=logs_display)
 
     # diag
-    diag_parser = subparsers.add_parser("diag", help="Get a zip file of all log files from "
-                                                     "the rsyslog component: \n"
-                                                     "diag [-f <zip file name>]")
+    diag_parser = subparsers.add_parser("diag", help="Get a zip file of host system log files and"
+                                                      "all log files from the rsyslog component: \n"
+                                                      "diag [-f <zip file name>] [-p <regex pattern>]"
+                                                      "[-s <host system logs directory>]")
     diag_parser.add_argument("-f", "--file", default="")
+    diag_parser.add_argument("-p", "--pattern", default="^messages", help="The regex pattern for host "
+                                                                          "system log files names")
+    diag_parser.add_argument("-s", "--hostlogdir", default="/var/log", help="The directory of host"
+                                                                            "system logs")
     diag_parser.set_defaults(func=get_diag)
 
     return parser.parse_args(args)
@@ -331,6 +338,24 @@ def zipdir(path, ziph):
             parentpath = os.path.relpath(filepath, path)
             arcname = os.path.join(rootdir, parentpath)
             ziph.write(filepath, arcname)
+
+
+def zip_with_file_pattern(path, ziph, pattern, arc_dir_name):
+    """
+    Zip up the content of a directory. It only scan top level directory, not scan subdirectory.
+    And also only zip those files which file name match with pattern.
+
+    :param path: path to the directory to be zipped up. It only scan this directory, will not scan
+                 subdirectory.
+    :param ziph: zip file handle object.
+    :param pattern: file name pattern, will only zip files which name matches with pattern.
+    :param arc_dir_name: the directory name of generated zip files.
+    """
+    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f)) and re.match(pattern, f)]
+    for file in files:
+        file_path = os.path.join(path, file)
+        arcname = os.path.join(arc_dir_name, file)
+        ziph.write(file_path, arcname)
 
 
 if __name__ == "__main__":
