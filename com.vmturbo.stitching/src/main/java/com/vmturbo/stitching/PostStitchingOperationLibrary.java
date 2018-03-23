@@ -13,7 +13,7 @@ import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperati
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.IndependentStorageAccessPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmCpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
@@ -75,7 +75,7 @@ public class PostStitchingOperationLibrary {
             new DiskArrayStorageProvisionedPostStitchingOperation(),
             new StorageEntityStorageProvisionedPostStitchingOperation(),
             new LogicalPoolStorageProvisionedPostStitchingOperation(),
-            new MemoryAllocationPostStitchingOperation(),
+            new PmMemoryAllocationPostStitchingOperation(),
             new StorageControllerStorageAccessPostStitchingOperation(),
             new DiskArrayStorageAccessPostStitchingOperation(),
             new LogicalPoolStorageAccessPostStitchingOperation(),

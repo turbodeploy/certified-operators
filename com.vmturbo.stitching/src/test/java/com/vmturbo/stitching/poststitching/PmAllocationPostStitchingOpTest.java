@@ -3,7 +3,9 @@ package com.vmturbo.stitching.poststitching;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommoditySold;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeNumericSetting;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeTopologyEntity;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -21,6 +23,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -38,7 +41,7 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmCpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
@@ -50,7 +53,7 @@ public class PmAllocationPostStitchingOpTest {
         return Arrays.asList(new Object[][] {
             {new PmCpuAllocationPostStitchingOperation(), CommodityType.CPU,
                 CommodityType.CPU_ALLOCATION, EntitySettingSpecs.CpuOverprovisionedPercentage},
-            {new MemoryAllocationPostStitchingOperation(), CommodityType.MEM,
+            {new PmMemoryAllocationPostStitchingOperation(), CommodityType.MEM,
                 CommodityType.MEM_ALLOCATION, EntitySettingSpecs.MemoryOverprovisionedPercentage}
         });
     }
@@ -155,13 +158,29 @@ public class PmAllocationPostStitchingOpTest {
 
         final CommoditySoldDTO preloadedAllocation = makeCommoditySold(allocationCommodityType, 99);
         final List<CommoditySoldDTO> origCommodities =
-            Arrays.asList(sourceCommodity, irrelevantCommodity, preloadedAllocation);
+            Arrays.asList(sourceCommodity, preloadedAllocation);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+        // This kind of defeats the whole of the parametrized test, but don't want to split the
+        // tests just for this difference in behaviour right now.
+        if (allocationCommodityType == CommodityType.MEM_ALLOCATION) {
+            final TopologicalChangelog result =
+                    operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+            result.getChanges().forEach(TopologicalChange::applyChange);
+
+            // For memory allocation, we actually override the probe-provided capacity.
+            assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
+                    containsInAnyOrder(sourceCommodity,
+                            makeCommoditySold(allocationCommodityType, expectedAllocationCapacity)));
+        } else {
+            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+            assertTrue(resultBuilder.getChanges().isEmpty());
+        }
     }
 
+    /**
+     * Test that the allocation change gets applied even when keys are not matching.
+     */
     @Test
     public void testMismatchingKeys() {
 
@@ -172,33 +191,71 @@ public class PmAllocationPostStitchingOpTest {
         final CommoditySoldDTO sourceWithKey = makeCommoditySold(sourceCommodityType, sourceCapacity, key2);
 
         final List<CommoditySoldDTO> origCommodities =
-            Arrays.asList(sourceWithKey, irrelevantCommodity, allocationWithKey);
+            Arrays.asList(sourceWithKey, allocationWithKey);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+        // Keys get ignored for the PM Allocation operations.
+        final TopologicalChangelog result =
+                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        result.getChanges().forEach(TopologicalChange::applyChange);
+
+        assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
+                containsInAnyOrder(sourceWithKey, makeCommoditySold(allocationCommodityType, expectedAllocationCapacity, key1)));
     }
 
+    /**
+     * Test that a single source commodity gets used to compute the capacities of all matching
+     * allocation commodities, regardless of key.
+     */
     @Test
-    public void testOneHasKeyOtherDoesnt() {
+    public void testMultipleAllocationCommoditiesDifferentKeys() {
+        final String dogKey = "dog";
+        final String catKey = "cat";
 
-        final String key = "abc";
+        final CommoditySoldDTO dogCommodity = makeCommoditySold(allocationCommodityType, dogKey);
+        final CommoditySoldDTO catCommodity = makeCommoditySold(allocationCommodityType, catKey);
+        final TopologyEntity testTE =
+                makeTopologyEntity(Arrays.asList(dogCommodity, catCommodity, sourceCommodity));
 
-        final CommoditySoldDTO allocationWithKey = makeCommoditySold(allocationCommodityType, key);
+        final TopologicalChangelog result =
+                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        result.getChanges().forEach(TopologicalChange::applyChange);
 
-        final List<CommoditySoldDTO> origCommodities =
-            Arrays.asList(sourceCommodity, irrelevantCommodity, allocationWithKey);
-        final TopologyEntity testTE = makeTopologyEntity(origCommodities);
+        assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
+                containsInAnyOrder(sourceCommodity,
+                    dogCommodity.toBuilder().setCapacity(expectedAllocationCapacity).build(),
+                    catCommodity.toBuilder().setCapacity(expectedAllocationCapacity).build()));
+    }
 
-        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+    /**
+     * Test that if there are multiple source commodities with different keys
+     * we use the first encountered one.
+     */
+    @Test
+    public void testDiffKeySourceCommodities() {
+        final CommoditySoldDTO fooSource = makeCommoditySold(sourceCommodityType, sourceCapacity, "foo");
+        final CommoditySoldDTO barSource = makeCommoditySold(sourceCommodityType, 99, "bar");
+        // No key necessary, since we ignore keys anyway.
+        final CommoditySoldDTO allocationCommodity = makeCommoditySold(allocationCommodityType);
+        final TopologyEntity testTE =
+                makeTopologyEntity(Arrays.asList(fooSource, barSource, allocationCommodity));
+
+        final TopologicalChangelog result =
+                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        result.getChanges().forEach(TopologicalChange::applyChange);
+
+        assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
+                containsInAnyOrder(fooSource, barSource,
+                        // Allocation commodity should have the expected allocation capacity
+                        // derived from sourceCapacity.
+                        makeCommoditySold(allocationCommodityType, expectedAllocationCapacity)));
     }
 
     @Test
     public void testDuplicateCommodities() {
 
         final List<CommoditySoldDTO> origCommodities = new ArrayList<>();
-        final CommoditySoldDTO duplicateCommodity = makeCommoditySold(sourceCommodityType, sourceCapacity);
+        final CommoditySoldDTO duplicateCommodity = makeCommoditySold(sourceCommodityType, 99);
         origCommodities.addAll(requiredCommodities);
         origCommodities.add(duplicateCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);

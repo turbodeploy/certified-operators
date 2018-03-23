@@ -124,12 +124,17 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      * Determines if a commodity is of the source type and matches a specific key.
      * @param commodity the commodity to check
      * @param key the key that should be matched
-     * @return true if the commodity is of the right type and matches the key, false otherwise
+     * @return true if the commodity is of the right type and, if this operation expects a
+     *         key match, that it matches the key. False otherwise. Note that if this operation
+     *         does not match commodity keys, this will return true for all commodities of the
+     *         source type.
+     *
      */
     private boolean isMatchingSourceCommodity(@Nonnull final CommoditySoldDTO commodity,
                                               @Nonnull final String key) {
         return (commodity.getCommodityType().getType() == sourceCommodityType.getNumber()) &&
-            Objects.equals(commodity.getCommodityType().getKey(), key);
+            // If we're not matching commodity key, ignore the keys completely.
+            (!matchCommodityKey() || Objects.equals(commodity.getCommodityType().getKey(), key));
     }
 
     /**
@@ -151,8 +156,24 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
             /* the IllegalStateException is thrown if there are multiple commodities with the same
             type and key, which should not happen. */
             .reduce((expectedCommodity, unexpectedCommodity) -> {
-                throw new IllegalStateException("Found multiple commodities of type " +
-                    sourceCommodityType + " with key " + key + " in entity " + oid);
+                // The "matchCommodityKey()" check is redundant, because if matchCommodityKey()
+                // is true, then the only way we end up with two matching source commodities is
+                // if both commodity type name and key are equal. Keeping it for clarity.
+                if (matchCommodityKey() ||
+                        expectedCommodity.getCommodityType().equals(unexpectedCommodity.getCommodityType())) {
+                    throw new IllegalStateException("Found multiple commodities of type " +
+                            sourceCommodityType + " with key " + key + " in entity " + oid);
+                } else {
+                    // If we're not matching commodity keys, it is technically possible to have
+                    // multiple source commodities that have different keys, although at the time
+                    // of this writing (March 22, 2018) there are no observed cases where that
+                    // happens. Don't want to crash.
+                    logger.error("Found multiple commodities of type {} in entity {}. " +
+                            "Keeping commodity with key: {}. Ignoring commodity with key: {}",
+                            sourceCommodityType, oid, expectedCommodity.getCommodityType().getKey(),
+                            unexpectedCommodity.getCommodityType().getKey());
+                    return expectedCommodity;
+                }
             });
         if (!found.isPresent()) {
             logger.warn("Cannot set {} capacity due to no {} commodity with " +
@@ -211,6 +232,19 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      * @return true if existing capacity should be overwritten, false otherwise.
      */
     abstract boolean shouldOverwriteCapacity();
+
+    /**
+     * Return whether or not the key of the "source" commodity should match the key of the
+     * overprovisioned commodity.
+     *
+     * Subclasses may override this method if they don't want to match the commodity key.
+     *
+     * @return true if the key needs to match. If false, any "source" commodity will be used
+     * for all "overprovisioned" commodities.
+     */
+    protected boolean matchCommodityKey() {
+        return true;
+    }
 
     /**
      * Post-stitching operation for the purpose of setting CPU Provisioned commodity capacities for
@@ -279,23 +313,32 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
      * commodity's capacity is set to the Memory commodity capacity multiplied by the
      * overprovisioned percentage.
      */
-    public static class MemoryAllocationPostStitchingOperation extends
-        OverprovisionCapacityPostStitchingOperation {
+    public static class PmMemoryAllocationPostStitchingOperation extends
+            OverprovisionCapacityPostStitchingOperation {
 
-        public MemoryAllocationPostStitchingOperation() {
+        public PmMemoryAllocationPostStitchingOperation() {
             super(EntitySettingSpecs.MemoryOverprovisionedPercentage, CommodityType.MEM,
-                CommodityType.MEM_ALLOCATION);
+                    CommodityType.MEM_ALLOCATION);
         }
 
         @Nonnull
         @Override
-        public StitchingScope<TopologyEntity> getScope(
-            @Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
+        public StitchingScope<TopologyEntity> getScope(@Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
             return stitchingScopeFactory.entityTypeScope(EntityType.PHYSICAL_MACHINE);
         }
 
         @Override
         boolean shouldOverwriteCapacity() {
+            // Right now the VMM probe sends the MEM_ALLOCATION capacity.
+            // This is a bug - since the mem allocation needs to be modified by the settings
+            // framework, the VMM probe shouldn't send a value.
+            // For now, we overwrite the capacity with MEM * over-provision factor.
+            return true;
+        }
+
+        @Override
+        protected boolean matchCommodityKey() {
+            // We don't match the key - this is consistent with the behaviour in opsmgr.
             return false;
         }
     }
@@ -325,6 +368,12 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
 
         @Override
         boolean shouldOverwriteCapacity() {
+            return false;
+        }
+
+        @Override
+        protected boolean matchCommodityKey() {
+            // We don't match the key - this is consistent with the behaviour in opsmgr.
             return false;
         }
     }

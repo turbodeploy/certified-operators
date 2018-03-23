@@ -608,7 +608,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
             // process all the stats records for a given commodity for the current snapshot_time
             // - might be 1, many for group, or none if time range didn't overlap recorded stats
-            commodityMap.asMap().forEach((commodityName, dbStatRecordList) -> {
+            commodityMap.asMap().values().forEach(dbStatRecordList -> {
                 if (!dbStatRecordList.isEmpty()) {
                     // use the first element as the core of the group value
                     Record dbFirstStatRecord = dbStatRecordList.iterator().next();
@@ -706,6 +706,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     snapshotTime, k -> HashMultimap.create()
             );
             String commodityName = dbStatRecord.getValue(PROPERTY_TYPE, String.class);
+            String commodityKey = dbStatRecord.getValue(COMMODITY_KEY, String.class);
             String propertySubType = dbStatRecord.getValue(PROPERTY_SUBTYPE, String.class);
             // See the enum RelationType in com.vmturbo.history.db.
             // Commodities, CommoditiesBought, and CommoditiesFromAttributes
@@ -714,7 +715,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
             // Need to separate commodity bought and sold as some commodities are both bought
             // and sold in the same entity, e.g., StorageAccess in Storage entity.
-            String recordKey = commodityName + relation;
+            String recordKey = commodityName + commodityKey + relation;
 
             // Filter out the utilization as we are interested in the used values
             if (!UTILIZATION.equals(propertySubType)) {
