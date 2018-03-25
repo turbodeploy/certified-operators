@@ -44,14 +44,16 @@ class Cache {
 
     /*
      * The standard price function used by most commodities in the first incarnation of the market.
-     * The formula is P(u) = min(w / (1-u)^2, MAX_UNIT_PRICE) for us < 1, and Double.POSITIVE_INFINITY for isInvalid(u).
+     * The formula is P(u) = min(w / (1-u)^2, MAX_UNIT_PRICE) for u < 1, and
+     * Double.POSITIVE_INFINITY for isInvalid(u).
      */
     public static synchronized PriceFunction createStandardWeightedPriceFunction(double weight) {
         String key = "SWPF-" + weight;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
             pf = (u, sl, seller, commSold, e) ->
-                isInvalid(u) ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
+                isInvalid(u) ? Double.POSITIVE_INFINITY : Math.min(weight / ((1.0f - u) *
+                        (1.0f - u)), MAX_UNIT_PRICE);
             pfMap.put(key, pf);
         }
         return pf;
@@ -65,7 +67,8 @@ class Cache {
        PriceFunction pf = pfMap.get(key);
        if (pf == null) {
            pf = (u, sl, seller, commSold, e) ->
-               isInvalid(u) ? MAX_UNIT_PRICE : Math.min(weight / ((1.0f - u) * (1.0f - u)), MAX_UNIT_PRICE);
+               isInvalid(u) ? MAX_UNIT_PRICE : Math.min(weight / ((1.0f - u) * (1.0f - u)),
+                       MAX_UNIT_PRICE);
            pfMap.put(key, pf);
        }
        return pf;
@@ -109,7 +112,8 @@ class Cache {
         String key = "SPFC-" + weight;
         PriceFunction pf = pfMap.get(key);
         if (pf == null) {
-            pf = (u, sl, seller, commSold, e) ->  u == 0 ? 0 : isInvalid(u) ? Double.POSITIVE_INFINITY : weight;
+            pf = (u, sl, seller, commSold, e) ->
+                    u == 0 ? 0: isInvalid(u) ? Double.POSITIVE_INFINITY : weight;
             pfMap.put(key, pf);
         }
         return pf;
