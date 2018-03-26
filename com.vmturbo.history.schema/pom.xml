@@ -148,6 +148,10 @@
                                     <name>com.vmturbo.api.enums.ReportOutputFormat</name>
                                     <converter>com.vmturbo.history.schema.ReportOutputFormatConverter</converter>
                                 </customType>
+                                <customType>
+                                    <name>com.vmturbo.api.dto.report.ReportAttributeType</name>
+                                    <converter>com.vmturbo.history.schema.ReportAttributeTypeConverter</converter>
+                                </customType>
                             </customTypes>
                             <forcedTypes>
                                 <!-- EXAMPLE:
@@ -185,6 +189,11 @@
                                 <forcedType>
                                     <name>com.vmturbo.api.enums.DayOfWeek</name>
                                     <expressions>(?i)(.*\.day_type.*)</expressions>
+                                </forcedType>
+
+                                <forcedType>
+                                    <name>com.vmturbo.api.dto.report.ReportAttributeType</name>
+                                    <expressions>.*\.report_attrs\.att_type</expressions>
                                 </forcedType>
 
                                 <forcedType>

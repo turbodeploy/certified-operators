@@ -158,7 +158,7 @@ public class ReportingTestConfig {
     }
 
     @Bean
-    public TemplatesDao<OnDemandReportsRecord> onDemandTemplatesDao() {
+    public TemplatesDao onDemandTemplatesDao() {
         return new OnDemandTemplatesDao(dbConfig.dsl());
     }
 

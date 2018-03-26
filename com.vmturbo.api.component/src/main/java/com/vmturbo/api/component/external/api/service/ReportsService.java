@@ -19,7 +19,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.report.AttributeValueApiDTO;
 import com.vmturbo.api.dto.report.ReportApiDTO;
+import com.vmturbo.api.dto.report.ReportAttributeApiDto;
+import com.vmturbo.api.dto.report.ReportAttributeType;
 import com.vmturbo.api.dto.report.ReportInstanceApiDTO;
 import com.vmturbo.api.dto.report.ReportInstanceApiInputDTO;
 import com.vmturbo.api.dto.report.ReportScheduleApiDTO;
@@ -35,6 +38,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportAttribute;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstance;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
@@ -182,11 +186,20 @@ public class ReportsService implements IReportsService {
         if (!StringUtils.isBlank(reportApiRequest.getEmailAddress())) {
             builder.addAllSubcribersEmails(splitToEmails(reportApiRequest.getEmailAddress()));
         }
-        // TODO add attributes, as soon as we face at least one real use case
+        if (reportApiRequest.getAttributes() != null) {
+            for (AttributeValueApiDTO attributeValue : reportApiRequest.getAttributes()) {
+                builder.putParameters(attributeValue.getName(), attributeValue.getValue());
+            }
+        }
         final ReportInstanceId response = reportingService.generateReport(builder.build());
         final ReportInstanceApiDTO result = new ReportInstanceApiDTO();
         result.setFilename(Long.toString(response.getId()));
-        result.setReportType(ReportType.get(templateId.getReportType()));
+        final ReportType reportType = ReportType.get(templateId.getReportType());
+        if (reportType == null) {
+            throw new IllegalArgumentException(
+                    "Could not find report type by id " + templateId.getReportType());
+        }
+        result.setReportType(reportType);
         result.setTemplateId(templateId.getReportType(), templateId.getId());
         result.setUserName(reportApiRequest.getUserName());
         result.setScope(new BaseApiDTO());
@@ -344,6 +357,19 @@ public class ReportsService implements IReportsService {
         if (src.hasDayType()) {
             dst.setScheduled(false);
         }
+        dst.setAttributes(src.getAttributesList()
+                .stream()
+                .map(ReportsService::convert)
+                .collect(Collectors.toList()));
+        return dst;
+    }
+
+    @Nonnull
+    private static ReportAttributeApiDto convert(@Nonnull ReportAttribute src) {
+        final ReportAttributeApiDto dst = new ReportAttributeApiDto();
+        dst.setName(src.getName());
+        dst.setDefaultValue(src.getDefaultValue());
+        dst.setValueType(ReportAttributeType.valueOf(src.getValueType()));
         return dst;
     }
 

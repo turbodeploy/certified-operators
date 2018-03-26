@@ -5,14 +5,16 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.sql.utils.DbException;
 
 /**
  * Data access object for reporting templates.
- *
- * @param <T> type of report templates to retrieve
  */
-public interface TemplatesDao<T> {
+public interface TemplatesDao {
+
+    @Nonnull
+    ReportType getReportType();
 
     /**
      * Returns a collection of all the existing standard report templates.
@@ -21,7 +23,7 @@ public interface TemplatesDao<T> {
      * @throws DbException if DB operation failed
      */
     @Nonnull
-    Collection<T> getAllTemplates() throws DbException;
+    Collection<TemplateWrapper> getAllTemplates() throws DbException;
 
     /**
      * Retrieves a report template record from the DB for the specified id, or nothing.
@@ -31,5 +33,5 @@ public interface TemplatesDao<T> {
      * @throws DbException if DB operation failed
      */
     @Nonnull
-    Optional<T> getTemplateById(int templateId) throws DbException;
+    Optional<TemplateWrapper> getTemplateById(int templateId) throws DbException;
 }

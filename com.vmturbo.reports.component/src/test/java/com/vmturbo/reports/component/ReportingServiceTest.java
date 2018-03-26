@@ -24,6 +24,7 @@ import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.reporting.api.ReportListener;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportAttribute;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportData;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstance;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportInstanceId;
@@ -31,6 +32,7 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * Integration tests to test all the functionality from the point of view of GRPC client.
@@ -78,9 +80,15 @@ public class ReportingServiceTest {
         Assert.assertEquals(ReportType.BIRT_STANDARD.getValue(),
                 standardTemplate.getId().getReportType());
         Assert.assertEquals(standardTemplateId, standardTemplate.getId().getId());
+        testReportWithIntegerAndBoolParam(templates);
+    }
+
+    private void testReportWithIntegerAndBoolParam(final Collection<ReportTemplate> templates)
+            throws DbException {
         final int onDemandTemplateId = templates.stream()
                 .filter(reportTemplate -> reportTemplate.getId().getReportType() ==
                         ReportType.BIRT_ON_DEMAND.getValue())
+                .filter(reportTemplate -> reportTemplate.getId().getId() == 6)
                 .findFirst()
                 .get()
                 .getId()
@@ -92,6 +100,22 @@ public class ReportingServiceTest {
         Assert.assertEquals(ReportType.BIRT_ON_DEMAND.getValue(),
                 onDemandTemplate.getId().getReportType());
         Assert.assertEquals(onDemandTemplateId, onDemandTemplate.getId().getId());
+        Assert.assertEquals(2, onDemandTemplate.getAttributesCount());
+        final ReportAttribute boolAttr = onDemandTemplate.getAttributesList()
+                .stream()
+                .filter(att -> att.getName().equals("show_charts"))
+                .findFirst()
+                .get();
+        Assert.assertEquals("True", boolAttr.getDefaultValue());
+        Assert.assertEquals("BOOLEAN", boolAttr.getValueType());
+
+        final ReportAttribute intAttr = onDemandTemplate.getAttributesList()
+                .stream()
+                .filter(att -> att.getName().equals("num_days_ago"))
+                .findFirst()
+                .get();
+        Assert.assertEquals("30", intAttr.getDefaultValue());
+        Assert.assertEquals("INTEGER", intAttr.getValueType());
     }
 
     /**

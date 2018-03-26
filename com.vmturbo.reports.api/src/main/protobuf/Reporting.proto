@@ -33,6 +33,19 @@ message ReportTemplate {
     optional int32 period = 6;
     // Day of recurrency
     optional int32 day_type = 7;
+    // Attributes, used for this report
+    repeated ReportAttribute attributes = 8;
+}
+
+// Report template attribute definition
+message ReportAttribute {
+    // Name of the attribute, as it is mentioned in the template
+    required string name = 1;
+    // Default value. Must conform value_type
+    required string default_value = 2;
+    // Type of the value data (must reffer to ReportAttributeType enum
+    required string value_type = 4;
+
 }
 
 // Represents report template - a link to real report template

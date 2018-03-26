@@ -127,12 +127,12 @@ public class ReportingConfig {
     }
 
     @Bean
-    public TemplatesDao<StandardReportsRecord> standardTemplatesDao() {
+    public TemplatesDao standardTemplatesDao() {
         return new StandardTemplatesDaoImpl(dbConfig.dsl());
     }
 
     @Bean
-    public TemplatesDao<OnDemandReportsRecord> onDemandReportsTemplatesDao() {
+    public TemplatesDao onDemandReportsTemplatesDao() {
         return new OnDemandTemplatesDao(dbConfig.dsl());
     }
 
