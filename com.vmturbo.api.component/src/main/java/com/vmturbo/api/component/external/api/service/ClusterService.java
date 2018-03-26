@@ -6,6 +6,8 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.api.serviceinterfaces.IClusterService;
@@ -16,7 +18,16 @@ import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
  **/
 public class ClusterService implements IClusterService {
 
+    public static final String ASTERISKS = "*****";
     private IClusterService clusterMgrApi;
+
+    // the sensitive keys that we need to mask the values.
+    // TODO centralized these keys, so we won't miss them if they are changed.
+    private static final Set sensitiveKeySet = Sets.newHashSet(
+            "arangodbPass"
+            , "userPassword"
+            , "sslKeystorePassword"
+            , "readonlyPassword");
 
     public ClusterService(ClusterMgrClient clusterManagerClient) {
         clusterMgrApi = clusterManagerClient;
@@ -83,10 +94,20 @@ public class ClusterService implements IClusterService {
         clusterMgrApi.collectComponentDiagnostics(responseOutput);
     }
 
+    /**
+     * Get cluster configuration. If the properties (keys) are in sensitiveKeySet,
+     * the values will be masked as asterisks.
+     *
+     * @return ClusterConfigurationDTO
+     */
     @Nonnull
     @Override
     public ClusterConfigurationDTO getClusterConfiguration() {
-        return clusterMgrApi.getClusterConfiguration();
+        final ClusterConfigurationDTO clusterConfiguration = clusterMgrApi.getClusterConfiguration();
+        for (ComponentPropertiesDTO dto : clusterConfiguration.getDefaults().values()) {
+            dto.replaceAll((k, v) -> maskSensitiveValue(k, v));
+        }
+        return clusterConfiguration;
     }
 
     @Nonnull
@@ -105,9 +126,18 @@ public class ClusterService implements IClusterService {
         return clusterMgrApi.setNodeForComponentInstance(componentType, instanceId, nodeName);
     }
 
+    /**
+     * Get the default properties for a component type. If the properties (keys) are in sensitiveKeySet,
+     * the values will be masked as asterisks.
+     *
+     * @param componentType component type
+     * @return ComponentPropertiesDTO
+     */
     @Override
     public ComponentPropertiesDTO getDefaultPropertiesForComponentType(String componentType) {
-        return clusterMgrApi.getDefaultPropertiesForComponentType(componentType);
+        ComponentPropertiesDTO dto = clusterMgrApi.getDefaultPropertiesForComponentType(componentType);
+        dto.replaceAll((k, v) -> maskSensitiveValue(k, v));
+        return dto;
     }
 
     @Override
@@ -120,13 +150,35 @@ public class ClusterService implements IClusterService {
         return clusterMgrApi.getComponentInstanceProperties(componentType, componentInstanceId);
     }
 
+    /**
+     * Mask sensitive values as asterisks, the keys are defined in sensitiveKeySet.
+     *
+     * @param key property name
+     * @param value property value
+     * @return asterisks if key is in sensitiveKeySet
+     */
+    private String maskSensitiveValue(final String key, final String value) {
+        return sensitiveKeySet.contains(key) ? ASTERISKS : value;
+    }
+
     @Override
     public ComponentPropertiesDTO putComponentInstanceProperties(String componentType, String componentInstanceId, ComponentPropertiesDTO updatedProperties) {
         return clusterMgrApi.putComponentInstanceProperties(componentType, componentInstanceId, updatedProperties);
     }
 
+    /**
+     * Retrieve property in component, if the property (key) is in sensitiveKeySet,
+     * the value will be masked as asterisks.
+     *
+     * @param componentType component type
+     * @param propertyName property name
+     * @return property value if the property is not in the sensitiveKeySet.
+     */
     @Override
     public String getComponentTypeProperty(String componentType, String propertyName) {
+        if (sensitiveKeySet.contains(propertyName)) {
+            return ASTERISKS;
+        }
         return clusterMgrApi.getComponentTypeProperty(componentType, propertyName);
     }
 
