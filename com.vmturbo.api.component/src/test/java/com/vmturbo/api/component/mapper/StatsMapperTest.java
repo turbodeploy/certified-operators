@@ -3,6 +3,7 @@ package com.vmturbo.api.component.mapper;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
@@ -91,6 +92,21 @@ public class StatsMapperTest {
         StatFilterApiDTO filter = dto.getStatistics().get(0).getFilters().get(0);
         assertThat(filter.getType(), is(StatsMapper.FILTER_NAME_KEY));
         assertThat(filter.getValue(), is(statKey));
+    }
+
+    @Test
+    public void testMetricsDoNotIncludeCapacityOrReserved() throws Exception {
+        // Price index is a metric and metrics should not include capacities or reserved
+        // or else the UI will render them as commodities with donut charts and utilizations.
+        final String statMetricName = StatsMapper.METRIC_NAMES.iterator().next();
+        StatSnapshot snapshot = StatSnapshot.newBuilder()
+            .addStatRecords(StatSnapshot.StatRecord.newBuilder()
+                .setName(statMetricName))
+                .build();
+
+        final StatApiDTO dto = StatsMapper.toStatSnapshotApiDTO(snapshot).getStatistics().get(0);
+        assertNull(dto.getCapacity());
+        assertNull(dto.getReserved());
     }
 
     private void verifyMappedStatRecord(StatRecord test,

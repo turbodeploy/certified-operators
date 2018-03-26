@@ -17,6 +17,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.reports.db.EntityType;
 import com.vmturbo.reports.db.RelationType;
+import com.vmturbo.reports.db.StringConstants;
 
 /**
  * Maps stats snapshots between their API DTO representation and their protobuf representation.
@@ -66,6 +68,30 @@ public class StatsMapper {
                // (June 8, 2017): "plan" is not valid relation type from the UI's point of view,
                // so don't map it to any relation type when constructing results for the UI.
                "plan", Optional.empty());
+
+    /**
+     * The UI distinguishes between "metrics" and "commodities". Commodities are expected to contain
+     * information about things like capacities and reservation. Metrics are not allowed to.
+     *
+     * Providing a capacity or reserved in a stat request for a metric makes no sense. Doing so
+     * causes the UI to render the metric as a commodity (ie render a donut chart and provide a
+     * utilization percentage instead of a raw number). Uses these metric names
+     * to decide whether to supply commodity-related fields in the stats response or not.
+     *
+     * There is no canonical list of metrics or commodities nor does either have an attribute
+     * on the stat indicating which class of stat they belong to. Akhand provided this partial list,
+     * but it may be incomplete and it is likely more will be added in the future.
+     */
+    public static final Set<String> METRIC_NAMES = ImmutableSet.of(
+        StringConstants.PRICE_INDEX, StringConstants.NUM_VMS, StringConstants.NUM_HOSTS,
+        StringConstants.NUM_STORAGES, StringConstants.NUM_DBS, StringConstants.NUM_CONTAINERS,
+        StringConstants.NUM_VDCS, StringConstants.NUM_VMS_PER_HOST,
+        StringConstants.NUM_VMS_PER_STORAGE, StringConstants.NUM_CNT_PER_HOST,
+        StringConstants.NUM_CNT_PER_STORAGE, StringConstants.NUM_CNT_PER_VM,
+        StringConstants.HEADROOM_VMS, StringConstants.CURRENT_HEADROOM, StringConstants.DESIREDVMS,
+        StringConstants.PRODUCES, StringConstants.NUM_RI, StringConstants.RI_COUPON_COVERAGE,
+        StringConstants.RI_COUPON_UTILIZATION, StringConstants.RI_DISCOUNT
+    );
 
     /**
      * Convert a protobuf Stats.StatSnapshot to an API DTO StatSnapshotApiDTO.
@@ -134,8 +160,12 @@ public class StatsMapper {
         statApiDTO.setRelatedEntity(provider);
 
         statApiDTO.setUnits(statRecord.getUnits());
-        statApiDTO.setCapacity(buildStatDTO(statRecord.getCapacity()));
-        statApiDTO.setReserved(buildStatDTO(statRecord.getReserved()));
+        // Only add capacity and reservation values when the stat is NOT a metric (ie when it is
+        // a commodity)
+        if (!METRIC_NAMES.contains(statRecord.getName())) {
+            statApiDTO.setCapacity(buildStatDTO(statRecord.getCapacity()));
+            statApiDTO.setReserved(buildStatDTO(statRecord.getReserved()));
+        }
 
         // The "values" should be equivalent to "used".
         statApiDTO.setValues(toStatValueApiDTO(statRecord.getUsed()));
