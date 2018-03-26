@@ -351,12 +351,11 @@ public final class AnalysisToProtobuf {
                 moveTO.setCost(move.getTarget().getCost());
                 moveTO.setDestination(traderOid.get(newSupplier));
             } catch (Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("NPE original supplier=" + origSupplier.getDebugInfoNeverUseInCode() +
-                            " replaced supplier=" + newSupplier.getDebugInfoNeverUseInCode() +
-                            " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode() +
-                            " oid of replaced supplier=" + traderOid.get(newSupplier));
-                }
+                logger.error("Exception when replacing supplier: original supplier="
+                             + origSupplier.getDebugInfoNeverUseInCode() +
+                             " replaced supplier=" + newSupplier.getDebugInfoNeverUseInCode() +
+                             " buyer=" + move.getActionTarget().getDebugInfoNeverUseInCode() +
+                             " oid of replaced supplier=" + traderOid.get(newSupplier));
             }
             moveTO = explainMoveAction(move.getSource(), newSupplier, traderOid, move, moveTO,
                                        topology.getEconomy());
@@ -513,6 +512,9 @@ public final class AnalysisToProtobuf {
         ShoppingList buyer = move.getTarget();
         final Set<Entry<ShoppingList, Market>> shoppingListsInMarket =
                         economy.getMarketsAsBuyer(newSupplier).entrySet();
+        if (shoppingListsInMarket.isEmpty()) {
+            return null;
+        }
         Market market = shoppingListsInMarket.iterator().next().getValue();
         if (market == null) {
             return null;
