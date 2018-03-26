@@ -18,7 +18,7 @@ import com.google.common.collect.Lists;
 
 import io.grpc.Channel;
 
-import com.vmturbo.action.orchestrator.action.ActionCategory;
+import com.vmturbo.action.orchestrator.action.ActionCategoryExtractor;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -220,7 +220,7 @@ public class ActionTranslator {
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
             .setExplanation(ExplanationComposer.composeExplanation(recommendationForDisplay.getExplanation()))
-            .setCategory(ActionCategory.assignActionCategory(recommendationForDisplay.getExplanation()));
+            .setCategory(ActionCategoryExtractor.assignActionCategory(recommendationForDisplay.getExplanation()));
 
         actionView.getDecision()
             .ifPresent(specBuilder::setDecision);

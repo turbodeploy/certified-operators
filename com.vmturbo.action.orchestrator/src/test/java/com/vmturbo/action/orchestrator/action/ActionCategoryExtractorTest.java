@@ -1,9 +1,12 @@
 package com.vmturbo.action.orchestrator.action;
 
-import static org.junit.Assert.assertEquals;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -23,7 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
-public class ActionCategoryTest {
+public class ActionCategoryExtractorTest {
     private static final TopologyDTO.CommodityType CPU = TopologyDTO.CommodityType.newBuilder()
         .setType(CommodityDTO.CommodityType.CPU_VALUE)
         .build();
@@ -39,7 +42,7 @@ public class ActionCategoryTest {
                 .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                 .setCompliance(Compliance.getDefaultInstance()).build()).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_COMPLIANCE, ActionCategory.assignActionCategory(compliance));
+        assertThat(ActionCategoryExtractor.assignActionCategory(compliance), is(ActionDTO.ActionCategory.COMPLIANCE));
     }
 
     @Test
@@ -50,7 +53,7 @@ public class ActionCategoryTest {
                 .addCongestedCommodities(CPU).build())
             .build()).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE, ActionCategory.assignActionCategory(congestion));
+        assertThat(ActionCategoryExtractor.assignActionCategory(congestion), is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
     @Test
@@ -60,7 +63,7 @@ public class ActionCategoryTest {
             .setEvacuation(Evacuation.newBuilder().setSuspendedEntity(100).build())
             .build()).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_EFFICIENCY_IMPROVEMENT, ActionCategory.assignActionCategory(evacuation));
+        assertThat(ActionCategoryExtractor.assignActionCategory(evacuation), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
@@ -69,7 +72,7 @@ public class ActionCategoryTest {
             .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
             .setInitialPlacement(InitialPlacement.getDefaultInstance()).build()).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_EFFICIENCY_IMPROVEMENT, ActionCategory.assignActionCategory(initialPlacement));
+        assertThat(ActionCategoryExtractor.assignActionCategory(initialPlacement), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
@@ -78,8 +81,7 @@ public class ActionCategoryTest {
             .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
             .setPerformance(Performance.getDefaultInstance()).build()).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_PREVENTION,
-            ActionCategory.assignActionCategory(performance));
+        assertThat(ActionCategoryExtractor.assignActionCategory(performance), is(ActionCategory.PREVENTION));
     }
 
     @Test
@@ -87,8 +89,7 @@ public class ActionCategoryTest {
         Explanation reconfigure = Explanation.newBuilder().setReconfigure(ReconfigureExplanation
             .getDefaultInstance()).build();
 
-        assertEquals(ActionCategory.CATEGORY_COMPLIANCE,
-            ActionCategory.assignActionCategory(reconfigure));
+        assertThat(ActionCategoryExtractor.assignActionCategory(reconfigure), is(ActionCategory.COMPLIANCE));
     }
 
     @Test
@@ -98,8 +99,8 @@ public class ActionCategoryTest {
                 .setBuyerId(101).build())
             .build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE,
-            ActionCategory.assignActionCategory(provisionByDemand));
+        assertThat(ActionCategoryExtractor.assignActionCategory(provisionByDemand),
+                is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
     @Test
@@ -109,8 +110,8 @@ public class ActionCategoryTest {
                 .newBuilder().setMostExpensiveCommodity(102).build())
             .build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE,
-            ActionCategory.assignActionCategory(provisionBySupply1));
+        assertThat(ActionCategoryExtractor.assignActionCategory(provisionBySupply1),
+                is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
     @Test
@@ -122,8 +123,8 @@ public class ActionCategoryTest {
                 .build())
             .build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_COMPLIANCE,
-            ActionCategory.assignActionCategory(provisionBySupply2));
+        assertThat(ActionCategoryExtractor.assignActionCategory(provisionBySupply2),
+                is(ActionCategory.COMPLIANCE));
     }
 
     @Test
@@ -131,8 +132,8 @@ public class ActionCategoryTest {
         Explanation activate1 = Explanation.newBuilder().setActivate(ActivateExplanation.newBuilder()
             .setMostExpensiveCommodity(CPU.getType()).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE,
-            ActionCategory.assignActionCategory(activate1));
+        assertThat(ActionCategoryExtractor.assignActionCategory(activate1),
+                is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
     @Test
@@ -140,8 +141,8 @@ public class ActionCategoryTest {
         Explanation activate2 = Explanation.newBuilder().setActivate(ActivateExplanation.newBuilder()
             .setMostExpensiveCommodity(DRS_SEGMENTATION.getType()).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_COMPLIANCE,
-            ActionCategory.assignActionCategory(activate2));
+        assertThat(ActionCategoryExtractor.assignActionCategory(activate2),
+                is(ActionCategory.COMPLIANCE));
     }
 
     @Test
@@ -149,8 +150,8 @@ public class ActionCategoryTest {
         Explanation deactivate = Explanation.newBuilder().setDeactivate(
             DeactivateExplanation.getDefaultInstance()).build();
 
-        assertEquals(ActionCategory.CATEGORY_EFFICIENCY_IMPROVEMENT,
-            ActionCategory.assignActionCategory(deactivate));
+        assertThat(ActionCategoryExtractor.assignActionCategory(deactivate),
+                is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
@@ -158,8 +159,8 @@ public class ActionCategoryTest {
         Explanation resizeDown = Explanation.newBuilder().setResize(ResizeExplanation.newBuilder()
             .setStartUtilization(0.1f).setEndUtilization(0.5f).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_EFFICIENCY_IMPROVEMENT,
-            ActionCategory.assignActionCategory(resizeDown));
+        assertThat(ActionCategoryExtractor.assignActionCategory(resizeDown),
+                is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
@@ -167,8 +168,8 @@ public class ActionCategoryTest {
         Explanation resizeUp = Explanation.newBuilder().setResize(ResizeExplanation.newBuilder()
             .setStartUtilization(0.5f).setEndUtilization(0.1f).build()).build();
 
-        assertEquals(ActionCategory.CATEGORY_PERFORMANCE_ASSURANCE,
-            ActionCategory.assignActionCategory(resizeUp));
+        assertThat(ActionCategoryExtractor.assignActionCategory(resizeUp),
+                is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
 }

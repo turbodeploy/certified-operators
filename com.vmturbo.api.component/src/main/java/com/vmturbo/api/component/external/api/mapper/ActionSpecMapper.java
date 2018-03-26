@@ -45,6 +45,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -67,6 +68,16 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
  * returned from the API.
  */
 public class ActionSpecMapper {
+
+    // START - Strings representing action categories in the API.
+    // These should be synchronized with the strings in stringUtils.js
+    private static final String API_CATEGORY_PERFORMANCE_ASSURANCE = "Performance Assurance";
+    private static final String API_CATEGORY_EFFICIENCY_IMPROVEMENT = "Efficiency Improvement";
+    private static final String API_CATEGORY_PREVENTION = "Prevention";
+    private static final String API_CATEGORY_COMPLIANCE = "Compliance";
+    private static final String API_CATEGORY_UNKNOWN = "Unknown";
+    // END - Strings representing action categories in the API.
+
 
     private static final String STORAGE_VALUE = UIEntityType.STORAGE.getValue();
     private static final String PHYSICAL_MACHINE_VALUE = UIEntityType.PHYSICAL_MACHINE.getValue();
@@ -207,6 +218,51 @@ public class ActionSpecMapper {
         return mapActionSpecToActionApiDTOInternal(actionSpec, context);
     }
 
+    /**
+     * Map an XL category to an equivalent API category string.
+     *
+     * @param category The {@link ActionDTO.ActionCategory}.
+     * @return A string representing the action category that will be understandable by the UI.
+     */
+    @Nonnull
+    private String mapXlActionCategoryToApi(@Nonnull final ActionDTO.ActionCategory category) {
+        switch (category) {
+            case PERFORMANCE_ASSURANCE:
+                return API_CATEGORY_PERFORMANCE_ASSURANCE;
+            case EFFICIENCY_IMPROVEMENT:
+                return API_CATEGORY_EFFICIENCY_IMPROVEMENT;
+            case PREVENTION:
+                return API_CATEGORY_PREVENTION;
+            case COMPLIANCE:
+                return API_CATEGORY_COMPLIANCE;
+            default:
+                return API_CATEGORY_UNKNOWN;
+        }
+    }
+
+    /**
+     * Map an API category string to an equivalent XL category.
+     *
+     * @param category The string representing the action category in the UI.
+     * @return An optional containing a {@link ActionDTO.ActionCategory}, or an empty optional if
+     *         no equivalent category exists in XL.
+     */
+    @Nonnull
+    private Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(@Nonnull final String category) {
+        switch (category) {
+            case API_CATEGORY_PERFORMANCE_ASSURANCE:
+                return Optional.of(ActionCategory.PERFORMANCE_ASSURANCE);
+            case API_CATEGORY_EFFICIENCY_IMPROVEMENT:
+                return Optional.of(ActionCategory.EFFICIENCY_IMPROVEMENT);
+            case API_CATEGORY_PREVENTION:
+                return Optional.of(ActionCategory.PREVENTION);
+            case API_CATEGORY_COMPLIANCE:
+                return Optional.of(ActionCategory.COMPLIANCE);
+            default:
+                return Optional.empty();
+        }
+    }
+
     @Nonnull
     private ActionApiDTO mapActionSpecToActionApiDTOInternal(
             @Nonnull final ActionSpec actionSpec,
@@ -241,7 +297,7 @@ public class ActionSpecMapper {
         // set the explanation string
 
         risk.setDescription(createRiskDescription(actionSpec, context));
-        risk.setSubCategory(actionSpec.getCategory());
+        risk.setSubCategory(mapXlActionCategoryToApi(actionSpec.getCategory()));
         risk.setSeverity(
             ActionDTOUtil.getSeverityName(ActionDTOUtil.mapImportanceToSeverity(recommendation
                     .getImportance())));
@@ -764,6 +820,17 @@ public class ActionSpecMapper {
                 inputDto.getActionTypeList().stream()
                         .map(ActionTypeMapper::fromApi)
                         .forEach(queryBuilder::addAllTypes);
+            }
+
+            if (CollectionUtils.isNotEmpty(inputDto.getRiskSubCategoryList())) {
+                inputDto.getRiskSubCategoryList().forEach(apiCategory -> {
+                    Optional<ActionDTO.ActionCategory> xlCategory = mapApiActionCategoryToXl(apiCategory);
+                    if (xlCategory.isPresent()) {
+                        queryBuilder.addCategories(xlCategory.get());
+                    } else {
+                        logger.warn("Unable to map action category {} to XL category.", apiCategory);
+                    }
+                });
             }
 
             // pass in start and end time

@@ -221,6 +221,16 @@ public class QueryFilter {
             }
         }
 
+        if (!filter.getCategoriesList().isEmpty() && !filter.getCategoriesList().contains(
+                // This uses the pre-translation explanation to assign the category, whereas the
+                // final category extraction is done post-translation. At the time of this writing
+                // (March 26, 2018) no translation operations affect the category of explanations,
+                // only the contents (e.g. units).
+                ActionCategoryExtractor.assignActionCategory(
+                        actionView.getRecommendation().getExplanation()))) {
+            return false;
+        }
+
         return true;
     }
 }

@@ -501,6 +501,31 @@ message ExecutionStep {
     optional string progressDescription = 8;
 }
 
+// The category of the action is a short-form explanation of the reason for the action.
+// It's derived from the full explanation.
+enum ActionCategory {
+    // Unknown - kept at the lowest index so that any categories a service
+    // doesn't know about (e.g. due to a different version of the enum) take on
+    // this value.
+    UNKNOWN = 0;
+
+    // The action is required to ensure an entity has the resources it needs for optimal performance
+    // (e.g. sizing up in order to address overutilization).
+    PERFORMANCE_ASSURANCE = 1;
+
+    // The action is required in order to improve the efficiency of the system - i.e. how well
+    // it utilizes resources (e.g. moving a VM to a less-utilized provider, or shutting down
+    // a PM if it's VMs can be moved to other hosts without sacrificing performance)
+    EFFICIENCY_IMPROVEMENT = 2;
+
+    // This action is required to prevent future risks.
+    PREVENTION = 3;
+
+    // This action is required in order to comply with a placement policy (e.g. a VM needs
+    // to be in a certain cluster).
+    COMPLIANCE = 4;
+}
+
 // An ActionSpec maintains the state of an action in the system.
 // It contains information necessary to execute the action as well as the
 // execution state of the action.
@@ -548,7 +573,7 @@ message ActionSpec {
 
     // The category of the action. It is consumed by UI to indicate if the effect of the action is
     // assure performance, improve efficiency, prevention or compliance.
-    optional string category = 10;
+    optional ActionCategory category = 10 [default = UNKNOWN];
 }
 
 // A filter to be supplied with action queries.
@@ -583,6 +608,9 @@ message ActionQueryFilter {
 
     // Include only actions of the given types.
     repeated ActionType types = 7;
+
+    // Include only actions of the given categories.
+    repeated ActionCategory categories = 8;
 }
 
 // The number of actions of a specific type that match the criteria in

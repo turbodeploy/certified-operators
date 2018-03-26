@@ -24,12 +24,16 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 
 /**
  * Tests for the {@link QueryFilter} class.
@@ -160,6 +164,40 @@ public class QueryFilterTest {
                 notExecutableMoveAction(0L/*id*/, 1L/*srcId*/, 1/*srcType*/, 2L/*destId*/, 1/*destType*/, 3L/*targetId*/);
         assertTrue(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
                 .addTypes(ActionType.MOVE)
+                .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
+    public void testFilterActionViewsByCategory() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(0L)
+                .setInfo(ActionTest.makeMoveInfo(3L, 1L, 1, 2L, 1))
+                .setImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                    .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                        .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
+                .build();
+        final ActionView actionView = new Action(action, ACTION_PLAN_ID);
+        assertTrue(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
+                .addCategories(ActionCategory.EFFICIENCY_IMPROVEMENT)
+                .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
+    }
+
+    @Test
+    public void testFilterActionViewsByCategoryNoMatch() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(0L)
+                .setInfo(ActionTest.makeMoveInfo(3L, 1L, 1, 2L, 1))
+                .setImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
+                .build();
+        final ActionView actionView = new Action(action, ACTION_PLAN_ID);
+        assertFalse(new QueryFilter(Optional.of(ActionQueryFilter.newBuilder()
+                .addCategories(ActionCategory.COMPLIANCE)
                 .build())).test(actionView, PlanActionStore.VISIBILITY_PREDICATE));
     }
 
