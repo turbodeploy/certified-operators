@@ -21,6 +21,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -132,6 +134,28 @@ public class PostStitchingOperationScopeFactoryTest {
         assertThat(scopeFactory.probeEntityTypeScope("222", EntityType.PHYSICAL_MACHINE).entities()
             .map(TopologyEntity::getOid)
             .collect(Collectors.toList()), is(empty()));
+    }
+
+    @Test
+    public void testMultiProbeEntityTypeScope() throws Exception {
+
+        // this will contain targets 1,3
+        final ImmutableSet<String> singleProbeSet = ImmutableSet.of("111");
+
+        // this will contain targets 1,2,3
+        final ImmutableSet<String> multipleProbeSet = ImmutableSet.of("111", "222");
+
+        assertThat(scopeFactory.multiProbeEntityTypeScope(singleProbeSet, EntityType.VIRTUAL_MACHINE).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList()), containsInAnyOrder(1L, 3L));
+
+        assertThat(scopeFactory.multiProbeEntityTypeScope(multipleProbeSet, EntityType.VIRTUAL_MACHINE).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
+
+        assertThat(scopeFactory.multiProbeEntityTypeScope(multipleProbeSet, EntityType.PHYSICAL_MACHINE).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList()), contains(4L));
     }
 
     @Test

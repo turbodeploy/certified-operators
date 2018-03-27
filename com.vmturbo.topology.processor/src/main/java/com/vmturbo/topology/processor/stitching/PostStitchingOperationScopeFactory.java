@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -88,6 +89,16 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                                                  @Nonnull final EntityType entityType) {
         return new ProbeEntityTypeStitchingScope(topologyGraph, probeTypeName, entityType,
             probeStore, targetStore);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public StitchingScope<TopologyEntity> multiProbeEntityTypeScope(@Nonnull final Set<String> probeTypeNames,
+                                                               @Nonnull final EntityType entityType) {
+        return new MultiProbeEntityTypeStitchingScope(topologyGraph, probeTypeNames, entityType,
+                probeStore, targetStore);
     }
 
     /**
@@ -260,6 +271,71 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
                     .anyMatch(probeTargetIds::contains));
         }
+    }
+
+    /**
+     * A calculation scope for applying a calculation to entities discovered by a specific set of
+     * probes with a specific {@link EntityType}.
+     */
+    private static class MultiProbeEntityTypeStitchingScope extends BaseStitchingScope {
+
+        private final Set<String> probeTypeNames;
+        private final EntityType entityType;
+        private final ProbeStore probeStore;
+        private final TargetStore targetStore;
+
+        public MultiProbeEntityTypeStitchingScope(@Nonnull TopologyGraph topologyGraph,
+                                             @Nonnull final Set<String> probeTypeNames,
+                                             @Nonnull final EntityType entityType,
+                                             @Nonnull final ProbeStore probeStore,
+                                             @Nonnull final TargetStore targetStore) {
+            super(topologyGraph);
+            this.probeTypeNames = Objects.requireNonNull(probeTypeNames);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.probeStore = Objects.requireNonNull(probeStore);
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<TopologyEntity> entities() {
+
+            final Set<Long> probeTargetIds = new HashSet<>();
+
+            // iterate over probe types
+            for (String probeTypeName: probeTypeNames) {
+
+                // get probe ID
+                final Optional<Long> optionalProbeId = probeStore.getProbeIdForType(probeTypeName);
+                if (optionalProbeId.isPresent()) {
+                    final long probeId = optionalProbeId.get();
+
+                    // get all targets for the specified probe ID and add it to the probeTargetIds set
+                    final List<Target> probeTargets = targetStore.getProbeTargets(probeId);
+                    for (Target target : probeTargets) {
+                        probeTargetIds.add(target.getId());
+                    }
+                } else {
+                    logger.debug("Unable to retrieve entities for " + probeTypeName +
+                            " because no probe of that type is currently registered.");
+                }
+            }
+
+            if (probeTargetIds.isEmpty()) {
+                // return immediately if we didn't find any target (performance reasons)
+                return Stream.empty();
+            } else {
+                // get entities from those targets
+                // this is doing a linear scan over all entities of that type
+                // regardless of the target they came from
+                // note: optimize it in future, if it's starting to be a bottleneck
+                return getTopologyGraph().entitiesOfType(entityType)
+                        .filter(TopologyEntity::hasDiscoveryOrigin)
+                        .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                                .anyMatch(probeTargetIds::contains));
+            }
+        }
+
     }
 
     /**

@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching.prestitching;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.stitchingData;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.topologyMapOf;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
@@ -20,10 +21,13 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.PreStitchingOperationScopeFactory;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -132,6 +136,28 @@ public class PreStitchingOperationScopeFactoryTest {
         assertThat(scopeFactory.probeEntityTypeScope("222", EntityType.PHYSICAL_MACHINE).entities()
             .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), is(empty()));
+    }
+
+    @Test
+    public void testMultiProbeEntityTypeScope() throws Exception {
+
+        // this will contain targets 1,3
+        final ImmutableSet<String> singleProbeSet = ImmutableSet.of("111");
+
+        // this will contain targets 1,2,3
+        final ImmutableSet<String> multipleProbeSet = ImmutableSet.of("111", "222");
+
+        assertThat(scopeFactory.multiProbeEntityTypeScope(singleProbeSet, EntityType.VIRTUAL_MACHINE).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), containsInAnyOrder("1", "3"));
+
+        assertThat(scopeFactory.multiProbeEntityTypeScope(multipleProbeSet, EntityType.VIRTUAL_MACHINE).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3"));
+
+        assertThat(scopeFactory.multiProbeEntityTypeScope(multipleProbeSet, EntityType.PHYSICAL_MACHINE).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), contains("4"));
     }
 
     @Test

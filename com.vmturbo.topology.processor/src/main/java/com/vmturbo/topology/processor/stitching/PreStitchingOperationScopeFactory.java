@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -85,6 +87,16 @@ public class PreStitchingOperationScopeFactory implements StitchingScopeFactory<
                                                  @Nonnull final EntityType entityType) {
         return new ProbeEntityTypeStitchingScope(stitchingContext, probeTypeName, entityType,
             probeStore, targetStore);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public StitchingScope<StitchingEntity> multiProbeEntityTypeScope(@Nonnull final Set<String> probeTypeNames,
+                                                                @Nonnull final EntityType entityType) {
+        return new MultiProbeEntityTypeStitchingScope(stitchingContext, probeTypeNames, entityType,
+                probeStore, targetStore);
     }
 
     /**
@@ -247,6 +259,59 @@ public class PreStitchingOperationScopeFactory implements StitchingScopeFactory<
             return targetStore.getProbeTargets(probeId).stream()
                 .map(Target::getId)
                 .flatMap(targetId -> getStitchingContext().internalEntities(entityType, targetId));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation to entities discovered by a specific set of
+     * probes with a specific {@link EntityType}.
+     */
+    private static class MultiProbeEntityTypeStitchingScope extends BaseStitchingScope {
+
+        private final Set<String> probeTypeNames;
+        private final EntityType entityType;
+        private final ProbeStore probeStore;
+        private final TargetStore targetStore;
+
+        public MultiProbeEntityTypeStitchingScope(@Nonnull StitchingContext stitchingContext,
+                                             @Nonnull final Set<String> probeTypeNames,
+                                             @Nonnull final EntityType entityType,
+                                             @Nonnull final ProbeStore probeStore,
+                                             @Nonnull final TargetStore targetStore) {
+            super(stitchingContext);
+            this.probeTypeNames = Objects.requireNonNull(probeTypeNames);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.probeStore = Objects.requireNonNull(probeStore);
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<StitchingEntity> entities() {
+
+            final Set<Long> probeTargetIds = new HashSet<>();
+
+            // iterate over probe types
+            for (String probeTypeName: probeTypeNames) {
+
+                // get probe ID
+                final Optional<Long> optionalProbeId = probeStore.getProbeIdForType(probeTypeName);
+                if (optionalProbeId.isPresent()) {
+                    final long probeId = optionalProbeId.get();
+
+                    // get all targets for the specified probe ID and add it to the probeTargetIds set
+                    final List<Target> probeTargets = targetStore.getProbeTargets(probeId);
+                    for (Target target : probeTargets) {
+                        probeTargetIds.add(target.getId());
+                    }
+                } else {
+                    logger.debug("Unable to retrieve entities for " + probeTypeName +
+                            " because no probe of that type is currently registered.");
+                }
+            }
+
+            return probeTargetIds.stream()
+                    .flatMap((targetId -> getStitchingContext().internalEntities(entityType, targetId)));
         }
     }
 

@@ -1,6 +1,7 @@
 package com.vmturbo.stitching;
 
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -82,6 +83,19 @@ public interface StitchingScope<ENTITY> {
          *         type of probe.
          */
         StitchingScope<ENTITY> probeEntityTypeScope(@Nonnull final String probeTypeName,
+                                                    @Nonnull final EntityType entityType);
+
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * of a given {@link EntityType} discovered by a set of specific type of probes.
+         *
+         * @param probeTypeNames Set of names of the type of probe whose entities should be fed to the calculation.
+         *                      Example: "Hyper-V" or "NetApp".
+         * @param entityType The entity type of the entities
+         * @return A {@link StitchingScope} used for retrieving entities of a given type discovered by a given
+         *         type of probe.
+         */
+        StitchingScope<ENTITY> multiProbeEntityTypeScope(@Nonnull final Set<String> probeTypeNames,
                                                     @Nonnull final EntityType entityType);
 
         /**

@@ -19,6 +19,7 @@ import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOpe
 import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
+import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.DiskArrayStorageAccessPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.LogicalPoolStorageAccessPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.StorageControllerStorageAccessPostStitchingOperation;
@@ -80,7 +81,8 @@ public class PostStitchingOperationLibrary {
             new DiskArrayStorageAccessPostStitchingOperation(),
             new LogicalPoolStorageAccessPostStitchingOperation(),
             new IndependentStorageAccessPostStitchingOperation(),
-            new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig)
+            new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig),
+            new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation()
         );
     }
 
