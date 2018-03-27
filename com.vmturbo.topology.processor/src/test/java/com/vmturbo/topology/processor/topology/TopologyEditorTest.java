@@ -1,12 +1,18 @@
 package com.vmturbo.topology.processor.topology;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -22,12 +28,14 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -41,6 +49,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -168,7 +177,7 @@ public class TopologyEditorTest {
 
     @Before
     public void setup() {
-        when(identityProvider.getCloneId(Mockito.any(TopologyEntityDTO.class)))
+        when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
             .thenAnswer(invocation -> cloneId++);
         topologyEditor = new TopologyEditor(identityProvider, templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
@@ -224,6 +233,43 @@ public class TopologyEditorTest {
             assertEquals(cloneCommBought.getCommodityBoughtList(),
                 vmCommBought.getCommodityBoughtList());
         }
+    }
+
+    @Test
+    public void testTopologyAdditionGroup() {
+        final long groupId = 7L;
+        final long vmId = 1L;
+        final long vmCloneId = 182;
+        final Group group = Group.newBuilder()
+                .setGroup(GroupInfo.getDefaultInstance())
+                .setId(groupId)
+                .build();
+        final TopologyEntity.Builder vmEntity = TopologyEntityUtils.topologyEntityBuilder(
+                TopologyEntityDTO.newBuilder()
+                    .setOid(vmId)
+                    .setEntityType(10)
+                    .setDisplayName("VM"));
+
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(vmId, vmEntity);
+
+        final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
+                .setTopologyAddition(TopologyAddition.newBuilder()
+                        .setGroupId(groupId))
+                .build());
+        when(groupServiceSpy.getGroups(any())).thenReturn(Collections.singletonList(group));
+        when(groupResolver.resolve(eq(group), isA(TopologyGraph.class)))
+                .thenReturn(Collections.singleton(vmId));
+        when(identityProvider.getCloneId(any(TopologyEntityDTO.class))).thenReturn(vmCloneId);
+
+        topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
+
+        assertTrue(topology.containsKey(vmCloneId));
+        final TopologyEntity.Builder cloneBuilder = topology.get(vmCloneId);
+        assertThat(cloneBuilder.getDisplayName(), Matchers.containsString(vmEntity.getDisplayName()));
+        assertThat(cloneBuilder.getEntityBuilder().getOrigin().getPlanOrigin(), is(PlanOrigin.newBuilder()
+                .setPlanId(topologyInfo.getTopologyContextId())
+                .build()));
     }
 
     @Test
@@ -310,8 +356,8 @@ public class TopologyEditorTest {
         templateToReplacedEntity.put(TEMPLATE_ID, pm.getEntityBuilder().build());
         final Map<Long, Long> topologyAdditionEmpty = Collections.emptyMap();
         when(templateConverterFactory.
-                generateTopologyEntityFromTemplates(Mockito.eq(topologyAdditionEmpty),
-                        Mockito.eq(templateToReplacedEntity)))
+                generateTopologyEntityFromTemplates(eq(topologyAdditionEmpty),
+                        eq(templateToReplacedEntity)))
                 .thenReturn(Stream.of(pm.getEntityBuilder().clone()
                     .setOid(1234L)
                     .setDisplayName("Test PM1")));

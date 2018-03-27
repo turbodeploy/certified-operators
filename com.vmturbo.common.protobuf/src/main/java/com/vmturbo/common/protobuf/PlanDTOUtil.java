@@ -25,9 +25,53 @@ public class PlanDTOUtil {
     @Nonnull
     public static Set<Long> getInvolvedEntities(
             @Nonnull final List<ScenarioChange> scenarioChanges) {
-        return scenarioChanges.stream().
-                flatMap(change -> PlanDTOUtil.getInvolvedEntities(change).stream())
+        return scenarioChanges.stream()
+                .flatMap(change -> PlanDTOUtil.getInvolvedEntities(change).stream())
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Return the OIDs of groups involved in a list of {@link ScenarioChange}s.
+     *
+     * @param scenarioChanges The target scenario changes.
+     * @return The set of involved group IDs.
+     */
+    @Nonnull
+    public static Set<Long> getInvolvedGroups(
+            @Nonnull final List<ScenarioChange> scenarioChanges) {
+        return scenarioChanges.stream()
+                .flatMap(change -> PlanDTOUtil.getInvolvedGroups(change).stream())
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Return the OIDs of groups involved in a {@link ScenarioChange}.
+     *
+     * @param scenarioChange The target {@link ScenarioChange}.
+     * @return The set of involved group IDs.
+     */
+    @Nonnull
+    public static Set<Long> getInvolvedGroups(@Nonnull final ScenarioChange scenarioChange) {
+        final ImmutableSet.Builder<Long> groupBuilder = ImmutableSet.builder();
+        if (scenarioChange.hasTopologyAddition()) {
+            if (scenarioChange.getTopologyAddition().hasGroupId()) {
+                groupBuilder.add(scenarioChange.getTopologyAddition().getGroupId());
+            }
+        }
+
+        if (scenarioChange.hasTopologyRemoval()) {
+            if (scenarioChange.getTopologyRemoval().hasGroupId()) {
+                groupBuilder.add(scenarioChange.getTopologyRemoval().getGroupId());
+            }
+        }
+
+        if (scenarioChange.hasTopologyReplace()) {
+            if (scenarioChange.getTopologyReplace().hasRemoveGroupId()) {
+                groupBuilder.add(scenarioChange.getTopologyReplace().getRemoveGroupId());
+            }
+        }
+
+        return groupBuilder.build();
     }
 
     /**

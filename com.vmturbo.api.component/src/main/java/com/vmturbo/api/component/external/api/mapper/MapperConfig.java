@@ -83,7 +83,8 @@ public class MapperConfig {
                 settingManagerMappingLoader().getMapping(),
                 settingsMapper(),
                 serviceConfig.policiesService(),
-                communicationConfig.groupExpander());
+                communicationConfig.groupRpcService(),
+                groupMapper());
     }
 
     @Bean

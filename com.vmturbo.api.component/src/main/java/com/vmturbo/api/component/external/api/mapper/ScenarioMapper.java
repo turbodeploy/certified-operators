@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,12 +31,14 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
@@ -49,8 +52,13 @@ import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -67,6 +75,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.repository.api.Repository;
 
 /**
  * Maps scenarios between their API DTO representation and their protobuf representation.
@@ -112,21 +121,25 @@ public class ScenarioMapper {
 
     private PoliciesService policiesService;
 
-    private final GroupExpander groupExpander;
+    private final GroupServiceBlockingStub groupRpcService;
+
+    private final GroupMapper groupMapper;
 
     public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final TemplatesUtils templatesUtils,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
                           @Nonnull final SettingsMapper settingsMapper,
                           @Nonnull final PoliciesService policiesService,
-                          @Nonnull final GroupExpander groupExpander) {
+                          @Nonnull final GroupServiceBlockingStub groupRpcService,
+                          @Nonnull final GroupMapper groupMapper) {
 
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.policiesService = Objects.requireNonNull(policiesService);
         this.templatesUtils = Objects.requireNonNull(templatesUtils);
         this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
-        this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.groupRpcService = Objects.requireNonNull(groupRpcService);
+        this.groupMapper = Objects.requireNonNull(groupMapper);
     }
 
     /**
@@ -466,40 +479,20 @@ public class ScenarioMapper {
             .addAllChangeApplicationDays(projectionDays(change.getProjectionDays()))
             .setAdditionCount(count);
         if (templateIds.contains(uuid)) {
-            changes.add(ScenarioChange.newBuilder().setTopologyAddition(
-                    additionBuilder.setTemplateId(uuid).build()).build());
+            additionBuilder.setTemplateId(uuid);
         } else {
-            changes.addAll(getGroupOrEntityAdditionChanges(uuid, additionBuilder));
+            final GetGroupResponse groupResponse = groupRpcService.getGroup(GroupID.newBuilder()
+                    .setId(uuid)
+                    .build());
+            if (groupResponse.hasGroup()) {
+                additionBuilder.setGroupId(uuid);
+            } else {
+                additionBuilder.setEntityId(uuid);
+            }
         }
-        return changes;
-    }
-
-    /**
-     * As we faced the UI bug OM-28653 we don't know if this group or VM, so we have to
-     * check each change either for group or for entity addition. If we can resolve the
-     * group from id then we add each group member as entity addition. If we can't resolve
-     * the group then it's entity addition. This approach should be changed when UI bug is fixed.
-     * In the future we should treat groups like with groups instead of "set of entities".
-     *
-     * @param uuid of group or entity to add
-     * @param additionBuilder builder with populated count and days fields
-     * @return created scenario changes with all entities of group or just one-entity list if it
-     * was entity-addition
-     */
-    private List<ScenarioChange> getGroupOrEntityAdditionChanges(long uuid,
-            @Nonnull TopologyAddition.Builder additionBuilder) {
-        final List<ScenarioChange> changes = new ArrayList<>();
-        final Optional<Group> group = groupExpander.getGroup(String.valueOf(uuid));
-        if (group.isPresent() && group.get().hasGroup()) {
-            // why are we only looking at static members
-            final List<Long> membersOids = group.get().getGroup().getStaticGroupMembers()
-                    .getStaticMemberOidsList();
-            membersOids.forEach(oid -> changes.add(ScenarioChange.newBuilder().setTopologyAddition(
-                    additionBuilder.setEntityId(oid).build()).build()));
-        } else {
-            changes.add(ScenarioChange.newBuilder().setTopologyAddition(
-                    additionBuilder.setEntityId(uuid).build()).build());
-        }
+        changes.add(ScenarioChange.newBuilder()
+            .setTopologyAddition(additionBuilder)
+            .build());
         return changes;
     }
 
@@ -507,15 +500,17 @@ public class ScenarioMapper {
         Preconditions.checkArgument(change.getTarget() != null,
                 "Topology removals must contain a target");
 
-        String uuid = change.getTarget().getUuid();
-        final Optional<Group> group = groupExpander.getGroup(uuid);
-        TopologyRemoval.Builder removalBuilder =
+        final long uuid = Long.parseLong(change.getTarget().getUuid());
+        final GetGroupResponse groupResponse = groupRpcService.getGroup(GroupID.newBuilder()
+                .setId(uuid)
+                .build());
+        final TopologyRemoval.Builder removalBuilder =
             TopologyRemoval.newBuilder()
                     .setChangeApplicationDay(projectionDay(change.getProjectionDay()));
-        if (group.isPresent()) {
-            removalBuilder.setGroupId(Long.parseLong(uuid));
+        if (groupResponse.hasGroup()) {
+            removalBuilder.setGroupId(uuid);
         } else {
-            removalBuilder.setEntityId(Long.parseLong(uuid));
+            removalBuilder.setEntityId(uuid);
         }
         return ScenarioChange.newBuilder()
                     .setTopologyRemoval(removalBuilder.build())
@@ -528,16 +523,18 @@ public class ScenarioMapper {
         Preconditions.checkArgument(change.getTemplate() != null,
                 "Topology replace must contain a template");
 
-        String uuid = change.getTarget().getUuid();
-        final Optional<Group> group = groupExpander.getGroup(uuid);
-        TopologyReplace.Builder replaceBuilder =
+        final long uuid = Long.parseLong(change.getTarget().getUuid());
+        final GetGroupResponse groupResponse = groupRpcService.getGroup(GroupID.newBuilder()
+                .setId(uuid)
+                .build());
+        final TopologyReplace.Builder replaceBuilder =
             TopologyReplace.newBuilder()
                 .setChangeApplicationDay(projectionDay(change.getProjectionDay()))
                 .setAddTemplateId(Long.parseLong(change.getTemplate().getUuid()));
-        if (group.isPresent()) {
-            replaceBuilder.setRemoveGroupId(Long.parseLong(uuid));
+        if (groupResponse.hasGroup()) {
+            replaceBuilder.setRemoveGroupId(uuid);
         } else {
-            replaceBuilder.setRemoveEntityId(Long.parseLong(uuid));
+            replaceBuilder.setRemoveEntityId(uuid);
         }
         return ScenarioChange.newBuilder()
                     .setTopologyReplace(replaceBuilder.build())
@@ -678,40 +675,20 @@ public class ScenarioMapper {
     @Nonnull
     private TopologyChangesApiDTO buildApiTopologyChanges(
             @Nonnull final List<ScenarioChange> changes) {
-        // Get type information about entities involved in the scenario changes. We get it
-        // in a single call to reduce the number of round-trips and total wait-time.
-        //
-        // Here we are retrieving the entire ServiceEntity DTO from the repository.
-        // This shouldn't be an issue as long as scenarios don't contain absurd numbers of entities,
-        // and as long as we're not retrieving detailed information about lots of scenarios.
-        // If necessary we can optimize it by exposing an API call that returns only entity types.
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
-            repositoryApi.getServiceEntitiesById(
-                    ServiceEntitiesRequest.newBuilder(PlanDTOUtil.getInvolvedEntities(changes))
-                            .build())
-                .entrySet().stream()
-                .filter(entry -> entry.getValue().isPresent())
-                // The .get() here is safe because we filtered out entries where the entity
-                // information is not present.
-                .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
-        // Get all involved templates
-        final Map<Long, TemplateApiDTO> templatesMap =
-            templatesUtils.getTemplatesMapByIds(PlanDTOUtil.getInvolvedTemplates(changes));
+        final ScenarioChangeMappingContext context = new ScenarioChangeMappingContext(repositoryApi,
+                templatesUtils, groupRpcService, groupMapper, changes);
 
         final TopologyChangesApiDTO outputChanges = new TopologyChangesApiDTO();
         changes.forEach(change -> {
             switch (change.getDetailsCase()) {
                 case TOPOLOGY_ADDITION:
-                    buildApiTopologyAddition(change.getTopologyAddition(),
-                            outputChanges, serviceEntityMap, templatesMap);
+                    buildApiTopologyAddition(change.getTopologyAddition(), outputChanges, context);
                     break;
                 case TOPOLOGY_REMOVAL:
-                    buildApiTopologyRemoval(change.getTopologyRemoval(),
-                            outputChanges, serviceEntityMap, templatesMap);
+                    buildApiTopologyRemoval(change.getTopologyRemoval(), outputChanges, context);
                     break;
                 case TOPOLOGY_REPLACE:
-                    buildApiTopologyReplace(change.getTopologyReplace(),
-                            outputChanges, serviceEntityMap, templatesMap);
+                    buildApiTopologyReplace(change.getTopologyReplace(), outputChanges, context);
                     break;
                 default:
             }
@@ -722,15 +699,26 @@ public class ScenarioMapper {
 
     private static void buildApiTopologyAddition(@Nonnull final TopologyAddition addition,
                                                  @Nonnull final TopologyChangesApiDTO outputChanges,
-                                                 @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
-                                                 @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
-        AddObjectApiDTO changeApiDTO = new AddObjectApiDTO();
+                                                 @Nonnull final ScenarioChangeMappingContext context) {
+        final AddObjectApiDTO changeApiDTO = new AddObjectApiDTO();
         changeApiDTO.setCount(addition.getAdditionCount());
-        final long uuid = addition.hasTemplateId() ? addition.getTemplateId() : addition.getEntityId();
-        changeApiDTO.setTarget(dtoForId(uuid, serviceEntityMap, templateMap));
+        switch (addition.getAdditionTypeCase()) {
+            case ENTITY_ID:
+                changeApiDTO.setTarget(context.dtoForId(addition.getEntityId()));
+                break;
+            case TEMPLATE_ID:
+                changeApiDTO.setTarget(context.dtoForId(addition.getTemplateId()));
+                break;
+            case GROUP_ID:
+                changeApiDTO.setTarget(context.dtoForId(addition.getGroupId()));
+                break;
+            case ADDITIONTYPE_NOT_SET:
+                logger.warn("Unset addition type in topology addition: {}", addition);
+                return;
+        }
         changeApiDTO.setProjectionDays(addition.getChangeApplicationDaysList());
 
-        List<AddObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getAddList(),
+        final List<AddObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getAddList(),
             new ArrayList<>());
         changeApiDTOs.add(changeApiDTO);
         outputChanges.setAddList(changeApiDTOs);
@@ -738,12 +726,21 @@ public class ScenarioMapper {
 
     private static void buildApiTopologyRemoval(@Nonnull final TopologyRemoval removal,
                                                 @Nonnull final TopologyChangesApiDTO outputChanges,
-                                                @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
-                                                @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
-        List<RemoveObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getRemoveList(),
+                                                @Nonnull final ScenarioChangeMappingContext context) {
+        final List<RemoveObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getRemoveList(),
                 new ArrayList<>());
-        RemoveObjectApiDTO changeApiDTO = new RemoveObjectApiDTO();
-        changeApiDTO.setTarget(dtoForId(removal.getEntityId(), serviceEntityMap, templateMap));
+        final RemoveObjectApiDTO changeApiDTO = new RemoveObjectApiDTO();
+        switch (removal.getRemovalTypeCase()) {
+            case ENTITY_ID:
+                changeApiDTO.setTarget(context.dtoForId(removal.getEntityId()));
+                break;
+            case GROUP_ID:
+                changeApiDTO.setTarget(context.dtoForId(removal.getGroupId()));
+                break;
+            case REMOVALTYPE_NOT_SET:
+                logger.warn("Unset removal type in topology removal: {}", removal);
+                return;
+        }
         changeApiDTO.setProjectionDay(removal.getChangeApplicationDay());
 
         changeApiDTOs.add(changeApiDTO);
@@ -752,11 +749,20 @@ public class ScenarioMapper {
 
     private static void buildApiTopologyReplace(@Nonnull final TopologyReplace replace,
                                                 @Nonnull final TopologyChangesApiDTO outputChanges,
-                                                @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
-                                                @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
+                                                @Nonnull final ScenarioChangeMappingContext context) {
         ReplaceObjectApiDTO changeApiDTO = new ReplaceObjectApiDTO();
-        changeApiDTO.setTarget(dtoForId(replace.getRemoveEntityId(), serviceEntityMap, templateMap));
-        changeApiDTO.setTemplate(dtoForId(replace.getAddTemplateId(), serviceEntityMap, templateMap));
+        switch (replace.getReplaceTypeCase()) {
+            case REMOVE_ENTITY_ID:
+                changeApiDTO.setTarget(context.dtoForId(replace.getRemoveEntityId()));
+                break;
+            case REMOVE_GROUP_ID:
+                changeApiDTO.setTarget(context.dtoForId(replace.getRemoveGroupId()));
+                break;
+            case REPLACETYPE_NOT_SET:
+                logger.warn("Unset replace type in topology replace: {}", replace);
+                return;
+        }
+        changeApiDTO.setTemplate(context.dtoForId(replace.getAddTemplateId()));
         changeApiDTO.setProjectionDay(replace.getChangeApplicationDay());
 
         List<ReplaceObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getReplaceList(),
@@ -786,31 +792,80 @@ public class ScenarioMapper {
     }
 
     /**
-     * This function is used to build {@link BaseApiDTO}. And it passed into Service Entity Map and Template
-     * Map to check if id is entity or template.
+     * A context object to map {@link ScenarioChange} objects to their API equivalents.
      *
-     * @param id uuid for BaseApiDTO.
-     * @param serviceEntityMap Map contains all involved service entity.
-     * @param templateMap Map contains all involved templates.
-     * @return {@link BaseApiDTO}.
+     * Mainly intended to abstract away the details of interacting with other services in order
+     * to supply all necessary information to the API (e.g. the names of groups, templates, and
+     * entities).
      */
-    // TODO: Handle groups.
-    private static BaseApiDTO dtoForId(long id,
-                                       @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap,
-                                       @Nonnull final Map<Long, TemplateApiDTO> templateMap) {
-        BaseApiDTO entity = new BaseApiDTO();
-        Optional<ServiceEntityApiDTO> serviceEntityApiDTO = Optional.ofNullable(serviceEntityMap.get(id));
-        Optional<TemplateApiDTO> templateApiDTO = Optional.ofNullable(templateMap.get(id));
-        // First we check if id is service entity id, if not, then check if it is template id. Otherwise
-        // we set it is UNKNOWN.
-        entity.setClassName(serviceEntityApiDTO.map(ServiceEntityApiDTO::getClassName)
-                .orElse(templateApiDTO.map(TemplateApiDTO::getClassName)
-                    .orElse(ServiceEntityMapper.toUIEntityType(EntityType.UNKNOWN.getNumber()))));
-        entity.setDisplayName(serviceEntityApiDTO.map(ServiceEntityApiDTO::getDisplayName)
-                .orElse(templateApiDTO.map(TemplateApiDTO::getDisplayName)
-                    .orElse(ServiceEntityMapper.toUIEntityType(EntityType.UNKNOWN.getNumber()))));
-        entity.setUuid(Long.toString(id));
+    public static class ScenarioChangeMappingContext {
+        private final Map<Long, ServiceEntityApiDTO> serviceEntityMap;
+        private final Map<Long, TemplateApiDTO> templatesMap;
+        private final Map<Long, GroupApiDTO> groupMap;
 
-        return entity;
+        public ScenarioChangeMappingContext(@Nonnull final RepositoryApi repositoryApi,
+                                            @Nonnull final TemplatesUtils templatesUtils,
+                                            @Nonnull final GroupServiceBlockingStub groupRpcService,
+                                            @Nonnull final GroupMapper groupMapper,
+                                            @Nonnull final List<ScenarioChange> changes) {
+            // Get type information about entities involved in the scenario changes. We get it
+            // in a single call to reduce the number of round-trips and total wait-time.
+            //
+            // Here we are retrieving the entire ServiceEntity DTO from the repository.
+            // This shouldn't be an issue as long as scenarios don't contain absurd numbers of entities,
+            // and as long as we're not retrieving detailed information about lots of scenarios.
+            // If necessary we can optimize it by exposing an API call that returns only entity types.
+            this.serviceEntityMap =
+                    repositoryApi.getServiceEntitiesById(
+                            ServiceEntitiesRequest.newBuilder(PlanDTOUtil.getInvolvedEntities(changes))
+                                    .build())
+                            .entrySet().stream()
+                            .filter(entry -> entry.getValue().isPresent())
+                            // The .get() here is safe because we filtered out entries where the entity
+                            // information is not present.
+                            .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
+            // Get all involved templates
+            this.templatesMap =
+                    templatesUtils.getTemplatesMapByIds(PlanDTOUtil.getInvolvedTemplates(changes));
+
+            this.groupMap = new HashMap<>();
+            final Set<Long> involvedGroups = PlanDTOUtil.getInvolvedGroups(changes);
+            if (!involvedGroups.isEmpty()) {
+                groupRpcService.getGroups(GetGroupsRequest.newBuilder()
+                        .addAllId(involvedGroups)
+                        .build())
+                    .forEachRemaining(group -> groupMap.put(group.getId(),
+                            groupMapper.toGroupApiDto(group)));
+            }
+        }
+
+        /**
+         * This function is used to get the API DTO of a specific object in the system referenced
+         * by a scenario change.
+         *
+         * @param id The ID of the object.
+         * @return A {@link BaseApiDTO} (or one of its subclasses) describing the object. If no
+         *         object with that ID exists in the {@link ScenarioChangeMappingContext}, return
+         *         a filler {@link BaseApiDTO}.
+         */
+        public BaseApiDTO dtoForId(final long id) {
+            if (serviceEntityMap.containsKey(id)) {
+                return serviceEntityMap.get(id);
+            } else if (templatesMap.containsKey(id)) {
+                return templatesMap.get(id);
+            } else if (groupMap.containsKey(id)) {
+                return groupMap.get(id);
+            } else {
+                logger.error("Unable to find entity, template, or group with ID {} when mapping "
+                    + "scenario change. Could the object have been removed from the system/topology?",
+                    id);
+                final BaseApiDTO entity = new BaseApiDTO();
+                entity.setUuid(Long.toString(id));
+                entity.setDisplayName(UIEntityType.UNKNOWN.getValue());
+                return entity;
+            }
+        }
     }
+
+
 }

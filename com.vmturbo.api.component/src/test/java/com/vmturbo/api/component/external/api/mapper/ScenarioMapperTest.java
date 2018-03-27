@@ -3,11 +3,13 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -21,6 +23,7 @@ import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -29,13 +32,14 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.ScenarioMapper.ScenarioChangeMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
-import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
@@ -49,9 +53,14 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
-import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
@@ -67,6 +76,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -80,29 +90,33 @@ public class ScenarioMapperTest {
 
     private ScenarioMapper scenarioMapper;
 
-    private GroupExpander groupExpander;
+    private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
     private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
+
+    @Rule
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(groupServiceMole);
+
+    private GroupMapper groupMapper = mock(GroupMapper.class);
+
+    private GroupServiceBlockingStub groupRpcService;
 
     @Before
     public void setup() throws IOException {
         repositoryApi = Mockito.mock(RepositoryApi.class);
         templatesUtils = Mockito.mock(TemplatesUtils.class);
         policiesService = Mockito.mock(PoliciesService.class);
-        groupExpander = Mockito.mock(GroupExpander.class);
+        groupRpcService = GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
 
         // Return empty by default to keep NPE's at bay.
         when(repositoryApi.getServiceEntitiesById(any()))
             .thenReturn(Collections.emptyMap());
 
-        when(groupExpander.getGroup(any()))
-            .thenReturn(Optional.empty());
-
         scenarioMapper = new ScenarioMapper(repositoryApi,
                 templatesUtils, settingsManagerMapping, settingsMapper,
-                policiesService, groupExpander);
+                policiesService, groupRpcService, groupMapper);
     }
 
     @Test
@@ -489,6 +503,7 @@ public class ScenarioMapperTest {
 
         TemplateApiDTO vmDto = new TemplateApiDTO();
         vmDto.setClassName("VirtualMachine");
+        vmDto.setUuid("1");
         vmDto.setDisplayName("VM #100");
 
         when(templatesUtils.getTemplatesMapByIds(eq(Sets.newHashSet(1L))))
@@ -513,7 +528,7 @@ public class ScenarioMapperTest {
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
         AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
         BaseApiDTO target = changeDto.getTarget();
-        assertEquals(UIEntityType.UNKNOWN.getValue(), target.getClassName());
+        assertNull(target.getClassName());
         assertEquals(UIEntityType.UNKNOWN.getValue(), target.getDisplayName());
     }
 
@@ -567,10 +582,13 @@ public class ScenarioMapperTest {
 
     @Test
     public void testAdditionFromGroup() {
-        Group group = Group.newBuilder().setId(1).setGroup(GroupInfo.newBuilder()
-                .setStaticGroupMembers(StaticGroupMembers.newBuilder().addStaticMemberOids(2)
-                        .addStaticMemberOids(3).build()).build()).build();
-        when(groupExpander.getGroup("1")).thenReturn(Optional.of(group));
+        final Group group = Group.newBuilder().setId(1)
+                .setGroup(GroupInfo.getDefaultInstance())
+                .build();
+        when(groupServiceMole.getGroup(GroupID.newBuilder().setId(1L).build()))
+            .thenReturn(GetGroupResponse.newBuilder()
+                .setGroup(group)
+                .build());
 
         final TargetApiDTO target = new TargetApiDTO();
         target.setUuid("1");
@@ -582,16 +600,37 @@ public class ScenarioMapperTest {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setTopologyChanges(topologyChanges);
         final ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo("", dto);
-        final ScenarioChange firstAddtion = scenarioInfo.getChanges(0);
-        final ScenarioChange secondAddtion = scenarioInfo.getChanges(1);
 
-        Assert.assertEquals(2, scenarioInfo.getChangesList().size());
+        Assert.assertEquals(1, scenarioInfo.getChangesList().size());
+        final ScenarioChange firstAddtion = scenarioInfo.getChanges(0);
         Assert.assertTrue(firstAddtion.hasTopologyAddition());
-        Assert.assertTrue(secondAddtion.hasTopologyAddition());
-        Assert.assertEquals(2, firstAddtion.getTopologyAddition().getEntityId());
-        Assert.assertEquals(3, secondAddtion.getTopologyAddition().getEntityId());
+        Assert.assertEquals(1, firstAddtion.getTopologyAddition().getGroupId());
         Assert.assertEquals(10, firstAddtion.getTopologyAddition().getAdditionCount());
-        Assert.assertEquals(10, secondAddtion.getTopologyAddition().getAdditionCount());
+    }
+
+    @Test
+    public void testMappingContextGroup() {
+        final long groupId = 10L;
+        final Group group = Group.newBuilder()
+                .setId(groupId)
+                .build();
+        final GroupApiDTO groupApiDTO = new GroupApiDTO();
+        final List<ScenarioChange> changes = Collections.singletonList(ScenarioChange.newBuilder()
+                .setTopologyAddition(TopologyAddition.newBuilder()
+                        .setGroupId(groupId))
+                .build());
+        when(groupServiceMole.getGroups(GetGroupsRequest.newBuilder()
+                .addId(groupId)
+                .build()))
+            .thenReturn(Collections.singletonList(group));
+        when(groupMapper.toGroupApiDto(group)).thenReturn(groupApiDTO);
+
+        final ScenarioChangeMappingContext context =
+                new ScenarioChangeMappingContext(repositoryApi, templatesUtils,
+                        groupRpcService, groupMapper, changes);
+        // This will compare object references, which is fine for testing purposes - it means
+        // the right lookup is happening in the group mapper.
+        assertThat(context.dtoForId(groupId), is(groupApiDTO));
     }
 
     @Nonnull

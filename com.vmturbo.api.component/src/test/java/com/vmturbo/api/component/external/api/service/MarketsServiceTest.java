@@ -53,6 +53,7 @@ import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.MarketNotificationDTO.StatusNotification;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
@@ -303,12 +304,17 @@ public class MarketsServiceTest {
         }
 
         @Bean
+        public GroupMapper groupMapper() {
+            return Mockito.mock(GroupMapper.class);
+        }
+
+        @Bean
         public ScenarioMapper scenarioMapper() {
             return new ScenarioMapper(repositoryApi(), templatesUtils(),
                     Mockito.mock(SettingsManagerMapping.class),
                     Mockito.mock(SettingsMapper.class),
                     policiesService(),
-                    Mockito.mock(GroupExpander.class));
+                    groupRpcService(), groupMapper());
         }
 
         @Bean

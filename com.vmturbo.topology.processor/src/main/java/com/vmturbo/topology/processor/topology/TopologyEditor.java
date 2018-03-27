@@ -24,6 +24,8 @@ import com.google.gson.Gson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -110,9 +112,13 @@ public class TopologyEditor {
                     addTopologyAdditionCount(entityAdditions, addition, addition.getEntityId());
                 } else if (addition.hasTemplateId()) {
                     addTopologyAdditionCount(templateToAdd, addition, addition.getTemplateId());
+                } else if (addition.hasGroupId()) {
+                    groupResolver.resolve(groupIdToGroupMap.get(addition.getGroupId()), topologyGraph)
+                        .forEach(entityId -> addTopologyAdditionCount(
+                                entityAdditions, addition, entityId));
                 } else {
                     logger.warn("Unimplemented handling for topology addition with {}",
-                            addition.getEntityOrTemplateOrGroupIdCase());
+                            addition.getAdditionTypeCase());
                 }
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
@@ -458,44 +464,21 @@ public class TopologyEditor {
 
 
     private Map<Long, Group> getGroups(List<ScenarioChange> changes) {
-        Set<Long> groupIds = new HashSet<>();
-        Map<Long, Group> groupIdToGroupMap = new HashMap<>();
+        final Set<Long> groupIds = PlanDTOUtil.getInvolvedGroups(changes);
+        final Map<Long, Group> groupIdToGroupMap = new HashMap<>();
 
-        changes.forEach(change -> {
-            switch (change.getDetailsCase()) {
-                case TOPOLOGY_ADDITION:
-                    TopologyAddition addition = change.getTopologyAddition();
-                    if (addition.hasGroupId()) {
-                        groupIds.add(addition.getGroupId());
-                    }
-                    break;
-                case TOPOLOGY_REMOVAL:
-                    TopologyRemoval removal = change.getTopologyRemoval();
-                    if (removal.hasGroupId()) {
-                        groupIds.add(removal.getGroupId());
-                    }
-                    break;
-                case TOPOLOGY_REPLACE:
-                    TopologyReplace replace = change.getTopologyReplace();
-                    if (replace.hasRemoveGroupId()) {
-                        groupIds.add(replace.getRemoveGroupId());
-                    }
-                    break;
-                default:
-                    logger.warn("Unknown change: {}", change);
-            }
-        });
+        if (!groupIds.isEmpty()) {
+            final GetGroupsRequest request =
+                    GetGroupsRequest.newBuilder()
+                            .addAllId(groupIds)
+                            .setResolveClusterSearchFilters(true)
+                            .build();
 
-        GetGroupsRequest request =
-            GetGroupsRequest.newBuilder()
-                .addAllId(groupIds)
-                .setResolveClusterSearchFilters(true)
-                .build();
-
-        groupServiceClient.getGroups(request)
-            .forEachRemaining(
-                group -> groupIdToGroupMap.put(group.getId(), group)
-            );
+            groupServiceClient.getGroups(request)
+                    .forEachRemaining(
+                            group -> groupIdToGroupMap.put(group.getId(), group)
+                    );
+        }
 
         return groupIdToGroupMap;
     }

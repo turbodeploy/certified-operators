@@ -269,8 +269,8 @@ message ScenarioChange {
         // The number of times the entity will be cloned. Should be a positive number.
         optional int32 addition_count = 2;
 
-        // The id of the entity or template to be cloned addition_count times
-        oneof entity_or_template_or_group_id {
+        // The type of the object being added.
+        oneof addition_type {
             int64 entity_id = 16;
             int64 template_id = 17;
             int64 group_id = 18;
@@ -284,8 +284,8 @@ message ScenarioChange {
         // should be >= 0.
         optional int32 change_application_day = 1;
 
-        // The id of the entity or group to be removed
-        oneof entity_or_group_id {
+        // The type of the object being removed.
+        oneof removal_type {
             int64 entity_id = 16;
             int64 group_id = 17;
         }
@@ -303,8 +303,8 @@ message ScenarioChange {
         // The id of the template to replace the items being removed in the change.
         optional int64 add_template_id = 2;
 
-        // The id of the entity or template to be cloned addition_count times
-        oneof entity_or_group_removal_id {
+        // The type of the object being replaced.
+        oneof replace_type {
             int64 remove_entity_id = 16;
             int64 remove_group_id = 17;
         }
