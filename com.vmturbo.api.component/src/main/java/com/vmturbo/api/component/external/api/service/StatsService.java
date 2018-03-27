@@ -25,6 +25,7 @@ import javax.annotation.Nonnull;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.CaseFormat;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -456,10 +457,29 @@ public class StatsService implements IStatsService {
         } else {
             // Expand scopes list to determine the list of entity OIDs to query for this operation
             final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
-            expandedUuids = groupExpander.expandUuids(
-                    seedUuids);
+
+            // This shouldn't happen, because we handle the full market case earlier on.
+            Preconditions.checkArgument(UuidMapper.hasLimitedScope(seedUuids));
+
+            if (inputDto.getRelatedType() != null) {
+                // If the UI sets a related type, we need to do a supply chain query to get
+                // the entities of that type related to the seed uuids.
+                final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
+                        .addSeedUuids(seedUuids)
+                        .entityTypes(Collections.singletonList(inputDto.getRelatedType()))
+                        .fetch();
+                final SupplyChainNode relatedTypeNode = result.get(inputDto.getRelatedType());
+                if (relatedTypeNode == null) {
+                    return Lists.newArrayList();
+                }
+                expandedUuids = Sets.newHashSet(relatedTypeNode.getMemberOidsList());
+            } else {
+                expandedUuids = groupExpander.expandUuids(
+                        seedUuids);
+            }
+
             // if not a global scope, then expanded OIDs are expected
-            if (UuidMapper.hasLimitedScope(seedUuids) && expandedUuids.isEmpty()) {
+            if (expandedUuids.isEmpty()) {
                 // empty expanded list; return an empty stats list
                 return paginationRequest.allResultsResponse(Collections.emptyList());
             }

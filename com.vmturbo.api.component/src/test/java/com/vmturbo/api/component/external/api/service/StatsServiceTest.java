@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 import java.io.IOException;
+import java.rmi.activation.UnknownObjectException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -48,6 +49,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -534,6 +536,44 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy, times(0)).getEntityStats(anyObject(),
                 anyObject());
 
+    }
+
+    @Test
+    public void testGetStatsByUuidsRelatedType() throws Exception {
+        final long vmId = 7;
+        final long pmId = 9;
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        period.setStatistics(Collections.emptyList());
+
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setRelatedType(UIEntityType.PHYSICAL_MACHINE.getValue());
+        inputDto.setScopes(Collections.singletonList(Long.toString(vmId)));
+        inputDto.setPeriod(period);
+
+        final Map<String, SupplyChainNode> supplyChainQueryResult = ImmutableMap.of(
+                UIEntityType.PHYSICAL_MACHINE.getValue(),
+                SupplyChainNode.newBuilder()
+                    .addMemberOids(pmId)
+                    .build());
+
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
+        when(nodeFetcherBuilder.addSeedUuids(any())).thenReturn(nodeFetcherBuilder);
+        when(nodeFetcherBuilder.entityTypes(any())).thenReturn(nodeFetcherBuilder);
+        when(nodeFetcherBuilder.fetch()).thenReturn(supplyChainQueryResult);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
+
+        // We don't care about the result - for this test we just want to make sure
+        // that the vm ID gets expanded into the PM id.
+        try {
+            statsService.getStatsByUuidsQuery(inputDto);
+        } catch (UnknownObjectException e) {
+            // This is expected, since we didn't mock out the call to the repository API.
+        }
+
+        final ArgumentCaptor<ServiceEntitiesRequest> requestCaptor =
+                ArgumentCaptor.forClass(ServiceEntitiesRequest.class);
+        verify(repositoryApi).getServiceEntitiesById(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().getEntityIds(), contains(pmId));
     }
 
     @Test
