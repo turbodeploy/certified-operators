@@ -279,7 +279,7 @@ public class SearchService implements ISearchService {
             return paginationRequest.allResultsResponse((List<BaseApiDTO>) result);
         } else {
             return paginationRequest.allResultsResponse(result.stream()
-                    .filter(dto -> dto.getDisplayName() != null && dto.getDisplayName().contains(query))
+                    .filter(dto -> StringUtils.containsIgnoreCase(dto.getDisplayName(), query))
                     .collect(Collectors.toList()));
         }
     }

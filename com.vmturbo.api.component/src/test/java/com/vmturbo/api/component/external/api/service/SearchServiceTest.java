@@ -255,7 +255,8 @@ public class SearchServiceTest {
         when(searchServiceSpy.searchEntities(any())).thenReturn(Arrays.asList(
                 Entity.newBuilder().setOid(1).setDisplayName("afoobar").setType(0).build(),
                 Entity.newBuilder().setOid(2).setDisplayName("bar").setType(0).build(),
-                Entity.newBuilder().setOid(3).setDisplayName("foo").setType(0).build()
+                Entity.newBuilder().setOid(3).setType(0).build(),
+                Entity.newBuilder().setOid(4).setDisplayName("Foo").setType(0).build()
         ));
 
         final List<Long> resultIds = getMembersBasedOnFilter(searchService, "foo", request)
@@ -265,6 +266,6 @@ public class SearchServiceTest {
                 .collect(Collectors.toList());
 
         assertThat(resultIds.size(), is(2));
-        assertThat(resultIds, containsInAnyOrder(1L, 3L));
+        assertThat(resultIds, containsInAnyOrder(1L, 4L));
     }
 }
