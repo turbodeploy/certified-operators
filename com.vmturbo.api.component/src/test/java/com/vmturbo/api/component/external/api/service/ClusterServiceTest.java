@@ -88,6 +88,74 @@ public class ClusterServiceTest {
         assertEquals(DB, resultDB);
     }
 
+    @Test
+    public void testPutDefaultPropertiesForComponentTypeWithNoChanges() {
+        ComponentPropertiesDTO originalPropertiesDTO = new ComponentPropertiesDTO();
+        // arrango password
+        originalPropertiesDTO.put(ARANGODB_PASS, "root");
+        originalPropertiesDTO.put(DB_HOST, DB);
+
+        ComponentPropertiesDTO newPropertiesDTO = new ComponentPropertiesDTO();
+        newPropertiesDTO.put(ARANGODB_PASS, ASTERISKS);
+        newPropertiesDTO.put(DB_HOST, DB);
+
+        Mockito.when(clusterManagerClient.getDefaultPropertiesForComponentType(GROUP))
+                .thenReturn(originalPropertiesDTO);
+
+        serviceUnderTest.putDefaultPropertiesForComponentType(GROUP, newPropertiesDTO);
+
+        Mockito.verify(clusterManagerClient, Mockito.times(1))
+                .putDefaultPropertiesForComponentType(GROUP, originalPropertiesDTO);
+    }
+
+    @Test
+    public void testPutDefaultPropertiesForComponentTypeWithChangeOnNotSensitiveValue() {
+        ComponentPropertiesDTO originalPropertiesDTO = new ComponentPropertiesDTO();
+        // arrango password
+        originalPropertiesDTO.put(ARANGODB_PASS, "root");
+        originalPropertiesDTO.put(DB_HOST, DB);
+
+        ComponentPropertiesDTO newPropertiesDTO = new ComponentPropertiesDTO();
+        newPropertiesDTO.put(ARANGODB_PASS, ASTERISKS);
+        newPropertiesDTO.put(DB_HOST, "1");
+
+        ComponentPropertiesDTO mergedPropertiesDTO = new ComponentPropertiesDTO();
+        mergedPropertiesDTO.put(ARANGODB_PASS, "root");
+        mergedPropertiesDTO.put(DB_HOST, "1");
+
+        Mockito.when(clusterManagerClient.getDefaultPropertiesForComponentType(GROUP))
+                .thenReturn(originalPropertiesDTO);
+
+        serviceUnderTest.putDefaultPropertiesForComponentType(GROUP, newPropertiesDTO);
+
+        Mockito.verify(clusterManagerClient, Mockito.times(1))
+                .putDefaultPropertiesForComponentType(GROUP, mergedPropertiesDTO);
+    }
+
+    @Test
+    public void testPutDefaultPropertiesForComponentTypeWithChangeOnSensitiveValue() {
+        ComponentPropertiesDTO originalPropertiesDTO = new ComponentPropertiesDTO();
+        // arrango password
+        originalPropertiesDTO.put(ARANGODB_PASS, "root");
+        originalPropertiesDTO.put(DB_HOST, DB);
+
+        ComponentPropertiesDTO newPropertiesDTO = new ComponentPropertiesDTO();
+        newPropertiesDTO.put(ARANGODB_PASS, "newpassword");
+        newPropertiesDTO.put(DB_HOST, DB);
+
+        ComponentPropertiesDTO mergedPropertiesDTO = new ComponentPropertiesDTO();
+        mergedPropertiesDTO.put(ARANGODB_PASS, "newpassword");
+        mergedPropertiesDTO.put(DB_HOST, DB);
+
+        Mockito.when(clusterManagerClient.getDefaultPropertiesForComponentType(GROUP))
+                .thenReturn(originalPropertiesDTO);
+
+        serviceUnderTest.putDefaultPropertiesForComponentType(GROUP, newPropertiesDTO);
+
+        Mockito.verify(clusterManagerClient, Mockito.times(1))
+                .putDefaultPropertiesForComponentType(GROUP, mergedPropertiesDTO);
+    }
+
     @Configuration
     public static class ServiceTestConfig {
         @Bean

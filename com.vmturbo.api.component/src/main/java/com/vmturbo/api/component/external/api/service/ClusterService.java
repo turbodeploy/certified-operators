@@ -6,7 +6,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
@@ -23,7 +23,7 @@ public class ClusterService implements IClusterService {
 
     // the sensitive keys that we need to mask the values.
     // TODO centralized these keys, so we won't miss them if they are changed.
-    private static final Set sensitiveKeySet = Sets.newHashSet(
+    private static final Set<String> sensitiveKeySet = ImmutableSet.of(
             "arangodbPass"
             , "userPassword"
             , "sslKeystorePassword"
@@ -140,8 +140,23 @@ public class ClusterService implements IClusterService {
         return dto;
     }
 
+    /**
+     * Update new properties based on component type.
+     * Note: it's called by UI, so before sending them out, we need to restore the original
+     * values in sensitiveKeySet if they are not changed.
+     *
+     * @param componentType component type
+     * @param newProperties new properties to be updated
+     * @return
+     */
     @Override
     public ComponentPropertiesDTO putDefaultPropertiesForComponentType(String componentType, ComponentPropertiesDTO newProperties) {
+        ComponentPropertiesDTO originalDto = clusterMgrApi.getDefaultPropertiesForComponentType(componentType);
+        for (Map.Entry<String, String> entry : newProperties.entrySet()) {
+            if (sensitiveKeySet.contains(entry.getKey()) && entry.getValue().equals(ASTERISKS)) {
+                newProperties.put(entry.getKey(), originalDto.get(entry.getKey()));
+            }
+        }
         return clusterMgrApi.putDefaultPropertiesForComponentType(componentType, newProperties);
     }
 
