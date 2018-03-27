@@ -565,7 +565,7 @@ public class StatsServiceTest {
         // We don't care about the result - for this test we just want to make sure
         // that the vm ID gets expanded into the PM id.
         try {
-            statsService.getStatsByUuidsQuery(inputDto);
+            getStatsByUuidsQuery(statsService, inputDto);
         } catch (UnknownObjectException e) {
             // This is expected, since we didn't mock out the call to the repository API.
         }

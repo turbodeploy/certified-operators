@@ -470,7 +470,7 @@ public class StatsService implements IStatsService {
                         .fetch();
                 final SupplyChainNode relatedTypeNode = result.get(inputDto.getRelatedType());
                 if (relatedTypeNode == null) {
-                    return Lists.newArrayList();
+                    return paginationRequest.allResultsResponse(Collections.emptyList());
                 }
                 expandedUuids = Sets.newHashSet(relatedTypeNode.getMemberOidsList());
             } else {
