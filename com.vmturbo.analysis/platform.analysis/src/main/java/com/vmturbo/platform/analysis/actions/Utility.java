@@ -48,24 +48,42 @@ public final class Utility {
      * @param economy that the Traders are a part of
      */
     public static void adjustOverhead(Trader modelSeller, Trader provisionedSeller,
-            						  Economy economy) {
+                    Economy economy) {
         int soldIndex = 0;
         for (CommoditySpecification specSold : provisionedSeller.getBasketSold()) {
+            double overhead = calculateCommodityOverhead(modelSeller, specSold, economy);
             CommoditySold cs = provisionedSeller.getCommoditiesSold().get(soldIndex);
-            if (economy.getCommsToAdjustOverhead().contains(specSold)) {
-                for(ShoppingList sl : modelSeller.getCustomers()) {
-                    int boughtIndex = sl.getBasket().indexOf(specSold);
-                    if (boughtIndex != -1) {
-                        cs.setQuantity(Math.max(cs.getQuantity() - sl.getQuantity(boughtIndex), 0))
-                                  .setPeakQuantity(cs.getQuantity());
-                    }
-                }
-            } else {
-                // set used and peakUsed for soldComm to 0
-                cs.setQuantity(0).setPeakQuantity(0);
-            }
+            cs.setQuantity(overhead).setPeakQuantity(overhead);
             soldIndex++;
         }
+    }
+
+    /**
+     * Get overhead for a commoditySpecification sold of a trader
+     *
+     * @param trader this is the {@link Trader} for whom the overhead is to be calculated
+     * @param specSold the spec for which the overhead is to be calculated
+     * @param economy  that the Trader is a part of
+     * @return
+     */
+    public static double calculateCommodityOverhead(Trader trader, CommoditySpecification specSold,
+                    Economy economy) {
+        double overhead = 0;
+        if (economy.getCommsToAdjustOverhead().contains(specSold)) {
+            int soldIndex = trader.getBasketSold().indexOf(specSold);
+            if (soldIndex != -1) {
+                // Overhead is the seller's comm sold quantity - sum of quantities of all the
+                // customers of this seller
+                overhead = trader.getCommoditiesSold().get(soldIndex).getQuantity();
+                for(ShoppingList sl : trader.getCustomers()) {
+                    int boughtIndex = sl.getBasket().indexOf(specSold);
+                    if (boughtIndex != -1) {
+                        overhead -= sl.getQuantity(boughtIndex);
+                    }
+                }
+            }
+        }
+        return Math.max(overhead, 0);
     }
 
     /**

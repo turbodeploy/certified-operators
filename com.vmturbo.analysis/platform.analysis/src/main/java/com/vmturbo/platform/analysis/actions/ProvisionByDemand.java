@@ -181,9 +181,11 @@ public class ProvisionByDemand extends ActionImpl {
             int indexOfCommBought = getModelBuyer().getBasket().indexOf(commSpec);
             CommoditySold modelCommSold = modelSeller_.getCommoditiesSold().get(indexOfCommSold);
             double initialCapSold = modelCommSold.getCapacity();
-            // the new capacity should be equal to the old capacity or scaled capacity that is a
-            // factor of the bought commodity
-            double newCapacity = Math.max(getModelBuyer().getPeakQuantity(indexOfCommBought) /
+            double overhead = Utility.calculateCommodityOverhead(getModelSeller(), commSpec,
+                            getEconomy());
+            // the new capacity should be equal to the old capacity or scaled capacity which
+            // considers overhead that is a factor of the bought commodity
+            double newCapacity = Math.max((getModelBuyer().getPeakQuantity(indexOfCommBought) + overhead) /
                             (desiredUtil * modelCommSold.getSettings().getUtilizationUpperBound()),
                             initialCapSold);
             if (newCapacity > initialCapSold) {
@@ -207,7 +209,6 @@ public class ProvisionByDemand extends ActionImpl {
             provCommSold.getSettings().setUpdatingFunction(modelCommSold.getSettings()
                                                                     .getUpdatingFunction());
         }
-
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
         // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
