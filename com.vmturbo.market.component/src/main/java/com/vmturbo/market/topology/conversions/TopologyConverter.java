@@ -96,8 +96,8 @@ public class TopologyConverter {
             MarketSettings.BooleanKey.INCLUDE_GUARANTEED_BUYER.value();
 
     private static final Set<Integer> CONTAINER_TYPES = ImmutableSet.of(
-            // TODO: Add container collection
-            EntityType.CONTAINER_VALUE);
+        // TODO: Add container collection
+        EntityType.CONTAINER_VALUE);
 
     private static final Logger logger = LogManager.getLogger();
     public static final String COMMODITY_TYPE_KEY_SEPARATOR = "|";
@@ -1221,7 +1221,7 @@ public class TopologyConverter {
 
             return Optional.of(action.build());
         } catch (RuntimeException e) {
-            logger.error(e);
+            logger.error("Unable to interpret actionTO " + actionTO + " due to: ", e);
             return Optional.empty();
         }
     }
@@ -1397,7 +1397,8 @@ public class TopologyConverter {
                         .setPerformance(ChangeProviderExplanation.Performance.getDefaultInstance())
                     .build();
             default:
-                logger.error("Unknown explanation for move action");
+                logger.error("Unknown explanation case for move action: "
+                    + moveExplanation.getExplanationTypeCase());
                 return ChangeProviderExplanation.getDefaultInstance();
         }
     }
@@ -1481,10 +1482,14 @@ public class TopologyConverter {
             throw new IllegalStateException(
                 "Market returned invalid shopping list for RECONFIGURE: " + reconfigureTO);
         } else {
-            return ActionDTO.Reconfigure.newBuilder()
-                .setTarget(createActionEntity(shoppingList.buyerId, entityIdToEntityType))
-                .setSource(createActionEntity(reconfigureTO.getSource(), entityIdToEntityType))
-                .build();
+            final ActionDTO.Reconfigure.Builder builder = ActionDTO.Reconfigure.newBuilder()
+                .setTarget(createActionEntity(shoppingList.buyerId, entityIdToEntityType));
+
+            if (reconfigureTO.hasSource()) {
+                builder.setSource(createActionEntity(reconfigureTO.getSource(), entityIdToEntityType));
+            }
+
+            return builder.build();
         }
     }
 

@@ -235,6 +235,32 @@ public class InterpretActionTest {
     }
 
     @Test
+    public void testInterpretReconfigureActionWithoutSource() throws IOException, InvalidTopologyException {
+        TopologyDTO.TopologyEntityDTO topologyDTO =
+                        TopologyConverterTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
+        final Map<Long, Integer> entityIdToTypeMap =
+            ImmutableMap.of(
+                topologyDTO.getOid(), topologyDTO.getEntityType());
+        final TopologyConverter converter =
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+
+        Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(topologyDTO));
+        final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
+        ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(0);
+
+        ActionInfo actionInfo = converter.interpretAction(
+            ActionTO.newBuilder()
+                .setImportance(0.)
+                .setIsNotExecutable(false)
+                .setReconfigure(ReconfigureTO.newBuilder()
+                    .setShoppingListToReconfigure(shoppingList.getOid()))
+                .build(), entityIdToTypeMap).get().getInfo();
+
+        assertEquals(ActionTypeCase.RECONFIGURE, actionInfo.getActionTypeCase());
+        assertFalse(actionInfo.getReconfigure().hasSource());
+    }
+
+    @Test
     public void testInterpretProvisionBySupplyAction() throws Exception {
         long modelSeller = 1234;
         int modelType = 1;
