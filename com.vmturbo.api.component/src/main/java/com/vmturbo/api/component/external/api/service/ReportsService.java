@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -11,8 +12,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableList;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -30,7 +29,7 @@ import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
-import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.api.serviceinterfaces.IReportsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.reporting.api.protobuf.Reporting;
@@ -51,7 +50,7 @@ public class ReportsService implements IReportsService {
 
     private final ReportingServiceBlockingStub reportingService;
 
-    private final GroupsService groupsService;
+    private final IGroupsService groupsService;
 
     /**
      * Constructs reporting service with active connection to reporting component.
@@ -59,7 +58,7 @@ public class ReportsService implements IReportsService {
      * @param reportingService reporting service GRPC connection.
      */
     public ReportsService(@Nonnull ReportingServiceBlockingStub reportingService,
-                    @Nonnull GroupsService groupsService) {
+                    @Nonnull IGroupsService groupsService) {
         this.reportingService = Objects.requireNonNull(reportingService);
         this.groupsService = Objects.requireNonNull(groupsService);
     }
@@ -239,10 +238,19 @@ public class ReportsService implements IReportsService {
         final Reporting.ScheduleInfo.Builder infoBuilder = Reporting.ScheduleInfo.newBuilder()
                 .setReportType(templateId.getReportType())
                 .setTemplateId(templateId.getId())
-                .setDayOfWeek(reportScheduleApiInputDTO.getDow().getName())
                 .setFormat(reportScheduleApiInputDTO.getFormat().getLiteral())
                 .setPeriod(reportScheduleApiInputDTO.getPeriod().getName())
-                .setShowCharts(reportScheduleApiInputDTO.isShowCharts());
+                .setShowCharts(reportScheduleApiInputDTO.isShowCharts() == null ? true :
+                        reportScheduleApiInputDTO.isShowCharts());
+        if (reportScheduleApiInputDTO.getDow() != null) {
+            infoBuilder.setDayOfWeek(reportScheduleApiInputDTO.getDow().getName());
+        } else if (reportScheduleApiInputDTO.getPeriod() == Period.Weekly) {
+            infoBuilder.setDayOfWeek(
+                    DayOfWeek.get(LocalDate.now().getDayOfWeek().ordinal()).getName());
+        }
+        if (reportScheduleApiInputDTO.getPeriod() == Period.Monthly) {
+            infoBuilder.setDayOfMonth(LocalDate.now().getDayOfMonth());
+        }
         if (reportScheduleApiInputDTO.getEmail() != null) {
             infoBuilder.addAllSubscribersEmails(splitToEmails(reportScheduleApiInputDTO.getEmail()));
         }
@@ -290,7 +298,9 @@ public class ReportsService implements IReportsService {
         final ReportScheduleApiDTO apiDTO = new ReportScheduleApiDTO();
         apiDTO.setSubcriptionId(scheduleDTO.getId());
         apiDTO.setScope(scope);
-        apiDTO.setDayOfWeek(DayOfWeek.valueOf(info.getDayOfWeek()));
+        if (info.hasDayOfWeek()) {
+            apiDTO.setDayOfWeek(DayOfWeek.valueOf(info.getDayOfWeek()));
+        }
         apiDTO.setEmail(info.getSubscribersEmailsList()
                 .stream().collect(Collectors.joining(",")));
         apiDTO.setFormat(ReportOutputFormat.valueOf(info.getFormat()));
@@ -307,7 +317,7 @@ public class ReportsService implements IReportsService {
         }
         try {
             return groupsService.getGroupByUuid(uuid, true).getDisplayName();
-        } catch (UnknownObjectException e) {
+        } catch (Exception e) {
             logger.warn("Cannot resolve group with oid: {}", uuid);
             return "";
         }

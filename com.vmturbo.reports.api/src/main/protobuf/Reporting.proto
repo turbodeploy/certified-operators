@@ -76,7 +76,7 @@ message ScheduleDTO {
 // Parameters of schedule
 message ScheduleInfo {
     // day of week when scheduled report should be generated
-    required string day_of_week = 1;
+    optional string day_of_week = 1;
     // file format (for now PDF or XLSX)
     required string format = 2;
     // Daily, weekly or monthly
