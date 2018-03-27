@@ -35,6 +35,7 @@ import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.api.serviceinterfaces.IReportsService;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.reporting.api.ReportingConstants;
 import com.vmturbo.reporting.api.protobuf.Reporting;
 import com.vmturbo.reporting.api.protobuf.Reporting.Empty;
 import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
@@ -60,6 +61,7 @@ public class ReportsService implements IReportsService {
      * Constructs reporting service with active connection to reporting component.
      *
      * @param reportingService reporting service GRPC connection.
+     * @param groupsService groups service.
      */
     public ReportsService(@Nonnull ReportingServiceBlockingStub reportingService,
                     @Nonnull IGroupsService groupsService) {
@@ -184,12 +186,16 @@ public class ReportsService implements IReportsService {
                 GenerateReportRequest.newBuilder().setTemplate(templateId);
         builder.setFormat(reportApiRequest.getFormat().getLiteral());
         if (!StringUtils.isBlank(reportApiRequest.getEmailAddress())) {
-            builder.addAllSubcribersEmails(splitToEmails(reportApiRequest.getEmailAddress()));
+            builder.addAllSubscribersEmails(splitToEmails(reportApiRequest.getEmailAddress()));
         }
         if (reportApiRequest.getAttributes() != null) {
             for (AttributeValueApiDTO attributeValue : reportApiRequest.getAttributes()) {
                 builder.putParameters(attributeValue.getName(), attributeValue.getValue());
             }
+        }
+        if (reportApiRequest.getScopeUuid() != null) {
+            builder.putParameters(ReportingConstants.ITEM_UUID_PROPERTY,
+                    reportApiRequest.getScopeUuid());
         }
         final ReportInstanceId response = reportingService.generateReport(builder.build());
         final ReportInstanceApiDTO result = new ReportInstanceApiDTO();
@@ -248,27 +254,31 @@ public class ReportsService implements IReportsService {
             @Nonnull ReportScheduleApiInputDTO reportScheduleApiInputDTO) {
         final ReportTemplateId templateId = getReportTemplateId(restTemplateId);
 
+        final GenerateReportRequest.Builder requestBuilder = GenerateReportRequest.newBuilder()
+                .setTemplate(templateId)
+                .setFormat(reportScheduleApiInputDTO.getFormat().getLiteral());
+        if (reportScheduleApiInputDTO.getScope() != null) {
+            requestBuilder.putParameters(ReportingConstants.ITEM_UUID_PROPERTY,
+                    reportScheduleApiInputDTO.getScope());
+        }
+        if (reportScheduleApiInputDTO.isShowCharts() != null) {
+            requestBuilder.putParameters(ReportingConstants.SHOW_CHARTS_PROPERTY,
+                    Boolean.toString(reportScheduleApiInputDTO.isShowCharts()));
+        }
+        if (reportScheduleApiInputDTO.getEmail() != null) {
+            requestBuilder.addAllSubscribersEmails(
+                    splitToEmails(reportScheduleApiInputDTO.getEmail()));
+        }
         final Reporting.ScheduleInfo.Builder infoBuilder = Reporting.ScheduleInfo.newBuilder()
-                .setReportType(templateId.getReportType())
-                .setTemplateId(templateId.getId())
-                .setFormat(reportScheduleApiInputDTO.getFormat().getLiteral())
-                .setPeriod(reportScheduleApiInputDTO.getPeriod().getName())
-                .setShowCharts(reportScheduleApiInputDTO.isShowCharts() == null ? true :
-                        reportScheduleApiInputDTO.isShowCharts());
+                .setReportRequest(requestBuilder.build())
+                .setPeriod(reportScheduleApiInputDTO.getPeriod().getName());
         if (reportScheduleApiInputDTO.getDow() != null) {
             infoBuilder.setDayOfWeek(reportScheduleApiInputDTO.getDow().getName());
         } else if (reportScheduleApiInputDTO.getPeriod() == Period.Weekly) {
-            infoBuilder.setDayOfWeek(
-                    DayOfWeek.get(LocalDate.now().getDayOfWeek().ordinal()).getName());
+            infoBuilder.setDayOfWeek(DayOfWeek.today().getName());
         }
         if (reportScheduleApiInputDTO.getPeriod() == Period.Monthly) {
             infoBuilder.setDayOfMonth(LocalDate.now().getDayOfMonth());
-        }
-        if (reportScheduleApiInputDTO.getEmail() != null) {
-            infoBuilder.addAllSubscribersEmails(splitToEmails(reportScheduleApiInputDTO.getEmail()));
-        }
-        if (reportScheduleApiInputDTO.getScope() != null) {
-            infoBuilder.setScopeOid(reportScheduleApiInputDTO.getScope());
         }
         return infoBuilder.build();
     }
@@ -303,8 +313,9 @@ public class ReportsService implements IReportsService {
 
     private ReportScheduleApiDTO toReportScheduleApiDTO(final Reporting.ScheduleDTO scheduleDTO) {
         final Reporting.ScheduleInfo info = scheduleDTO.getScheduleInfo();
+        final GenerateReportRequest request = info.getReportRequest();
         final BaseApiDTO scope = new BaseApiDTO();
-        final String scopeOid = info.getScopeOid();
+        final String scopeOid = request.getParametersMap().get(ReportingConstants.ITEM_UUID_PROPERTY);
         scope.setUuid(scopeOid);
         scope.setDisplayName(getScopeDisplayName(scopeOid));
 
@@ -314,13 +325,16 @@ public class ReportsService implements IReportsService {
         if (info.hasDayOfWeek()) {
             apiDTO.setDayOfWeek(DayOfWeek.valueOf(info.getDayOfWeek()));
         }
-        apiDTO.setEmail(info.getSubscribersEmailsList()
-                .stream().collect(Collectors.joining(",")));
-        apiDTO.setFormat(ReportOutputFormat.valueOf(info.getFormat()));
+        apiDTO.setEmail(
+                request.getSubscribersEmailsList().stream().collect(Collectors.joining(",")));
+        apiDTO.setFormat(ReportOutputFormat.valueOf(request.getFormat()));
         apiDTO.setPeriod(Period.valueOf(info.getPeriod()));
-        apiDTO.setReportType(info.getReportType());
-        apiDTO.setShowCharts(info.getShowCharts());
-        apiDTO.setTemplateId(info.getReportType(), info.getTemplateId());
+        apiDTO.setReportType(request.getTemplate().getReportType());
+        final String showCharts = request.getParametersMap().get(ReportingConstants.SHOW_CHARTS_PROPERTY);
+        if (showCharts != null) {
+            apiDTO.setShowCharts(Boolean.getBoolean(showCharts));
+        }
+        apiDTO.setTemplateId(request.getTemplate().getReportType(), request.getTemplate().getId());
         return apiDTO;
     }
 

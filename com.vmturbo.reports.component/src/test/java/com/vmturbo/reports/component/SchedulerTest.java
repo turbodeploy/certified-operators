@@ -28,7 +28,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.reporting.api.ReportingConstants;
 import com.vmturbo.reporting.api.protobuf.Reporting;
+import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.instances.ReportsGenerator;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
@@ -163,15 +166,20 @@ public class SchedulerTest {
     @Nonnull
     private Reporting.ScheduleDTO buildScheduleDto(int templateId, @Nonnull String period, @Nonnull String format,
                     @Nonnull String dayOfWeek, int dayOfMonth) {
+        final GenerateReportRequest request = GenerateReportRequest.newBuilder()
+                .setFormat(format)
+                .setTemplate(ReportTemplateId.newBuilder()
+                        .setId(templateId)
+                        .setReportType(1)
+                        .build())
+                .putParameters("show_charts", Boolean.toString(true))
+                .build();
         return Reporting.ScheduleDTO.newBuilder().setId(1l).setScheduleInfo(
                         Reporting.ScheduleInfo.newBuilder()
-                                        .setTemplateId(templateId)
                                         .setPeriod(period)
-                                        .setFormat(format)
                                         .setDayOfWeek(dayOfWeek)
                                         .setDayOfMonth(dayOfMonth)
-                                        .setReportType(1)
-                                        .setShowCharts(true)
+                                        .setReportRequest(request)
                                         .build())
                         .build();
     }

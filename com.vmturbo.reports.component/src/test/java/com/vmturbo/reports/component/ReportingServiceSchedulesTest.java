@@ -1,12 +1,11 @@
 package com.vmturbo.reports.component;
 
-import static com.vmturbo.reports.component.db.Tables.SCHEDULE;
-import static com.vmturbo.reports.component.db.Tables.SCHEDULE_SUBSCRIBERS;
-
 import java.io.IOException;
 import java.util.List;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
 
 import org.jooq.DSLContext;
 import org.junit.Assert;
@@ -19,9 +18,10 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
-import com.google.common.collect.ImmutableList;
-
+import com.vmturbo.reporting.api.ReportingConstants;
 import com.vmturbo.reporting.api.protobuf.Reporting;
+import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
+import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 
 /**
@@ -100,10 +100,11 @@ public class ReportingServiceSchedulesTest {
     @Test
     public void testGetScheduleBy() {
         reportingService.addSchedule(TEST_SCHEDULE_INFO).getId();
-        final Reporting.ScheduleDTO dto = reportingService.getSchedulesBy(Reporting.GetSchedulesByRequest
-                        .newBuilder()
-                        .setTemplateId(TEST_SCHEDULE_INFO.getTemplateId())
-                        .setReportType(TEST_SCHEDULE_INFO.getReportType())
+        final Reporting.ScheduleDTO dto = reportingService.getSchedulesBy(
+                Reporting.GetSchedulesByRequest.newBuilder()
+                        .setTemplateId(TEST_SCHEDULE_INFO.getReportRequest().getTemplate().getId())
+                        .setReportType(
+                                TEST_SCHEDULE_INFO.getReportRequest().getTemplate().getReportType())
                         .build()).next();
         Assert.assertEquals(TEST_SCHEDULE_INFO, dto.getScheduleInfo());
     }
@@ -122,16 +123,21 @@ public class ReportingServiceSchedulesTest {
     private static Reporting.ScheduleInfo buildScheduleInfo(@Nonnull String scopeOid, @Nonnull String day,
                     @Nonnull String format, @Nonnull String period, int reportType, int templateId,
                     boolean showCharts, List<String> emails) {
-        return Reporting.ScheduleInfo.newBuilder()
-                        .setScopeOid(scopeOid)
-                        .setDayOfWeek(day)
-                        .setFormat(format)
-                        .setPeriod(period)
+        final GenerateReportRequest request = GenerateReportRequest.newBuilder()
+                .setFormat(format)
+                .setTemplate(ReportTemplateId.newBuilder()
+                        .setId(templateId)
                         .setReportType(reportType)
-                        .setTemplateId(templateId)
-                        .setShowCharts(showCharts)
-                        .addAllSubscribersEmails(emails)
+                        .build())
+                .putParameters("show_charts", Boolean.toString(showCharts))
+                .putParameters(ReportingConstants.ITEM_UUID_PROPERTY, scopeOid)
+                .addAllSubscribersEmails(emails)
+                .build();
+        return Reporting.ScheduleInfo.newBuilder()
+                        .setDayOfWeek(day)
+                        .setPeriod(period)
                         .setDayOfMonth(2)
+                        .setReportRequest(request)
                         .build();
     }
 

@@ -103,7 +103,8 @@ public class Scheduler implements AutoCloseable {
     @Nonnull
     public Reporting.ScheduleDTO addSchedule(@Nonnull Reporting.ScheduleInfo scheduleInfo)
                     throws DbException, EmailException {
-        EmailAddressValidator.validateAddresses(scheduleInfo.getSubscribersEmailsList());
+        EmailAddressValidator.validateAddresses(
+                scheduleInfo.getReportRequest().getSubscribersEmailsList());
         synchronized (lock) {
             final Reporting.ScheduleDTO scheduleDTO = scheduleDAO.addSchedule(scheduleInfo);
             scheduleReportGeneration(scheduleDTO);
@@ -126,7 +127,8 @@ public class Scheduler implements AutoCloseable {
     @Nonnull
     public void editSchedule(@Nonnull Reporting.ScheduleDTO scheduleDTO)
                     throws DbException, EmailException {
-        EmailAddressValidator.validateAddresses(scheduleDTO.getScheduleInfo().getSubscribersEmailsList());
+        EmailAddressValidator.validateAddresses(
+                scheduleDTO.getScheduleInfo().getReportRequest().getSubscribersEmailsList());
         synchronized (lock) {
             scheduleDAO.editSchedule(scheduleDTO);
             scheduleAllReportsGeneration();
@@ -152,13 +154,7 @@ public class Scheduler implements AutoCloseable {
      */
     private LocalDateTime scheduleReportGeneration(@Nonnull Reporting.ScheduleDTO scheduleDTO) {
         final Reporting.ScheduleInfo info = scheduleDTO.getScheduleInfo();
-        final Reporting.GenerateReportRequest request = Reporting.GenerateReportRequest.newBuilder()
-                        .setFormat(info.getFormat())
-                        .addAllSubcribersEmails(info.getSubscribersEmailsList())
-                        .setTemplate(Reporting.ReportTemplateId.newBuilder()
-                                        .setId(info.getTemplateId())
-                                        .setReportType(info.getReportType()))
-                        .build();
+        final Reporting.GenerateReportRequest request = info.getReportRequest();
         final ScheduleTask scheduleTask = new ScheduleTask(reportsGenerator, request);
         final LocalDateTime dateTime = LocalDateTime.now(clock)
                         .withHour(scheduledReportsGenerationTime)
@@ -258,7 +254,7 @@ public class Scheduler implements AutoCloseable {
                 logger.error("Failed to generate scheduled report " + request, e);
             } catch (EmailException ex) {
                 logger.error("Invalid address provided for scheduled report generation " +
-                                request.getSubcribersEmailsList(), ex);
+                                request.getSubscribersEmailsList(), ex);
             }
         }
     }

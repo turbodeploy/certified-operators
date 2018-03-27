@@ -36,6 +36,8 @@ import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceI
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
+import com.vmturbo.reports.component.entities.EntitiesDao;
+import com.vmturbo.reports.component.entities.EntitiesDaoImpl;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
 import com.vmturbo.reports.component.instances.ReportsGenerator;
@@ -114,7 +116,8 @@ public class ReportingTestConfig {
     @Bean
     public ReportsGenerator reportsGenerator() throws IOException {
         return new ReportsGenerator(reportRunner(), templatesOrganizer(), reportInstanceDao(),
-                        reportsOutputDir(), threadPool(), notificationSender(), mailManager());
+                entitiesDao(), reportsOutputDir(), threadPool(), notificationSender(),
+                mailManager());
     }
 
     @Bean
@@ -168,6 +171,11 @@ public class ReportingTestConfig {
     @Bean
     public ReportInstanceDao reportInstanceDao() {
         return new ReportInstanceDaoImpl(dbConfig.dsl());
+    }
+
+    @Bean
+    public EntitiesDao entitiesDao() {
+        return new EntitiesDaoImpl(dbConfig.dsl());
     }
 
     @Bean

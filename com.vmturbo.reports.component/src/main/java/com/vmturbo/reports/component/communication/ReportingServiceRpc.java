@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.mail.internet.AddressException;
 
 import com.google.protobuf.ByteString;
 
@@ -96,7 +95,7 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             responseObserver.onError(
                     new StatusRuntimeException(Status.INTERNAL.withDescription(e.getMessage())));
         } catch (EmailException ex) {
-            onEmailError(responseObserver, request.getSubcribersEmailsList(), ex);
+            onEmailError(responseObserver, request.getSubscribersEmailsList(), ex);
         }
     }
 
@@ -199,7 +198,8 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             responseObserver.onError(new StatusRuntimeException(
                             Status.ABORTED.withDescription(e.getMessage())));
         } catch (EmailException ex) {
-            onEmailError(responseObserver, scheduleInfo.getSubscribersEmailsList(), ex);
+            onEmailError(responseObserver,
+                    scheduleInfo.getReportRequest().getSubscribersEmailsList(), ex);
         }
     }
 
@@ -243,8 +243,9 @@ public class ReportingServiceRpc extends ReportingServiceImplBase {
             responseObserver.onError(new StatusRuntimeException(
                             Status.ABORTED.withDescription(e.getMessage())));
         } catch (EmailException ex) {
-            onEmailError(responseObserver, scheduleDTO.getScheduleInfo().getSubscribersEmailsList(),
-                            ex);
+            onEmailError(responseObserver,
+                    scheduleDTO.getScheduleInfo().getReportRequest().getSubscribersEmailsList(),
+                    ex);
         }
     }
 

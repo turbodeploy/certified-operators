@@ -32,6 +32,8 @@ import com.vmturbo.reporting.api.ReportingNotificationReceiver;
 import com.vmturbo.reporting.api.protobuf.ReportingREST.ReportingServiceController;
 import com.vmturbo.reports.component.communication.ReportNotificationSenderImpl;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
+import com.vmturbo.reports.component.entities.EntitiesDao;
+import com.vmturbo.reports.component.entities.EntitiesDaoImpl;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDaoImpl;
 import com.vmturbo.reports.component.instances.ReportsGenerator;
@@ -100,8 +102,9 @@ public class ReportingConfig {
 
     @Bean
     public ReportsGenerator reportsGenerator() {
-        return new ReportsGenerator(componentReportRunner(), templatesOrganizer(), reportInstanceDao(),
-                        reportOutputDir, threadPool(), notificationSender(), mailManager());
+        return new ReportsGenerator(componentReportRunner(), templatesOrganizer(),
+                reportInstanceDao(), entitiesDao(), reportOutputDir, threadPool(),
+                notificationSender(), mailManager());
     }
 
     @Bean
@@ -139,6 +142,11 @@ public class ReportingConfig {
     @Bean
     public ReportInstanceDao reportInstanceDao() {
         return new ReportInstanceDaoImpl(dbConfig.dsl());
+    }
+
+    @Bean
+    public EntitiesDao entitiesDao() {
+        return new EntitiesDaoImpl(dbConfig.dsl());
     }
 
     @Bean

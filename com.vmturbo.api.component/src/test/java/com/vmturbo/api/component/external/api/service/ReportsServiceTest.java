@@ -39,6 +39,8 @@ import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.reporting.api.ReportingConstants;
+import com.vmturbo.reporting.api.protobuf.Reporting.GenerateReportRequest;
 import com.vmturbo.reporting.api.protobuf.Reporting.ScheduleDTO;
 import com.vmturbo.reporting.api.protobuf.Reporting.ScheduleInfo;
 import com.vmturbo.reporting.api.protobuf.ReportingMoles.ReportingServiceMole;
@@ -126,6 +128,40 @@ public class ReportsServiceTest {
         Mockito.verify(testConfig.reportingServiceMole()).addSchedule(captor.capture());
         Assert.assertTrue(captor.getValue().hasDayOfWeek());
         Assert.assertNotNull(DayOfWeek.get(captor.getValue().getDayOfWeek()));
+    }
+
+    /**
+     * Tests, that day of week is set for the requests with weekly period.
+     *
+     * @throws Exception if exceptions occur
+     */
+    @Test
+    public void testScheduleWithParameters() throws Exception {
+        final ReportScheduleApiInputDTO inputDto = new ReportScheduleApiInputDTO();
+        inputDto.setPeriod(Period.Weekly);
+        inputDto.setFormat(ReportOutputFormat.PDF);
+        final String oid = "dfdsfs444444";
+        final boolean showCharts = true;
+        inputDto.setScope(oid);
+        inputDto.setShowCharts(showCharts);
+        final String reportId = "2_1234";
+        final Gson gson = new Gson();
+        final String reqStr = gson.toJson(inputDto);
+
+        final MvcResult result = mockMvc.perform(
+                MockMvcRequestBuilders.post("/reports/templates/" + reportId + "/schedules")
+                        .contentType(MediaType.APPLICATION_JSON_UTF8)
+                        .content(reqStr)
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andReturn();
+        final ArgumentCaptor<ScheduleInfo> captor = ArgumentCaptor.forClass(ScheduleInfo.class);
+        Mockito.verify(testConfig.reportingServiceMole()).addSchedule(captor.capture());
+        final GenerateReportRequest request = captor.getValue().getReportRequest();
+        Assert.assertEquals(oid,
+                request.getParametersMap().get(ReportingConstants.ITEM_UUID_PROPERTY));
+        Assert.assertEquals(showCharts, Boolean.valueOf(
+                request.getParametersMap().get(ReportingConstants.SHOW_CHARTS_PROPERTY)));
     }
 
     @Configuration

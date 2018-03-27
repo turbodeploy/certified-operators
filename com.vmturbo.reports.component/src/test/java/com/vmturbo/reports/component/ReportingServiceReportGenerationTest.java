@@ -31,6 +31,7 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplate;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
+import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportInstanceRecord;
 import com.vmturbo.reports.component.instances.ReportsGenerator;
@@ -99,7 +100,11 @@ public class ReportingServiceReportGenerationTest {
         threadPool = Executors.newCachedThreadPool();
 
         final File outputDir = tmpFolder.newFolder();
-        reportsGenerator = new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao,
+        final EntitiesDao entitiesDao = Mockito.mock(EntitiesDao.class);
+        Mockito.when(entitiesDao.getEntityName(Mockito.anyLong()))
+                .thenReturn(Optional.of("entity-name"));
+        reportsGenerator =
+                new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao, entitiesDao,
                         outputDir, threadPool, notificationSender, Mockito.mock(MailManager.class));
         reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
                         outputDir, reportsGenerator, Mockito.mock(Scheduler.class));
@@ -201,7 +206,7 @@ public class ReportingServiceReportGenerationTest {
      */
     @Test
     public void testGenerateReportWithCorrectEmail() throws Exception{
-        reportingServer.generateReport(request.toBuilder().addSubcribersEmails("correct@email.com")
+        reportingServer.generateReport(request.toBuilder().addSubscribersEmails("correct@email.com")
                         .build(), observer);
         verifyGoodReport();
     }
@@ -214,7 +219,7 @@ public class ReportingServiceReportGenerationTest {
         final ArgumentCaptor<StatusRuntimeException> argument =
                         ArgumentCaptor.forClass(StatusRuntimeException.class);
         reportingServer.generateReport(request.toBuilder()
-                        .addSubcribersEmails("incorrectemail").build(), observer);
+                        .addSubscribersEmails("incorrectemail").build(), observer);
         Mockito.verify(observer).onError(argument.capture());
         Assert.assertThat(argument.getValue().getStatus().getDescription(),
                         CoreMatchers.containsString(EMAIL_EXCEPTION_MESSAGE));

@@ -31,6 +31,7 @@ import com.vmturbo.reporting.api.protobuf.Reporting.ReportTemplateId;
 import com.vmturbo.reports.component.communication.ReportNotificationSender;
 import com.vmturbo.reports.component.communication.ReportingServiceRpc;
 import com.vmturbo.reports.component.db.tables.pojos.ReportInstance;
+import com.vmturbo.reports.component.entities.EntitiesDao;
 import com.vmturbo.reports.component.instances.ReportInstanceDao;
 import com.vmturbo.reports.component.instances.ReportsGenerator;
 import com.vmturbo.reports.component.schedules.ScheduleDAO;
@@ -97,7 +98,11 @@ public class ReportingServiceInstanceOperationsTest {
         threadPool = Executors.newCachedThreadPool();
 
         final File outputDir = tmpFolder.newFolder();
-        reportsGenerator = new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao,
+        final EntitiesDao entitiesDao = Mockito.mock(EntitiesDao.class);
+        Mockito.when(entitiesDao.getEntityName(Mockito.anyLong()))
+                .thenReturn(Optional.of("entity-name"));
+        reportsGenerator =
+                new ReportsGenerator(reportRunner, templatesOrganizer, instancesDao, entitiesDao,
                         outputDir, threadPool, notificationSender, Mockito.mock(MailManager.class));
         reportingServer = new ReportingServiceRpc(templatesOrganizer, instancesDao,
                         outputDir, reportsGenerator, Mockito.mock(Scheduler.class));
