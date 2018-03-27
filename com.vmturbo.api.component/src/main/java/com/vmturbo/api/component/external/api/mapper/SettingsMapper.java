@@ -476,9 +476,11 @@ public class SettingsMapper {
      * @param day the classic API day of the week
      * @return the equivalent XL day of the week
      */
-    private Schedule.DayOfWeek translateDayOfWeekFromDTO(DayOfWeek day) {
+    @VisibleForTesting
+    Schedule.DayOfWeek translateDayOfWeekFromDTO(DayOfWeek day) {
         //legacy week starts with Sunday but international/XL week starts with Monday
-        final int internationalDayNumber = (day.getValue() + 6) % 7;
+        final int internationalDayNumber = (day == DayOfWeek.Sun) ? Schedule.DayOfWeek.SUNDAY_VALUE
+                : day.getValue() - 1;
         return Schedule.DayOfWeek.forNumber(internationalDayNumber);
     }
 
@@ -760,10 +762,12 @@ public class SettingsMapper {
          * @param dateTime the datetime to convert
          * @return the legacy DayOfWeek associated
          */
-        private DayOfWeek getLegacyDayOfWeekForDatestamp(@Nonnull final DateTime dateTime) {
+        @VisibleForTesting
+        DayOfWeek getLegacyDayOfWeekForDatestamp(@Nonnull final DateTime dateTime) {
             final int dayOfWeekInternational = dateTime.dayOfWeek().get();
             //legacy enum week starts with sunday but DateTime week starts with monday
-            final int dayOfWeekLegacy = (dayOfWeekInternational + 1) % 7;
+            final int dayOfWeekLegacy = dayOfWeekInternational == Schedule.DayOfWeek.SUNDAY_VALUE ? 1
+                    : dayOfWeekInternational + 1;
             return DayOfWeek.get(dayOfWeekLegacy);
         }
 

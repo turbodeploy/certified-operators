@@ -27,11 +27,14 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeConstants;
+import org.joda.time.DateTimeZone;
 import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.PlanSettingInfo;
@@ -630,18 +633,18 @@ public class SettingsMapperTest {
         final ScheduleApiDTO weeklySpecified = makeBasicScheduleDTO();
         final RecurrenceApiDTO weeklyRec = new RecurrenceApiDTO();
         weeklyRec.setType(RecurrenceType.WEEKLY);
-        weeklyRec.setDaysOfWeek(Collections.singletonList(DayOfWeek.Fri));
+        weeklyRec.setDaysOfWeek(Lists.newArrayList(DayOfWeek.Fri, DayOfWeek.Sun));
         weeklySpecified.setRecurrence(weeklyRec);
         settingsPolicyApiDTO.setSchedule(weeklySpecified);
-
         final SettingPolicyInfo info = mapper.convertInputPolicy(settingsPolicyApiDTO, entityType);
         assertTrue(info.hasSchedule());
         final Schedule schedule = info.getSchedule();
         verifyBasicSchedule(schedule);
         assertTrue(schedule.hasPerpetual());
         assertTrue(schedule.hasWeekly());
-        assertEquals(schedule.getWeekly().getDaysOfWeekList(),
-                Collections.singletonList(Schedule.DayOfWeek.FRIDAY));
+        assertEquals(2, schedule.getWeekly().getDaysOfWeekList().size());
+        assertThat(schedule.getWeekly().getDaysOfWeekList(), containsInAnyOrder(Schedule.DayOfWeek.FRIDAY,
+                Schedule.DayOfWeek.SUNDAY));
     }
 
     @Test
@@ -1311,5 +1314,37 @@ public class SettingsMapperTest {
                 .setStringSettingValue(StringSettingValue.newBuilder()
                         .setValue("value"))
                 .build()));
+    }
+
+    @Test
+    public void testTranslateDayOfWeekFromDTO() {
+        final SettingsMapper mapper = setUpMapper();
+        final List<DayOfWeek> dayOfWeeksApi = Lists.newArrayList(DayOfWeek.Mon, DayOfWeek.Tue,
+                DayOfWeek.Wed, DayOfWeek.Thu, DayOfWeek.Fri, DayOfWeek.Sat, DayOfWeek.Sun);
+        final List<Schedule.DayOfWeek> dayOfWeeks = Lists.newArrayList(Schedule.DayOfWeek.MONDAY,
+                Schedule.DayOfWeek.TUESDAY, Schedule.DayOfWeek.WEDNESDAY, Schedule.DayOfWeek.THURSDAY,
+                Schedule.DayOfWeek.FRIDAY, Schedule.DayOfWeek.SATURDAY, Schedule.DayOfWeek.SUNDAY);
+        final List<Schedule.DayOfWeek> convertedDayOfWeeks = dayOfWeeksApi.stream()
+                .map(mapper::translateDayOfWeekFromDTO)
+                .collect(Collectors.toList());
+        assertEquals(dayOfWeeks, convertedDayOfWeeks);
+    }
+
+    @Test
+    public void testGetLegacyDayOfWeekForDatestamp() {
+        final DefaultSettingPolicyMapper defaultSettingPolicyMapper = setUpPolicyMapperInfoToDtoTest();
+        final List<Integer> weeks = Lists.newArrayList(DateTimeConstants.MONDAY,
+                DateTimeConstants.TUESDAY, DateTimeConstants.WEDNESDAY, DateTimeConstants.THURSDAY,
+                DateTimeConstants.FRIDAY, DateTimeConstants.SATURDAY, DateTimeConstants.SUNDAY);
+        final DateTime dateTime = new DateTime(startTimestamp, DateTimeZone.UTC);
+        List<DateTime> dateTimeList = weeks.stream()
+               .map(dateTime::withDayOfWeek)
+               .collect(Collectors.toList());
+        final List<DayOfWeek> dayOfWeeksApi = Lists.newArrayList(DayOfWeek.Mon, DayOfWeek.Tue,
+                DayOfWeek.Wed, DayOfWeek.Thu, DayOfWeek.Fri, DayOfWeek.Sat, DayOfWeek.Sun);
+        final List<DayOfWeek> convertedDayOfWeeks = dateTimeList.stream()
+                .map(defaultSettingPolicyMapper::getLegacyDayOfWeekForDatestamp)
+                .collect(Collectors.toList());
+        assertEquals(dayOfWeeksApi, convertedDayOfWeeks);
     }
 }
