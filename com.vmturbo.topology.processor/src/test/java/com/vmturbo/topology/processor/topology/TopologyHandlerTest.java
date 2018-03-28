@@ -5,15 +5,19 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Collections;
+import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
@@ -61,7 +65,7 @@ public class TopologyHandlerTest {
                 (TopologyPipeline<EntityStore, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         TopologyBroadcastInfo broadcastInfo = mock(TopologyBroadcastInfo.class);
         when(pipeline.run(eq(entityStore))).thenReturn(broadcastInfo);
-        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo))).thenReturn(pipeline);
+        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo), eq(Collections.emptyList()))).thenReturn(pipeline);
 
         assertThat(topologyHandler.broadcastLatestTopology(), is(broadcastInfo));
     }

@@ -1,10 +1,7 @@
 package com.vmturbo.topology.processor.rest;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -21,17 +18,11 @@ import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiModelProperty;
 import io.swagger.annotations.ApiOperation;
 
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
-import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
-import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
@@ -84,25 +75,6 @@ public class TopologyController {
                     broadcastInfo.getTopologyId(),
                     broadcastInfo.getTopologyContextId()),
                 HttpStatus.OK);
-    }
-
-    @RequestMapping(method = RequestMethod.GET,
-            produces = MediaType.APPLICATION_JSON_UTF8_VALUE)
-    @ApiOperation(value = "Retrieve the most recent topology.")
-    public ResponseEntity<Collection<TopologyEntityDTO>> getTopology() {
-        TopologyGraph graph = TopologyGraph.newGraph(entityStore.constructTopology());
-        try {
-            policyManager.applyPolicies(graph, new GroupResolver(new TopologyFilterFactory()));
-            return new ResponseEntity<>(
-                graph.entities()
-                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                    .map(TopologyEntityDTO.Builder::build)
-                    .collect(Collectors.toList()),
-                HttpStatus.OK);
-        } catch (RuntimeException e) {
-            // TODO: We probably shouldn't continue to broadcast if we cannot successfully apply policy information.
-            return new ResponseEntity<>(Collections.emptyList(), HttpStatus.INTERNAL_SERVER_ERROR);
-        }
     }
 
     @RequestMapping(value = "/target/{targetId}",

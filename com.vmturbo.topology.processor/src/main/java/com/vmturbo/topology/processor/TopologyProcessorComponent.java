@@ -98,9 +98,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     private EntityConfig entityConfig;
 
     @Autowired
-    private TopologyConfig topologyConfig;
-
-    @Autowired
     private IdentityProviderConfig identityProviderConfig;
 
     @Autowired
@@ -147,7 +144,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             .addService(actionsConfig.actionExecutionService())
             .addService(schedulerConfig.scheduleRpcService())
             .addService(entityConfig.entityInfoRpcService())
-            .addService(topologyConfig.topologyRpcService())
+            .addService(topologyProcessorRpcConfig.topologyRpcService())
             .addService(identityProviderConfig.identityRpcService())
             .addService(topologyProcessorRpcConfig.discoveredGroupRpcService())
             .addService(probeConfig.probeActionPoliciesService())

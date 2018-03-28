@@ -12,6 +12,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -245,42 +246,52 @@ public class StagesTest {
 
     @Test
     public void testBroadcastStage() throws Exception {
-
-        final TopoBroadcastManager broadcastManager = mock(TopoBroadcastManager.class);
-        final BroadcastStage stage = new BroadcastStage(broadcastManager);
+        final TopoBroadcastManager broadcastManager1 = mock(TopoBroadcastManager.class);
+        final TopoBroadcastManager broadcastManager2 = mock(TopoBroadcastManager.class);
+        final BroadcastStage stage = new BroadcastStage(Arrays.asList(broadcastManager1,
+            broadcastManager2));
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-                .setTopologyType(TopologyType.REALTIME)
-                .build();
+            .setTopologyType(TopologyType.REALTIME)
+            .setTopologyContextId(1L)
+            .setTopologyId(2L)
+            .build();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
         stage.setContext(context);
 
-        final TopologyBroadcast broadcast = mock(TopologyBroadcast.class);
-        when(broadcast.getTopologyContextId()).thenReturn(1L);
-        when(broadcast.getTopologyId()).thenReturn(2L);
-        when(broadcast.finish()).thenReturn(1L);
+        final TopologyBroadcast broadcast1 = mock(TopologyBroadcast.class);
+        final TopologyBroadcast broadcast2 = mock(TopologyBroadcast.class);
+        when(broadcast1.finish()).thenReturn(1L);
+        when(broadcast2.finish()).thenReturn(1L);
 
-        when(broadcastManager.broadcastLiveTopology(eq(topologyInfo)))
-            .thenReturn(broadcast);
+        when(broadcastManager1.broadcastLiveTopology(eq(topologyInfo)))
+            .thenReturn(broadcast1);
+        when(broadcastManager2.broadcastLiveTopology(eq(topologyInfo)))
+            .thenReturn(broadcast2);
 
         final TopologyBroadcastInfo broadcastInfo = stage.execute(createTopologyGraph());
         assertThat(broadcastInfo.getEntityCount(), is(1L));
         assertThat(broadcastInfo.getTopologyContextId(), is(1L));
         assertThat(broadcastInfo.getTopologyId(), is(2L));
 
-        verify(broadcast).append(any());
-        verify(broadcast).append(eq(entity.build()));
+        verify(broadcast1).append(any());
+        verify(broadcast1).append(eq(entity.build()));
+
+        verify(broadcast2).append(any());
+        verify(broadcast2).append(eq(entity.build()));
     }
 
     @Test
     public void testPlanBroadcastStage() throws CommunicationException, InterruptedException, PipelineStageException {
         final TopoBroadcastManager broadcastManager = mock(TopoBroadcastManager.class);
-        final BroadcastStage stage = new BroadcastStage(broadcastManager);
+        final BroadcastStage stage = new BroadcastStage(Collections.singletonList(broadcastManager));
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-                .setTopologyType(TopologyType.PLAN)
-                .build();
+            .setTopologyId(2L)
+            .setTopologyContextId(1L)
+            .setTopologyType(TopologyType.PLAN)
+            .build();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
         stage.setContext(context);

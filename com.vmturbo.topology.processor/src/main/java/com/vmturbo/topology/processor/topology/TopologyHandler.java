@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.topology;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -62,7 +64,7 @@ public class TopologyHandler {
                 .setCreationTime(clock.millis())
                 .build();
 
-        return topologyPipelineFactory.liveTopology(tinfo).run(entityStore);
+        return topologyPipelineFactory.liveTopology(tinfo, Collections.emptyList()).run(entityStore);
     }
 
 }

@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -19,6 +20,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -687,10 +689,11 @@ public class Stages {
 
         private final Logger logger = LogManager.getLogger();
 
-        private final TopoBroadcastManager broadcastManager;
+        private final List<TopoBroadcastManager> broadcastManagers;
 
-        public BroadcastStage(@Nonnull final TopoBroadcastManager broadcastManager) {
-            this.broadcastManager = broadcastManager;
+        public BroadcastStage(@Nonnull final List<TopoBroadcastManager> broadcastManagers) {
+            this.broadcastManagers = Objects.requireNonNull(broadcastManagers);
+            Preconditions.checkArgument(broadcastManagers.size() > 0);
         }
 
         @Nonnull
@@ -703,9 +706,13 @@ public class Stages {
             try {
                 switch (getContext().getTopologyInfo().getTopologyType()) {
                     case REALTIME:
-                        return broadcastTopology(broadcastManager::broadcastLiveTopology, entities);
+                        return broadcastTopology(broadcastManagers.stream()
+                            .<Function<TopologyInfo, TopologyBroadcast>>map(manager -> manager::broadcastLiveTopology)
+                            .collect(Collectors.toList()), entities);
                     case PLAN:
-                        return broadcastTopology(broadcastManager::broadcastUserPlanTopology, entities);
+                        return broadcastTopology(broadcastManagers.stream()
+                            .<Function<TopologyInfo, TopologyBroadcast>>map(manager -> manager::broadcastUserPlanTopology)
+                            .collect(Collectors.toList()), entities);
                     default:
                         throw new IllegalStateException();
                 }
@@ -715,18 +722,32 @@ public class Stages {
         }
 
         private TopologyBroadcastInfo broadcastTopology(
-                @Nonnull Function<TopologyInfo, TopologyBroadcast> broadcastFunction,
+                @Nonnull List<Function<TopologyInfo, TopologyBroadcast>> broadcastFunctions,
                 final Iterator<TopologyEntityDTO> topology)
                 throws InterruptedException, CommunicationException {
-            final TopologyBroadcast broadcast = broadcastFunction.apply(getContext().getTopologyInfo());
+            final TopologyInfo topologyInfo = getContext().getTopologyInfo();
+            final List<TopologyBroadcast> broadcasts = broadcastFunctions.stream()
+                .map(function -> function.apply(topologyInfo))
+                .collect(Collectors.toList());
             for (Iterator<TopologyEntityDTO> it = topology; it.hasNext(); ) {
                 final TopologyEntityDTO entity = it.next();
-                broadcast.append(entity);
+                for (TopologyBroadcast broadcast : broadcasts) {
+                    broadcast.append(entity);
+                }
             }
-            final long sentCount = broadcast.finish();
-            logger.info("Successfully sent {} entities within topology {} for context {}.", sentCount,
-                    broadcast.getTopologyId(), broadcast.getTopologyContextId());
-            return new TopologyBroadcastInfo(broadcast, sentCount);
+
+            long resultSentCount = 0;
+            for (TopologyBroadcast broadcast : broadcasts) {
+                final long sentCount = broadcast.finish();
+                resultSentCount = sentCount;
+
+                logger.info("Successfully sent {} entities within topology {} for context {} " +
+                        "and broadcast of type {}", sentCount, topologyInfo.getTopologyId(),
+                    topologyInfo.getTopologyContextId(), broadcast.getClass().getSimpleName());
+            }
+
+            return new TopologyBroadcastInfo(resultSentCount, topologyInfo.getTopologyId(),
+                topologyInfo.getTopologyContextId());
         }
     }
 }

@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
@@ -128,16 +127,6 @@ public class TopologyConfig {
                 stitchingGroupFixer(),
                 entityConfig.entityValidator(),
                 groupConfig.discoveredClusterConstraintCache());
-    }
-
-    @Bean
-    public TopologyRpcService topologyRpcService() {
-        return new TopologyRpcService(topologyHandler());
-    }
-
-    @Bean
-    public TopologyDTOREST.TopologyServiceController topologyServiceController() {
-        return new TopologyDTOREST.TopologyServiceController(topologyRpcService());
     }
 
     /**

@@ -27,9 +27,15 @@ public class TopologyBroadcastInfo {
 
     public TopologyBroadcastInfo(@Nonnull final TopologyBroadcast broadcast,
                                  final long entityCount) {
+        this(entityCount, broadcast.getTopologyId(), broadcast.getTopologyContextId());
+    }
+
+    public TopologyBroadcastInfo(final long entityCount,
+                                 final long topologyId,
+                                 final long topologyContextId) {
         this.entityCount = entityCount;
-        this.topologyId = broadcast.getTopologyId();
-        this.topologyContextId = broadcast.getTopologyContextId();
+        this.topologyId = topologyId;
+        this.topologyContextId = topologyContextId;
     }
 
     public long getEntityCount() {

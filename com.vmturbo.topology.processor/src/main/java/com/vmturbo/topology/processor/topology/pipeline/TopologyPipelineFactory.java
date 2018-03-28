@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,7 +58,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesSt
  * <p>
  * Users should not instantiate {@link TopologyPipeline}s themselves. Instead, they should
  * use the appropriately configured pipelines provided by this factory - e.g.
- * {@link TopologyPipelineFactory#liveTopology(TopologyInfo)}.
+ * {@link TopologyPipelineFactory#liveTopology(TopologyInfo, List<TopoBroadcastManager>)}.
  */
 public class TopologyPipelineFactory {
 
@@ -131,14 +133,26 @@ public class TopologyPipelineFactory {
      *
      * @param topologyInfo The source topology info values. This will be cloned and potentially
      *                     edited during pipeline execution.
+     * @param additionalBroadcastManagers Broadcast managers in addition to the base one used to broadcast
+     *                      the topology. All broadcast managers in the list along with
+     *                      the broadcast manager passed in at class construction are used
+     *                      to broadcast the topology.
+     *                      Inject additional managers to also send the topology to other
+     *                      listeners beyond the expected ones (ie to also send it to gRPC
+     *                      clients in addition to the ones listening on the base broadcastManager).
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
     public TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveTopology(
-            @Nonnull final TopologyInfo topologyInfo) {
+            @Nonnull final TopologyInfo topologyInfo,
+            @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers) {
         final GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(groupResolver, topologyInfo);
+        final List<TopoBroadcastManager> managers = new ArrayList<>(additionalBroadcastManagers.size() + 1);
+        managers.add(topoBroadcastManager);
+        managers.addAll(additionalBroadcastManagers);
+
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
@@ -157,7 +171,7 @@ public class TopologyPipelineFactory {
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new ExtractTopologyGraphStage())
-                .addStage(new BroadcastStage(topoBroadcastManager))
+                .addStage(new BroadcastStage(managers))
                 .build();
     }
 
@@ -206,7 +220,7 @@ public class TopologyPipelineFactory {
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))
                 .addStage(new ExtractTopologyGraphStage())
-                .addStage(new BroadcastStage(topoBroadcastManager))
+                .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
                 .build();
     }
 
@@ -239,7 +253,7 @@ public class TopologyPipelineFactory {
                 // One approach is to clear settings/policies from a topology, and then run the
                 // stages. The other approach is to extend the stages to handle already-existing
                 // policies/settings.
-                .addStage(new BroadcastStage(topoBroadcastManager))
+                .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager)))
                 .build();
     }
 }
