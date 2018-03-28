@@ -327,8 +327,18 @@ public class TopologyEditor {
         for (CommoditiesBoughtFromProvider bought :
                 entity.getCommoditiesBoughtFromProvidersList()) {
             long oldProvider = bought.getProviderId();
-            cloneBuilder.addCommoditiesBoughtFromProviders(
-                    bought.toBuilder().setProviderId(--noProvider).build());
+            CommoditiesBoughtFromProvider.Builder clonedProvider =
+                CommoditiesBoughtFromProvider.newBuilder()
+                    .setProviderId(--noProvider);
+            // In legacy opsmgr, during topology addition, all constraints are
+            // implicitly ignored. We do the same thing here.
+            // A Commodity has a constraint if it has a key in its CommodityType.
+            bought.getCommodityBoughtList().forEach(commodityBought -> {
+                if (!commodityBought.getCommodityType().hasKey()) {
+                    clonedProvider.addCommodityBought(commodityBought);
+                }
+            });
+            cloneBuilder.addCommoditiesBoughtFromProviders(clonedProvider.build());
             oldProvidersMap.put(noProvider, oldProvider);
         }
         Map<String, String> entityProperties =
