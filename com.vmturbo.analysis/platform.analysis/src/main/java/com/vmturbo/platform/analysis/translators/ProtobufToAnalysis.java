@@ -243,8 +243,15 @@ public final class ProtobufToAnalysis {
             source.getPeakQuantity() ? source.getQuantity() :
                 source.getPeakQuantity());
         destination.setThin(source.getThin());
-        populateCommoditySoldSettings(source.getSettings(), destination.getSettings(),
-                                      entity.getSettings());
+        try {
+            populateCommoditySoldSettings(source.getSettings(), destination.getSettings(),
+                                          entity.getSettings());
+        } catch (IllegalArgumentException e) {
+            logger.error("source commoditySold or entity=" + entity.getDebugInfoNeverUseInCode()
+                            + " has illegal settings."
+                            + " sourceSettings=" + source.getSettings().toString()
+                            + " entitySettings=" + entity.getSettings().toString());
+        }
     }
 
     /**
@@ -327,7 +334,7 @@ public final class ProtobufToAnalysis {
         populateTraderSettings(topology, input.getSettings(), output.getSettings());
         output.setDebugEnabled(input.getDebugEnabled());
         for (CommoditySoldTO commoditySold : input.getCommoditiesSoldList()) {
-            populateCommoditySold(commoditySold, 
+            populateCommoditySold(commoditySold,
                                   output.getCommoditySold(
                                                  commoditySpecification(commoditySold.getSpecification())),
                                   input);
