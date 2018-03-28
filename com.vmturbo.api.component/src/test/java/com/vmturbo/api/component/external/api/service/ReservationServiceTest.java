@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
+import java.util.Set;
 
 import org.assertj.core.util.Lists;
 import org.junit.Before;
@@ -13,12 +14,15 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiInputDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
@@ -50,7 +54,10 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationDTOMoles.ReservationServiceMole;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
+import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
+import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class ReservationServiceTest {
 
@@ -63,13 +70,15 @@ public class ReservationServiceTest {
 
     private ActionsServiceMole actionsServiceMole = Mockito.spy(new ActionsServiceMole());
 
+    private TemplateServiceMole templateServiceMole = Mockito.spy(new TemplateServiceMole());
+
     private ReservationsService reservationsService;
 
     private final long INITIAL_PLACEMENT_TIMEOUT_SECONDS = 600;
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(reservationServiceMole,
-            planServiceMole, actionsServiceMole);
+            planServiceMole, actionsServiceMole, templateServiceMole);
 
     @Before
     public void setup() {
@@ -80,7 +89,8 @@ public class ReservationServiceTest {
                 INITIAL_PLACEMENT_TIMEOUT_SECONDS,
                 PlanServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 PlanServiceGrpc.newFutureStub(grpcServer.getChannel()),
-                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+                ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     @Test
@@ -172,7 +182,9 @@ public class ReservationServiceTest {
                                     .build())
                                 .setInfo(ActionInfo.newBuilder()
                                     .setMove(Move.newBuilder()
-                                        .setTarget(ApiUtilsTest.createActionEntity(111L))
+                                        .setTarget(ActionEntity.newBuilder()
+                                                .setId(111L)
+                                                .setType(EntityType.VIRTUAL_MACHINE_VALUE))
                                         .addChanges(ChangeProvider.newBuilder()
                                             .setSource(ApiUtilsTest.createActionEntity(0L))
                                             .setDestination(ApiUtilsTest.createActionEntity(78910))
@@ -196,7 +208,9 @@ public class ReservationServiceTest {
                             .build())
                         .setInfo(ActionInfo.newBuilder()
                             .setMove(Move.newBuilder()
-                                .setTarget(ApiUtilsTest.createActionEntity(222L))
+                                .setTarget(ActionEntity.newBuilder()
+                                        .setId(222L)
+                                        .setType(EntityType.VIRTUAL_MACHINE_VALUE))
                                 .addChanges(ChangeProvider.newBuilder()
                                     .setSource(ApiUtilsTest.createActionEntity(0L))
                                     .setDestination(ApiUtilsTest.createActionEntity(78911))
@@ -221,7 +235,8 @@ public class ReservationServiceTest {
                 .build();
         Mockito.when(reservationServiceMole.getReservationByStatus(reservationRequest))
                 .thenReturn(Lists.newArrayList(reservation));
-        final List<PlacementInfo> placementInfos = reservationsService.getPlacementResults(planId);
+        final Set<Integer> entityTypes = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE);
+        final List<PlacementInfo> placementInfos = reservationsService.getPlacementResults(planId, entityTypes);
         assertEquals(1, placementInfos.size());
         assertEquals(111L, placementInfos.get(0).getEntityId());
         assertEquals(1L, placementInfos.get(0).getProviderIds().size());

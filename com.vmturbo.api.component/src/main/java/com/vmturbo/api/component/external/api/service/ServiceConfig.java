@@ -196,7 +196,8 @@ public class ServiceConfig {
                 initialPlacementTimeoutSeconds,
                 communicationConfig.planRpcService(),
                 communicationConfig.planRpcServiceFuture(),
-                communicationConfig.actionsRpcService());
+                communicationConfig.actionsRpcService(),
+                communicationConfig.templateServiceBlockingStub());
     }
 
     @Bean

@@ -43,7 +43,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -67,6 +66,10 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollec
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate.ReservationInstance;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 
 /**
  * XL implementation of IReservationAndDeployService.
@@ -84,6 +87,8 @@ public class ReservationsService implements IReservationsService {
 
     private final ActionsServiceBlockingStub actionOrchestratorService;
 
+    private final TemplateServiceBlockingStub templateServiceBlockingStub;
+
     private final long initialPlacementTimeoutSeconds;
 
     private final long THREAD_SLEEP_INTERVAL_MS = 500;
@@ -93,13 +98,15 @@ public class ReservationsService implements IReservationsService {
                                final long initialPlacementTimeoutSeconds,
                                @Nonnull final PlanServiceBlockingStub planServiceBlockingStub,
                                @Nonnull final PlanServiceFutureStub planServiceFutureStub,
-                               @Nonnull final ActionsServiceBlockingStub actionOrchestratorService) {
+                               @Nonnull final ActionsServiceBlockingStub actionOrchestratorService,
+                               @Nonnull final TemplateServiceBlockingStub templateServiceBlockingStub) {
         this.reservationService = Objects.requireNonNull(reservationService);
         this.reservationMapper = Objects.requireNonNull(reservationMapper);
         this.initialPlacementTimeoutSeconds = initialPlacementTimeoutSeconds;
         this.planServiceFutureStub = Objects.requireNonNull(planServiceFutureStub);
         this.planServiceBlockingStub = Objects.requireNonNull(planServiceBlockingStub);
         this.actionOrchestratorService = Objects.requireNonNull(actionOrchestratorService);
+        this.templateServiceBlockingStub = Objects.requireNonNull(templateServiceBlockingStub);
     }
 
     @Override
@@ -223,6 +230,9 @@ public class ReservationsService implements IReservationsService {
             throws OperationFailedException, UnknownObjectException {
         // send request to run initial placement
         final long planId = sendRequestForInitialPlacement(scenarioChanges);
+        // TODO: (OM-33682) right now, in placement results, also include storage move actions, but we should
+        // create some setting override to disable storage moves between disk array.
+        final Set<Integer> entityTypes = getTemplateEntityTypes(scenarioChanges);
         try {
             //TODO: After UI change initial placement call to asynchronous, we should use UI notification
             // to send initial placement results back to UI.
@@ -239,7 +249,7 @@ public class ReservationsService implements IReservationsService {
                 logger.error("Initial placement operation failed: {}.", planId);
                 throw new OperationFailedException("Initial placement operation failed.");
             }
-            final List<PlacementInfo> placementInfos = getPlacementResults(planId);
+            final List<PlacementInfo> placementInfos = getPlacementResults(planId, entityTypes);
             // get topology addition from list of scenarioChanges.
             final TopologyAddition topologyAddition = getTopologyAddition(scenarioChanges);
             DemandReservationApiDTO demandReservationApiDTO =
@@ -319,10 +329,12 @@ public class ReservationsService implements IReservationsService {
      * which ones are their providers.
      *
      * @param planId id of initial placement plan.
+     * @param entityTypes entity types of this initial placement plan, it will used to filter out
+     *                    other entity type move action based on target's entity type information.
      * @return a list of {@link PlacementInfo}.
      */
     @VisibleForTesting
-    List<PlacementInfo> getPlacementResults(final long planId) {
+    List<PlacementInfo> getPlacementResults(final long planId, @Nonnull final Set<Integer> entityTypes) {
         final Iterable<ActionOrchestratorAction> response = () ->
                 actionOrchestratorService.getAllActions(FilteredActionRequest.newBuilder()
                         .setTopologyContextId(planId)
@@ -338,6 +350,7 @@ public class ReservationsService implements IReservationsService {
                 .filter(actionInfo -> actionInfo.getActionTypeCase().equals(ActionTypeCase.MOVE))
                 .map(ActionInfo::getMove)
                 .filter(move -> !reservationEntityIds.contains(move.getTarget().getId()))
+                .filter(move -> entityTypes.contains(move.getTarget().getType()))
                 .forEach(move -> entityToProviders.putAll(move.getTarget().getId(),
                     move.getChangesList().stream()
                         .map(changeProvider -> changeProvider.getDestination().getId())
@@ -376,6 +389,30 @@ public class ReservationsService implements IReservationsService {
                 .map(ReservationTemplate::getReservationInstanceList)
                 .flatMap(List::stream)
                 .map(ReservationInstance::getEntityId)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Get template entity types from list of {@link ScenarioChange}. It will only check
+     * {@link TopologyAddition}, because for initial placement, it only has topology addition now.
+     *
+     * @param scenarioChanges a list of {@link ScenarioChange}.
+     * @return a set of template entity type.
+     */
+    private Set<Integer> getTemplateEntityTypes(@Nonnull final List<ScenarioChange> scenarioChanges) {
+        final Set<Long> templateIds = scenarioChanges.stream()
+                .filter(ScenarioChange::hasTopologyAddition)
+                .map(ScenarioChange::getTopologyAddition)
+                .filter(TopologyAddition::hasTemplateId)
+                .map(TopologyAddition::getTemplateId)
+                .collect(Collectors.toSet());
+        GetTemplatesByIdsRequest getTemplatesRequest = GetTemplatesByIdsRequest.newBuilder()
+                .addAllTemplateIds(templateIds)
+                .build();
+        Iterable<Template> templates = () -> templateServiceBlockingStub.getTemplatesByIds(getTemplatesRequest);
+        return StreamSupport.stream(templates.spliterator(), false)
+                .map(Template::getTemplateInfo)
+                .map(TemplateInfo::getEntityType)
                 .collect(Collectors.toSet());
     }
 }
