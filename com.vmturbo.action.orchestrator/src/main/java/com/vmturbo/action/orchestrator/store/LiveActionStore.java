@@ -298,6 +298,8 @@ public class LiveActionStore implements ActionStore {
 
     private void filterActionsByCapabilityForUiDisplaying() {
         try {
+            // This method is called within a synchronized block in method populateRecommendedActions.
+            // Therefore, the access to the actions object is not synchronized in this method.
             final Collection<Action> filteredForUiActions = actionSupportResolver
                 .resolveActionsSupporting(actions.values());
             filteredForUiActions.forEach(action -> actions.put(action.getId(), action));
@@ -311,7 +313,9 @@ public class LiveActionStore implements ActionStore {
      */
     @Override
     public int size() {
-        return actions.size();
+        synchronized (actions) {
+            return actions.size();
+        }
     }
 
     /**
@@ -328,13 +332,17 @@ public class LiveActionStore implements ActionStore {
     @Nonnull
     @Override
     public Optional<Action> getAction(long actionId) {
-        return Optional.ofNullable(actions.get(actionId));
+        synchronized (actions) {
+            return Optional.ofNullable(actions.get(actionId));
+        }
     }
 
     @Nonnull
     @Override
     public Map<Long, Action> getActions() {
-        return Collections.unmodifiableMap(new HashMap<>(actions));
+        synchronized (actions) {
+            return Collections.unmodifiableMap(new HashMap<>(actions));
+        }
     }
 
     @Nonnull
@@ -362,9 +370,12 @@ public class LiveActionStore implements ActionStore {
         // have separate RPCs and interfaces for querying operational vs historical actions
         // since we have to hand-roll the code to join the two in any case.
         List<ActionView> succeededOrFailedActionList = actionHistoryDao.getAllActionHistory();
-        List<ActionView> otherActionList = actions.values().stream()
-                .filter(action -> !isSucceededorFailed(action))
-                .collect(Collectors.toList());
+        List<ActionView> otherActionList;
+        synchronized (actions) {
+            otherActionList = actions.values().stream()
+                    .filter(action -> !isSucceededorFailed(action))
+                    .collect(Collectors.toList());
+        }
         List<ActionView> combinedActionList = Stream.of(succeededOrFailedActionList, otherActionList)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
@@ -381,10 +392,13 @@ public class LiveActionStore implements ActionStore {
     public Map<Long, ActionView> getActionViewsByDate(@Nonnull final LocalDateTime startDate,
                                                       @Nonnull final LocalDateTime endDate) {
         List<ActionView> succeededOrFailedActionList = actionHistoryDao.getActionHistoryByDate(startDate, endDate);
-        List<ActionView> otherActionList = actions.values().stream()
-                .filter(action -> !isSucceededorFailed(action))
-                .filter(action -> isEndDateAfterRecommendationTime(action, endDate))
-                .collect(Collectors.toList());
+        List<ActionView> otherActionList;
+        synchronized (actions) {
+            otherActionList = actions.values().stream()
+                    .filter(action -> !isSucceededorFailed(action))
+                    .filter(action -> isEndDateAfterRecommendationTime(action, endDate))
+                    .collect(Collectors.toList());
+        }
         Map<Long, ActionView> combinedActionMap = Stream.of(succeededOrFailedActionList, otherActionList)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toMap(ActionView::getId, Function.identity()));
