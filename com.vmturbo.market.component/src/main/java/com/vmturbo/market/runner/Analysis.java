@@ -6,6 +6,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -465,6 +466,7 @@ public class Analysis {
             }
             ProtobufToAnalysis.addTrader(topology, traderTO);
         }
+
         // this call 'finalizes' the topology, calculating the inverted maps in the 'economy'
         // and makes the following code run more efficiently
         topology.populateMarketsWithSellers();
@@ -475,6 +477,7 @@ public class Analysis {
 
         // the queue of entities to expand "downwards"
         Queue<Long> buyersToSatisfy = Lists.newLinkedList();
+        Set<Long> hasVisited = new HashSet<Long>();
 
         // starting with the seed, expand "up"
         while (suppliersToExpand.size() > 0) {
@@ -503,7 +506,10 @@ public class Analysis {
                     .collect(Collectors.toList());
             if (customerOids.size() == 0) {
                 // if no customers, then "start downwards" from here
-                buyersToSatisfy.add(traderOid);
+                if (!hasVisited.contains(traderOid)) {
+                    buyersToSatisfy.add(traderOid);
+                    hasVisited.add(traderOid);
+                }
             } else {
                 // otherwise keep expanding upwards
                 suppliersToExpand.addAll(customerOids);
@@ -516,7 +522,7 @@ public class Analysis {
         }
         logger.trace("top OIDs: {}", buyersToSatisfy);
         // record the 'providers' we've expanded on the way down so we don't re-expand unnecessarily
-        Queue<Long> providersExpanded = Lists.newLinkedList();
+        Set<Long> providersExpanded = new HashSet<>();
         // starting with buyersToSatisfy, expand "downwards"
         while (buyersToSatisfy.size() > 0) {
             long traderOid = buyersToSatisfy.remove();
@@ -531,7 +537,14 @@ public class Analysis {
                     .filter(buyerOid -> !providersExpanded.contains(buyerOid))
                     .collect(Collectors.toList());
             scopedTopologyOIDs.addAll(buyerOids);
-            buyersToSatisfy.addAll(buyerOids);
+            for (Long buyerOid : buyerOids) {
+                if (hasVisited.contains(buyerOid)) {
+                    continue;
+                }
+                hasVisited.add(buyerOid);
+                buyersToSatisfy.add(buyerOid);
+            }
+
             if (logger.isTraceEnabled()) {
                 if (buyerOids.size() > 0) {
                     logger.trace("add buyer oids: ");
