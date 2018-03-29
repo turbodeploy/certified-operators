@@ -36,9 +36,6 @@ public class Placement {
 
     static final Logger logger = LogManager.getLogger(Placement.class);
 
-    // the maximum number of placements to be 1000, when reaching this limit, we force stop
-    // the placements. 1000 is a random number, it does not have any significant meaning.
-    public static int MAX_NUM_PLACEMENT = 1000;
     public static int globalCounter = 0;
 
     /**
@@ -447,11 +444,11 @@ public class Placement {
 
     /**
      * Run placement algorithm until the convergence criteria are satisfied.
-     * If the placement has been running for more than MAX_NUM_PLACEMENT, force placement to stop.
+     * If the placement has been running for more than the maximum number of placements
+     * allowed by the economy settings, force placement to stop.
      * @param economy
      * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
      *        and commodities in the economy
-     * @param isShopTogether - flag specifies if we want to use SNM or normal placement
      * @param callerPhase - tag to identify phase it is being called from
      * @return a list of recommendations about trader placement
      */
@@ -463,12 +460,12 @@ public class Placement {
 
     /**
      * Run placement algorithm until the convergence criteria are satisfied.
-     * If the placement has been running for more than MAX_NUM_PLACEMENT, force placement to stop.
+     * If the placement has been running for more than the maximum number of placements
+     * allowed by the economy settings, force placement to stop.
      * @param economy
      * @param shoppingLists - list of shoppingLists that denotes buyers that are to shop before the others
      * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
      *        and commodities in the economy
-     * @param isShopTogether - flag specifies if we want to use SNM or normal placement
      * @param preferentialPlacementOnly - run placements on just the {@link ShoppingList}s passed if
      *                                true and on all {@link ShoppingList}s if false
      * @param callerPhase - tag to identify phase it is being called from
@@ -492,10 +489,11 @@ public class Placement {
             // in certain edge cases, we may have placement keep generating move actions
             // while they don't really improve the performance. We force the placement to
             // stop when reaching the max number allowed.
-            if (counter >= Placement.MAX_NUM_PLACEMENT) {
+            if (counter >= economy.getSettings().getMaxPlacementIterations()) {
                 keepRunning = false;
-                logger.warn("The placement has been running for " + Placement.MAX_NUM_PLACEMENT
-                                + " rounds, forcing placement to stop now!");
+                logger.warn("The placement has been running for " +
+                    economy.getSettings().getMaxPlacementIterations()
+                    + " rounds, forcing placement to stop now!");
                 break;
             }
             List<Action> placeActions =

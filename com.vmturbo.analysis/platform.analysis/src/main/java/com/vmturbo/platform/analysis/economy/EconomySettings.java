@@ -24,6 +24,11 @@ public final class EconomySettings implements Serializable {
     // for parallel and sequential execution and finding their intersection.
     public static final int DEFAULT_MIN_SELLERS_FOR_PARALLELISM = 256;
 
+    // the maximum number of placements to be 1000, when reaching this limit, we force stop
+    // the placements. 1000 is a random number, it does not have any significant meaning.
+    // This value can be overriden.
+    public static final int DEFAULT_MAX_PLACEMENT_ITERATIONS = 1000;
+
     /**
      * The value returned by {@link #getQuoteFactor()} when called on a newly constructed instance.
      */
@@ -41,6 +46,8 @@ public final class EconomySettings implements Serializable {
     private float rateOfResize_ = 1.0f;
     private boolean isEstimatesEnabled_ = true;
     private boolean isResizeDependentCommodities_ = true;
+
+    private int maxPlacementIterations = DEFAULT_MAX_PLACEMENT_ITERATIONS;
 
     // Constructors
 
@@ -200,6 +207,30 @@ public final class EconomySettings implements Serializable {
         return this;
     }
 
+    /**
+     * Get the maximum number of rounds of placements that are allowed before stopping
+     * the placement phase.
+     *
+     * @return the maximum number of rounds of placements that are allowed before stopping
+     *         the placement phase.
+     */
+    @Pure
+    public int getMaxPlacementIterations(@ReadOnly EconomySettings this) {
+        return maxPlacementIterations;
+    }
+
+    /**
+     * Set the maximum number of rounds of placements that are allowed before stopping
+     * the placement phase.
+     *
+     * @return {@code this}
+     */
+    @Deterministic
+    public EconomySettings setMaxPlacementIterations(final int maxPlacementIterations) {
+        this.maxPlacementIterations = maxPlacementIterations;
+        return this;
+    }
+
     // Methods
 
     /**
@@ -213,6 +244,6 @@ public final class EconomySettings implements Serializable {
     public void clear() {
         minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
         quoteFactor_ = DEFAULT_QUOTE_FACTOR;
+        maxPlacementIterations = DEFAULT_MAX_PLACEMENT_ITERATIONS;
     }
-
 } // end EconomySettings class
