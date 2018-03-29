@@ -116,7 +116,9 @@ public class Analysis {
      */
     private final Clock clock;
 
-    private SettingServiceBlockingStub settingsServiceClient;
+    private final SettingServiceBlockingStub settingsServiceClient;
+
+    private final Optional<Integer> maxPlacementsOverride;
 
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
@@ -129,12 +131,16 @@ public class Analysis {
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
      * @param includeVDC specify whether guaranteed buyers (VDC, VPod, DPod) are included in the
      *                     market analysis
+     * @param settingsServiceClient Used to look up settings to control the behavior of market analysis.
+     * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
+     *                              by the market during analysis.
      * @param clock The clock used to time market analysis.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                     final boolean includeVDC,
-                    final SettingServiceBlockingStub settingsServiceClient,
+                    @Nonnull final SettingServiceBlockingStub settingsServiceClient,
+                    @Nonnull final Optional<Integer> maxPlacementsOverride,
                     @Nonnull final Clock clock) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs;
@@ -146,6 +152,7 @@ public class Analysis {
         this.projectedTopologyId = IdentityGenerator.next();
         this.settingsServiceClient = settingsServiceClient;
         this.clock = Objects.requireNonNull(clock);
+        this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -226,8 +233,8 @@ public class Analysis {
 
             Map<String, Setting> settingsMap = getSettingsMap();
 
-            final AnalysisResults results =
-                    TopologyEntitiesHandler.performAnalysis(traderTOs, topologyInfo, settingsMap);
+            final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
+                topologyInfo, settingsMap, maxPlacementsOverride);
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
             converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
@@ -391,6 +398,15 @@ public class Analysis {
      */
     public boolean getIncludeVDC() {
         return includeVDC;
+    }
+
+    /**
+     * Get the override for the number of maximum placement iterations.
+     *
+     * @return the maxPlacementsOverride.
+     */
+    public Optional<Integer> getMaxPlacementsOverride() {
+        return maxPlacementsOverride;
     }
 
     /**
@@ -637,6 +653,7 @@ public class Analysis {
         // The clock to use when generating timestamps.
         private Clock clock = Clock.systemUTC();
 
+        private Optional<Integer> maxPlacementsOverride = Optional.empty();
         private SettingServiceBlockingStub settingsServiceClient = null;
 
         /**
@@ -685,6 +702,18 @@ public class Analysis {
         }
 
         /**
+         * If present, overrides the default number of placement rounds performed by the market during analysis.
+         * If empty, uses the default value from the analysis project.
+         *
+         * @param maxPlacementsOverride the configuration store.
+         * @return this Builder to support flow style.
+         */
+        public AnalysisBuilder setMaxPlacementsOverride(@Nonnull final Optional<Integer> maxPlacementsOverride) {
+            this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
+            return this;
+        }
+
+        /**
          * Set the clock used to time market analysis.
          * If not explicitly set, will use the System UTC clock.
          *
@@ -702,7 +731,8 @@ public class Analysis {
          * @return the newly build Analysis object initialized from the Builder fields.
          */
         public Analysis build() {
-            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsServiceClient, clock);
+            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsServiceClient,
+                maxPlacementsOverride, clock);
         }
     }
 

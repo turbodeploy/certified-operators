@@ -809,8 +809,6 @@
                         </includes>
                         <excludes>
                             <exclude>**/Abstract*.java</exclude>
-                            <exclude>**/MarketRunnerTest.java</exclude>
-                            <exclude>**/ScopedTopologyTest.java</exclude>
                         </excludes>
                         <trimStackTrace>false</trimStackTrace>
                     </configuration>

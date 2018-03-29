@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.Before;
@@ -43,8 +44,8 @@ public class AnalysisBuilderTest {
                 .setTopologyType(TopologyDTO.TopologyType.PLAN)
                 .build();
         // Act
-        Analysis analysis = testBuilder.setTopologyInfo(testTopologyInfo)
-                .build();
+        Analysis analysis = testBuilder.setTopologyInfo(testTopologyInfo).build();
+
         // Assert
         assertEquals(testTopologyInfo, analysis.getTopologyInfo());
     }
@@ -58,7 +59,7 @@ public class AnalysisBuilderTest {
         );
         // Act
         Analysis analysis = testBuilder.setTopologyDTOs(testTopologyDTOs)
-                .build();
+            .build();
         // Assert
         assertEquals(testTopologyDTOs, analysis.getTopology());
     }
@@ -67,7 +68,7 @@ public class AnalysisBuilderTest {
     public void testSetIncludeVDCTrue() {
         // Act
         Analysis analysis = testBuilder.setIncludeVDC(true)
-                .build();
+            .build();
         // Assert
         assertTrue(analysis.getIncludeVDC());
     }
@@ -76,9 +77,20 @@ public class AnalysisBuilderTest {
     public void testSetIncludeVDCFalse() {
         // Act
         Analysis analysis = testBuilder.setIncludeVDC(false)
-                .build();
+            .build();
         // Assert
         assertFalse(analysis.getIncludeVDC());
+    }
+
+    @Test
+    public void testMaxPlacementsOverride() {
+        // Act
+        Analysis analysis = testBuilder.setIncludeVDC(false)
+            .setMaxPlacementsOverride(Optional.of(55))
+            .build();
+
+        // Assert
+        assertEquals(Optional.of(55), analysis.getMaxPlacementsOverride());
     }
 
     private TopologyDTO.TopologyEntityDTO topologyEntityDTO(long oid) {
@@ -87,6 +99,4 @@ public class AnalysisBuilderTest {
                 .setOid(oid)
                 .build();
     }
-
-
 }

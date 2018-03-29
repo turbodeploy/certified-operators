@@ -44,6 +44,9 @@ market:
   identityGeneratorPrefix: 2
   websocket.pong.timeout: 30000
   groupHost: 'group'
+  # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from
+  # making analysis take too long. If this number is <= 0, uses the default set in the market analysis codebase.
+  maxPlacementIterations: -1
 
 topology-processor:
   <<: *baseVmtComponentSettings

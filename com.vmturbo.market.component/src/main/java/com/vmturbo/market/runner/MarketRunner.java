@@ -3,6 +3,7 @@ package com.vmturbo.market.runner;
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
@@ -33,7 +34,6 @@ public class MarketRunner {
     private final ExecutorService runnerThreadPool;
     private final MarketNotificationSender serverApi;
     private final AnalysisFactory analysisFactory;
-    private final SettingServiceBlockingStub settingServiceClient;
 
     private final Map<Long, Analysis> analysisMap = Maps.newConcurrentMap();
 
@@ -45,14 +45,12 @@ public class MarketRunner {
             .register();
 
     public MarketRunner(
-            @Nonnull ExecutorService runnerThreadPool,
-            @Nonnull MarketNotificationSender serverApi,
-            @Nonnull AnalysisFactory analysisFactory,
-            @Nonnull SettingServiceBlockingStub settingServiceClient) {
+            @Nonnull final ExecutorService runnerThreadPool,
+            @Nonnull final MarketNotificationSender serverApi,
+            @Nonnull final AnalysisFactory analysisFactory) {
         this.runnerThreadPool = runnerThreadPool;
         this.serverApi = serverApi;
         this.analysisFactory = analysisFactory;
-        this.settingServiceClient = settingServiceClient;
     }
 
     /**
@@ -62,13 +60,16 @@ public class MarketRunner {
      * @param topologyDTOs the TopologyEntityDTOs in this topology
      * @param includeVDC should VDC's be included in the analysis
      * @param settingServiceClient Client for getting the Settings from Setting Service
+     * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
+     *                              by the market during analysis.
      * @return the resulting Analysis object capturing the results
      */
     @Nonnull
     public Analysis scheduleAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                      @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                                      final boolean includeVDC,
-                                     @Nonnull SettingServiceBlockingStub settingServiceClient) {
+                                     @Nonnull SettingServiceBlockingStub settingServiceClient,
+                                     @Nonnull final Optional<Integer> maxPlacementsOverride) {
 
         INPUT_TOPOLOGY.observe((double)topologyDTOs.size());
         final Analysis analysis;
@@ -90,6 +91,7 @@ public class MarketRunner {
                     .setIncludeVDC(includeVDC)
                     .setSettingsServiceClient(settingServiceClient)
                     .setClock(Clock.systemUTC())
+                    .setMaxPlacementsOverride(maxPlacementsOverride)
                     .build();
             analysisMap.put(topologyContextId, analysis);
         }

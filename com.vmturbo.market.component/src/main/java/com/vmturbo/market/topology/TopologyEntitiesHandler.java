@@ -3,6 +3,7 @@ package com.vmturbo.market.topology;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -93,11 +94,15 @@ public class TopologyEntitiesHandler {
      * and return the list of {@link Action}s for those TOs.
      * @param traderTOs A set of trader TOs.
      * @param topologyInfo Information about the topology, including parameters for the analysis.
+     * @param settingsMap A map of settings used to influence the behavior of the analysis.
+     * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
+     *                              by the market during analysis.
      * @return The list of actions for the TOs.
      */
     public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
                     @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
-                    @Nonnull final Map<String, Setting> settingsMap) {
+                    @Nonnull final Map<String, Setting> settingsMap,
+                    @Nonnull final Optional<Integer> maxPlacementsOverride) {
         logger.info("Received TOs from marketComponent. Starting economy creation on {} traders",
                 traderTOs.size());
         final long start = System.nanoTime();
@@ -124,7 +129,7 @@ public class TopologyEntitiesHandler {
 
         final Economy economy = (Economy)topology.getEconomy();
         // enable estimates
-        setEconomySettings(economy.getSettings(), settingsMap);
+        setEconomySettings(economy.getSettings(), settingsMap, maxPlacementsOverride);
         // compute startPriceIndex
         final PriceStatement startPriceStatement = new PriceStatement();
         startPriceStatement.computePriceIndex(economy);
@@ -289,7 +294,8 @@ public class TopologyEntitiesHandler {
     }
 
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,
-                                           @Nonnull final Map<String, Setting> settingsMap) {
+                                           @Nonnull final Map<String, Setting> settingsMap,
+                                           @Nonnull final Optional<Integer> maxPlacementsOverride) {
 
         economySettings.setEstimatesEnabled(false);
 
@@ -299,5 +305,11 @@ public class TopologyEntitiesHandler {
             economySettings.setRateOfResize(
                 settingsMap.get(rateOfResize).getNumericSettingValue().getValue());
         }
+
+        maxPlacementsOverride.ifPresent(maxPlacementIterations -> {
+            logger.info("Overriding economy setting max placement iterations with value: {}",
+                maxPlacementIterations);
+            economySettings.setMaxPlacementIterations(maxPlacementIterations);
+        });
     }
 }

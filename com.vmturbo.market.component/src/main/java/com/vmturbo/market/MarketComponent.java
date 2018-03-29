@@ -20,7 +20,11 @@ import com.vmturbo.market.topology.TopologyProcessorConfig;
 @Configuration("theComponent")
 @EnableAutoConfiguration
 @EnableDiscoveryClient
-@Import({MarketGlobalConfig.class, TopologyProcessorConfig.class, MarketApiConfig.class})
+@Import({
+    MarketGlobalConfig.class,
+    TopologyProcessorConfig.class,
+    MarketApiConfig.class
+})
 public class MarketComponent extends BaseVmtComponent {
 
     @Autowired
@@ -48,5 +52,4 @@ public class MarketComponent extends BaseVmtComponent {
     public String getComponentName() {
         return componentName;
     }
-
 }

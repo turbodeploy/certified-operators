@@ -14,6 +14,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.market.MarketGlobalConfig;
 import com.vmturbo.market.api.MarketApiConfig;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 
@@ -43,8 +44,7 @@ public class MarketRunnerConfig {
         return new MarketRunner(
                 marketRunnerThreadPool(),
                 apiConfig.marketApi(),
-                analysisFactory(),
-                settingServiceClient());
+                analysisFactory());
     }
 
     @Bean

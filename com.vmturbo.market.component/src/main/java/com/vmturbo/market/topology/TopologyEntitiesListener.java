@@ -2,6 +2,7 @@ package com.vmturbo.market.topology;
 
 import java.util.HashSet;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
@@ -28,6 +29,8 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     private final SettingServiceBlockingStub settingServiceClient;
 
+    private Optional<Integer> maxPlacementsOverride;
+
     // TODO: we need to make sure that only a single instance of TopologyEntitiesListener
     // be created and used. Using public constructor here can not guarantee it!
     @SuppressWarnings("unused")
@@ -37,9 +40,14 @@ public class TopologyEntitiesListener implements EntitiesListener {
     }
 
     public TopologyEntitiesListener(@Nonnull MarketRunner marketRunner,
-                                    @Nonnull SettingServiceBlockingStub settingServiceClient) {
+                                    @Nonnull SettingServiceBlockingStub settingServiceClient,
+                                    @Nonnull final Optional<Integer> maxPlacementsOverride) {
         this.marketRunner = Objects.requireNonNull(marketRunner);
         this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
+        this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
+
+        maxPlacementsOverride.ifPresent(maxPlacementIterations ->
+            logger.info("Overriding max placement iterations to: {}", maxPlacementIterations));
     }
 
     /**
@@ -67,6 +75,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
                     "context " + topologyContextId, e);
         }
         marketRunner.scheduleAnalysis(topologyInfo, entities, false,
-            settingServiceClient);
+            settingServiceClient, maxPlacementsOverride);
     }
 }

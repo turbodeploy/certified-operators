@@ -3,6 +3,9 @@ package com.vmturbo.market.topology;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,6 +14,7 @@ import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -19,6 +23,7 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -66,6 +71,8 @@ public class TopologyEntitiesHandlerTest {
     private static final TopologyInfo REALTIME_TOPOLOGY_INFO =  TopologyInfo.newBuilder()
             .setTopologyType(TopologyType.REALTIME)
             .build();
+
+    private final Optional<Integer> maxPlacementIterations = Optional.empty();
 
     /**
      * Test loading a file that was generated using the hyper-v probe.
@@ -339,7 +346,7 @@ public class TopologyEntitiesHandlerTest {
 
         AnalysisResults results =
             TopologyEntitiesHandler.performAnalysis(
-                economyDTOs, topologyInfo, Collections.emptyMap());
+                economyDTOs, topologyInfo, Collections.emptyMap(), maxPlacementIterations);
         return results.getActionsList();
     }
 
