@@ -1,10 +1,5 @@
 package com.vmturbo.topology.processor.communication;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.notNull;
-
-import java.util.Collections;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -29,8 +24,8 @@ import com.vmturbo.topology.processor.identity.IdentityService;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
-import com.vmturbo.topology.processor.operation.Operation;
-import com.vmturbo.topology.processor.operation.OperationMessageHandler;
+import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.operation.discovery.DiscoveryMessageHandler;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.util.Probes;
@@ -51,7 +46,7 @@ public class RemoteMediationServerTest {
 
     private final RemoteMediationServer remoteMediationServer = new RemoteMediationServer(probeStore);
 
-    private final OperationMessageHandler mockOperationMessageHandler = Mockito.mock(OperationMessageHandler.class);
+    private final DiscoveryMessageHandler mockOperationMessageHandler = Mockito.mock(DiscoveryMessageHandler.class);
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
@@ -74,7 +69,8 @@ public class RemoteMediationServerTest {
     public void testOnTransportMessage() throws Exception {
         final DiscoveryRequest discoveryRequest = buildDiscoveryRequest();
         final MediationClientMessage mediationClientMessage = buildMediationClientMessage();
-
+        Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
+                .thenReturn(HandlerStatus.IN_PROGRESS);
         remoteMediationServer.sendDiscoveryRequest(probeId, discoveryRequest, mockOperationMessageHandler);
         remoteMediationServer.onTransportMessage(transport, mediationClientMessage);
 
@@ -99,9 +95,10 @@ public class RemoteMediationServerTest {
         final DiscoveryRequest discoveryRequest = buildDiscoveryRequest();
         final MediationClientMessage mediationClientMessage = buildMediationClientMessage();
 
-        Operation mockOperation = Mockito.mock(Operation.class);
+        Discovery mockOperation = Mockito.mock(Discovery.class);
         Mockito.when(mockOperationMessageHandler.getOperation()).thenReturn(mockOperation);
-
+        Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
+                .thenReturn(HandlerStatus.IN_PROGRESS);
         remoteMediationServer.sendDiscoveryRequest(probeId, discoveryRequest, mockOperationMessageHandler);
         remoteMediationServer.removeMessageHandlers(operation -> operation == mockOperation);
         remoteMediationServer.onTransportMessage(transport, mediationClientMessage);
