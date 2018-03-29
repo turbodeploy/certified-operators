@@ -30,6 +30,7 @@ public class ClusterServiceTest {
     public static final String READONLY_PASSWORD = "readonlyPassword";
     public static final String DB_HOST = "dbHost";
     public static final String DB = "db";
+    public static final String USERNAME = "username";
 
     private static ClusterMgrClient clusterManagerClient = Mockito.mock(ClusterMgrClient.class);
 
@@ -154,6 +155,45 @@ public class ClusterServiceTest {
 
         Mockito.verify(clusterManagerClient, Mockito.times(1))
                 .putDefaultPropertiesForComponentType(GROUP, mergedPropertiesDTO);
+    }
+
+    @Test
+    public void testSetClusterConfiguration() {
+        // given
+        ClusterConfigurationDTO originalClusterConfigurationDTO = new ClusterConfigurationDTO();
+        ComponentPropertiesDTO propertiesDTO = new ComponentPropertiesDTO();
+        propertiesDTO.put(ARANGODB_PASS, "root");
+        propertiesDTO.put(USER_PASSWORD, "root");
+        propertiesDTO.put(DB_HOST, "DB");
+        propertiesDTO.put(USERNAME, "tester");
+        originalClusterConfigurationDTO.addComponentType(GROUP, propertiesDTO);
+
+        ClusterConfigurationDTO newClusterConfigurationDTO = new ClusterConfigurationDTO();
+        ComponentPropertiesDTO newPropertiesDTO = new ComponentPropertiesDTO();
+        newPropertiesDTO.put(ARANGODB_PASS, "*****"); //no change
+        newPropertiesDTO.put(USER_PASSWORD, "newPassword"); //updated password
+        newPropertiesDTO.put(DB_HOST, "newValue"); //updated other property
+        newPropertiesDTO.put(USERNAME, "tester"); //no change
+        newClusterConfigurationDTO.addComponentType(GROUP, newPropertiesDTO);
+
+        ClusterConfigurationDTO mergedClusterConfigurationDTO = new ClusterConfigurationDTO();
+        ComponentPropertiesDTO mergedPropertiesDTO = new ComponentPropertiesDTO();
+        mergedPropertiesDTO.put(ARANGODB_PASS, "root"); //should replace the "*****" with original password
+        mergedPropertiesDTO.put(USER_PASSWORD, "newPassword"); //should update to new password
+        mergedPropertiesDTO.put(DB_HOST, "newValue"); // should udpate to new value
+        mergedPropertiesDTO.put(USERNAME, "tester"); // should not change
+        mergedClusterConfigurationDTO.addComponentType(GROUP, mergedPropertiesDTO);
+
+        Mockito.when(clusterManagerClient.getClusterConfiguration())
+                .thenReturn(originalClusterConfigurationDTO);
+        Mockito.when(clusterManagerClient.setClusterConfiguration(mergedClusterConfigurationDTO))
+                .thenReturn(mergedClusterConfigurationDTO);
+        // when
+        serviceUnderTest.setClusterConfiguration(newClusterConfigurationDTO);
+
+        // then
+        Mockito.verify(clusterManagerClient, Mockito.times(1))
+                .setClusterConfiguration(mergedClusterConfigurationDTO);
     }
 
     @Configuration

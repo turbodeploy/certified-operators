@@ -104,15 +104,35 @@ public class ClusterService implements IClusterService {
     @Override
     public ClusterConfigurationDTO getClusterConfiguration() {
         final ClusterConfigurationDTO clusterConfiguration = clusterMgrApi.getClusterConfiguration();
-        for (ComponentPropertiesDTO dto : clusterConfiguration.getDefaults().values()) {
-            dto.replaceAll((k, v) -> maskSensitiveValue(k, v));
-        }
+        clusterConfiguration.getDefaults().values().forEach(dto -> {
+            sensitiveKeySet.forEach((key -> {
+                if (dto.containsKey(key)) dto.put(key, ASTERISKS);
+            }));
+        });
         return clusterConfiguration;
     }
 
+    /**
+     * Update cluster configuration.
+     * Note: If calling by UI, before sending out for update, we need to restore the masked properties
+     * values with original values if they are not updated (is "*****")
+     *
+     * @param newConfiguration new configurations
+     * @return new configuration
+     */
     @Nonnull
     @Override
     public ClusterConfigurationDTO setClusterConfiguration(ClusterConfigurationDTO newConfiguration) {
+        final Map<String, ComponentPropertiesDTO> originalComponentPropertiesDTOMap = clusterMgrApi
+                .getClusterConfiguration()
+                .getDefaults();
+        Map<String, ComponentPropertiesDTO> newComponentPropertiesDTOMap = newConfiguration.getDefaults();
+        newComponentPropertiesDTOMap.forEach((k, v) -> {
+            sensitiveKeySet.forEach((key -> {
+                if (v.containsKey(key) && v.get(key).equals(ASTERISKS))
+                    v.put(key, originalComponentPropertiesDTOMap.get(k).get(key));
+            }));
+        });
         return clusterMgrApi.setClusterConfiguration(newConfiguration);
     }
 
@@ -136,14 +156,16 @@ public class ClusterService implements IClusterService {
     @Override
     public ComponentPropertiesDTO getDefaultPropertiesForComponentType(String componentType) {
         ComponentPropertiesDTO dto = clusterMgrApi.getDefaultPropertiesForComponentType(componentType);
-        dto.replaceAll((k, v) -> maskSensitiveValue(k, v));
-        return dto;
+        sensitiveKeySet.forEach((key -> {
+            if (dto.containsKey(key)) dto.put(key, ASTERISKS);
+        }));
+       return dto;
     }
 
     /**
      * Update new properties based on component type.
-     * Note: it's called by UI, so before sending them out, we need to restore the original
-     * values in sensitiveKeySet if they are not changed.
+     * Note: it's called by UI, so before sending them out, we need to restore the masked values with
+     * original values if they are not changed.
      *
      * @param componentType component type
      * @param newProperties new properties to be updated
@@ -152,28 +174,16 @@ public class ClusterService implements IClusterService {
     @Override
     public ComponentPropertiesDTO putDefaultPropertiesForComponentType(String componentType, ComponentPropertiesDTO newProperties) {
         ComponentPropertiesDTO originalDto = clusterMgrApi.getDefaultPropertiesForComponentType(componentType);
-        for (Map.Entry<String, String> entry : newProperties.entrySet()) {
-            if (sensitiveKeySet.contains(entry.getKey()) && entry.getValue().equals(ASTERISKS)) {
-                newProperties.put(entry.getKey(), originalDto.get(entry.getKey()));
-            }
-        }
+        sensitiveKeySet.forEach((key -> {
+            if (newProperties.containsKey(key) && newProperties.get(key).equals(ASTERISKS))
+                newProperties.put(key, originalDto.get(key));
+        }));
         return clusterMgrApi.putDefaultPropertiesForComponentType(componentType, newProperties);
     }
 
     @Override
     public ComponentPropertiesDTO getComponentInstanceProperties(String componentType, String componentInstanceId) {
         return clusterMgrApi.getComponentInstanceProperties(componentType, componentInstanceId);
-    }
-
-    /**
-     * Mask sensitive values as asterisks, the keys are defined in sensitiveKeySet.
-     *
-     * @param key property name
-     * @param value property value
-     * @return asterisks if key is in sensitiveKeySet
-     */
-    private String maskSensitiveValue(final String key, final String value) {
-        return sensitiveKeySet.contains(key) ? ASTERISKS : value;
     }
 
     @Override
