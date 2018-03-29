@@ -1,6 +1,5 @@
 package com.vmturbo.platform.analysis.drivers;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -24,16 +23,12 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.communication.ITransport.EventHandler;
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.Deactivate;
-import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
-import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
-import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisCommand;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.EndDiscoveredTopology;
@@ -376,30 +371,6 @@ public class AnalysisServer implements AutoCloseable {
             results = AnalysisToProtobuf.analysisResults(actions, lastComplete.getTraderOids(),
                             lastComplete.getShoppingListOids(), stop - start, lastComplete,
                             startPriceStatement, true);
-
-            if (instInfo.isRealTime() && instInfo.isProvisionEnabled()) {
-                // run another round of analysis on the new state of the economy with provisions enabled
-                // and resize disabled. We add only the provision recommendations to the list of actions generated.
-                // We neglect suspensions since there might be associated moves that we dont want to include
-                @NonNull List<Action> secondRoundActions = new ArrayList<>();
-                AnalysisResults.Builder builder = results.toBuilder();
-                economy.getSettings().setResizeDependentCommodities(false);
-                secondRoundActions.addAll(ede.generateActions(economy, instInfo.isClassifyActions(), true,
-                                true, false, true, false, mktData).stream()
-                                .filter(action -> (action instanceof ProvisionByDemand ||
-                                                action instanceof ProvisionBySupply ||
-                                                action instanceof Activate))
-                                .collect(Collectors.toList()));
-                for (Action action : secondRoundActions) {
-                    ActionTO actionTO = AnalysisToProtobuf
-                                    .actionTO(action, lastComplete.getTraderOids(),
-                                                    lastComplete.getShoppingListOids(), lastComplete);
-                    if (actionTO != null) {
-                        builder.addActions(actionTO);
-                    }
-                }
-                results = builder.build();
-            }
             if (isReplayOrRealTime) {
                 ReplayActions newReplayActions = ede.getReplayActions();
                 // the oids have to be updated after analysisResults

@@ -14,6 +14,9 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionCollapse;
+import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
+import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -300,6 +303,18 @@ public final class Ede {
             // run a round of analysis without provisions.
             actions.addAll(generateActions(economy, classifyActions, false, isSuspension,
                             isResize, collapse, isReplay, mktData));
+
+            // run another round of analysis on the new state of the economy with provisions enabled
+            // and resize disabled. We add only the provision recommendations to the list of actions generated.
+            // We neglect suspensions since there might be associated moves that we dont want to include
+            if (isProvision) {
+                actions.addAll(generateActions(economy, classifyActions, isProvision,
+                                isSuspension, false, collapse, !isReplay, mktData).stream()
+                                .filter(action -> (action instanceof ProvisionByDemand ||
+                                                action instanceof ProvisionBySupply ||
+                                                action instanceof Activate))
+                                .collect(Collectors.toList()));
+            }
         } else {
             actions.addAll(generateActions(economy, classifyActions, isProvision,
                             isSuspension, isResize, collapse, !isReplay, mktData));
