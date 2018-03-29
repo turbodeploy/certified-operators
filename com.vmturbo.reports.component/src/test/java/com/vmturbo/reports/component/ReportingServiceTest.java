@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -81,18 +83,40 @@ public class ReportingServiceTest {
                 standardTemplate.getId().getReportType());
         Assert.assertEquals(standardTemplateId, standardTemplate.getId().getId());
         testReportWithIntegerAndBoolParam(templates);
+        testGroupScoped(templates);
+    }
+
+    private void testGroupScoped(@Nonnull Collection<ReportTemplate> templates) throws Exception {
+        for (ReportTemplate template : templates) {
+            final int reportTypeInt = template.getId().getReportType();
+            final ReportType reportType = ReportType.get(reportTypeInt);
+            if (reportType == null) {
+                Assert.fail("Unknown report type found: " + reportTypeInt);
+            }
+            switch (reportType) {
+                case BIRT_STANDARD:
+                    Assert.assertFalse(template.hasIsGroupScoped());
+                    break;
+                case BIRT_ON_DEMAND:
+                    Assert.assertTrue(template.hasIsGroupScoped());
+                    break;
+                default:
+                    Assert.fail(
+                            "Report type " + reportType + " is not supported. Found for report " +
+                                    template.getId());
+            }
+        }
+        final ReportTemplate hostSummary = getTemplate(templates, ReportType.BIRT_ON_DEMAND, 2);
+        Assert.assertFalse(hostSummary.getIsGroupScoped());
+        final ReportTemplate hostGroupSummary =
+                getTemplate(templates, ReportType.BIRT_ON_DEMAND, 1);
+        Assert.assertTrue(hostGroupSummary.getIsGroupScoped());
     }
 
     private void testReportWithIntegerAndBoolParam(final Collection<ReportTemplate> templates)
             throws DbException {
-        final int onDemandTemplateId = templates.stream()
-                .filter(reportTemplate -> reportTemplate.getId().getReportType() ==
-                        ReportType.BIRT_ON_DEMAND.getValue())
-                .filter(reportTemplate -> reportTemplate.getId().getId() == 6)
-                .findFirst()
-                .get()
-                .getId()
-                .getId();
+        final int onDemandTemplateId =
+                getTemplate(templates, ReportType.BIRT_ON_DEMAND, 6).getId().getId();
         final ReportTemplate onDemandTemplate = reportingConfig.templatesOrganizer()
                 .getTemplateById(ReportType.BIRT_ON_DEMAND, onDemandTemplateId)
                 .get()
@@ -116,6 +140,17 @@ public class ReportingServiceTest {
                 .get();
         Assert.assertEquals("30", intAttr.getDefaultValue());
         Assert.assertEquals("INTEGER", intAttr.getValueType());
+    }
+
+    @Nonnull
+    private static ReportTemplate getTemplate(@Nonnull Collection<ReportTemplate> templates,
+            @Nonnull ReportType reportType, int reportId) {
+        return templates.stream()
+                .filter(reportTemplate -> reportTemplate.getId().getReportType() ==
+                        reportType.getValue())
+                .filter(reportTemplate -> reportTemplate.getId().getId() == reportId)
+                .findFirst()
+                .get();
     }
 
     /**

@@ -35,6 +35,9 @@ message ReportTemplate {
     optional int32 day_type = 7;
     // Attributes, used for this report
     repeated ReportAttribute attributes = 8;
+    // Flag to determine, whether this report should be scoped to groups (true) or indivifual
+    // entities (false). Field should be empty, if the report does not have a scope
+    optional bool is_group_scoped = 9;
 }
 
 // Report template attribute definition

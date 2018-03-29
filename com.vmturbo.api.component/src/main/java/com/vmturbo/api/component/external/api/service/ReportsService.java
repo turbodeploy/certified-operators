@@ -375,6 +375,9 @@ public class ReportsService implements IReportsService {
                 .stream()
                 .map(ReportsService::convert)
                 .collect(Collectors.toList()));
+        if (src.hasIsGroupScoped()) {
+            dst.setGroupScoped(src.getIsGroupScoped());
+        }
         return dst;
     }
 

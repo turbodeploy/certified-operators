@@ -36,6 +36,7 @@ public class OnDemandTemplateWrapper implements TemplateWrapper {
         builder.setId(ReportTemplateId.newBuilder()
                 .setId(templateRecord.getId())
                 .setReportType(ReportType.BIRT_ON_DEMAND.getValue()));
+        builder.setIsGroupScoped("Group".equals(templateRecord.getScopeType()));
         Optional.ofNullable(templateRecord.getTitle()).ifPresent(builder::setTitle);
         Optional.ofNullable(templateRecord.getCategory()).ifPresent(builder::setCategory);
         Optional.ofNullable(templateRecord.getShortDesc()).ifPresent(builder::setShortDescription);
