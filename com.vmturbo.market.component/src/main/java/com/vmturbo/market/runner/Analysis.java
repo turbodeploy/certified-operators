@@ -459,12 +459,14 @@ public class Analysis {
             // include all "uplaced" traders in the final scoped topology
             if (traderIsUnplaced(traderTO)) {
                 traderTOsInScopedTopology.add(traderTO);
+            } else {
+                // include all "placed" traders in the market for calculating the scope
+                ProtobufToAnalysis.addTrader(topology, traderTO);
             }
             // include the OIDs for the 'seed' service entities in the scanned list
             if (seedOids.contains(traderTO.getOid())) {
                 scopedTopologyOIDs.add(traderTO.getOid());
             }
-            ProtobufToAnalysis.addTrader(topology, traderTO);
         }
 
         // this call 'finalizes' the topology, calculating the inverted maps in the 'economy'
