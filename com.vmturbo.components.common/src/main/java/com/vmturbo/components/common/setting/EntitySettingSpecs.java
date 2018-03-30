@@ -176,8 +176,10 @@ public enum EntitySettingSpecs {
      * Storage latency capacity to set on the entity.
      */
     LatencyCapacity("latencyCapacity", "Storage latency capacity [ms]", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.STORAGE), numeric(1f, 2000f, 100f),
-            true),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER, EntityType.LOGICAL_POOL,
+                EntityType.DISK_ARRAY),
+            numeric(1f, 2000f, 100f), true),
     /**
      * IOPS capacity to be set to disk arrays with SSD disks.
      */
