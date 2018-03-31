@@ -34,12 +34,14 @@ public enum EntitySettingSpecs {
      * Move action automation mode.
      */
     Move("move", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Resize action automation mode.
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Suspend action automation mode.
      */
@@ -61,7 +63,8 @@ public enum EntitySettingSpecs {
      * Activate action automation mode.
      */
     Activate("activate", "Activate", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), actionExecutionMode(), true),
+            EnumSet.of(EntityType.STORAGE, EntityType.VIRTUAL_MACHINE), actionExecutionMode(),
+            true),
     /**
      * Storage Move action automation mode.
      */
