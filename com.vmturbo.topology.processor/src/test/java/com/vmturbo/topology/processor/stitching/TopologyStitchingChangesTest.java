@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching;
 import static com.vmturbo.platform.common.builders.CommodityBuilders.coolingDegC;
 import static com.vmturbo.platform.common.builders.CommodityBuilders.cpuMHz;
 import static com.vmturbo.platform.common.builders.CommodityBuilders.powerWatts;
+import static com.vmturbo.stitching.utilities.MergeEntities.*;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.buying;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.newStitchingGraph;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.stitchingData;
@@ -32,9 +33,14 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.stitching.StitchingMergeInformation;
+import com.vmturbo.stitching.utilities.EntityFieldMergers;
+import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
 import com.vmturbo.stitching.utilities.MergeEntities;
+import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.MergeEntitiesChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.RemoveEntityChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityAloneChange;
@@ -172,7 +178,8 @@ public class TopologyStitchingChangesTest {
         when(stitchingContext.hasEntity(entity3)).thenReturn(true);
 
         new MergeEntitiesChange(stitchingContext, entity3, entity1,
-            new CommoditySoldMerger(MergeEntities.KEEP_DISTINCT_FAVOR_ONTO)).applyChange();
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO),
+            Collections.emptyList()).applyChange();
 
         verify(stitchingContext).removeEntity(entity3);
         assertThat(entity4.getProviders(), contains(entity1));
@@ -217,7 +224,7 @@ public class TopologyStitchingChangesTest {
         when(stitchingContext.hasEntity(entity1)).thenReturn(true);
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity3, entity1,
-            new CommoditySoldMerger(MergeEntities.KEEP_DISTINCT_FAVOR_ONTO));
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
         when(stitchingContext.hasEntity(entity3)).thenReturn(true);
         merge.applyChange();
         verify(stitchingContext, times(1)).removeEntity(entity3);
@@ -249,9 +256,9 @@ public class TopologyStitchingChangesTest {
         when(stitchingContext.hasEntity(entity3)).thenReturn(true);
 
         final MergeEntitiesChange mergeThreeOntoTwo = new MergeEntitiesChange(stitchingContext, entity3, entity2,
-            new CommoditySoldMerger(MergeEntities.KEEP_DISTINCT_FAVOR_ONTO));
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
         final MergeEntitiesChange mergeTwoOntoOne = new MergeEntitiesChange(stitchingContext, entity2, entity1,
-            new CommoditySoldMerger(MergeEntities.KEEP_DISTINCT_FAVOR_ONTO));
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
         assertEquals(1000L, entity1.getLastUpdatedTime());
         assertEquals(2000L, entity2.getLastUpdatedTime());
 
@@ -270,7 +277,7 @@ public class TopologyStitchingChangesTest {
         when(stitchingContext.hasEntity(entity1)).thenReturn(true);
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity1, entity1,
-            new CommoditySoldMerger(MergeEntities.KEEP_DISTINCT_FAVOR_ONTO));
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
         merge.applyChange();
 
         verify(stitchingContext, never()).removeEntity(entity1);
@@ -288,7 +295,8 @@ public class TopologyStitchingChangesTest {
                 new CommoditySold(powerWatts().capacity(15.0).build().toBuilder(), null)
             ));
 
-        final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity2, entity3, merger);
+        final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity2, entity3,
+            merger, Collections.emptyList());
         merge.applyChange();
 
         assertThat(entity3.getCommoditiesSold()
@@ -323,11 +331,87 @@ public class TopologyStitchingChangesTest {
         when(stitchingContext.hasEntity(entity2)).thenReturn(true);
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity2, entity1,
-            new CommoditySoldMerger(MergeEntities.KEEP_DISTINCT_FAVOR_ONTO));
+            new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
         merge.applyChange();
 
         assertThat(entity3.getCommoditiesBoughtByProvider().get(entity1).stream()
             .map(Builder::getCommodityType)
             .collect(Collectors.toList()), containsInAnyOrder(CommodityType.CPU, CommodityType.MEM));
+    }
+
+    @Test
+    public void testMergeEntitiesMergesFields() {
+        /**
+         * foo / bar  -->  baz
+         */
+        final StitchingEntityData foo = stitchingData("1", Collections.emptyList());
+        final StitchingEntityData bar = stitchingData("2", Collections.emptyList());
+
+        foo.getEntityDtoBuilder().setDisplayName("foo");
+        bar.getEntityDtoBuilder().setDisplayName("bar");
+
+        final Map<String, StitchingEntityData> topologyMap = ImmutableMap.of(
+            "1", foo,
+            "2", bar);
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
+        final TopologyStitchingEntity from = graph.getEntity(foo.getEntityDtoBuilder()).get();
+        final TopologyStitchingEntity onto = graph.getEntity(bar.getEntityDtoBuilder()).get();
+
+        when(stitchingContext.hasEntity(from)).thenReturn(true);
+        when(stitchingContext.hasEntity(onto)).thenReturn(true);
+
+        final MergeEntitiesDetails mergeDetails =
+            mergeEntity(from)
+            .onto(onto)
+            .addFieldMerger(EntityFieldMergers
+                .merge(EntityDTOOrBuilder::getDisplayName, EntityDTO.Builder::setDisplayName)
+                .withMethod((a, b) -> "baz"));
+
+        final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, mergeDetails);
+        merge.applyChange();
+
+        assertEquals("baz", onto.getDisplayName());
+    }
+
+    @Test
+    public void testMergeEntitiesFieldOrder() {
+        /**
+         * foo / bar  -->  quux
+         */
+        final StitchingEntityData foo = stitchingData("1", Collections.emptyList());
+        final StitchingEntityData bar = stitchingData("2", Collections.emptyList());
+
+        foo.getEntityDtoBuilder().setDisplayName("foo");
+        bar.getEntityDtoBuilder().setDisplayName("bar");
+
+        final Map<String, StitchingEntityData> topologyMap = ImmutableMap.of(
+            "1", foo,
+            "2", bar);
+
+        final TopologyStitchingGraph graph = newStitchingGraph(topologyMap);
+        final TopologyStitchingEntity from = graph.getEntity(foo.getEntityDtoBuilder()).get();
+        final TopologyStitchingEntity onto = graph.getEntity(bar.getEntityDtoBuilder()).get();
+
+        when(stitchingContext.hasEntity(from)).thenReturn(true);
+        when(stitchingContext.hasEntity(onto)).thenReturn(true);
+
+        final EntityFieldMerger<String> mergeToBaz = EntityFieldMergers
+            .merge(EntityDTOOrBuilder::getDisplayName, EntityDTO.Builder::setDisplayName)
+            .withMethod((a, b) -> "baz");
+        final EntityFieldMerger<String> mergeToQuux = EntityFieldMergers
+            .merge(EntityDTOOrBuilder::getDisplayName, EntityDTO.Builder::setDisplayName)
+            .withMethod((a, b) -> "quux");
+
+        final MergeEntitiesDetails mergeDetails = mergeEntity(from)
+            .onto(onto)
+            .addFieldMerger(mergeToBaz)   // First overrides to baz
+            .addFieldMerger(mergeToQuux); // Then overrides again to quux
+
+        final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, mergeDetails);
+        merge.applyChange();
+
+        assertEquals("quux", onto.getDisplayName());
+
     }
 }

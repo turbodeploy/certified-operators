@@ -28,6 +28,7 @@ import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.AccessAndLatency;
+import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.EntityScopeFilters;
 
 /**
@@ -107,7 +108,10 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
     private void mergeStorageAndStorageProviders(@Nonnull final StitchingEntity duplicateInstance,
                                                  @Nonnull final StitchingEntity mostUpToDateInstance,
                                                  @Nonnull final StitchingChangesBuilder resultBuilder) {
-        resultBuilder.queueEntityMerger(mergeEntity(duplicateInstance).onto(mostUpToDateInstance));
+        resultBuilder.queueEntityMerger(mergeEntity(duplicateInstance)
+            .onto(mostUpToDateInstance)
+            // Keep the displayName for the entity alphabetically first to prevent ping-ponging
+            .addFieldMerger(EntityFieldMergers.DISPLAY_NAME_LEXICOGRAPHICALLY_FIRST));
 
         // Remove the providers that are shared between the two instances.
         duplicateInstance.getProviders().stream()
@@ -149,7 +153,10 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
 
             // Merge the disk arrays as well so that we retain the fact that the disk array
             // was discovered by multiple targets.
-            resultBuilder.queueEntityMerger(mergeEntity(duplicateDa).onto(uptoDateDa));
+            resultBuilder.queueEntityMerger(mergeEntity(duplicateDa)
+                .onto(uptoDateDa)
+                    // Keep the displayName for the entity alphabetically first to prevent ping-ponging
+                .addFieldMerger(EntityFieldMergers.DISPLAY_NAME_LEXICOGRAPHICALLY_FIRST));
         } else {
             logger.warn("Missing provider on shared storage. duplicatePresent={}, upToDatePresent={}.",
                 duplicateProvider.isPresent(), upToDateProvider.isPresent());

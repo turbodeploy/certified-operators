@@ -1,14 +1,22 @@
 package com.vmturbo.stitching.utilities;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
 
 /**
  * Merge a pair of entity instances down onto a single instance.
@@ -18,6 +26,10 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * and the other instance (the "onto" entity) will be kept at the end of the merge.
  *
  * Any entities buying from the "from" entity before the merge will buy from the "onto" entity after the merge.
+ *
+ * Control the merge of individual fields by adding an {@link EntityFieldMerger}.
+ * Field mergers are run in the order in which they are added to the list of field mergers.
+ * Field mergers are run prior to merging commodities sold.
  *
  * Commodities sold are merged using a {@link com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy}.
  * By default, the strategy will keep distinct commodities sold (where uniqueness is determined by the combination of
@@ -29,10 +41,10 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * Merging ONTO an entity NOT IN the topology results in an exception.
  *
  * @see StitchingChangesBuilder#queueEntityMerger(MergeEntitiesDetails)
- *
- * TODO: Support for replacing an entity in discovered groups.
  */
 public class MergeEntities {
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * A builder for creating a description of an entity merge change.
      */
@@ -56,12 +68,14 @@ public class MergeEntities {
         private final StitchingEntity mergeFromEntity;
         private final StitchingEntity mergeOntoEntity;
         private MergeCommoditySoldStrategy mergeCommoditySoldStrategy;
+        private List<EntityFieldMerger<?>> fieldMergers;
 
         private MergeEntitiesDetails(@Nonnull final StitchingEntity entityToBeReplaced,
                                      @Nonnull final StitchingEntity mergeOntoEntity) {
             this.mergeFromEntity = Objects.requireNonNull(entityToBeReplaced);
             this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
             this.mergeCommoditySoldStrategy = KEEP_DISTINCT_FAVOR_ONTO;
+            this.fieldMergers = new ArrayList<>();
         }
 
         public StitchingEntity getMergeFromEntity() {
@@ -93,6 +107,42 @@ public class MergeEntities {
          */
         public MergeCommoditySoldStrategy getMergeCommoditySoldStrategy() {
             return mergeCommoditySoldStrategy;
+        }
+
+        /**
+         * Add a merger to merge a specific field.
+         *
+         * @param fieldMerger The field merger to add.
+         * @return A reference to {@link this} for method chaining.
+         */
+        public MergeEntitiesDetails addFieldMerger(@Nonnull final EntityFieldMerger<?> fieldMerger) {
+            if (fieldMergers.stream().anyMatch(merger -> merger.getGetter() == fieldMerger.getGetter())) {
+                logger.warn("Adding a fieldMerger for merging entities that overrides an existing merger.");
+            }
+
+            this.fieldMergers.add(fieldMerger);
+            return this;
+        }
+
+        /**
+         * Add a collection of mergers to merge a specific field.
+         *
+         * @param fieldMergers The field mergers to add.
+         * @return A reference to {@link this} for method chaining.
+         */
+        public MergeEntitiesDetails addAllFieldMergers(
+            @Nonnull final Collection<EntityFieldMerger<?>> fieldMergers) {
+            fieldMergers.forEach(this::addFieldMerger);
+            return this;
+        }
+
+        /**
+         * Get the mergers for merging specific fields.
+         *
+         * @return The field mergers to use to merge specific fields.
+         */
+        public List<EntityFieldMerger<?>> getFieldMergers() {
+            return Collections.unmodifiableList(fieldMergers);
         }
     }
 

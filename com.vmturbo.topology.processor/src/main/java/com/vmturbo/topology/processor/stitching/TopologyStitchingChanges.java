@@ -19,6 +19,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
+import com.vmturbo.stitching.utilities.EntityFieldMergers.EntityFieldMerger;
+import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 
 /**
  * A collection of objects representing the changes that can be made to a topology during stitching.
@@ -61,15 +63,27 @@ public class TopologyStitchingChanges {
         private final StitchingEntity mergeFromEntity;
         private final StitchingEntity mergeOntoEntity;
         private final CommoditySoldMerger commoditySoldMerger;
+        private final List<EntityFieldMerger<?>> fieldMergers;
 
         public MergeEntitiesChange(@Nonnull final StitchingContext stitchingContext,
                                    @Nonnull final StitchingEntity mergeFromEntity,
                                    @Nonnull final StitchingEntity mergeOntoEntity,
-                                   @Nonnull final CommoditySoldMerger commoditySoldMerger) {
+                                   @Nonnull final CommoditySoldMerger commoditySoldMerger,
+                                   @Nonnull final List<EntityFieldMerger<?>> fieldMergers) {
             this.stitchingContext = Objects.requireNonNull(stitchingContext);
             this.mergeFromEntity = Objects.requireNonNull(mergeFromEntity);
             this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
             this.commoditySoldMerger = Objects.requireNonNull(commoditySoldMerger);
+            this.fieldMergers = Objects.requireNonNull(fieldMergers);
+        }
+
+        public MergeEntitiesChange(@Nonnull final StitchingContext stitchingContext,
+                                   @Nonnull final MergeEntitiesDetails mergeDetails) {
+            this(stitchingContext,
+                mergeDetails.getMergeFromEntity(),
+                mergeDetails.getMergeOntoEntity(),
+                new CommoditySoldMerger(mergeDetails.getMergeCommoditySoldStrategy()),
+                mergeDetails.getFieldMergers());
         }
 
         @Override
@@ -91,8 +105,8 @@ public class TopologyStitchingChanges {
             final TopologyStitchingEntity from = (TopologyStitchingEntity)mergeFromEntity;
             final TopologyStitchingEntity onto = (TopologyStitchingEntity)mergeOntoEntity;
 
-            // TODO: (DavidBlinn 12/1/2017)
-            // TODO: Support for replacing an entity in discovered groups.
+            // Run all custom field mergers.
+            fieldMergers.forEach(merger -> merger.merge(from, onto));
 
             // Set up commodities sold on the merged (onto) entity.
             onto.setCommoditiesSold(commoditySoldMerger.mergeCommoditiesSold(

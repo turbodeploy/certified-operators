@@ -50,10 +50,7 @@ public class StitchingResultBuilder extends StitchingChangesBuilder<StitchingEnt
 
     @Override
     public StitchingChangesBuilder<StitchingEntity> queueEntityMerger(@Nonnull MergeEntitiesDetails details) {
-        changes.add(new MergeEntitiesChange(stitchingContext,
-            details.getMergeFromEntity(),
-            details.getMergeOntoEntity(),
-            new CommoditySoldMerger(details.getMergeCommoditySoldStrategy())));
+        changes.add(new MergeEntitiesChange(stitchingContext, details));
 
         return this;
     }
