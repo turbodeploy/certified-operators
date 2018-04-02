@@ -583,8 +583,8 @@ public class CostFunctionFactory {
         double discountedCost = 0;
         if (availableCoupons > 0) {
             double discountCoefficient = Math.min(requestedCoupons, availableCoupons) / requestedCoupons;
-            discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
-                            * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
+            // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP
+            discountedCost = ((1 - discountCoefficient) * templateCost);
         } else {
             // In case that there isn't discount available, avoid preferring a cbtp that provides
             // no discount on tp of the matching template.

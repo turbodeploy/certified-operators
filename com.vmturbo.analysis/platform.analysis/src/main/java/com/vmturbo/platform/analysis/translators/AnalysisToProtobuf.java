@@ -270,7 +270,7 @@ public final class AnalysisToProtobuf {
                                         .filter(t -> t.getState().isActive() && !economy
                                                         .getMarketsAsBuyer(t).keySet()
                                                         .stream().anyMatch(sl -> economy
-                                                                        .getInactiveOrIdleTraders().contains(sl)))
+                                                                        .getPreferentialShoppingLists().contains(sl)))
                                         .count());
 
         if (trader.isClone()) {

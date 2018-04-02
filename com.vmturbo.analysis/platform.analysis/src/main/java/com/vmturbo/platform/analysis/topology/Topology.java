@@ -301,10 +301,10 @@ public final class Topology implements Serializable {
     }
 
     /**
-     * adding a {@link ShoppingList} of an idleVM to the idleVMs list in the economy
+     * adding a {@link ShoppingList} of an preferential ShoppingList in the economy
      */
-    public void addIdleVmSl (@NonNull ShoppingList shoppingList) {
-        economy_.getModifiableIdleVmSls().add(shoppingList);
+    public void addPreferentialSl(@NonNull ShoppingList shoppingList) {
+        economy_.getModifiablePreferentialSls().add(shoppingList);
     }
 
     /**

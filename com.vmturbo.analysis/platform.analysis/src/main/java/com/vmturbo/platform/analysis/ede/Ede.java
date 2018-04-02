@@ -166,8 +166,8 @@ public final class Ede {
             logger.info(actionStats.phaseLogEntry("replaying"));
         }
 
-        // generate moves for IDLE VMs
-        actions.addAll(Placement.prefPlacementDecisions(economy, economy.getInactiveOrIdleTraders()));
+        // generate moves for preferential shoppingLists
+        actions.addAll(Placement.prefPlacementDecisions(economy, economy.getPreferentialShoppingLists()));
         logger.info(actionStats.phaseLogEntry("inactive/idle Trader placement"));
 
         // Start by provisioning enough traders to satisfy all the demand

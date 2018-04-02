@@ -341,10 +341,10 @@ public final class ProtobufToAnalysis {
                                   input);
         }
 
-        if (input.getState() == TraderStateTO.IDLE) {
+        if (input.getState() == TraderStateTO.IDLE || input.getPreferentialPlacement()) {
             for (ShoppingListTO sl : input.getShoppingListsList()) {
                 if (!sl.getCommoditiesBoughtList().isEmpty()) {
-                    topology.addIdleVmSl(addShoppingList(topology, output, sl));
+                    topology.addPreferentialSl(addShoppingList(topology, output, sl));
                 }
             }
         } else {

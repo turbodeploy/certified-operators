@@ -202,11 +202,11 @@ public interface UnmodifiableEconomy {
     Trader getCloneOfTrader(Trader trader);
 
     /**
-     * @return An unmodifiable List of {@link ShoppingList}s of Idle VMs
+     * @return An unmodifiable List of preferential {@link ShoppingList}s
      */
     @NonNull
     @ReadOnly
-    List<@NonNull @ReadOnly ShoppingList> getInactiveOrIdleTraders();
+    List<@NonNull @ReadOnly ShoppingList> getPreferentialShoppingLists();
 
     /**
      * @return An unmodifiable list of shop together VMs

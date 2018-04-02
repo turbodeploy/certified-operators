@@ -59,8 +59,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private volatile boolean forceStop = false;
     // The list of all Markets with at least one buyer that can move
     private final @NonNull List<@NonNull Market> marketsForPlacement_ = new ArrayList<>();
-    // list of IDLE VMs in the economy
-    private final @NonNull List<@NonNull ShoppingList> idleVmSls_ = new ArrayList<>();
+    // list of preferential traders in the economy
+    private final @NonNull List<@NonNull ShoppingList> preferentialSls_ = new ArrayList<>();
     // list of shop together traders in the economy
     private final @NonNull List<@NonNull Trader> shopTogetherTraders_ = new ArrayList<>();
     private final List<TraderTO> tradersForHeadroom_ = new ArrayList<>();
@@ -73,8 +73,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private transient final @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
     // Cached unmodifiable view of the traders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
-    // Cached unmodifiable view of the idleVms_ list.
-    private final @NonNull List<@NonNull ShoppingList> unmodifiableIdleVmSls_ = Collections.unmodifiableList(idleVmSls_);
+    // Cached unmodifiable view of the preferentilShoppingLists_.
+    private final @NonNull List<@NonNull ShoppingList> unmodifiablePreferentialSls_ = Collections.unmodifiableList(preferentialSls_);
     // Cached unmodifiable view of the shopTogetherTraders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableShopTogetherTraders_ =
                     Collections.unmodifiableList(shopTogetherTraders_);
@@ -226,25 +226,25 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * returns an unmodifiable list of Idle VMs
+     * returns an unmodifiable list of preferential shoppingLists
      *
-     * @param this the economy that the idleVMs participate in
-     * @return an unmodifiable list of idle VMs
+     * @param this the economy that the preferential shoppingLists participate in
+     * @return an unmodifiable list of preferential shoppingLists
      */
     @Override
     @Pure
-    public @NonNull @ReadOnly List<@NonNull @ReadOnly ShoppingList> getInactiveOrIdleTraders(@ReadOnly Economy this) {
-        return unmodifiableIdleVmSls_;
+    public @NonNull @ReadOnly List<@NonNull @ReadOnly ShoppingList> getPreferentialShoppingLists(@ReadOnly Economy this) {
+        return unmodifiablePreferentialSls_;
     }
 
     /**
      * returns a modifiable list of Idle VMs
      *
-     * @param this the economy that the idleVMs participate in
-     * @return a modifiable list of idle VMs
+     * @param this the economy that the preferential ShoppingLists participate in
+     * @return a modifiable list of preferential {@link ShoppingList}s
      */
-    public List<ShoppingList> getModifiableIdleVmSls() {
-        return idleVmSls_;
+    public List<ShoppingList> getModifiablePreferentialSls() {
+        return preferentialSls_;
     }
 
     /**
@@ -628,7 +628,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         traders_.clear();
         sellersInvertedIndex_.clear();
         settings_.clear();
-        idleVmSls_.clear();
+        preferentialSls_.clear();
         commodityResizeDependency_.clear();
         rawMaterial_.clear();
         marketsForPlacement_.clear();

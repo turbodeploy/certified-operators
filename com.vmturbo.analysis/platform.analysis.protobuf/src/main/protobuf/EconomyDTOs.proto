@@ -144,4 +144,6 @@ message TraderTO {
     // This field specifies if this is a templateProvider
     optional bool templateProvider = 13 [default = false];
 
+    optional bool preferentialPlacement = 14 [default = false];
+
 }
