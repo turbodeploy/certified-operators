@@ -197,13 +197,36 @@ public class GroupsServiceTest {
         assertEquals(clusterHeadroomGroupUuid, retGroup.getUuid());
     }
 
+    /**
+     * Tests getting of all clusters from groups service. Currently UI provides
+     * "GROUP-StorageByStorageCluster" group uuid when it expect to receive all storage clusters.
+     *
+     * @throws Exception it's thrown by groups service at the top level in case of any error.
+     */
     @Test
     public void testGetClustersByClusterHeadroomGroupUuid() throws Exception {
-        String clusterHeadroomGroupUuid = "GROUP-PhysicalMachineByCluster";
+        final String clusterHeadroomGroupUuid = "GROUP-PhysicalMachineByCluster";
         groupsService.getMembersByGroupUuid(clusterHeadroomGroupUuid);
         verify(groupServiceSpy).getGroups(getGroupsRequestCaptor.capture());
-        GetGroupsRequest request = getGroupsRequestCaptor.getValue();
+        final GetGroupsRequest request = getGroupsRequestCaptor.getValue();
         assertEquals(Type.CLUSTER, request.getTypeFilter());
+        assertEquals(GroupDTO.ClusterInfo.Type.COMPUTE, request.getClusterFilter().getTypeFilter());
+    }
+
+    /**
+     * Tests getting of all storage clusters from groups service. Currently UI provides
+     * "GROUP-StorageByStorageCluster" group uuid when it expect to receive all storage clusters.
+     *
+     * @throws Exception it's thrown by groups service at the top level in case of any error.
+     */
+    @Test
+    public void testGetClustersByStorageClusterHeadroomGroupUuid() throws Exception {
+        final String clusterHeadroomGroupUuid = "GROUP-StorageByStorageCluster";
+        groupsService.getMembersByGroupUuid(clusterHeadroomGroupUuid);
+        verify(groupServiceSpy).getGroups(getGroupsRequestCaptor.capture());
+        final GetGroupsRequest request = getGroupsRequestCaptor.getValue();
+        assertEquals(Type.CLUSTER, request.getTypeFilter());
+        assertEquals(GroupDTO.ClusterInfo.Type.STORAGE, request.getClusterFilter().getTypeFilter());
     }
 
     @Test

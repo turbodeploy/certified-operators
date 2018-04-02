@@ -105,6 +105,7 @@ public class GroupsService implements IGroupsService {
     private static final String USER_GROUPS = "GROUP-MyGroups";
 
     private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
+    private static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
     private static final String CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME = "headroomVM";
     private static final String CLUSTER_HEADROOM_SETTINGS_MANAGER = "capacityplandatamanager";
     private static final String CLUSTER_HEADROOM_TEMPLATE_SETTING_UUID = "templateName";
@@ -549,16 +550,9 @@ public class GroupsService implements IGroupsService {
     @Override
     public List<?> getMembersByGroupUuid(String uuid) throws UnknownObjectException {
         if (CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
-            List<GroupApiDTO> groupOfClusters = getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                    .setTypeFilter(Type.CLUSTER)
-                    .setClusterFilter(ClusterFilter.newBuilder()
-                            .setTypeFilter(ClusterInfo.Type.COMPUTE)
-                            .build())
-                    .build());
-            // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
-            // with classname "Group" This line can be removed when bug OM-30381 is fixed.
-            groupOfClusters.forEach(cluster -> cluster.setClassName("Group"));
-            return groupOfClusters;
+            return getClusters(ClusterInfo.Type.COMPUTE);
+        } else if (STORAGE_CLUSTER_HEADROOM_GROUP_UUID.equals(uuid)) {
+            return getClusters(ClusterInfo.Type.STORAGE);
         } else if (USER_GROUPS.equals(uuid)) { // Get all user-created groups
             return getGroupApiDTOS(GetGroupsRequest.newBuilder()
                     .setTypeFilter(Group.Type.GROUP)
@@ -585,6 +579,19 @@ public class GroupsService implements IGroupsService {
             });
             return results;
         }
+    }
+
+    private List<GroupApiDTO> getClusters(ClusterInfo.Type clusterType) {
+        final List<GroupApiDTO> groupOfClusters = getGroupApiDTOS(GetGroupsRequest.newBuilder()
+                .setTypeFilter(Type.CLUSTER)
+                .setClusterFilter(ClusterFilter.newBuilder()
+                        .setTypeFilter(clusterType)
+                        .build())
+                .build());
+        // TODO: The next line is a workaround of a UI limitation. The UI only accepts groups
+        // with classname "Group" This line can be removed when bug OM-30381 is fixed.
+        groupOfClusters.forEach(cluster -> cluster.setClassName("Group"));
+        return groupOfClusters;
     }
 
     @Override
