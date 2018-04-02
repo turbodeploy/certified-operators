@@ -78,8 +78,8 @@ public class StorageStitchingOperation implements StitchingOperation<List<String
 
     @Nonnull
     @Override
-    public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                                     @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
+    public TopologicalChangelog<StitchingEntity> stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+                                                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         stitchingPoints.forEach(stitchingPoint -> stitch(stitchingPoint, resultBuilder));
 
         return resultBuilder.build();

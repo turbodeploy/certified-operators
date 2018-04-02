@@ -89,7 +89,6 @@ public class TopologyStitchingGraph {
         return stitchingEntities.values().stream();
     }
 
-
     /**
      * Retrieve the {@link TopologyStitchingEntity} for an entity in the stitchingGraph by its
      * associated entity builder. Returns {@link Optional#empty()} if the no such {@link TopologyStitchingEntity}

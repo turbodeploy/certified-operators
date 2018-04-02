@@ -13,11 +13,11 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 
 public class RemoveNonMarketEntitiesPreStitchingOperationTest {
 
@@ -28,6 +28,8 @@ public class RemoveNonMarketEntitiesPreStitchingOperationTest {
     private StitchingEntity businessAccountStitchingEntity;
 
     private StitchingEntity vmStitchingEntity;
+
+    final StitchingJournal<StitchingEntity> journal = new StitchingJournal<>();
 
     private final RemoveNonMarketEntitiesPreStitchingOperation operation =
             new RemoveNonMarketEntitiesPreStitchingOperation();
@@ -75,7 +77,7 @@ public class RemoveNonMarketEntitiesPreStitchingOperationTest {
         assertEquals(2, stitchingContext.size());
         operation.performOperation(
                 Stream.of(businessAccountStitchingEntity), resultBuilder)
-                .getChanges().forEach(TopologicalChange::applyChange);
+                .getChanges().forEach(change -> change.applyChange(journal));
         assertEquals(1L, stitchingContext.size());
         assertTrue(stitchingContext.hasEntity(vmStitchingEntity));
     }

@@ -34,9 +34,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
@@ -52,6 +52,10 @@ public class StorageProvisionedPostStitchingOpTest {
             {new StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation()}
         });
     }
+
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> journal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     public StorageProvisionedPostStitchingOpTest(
             @Nonnull final OverprovisionCapacityPostStitchingOperation op) {
@@ -199,9 +203,9 @@ public class StorageProvisionedPostStitchingOpTest {
         origCommodities.add(duplicateCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
         try {
-            final TopologicalChangelog result =
+            final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-            result.getChanges().forEach(TopologicalChange::applyChange);
+            result.getChanges().forEach(change -> change.applyChange(journal));
             fail();
         } catch (IllegalStateException e) {
             assertEquals(e.getMessage(), "Found multiple commodities of type " +
@@ -215,9 +219,9 @@ public class StorageProvisionedPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         final List<CommoditySoldDTO> actualCommodities =
                 testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
@@ -238,9 +242,9 @@ public class StorageProvisionedPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         final List<CommoditySoldDTO> actualCommodities =
                 testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
@@ -271,9 +275,9 @@ public class StorageProvisionedPostStitchingOpTest {
                 Arrays.asList(amountCommodity, commodityWithCapacity, irrelevantCommodity);
         final TopologyEntity fourthTestTE = makeTopologyEntity(fourthCommodityList);
 
-        final TopologicalChangelog result = operation.performOperation(Stream.of(testTE,
+        final TopologicalChangelog<TopologyEntity> result = operation.performOperation(Stream.of(testTE,
                 secondTestTE, thirdTestTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         final List<CommoditySoldDTO> firstResult =
                 testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();

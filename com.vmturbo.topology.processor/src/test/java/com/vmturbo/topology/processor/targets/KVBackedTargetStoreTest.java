@@ -44,6 +44,7 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
 /**
@@ -547,7 +548,7 @@ public class KVBackedTargetStoreTest {
         targetStore.removeTargetAndBroadcastTopology(target.getId(), topologyHandler, scheduler);
         Assert.assertEquals(0, targetStore.getAll().size());
         Mockito.verify(targetListener).onTargetRemoved(target);
-        verify(topologyHandler).broadcastLatestTopology();
+        verify(topologyHandler).broadcastLatestTopology(any(StitchingJournalFactory.class));
         verify(scheduler).resetBroadcastSchedule();
     }
 

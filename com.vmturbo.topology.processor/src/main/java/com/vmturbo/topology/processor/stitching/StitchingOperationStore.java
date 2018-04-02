@@ -23,6 +23,7 @@ import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary.StitchingUnknownProbeException;
+import com.vmturbo.stitching.journal.JournalableOperation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 
 /**
@@ -69,7 +70,7 @@ public class StitchingOperationStore {
 
             logger.info("Selected {} stitching operations for probe {} ({}) in category {}.",
                 operations.stream()
-                    .map(op -> op.getClass().getSimpleName())
+                    .map(JournalableOperation::getOperationName)
                     .collect(Collectors.joining(", ")),
                 probeId,
                 probeInfo.getProbeType(),

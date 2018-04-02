@@ -42,6 +42,7 @@ import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule.TargetDiscoveryScheduleData;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -57,6 +58,7 @@ public class SchedulerTest {
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private final TopologyHandler topologyHandler = Mockito.mock(TopologyHandler.class);
     private final KeyValueStore keyValueStore = Mockito.mock(KeyValueStore.class);
+    private final StitchingJournalFactory journalFactory = StitchingJournalFactory.emptyStitchingJournalFactory();
     private Scheduler scheduler;
 
     public static final long TEST_SCHEDULE_MILLIS = 100;
@@ -83,7 +85,8 @@ public class SchedulerTest {
         when(operationManager.getValidationTimeoutMs()).thenReturn(4000L);
 
         scheduler = new Scheduler(operationManager, targetStore, topologyHandler,
-            keyValueStore, scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+            keyValueStore, journalFactory,
+            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
     }
 
     @Test
@@ -331,7 +334,7 @@ public class SchedulerTest {
         Mockito.doAnswer(unused -> {
             broadcastLatch.countDown();
             return null;
-        }).when(topologyHandler).broadcastLatestTopology();
+        }).when(topologyHandler).broadcastLatestTopology(any(StitchingJournalFactory.class));
         scheduler.setBroadcastSchedule(TEST_SCHEDULE_MILLIS, TimeUnit.MILLISECONDS);
         broadcastLatch.await(SCHEDULED_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
@@ -386,7 +389,7 @@ public class SchedulerTest {
     @Test
     public void testIllegalInitialBroadcastInterval() throws Exception {
         final Scheduler schedulerWithIllegalInitialInterval = new Scheduler(operationManager,
-            targetStore, topologyHandler, keyValueStore, scheduledExecutorSpy, -1);
+            targetStore, topologyHandler, keyValueStore, journalFactory, scheduledExecutorSpy, -1);
 
         assertEquals(
             Scheduler.FAILOVER_INITIAL_BROADCAST_INTERVAL_MINUTES,
@@ -400,7 +403,8 @@ public class SchedulerTest {
             .thenReturn(Optional.of(new Gson().toJson(new ScheduleData(TEST_SCHEDULE_MILLIS))));
 
         Scheduler scheduler = new Scheduler(operationManager,
-            targetStore, topologyHandler, keyValueStore, scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+            targetStore, topologyHandler, keyValueStore, journalFactory,
+            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
 
         TopologyBroadcastSchedule schedule = scheduler.getBroadcastSchedule().get();
         assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
@@ -539,7 +543,8 @@ public class SchedulerTest {
         when(targetStore.getAll()).thenReturn(ImmutableList.of(target));
 
         Scheduler scheduler = new Scheduler(operationManager,
-            targetStore, topologyHandler, keyValueStore, scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+            targetStore, topologyHandler, keyValueStore, journalFactory,
+            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
 
         TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId).get();
         assertEquals(INITIAL_BROADCAST_INTERVAL_MINUTES, schedule.getScheduleInterval(TimeUnit.MINUTES));
@@ -554,7 +559,8 @@ public class SchedulerTest {
             .thenReturn(Optional.of(new Gson().toJson(new TargetDiscoveryScheduleData(TEST_SCHEDULE_MILLIS, false))));
 
         Scheduler scheduler = new Scheduler(operationManager,
-            targetStore, topologyHandler, keyValueStore, scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+            targetStore, topologyHandler, keyValueStore, journalFactory,
+            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
 
         TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId).get();
         assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
@@ -568,7 +574,8 @@ public class SchedulerTest {
         when(operationManager.getValidationTimeoutMs()).thenReturn(30L);
 
         scheduler = new Scheduler(operationManager, targetStore, topologyHandler,
-            keyValueStore, scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+            keyValueStore, journalFactory,
+            scheduledExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
 
         // A schedule should be added that checks for timeouts based on the shortest timeout among
         // action, discovery, and validation operations.

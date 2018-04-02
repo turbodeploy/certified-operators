@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -18,9 +19,12 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
+import com.vmturbo.topology.processor.stitching.journal.StitchingEntitySemanticDiffer;
 
 /**
  * The concrete implementation of the {@link StitchingEntity} interface.
@@ -82,6 +86,48 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public long getOid() {
         return oid;
+    }
+
+    @Nonnull
+    @Override
+    public EntityType getJournalableEntityType() {
+        return getEntityType();
+    }
+
+    @Nonnull
+    @Override
+    public String removalDescription() {
+        return String.format("REMOVED ENTITY\n\t[%s]",
+            StitchingEntitySemanticDiffer.entityDescription(this));
+    }
+
+    @Nonnull
+    @Override
+    public StitchingEntity snapshot() {
+        // Create a basic copy
+        TopologyStitchingEntity copy = new TopologyStitchingEntity(entityBuilder.clone(), getOid(),
+            targetId, lastUpdatedTime);
+
+        // Copy consumers
+        // Consumers do not need to be deep-copied because when performing a diff of consumers, we only
+        // look at membership in this set, and don't need to check for changes to those consumers via
+        // this set.
+        copy.consumers.addAll(consumers);
+
+        // Copy commodities sold
+        commoditiesSold.forEach(sold -> copy.commoditiesSold.add(sold.deepCopy()));
+
+        // Copy commoditiesBoughtByProvider
+        commoditiesBoughtByProvider.forEach((provider, commodities) ->
+            copy.commoditiesBoughtByProvider.put(provider, commodities.stream()
+                .map(Builder::clone)
+                .collect(Collectors.toList())));
+
+        // Copy merge information
+        getMergeInformation().forEach(mergeInfo -> copy.addMergeInformation(
+            new StitchingMergeInformation(mergeInfo.getOid(), mergeInfo.getTargetId())));
+
+        return copy;
     }
 
     @Override
@@ -197,8 +243,9 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     @Override
     public String toString() {
-        return String.format("(%s %s %s oid-%d targetId-%d numConsumers-%d numProviders-%d)",
-            getEntityType().name(), getLocalId(), getDisplayName(), getOid(), getTargetId(),
+        return String.format("(%s %s %s %s numConsumers-%d numProviders-%d)",
+            getEntityType().name(), getLocalId(), getDisplayName(),
+            StitchingMergeInformation.formatOidAndTarget(getOid(), getTargetId()),
             consumers.size(), commoditiesBoughtByProvider.size());
     }
 
@@ -271,6 +318,11 @@ public class TopologyStitchingEntity implements StitchingEntity {
         @Override
         public int hashCode() {
             return Objects.hash(sold, accesses);
+        }
+
+        @Nonnull
+        private CommoditySold deepCopy() {
+            return new CommoditySold(sold.clone(), accesses);
         }
 
         @Override

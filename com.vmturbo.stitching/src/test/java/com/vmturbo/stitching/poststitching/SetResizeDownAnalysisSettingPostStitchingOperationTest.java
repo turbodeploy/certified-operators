@@ -18,6 +18,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 public class SetResizeDownAnalysisSettingPostStitchingOperationTest {
@@ -29,6 +30,10 @@ public class SetResizeDownAnalysisSettingPostStitchingOperationTest {
     private UnitTestResultBuilder resultBuilder;
 
     private final long oid = 72453759857430L;
+
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> journal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     private TopologyEntity vmEntity = PostStitchingTestUtilities.makeTopologyEntityBuilder(oid,
             EntityType.VIRTUAL_MACHINE_VALUE, Collections.emptyList(), Collections.emptyList()).build();
@@ -46,7 +51,7 @@ public class SetResizeDownAnalysisSettingPostStitchingOperationTest {
                 new SetResizeDownAnalysisSettingPostStitchingOperation(0, clock);
         resizeDownOperation.performOperation(Stream.of(vmEntity), settingsCollection, resultBuilder);
         assertEquals(1, resultBuilder.getChanges().size());
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
         assertTrue(vmEntity.getTopologyEntityDtoBuilder()
                 .getAnalysisSettings()
                 .getIsEligibleForResizeDown());
@@ -60,7 +65,7 @@ public class SetResizeDownAnalysisSettingPostStitchingOperationTest {
                 new SetResizeDownAnalysisSettingPostStitchingOperation(1, clock);
         resizeDownOperation.performOperation(Stream.of(vmEntity), settingsCollection, resultBuilder);
         assertEquals(0, resultBuilder.getChanges().size());
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
         assertFalse(vmEntity.getTopologyEntityDtoBuilder()
                 .getAnalysisSettings()
                 .getIsEligibleForResizeDown());

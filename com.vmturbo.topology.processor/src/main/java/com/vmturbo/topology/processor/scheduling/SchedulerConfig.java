@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.topology.SchedulerREST;
 import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
+import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
@@ -22,6 +23,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     OperationConfig.class,
     TopologyConfig.class,
     TopologyConfig.class,
+    StitchingConfig.class,
     KVConfig.class
 })
 public class SchedulerConfig {
@@ -37,6 +39,9 @@ public class SchedulerConfig {
     @Autowired
     private KVConfig kvConfig;
 
+    @Autowired
+    private StitchingConfig stitchingConfig;
+
     @Value("${topologyBroadcastIntervalMinutes}")
     private long topologyBroadcastIntervalMinutes;
 
@@ -46,6 +51,7 @@ public class SchedulerConfig {
             targetConfig.targetStore(),
             topologyConfig.topologyHandler(),
             kvConfig.keyValueStore(),
+            stitchingConfig.stitchingJournalFactory(),
             Executors.newSingleThreadScheduledExecutor(),
             topologyBroadcastIntervalMinutes
         );

@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -22,13 +23,14 @@ import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 
 /**
  * Utility class to create test instances used in post-stitching.
  *
  * TODO: replace make______() methods with builders in all tests
  */
-class PostStitchingTestUtilities {
+public class PostStitchingTestUtilities {
 
     private  PostStitchingTestUtilities() {}
 
@@ -38,7 +40,7 @@ class PostStitchingTestUtilities {
     static class UnitTestResultBuilder extends EntityChangesBuilder<TopologyEntity> {
 
         @Override
-        public TopologicalChangelog build() {
+        public TopologicalChangelog<TopologyEntity> build() {
             return buildInternal();
         }
 
@@ -54,7 +56,7 @@ class PostStitchingTestUtilities {
     /**
      * Topological change subclass for use in post-stitching unit tests.
      */
-    private static class PostStitchingUnitTestChange implements TopologicalChange {
+    private static class PostStitchingUnitTestChange implements TopologicalChange<TopologyEntity> {
         private final TopologyEntity entityToUpdate;
         private final Consumer<TopologyEntity> updateMethod;
 
@@ -65,7 +67,7 @@ class PostStitchingTestUtilities {
         }
 
         @Override
-        public void applyChange() {
+        public void applyChange(@Nonnull final IStitchingJournal stitchingJournal) {
             updateMethod.accept(entityToUpdate);
         }
     }
@@ -132,15 +134,17 @@ class PostStitchingTestUtilities {
             .getBuilder();
     }
 
-    static TopologyEntity.Builder makeTopologyEntityBuilder(final long oid, final int entityType,
-                @Nonnull final List<CommoditySoldDTO> commoditiesSold,
-                @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
-        return TopologyEntityBuilder.newBuilder()
-            .withOid(oid)
-            .withEntityType(entityType)
-            .withCommoditiesBought(commoditiesBought)
-            .withCommoditiesSold(commoditiesSold)
-            .getBuilder();
+    public static TopologyEntity.Builder makeTopologyEntityBuilder(final long oid, final int entityType,
+                                                            @Nonnull final List<CommoditySoldDTO> commoditiesSold,
+                                                            @Nonnull final List<CommodityBoughtDTO> commoditiesBought) {
+        return TopologyEntity.newBuilder(
+            TopologyEntityDTO.newBuilder()
+                .setOid(oid)
+                .setEntityType(entityType)
+                .addAllCommoditySoldList(commoditiesSold)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .addAllCommodityBought(commoditiesBought)
+                ));
     }
 
     static TopologyEntity.Builder makeTopologyEntityBuilder(final long oid, final int entityType,
@@ -357,8 +361,11 @@ class PostStitchingTestUtilities {
         }
     }
 
-    static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type) {
-        return CommoditySoldBuilder.newBuilder().withType(type).build();
+    public static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type) {
+        return CommoditySoldDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .setType(type.getNumber()))
+            .build();
     }
 
     static CommoditySoldDTO makeCommoditySold(@Nonnull final CommodityType type,
@@ -386,8 +393,10 @@ class PostStitchingTestUtilities {
         return CommodityBoughtBuilder.newBuilder().withType(type.getNumber()).build();
     }
 
-    static CommodityBoughtDTO.Builder makeCommodityBoughtBuilder(@Nonnull final CommodityType type) {
-        return CommodityBoughtBuilder.newBuilder().withType(type.getNumber()).getBuilder();
+    public static CommodityBoughtDTO.Builder makeCommodityBoughtBuilder(@Nonnull final CommodityType type) {
+        return CommodityBoughtDTO.newBuilder()
+            .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .setType(type.getNumber()));
     }
 
     static Setting makeNumericSetting(final float value) {

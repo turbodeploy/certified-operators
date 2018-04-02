@@ -6,7 +6,6 @@ import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.mak
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeTopologyEntityBuilder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
@@ -22,7 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
@@ -50,6 +49,10 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
 
     private final EntitySettingsCollection settingsCollection = mock(EntitySettingsCollection.class);
 
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> stitchingJournal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
+    
     private UnitTestResultBuilder resultBuilder;
 
     @Before
@@ -138,7 +141,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final TopologyEntity te = main.build();
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(resultBuilder.getChanges().size(), 1);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList()
@@ -153,7 +156,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final TopologyEntity te = main.build();
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(resultBuilder.getChanges().size(), 1);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList()
@@ -171,7 +174,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
             commoditiesSold, commoditiesBought, Collections.emptyList());
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList()
             .forEach(commodity -> assertEquals(commodity.getCapacity(), 0, 0.1));
@@ -186,7 +189,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final TopologyEntity te = main.build();
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(resultBuilder.getChanges().size(), 1);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(commodity ->
@@ -203,7 +206,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final TopologyEntity te = main.build();
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(resultBuilder.getChanges().size(), 1);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(commodity ->
@@ -228,13 +231,12 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final TopologyEntity te = main.build();
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(resultBuilder.getChanges().size(), 1);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(commodity ->
             assertEquals(commodity.getCapacity(), hostCapacity + 215, 0.1));
     }
-
 
     @Test
     public void testUnmatchingCommodityKey() {
@@ -245,7 +247,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final TopologyEntity te = main.build();
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(resultBuilder.getChanges().size(), 1);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList()
@@ -263,7 +265,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final TopologyEntity te = main.build();
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(resultBuilder.getChanges().size(), 1);
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList()
@@ -296,7 +298,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
         final TopologyEntity main = base.build();
 
         op.performOperation(Stream.of(main), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         main.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(cs ->
             assertTrue(possibleCapacities.contains(cs.getCapacity())));
@@ -328,7 +330,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
 
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(cs ->
             assertEquals(cs.getCapacity(), 340, .1));
@@ -363,7 +365,7 @@ public class VirtualDatacenterCpuAllocationPostStitchingOpTest {
 
 
         op.performOperation(Stream.of(te), settingsCollection, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         te.getTopologyEntityDtoBuilder().getCommoditySoldListList().forEach(cs ->
             assertEquals(cs.getCapacity(), 270, .1));

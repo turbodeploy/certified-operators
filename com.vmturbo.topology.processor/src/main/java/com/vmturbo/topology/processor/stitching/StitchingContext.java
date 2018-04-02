@@ -1,10 +1,12 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -20,8 +22,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.topology.processor.conversions.Converter;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.conversions.Converter;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -181,6 +183,40 @@ public class StitchingContext {
     }
 
     /**
+     * Get a count of the number of entities by their entity type in the context.
+     *
+     * @return a count of the number of entities by their entity type in the context.
+     */
+    @Nonnull
+    public Map<EntityType, Integer> entityTypeCounts() {
+        return entitiesByEntityTypeAndTarget.entrySet().stream()
+            .collect(Collectors.toMap(Entry::getKey,
+                entry -> entry.getValue().values().stream()
+                    .mapToInt(List::size)
+                    .sum()));
+    }
+
+    /**
+     * Get a count of the number of entities for each target in the context.
+     *
+     * @return A map of targetId -> <number of entities discovered by that target>
+     */
+    @Nonnull
+    public Map<Long, Integer> targetEntityCounts() {
+        final Map<Long, Integer> targetEntityCounts = new HashMap<>();
+        entitiesByEntityTypeAndTarget.values().forEach(targetMap ->
+            targetMap.forEach((targetId, entities) -> {
+                final Integer countSoFar = targetEntityCounts.get(targetId);
+                if (countSoFar == null)
+                    targetEntityCounts.put(targetId, entities.size());
+                else
+                    targetEntityCounts.put(targetId, entities.size() + countSoFar);
+            }));
+
+        return targetEntityCounts;
+    }
+
+    /**
      * Remove an entity from the stitching context and the {@link TopologyStitchingGraph} in the context.
      *
      * @param toRemove The entity to remove from the context and graph.
@@ -234,6 +270,11 @@ public class StitchingContext {
                     return oldValue;
                 }
             ));
+    }
+
+    @Nonnull
+    public Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> getEntitiesByEntityTypeAndTarget() {
+        return Collections.unmodifiableMap(entitiesByEntityTypeAndTarget);
     }
 
     /**

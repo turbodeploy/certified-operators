@@ -5,12 +5,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.journal.JournalableEntity;
 
 /**
  * A wrapper around {@link TopologyEntityDTO.Builder}.Properties of the entity such as commodity values
@@ -21,7 +24,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
  *
  * The TopologyEntityDTO.Builder within a TopologyEntity may be edited but the TopologyEntity is immutable otherwise.
  */
-public class TopologyEntity {
+public class TopologyEntity implements JournalableEntity<TopologyEntity> {
 
     /**
      * A builder for the entity in the topology corresponding to this TopologyEntity.
@@ -66,13 +69,50 @@ public class TopologyEntity {
         return entityBuilder.getEntityType();
     }
 
+    @Nonnull
+    @Override
+    public EntityType getJournalableEntityType() {
+        return EntityType.forNumber(getEntityType());
+    }
+
+    @Nonnull
+    @Override
+    public String removalDescription() {
+        throw new IllegalStateException(); // TopologyEntities should never be removed.
+    }
+
+    @Nonnull
+    @Override
+    public TopologyEntity snapshot() {
+        // Copy consumers
+        final List<TopologyEntity> newConsumers = new ArrayList<>(consumers.size());
+        newConsumers.addAll(consumers);
+
+        // Copy providers
+        final List<TopologyEntity> newProviders = new ArrayList<>(providers.size());
+        newProviders.addAll(providers);
+
+        // Create and return the copy
+        return new TopologyEntity(entityBuilder.clone(), newConsumers, newProviders);
+    }
+
     /**
      * Get the display name for this entity.
      *
      * @return The display name for this entity.
      */
+    @Nonnull
+    @Override
     public String getDisplayName() {
         return entityBuilder.getDisplayName();
+    }
+
+    @Nonnull
+    @Override
+    public Stream<Long> getDiscoveringTargetIds() {
+        return hasDiscoveryOrigin()
+            ? entityBuilder.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList().stream()
+            : Stream.empty();
     }
 
     /**
@@ -186,7 +226,7 @@ public class TopologyEntity {
 
     @Override
     public String toString() {
-        return "(oid: " + getOid() + ", entityType: " + getEntityType() + ")";
+        return "(oid-" + getOid() + ", " + getJournalableEntityType() + ", " + getDisplayName() + ")";
     }
 
     /**

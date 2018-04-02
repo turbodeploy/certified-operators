@@ -11,6 +11,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -19,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
@@ -40,6 +42,7 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
 
 /**
  * Post-stitching operation for setting maxQuantity values of the commodities for each entity.
@@ -104,20 +107,20 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     /**
      * We exclude all the access commodities.
      */
-    private ImmutableSet<CommodityType> excludedCommodities =
+    private ImmutableSet<Integer> excludedCommodities =
         ImmutableSet.of(
-            CommodityType.APPLICATION,
-            CommodityType.CLUSTER,
-            CommodityType.DATACENTER,
-            CommodityType.DATASTORE,
-            CommodityType.DRS_SEGMENTATION,
-            CommodityType.DSPM_ACCESS,
-            CommodityType.NETWORK,
-            CommodityType.SEGMENTATION,
-            CommodityType.STORAGE_CLUSTER,
-            CommodityType.VAPP_ACCESS,
-            CommodityType.VDC,
-            CommodityType.VMPM_ACCESS);
+            CommodityType.APPLICATION_VALUE,
+            CommodityType.CLUSTER_VALUE,
+            CommodityType.DATACENTER_VALUE,
+            CommodityType.DATASTORE_VALUE,
+            CommodityType.DRS_SEGMENTATION_VALUE,
+            CommodityType.DSPM_ACCESS_VALUE,
+            CommodityType.NETWORK_VALUE,
+            CommodityType.SEGMENTATION_VALUE,
+            CommodityType.STORAGE_CLUSTER_VALUE,
+            CommodityType.VAPP_ACCESS_VALUE,
+            CommodityType.VDC_VALUE,
+            CommodityType.VMPM_ACCESS_VALUE);
 
     // In legacy, maxQuantity value is being set only for VM entities.
     // Here, we are setting maxQuantity value for all entities whose
@@ -144,7 +147,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     private static final List<Integer> interestedEntityTypesNumbers =
         interestedEntityTypes
             .stream()
-            .map(entity -> entity.getNumber())
+            .map(EntityType::getNumber)
             .collect(Collectors.toList());
 
     private static final GetEntityCommoditiesMaxValuesRequest request =
@@ -166,7 +169,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
      *  with a smaller delay. Otherwise we start the next load after a delay
      *  of maxValuesBackgroundLoadFrequencyMinutes.
      */
-    public SetCommodityMaxQuantityPostStitchingOperation(SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig) {
+    public SetCommodityMaxQuantityPostStitchingOperation(
+        com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig) {
         this.statsHistoryClient = setMaxValuesConfig.getStatsClient();
         this.maxValuesBackgroundLoadFrequencyMinutes =
             setMaxValuesConfig.getMaxValuesBackgroundLoadFrequencyMinutes();
@@ -320,9 +324,10 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
-                                                 @Nonnull final EntitySettingsCollection settingsCollection,
-                                                 @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+    public TopologicalChangelog<TopologyEntity>
+    performOperation(@Nonnull final Stream<TopologyEntity> entities,
+                     @Nonnull final EntitySettingsCollection settingsCollection,
+                     @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
         long commoditiesCount = 0;
         Iterable<TopologyEntity> entitiesIterable = entities::iterator;
@@ -335,9 +340,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             // that's the behaviour in legacy.
             for (CommoditySoldDTO.Builder commoditySoldDTO : commoditySoldBuilderList) {
                 // skip access commodities
-                if (excludedCommodities.contains(
-                        CommodityType.valueOf(
-                            commoditySoldDTO.getCommodityType().getType()))) {
+                if (excludedCommodities.contains(commoditySoldDTO.getCommodityType().getType())) {
                     continue;
                 }
                 EntityCommodityKey key = createEntityCommodityKey(entityOid, commoditySoldDTO.getCommodityType());
@@ -353,7 +356,10 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                                         // This way max value age gets updated.
                                         ((Double.compare(oldValue.getMaxValue(), newValue.getMaxValue()) <= 0)
                                             ? newValue : oldValue));
-                commoditySoldDTO.setMaxQuantity(newMax.getMaxValue());
+
+                final double newMaxValue = newMax.getMaxValue();
+                resultBuilder.queueUpdateEntityAlone(entity, toUpdate ->
+                    commoditySoldDTO.setMaxQuantity(newMaxValue));
                 commoditiesCount++;
             }
         }
@@ -362,7 +368,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         // But in the current run, we may not be using many entities. This log
         // message will give an idea on the useless info we are storing in the
         // map. If the % of redundant info becomes too high, we would have to
-        // start deleteing entries from the map(a cache won't be useful here).
+        // start deleting entries from the map(a cache won't be useful here).
         // This is a rough estimate. Over time it's assumed that the number of
         // entries in the DB will be equal to or more than the
         // entities(and hence the commodities) discovered by TP.
@@ -378,6 +384,17 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         // Don't track the changes as it could lead to memory bloat.
         // Just return empty builder.
         return resultBuilder.build();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nonnull
+    @Override
+    public FormatRecommendation getFormatRecommendation() {
+        // Because this operation makes the same change to lots of entities, recommend that no
+        // context be added to changes in the journal.
+        return FormatRecommendation.COMPACT;
     }
 
     private float calculateMapOccupancyPercentage(long commoditiesCount) {

@@ -19,9 +19,9 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
@@ -35,6 +35,9 @@ public class CpuCapacityPostStitchingOpTest {
     private final static String NUM_CPU_CORES = "common_dto.EntityDTO.PhysicalMachineData.numCpuCores";
     private final static String CPU_CORE_MHZ = "common_dto.EntityDTO.PhysicalMachineData.cpuCoreMhz";
 
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> journal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     @Before
     public void setup() {
@@ -112,9 +115,9 @@ public class CpuCapacityPostStitchingOpTest {
 
         final List<CommoditySoldDTO> commodities = Collections.singletonList(makeCommoditySold(CommodityType.CPU));
         final TopologyEntity entity = makeTopologyEntity(commodities, propsMap);
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
             operation.performOperation(Stream.of(entity), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(entity.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
             Collections.singletonList(makeCommoditySold(CommodityType.CPU, 10)));

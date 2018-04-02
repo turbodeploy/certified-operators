@@ -24,11 +24,11 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 
 public class SharedStorageTest {
     private static double epsilon = 1e-5; // used in assertEquals(double, double, epsilon)
@@ -71,7 +71,7 @@ public class SharedStorageTest {
     public void testStorageAmountKeepsNewer() {
         assertEquals(2, stitchingContext.size());
         operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
-            .getChanges().forEach(TopologicalChange::applyChange);
+            .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
 
         assertEquals(1, stitchingContext.size());
         assertTrue(stitchingContext.hasEntity(newStorage));
@@ -86,7 +86,7 @@ public class SharedStorageTest {
     @Test
     public void testStorageProvisionedCalculation() {
         operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
-            .getChanges().forEach(TopologicalChange::applyChange);
+            .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
 
         assertEquals(700.0, newStorage.getCommoditiesSold()
             .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_PROVISIONED)
@@ -97,7 +97,7 @@ public class SharedStorageTest {
     @Test
     public void testStorageLatencyCalculationIsIopsWeightedAverage() {
         operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
-            .getChanges().forEach(TopologicalChange::applyChange);
+            .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
 
         // (100*20 + 50*30) / 50 = 70
         assertEquals(70.0, newStorage.getCommoditiesSold()
@@ -119,7 +119,7 @@ public class SharedStorageTest {
             .toBuilder();
 
         operation.performOperation(entityStream(a, b), resultBuilder)
-            .getChanges().forEach(TopologicalChange::applyChange);
+            .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
 
         final StitchingEntity result = stitchingContext.getStitchingGraph().entities().findFirst().get();
 
@@ -132,7 +132,7 @@ public class SharedStorageTest {
     @Test
     public void testStorageAccessCalculationIsSum() {
         operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
-            .getChanges().forEach(TopologicalChange::applyChange);
+            .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
 
         assertEquals(50.0, newStorage.getCommoditiesSold()
             .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_ACCESS)

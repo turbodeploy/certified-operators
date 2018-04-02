@@ -4,7 +4,9 @@ import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.mak
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeCommoditySold;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeTopologyEntity;
 import static com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.makeTopologyEntityBuilder;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.util.Collections;
@@ -23,8 +25,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
@@ -79,6 +81,10 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
                     .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .build();
 
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> journal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
+
     // vm with cluster comm
     private final TopologyEntity vmWithClusterComm = makeTopologyEntity(EntityType.VIRTUAL_MACHINE_VALUE,
             vmCommoditySoldList,
@@ -96,8 +102,7 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
             .getCommoditiesBoughtFromProvidersList().stream()
             .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
             // there should be only 1
-            .allMatch(commBoughtFromProv -> commBoughtFromProv.getMovable() == true);
-
+            .allMatch(CommoditiesBoughtFromProvider::getMovable);
 
     @Before
     public void setup() {
@@ -128,14 +133,14 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
         assertEquals(1, resultBuilder.getChanges().size());
 
         // apply the changes
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         // check that the entity without the cluster comm is not movable
         final boolean isMovable = vmWithoutClusterComm.getTopologyEntityDtoBuilder()
                 .getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
                 // there should be only 1
-                .allMatch(commBoughtFromProv -> commBoughtFromProv.getMovable() == true);
+                .allMatch(CommoditiesBoughtFromProvider::getMovable);
 
         assertFalse(isMovable);
 
@@ -149,14 +154,14 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
         assertEquals(1, resultBuilder.getChanges().size());
 
         // apply the changes
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         // check that the entity without the cluster comm is not movable
         final boolean isVmWithoutClusterCommMovable = vmWithoutClusterComm.getTopologyEntityDtoBuilder()
                 .getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
                 // there should be only 1
-                .allMatch(commBoughtFromProv -> commBoughtFromProv.getMovable() == true);
+                .allMatch(CommoditiesBoughtFromProvider::getMovable);
 
         assertFalse(isVmWithoutClusterCommMovable);
 
@@ -165,7 +170,7 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperationTest {
                 .getCommoditiesBoughtFromProvidersList().stream()
                 .filter(commBoughtFromProv -> EntityType.PHYSICAL_MACHINE_VALUE == commBoughtFromProv.getProviderEntityType())
                 // there should be only 1
-                .allMatch(commBoughtFromProv -> commBoughtFromProv.getMovable() == true);
+                .allMatch(CommoditiesBoughtFromProvider::getMovable);
 
         assertEquals(isMovableBefore, isMovableAfter);
 

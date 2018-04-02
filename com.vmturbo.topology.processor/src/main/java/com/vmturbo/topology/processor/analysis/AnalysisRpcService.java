@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
@@ -38,13 +39,17 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
 
     private EntityStore entityStore;
 
+    private final StitchingJournalFactory journalFactory;
+
     public AnalysisRpcService(@Nonnull final TopologyPipelineFactory topologyPipelineFactory,
                               @Nonnull final IdentityProvider identityProvider,
                               @Nonnull final EntityStore entityStore,
+                              @Nonnull final StitchingJournalFactory journalFactory,
                               @Nonnull final Clock clock) {
         this.topologyPipelineFactory = Objects.requireNonNull(topologyPipelineFactory);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.entityStore = Objects.requireNonNull(entityStore);
+        this.journalFactory = Objects.requireNonNull(journalFactory);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -72,12 +77,15 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
 
         try {
             final TopologyBroadcastInfo broadcastInfo;
+
             if (request.hasTopologyId()) {
                 broadcastInfo = topologyPipelineFactory.planOverOldTopology(topologyInfo,
-                        request.getScenarioChangeList(), request.getPlanScope()).run(request.getTopologyId());
+                        request.getScenarioChangeList(), request.getPlanScope())
+                    .run(request.getTopologyId());
             } else {
                 broadcastInfo = topologyPipelineFactory.planOverLiveTopology(topologyInfo,
-                        request.getScenarioChangeList(), request.getPlanScope()).run(entityStore);
+                        request.getScenarioChangeList(), request.getPlanScope(), journalFactory)
+                    .run(entityStore);
             }
             responseObserver.onNext(StartAnalysisResponse.newBuilder()
                     .setEntitiesBroadcast(broadcastInfo.getEntityCount())

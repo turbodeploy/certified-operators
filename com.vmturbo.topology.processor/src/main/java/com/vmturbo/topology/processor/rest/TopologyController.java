@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.rest;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -22,6 +23,8 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
@@ -37,16 +40,16 @@ public class TopologyController {
     private final Scheduler scheduler;
     private final TopologyHandler topologyHandler;
     private final EntityStore entityStore;
-    private final PolicyManager policyManager;
+    private final Clock clock;
 
     public TopologyController(@Nonnull final Scheduler scheduler,
                               @Nonnull final TopologyHandler topologyHandler,
                               @Nonnull final EntityStore entityStore,
-                              @Nonnull final PolicyManager policyManager) {
+                              @Nonnull final Clock clock) {
         this.scheduler = Objects.requireNonNull(scheduler);
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.entityStore = Objects.requireNonNull(entityStore);
-        this.policyManager = Objects.requireNonNull(policyManager);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     /**
@@ -68,7 +71,8 @@ public class TopologyController {
     public ResponseEntity<SendTopologyResponse> send()
             throws TopologyPipelineException, InterruptedException {
         scheduler.resetBroadcastSchedule();
-        final TopologyBroadcastInfo broadcastInfo = topologyHandler.broadcastLatestTopology();
+        final TopologyBroadcastInfo broadcastInfo = topologyHandler
+            .broadcastLatestTopology(StitchingJournalFactory.emptyStitchingJournalFactory());
         return new ResponseEntity<>(
                 new SendTopologyResponse("Sent " + broadcastInfo.getEntityCount() + " entities",
                     broadcastInfo.getEntityCount(),

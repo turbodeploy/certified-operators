@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.journal.JournalableOperation;
 
 /**
  * An operation that edits entity properties and relationships and removes entities during stitching
@@ -39,7 +40,8 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  * @param <EXTERNAL_SIGNATURE_TYPE> The type of the signature by which external entities will be matched
  *                                  with internal entities.
  */
-public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> {
+public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
+    extends JournalableOperation {
     /**
      * The {@link EntityType} of the internal entities to be stitched.
      * Operations are specific to pairs of entity types (internal and external).
@@ -129,8 +131,8 @@ public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_
      *         the {@link StitchingChangesBuilder} provided as input.
      */
     @Nonnull
-    TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
-                              @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder);
+    TopologicalChangelog<StitchingEntity> stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+                                                 @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder);
 
     /**
      * Create an index for use to accelerate match-finding for this {@link StitchingOperation}.

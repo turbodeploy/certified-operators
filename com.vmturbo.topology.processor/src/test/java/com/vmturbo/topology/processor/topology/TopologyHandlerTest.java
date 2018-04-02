@@ -2,24 +2,21 @@ package com.vmturbo.topology.processor.topology;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.Collections;
-import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
@@ -61,12 +58,14 @@ public class TopologyHandlerTest {
 
     @Test
     public void testBroadcastTopology() throws Exception {
+        final StitchingJournalFactory journalFactory = StitchingJournalFactory.emptyStitchingJournalFactory();
         TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
                 (TopologyPipeline<EntityStore, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         TopologyBroadcastInfo broadcastInfo = mock(TopologyBroadcastInfo.class);
         when(pipeline.run(eq(entityStore))).thenReturn(broadcastInfo);
-        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo), eq(Collections.emptyList()))).thenReturn(pipeline);
+        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo), eq(Collections.emptyList()), eq(journalFactory)))
+            .thenReturn(pipeline);
 
-        assertThat(topologyHandler.broadcastLatestTopology(), is(broadcastInfo));
+        assertThat(topologyHandler.broadcastLatestTopology(journalFactory), is(broadcastInfo));
     }
 }

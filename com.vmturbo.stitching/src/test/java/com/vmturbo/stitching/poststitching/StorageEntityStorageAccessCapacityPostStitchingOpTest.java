@@ -16,8 +16,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.CommoditySoldBuilder;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.TopologyEntityBuilder;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
@@ -39,6 +39,10 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
 
     private EntityChangesBuilder<TopologyEntity> resultBuilder;
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
+
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> stitchingJournal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     @Before
     public void setup() {
@@ -101,7 +105,7 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
 
 
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(1, resultBuilder.getChanges().size());
         assertEquals(CAPACITY,
@@ -129,7 +133,7 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
 
 
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(1, resultBuilder.getChanges().size());
         final double resultCapacity =
@@ -148,7 +152,7 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
             .build();
 
         op.performOperation(Stream.of(te), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         assertEquals(1, resultBuilder.getChanges().size());
         assertEquals(CAPACITY,

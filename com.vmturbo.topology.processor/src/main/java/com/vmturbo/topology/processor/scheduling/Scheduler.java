@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.scheduling;
 
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule.TargetDiscoveryScheduleData;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -65,6 +67,7 @@ public class Scheduler implements TargetStoreListener {
     private final TargetStore targetStore;
     private final TopologyHandler topologyHandler;
     private final KeyValueStore scheduleStore;
+    private final StitchingJournalFactory journalFactory;
     private final Gson gson = new Gson();
 
     private Optional<TopologyBroadcastSchedule> broadcastSchedule;
@@ -80,6 +83,8 @@ public class Scheduler implements TargetStoreListener {
      * @param targetStore The {@link TargetStore} to use to find targets.
      * @param topologyHandler The {@link TopologyHandler} to use for broadcasting topologies to other services.
      * @param scheduleStore The store used for saving and loading data data from/to persistent storage.
+     * @param journalFactory The factory for constructing stitching journals to be used in tracing changes
+     *                       made during topology broadcasts initiated by the scheduler.
      * @param scheduleExecutor The executor to be used for scheduling tasks.
      * @param initialBroadcastIntervalMinutes The initial broadcast interval specified in minutes.
      */
@@ -87,11 +92,13 @@ public class Scheduler implements TargetStoreListener {
                      @Nonnull final TargetStore targetStore,
                      @Nonnull final TopologyHandler topologyHandler,
                      @Nonnull final KeyValueStore scheduleStore,
+                     @Nonnull final StitchingJournalFactory journalFactory,
                      @Nonnull final ScheduledExecutorService scheduleExecutor,
                      final long initialBroadcastIntervalMinutes) {
         this.operationManager = Objects.requireNonNull(operationManager);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
+        this.journalFactory = Objects.requireNonNull(journalFactory);
         this.schedulerExecutor = Objects.requireNonNull(scheduleExecutor);
         this.scheduleStore = Objects.requireNonNull(scheduleStore);
 
@@ -501,7 +508,7 @@ public class Scheduler implements TargetStoreListener {
      */
     private void executeTopologyBroadcast() {
         try {
-            topologyHandler.broadcastLatestTopology();
+            topologyHandler.broadcastLatestTopology(journalFactory);
         } catch (RuntimeException | TopologyPipelineException e) {
             // Continue to execute future broadcasts if a generic runtime exception occurred.
             logger.error("Unexpected runtime exception when executing scheduled broadcast.", e);

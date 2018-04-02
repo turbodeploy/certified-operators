@@ -28,7 +28,7 @@ public class RemoveNonMarketEntitiesPreStitchingOperation implements PreStitchin
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(
+    public TopologicalChangelog<StitchingEntity> performOperation(
             @Nonnull Stream<StitchingEntity> entities,
             @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         // remove all entities in scope which are all business account entities.

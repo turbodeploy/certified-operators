@@ -34,9 +34,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryProvisionedPostStitchingOperation;
@@ -68,6 +68,9 @@ public class OverprovisionedCommodityPostStitchingOpTest {
     private final List<CommoditySoldDTO> requiredCommodities;
     private final List<CommoditySoldDTO> expectedCommodities;
 
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> journal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     public OverprovisionedCommodityPostStitchingOpTest(
                                 @Nonnull final OverprovisionCapacityPostStitchingOperation op,
@@ -164,9 +167,9 @@ public class OverprovisionedCommodityPostStitchingOpTest {
             Arrays.asList(sourceCommodity, irrelevantCommodity, preloadedOverprovisioned);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
             operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(), expectedCommodities);
     }
@@ -212,9 +215,9 @@ public class OverprovisionedCommodityPostStitchingOpTest {
         origCommodities.add(duplicateCommodity);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
         try {
-            final TopologicalChangelog result =
+            final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-            result.getChanges().forEach(TopologicalChange::applyChange);
+            result.getChanges().forEach(change -> change.applyChange(journal));
             fail();
         } catch (IllegalStateException e) {
             assertEquals(e.getMessage(), "Found multiple commodities of type " +
@@ -228,9 +231,9 @@ public class OverprovisionedCommodityPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
             operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         final List<CommoditySoldDTO> actualCommodities =
             testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
@@ -251,9 +254,9 @@ public class OverprovisionedCommodityPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
             operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         final List<CommoditySoldDTO> actualCommodities =
             testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
@@ -284,9 +287,9 @@ public class OverprovisionedCommodityPostStitchingOpTest {
             Arrays.asList(sourceCommodity, commodityWithCapacity, irrelevantCommodity);
         final TopologyEntity fourthTestTE = makeTopologyEntity(fourthCommodityList);
 
-        final TopologicalChangelog result = operation.performOperation(Stream.of(testTE,
+        final TopologicalChangelog<TopologyEntity> result = operation.performOperation(Stream.of(testTE,
             secondTestTE, thirdTestTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         final List<CommoditySoldDTO> firstResult =
             testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();

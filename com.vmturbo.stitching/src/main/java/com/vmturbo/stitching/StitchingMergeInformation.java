@@ -52,6 +52,11 @@ public class StitchingMergeInformation {
     }
 
     @Override
+    public String toString() {
+        return formatOidAndTarget(oid, targetId);
+    }
+
+    @Override
     public boolean equals(@Nullable final Object other) {
         if (other == null || !(other instanceof StitchingMergeInformation)) {
             return false;
@@ -64,5 +69,9 @@ public class StitchingMergeInformation {
     @Override
     public int hashCode() {
         return Objects.hashCode(oid, targetId);
+    }
+
+    public static String formatOidAndTarget(final long oid, final long targetId) {
+        return "(oid-" + oid + " " + "tgt-" + targetId + ")";
     }
 }

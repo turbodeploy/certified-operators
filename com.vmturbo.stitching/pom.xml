@@ -54,6 +54,14 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.flipkart.zjsonpatch</groupId>
+            <artifactId>zjsonpatch</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>de.vandermeer</groupId>
+            <artifactId>asciitable</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.mockito</groupId>

@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -42,7 +43,6 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
-import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * Stores discovered entities.
@@ -430,11 +430,12 @@ public class EntityStore {
         TargetEntityIdInfo(@Nonnull final ImmutableSet<Long> entityIds,
                            @Nonnull final Map<String, Long> localIdToEntityId,
                            final long lastUpdatedTime) {
-            this.entityIds = entityIds;
+            this.entityIds = Objects.requireNonNull(entityIds);
             this.localIdToEntityId = Collections.unmodifiableMap(localIdToEntityId);
             this.lastUpdatedTime = lastUpdatedTime;
         }
 
+        @Nonnull
         Map<String, Long> getLocalIdToEntityId() {
             return localIdToEntityId;
         }

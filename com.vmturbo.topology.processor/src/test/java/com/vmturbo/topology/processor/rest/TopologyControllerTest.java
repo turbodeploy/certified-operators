@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.rest;
 
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
@@ -9,8 +8,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Clock;
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -37,15 +36,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.google.gson.Gson;
 
-import io.grpc.Channel;
-
-import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.rest.TopologyController.SendTopologyResponse;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
@@ -82,13 +78,13 @@ public class TopologyControllerTest {
         }
 
         @Bean
-        PolicyManager policyManager() {
-            return Mockito.mock(PolicyManager.class);
+        TopologyHandler topologyHandler() {
+            return Mockito.mock(TopologyHandler.class);
         }
 
         @Bean
-        TopologyHandler topologyHandler() {
-            return Mockito.mock(TopologyHandler.class);
+        Clock clock() {
+            return Clock.systemUTC();
         }
 
         @Bean
@@ -97,7 +93,7 @@ public class TopologyControllerTest {
                 scheduler(),
                 topologyHandler(),
                 entityStore(),
-                policyManager()
+                clock()
             );
         }
 
@@ -131,7 +127,7 @@ public class TopologyControllerTest {
         when(info.getEntityCount()).thenReturn(10L);
         when(info.getTopologyContextId()).thenReturn(1L);
         when(info.getTopologyId()).thenReturn(2L);
-        when(topologyHandler.broadcastLatestTopology()).thenReturn(info);
+        when(topologyHandler.broadcastLatestTopology(any(StitchingJournalFactory.class))).thenReturn(info);
 
         final MvcResult result = mockMvc.perform(post("/topology/send")
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))

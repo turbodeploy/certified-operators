@@ -12,14 +12,20 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
+import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
 /**
  * Configuration for the service to trigger analyses.
  */
 @Configuration
-@Import({TopologyConfig.class, EntityConfig.class, IdentityProviderConfig.class,
-        RepositoryConfig.class, ClockConfig.class})
+@Import({
+    TopologyConfig.class,
+    EntityConfig.class,
+    IdentityProviderConfig.class,
+    RepositoryConfig.class,
+    StitchingConfig.class,
+    ClockConfig.class})
 public class AnalysisConfig {
 
     @Autowired
@@ -40,11 +46,15 @@ public class AnalysisConfig {
     @Autowired
     private ClockConfig clockConfig;
 
+    @Autowired
+    private StitchingConfig stichingConfig;
+
     @Bean
     public AnalysisRpcService analysisService() {
         return new AnalysisRpcService(topologyConfig.topologyPipelineFactory(),
                 identityProviderConfig.identityProvider(),
                 entityConfig.entityStore(),
+                stichingConfig.stitchingJournalFactory(),
                 clockConfig.clock());
     }
 

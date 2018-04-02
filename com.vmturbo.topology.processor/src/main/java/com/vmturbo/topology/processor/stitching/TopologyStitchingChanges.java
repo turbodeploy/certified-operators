@@ -16,6 +16,9 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.stitching.journal.IStitchingJournal.JournalChangeset;
+import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
@@ -33,10 +36,26 @@ public class TopologyStitchingChanges {
     }
 
     /**
+     * Base implementation for {@link TopologicalChange} subclasses.
+     */
+    public abstract static class BaseTopologicalChange<ENTITY extends JournalableEntity<ENTITY>>
+        implements TopologicalChange<ENTITY> {
+        @Override
+        public void applyChange(@Nonnull final IStitchingJournal<ENTITY> stitchingJournal) {
+            stitchingJournal.recordChangeset(getPreamble(), this::applyChangeInternal);
+        }
+
+        protected abstract String getPreamble();
+
+        protected abstract void applyChangeInternal(
+            @Nonnull final JournalChangeset<ENTITY> changeset);
+    }
+
+    /**
      * Represents the removal of an individual {@link StitchingEntity} from the eventual topology.
      */
     @Immutable
-    public static class RemoveEntityChange implements TopologicalChange {
+    public static class RemoveEntityChange extends BaseTopologicalChange<StitchingEntity> {
         private final StitchingEntity entityToRemove;
         private final StitchingContext stitchingContext;
 
@@ -47,9 +66,15 @@ public class TopologyStitchingChanges {
         }
 
         @Override
-        public void applyChange() {
+        protected String getPreamble() {
+            return "Removing entity " + entityToRemove.getJournalableSignature();
+        }
+
+        @Override
+        protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
             Preconditions.checkArgument(entityToRemove instanceof TopologyStitchingEntity);
             final TopologyStitchingEntity removed = (TopologyStitchingEntity)entityToRemove;
+            changeset.observeRemoval(removed);
             stitchingContext.removeEntity(removed);
         }
     }
@@ -58,7 +83,7 @@ public class TopologyStitchingChanges {
      * Represents replacing one entity with another.
      */
     @Immutable
-    public static class MergeEntitiesChange implements TopologicalChange {
+    public static class MergeEntitiesChange extends BaseTopologicalChange<StitchingEntity> {
         private final StitchingContext stitchingContext;
         private final StitchingEntity mergeFromEntity;
         private final StitchingEntity mergeOntoEntity;
@@ -87,7 +112,13 @@ public class TopologyStitchingChanges {
         }
 
         @Override
-        public void applyChange() {
+        protected String getPreamble() {
+            return "Merging from " + mergeFromEntity.getJournalableSignature() + " onto "
+                + mergeOntoEntity.getJournalableSignature();
+        }
+
+        @Override
+        protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
             Preconditions.checkArgument(mergeFromEntity instanceof TopologyStitchingEntity);
             Preconditions.checkArgument(mergeOntoEntity instanceof TopologyStitchingEntity);
             Preconditions.checkArgument(stitchingContext.hasEntity(mergeOntoEntity));
@@ -104,6 +135,8 @@ public class TopologyStitchingChanges {
 
             final TopologyStitchingEntity from = (TopologyStitchingEntity)mergeFromEntity;
             final TopologyStitchingEntity onto = (TopologyStitchingEntity)mergeOntoEntity;
+            changeset.beforeChange(from);
+            changeset.beforeChange(onto);
 
             // Run all custom field mergers.
             fieldMergers.forEach(merger -> merger.merge(from, onto));
@@ -115,11 +148,14 @@ public class TopologyStitchingChanges {
             ));
 
             // Everything that used to buy from replaced should now buy from replacement.
-            from.getConsumers().forEach(consumer ->
-                buyFromNewProvider(consumer, from, onto));
+            from.getConsumers().forEach(consumer -> {
+                changeset.beforeChange(consumer);
+                buyFromNewProvider(consumer, from, onto);
+            });
 
             trackMergeInformation(from, onto);
             stitchingContext.removeEntity(from);
+            changeset.observeRemoval(from);
         }
 
         /**
@@ -134,7 +170,8 @@ public class TopologyStitchingChanges {
                                         @Nonnull final TopologyStitchingEntity oldProvider,
                                         @Nonnull final TopologyStitchingEntity newProvider) {
             // All commodities that used to be bought by the old provider should now be bought from the new provider.
-            List<CommodityDTO.Builder> commoditiesBought = toUpdate.getCommoditiesBoughtByProvider().remove(oldProvider);
+            List<CommodityDTO.Builder> commoditiesBought =
+                toUpdate.getCommoditiesBoughtByProvider().remove(oldProvider);
             if (commoditiesBought == null) {
                 throw new IllegalStateException("Entity " + toUpdate + " is a consumer of " + oldProvider
                     + " but is not buying any commodities from it.");
@@ -174,7 +211,7 @@ public class TopologyStitchingChanges {
      * We do NOT currently support destructive changes to commodities sold.
      */
     @Immutable
-    public static class UpdateEntityRelationshipsChange implements TopologicalChange {
+    public static class UpdateEntityRelationshipsChange extends BaseTopologicalChange<StitchingEntity> {
         private final StitchingEntity entityToUpdate;
         private final Consumer<StitchingEntity> updateMethod;
 
@@ -185,8 +222,14 @@ public class TopologyStitchingChanges {
         }
 
         @Override
-        public void applyChange() {
+        protected String getPreamble() {
+            return "Updating entity properties and relationships for " + entityToUpdate.getJournalableSignature();
+        }
+
+        @Override
+        protected void applyChangeInternal(@Nonnull final JournalChangeset<StitchingEntity> changeset) {
             Preconditions.checkArgument(entityToUpdate instanceof TopologyStitchingEntity);
+            changeset.beforeChange(entityToUpdate);
 
             // Track providers before and after applying the update.
             final List<StitchingEntity> providersBeforeChangeCopy = entityToUpdate.getProviders().stream()
@@ -197,11 +240,17 @@ public class TopologyStitchingChanges {
             // All removed providers should no longer relate to the destination through a consumer relationship.
             providersBeforeChangeCopy.stream()
                 .filter(provider -> !providersAfterChange.contains(provider))
-                .forEach(provider -> ((TopologyStitchingEntity)provider).removeConsumer(entityToUpdate));
+                .forEach(provider -> {
+                    changeset.beforeChange(provider);
+                    ((TopologyStitchingEntity)provider).removeConsumer(entityToUpdate);
+                });
             // All added providers should now relate to the destination through a consumer relationship.
             providersAfterChange.stream()
                 .filter(provider -> !providersBeforeChangeCopy.contains(provider))
-                .forEach(provider -> ((TopologyStitchingEntity)provider).addConsumer(entityToUpdate));
+                .forEach(provider -> {
+                    changeset.beforeChange(provider);
+                    ((TopologyStitchingEntity)provider).addConsumer(entityToUpdate);
+                });
         }
     }
 
@@ -209,7 +258,8 @@ public class TopologyStitchingChanges {
      * A stitching change that makes no changes to relationships on any entity in the topology.
      * This sort of change may update the builder or the values in some commodity on a single entity.
      */
-    public static class UpdateEntityAloneChange<ENTITY> implements TopologicalChange {
+    public static class UpdateEntityAloneChange<ENTITY extends JournalableEntity<ENTITY>>
+        extends BaseTopologicalChange<ENTITY> {
         private final ENTITY entityToUpdate;
         private final Consumer<ENTITY> updateMethod;
 
@@ -220,7 +270,13 @@ public class TopologyStitchingChanges {
         }
 
         @Override
-        public void applyChange() {
+        protected String getPreamble() {
+            return "Updating entity properties for " + entityToUpdate.getJournalableSignature();
+        }
+
+        @Override
+        protected void applyChangeInternal(@Nonnull final JournalChangeset<ENTITY> changeset) {
+            changeset.beforeChange(entityToUpdate);
             updateMethod.accept(entityToUpdate);
         }
     }

@@ -144,10 +144,16 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             .addService(ServerInterceptors.intercept(actionsConfig.actionExecutionService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(schedulerConfig.scheduleRpcService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(entityConfig.entityInfoRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.topologyRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(identityProviderConfig.identityRpcService()))
-            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.discoveredGroupRpcService()))
-            .addService(ServerInterceptors.intercept(probeConfig.probeActionPoliciesService()))
+            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.topologyRpcService(),
+                monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.stitchingJournalRpcService(),
+                monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(identityProviderConfig.identityRpcService(),
+                monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.discoveredGroupRpcService(),
+                monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(probeConfig.probeActionPoliciesService(),
+                monitoringInterceptor))
             .build());
     }
 

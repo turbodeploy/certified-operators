@@ -48,9 +48,10 @@ public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation implements P
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
-                               @Nonnull final EntitySettingsCollection settingsCollection,
-                               @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+    public TopologicalChangelog<TopologyEntity>
+    performOperation(@Nonnull final Stream<TopologyEntity> entities,
+                     @Nonnull final EntitySettingsCollection settingsCollection,
+                     @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
         // iterate over every entity
         entities.forEach(entity -> {

@@ -13,6 +13,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
+import com.vmturbo.stitching.journal.JournalableEntity;
 
 /**
  * An entity capable of being stitched.
@@ -32,7 +33,7 @@ import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
  * object. Mutating a {@link StitchingEntity} directly may not propagate that change
  * to all objects that need to track the change. See {@link TopologicalChangelog} for additional details.
  */
-public interface StitchingEntity {
+public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
     /**
      * Get the builder for the {@link EntityDTO} as discovered by the target that discovered by this probe
      * and modified by earlier stitching calculations or operations.
@@ -89,6 +90,8 @@ public interface StitchingEntity {
      *
      * @return the display name of an entity.
      */
+    @Nonnull
+    @Override
     default String getDisplayName() {
         return getEntityBuilder().getDisplayName();
     }
@@ -254,6 +257,13 @@ public interface StitchingEntity {
      *         false otherwise.
      */
     boolean hasMergeInformation();
+
+    @Nonnull
+    @Override
+    default Stream<Long> getDiscoveringTargetIds() {
+        return Stream.concat(Stream.of(getTargetId()), getMergeInformation().stream()
+                .map(StitchingMergeInformation::getTargetId));
+    }
 
     /**
      * Get a {@link DiscoveryOrigin} object representing when this entity was last updated and by which

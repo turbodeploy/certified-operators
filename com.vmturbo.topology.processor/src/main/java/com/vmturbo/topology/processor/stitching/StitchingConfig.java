@@ -18,6 +18,8 @@ import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.RandomEntityStitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
 /**
@@ -62,6 +64,18 @@ public class StitchingConfig {
 
     @Value("${resizeDownWarmUpIntervalHours}")
     private double resizeDownWarmUpIntervalHours;
+
+    @Value("${stitchingJournalEnabled}")
+    private boolean stitchingJournalEnabled;
+
+    @Value("${journalMaxChangesetsPerOperation}")
+    private int journalMaxChangesetsPerOperation;
+
+    @Value("${journalNumEntitiesToRecord}")
+    private int journalNumEntitiesToRecord;
+
+    @Value("${journalsPerRecording}")
+    private int journalsPerRecording;
 
     @Autowired
     private ClockConfig clockConfig;
@@ -123,5 +137,17 @@ public class StitchingConfig {
     public StitchingManager stitchingManager() {
         return new StitchingManager(stitchingOperationStore(), preStitchingOperationStore(),
             postStitchingOperationStore(), probeConfig.probeStore(), targetConfig.targetStore());
+    }
+
+    @Bean
+    public StitchingJournalFactory stitchingJournalFactory() {
+        if (stitchingJournalEnabled) {
+            return new RandomEntityStitchingJournalFactory(clockConfig.clock(),
+                journalNumEntitiesToRecord,
+                journalMaxChangesetsPerOperation,
+                journalsPerRecording);
+        } else {
+            return StitchingJournalFactory.emptyStitchingJournalFactory();
+        }
     }
 }

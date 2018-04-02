@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 
@@ -50,9 +51,33 @@ public class TestStitchingEntity implements StitchingEntity {
         return Collections.emptySet();
     }
 
+    @Nonnull
+    @Override
+    public StitchingEntity snapshot() {
+        return new TestStitchingEntity(oid, entityBuilder.clone());
+    }
+
     @Override
     public long getOid() {
         return oid;
+    }
+
+    @Nonnull
+    @Override
+    public EntityType getJournalableEntityType() {
+        return entityBuilder.getEntityType();
+    }
+
+    @Nonnull
+    @Override
+    public Stream<Long> getDiscoveringTargetIds() {
+        return Stream.empty();
+    }
+
+    @Nonnull
+    @Override
+    public String removalDescription() {
+        return "";
     }
 
     @Override

@@ -14,11 +14,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.prestitching.MergeSharedDatacentersPreStitchingOperation;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 
 /**
  * Integration test for shared storage.
@@ -71,6 +71,7 @@ public class MergeSharedDatacentersPreStitchingOperationTest {
             .lastUpdatedTime(110L)
             .build();
 
+    final StitchingJournal<StitchingEntity> journal = new StitchingJournal<>();
 
     @Before
     public void setup() {
@@ -94,7 +95,7 @@ public class MergeSharedDatacentersPreStitchingOperationTest {
         assertEquals(3, stitchingContext.size());
         operation.performOperation(
             Stream.of(datacenterA, datacenterB, datacenterC), resultBuilder)
-            .getChanges().forEach(TopologicalChange::applyChange);
+            .getChanges().forEach(change -> change.applyChange(journal));
         assertEquals(1L, stitchingContext.size());
 
         final StitchingEntity mergedDatacenter = stitchingContext

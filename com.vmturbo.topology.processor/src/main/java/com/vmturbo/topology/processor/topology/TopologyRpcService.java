@@ -32,6 +32,7 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
 /**
@@ -42,6 +43,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
 
     private final TopologyHandler topologyHandler;
     private final TopologyPipelineFactory topologyPipelineFactory;
+    private final StitchingJournalFactory journalFactory;
     private final IdentityProvider identityProvider;
     private final EntityStore entityStore;
     private final long realtimeTopologyContextId;
@@ -53,6 +55,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
                               @Nonnull final IdentityProvider identityProvider,
                               @Nonnull final EntityStore entityStore,
                               @Nonnull final Scheduler scheduler,
+                              @Nonnull final StitchingJournalFactory journalFactory,
                               final long realtimeTopologyContextId,
                               @Nonnull final Clock clock) {
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
@@ -60,6 +63,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.scheduler = Objects.requireNonNull(scheduler);
+        this.journalFactory = Objects.requireNonNull(journalFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.clock = Objects.requireNonNull(clock);
     }
@@ -69,7 +73,7 @@ public class TopologyRpcService extends TopologyServiceImplBase {
                                          StreamObserver<TopologyBroadcastResponse> responseObserver) {
         try {
             scheduler.resetBroadcastSchedule();
-            topologyHandler.broadcastLatestTopology();
+            topologyHandler.broadcastLatestTopology(journalFactory);
             responseObserver.onNext(TopologyBroadcastResponse.newBuilder()
                 .build());
             responseObserver.onCompleted();
@@ -98,7 +102,9 @@ public class TopologyRpcService extends TopologyServiceImplBase {
             // so that we don't send too many in close succession.
             scheduler.resetBroadcastSchedule();
             topologyPipelineFactory
-                .liveTopology(topologyInfo, Collections.singletonList(new GrpcBroadcastManager(responseObserver)))
+                .liveTopology(topologyInfo,
+                    Collections.singletonList(new GrpcBroadcastManager(responseObserver)),
+                    journalFactory)
                 .run(entityStore);
         } catch (Exception e) {
             logger.error("Unable to get broadcast topology due to error: ", e);

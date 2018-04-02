@@ -85,6 +85,7 @@
 
         <docker.compose.rule.version>0.31.1</docker.compose.rule.version>
         <asciitable.version>0.3.2</asciitable.version>
+        <zjsonpatch.version>0.3.6</zjsonpatch.version>
 
         <jjwt.version>0.7.0</jjwt.version>
         <bouncycastle.version>1.57</bouncycastle.version>
@@ -1124,6 +1125,11 @@
                 <groupId>de.vandermeer</groupId>
                 <artifactId>asciitable</artifactId>
                 <version>${asciitable.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.flipkart.zjsonpatch</groupId>
+                <artifactId>zjsonpatch</artifactId>
+                <version>${zjsonpatch.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>

@@ -25,6 +25,7 @@ import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -154,6 +155,20 @@ public class StitchingTestUtils {
     public static CommodityBoughtOutline buying(@Nonnull final CommodityType commodityType,
                                                 @Nonnull final String providerId) {
         return new CommodityBoughtOutline(providerId, commodityType);
+    }
+
+    public static TopologyDTO.CommodityType commodityType(@Nonnull final CommodityDTO.CommodityType commodityType) {
+        return TopologyDTO.CommodityType.newBuilder()
+            .setType(commodityType.getNumber())
+            .build();
+    }
+
+    public static TopologyDTO.CommodityType commodityType(@Nonnull final CommodityDTO.CommodityType commodityType,
+                                                    @Nonnull final String key) {
+        return TopologyDTO.CommodityType.newBuilder()
+            .setKey(key)
+            .setType(commodityType.getNumber())
+            .build();
     }
 
     /**

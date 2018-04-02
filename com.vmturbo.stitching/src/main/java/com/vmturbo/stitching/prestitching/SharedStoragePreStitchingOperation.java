@@ -55,8 +55,8 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(@Nonnull Stream<StitchingEntity> entities,
-                                               @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
+    public TopologicalChangelog<StitchingEntity> performOperation(@Nonnull Stream<StitchingEntity> entities,
+                                                                  @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         EntityScopeFilters.sharedEntitiesByOid(entities).forEach(sharedStorages ->
             mergeSharedStorages(sharedStorages, resultBuilder));
 

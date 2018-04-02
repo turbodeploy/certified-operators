@@ -47,7 +47,7 @@ public class ComputedUsedValuePostStitchingOperation implements PostStitchingOpe
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
+    public TopologicalChangelog<TopologyEntity> performOperation(@Nonnull final Stream<TopologyEntity> entities,
                     @Nonnull final EntitySettingsCollection settingsCollection,
                     @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
@@ -60,6 +60,12 @@ public class ComputedUsedValuePostStitchingOperation implements PostStitchingOpe
         });
 
         return resultBuilder.build();
+    }
+
+    @Nonnull
+    @Override
+    public String getOperationName() {
+        return getClass().getSimpleName() + "_" + sellerType + "_" + commodityType;
     }
 
     private boolean commodityTypeMatches(TopologyDTO.CommoditySoldDTO.Builder commodity) {

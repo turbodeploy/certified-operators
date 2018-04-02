@@ -6,12 +6,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.DiscoveredGroupREST.DiscoveredGroupServiceController;
+import com.vmturbo.common.protobuf.topology.StitchingREST.StitchingJournalServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
+import com.vmturbo.topology.processor.stitching.StitchingConfig;
+import com.vmturbo.topology.processor.stitching.journal.JournalFilterFactory;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalRpcService;
+import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 import com.vmturbo.topology.processor.topology.TopologyRpcService;
 
@@ -22,7 +28,10 @@ import com.vmturbo.topology.processor.topology.TopologyRpcService;
     IdentityProviderConfig.class,
     ClockConfig.class,
     TopologyConfig.class,
-    SchedulerConfig.class
+    SchedulerConfig.class,
+    ProbeConfig.class,
+    TargetConfig.class,
+    StitchingConfig.class
 })
 public class TopologyProcessorRpcConfig {
 
@@ -44,6 +53,15 @@ public class TopologyProcessorRpcConfig {
     @Autowired
     private ClockConfig clockConfig;
 
+    @Autowired
+    private TargetConfig targetConfig;
+
+    @Autowired
+    private ProbeConfig probeConfig;
+
+    @Autowired
+    private StitchingConfig stitchingConfig;
+
     @Bean
     public DiscoveredGroupRpcService discoveredGroupRpcService() {
         return new DiscoveredGroupRpcService(groupConfig.discoveredGroupUploader());
@@ -61,12 +79,31 @@ public class TopologyProcessorRpcConfig {
             identityProviderConfig.identityProvider(),
             entityConfig.entityStore(),
             schedulerConfig.scheduler(),
+            stitchingConfig.stitchingJournalFactory(),
             topologyConfig.realtimeTopologyContextId(),
             clockConfig.clock());
     }
 
     @Bean
+    public JournalFilterFactory journalFilterFactory() {
+        return new JournalFilterFactory(probeConfig.probeStore(), targetConfig.targetStore());
+    }
+
+    @Bean
+    public StitchingJournalRpcService stitchingJournalRpcService() {
+        return new StitchingJournalRpcService(
+            topologyConfig.topologyHandler(),
+            schedulerConfig.scheduler(),
+            journalFilterFactory());
+    }
+
+    @Bean
     public TopologyDTOREST.TopologyServiceController topologyServiceController() {
         return new TopologyDTOREST.TopologyServiceController(topologyRpcService());
+    }
+
+    @Bean
+    public StitchingJournalServiceController stitchingJournalServiceController() {
+        return new StitchingJournalServiceController(stitchingJournalRpcService());
     }
 }

@@ -28,6 +28,7 @@ import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNo
 import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -60,7 +61,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesSt
  * <p>
  * Users should not instantiate {@link TopologyPipeline}s themselves. Instead, they should
  * use the appropriately configured pipelines provided by this factory - e.g.
- * {@link TopologyPipelineFactory#liveTopology(TopologyInfo, List<TopoBroadcastManager>)}.
+ * {@link TopologyPipelineFactory#liveTopology(TopologyInfo, List, StitchingJournalFactory)}.
  */
 public class TopologyPipelineFactory {
 
@@ -146,21 +147,24 @@ public class TopologyPipelineFactory {
      *                      Inject additional managers to also send the topology to other
      *                      listeners beyond the expected ones (ie to also send it to gRPC
      *                      clients in addition to the ones listening on the base broadcastManager).
+     * @param journalFactory The journal factory to be used to create a journal to track changes made
+     *                       during stitching.
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
     public TopologyPipeline<EntityStore, TopologyBroadcastInfo> liveTopology(
             @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers) {
+            @Nonnull final List<TopoBroadcastManager> additionalBroadcastManagers,
+            @Nonnull final StitchingJournalFactory journalFactory) {
         final GroupResolver groupResolver = new GroupResolver(topologyFilterFactory);
         final TopologyPipelineContext context =
-                new TopologyPipelineContext(groupResolver, topologyInfo);
+            new TopologyPipelineContext(groupResolver, topologyInfo);
         final List<TopoBroadcastManager> managers = new ArrayList<>(additionalBroadcastManagers.size() + 1);
         managers.add(topoBroadcastManager);
         managers.addAll(additionalBroadcastManagers);
 
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
-                .addStage(new StitchingStage(stitchingManager))
+                .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))
@@ -197,17 +201,21 @@ public class TopologyPipelineFactory {
      * @param topologyInfo The source topology info values. This will be cloned and potentially
      *                     edited during pipeline execution.
      * @param changes The list of changes to apply.
+     * @param journalFactory The journal factory to be used to create a journal to track changes made
+     *                       during stitching.
      * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
      *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
      */
     public TopologyPipeline<EntityStore, TopologyBroadcastInfo> planOverLiveTopology(
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<ScenarioChange> changes,
-            @Nullable final PlanScope scope) {
+            @Nullable final PlanScope scope,
+            @Nonnull final StitchingJournalFactory journalFactory) {
+        final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(new GroupResolver(topologyFilterFactory), topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
-                .addStage(new StitchingStage(stitchingManager))
+                .addStage(new StitchingStage(stitchingManager, journalFactory))
                 // TODO: We should fixup stitched groups but cannot because doing so would
                 // for the plan would also affect the live broadcast. See OM-31747.
                 .addStage(new ConstructTopologyFromStitchingContextStage())
@@ -245,6 +253,7 @@ public class TopologyPipelineFactory {
             @Nonnull final TopologyInfo topologyInfo,
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope) {
+        final TopologyFilterFactory topologyFilterFactory = new TopologyFilterFactory();
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(new GroupResolver(topologyFilterFactory), topologyInfo);
         return TopologyPipeline.<Long, TopologyBroadcastInfo>newBuilder(context)

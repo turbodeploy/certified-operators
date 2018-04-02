@@ -34,8 +34,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuild
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
@@ -59,6 +64,8 @@ import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -151,8 +158,8 @@ public class Stages {
             }
             final TopologyEntity.Builder datacenter = topologyMap.get(datacenterCommodity.get().getProviderId());
             if (datacenter == null) {
-                logger.error(String.format("Topology map doesn't contain datacenter with OID %s for host %s"),
-                                datacenterCommodity.get().getProviderId(), host);
+                logger.error(String.format("Topology map doesn't contain datacenter with OID %s for host %s",
+                                datacenterCommodity.get().getProviderId(), host));
                 return;
             }
             cluster.setName(datacenter.getDisplayName() + "/" + cluster.getName());
@@ -202,16 +209,42 @@ public class Stages {
      */
     public static class StitchingStage extends Stage<EntityStore, StitchingContext> {
 
+        /**
+         * A metric that tracks duration of preparation for stitching.
+         */
+        private static final DataMetricSummary STITCHING_PREPARATION_DURATION_SUMMARY = DataMetricSummary.builder()
+            .withName("tp_stitching_preparation_duration_seconds")
+            .withHelp("Duration of construction for data structures in preparation for stitching.")
+            .build()
+            .register();
+
         private final StitchingManager stitchingManager;
 
-        public StitchingStage(@Nonnull final StitchingManager stitchingManager) {
+        private final StitchingJournalFactory journalFactory;
+
+        public StitchingStage(@Nonnull final StitchingManager stitchingManager,
+                              @Nonnull final StitchingJournalFactory journalFactory) {
             this.stitchingManager = stitchingManager;
+            this.journalFactory = Objects.requireNonNull(journalFactory);
         }
 
         @Nonnull
         @Override
         public StitchingContext execute(@Nonnull final EntityStore entityStore) {
-            return stitchingManager.stitch(entityStore);
+            final DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
+            final StitchingContext stitchingContext = entityStore.constructStitchingContext();
+            preparationTimer.observe();
+
+            final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
+            journal.recordTopologySizes(stitchingContext.entityTypeCounts());
+
+            if (journal.shouldDumpTopologyBeforePreStitching()) {
+                journal.dumpTopology(stitchingContext.getStitchingGraph().entities()
+                    .map(Function.identity()));
+            }
+
+            getContext().getStitchingJournalContainer().setMainStitchingJournal(journal);
+            return stitchingManager.stitch(stitchingContext, journal);
         }
     }
 
@@ -634,7 +667,20 @@ public class Stages {
 
         @Override
         public void passthrough(final GraphWithSettings input) throws PipelineStageException {
-            stitchingManager.postStitch(input);
+            // Set up the post-stitching journal.
+            final IStitchingJournal<StitchingEntity> mainJournal = getContext()
+                .getStitchingJournalContainer()
+                .getMainStitchingJournal()
+                .orElse(StitchingJournalFactory.emptyStitchingJournalFactory().stitchingJournal(null));
+            final IStitchingJournal<TopologyEntity> postStitchingJournal = mainJournal.childJournal(
+                new TopologyEntitySemanticDiffer(mainJournal.getJournalOptions().getVerbosity()));
+            getContext().getStitchingJournalContainer().setPostStitchingJournal(postStitchingJournal);
+
+            stitchingManager.postStitch(input, postStitchingJournal);
+
+            if (postStitchingJournal.shouldDumpTopologyAfterPostStitching()) {
+                postStitchingJournal.dumpTopology(input.getTopologyGraph().entities());
+            }
         }
     }
 
@@ -695,6 +741,8 @@ public class Stages {
      * Placeholder stage to extract the {@link TopologyGraph} for the {@link BroadcastStage}
      * in the live and plan (but not plan-over-plan) topology.
      *
+     * Also records {@link TopologyInfo} to the {@link StitchingJournal}.
+     *
      * We shouldn't need this once plan-over-plan supports policies and settings.
      */
     public static class ExtractTopologyGraphStage extends Stage<GraphWithSettings, TopologyGraph> {
@@ -725,6 +773,13 @@ public class Stages {
         @Override
         public TopologyBroadcastInfo execute(@Nonnull final TopologyGraph input)
                 throws PipelineStageException, InterruptedException {
+
+            // Record TopologyInfo and Metrics to the journal if there is one.
+            getContext().getStitchingJournalContainer().getPostStitchingJournal().ifPresent(journal -> {
+                journal.recordTopologyInfoAndMetrics(getContext().getTopologyInfo(), journal.getMetrics());
+                journal.flushRecorders();
+            });
+
             final Iterator<TopologyEntityDTO> entities = input.entities()
                     .map(topologyEntity -> topologyEntity.getTopologyEntityDtoBuilder().build())
                     .iterator();

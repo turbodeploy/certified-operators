@@ -8,6 +8,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -54,6 +56,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -113,21 +116,6 @@ public class StitchingManagerTest {
     }
 
     @Test
-    public void testStitchGeneratesContext() throws Exception {
-        final StitchingContext stitchingContext = mock(StitchingContext.class);
-        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
-
-        when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
-        final StitchingManager stitchingManager =
-                spy(new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
-                    postStitchingOperationLibrary, probeStore, targetStore));
-        final StitchingContext returnedContext = stitchingManager.stitch(entityStore);
-
-        verify(stitchingManager).stitch(eq(stitchingContext));
-        assertEquals(stitchingContext, returnedContext);
-    }
-
-    @Test
     public void testStitchAloneOperation()  {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsAlone("foo", "bar");
         final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
@@ -142,7 +130,7 @@ public class StitchingManagerTest {
                 new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
                     postStitchingOperationLibrary, probeStore, targetStore);
 
-        stitchingManager.stitch(stitchingContext);
+        stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
         verify(stitchingContext).removeEntity(stitchingEntityCaptor.capture());
 
         assertEquals("foo", stitchingEntityCaptor.getValue().getLocalId());
@@ -163,7 +151,7 @@ public class StitchingManagerTest {
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
 
-        stitchingManager.stitch(stitchingContext);
+        stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
         verify(stitchingContext, times(2)).removeEntity(stitchingEntityCaptor.capture());
 
         final List<String> removedEntities = stitchingEntityCaptor.getAllValues().stream()
@@ -183,11 +171,10 @@ public class StitchingManagerTest {
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = contextBuilder.build();
-        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
-        stitchingManager.stitch(entityStore);
+        stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
 
         entityData.values().forEach(entity -> {
             if (entity.getEntityDtoBuilder().getEntityType() == EntityType.VIRTUAL_MACHINE) {
@@ -209,12 +196,13 @@ public class StitchingManagerTest {
             4L, topologyEntityBuilder(4L, EntityType.VIRTUAL_MACHINE, Collections.emptyList())
         );
         final TopologyGraph graph = TopologyGraph.newGraph(entities);
+        final StitchingJournal<TopologyEntity> stitchingJournal = new StitchingJournal<>();
         final GraphWithSettings graphWithSettings = new GraphWithSettings(graph, Collections.emptyMap(),
             Collections.emptyMap());
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
-        stitchingManager.postStitch(graphWithSettings);
+        stitchingManager.postStitch(graphWithSettings, stitchingJournal);
 
         graph.entities().forEach(entity -> {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
@@ -223,6 +211,20 @@ public class StitchingManagerTest {
                 assertThat(entity.getDisplayName(), not(startsWith("post-stitch-updated-")));
             }
         });
+    }
+
+    @Test
+    public void testTargetsRecordedInJournal() {
+        final StitchingContext stitchingContext = mock(StitchingContext.class);
+        when(stitchingOperationStore.getAllOperations()).thenReturn(Collections.emptyList());
+        final StitchingManager stitchingManager =
+            spy(new StitchingManager(stitchingOperationStore, preStitchingOperationLibrary,
+                postStitchingOperationLibrary, probeStore, targetStore));
+        @SuppressWarnings("unchecked")
+        final StitchingJournal<StitchingEntity> journal = mock(StitchingJournal.class);
+        stitchingManager.stitch(stitchingContext, journal);
+
+        verify(journal).recordTargets(any(Supplier.class));
     }
 
     private long curOid = 1L;

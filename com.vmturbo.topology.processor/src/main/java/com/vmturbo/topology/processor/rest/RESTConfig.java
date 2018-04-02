@@ -16,12 +16,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import com.google.gson.Gson;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
+import com.vmturbo.topology.processor.stitching.journal.JournalFilterFactory;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
 
@@ -37,6 +39,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     ProbeConfig.class,
     SchedulerConfig.class,
     GroupConfig.class,
+    ClockConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
 })
 public class RESTConfig extends WebMvcConfigurerAdapter {
@@ -62,6 +65,9 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
     private GroupConfig groupConfig;
 
     @Autowired
+    private ClockConfig clockConfig;
+
+    @Autowired
     private TopologyProcessorDiagnosticsConfig diagnosticsConfig;
 
     @Bean
@@ -70,7 +76,7 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
             schedulerConfig.scheduler(),
             topologyConfig.topologyHandler(),
             entityConfig.entityStore(),
-            groupConfig.policyManager());
+            clockConfig.clock());
     }
 
     @Bean
@@ -101,6 +107,20 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
     @Bean
     public DiagnosticsController diagnosticsController() {
         return new DiagnosticsController(diagnosticsConfig.diagsHandler());
+    }
+
+    @Bean
+    public JournalFilterFactory journalFilterFactory() {
+        return new JournalFilterFactory(probeConfig.probeStore(), targetConfig.targetStore());
+    }
+
+    @Bean
+    public StitchingJournalController stitchingController() {
+        return new StitchingJournalController(
+            topologyConfig.topologyHandler(),
+            schedulerConfig.scheduler(),
+            journalFilterFactory(),
+            clockConfig.clock());
     }
 
     @Override

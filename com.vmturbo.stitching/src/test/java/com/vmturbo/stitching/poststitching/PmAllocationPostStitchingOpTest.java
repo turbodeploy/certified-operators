@@ -23,7 +23,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -40,10 +39,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmCpuAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 @RunWith(Parameterized.class)
@@ -75,6 +74,9 @@ public class PmAllocationPostStitchingOpTest {
     private final List<CommoditySoldDTO> requiredCommodities;
     private final List<CommoditySoldDTO> expectedCommodities;
 
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> journal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     public PmAllocationPostStitchingOpTest(@Nonnull final OverprovisionCapacityPostStitchingOperation op,
                                            @Nonnull final CommodityType sourceType,
@@ -98,6 +100,9 @@ public class PmAllocationPostStitchingOpTest {
 
     private final CommoditySoldDTO irrelevantCommodity = makeCommoditySold(CommodityType.BALLOONING);
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> stitchingJournal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     @Before
     public void setup() {
@@ -180,9 +185,9 @@ public class PmAllocationPostStitchingOpTest {
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
         // run the operation and apply changes
-        final TopologicalChangelog result =
-                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        final TopologicalChangelog<TopologyEntity> result =
+            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         // check that the capacity is filled with the expected value
         assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
@@ -207,9 +212,9 @@ public class PmAllocationPostStitchingOpTest {
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
         // Keys get ignored for the PM Allocation operations.
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
                 containsInAnyOrder(sourceWithKey, makeCommoditySold(allocationCommodityType, expectedAllocationCapacity, key1)));
@@ -229,9 +234,9 @@ public class PmAllocationPostStitchingOpTest {
         final TopologyEntity testTE =
                 makeTopologyEntity(Arrays.asList(dogCommodity, catCommodity, sourceCommodity));
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
                 containsInAnyOrder(sourceCommodity,
@@ -252,9 +257,9 @@ public class PmAllocationPostStitchingOpTest {
         final TopologyEntity testTE =
                 makeTopologyEntity(Arrays.asList(fooSource, barSource, allocationCommodity));
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
                 containsInAnyOrder(fooSource, barSource,
@@ -273,9 +278,9 @@ public class PmAllocationPostStitchingOpTest {
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
         try {
-            final TopologicalChangelog result =
+            final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-            result.getChanges().forEach(TopologicalChange::applyChange);
+            result.getChanges().forEach(change -> change.applyChange(stitchingJournal));
             fail();
         } catch (IllegalStateException e) {
             assertEquals(e.getMessage(), "Found multiple commodities of type " +
@@ -289,9 +294,9 @@ public class PmAllocationPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(requiredCommodities);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
             operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         final List<CommoditySoldDTO> actualCommodities =
             testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
@@ -312,9 +317,9 @@ public class PmAllocationPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
             operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         final List<CommoditySoldDTO> actualCommodities =
             testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
@@ -345,9 +350,9 @@ public class PmAllocationPostStitchingOpTest {
             Arrays.asList(sourceCommodity, commodityWithCapacity, irrelevantCommodity);
         final TopologyEntity fourthTestTE = makeTopologyEntity(fourthCommodityList);
 
-        final TopologicalChangelog result = operation.performOperation(Stream.of(testTE,
+        final TopologicalChangelog<TopologyEntity> result = operation.performOperation(Stream.of(testTE,
             secondTestTE, thirdTestTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         final List<CommoditySoldDTO> firstResult =
             testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();

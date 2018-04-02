@@ -4,12 +4,11 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
-import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo.Builder;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfoOrBuilder;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal.StitchingJournalContainer;
 
 /**
  * The {@link TopologyPipelineContext} is information that's shared by all stages
@@ -26,10 +25,13 @@ public class TopologyPipelineContext {
 
     private final TopologyInfo.Builder topologyInfoBuilder;
 
+    private final StitchingJournalContainer stitchingJournalContainer;
+
     public TopologyPipelineContext(@Nonnull final GroupResolver groupResolver,
                                    @Nonnull final TopologyInfo topologyInfo) {
         this.groupResolver = Objects.requireNonNull(groupResolver);
         this.topologyInfoBuilder = Objects.requireNonNull(TopologyInfo.newBuilder(topologyInfo));
+        this.stitchingJournalContainer = new StitchingJournalContainer();
     }
 
     @Nonnull
@@ -42,12 +44,16 @@ public class TopologyPipelineContext {
         return topologyInfoBuilder.buildPartial();
     }
 
-    @Nonnull
     public void editTopologyInfo(Consumer<Builder> editFunction) {
         editFunction.accept(topologyInfoBuilder);
     }
 
     public String getTopologyTypeName() {
         return topologyInfoBuilder.getTopologyType().name();
+    }
+
+    @Nonnull
+    public StitchingJournalContainer getStitchingJournalContainer() {
+        return stitchingJournalContainer;
     }
 }

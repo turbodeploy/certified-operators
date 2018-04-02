@@ -6,6 +6,9 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
@@ -16,6 +19,9 @@ import com.vmturbo.stitching.storage.StorageStitchingOperation;
  * stitching targets discovered by that probe.
  */
 public class StitchingOperationLibrary {
+
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * Find an operation for the given probe type and category.
      *
@@ -51,7 +57,8 @@ public class StitchingOperationLibrary {
             case CUSTOM:
                 return Collections.emptyList();
             default:
-            throw new StitchingUnknownProbeException(probeType, probeCategory);
+                logger.warn("Unknown probe type {} and category {}.", probeType, probeCategory);
+                return Collections.emptyList();
         }
     }
 

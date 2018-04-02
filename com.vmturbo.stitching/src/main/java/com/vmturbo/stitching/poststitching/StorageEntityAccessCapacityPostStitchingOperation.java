@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -46,7 +47,7 @@ public class StorageEntityAccessCapacityPostStitchingOperation implements PostSt
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
+    public TopologicalChangelog<TopologyEntity> performOperation(@Nonnull final Stream<TopologyEntity> entities,
                               @Nonnull final EntitySettingsCollection settingsCollection,
                               @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 

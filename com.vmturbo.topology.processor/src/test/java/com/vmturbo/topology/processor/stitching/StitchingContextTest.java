@@ -26,7 +26,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class StitchingContextTest {
-    private final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8);
+    private final StitchingContext.Builder stitchingContextBuilder =
+        StitchingContext.newBuilder(8);
     private StitchingContext stitchingContext;
 
     @BeforeClass

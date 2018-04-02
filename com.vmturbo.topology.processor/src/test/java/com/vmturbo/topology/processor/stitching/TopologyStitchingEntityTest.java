@@ -157,4 +157,29 @@ public class TopologyStitchingEntityTest {
         pm.updateLastUpdatedTime(2000L);
         assertEquals(2000L, pm.getLastUpdatedTime());
     }
+
+    @Test
+    public void testSnapshot() {
+        pm.addMergeInformation(new StitchingMergeInformation(9911L, 9090L));
+        final TopologyStitchingEntity snapshotCopy = (TopologyStitchingEntity)pm.snapshot();
+
+        // Should be comparison equal but not reference equal
+        assertEquals(pm.getCommoditiesBoughtByProvider(), snapshotCopy.getCommoditiesBoughtByProvider());
+        assertFalse(pm.getCommoditiesBoughtByProvider() == snapshotCopy.getCommoditiesBoughtByProvider());
+
+        // Should be comparison equal but not reference equal
+        assertEquals(pm.getTopologyCommoditiesSold(), snapshotCopy.getTopologyCommoditiesSold());
+        assertFalse(pm.getTopologyCommoditiesSold() == snapshotCopy.getTopologyCommoditiesSold());
+
+        // Should be comparison equal but not reference equal
+        assertEquals(pm.getMergeInformation(), snapshotCopy.getMergeInformation());
+        assertFalse(pm.getMergeInformation() == snapshotCopy.getMergeInformation());
+
+        // Built versions should be comparison equal but builders should not be reference equal
+        assertEquals(pm.getEntityBuilder().build(), snapshotCopy.getEntityBuilder().build());
+        assertFalse(pm.getEntityBuilder() == snapshotCopy.getEntityBuilder());
+
+        assertEquals(pm.getLastUpdatedTime(), snapshotCopy.getLastUpdatedTime());
+        assertEquals(pm.getTargetId(), snapshotCopy.getTargetId());
+    }
 }

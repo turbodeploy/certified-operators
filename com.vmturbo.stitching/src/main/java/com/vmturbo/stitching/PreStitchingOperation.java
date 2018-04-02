@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
+import com.vmturbo.stitching.journal.JournalableOperation;
 
 /**
  * A {@link PreStitchingOperation} runs prior to probe stitching {@link StitchingOperation}s.
@@ -21,7 +22,7 @@ import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
  * that scope. See {@link StitchingScope} for additional details. For the list of available pre-defined scopes
  * see {@link StitchingScopeFactory}.
  */
-public interface PreStitchingOperation {
+public interface PreStitchingOperation extends JournalableOperation {
     /**
      * Get the scope for this {@link PreStitchingOperation}. The {@link StitchingScope} returned determines
      * which entities are provided as input to the {@link #performOperation(Stream, StitchingChangesBuilder)}
@@ -56,6 +57,6 @@ public interface PreStitchingOperation {
      *         the {@link StitchingChangesBuilder} provided as input.
      */
     @Nonnull
-    TopologicalChangelog performOperation(@Nonnull final Stream<StitchingEntity> entities,
-                                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder);
+    TopologicalChangelog<StitchingEntity> performOperation(@Nonnull final Stream<StitchingEntity> entities,
+                                                           @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder);
 }

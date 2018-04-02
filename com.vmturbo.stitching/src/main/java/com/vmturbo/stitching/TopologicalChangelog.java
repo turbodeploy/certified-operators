@@ -10,6 +10,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.stitching.journal.JournalableEntity;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
 
 /**
@@ -64,16 +66,19 @@ import com.vmturbo.stitching.utilities.MergeEntities.MergeEntitiesDetails;
  * 2. Commodities sold - No destructive mutations are permitted to commodities sold (that is, changes
  *                       that would change or remove relationships to buyers of the commodities being changed).
  *                       If a use case for this arises, we may consider supporting it in the future.
+ *
+ * @param <ENTITY> The type of entity being stitched (ie {@link StitchingEntity} in pre- and main-stitching
+ *                 and {@link TopologyEntity} in post-stitching.
  */
 @Immutable
-public class TopologicalChangelog {
+public class TopologicalChangelog<ENTITY extends JournalableEntity<ENTITY>> {
 
     /**
      * The ordered list of changes in the result.
      */
-    private final List<TopologicalChange> changes;
+    private final List<TopologicalChange<ENTITY>> changes;
 
-    private TopologicalChangelog(@Nonnull final List<TopologicalChange> changes) {
+    private TopologicalChangelog(@Nonnull final List<TopologicalChange<ENTITY>> changes) {
         this.changes = Collections.unmodifiableList(changes);
     }
 
@@ -82,7 +87,7 @@ public class TopologicalChangelog {
      *
      * @return the list of all changes in the result.
      */
-    public List<TopologicalChange> getChanges() {
+    public List<TopologicalChange<ENTITY>> getChanges() {
         return changes;
     }
 
@@ -98,17 +103,17 @@ public class TopologicalChangelog {
      * @param <ENTITY> The type of entity that to be modified by the changes. Examples are {@link StitchingEntity}
      *                 or {@link TopologyEntity}.
      */
-    public static abstract class EntityChangesBuilder<ENTITY> {
-        protected final List<TopologicalChange> changes = new ArrayList<>();
+    public static abstract class EntityChangesBuilder<ENTITY extends JournalableEntity<ENTITY>> {
+        protected final List<TopologicalChange<ENTITY>> changes = new ArrayList<>();
 
-        public abstract TopologicalChangelog build();
+        public abstract TopologicalChangelog<ENTITY> build();
 
         /**
          * Get the list of all changes in the result.
          *
          * @return the list of all changes in the result.
          */
-        public List<TopologicalChange> getChanges() {
+        public List<TopologicalChange<ENTITY>> getChanges() {
             return changes;
         }
 
@@ -137,8 +142,8 @@ public class TopologicalChangelog {
          * @return A {@link TopologicalChangelog} containing the changes that were queued on this
          * {@link StitchingChangesBuilder}.
          */
-        protected TopologicalChangelog buildInternal() {
-            return new TopologicalChangelog(changes);
+        protected TopologicalChangelog<ENTITY> buildInternal() {
+            return new TopologicalChangelog<>(changes);
         }
     }
 
@@ -156,7 +161,8 @@ public class TopologicalChangelog {
      * @param <ENTITY> The type of entity that to be modified by the changes. Examples are {@link StitchingEntity}
      *                 or {@link TopologyEntity}.
      */
-    public static abstract class StitchingChangesBuilder<ENTITY> extends EntityChangesBuilder<ENTITY> {
+    public static abstract class StitchingChangesBuilder<ENTITY extends JournalableEntity<ENTITY>>
+        extends EntityChangesBuilder<ENTITY> {
         /**
          * Request the removal of an entity from the topology.
          * <p>
@@ -220,8 +226,15 @@ public class TopologicalChangelog {
      * When mutating entities during stitching, those changes only need to be explicitly
      * recorded when those changes modify relationships to other entities. See the comments
      * on {@link TopologicalChangelog} for further details.
+     *
+     * @param <ENTITY> The type of the entity being recorded in the journal.
      */
-    public interface TopologicalChange {
-        void applyChange();
+    public interface TopologicalChange<ENTITY extends JournalableEntity<ENTITY>> {
+        /**
+         * Apply a change to the topology. Record the effects of the change to the stitching journal.
+         *
+         * @param stitchingJournal The stitching journal used to track changes.
+         */
+        void applyChange(@Nonnull final IStitchingJournal<ENTITY> stitchingJournal);
     }
 }

@@ -118,7 +118,7 @@ public class OperationTestUtilities {
      * Wait for an event to complete as determined by a predicate check function.
      *
      * @param checkerArgument The argument to the predicate checker check
-     * @param predicateCheck The predicate check
+     * @param predicateCheck The predicate check.
      * @param <T> The type of the argument to the predicate
      * @throws Exception when something goes wrong
      */

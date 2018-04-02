@@ -19,6 +19,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
 /**
@@ -38,6 +39,8 @@ public class ComputedUsedValuePostStitchingTest {
 
     private static final List<Double> usedValues = ImmutableList.of(10.0, 5.5, 60.1, 30.6);
 
+    private final IStitchingJournal journal = mock(IStitchingJournal.class);
+
     /**
      * Test that the sold used value is the sum of bought used values.
      */
@@ -48,7 +51,7 @@ public class ComputedUsedValuePostStitchingTest {
         UnitTestResultBuilder resultBuilder = new UnitTestResultBuilder();
         stitchOperation.performOperation(
             Stream.of(provider), mock(EntitySettingsCollection.class), resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         Assert.assertEquals(usedValues.stream().mapToDouble(Double::doubleValue).sum(),
             provider.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getUsed(), 1e-5);

@@ -27,6 +27,7 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
@@ -42,6 +43,10 @@ public class VmmPmMemoryAllocationPostStitchingOpTest {
 
     private final EntitySettingSpecs overprovisionSettingType = EntitySettingSpecs.MemoryOverprovisionedPercentage;
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
+
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> stitchingJournal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     private final VmmPmMemoryAllocationPostStitchingOperation operation =
             new VmmPmMemoryAllocationPostStitchingOperation();
@@ -69,7 +74,7 @@ public class VmmPmMemoryAllocationPostStitchingOpTest {
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
 
         // apply changes
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
 
         // get the modified commodity

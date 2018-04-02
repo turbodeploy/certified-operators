@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -35,6 +36,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
@@ -52,6 +54,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -133,8 +136,10 @@ public class SharedStorageIntegrationTest {
 
         when(probeStore.getProbeIdsForCategory(eq(ProbeCategory.HYPERVISOR)))
             .thenReturn(Collections.singletonList(5678L));
+        when(probeStore.getProbeIdForType(SDKProbeType.HYPERV.getProbeType())).thenReturn(Optional.of(5678L));
         when(targetStore.getProbeTargets(eq(5678L))).thenReturn(Arrays.asList(targetA, targetB));
 
+        final StitchingJournal<StitchingEntity> journal = new StitchingJournal<>();
         final StitchingContext beforeContext = entityStore.constructStitchingContext();
         final int numEntitiesBefore = beforeContext.size();
         final StitchingEntity keepEntity = beforeContext.getStitchingGraph().entities()
@@ -147,7 +152,8 @@ public class SharedStorageIntegrationTest {
             .get();
         final int numCombinedConsumers = keepEntity.getConsumers().size() + removeEntity.getConsumers().size();
 
-        final StitchingContext afterContext = stitchingManager.stitch(entityStore);
+        final StitchingContext afterContext = entityStore.constructStitchingContext();
+        stitchingManager.stitch(afterContext, journal);
 
         // There should be 2 less entities in the topology after stitching because we removed the
         assertEquals(numEntitiesBefore - 2, afterContext.size());
@@ -204,12 +210,16 @@ public class SharedStorageIntegrationTest {
      * @throws Exception If something goes wrong.
      */
     private void writeMinimizedTopology() throws Exception {
-        final TopologyStitchingEntity startA = entityStore.constructStitchingContext().getStitchingGraph().entities()
+        final TopologyStitchingEntity startA = entityStore.constructStitchingContext()
+            .getStitchingGraph()
+            .entities()
             .filter(e -> e.getLocalId().equals("9bd4ee88-99c64661") && e.getTargetId() == targetAId)
             .findFirst()
             .get();
 
-        final TopologyStitchingEntity startB = entityStore.constructStitchingContext().getStitchingGraph().entities()
+        final TopologyStitchingEntity startB = entityStore.constructStitchingContext()
+            .getStitchingGraph()
+            .entities()
             .filter(e -> e.getLocalId().equals("9bd4ee88-99c64661") && e.getTargetId() == targetBId)
             .findFirst()
             .get();

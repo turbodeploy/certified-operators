@@ -129,8 +129,7 @@ public class EntityStoreTest {
 
         entityStore = new EntityStore(targetStore, identityProvider, mockClock);
         addEntities(entities);
-        final TopologyStitchingGraph graph = entityStore
-            .constructStitchingContext()
+        final TopologyStitchingGraph graph = entityStore.constructStitchingContext()
             .getStitchingGraph();
 
         final TopologyStitchingEntity foo = entityByLocalId(graph, "foo");
@@ -175,8 +174,7 @@ public class EntityStoreTest {
 
         addEntities(firstTargetEntities, target1Id, 0L);
         addEntities(secondTargetEntities, target2Id, 1L);
-        final TopologyStitchingGraph graph = entityStore
-            .constructStitchingContext()
+        final TopologyStitchingGraph graph = entityStore.constructStitchingContext()
             .getStitchingGraph();
 
         assertEquals(6, graph.entityCount());

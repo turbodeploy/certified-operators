@@ -44,7 +44,7 @@ public class MergeSharedDatacentersPreStitchingOperation implements PreStitching
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(
+    public TopologicalChangelog<StitchingEntity> performOperation(
         @Nonnull Stream<StitchingEntity> entities,
         @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         EntityScopeFilters.sharedEntitiesByOid(entities).forEach(sharedDatacenters ->

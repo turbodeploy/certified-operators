@@ -1,0 +1,334 @@
+syntax = "proto2";
+package topology;
+
+option java_package = "com.vmturbo.common.protobuf.topology";
+
+import "topology/TopologyDTO.proto";
+
+// Control the level of detail of messages in the journal.
+enum Verbosity {
+    // Only print changeset preambles with a very high level description of what
+    // changed. With this verbosity option enabled, no details of the change
+    // itself are printed beyond this high-level description.
+    PREAMBLE_ONLY_VERBOSITY = 10;
+
+    // When there are changes, include only the changes themselves in the journal.
+    // Includes preambles but does NOT include potentially useful context around
+    // those changes in the stitching journal log.
+    CHANGES_ONLY_VERBOSITY = 20;
+
+    // When there are changes, include only the changes themselves and the necessary
+    // context to understand those changes in the stitching journal log.
+    LOCAL_CONTEXT_VERBOSITY = 30;
+
+    // When printing the entering the details of a change in the stitching journal,
+    // include the full details of the involved entities regardless of whether those fields
+    // were involved in the changes or not.
+    COMPLETE_VERBOSITY = 40;
+}
+
+// Defines how and whether to group multiple changes to an entity within a stitching changeset.
+enum ChangeGrouping {
+    // Combine changes for an individual entity within an operation into a single entry in the journal.
+    // For example, suppose a single stitching operation generates the following changes for entity X:
+    // 1. Update properties "foo", "bar", and "baz" for entity X.
+    // 2. Make entity X buy apple and grape commodities from entity Y.
+    // 3. Merge details from entity Z onto entity X.
+    //
+    // If this option is used, the order of entries for an operation within the journal
+    // is NOT guaranteed to match the order in which those changes occurred during stitching.
+    COMBINE_RELATED = 10;
+
+    // Do not combine related changes made to an entity within a changeset. If this grouping option
+    // is used, entries in the journal for an operation ARE guaranteed to match the order in which those
+    // changes actually occurred during stitching.
+    SEPARATE_DISCRETE_CHANGES = 20;
+}
+
+// Use dump options to control dumping the non-filtered entities in the topology
+// to the journal.
+enum TopologyDumpOptions {
+    // Include the full protobuf details for entities in the topology prior to the start
+    // of the PreStitching phase (If using an Entity, EntityType, ProbeType, or Target
+    // filter, prints protobuf details for entities that passes the filter, but not
+    // other entities).
+    DUMP_BEFORE_PRE_STITCHING = 10;
+
+    // Include the full protobuf details for entities in the topology after the
+    // completion of the PostStitching phase (If using an Entity, EntityType, ProbeType,
+    // or Target filter, prints protobuf details for entities that passes the filter, but not
+    // other entities).
+    DUMP_AFTER_POST_STITCHING = 50;
+}
+
+// Options that control the behavior of the journal.
+message JournalOptions {
+    // The verbosity of the journal.
+    optional Verbosity verbosity = 1 [default = LOCAL_CONTEXT_VERBOSITY];
+
+    // How to group changes in journal entries.
+    optional ChangeGrouping change_grouping = 2 [default = COMBINE_RELATED];
+
+    // When to dump the topology into the journal. These repeated values are treated as a set.
+    // If the set is empty, nothing is dumped. If multiple options are provided, the topology
+    // will be dumped at all points included in the set.
+    //
+    // So for example if both DUMP_BEFORE_PRE_STITCHING and DUMP_AFTER_POST_STITCHING are
+    // included, the topology will be dumped both before pre-stitching and after post-stitching.
+    repeated TopologyDumpOptions topology_dump_options = 3;
+
+    // To prevent accidentally stalling out the topology pipeline for an extremely
+    // long period of time collecting journal entries for a large topology, when
+    // an operation enters more than this number of changesets into the journal,
+    // we do not include any further changesets produced by this operation in
+    // the journal.
+    //
+    // If one operation enters more than this maximum number of changesets into
+    // the journal, this does not prevent any subsequent operations from
+    // entering their own changesets into the journal.
+    optional uint32 max_changesets_per_operation = 4 [default = 10000];
+
+    // Whether or not to include a list of targets in the journal.
+    // If true, includes a list of target ids, their identifiers, and what probes
+    // they are associated with at the start of the log.
+    //
+    // If false, the list of targets is not included in the journal.
+    optional bool include_target_list = 5 [default = true];
+
+    // Record start and end messages for operations that make no changes.
+    // By default operations that make no changes are not recorded in the journal.
+    optional bool record_empty_operations = 6 [default = false];
+}
+
+// Filter the entries in the journal by individual entity. Fields in this filter are applied
+// using an OR. That is, if an entity meets one filter criterion and not another,
+// the entity is considered to pass the filter.
+// If a stitching change applies to multiple entities, changes for both entities are entered
+// into the journal. (ie for the change "merge from entity A onto entity B", if only entity B
+// passes the filter, the changes for entity A are still included in the journal).
+// All entities pass an empty filter.
+message EntityFilter {
+    // A set of entity OIDs. Entities whose OIDs are in the set pass the filter.
+    repeated int64 oids = 1;
+
+    // A set of display names. Entities whose display names are in the set pass the filter.
+    // The display names are checked for exact matches.
+    repeated string display_names = 2;
+}
+
+// Filter the entries in the journal by entity type. Fields in this filter are applied
+// using an OR. That is, if an entity meets one filter criterion and not another,
+// the entity is considered to pass the filter.
+// All entities pass an empty filter.
+message EntityTypeFilter {
+    // The entity type numbers. During pre-stitching and main-stitching, while entity types
+    // are still identified by their SDK enum entity type, these numbers are tested against
+    // entity types using their SDK equivalents.
+    // See CommonDTO.proto in the SDK for the conversions.
+    repeated int32 entity_type_numbers = 1;
+
+    // The SDK entity type names. During post-stitching, while entity types are identified
+    // by their XL number rather than a named enum, these names are tested against entity
+    // types using their numbered equivalent.
+    // See CommonDTO.proto in the SDK for the conversions.
+    repeated string entity_type_names = 2;
+}
+
+// Filter the entities in the journal by probe type. Only entities discovered by probes
+// of the given type are entered into the journal.
+message ProbeTypeFilter {
+    // The names of the probes or probe categories whose entities should pass the filter
+    // and be entered into the journal.
+    oneof category_or_type {
+        // The probe names are matched in a CASE-SENSITIVE fashion. If an entity was discovered
+        // by a target associated with a probe whose name is contained in the set of probe names,
+        // it will pass the filter. If an entity was discovered by multiple targets and ANY of
+        // those targets is associated with a probe whose name is contained in the set of probe
+        // names, that entity will pass the filter.
+        NamesList probe_names = 1;
+
+        // Probe categories are matched in a CASE-INSENSITIVE fashion. If an entity was discovered
+        // by a target associated with a probe whose category name is contained in the set of probe
+        // names, it will pass the filter. If an entity was discovered by multiple targets and ANY of
+        // those targets is associated with a probe whose category name is contained in the set of
+        // probe category names, that entity will pass the filter.
+        NamesList probe_category_names = 2;
+    }
+
+    // A list of names of things. For example, probe names or probe category names.
+    message NamesList {
+        repeated string names = 1;
+    }
+}
+
+// Filter the entities in the journal by probe type. Only entities discovered by the given
+// targets are entered into the journal.
+message TargetFilter {
+    // The ids of the targets whose entities should pass the filter and be entered into
+    // the journal. If an entity is discovered by multiple targets, it will be pass the
+    // filter if ANY of those targets is contained in the set of target ids.
+    repeated int64 target_ids = 1;
+}
+
+// Filter by stitching operation. Only changes made by a given stitching (Pre, Main, or Post)
+// are entered into the journal.
+message OperationFilter {
+    // The Java class name of the operations whose changes should be entered into the journal.
+    // This is the "SimpleName" of the Java class ie.
+    // "PropagateStorageAccessAndLatencyPostStitchingOperation" OR the display name of the operation
+    // ie ComputedUsedValuePostStitchingOperation_PHYSICAL_MACHINE_MEM_PROVISIONED.
+    // If using the Java class name, all variants of that operation will be included.
+    // If using the specific display name, only the specific variant will be included.
+    repeated string operation_names = 1;
+}
+
+// Do not filter out any changes from the stitching journal.
+message IncludeAllFilter {
+
+}
+
+// The stitching journal records the events of processing a topology through the topology pipeline
+// as a series of discrete changes. It records phase and operation transitions as well as the
+// changes made to entities by operations in the topology pipeline.
+message JournalEntry {
+    oneof entry_data {
+        // Marks the start of a new stitching phase.
+        PhaseMessage phase_start_message = 1;
+
+        // Marks the start of a new stitching operation.
+        OperationStartMessage operation_start_message = 2;
+
+        // Marks the end of a stitching operation.
+        OperationEndMessage operation_end_message = 3;
+
+        // Tracks a group of changes made to an entity or set of entities by a stitching operation.
+        StitchingChanges change_message = 4;
+
+        // An error occurred during stitching.
+        string error_message = 5;
+
+        // Included at the end of the journal to provide context about which the
+        // changes made by stitching in this journal were a part of.
+        TopologyInfo topology_info = 6;
+
+        // The metrics for the journal as a whole. This is the sum of all individual operation metrics.
+        StitchingMetrics metrics = 7;
+
+        // A target permitting lookup to see which target(s) an entity is associated with.
+        TargetEntry target_entry = 8;
+
+        // An entry in the journal indicating the size of the topology in the journal.
+        TopologySizeEntry topology_size_entry = 9;
+
+        // A miscellaneous message whose semantics may not be specifically defined.
+        string miscellaneous_message = 99;
+    }
+
+    message OperationStartMessage {
+        // The name of the operation being started.
+        optional string operation_name = 1;
+    }
+
+    message OperationEndMessage {
+        // The name of the operation being ended.
+        optional string operation_name = 1;
+
+        // The metrics for a particular operation.
+        optional StitchingMetrics metrics = 2;
+    }
+
+    message PhaseMessage {
+        // The name of the phase.
+        optional string phase_name = 1;
+
+        // A more detailed desription of the phase describing at a high-level the goals of the phase
+        // and what sorts of changes are permitted by operations run during this phase.
+        optional string phase_description = 2;
+    }
+
+    message StitchingChanges {
+        // A very high level description of what the change is doing.
+        repeated string preamble = 1;
+
+        // The fine-grained details of the changes.
+        // If verbosity is set to preamble only, no details are included.
+        repeated string change_details = 2;
+    }
+
+    message StitchingMetrics {
+        // The number of changesets generated. This number is the number PRIOR to grouping
+        // changesets even if changeset grouping is enabled by filter options.
+        optional int32 changesets_generated = 1;
+
+        // The number of changesets included in this journal. This number is the number
+        // PRIOR to grouping changesets even if changeset grouping is enabled by filter options.
+        // So, for example, if grouping is enabled and we enter a changeset that merges two
+        // pairs of entities and performs an update on an entity, that single grouped changeset
+        // will count as 3 (2 merges + 1 update).
+        optional int32 changesets_included = 2;
+
+        // The number of included changests that had no differences and so were empty.
+        // ie if a changeset sets a commodity capacity to 5, but that capacity was already at 5
+        // there will be no differences and we will deem the changeset as "empty" even though
+        // we still include it.
+        optional int32 empty_changeset_count = 3;
+
+        // How long it took to perform the stitching changes in milliseconds.
+        optional int64 duration_milliseconds = 4;
+    }
+
+    // A journal entry for a target. Used to be able to understand which entities are associated with
+    // which targets.
+    message TargetEntry {
+        // The OID of the target.
+        optional int64 target_id = 1;
+
+        // The name of the target.
+        optional string target_name = 2;
+
+        // The name of the probe associated with this target.
+        optional string probe_name = 3;
+
+        // The number of entities discovered by this target.
+        optional int32 entity_count = 4;
+    }
+
+    // A message indicating the size of the topology being stitched.
+    message TopologySizeEntry {
+        optional string entity_type = 1; // The type of the entity
+
+        optional int32 entity_count = 2; // The number of that entity type in the topology.
+    }
+}
+
+// A request to capture a stitching journal with particular options and filters.
+message FilteredJournalRequest {
+    // Options to control the behavior of the journal. If none are passed, defaults are used.
+    optional JournalOptions journal_options = 1;
+
+    // A filter to use when deciding what changes to enter into the journal.
+    oneof filter_type {
+        EntityFilter entity_filter = 10;
+        EntityTypeFilter entity_type_filter = 11;
+        ProbeTypeFilter probe_type_filter = 12;
+        TargetFilter target_filter = 13;
+        OperationFilter operation_filter = 14;
+        IncludeAllFilter include_all_filter = 15;
+    }
+}
+
+// Note that the topology processor triggers a new topology broadcast as a side effect of
+// using any of the RPCs in this service.
+// Be very careful if using a very permissive filter on a very large topology. Obtaining
+// details for all changes for all entities could be a very expensive operation and
+// could produce an enormous volume of data.
+service StitchingJournalService {
+    // Trigger a topology broadcast and receive a stream of journal entries tracking changes
+    // for entities that pass the filter.
+    //
+    // Capturing the journal in this fashion produces structured output more ready for
+    // processing with automation tools.
+    // Note that there is a separate REST interface for capturing a streaming text
+    // representation of the stitching journal.
+    rpc CaptureJournalEntries(FilteredJournalRequest) returns (stream JournalEntry);
+}

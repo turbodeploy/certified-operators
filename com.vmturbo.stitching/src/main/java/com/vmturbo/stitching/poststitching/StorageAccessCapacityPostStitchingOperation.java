@@ -76,7 +76,7 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
+    public TopologicalChangelog<TopologyEntity> performOperation(@Nonnull final Stream<TopologyEntity> entities,
                              @Nonnull final EntitySettingsCollection settingsCollection,
                              @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         entities.forEach(entity -> {
@@ -106,6 +106,12 @@ public class StorageAccessCapacityPostStitchingOperation implements PostStitchin
         });
 
         return resultBuilder.build();
+    }
+
+    @Nonnull
+    @Override
+    public String getOperationName() {
+        return getClass().getSimpleName() + "_" + scopeType;
     }
 
     /**

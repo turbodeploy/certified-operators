@@ -46,6 +46,7 @@ import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.RemoveE
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityAloneChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingChanges.UpdateEntityRelationshipsChange;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 
 public class TopologyStitchingChangesTest {
 
@@ -79,6 +80,8 @@ public class TopologyStitchingChangesTest {
 
     private final StitchingContext stitchingContext = mock(StitchingContext.class);
 
+    final StitchingJournal journal = new StitchingJournal<>();
+
     static {
         IdentityGenerator.initPrefix(0);
     }
@@ -86,7 +89,7 @@ public class TopologyStitchingChangesTest {
     @Test
     public void testRemoveEntityChange() {
         final RemoveEntityChange change = new RemoveEntityChange(stitchingContext, entity1);
-        change.applyChange();
+        change.applyChange(new StitchingJournal<>());
 
         verify(stitchingContext).removeEntity(entity1);
     }
@@ -94,8 +97,8 @@ public class TopologyStitchingChangesTest {
     @Test
     public void testRemoveEntityMultipleTimesDoesNotThrowException() {
         final RemoveEntityChange change = new RemoveEntityChange(stitchingContext, entity1);
-        change.applyChange();
-        change.applyChange();
+        change.applyChange(new StitchingJournal<>());
+        change.applyChange(new StitchingJournal<>());
     }
 
     @Test
@@ -104,7 +107,7 @@ public class TopologyStitchingChangesTest {
             e -> e.getEntityBuilder().setDisplayName("foo"));
 
         assertNotEquals("foo", entity2.getDisplayName());
-        change.applyChange();
+        change.applyChange(new StitchingJournal<>());
         assertEquals("foo", entity2.getDisplayName());
     }
 
@@ -121,7 +124,7 @@ public class TopologyStitchingChangesTest {
         assertThat(entity1.getConsumers(), containsInAnyOrder(entity2, entity3));
 
         new UpdateEntityRelationshipsChange(entity2, toUpdate -> toUpdate.removeProvider(entity1))
-            .applyChange();
+            .applyChange(new StitchingJournal<>());
         assertThat(entity2.getProviders(), is(empty()));
         assertThat(entity1.getConsumers(), contains(entity3));
     }
@@ -140,7 +143,7 @@ public class TopologyStitchingChangesTest {
 
         new UpdateEntityRelationshipsChange(entity5, toUpdate ->
             entity5.putProviderCommodities(entity3, Collections.singletonList(cpuMHz().build().toBuilder())))
-            .applyChange();
+            .applyChange(new StitchingJournal<>());
         assertThat(entity5.getProviders(), containsInAnyOrder(entity2, entity3));
         assertThat(entity3.getConsumers(), contains(entity5));
     }
@@ -179,7 +182,7 @@ public class TopologyStitchingChangesTest {
 
         new MergeEntitiesChange(stitchingContext, entity3, entity1,
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO),
-            Collections.emptyList()).applyChange();
+            Collections.emptyList()).applyChange(new StitchingJournal<>());
 
         verify(stitchingContext).removeEntity(entity3);
         assertThat(entity4.getProviders(), contains(entity1));
@@ -226,11 +229,11 @@ public class TopologyStitchingChangesTest {
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity3, entity1,
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
         when(stitchingContext.hasEntity(entity3)).thenReturn(true);
-        merge.applyChange();
+        merge.applyChange(new StitchingJournal<>());
         verify(stitchingContext, times(1)).removeEntity(entity3);
 
         when(stitchingContext.hasEntity(entity3)).thenReturn(false);
-        merge.applyChange();
+        merge.applyChange(new StitchingJournal<>());
     }
 
     @Test
@@ -262,11 +265,11 @@ public class TopologyStitchingChangesTest {
         assertEquals(1000L, entity1.getLastUpdatedTime());
         assertEquals(2000L, entity2.getLastUpdatedTime());
 
-        mergeThreeOntoTwo.applyChange();
+        mergeThreeOntoTwo.applyChange(journal);
         assertThat(entity2.getMergeInformation(), contains(new StitchingMergeInformation(entity3)));
         assertEquals(3000L, entity2.getLastUpdatedTime());
 
-        mergeTwoOntoOne.applyChange();
+        mergeTwoOntoOne.applyChange(journal);
         assertThat(entity1.getMergeInformation(),
             containsInAnyOrder(new StitchingMergeInformation(entity3), new StitchingMergeInformation(entity2)));
         assertEquals(3000L, entity1.getLastUpdatedTime());
@@ -278,7 +281,7 @@ public class TopologyStitchingChangesTest {
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity1, entity1,
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
-        merge.applyChange();
+        merge.applyChange(new StitchingJournal<>());
 
         verify(stitchingContext, never()).removeEntity(entity1);
     }
@@ -297,7 +300,7 @@ public class TopologyStitchingChangesTest {
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity2, entity3,
             merger, Collections.emptyList());
-        merge.applyChange();
+        merge.applyChange(new StitchingJournal<>());
 
         assertThat(entity3.getCommoditiesSold()
             .map(Builder::getCommodityType)
@@ -332,7 +335,7 @@ public class TopologyStitchingChangesTest {
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, entity2, entity1,
             new CommoditySoldMerger(KEEP_DISTINCT_FAVOR_ONTO), Collections.emptyList());
-        merge.applyChange();
+        merge.applyChange(new StitchingJournal<>());
 
         assertThat(entity3.getCommoditiesBoughtByProvider().get(entity1).stream()
             .map(Builder::getCommodityType)
@@ -369,7 +372,7 @@ public class TopologyStitchingChangesTest {
                 .withMethod((a, b) -> "baz"));
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, mergeDetails);
-        merge.applyChange();
+        merge.applyChange(new StitchingJournal<>());
 
         assertEquals("baz", onto.getDisplayName());
     }
@@ -409,7 +412,7 @@ public class TopologyStitchingChangesTest {
             .addFieldMerger(mergeToQuux); // Then overrides again to quux
 
         final MergeEntitiesChange merge = new MergeEntitiesChange(stitchingContext, mergeDetails);
-        merge.applyChange();
+        merge.applyChange(new StitchingJournal<>());
 
         assertEquals("quux", onto.getDisplayName());
 

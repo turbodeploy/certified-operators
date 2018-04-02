@@ -27,7 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
@@ -74,6 +74,10 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
     private TopologyEntity.Builder pm1 = makeBasicTopologyEntityBuilder(31, EntityType.PHYSICAL_MACHINE);
     private TopologyEntity.Builder pm2 = makeBasicTopologyEntityBuilder(32, EntityType.PHYSICAL_MACHINE);
     private TopologyEntity.Builder pm3 = makeBasicTopologyEntityBuilder(33, EntityType.PHYSICAL_MACHINE);
+
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> stitchingJournal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     private static final double EXPECTED_ACCESS_SOLD = 165;
     private final ImmutableMap<TopologyEntity.Builder, ImmutableMap<TopologyEntity.Builder, Double>> storageAccessExpectations =
@@ -233,7 +237,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
 
         final TopologyEntity diskArrayEntity = diskArray.build();
         op.performOperation(Stream.of(diskArrayEntity), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         checkAccessAmounts(diskArrayEntity);
     }
@@ -244,7 +248,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
 
         final TopologyEntity diskArrayEntity = diskArray.build();
         op.performOperation(Stream.of(diskArrayEntity), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         checkLatencyAmounts(diskArrayEntity);
     }
@@ -260,7 +264,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
 
         final TopologyEntity diskArrayEntity = diskArray.build();
         op.performOperation(Stream.of(diskArrayEntity), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         checkAccessAmounts(diskArrayEntity);
     }
@@ -277,7 +281,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
 
         final TopologyEntity diskArrayEntity = diskArray.build();
         op.performOperation(Stream.of(diskArrayEntity), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         checkAccessAmounts(diskArrayEntity);
     }
@@ -291,7 +295,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
 
         final TopologyEntity diskArrayEntity = diskArray.build();
         op.performOperation(Stream.of(diskArrayEntity), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         // We should NOT have overridden the value provided by the probe.
         assertEquals(123.4, getUsedSold(diskArrayEntity, CommodityType.STORAGE_LATENCY).get(), EPSILON);
@@ -308,7 +312,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOpTest {
             .setUsed(100.0);
         final TopologyEntity diskArrayEntity = diskArray.build();
         op.performOperation(Stream.of(diskArrayEntity), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
         // We should NOT have overridden the value provided by the probe.
         assertEquals(100.0, getUsedSold(diskArrayEntity, CommodityType.STORAGE_ACCESS).get(), EPSILON);

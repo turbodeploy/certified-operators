@@ -33,6 +33,7 @@ import com.vmturbo.topology.processor.stitching.PreStitchingOperationScopeFactor
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingContext.Builder;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 

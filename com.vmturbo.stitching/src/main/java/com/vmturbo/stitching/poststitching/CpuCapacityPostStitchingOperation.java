@@ -42,9 +42,10 @@ public class CpuCapacityPostStitchingOperation implements PostStitchingOperation
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
-                                                 @Nonnull final EntitySettingsCollection settingsCollection,
-                                                 @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
+    public TopologicalChangelog<TopologyEntity>
+    performOperation(@Nonnull final Stream<TopologyEntity> entities,
+                     @Nonnull final EntitySettingsCollection settingsCollection,
+                     @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
 
         entities.forEach(entity -> {
             final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();

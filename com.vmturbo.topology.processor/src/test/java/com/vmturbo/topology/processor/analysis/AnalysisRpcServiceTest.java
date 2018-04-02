@@ -28,6 +28,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
@@ -45,8 +47,10 @@ public class AnalysisRpcServiceTest {
 
     private TopologyPipelineFactory pipelineFactory = mock(TopologyPipelineFactory.class);
 
+    private StitchingJournalFactory journalFactory = StitchingJournalFactory.emptyStitchingJournalFactory();
+
     private AnalysisRpcService analysisService =
-            new AnalysisRpcService(pipelineFactory, identityProvider, entityStore, clock);
+            new AnalysisRpcService(pipelineFactory, identityProvider, entityStore, journalFactory, clock);
 
     private final long returnEntityNum = 1337;
 
@@ -91,7 +95,7 @@ public class AnalysisRpcServiceTest {
         when(planOverPlanPipeline.run(eq(topologyId)))
                 .thenReturn(broadcastInfo);
         when(pipelineFactory.planOverOldTopology(eq(topologyInfo), eq(Collections.emptyList()), any()))
-                .thenReturn(planOverPlanPipeline);
+            .thenReturn(planOverPlanPipeline);
 
         // act
         StreamObserver<StartAnalysisResponse> responseObserver = mock(StreamObserver.class);
@@ -125,8 +129,9 @@ public class AnalysisRpcServiceTest {
         when(identityProvider.generateTopologyId()).thenReturn(topologyId);
         when(planPipeline.run(eq(entityStore)))
                 .thenReturn(broadcastInfo);
-        when(pipelineFactory.planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()), any()))
-                .thenReturn(planPipeline);
+        when(pipelineFactory.planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()), any(),
+            any(StitchingJournalFactory.class)))
+            .thenReturn(planPipeline);
 
         // act
         StreamObserver<StartAnalysisResponse> responseObserver = mock(StreamObserver.class);
@@ -136,7 +141,8 @@ public class AnalysisRpcServiceTest {
                 // Don't set topology ID.
                 .build(), responseObserver);
 
-        verify(pipelineFactory).planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()), any());
+        verify(pipelineFactory).planOverLiveTopology(eq(topologyInfo), eq(Collections.emptyList()),
+            any(), any(StitchingJournalFactory.class));
 
         final ArgumentCaptor<StartAnalysisResponse> responseCaptor =
                 ArgumentCaptor.forClass(StartAnalysisResponse.class);

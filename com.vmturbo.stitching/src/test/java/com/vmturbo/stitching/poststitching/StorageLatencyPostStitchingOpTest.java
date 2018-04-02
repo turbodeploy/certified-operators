@@ -29,9 +29,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
 
@@ -68,6 +68,10 @@ public class StorageLatencyPostStitchingOpTest {
     private final Setting latencySetting = makeNumericSetting(latencyCapacity);
 
     private final EntitySettingsCollection settingsMock = mock(EntitySettingsCollection.class);
+
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> journal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     @Before
     public void setup() {
@@ -134,9 +138,9 @@ public class StorageLatencyPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(startingList);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         final List<CommoditySoldDTO> actualCommodities =
                 testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();
@@ -153,9 +157,9 @@ public class StorageLatencyPostStitchingOpTest {
 
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        final TopologicalChangelog result =
+        final TopologicalChangelog<TopologyEntity> result =
                 operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-        result.getChanges().forEach(TopologicalChange::applyChange);
+        result.getChanges().forEach(change -> change.applyChange(journal));
 
         final List<CommoditySoldDTO> actualCommodities =
                 testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList();

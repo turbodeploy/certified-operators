@@ -27,9 +27,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -38,6 +35,9 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
 import org.mockito.ArgumentCaptor;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -62,7 +62,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -71,8 +70,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class EntitySettingsResolverTest {
@@ -218,7 +217,8 @@ public class EntitySettingsResolverTest {
             .thenReturn(Collections.singletonList(group));
 
         GraphWithSettings entitiesSettings =
-            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph, settingOverrides);
+            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                settingOverrides);
 
         verify(groupResolver, times(1)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -241,7 +241,8 @@ public class EntitySettingsResolverTest {
             .thenReturn(Collections.singletonList(group));
 
         GraphWithSettings entitiesSettings =
-            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph, settingOverrides);
+            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                settingOverrides);
 
         // settingPolicy2 doesn't have groups or ids. So it should't be in the
         // final result
@@ -260,7 +261,8 @@ public class EntitySettingsResolverTest {
             .thenReturn(Collections.singletonList(group));
 
         GraphWithSettings entitiesSettings =
-            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph, settingOverrides);
+            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
+                settingOverrides);
 
         assertThat(entitiesSettings.getEntitySettings().size(), is(1));
         List<EntitySettings> settings = new ArrayList<>(entitiesSettings.getEntitySettings());
@@ -667,12 +669,6 @@ public class EntitySettingsResolverTest {
                 .setTopologyContextId(777)
                 .setTopologyId(111)
                 .setTopologyType(TopologyType.REALTIME)
-                .build();
-
-        UploadEntitySettingsRequest request =
-            UploadEntitySettingsRequest.newBuilder()
-                .setTopologyId(info.getTopologyId())
-                .setTopologyContextId(info.getTopologyContextId())
                 .build();
 
         entitySettingsResolver.sendEntitySettings(info, Collections.singletonList(

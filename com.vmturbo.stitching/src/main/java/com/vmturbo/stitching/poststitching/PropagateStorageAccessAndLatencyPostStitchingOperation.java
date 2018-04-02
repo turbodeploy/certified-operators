@@ -85,9 +85,10 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
 
     @Nonnull
     @Override
-    public TopologicalChangelog performOperation(@Nonnull Stream<TopologyEntity> entities,
-                                                 @Nonnull EntitySettingsCollection settingsCollection,
-                                                 @Nonnull EntityChangesBuilder<TopologyEntity> resultBuilder) {
+    public TopologicalChangelog<TopologyEntity>
+    performOperation(@Nonnull Stream<TopologyEntity> entities,
+                     @Nonnull EntitySettingsCollection settingsCollection,
+                     @Nonnull EntityChangesBuilder<TopologyEntity> resultBuilder) {
         // If a probe supplies Access/Latency measurements for any of the Storage entities in the Storage
         // supply chain, it must supply all of them. So if the disk array already has both Access and Latency
         // usage numbers, the entire Storage subtree reachable from that DiskArray can be skipped. But if
@@ -271,7 +272,7 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
         @Override
         public void propagateSoldValues(double accessSold, double latencySold,
                                         @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
-            if (sold.shouldUpdateLatencyOrAccess()) {
+            if (sold.shouldUpdateLatencyOrAccess(accessSold, latencySold)) {
                 resultBuilder.queueUpdateEntityAlone(sold.entity, topologyEntity -> {
                     sold.updateIfUnset(sold.access, accessSold);
                     sold.updateIfUnset(sold.latency, latencySold);
@@ -405,17 +406,26 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
         /**
          * Tests whether EITHER the latency or access values should be updated.
          *
+         * @param accessValue The value to set to access if it should be updated.
+         * @param latencyValue The value to set to latency if it should be updated.
+         *
          * @return True if EITHER the latency or access values should be updated.
          *         Also returns true if they both need to be updated.
          *         Returns false only when neither need to be updated.
          */
-        public boolean shouldUpdateLatencyOrAccess() {
+        public boolean shouldUpdateLatencyOrAccess(final double accessValue,
+                                                   final double latencyValue) {
             // Note that we overwrite used values of 0 because probes (in particular, the VC probe)
             // send a value of 0 even when they want the value updated. Ideally, probes should only
             // send values that they want retained but until they put this into practice we
             // must also overwrite 0.
-            return (latency.isPresent() && (!latency.get().hasUsed() || latency.get().getUsed() == 0)) ||
-                (access.isPresent() && (!access.get().hasUsed() || access.get().getUsed() == 0));
+            return shouldUpdateValue(latency, latencyValue) || shouldUpdateValue(access, accessValue);
+        }
+
+        private boolean shouldUpdateValue(@Nonnull final Optional<CommoditySoldDTO.Builder> commodity,
+                                          final double value) {
+            return (commodity.isPresent() && (!commodity.get().hasUsed() ||
+                (commodity.map(c -> c.getUsed() == 0 && value != 0).orElse(false))));
         }
 
         /**

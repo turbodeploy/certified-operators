@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -34,6 +35,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -69,6 +72,9 @@ public class EntitySettingsApplicatorTest {
                     .setPlanType(PlanProjectType.CLUSTER_HEADROOM))
             .setTopologyType(TopologyType.PLAN)
             .build();
+
+    @java.lang.SuppressWarnings("unchecked")
+    private final StitchingJournal<TopologyEntity> stitchingJournal = Mockito.mock(StitchingJournal.class);
 
     @Before
     public void init() {

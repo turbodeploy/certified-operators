@@ -7,6 +7,8 @@ import javax.annotation.Nonnull;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
+import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
+import com.vmturbo.stitching.journal.JournalableOperation;
 
 /**
  * A {@link PostStitchingOperation} runs after probe stitching {@link StitchingOperation}s. In the TopologyPipeline,
@@ -31,7 +33,7 @@ import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
  * phase. Instead, like {@link PreStitchingOperation}s, they specify a pre-defined scope to the calculation and
  * then operate on the entities within that scope.
  */
-public interface PostStitchingOperation {
+public interface PostStitchingOperation extends JournalableOperation {
     /**
      * Get the scope for this {@link PostStitchingOperation}. The {@link StitchingScope} returned determines
      * which entities are provided as input to the {@link #performOperation}
@@ -67,7 +69,18 @@ public interface PostStitchingOperation {
      *         the {@link StitchingChangesBuilder} provided as input.
      */
     @Nonnull
-    TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
-                                        @Nonnull final EntitySettingsCollection settingsCollection,
-                                        @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder);
+    TopologicalChangelog<TopologyEntity> performOperation(@Nonnull final Stream<TopologyEntity> entities,
+                                                          @Nonnull final EntitySettingsCollection settingsCollection,
+                                                          @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder);
+
+    /**
+     * {@inheritDoc}
+     *
+     * @return By default, {@link PostStitchingOperation}s are entered in compact format.
+     */
+    @Nonnull
+    @Override
+    default FormatRecommendation getFormatRecommendation() {
+        return FormatRecommendation.COMPACT;
+    }
 }

@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.targets;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -27,6 +28,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 
@@ -209,7 +211,7 @@ public class KVBackedTargetStore implements TargetStore {
             throws TargetNotFoundException {
         final Target oldTarget = removeTarget(targetId);
         try {
-            topologyHandler.broadcastLatestTopology();
+            topologyHandler.broadcastLatestTopology(StitchingJournalFactory.emptyStitchingJournalFactory());
             scheduler.resetBroadcastSchedule();
         } catch (InterruptedException e) {
           // Although this broadcast is interrupted, it could be recovered on next scheduled

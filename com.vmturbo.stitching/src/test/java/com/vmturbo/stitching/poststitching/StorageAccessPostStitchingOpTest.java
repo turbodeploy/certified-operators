@@ -20,8 +20,8 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
-import com.vmturbo.stitching.TopologicalChangelog.TopologicalChange;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.CommoditySoldBuilder;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.TopologyEntityBuilder;
 import com.vmturbo.stitching.poststitching.PostStitchingTestUtilities.UnitTestResultBuilder;
@@ -47,6 +47,9 @@ public class StorageAccessPostStitchingOpTest {
     private static final float BAD_VALUE_1 = 456;
     private static final float BAD_VALUE_2 = 123;
 
+    @SuppressWarnings("unchecked")
+    private final IStitchingJournal<TopologyEntity> journal =
+        (IStitchingJournal<TopologyEntity>)mock(IStitchingJournal.class);
 
     @Before
     public void setup() {
@@ -77,7 +80,7 @@ public class StorageAccessPostStitchingOpTest {
         when(diskCapacityCalculator.calculateCapacity(any())).thenReturn((double)BAD_VALUE_2);
 
         diskArrayOp.performOperation(Stream.of(te), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
         assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 1e-5);
@@ -97,7 +100,7 @@ public class StorageAccessPostStitchingOpTest {
         when(diskCapacityCalculator.calculateCapacity(any())).thenReturn((double)BAD_VALUE_2);
 
         diskArrayOp.performOperation(Stream.of(te), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertTrue(resultBuilder.getChanges().isEmpty());
         assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 1e-5);
@@ -116,7 +119,7 @@ public class StorageAccessPostStitchingOpTest {
         when(diskCapacityCalculator.calculateCapacity(any())).thenReturn((double)GOOD_VALUE);
 
         diskArrayOp.performOperation(Stream.of(te), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
         assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 1e-5);
@@ -131,7 +134,7 @@ public class StorageAccessPostStitchingOpTest {
         final TopologyEntity te = baseTe.withCommoditiesSold(emptyCommodity).build();
 
         diskArrayOp.performOperation(Stream.of(te), settingsMock, resultBuilder);
-        resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(journal));
 
         assertEquals(1, resultBuilder.getChanges().size());
         assertEquals(GOOD_VALUE, te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 1e-5);
