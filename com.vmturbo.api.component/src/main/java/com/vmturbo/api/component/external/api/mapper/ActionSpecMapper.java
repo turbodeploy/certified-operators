@@ -611,15 +611,24 @@ public class ActionSpecMapper {
         actionApiDTO.setActionType(ActionType.RECONFIGURE);
 
         setEntityDtoFields(actionApiDTO.getTarget(), reconfigure.getTarget().getId(), context);
-        setEntityDtoFields(actionApiDTO.getCurrentEntity(), reconfigure.getSource().getId(), context);
+        if (reconfigure.hasSource()) {
+            setEntityDtoFields(actionApiDTO.getCurrentEntity(), reconfigure.getSource().getId(), context);
+        }
 
         actionApiDTO.setCurrentValue(Long.toString(reconfigure.getSource().getId()));
 
-        actionApiDTO.setDetails(MessageFormat.format(
-            "Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}",
+        if (reconfigure.hasSource()) {
+            actionApiDTO.setDetails(MessageFormat.format(
+                "Reconfigure {0} which requires {1} but is hosted by {2} which does not provide {1}",
                 readableEntityTypeAndName(actionApiDTO.getTarget()),
                 readableCommodityTypes(explanation.getReconfigureCommodityList()),
                 readableEntityTypeAndName(actionApiDTO.getCurrentEntity())));
+        } else {
+            actionApiDTO.setDetails(MessageFormat.format(
+                "Reconfigure {0} which requires {1} but is unplaced.",
+                readableEntityTypeAndName(actionApiDTO.getTarget()),
+                readableCommodityTypes(explanation.getReconfigureCommodityList())));
+        }
     }
 
     private void addProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,

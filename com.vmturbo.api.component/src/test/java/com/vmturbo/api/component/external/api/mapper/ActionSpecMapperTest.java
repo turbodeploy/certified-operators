@@ -325,6 +325,41 @@ public class ActionSpecMapperTest {
     }
 
     @Test
+    public void testMapSourcelessReconfigure() throws Exception {
+        final CommodityType cpuAllocation = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE)
+            .build();
+
+        ActionInfo moveInfo =
+                    ActionInfo.newBuilder().setReconfigure(
+                            Reconfigure.newBuilder()
+                            .setTarget(ApiUtilsTest.createActionEntity(0))
+                            .build())
+                    .build();
+        Explanation reconfigure =
+                    Explanation.newBuilder()
+                            .setReconfigure(ReconfigureExplanation.newBuilder()
+                                    .addReconfigureCommodity(cpuAllocation).build())
+                            .build();
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+                        .thenReturn(oidToEntityMap(
+                                entityApiDTO(TARGET, 0L, "C0")));
+
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, reconfigure), contextId);
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
+        assertEquals("0", actionApiDTO.getTarget().getUuid());
+        assertEquals("C0", actionApiDTO.getTarget().getClassName());
+
+        assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
+
+        assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
+        assertEquals(
+            "Reconfigure C 0 'Target' which requires Cpu Allocation but is unplaced.",
+            actionApiDTO.getDetails());
+    }
+
+    @Test
     public void testMapProvision() throws Exception {
         ActionInfo provisionInfo =
                 ActionInfo.newBuilder()
