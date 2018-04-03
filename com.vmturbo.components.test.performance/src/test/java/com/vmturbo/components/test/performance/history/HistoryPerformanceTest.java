@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
@@ -19,6 +20,7 @@ import org.junit.Before;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -69,6 +71,12 @@ public abstract class HistoryPerformanceTest {
         "VMemAllocation"
     );
 
+    private static final List<CommodityRequest> COMMODITY_REQUESTS = STATS_TO_FETCH.stream()
+            .map(name -> CommodityRequest.newBuilder()
+                    .setCommodityName(name)
+                    .build())
+        .collect(Collectors.toList());
+
     /**
      * Plan/Live depending on what the test is testing.
      *
@@ -86,7 +94,6 @@ public abstract class HistoryPerformanceTest {
     @Nonnull
     protected abstract KafkaMessageProducer getKafkaMessageProducer();
 
-    @Nonnull
     protected abstract void broadcastSourceTopology(TopologyInfo topologyInfo,
                                                     Collection<TopologyEntityDTO> topoDTOs)
                         throws CommunicationException, InterruptedException;
@@ -152,13 +159,12 @@ public abstract class HistoryPerformanceTest {
         final PriceIndexMessage.Builder builder = PriceIndexMessage.newBuilder()
             .setTopologyId(SOURCE_TOPOLOGY_ID)
             .setTopologyContextId(topologyContextId);
-        topoDTOs.forEach(entity -> {
+        topoDTOs.forEach(entity ->
             builder.addPayload(PriceIndexMessagePayload.newBuilder()
                     .setOid(entity.getOid())
                     .setPriceindexCurrent(2.0)
                     .setPriceindexProjected(1.0)
-            );
-        });
+            ));
 
         marketSender.sendPriceIndex(TOPOLOGY_INFO
             .setTopologyContextId(topologyContextId)
@@ -166,14 +172,14 @@ public abstract class HistoryPerformanceTest {
             .build(), builder.build());
     }
 
-    protected void fetchStats(final long topologyContextId) throws Exception {
+    protected void fetchStats(final long topologyContextId){
         Iterable<StatSnapshot> fetchedStats = () -> statsService.getAveragedEntityStats(
             EntityStatsRequest.newBuilder()
                 .addEntities(topologyContextId)
                 .setFilter(StatsFilter.newBuilder()
-                    .setStartDate(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1))
-                    .setEndDate(System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1))
-                    .addAllCommodityName(STATS_TO_FETCH))
+                        .setStartDate(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1))
+                        .setEndDate(System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1))
+                        .addAllCommodityRequests(COMMODITY_REQUESTS))
                 .build()
         );
 

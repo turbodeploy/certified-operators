@@ -234,7 +234,8 @@ public class StatsHistoryServiceTest {
                     .setStartDate(startDate)
                     .setEndDate(endDate);
         List<String> commodityNames = Lists.newArrayList("c1", "c2", "c3");
-        reqStatsBuilder.addAllCommodityName(commodityNames);
+        commodityNames.forEach(commodityName ->
+                reqStatsBuilder.addCommodityRequests(buildCommodityRequest(commodityName)));
 
         // full 'Market' stats request has no entities
         Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
@@ -259,6 +260,12 @@ public class StatsHistoryServiceTest {
         verifyNoMoreInteractions(mockStatSnapshotStreamObserver);
         verifyNoMoreInteractions(mockPlanStatsReader);
 
+    }
+
+    private StatsFilter.CommodityRequest buildCommodityRequest(String commodityName){
+        return StatsFilter.CommodityRequest.newBuilder()
+                .setCommodityName(commodityName)
+                .build();
     }
 
     /**
@@ -317,7 +324,8 @@ public class StatsHistoryServiceTest {
             .setStartDate(startDate)
             .setEndDate(endDate);
         List<String> commodityNames = Lists.newArrayList("c1", "c2", "c3");
-        reqStatsBuilder.addAllCommodityName(commodityNames);
+        commodityNames.forEach(commodityName ->
+                reqStatsBuilder.addCommodityRequests(buildCommodityRequest(commodityName)));
 
         List<Record> statsRecordsList = new ArrayList<>();
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 1, "c1", "c1-subtype");
@@ -366,7 +374,8 @@ public class StatsHistoryServiceTest {
                 .setStartDate(startDate)
                 .setEndDate(endDate);
         List<String> commodityNames = Lists.newArrayList("c1");
-        reqStatsBuilder.addAllCommodityName(commodityNames);
+        commodityNames.forEach(commodityName ->
+                reqStatsBuilder.addCommodityRequests(buildCommodityRequest(commodityName)));
         Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
                 .addAllEntities(queryEntityUuids)
                 .setFilter(reqStatsBuilder)
@@ -613,8 +622,8 @@ public class StatsHistoryServiceTest {
         ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
                 .setClusterId(Long.parseLong(clusterId))
                 .setStats(StatsFilter.newBuilder()
-                        .addCommodityName(commodityNames[0])
-                        .addCommodityName(commodityNames[1])
+                        .addCommodityRequests(buildCommodityRequest(commodityNames[0]))
+                        .addCommodityRequests(buildCommodityRequest(commodityNames[1]))
                         .build())
                 .build();
 
@@ -653,8 +662,8 @@ public class StatsHistoryServiceTest {
                 .setStats(StatsFilter.newBuilder()
                         .setStartDate(startDate)
                         .setEndDate(endDate)
-                        .addCommodityName(commodityNames[0])
-                        .addCommodityName(commodityNames[1])
+                        .addCommodityRequests(buildCommodityRequest(commodityNames[0]))
+                        .addCommodityRequests(buildCommodityRequest(commodityNames[1]))
                         .build())
                 .build();
 
@@ -693,8 +702,8 @@ public class StatsHistoryServiceTest {
                 .setStats(StatsFilter.newBuilder()
                         .setStartDate(startDate)
                         .setEndDate(endDate)
-                        .addCommodityName(commodityNames[0])
-                        .addCommodityName(commodityNames[1])
+                        .addCommodityRequests(buildCommodityRequest(commodityNames[0]))
+                        .addCommodityRequests(buildCommodityRequest(commodityNames[1]))
                         .build())
                 .build();
         statsHistoryService.getClusterStats(request, mockStatSnapshotStreamObserver);

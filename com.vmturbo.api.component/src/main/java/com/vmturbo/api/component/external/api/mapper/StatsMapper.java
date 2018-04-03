@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.reports.db.EntityType;
 import com.vmturbo.reports.db.RelationType;
 import com.vmturbo.reports.db.StringConstants;
@@ -250,6 +251,7 @@ public class StatsMapper {
      * The StatApiInputDTO specifies the details of the /stats request, including a date range,
      * commodities to query, and one of entity names / scopes / entity-type to query.
      *
+     * It also specifies filter clauses to use as in SQL 'where' clauses and 'group by' clauses
      *
      * @param statApiInput a {@link StatPeriodApiInputDTO} specifying query options for
      *                     this /stats query.
@@ -261,49 +263,54 @@ public class StatsMapper {
     private static StatsFilter newPeriodStatsFilter(
             @Nonnull final StatPeriodApiInputDTO statApiInput,
             @Nonnull final Optional<Integer> globalTempGroupEntityType) {
-        final StatsFilter.Builder requestBuilder = StatsFilter.newBuilder();
-        globalTempGroupEntityType.ifPresent(tempGroupEntityType ->
-                requestBuilder.setRelatedEntityType(
-                        ServiceEntityMapper.toUIEntityType(tempGroupEntityType)));
+        final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder();
         final String inputStartDate = statApiInput.getStartDate();
         if (inputStartDate != null) {
             final Long aLong = Long.valueOf(inputStartDate);
-            requestBuilder.setStartDate(aLong);
+            filterRequestBuilder.setStartDate(aLong);
         }
         if (statApiInput.getEndDate() != null) {
             final Long aLong = Long.valueOf(statApiInput.getEndDate());
-            requestBuilder.setEndDate(aLong);
+            filterRequestBuilder.setEndDate(aLong);
         }
         if (statApiInput.getStatistics() != null) {
             for (StatApiInputDTO stat : statApiInput.getStatistics()) {
                 if (stat.getName() != null) {
-                    requestBuilder.addCommodityName(stat.getName());
-                }
-                // TODO (roman, June 2, 2017) OM-20291: Handle filters, relatedEntityType,
-                // and groupBy on a per-statistic basis. Just printing warnings for now.
-                if (stat.getFilters() != null && !stat.getFilters().isEmpty()) {
-                    logger.warn("Unhandled statistic filters!\n {}", stat.getFilters().stream()
-                        .map(filter -> filter.getType() + " : " + filter.getValue())
-                        .collect(Collectors.joining("\n")));
-                }
-                if (stat.getRelatedEntityType() != null) {
-                    if (globalTempGroupEntityType.isPresent() &&
-                            !ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get())
-                                    .equals(stat.getRelatedEntityType())) {
-                        logger.error("Api input related entity type: {} is not consistent with " +
-                                "group entity type: {}", stat.getRelatedEntityType(),
-                                ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
-                        throw new IllegalArgumentException("Related entity type is not same as group entity type");
+                    CommodityRequest.Builder commodityRequestBuilder = CommodityRequest.newBuilder();
+                    commodityRequestBuilder.setCommodityName(stat.getName());
+                    // Pass filters, relatedEntityType, and groupBy as part of the request
+                    if (stat.getFilters() != null && !stat.getFilters().isEmpty()) {
+                        stat.getFilters().forEach(statFilterApiDto ->
+                            commodityRequestBuilder.addPropertyValueFilter(
+                                    StatsFilter.PropertyValueFilter.newBuilder()
+                                            .setProperty(statFilterApiDto.getType())
+                                            .setValue(statFilterApiDto.getValue())
+                                            .build()));
                     }
-                    requestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
-                }
-                if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
-                    logger.warn("Unhandled group-by for stats:\n {}",
-                            stat.getGroupBy().stream().collect(Collectors.joining("\n")));
+                    if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
+                        commodityRequestBuilder.addAllGroupBy(stat.getGroupBy());
+                    }
+                    if (globalTempGroupEntityType.isPresent()) {
+                                commodityRequestBuilder.setRelatedEntityType(
+                                        ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
+                    } else if (stat.getRelatedEntityType() != null) {
+                        if (globalTempGroupEntityType.isPresent() &&
+                                !ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get())
+                                        .equals(stat.getRelatedEntityType())) {
+                            logger.error("Api input related entity type: {} is not consistent with " +
+                                            "group entity type: {}", stat.getRelatedEntityType(),
+                                    ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
+                            throw new IllegalArgumentException("Related entity type is not same as group entity type");
+                        }
+                        commodityRequestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
+                    }
+                    filterRequestBuilder.addCommodityRequests(commodityRequestBuilder.build());
+                } else {
+                    logger.warn("null stat name in request: ", stat);
                 }
             }
         }
-        return requestBuilder.build();
+        return filterRequestBuilder.build();
     }
 
     @Nonnull
@@ -398,20 +405,22 @@ public class StatsMapper {
                     // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
                     // and extend the Projected Stats API to serve the additional functionality.
                     if (statApiInputDTO.getName() != null) {
-                        planStatsFilter.addCommodityName(statApiInputDTO.getName());
+                        planStatsFilter.addCommodityRequests(CommodityRequest.newBuilder()
+                                .setCommodityName(statApiInputDTO.getName())
+                                .build());
                     }
                 });
             }
         }
 
-        final String relatedType = inputDto.getRelatedType();
-        if (relatedType != null) {
-            planStatsFilter.setRelatedEntityType(normalizeRelatedType(relatedType));
-        }
-
         final PlanTopologyStatsRequest.Builder requestBuilder = PlanTopologyStatsRequest.newBuilder()
                 .setTopologyId(planInstance.getProjectedTopologyId())
                 .setFilter(planStatsFilter);
+
+        final String relatedType = inputDto.getRelatedType();
+        if (relatedType != null) {
+            requestBuilder.setRelatedEntityType(normalizeRelatedType(relatedType));
+        }
 
         // If there are scopes, set the entity filter.
         // Note - right now if you set an entity filter but do not add any entity ids, there will

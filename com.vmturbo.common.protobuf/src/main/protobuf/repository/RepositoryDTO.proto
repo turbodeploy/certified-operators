@@ -89,6 +89,9 @@ message PlanTopologyStatsRequest {
 
     // The filter to apply to the entities in the topology. If not set, retrieve all entities.
     optional EntityFilter entity_filter = 3;
+
+    // If present, limit the ServiceEntities processed to the given type.
+    optional string related_entity_type = 4;
 }
 
 // Return the plan stats for an entity. Includes the {@link TopologyEntityDTO} if requested.

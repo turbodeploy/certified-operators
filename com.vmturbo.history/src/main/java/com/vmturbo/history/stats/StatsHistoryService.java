@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.components.common.stats.StatsUtils.collectCommodityNames;
 import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
 import static com.vmturbo.history.schema.StringConstants.CAPACITY;
 import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
@@ -201,7 +202,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                 endDate = filter.getEndDate();
             }
 
-            final List<String> commodityNames = filter.getCommodityNameList();
+            // collect the commodity names to fetch from each commodity requests
+            final List<String> commodityNames = collectCommodityNames(filter);
 
             // determine if this request is for stats for a plan topology; for efficiency, check
             // first for the special case ID of the entire live topology, "Market" (i.e. not a plan)
@@ -217,12 +219,14 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
             if (isPlan) {
                 // read from plan topologies
+                // TODO: we will want to pass the commodity requests lists, not just the commodity names,
+                // so that only the requested stats rows will be returned - OM-33667
                 returnPlanTopologyStats(responseObserver, entitiesList.get(0),
                         commodityNames);
             } else {
                 // read from live topologies
-                Optional<String> relatedEntityType = (request.getFilter().hasRelatedEntityType())
-                        ? Optional.of(request.getFilter().getRelatedEntityType())
+                Optional<String> relatedEntityType = (request.hasRelatedEntityType())
+                        ? Optional.of(request.getRelatedEntityType())
                         : Optional.empty();
                 returnLiveMarketStats(responseObserver, startDate, endDate, commodityNames,
                         entitiesList, relatedEntityType);
@@ -253,10 +257,11 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
                 logger.debug("getEntityStats: {}", entityOid);
                 final StatsFilter statsFilter = request.getFilter();
+                final List<String> commodityNames = collectCommodityNames(statsFilter);
                 List<Record> statDBRecords = liveStatsReader.getStatsRecords(
                         Collections.singletonList(Long.toString(entityOid)),
                         statsFilter.getStartDate(), statsFilter.getEndDate(),
-                        statsFilter.getCommodityNameList());
+                        commodityNames);
                 EntityStats.Builder statsForEntity = EntityStats.newBuilder()
                         .setOid(entityOid);
 
@@ -298,8 +303,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     .asException());
             return;
         }
-
-        final List<String> commodityNames = request.getStats().getCommodityNameList();
+        final List<String> commodityNames = collectCommodityNames(filter);
 
         try {
             Multimap<java.sql.Date, StatRecord> resultMap = HashMultimap.create();

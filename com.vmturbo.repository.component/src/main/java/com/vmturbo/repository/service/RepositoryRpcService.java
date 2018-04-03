@@ -2,6 +2,7 @@ package com.vmturbo.repository.service;
 
 import static com.vmturbo.components.common.ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS;
 import static com.vmturbo.components.common.ClassicEnumMapper.ENTITY_TYPE_MAPPINGS;
+import static com.vmturbo.components.common.stats.StatsUtils.collectCommodityNames;
 import static javaslang.API.$;
 import static javaslang.API.Case;
 import static javaslang.API.Match;
@@ -231,7 +232,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         // create a filter on relatedEntityType
         final Stats.StatsFilter requestFilter = request.getFilter();
         logger.debug("fetch projected plan stats, entity filter {}, commodities {}",
-                requestFilter.getRelatedEntityType(), requestFilter.getCommodityNameList());
+                request.getRelatedEntityType(), collectCommodityNames(requestFilter));
         final Predicate<TopologyEntityDTO> entityPredicate = newEntityMatcher(request);
         final TopologyProtobufReader reader = topologyProtobufsManager.createTopologyProtobufReader(
                         projectedTopologyid, Optional.empty());
@@ -267,6 +268,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         responseObserver.onCompleted();
     }
 
+
     /**
      * Extract the stats values from a given TopologyEntityDTO and add them to a new
      * EntityStats object.
@@ -277,7 +279,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
      * given {@link TopologyEntityDTO}
      */
     private EntityStats getStatsForPlanEntity(TopologyEntityDTO entityDTO, PlanTopologyStatsRequest request) {
-        Set<String> commodityNames = Sets.newHashSet(request.getFilter().getCommodityNameList());
+        Set<String> commodityNames = Sets.newHashSet(collectCommodityNames(request.getFilter()));
         StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
         if (request.hasFilter() && request.getFilter().hasStartDate()) {
             snapshot.setSnapshotDate(DateTimeUtil.toString(request.getFilter().getStartDate()));
@@ -373,6 +375,8 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
      * A predicate over a TopologyEntityDTO that will return true if the entity matches the
      * filters in the request.
      *
+     * TODO: implement the filtering in the PropertyValueFilter component of the request - OM-33678
+     *
      * @param request the External REST API version of the entity type to select
      * @return true if the entity type of the given TopologyEntityDTO matches the given relatedEntityType
      */
@@ -382,8 +386,8 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         final Optional<Set<Long>> requestedEntities = request.hasEntityFilter() ?
                 Optional.of(Sets.newHashSet(request.getEntityFilter().getEntityIdsList())) :
                 Optional.empty();
-        final Predicate<TopologyEntityDTO> entityTypePredicate = request.getFilter().hasRelatedEntityType() ?
-                matchEntityType(request.getFilter().getRelatedEntityType()) : noFilterPredicate();
+        final Predicate<TopologyEntityDTO> entityTypePredicate = request.hasRelatedEntityType() ?
+                matchEntityType(request.getRelatedEntityType()) : noFilterPredicate();
         return (entity) -> {
             if (requestedEntities.isPresent() && !requestedEntities.get().contains(entity.getOid())) {
                 return false;

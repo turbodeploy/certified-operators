@@ -1,24 +1,36 @@
 package com.vmturbo.api.component.mapper;
 
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
+import org.assertj.core.util.Lists;
+import org.assertj.core.util.Sets;
 import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
@@ -28,6 +40,9 @@ import com.vmturbo.reports.db.RelationType;
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
  */
 public class StatsMapperTest {
+
+    public static final long START_DATE = 1234L;
+    public static final long END_DATE = 5678L;
 
     /**
      * Test Conversion of gRPC stats call result to the ApiDTO to return for the REST API caller.
@@ -69,22 +84,21 @@ public class StatsMapperTest {
         // Arrange
         Stats.StatSnapshot testSnapshot = Stats.StatSnapshot.newBuilder()
                 .setSnapshotDate("date-value")
-                .setStartDate(1234L)
-                .setEndDate(5678L)
+                .setStartDate(START_DATE)
+                .setEndDate(END_DATE)
                 .addAllStatRecords(buildStatRecords(postfixes, relations))
                 .build();
 
         // Act
         StatsMapper.toStatSnapshotApiDTO(testSnapshot);
     }
-
     @Test
     public void toStatApiDTOStatKeyFilter() throws Exception {
         final String statKey = "foo";
         StatSnapshot snapshot = StatSnapshot.newBuilder()
-            .addStatRecords(StatSnapshot.StatRecord.newBuilder()
-            .setStatKey(statKey))
-            .build();
+                .addStatRecords(StatSnapshot.StatRecord.newBuilder()
+                        .setStatKey(statKey))
+                .build();
 
         final StatSnapshotApiDTO dto = StatsMapper.toStatSnapshotApiDTO(snapshot);
         assertThat(dto.getStatistics().size(), is(1));
@@ -93,20 +107,98 @@ public class StatsMapperTest {
         assertThat(filter.getType(), is(StatsMapper.FILTER_NAME_KEY));
         assertThat(filter.getValue(), is(statKey));
     }
-
     @Test
     public void testMetricsDoNotIncludeCapacityOrReserved() throws Exception {
         // Price index is a metric and metrics should not include capacities or reserved
         // or else the UI will render them as commodities with donut charts and utilizations.
         final String statMetricName = StatsMapper.METRIC_NAMES.iterator().next();
         StatSnapshot snapshot = StatSnapshot.newBuilder()
-            .addStatRecords(StatSnapshot.StatRecord.newBuilder()
-                .setName(statMetricName))
+                .addStatRecords(StatSnapshot.StatRecord.newBuilder()
+                        .setName(statMetricName))
                 .build();
 
         final StatApiDTO dto = StatsMapper.toStatSnapshotApiDTO(snapshot).getStatistics().get(0);
         assertNull(dto.getCapacity());
         assertNull(dto.getReserved());
+    }
+
+    @Test
+    public void testToEntityStatsRequest() {
+        // Arrange
+        Set<Long> entityOids = Sets.newLinkedHashSet(1L, 2L);
+        StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
+        apiRequestInput.setStartDate(Long.toString(START_DATE));
+        apiRequestInput.setEndDate(Long.toString(END_DATE));
+
+        // first stat to fetch
+        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName("stat1");
+        statApiInputDTO.setRelatedEntityType("relatedType1");
+        StatFilterApiDTO statFilterApiDTO1 = new StatFilterApiDTO();
+        statFilterApiDTO1.setType("filter-type-1");
+        statFilterApiDTO1.setValue("filter-value-1");
+
+        StatFilterApiDTO statFilterApiDTO2 = new StatFilterApiDTO();
+        statApiInputDTO.setRelatedEntityType("relatedType1");
+
+        statFilterApiDTO2.setType("filter-type-2");
+        statFilterApiDTO2.setValue("filter-value-2");
+        statApiInputDTO.setFilters(Lists.newArrayList(statFilterApiDTO1, statFilterApiDTO2));
+
+        // second stat to fetch
+        StatApiInputDTO statApiInputDTO2 = new StatApiInputDTO();
+        statApiInputDTO2.setName("stat2");
+        apiRequestInput.setStatistics(Lists.newArrayList(statApiInputDTO, statApiInputDTO2));
+
+        // Act
+        EntityStatsRequest requestProtobuf = StatsMapper.toEntityStatsRequest(entityOids,
+                apiRequestInput, Optional.empty());
+
+        // Assert
+        assertThat(requestProtobuf.getEntitiesCount(), equalTo(entityOids.size()));
+        assertTrue(requestProtobuf.hasFilter());
+        final Stats.StatsFilter filter = requestProtobuf.getFilter();
+        assertThat(filter.getStartDate(), equalTo(Long.valueOf(apiRequestInput.getStartDate())));
+        assertThat(filter.getEndDate(), equalTo(Long.valueOf(apiRequestInput.getEndDate())));
+        assertThat(filter.getCommodityRequestsCount(), equalTo(2));
+        assertThat(filter.getCommodityRequestsList(), containsInAnyOrder(
+                Stats.StatsFilter.CommodityRequest.newBuilder()
+                        .setCommodityName("stat1")
+                        .addPropertyValueFilter(Stats.StatsFilter.PropertyValueFilter.newBuilder()
+                                .setProperty("filter-type-1")
+                                .setValue("filter-value-1")
+                                .build())
+                        .addPropertyValueFilter(Stats.StatsFilter.PropertyValueFilter.newBuilder()
+                                .setProperty("filter-type-2")
+                                .setValue("filter-value-2")
+                                .build())
+                        .setRelatedEntityType("relatedType1")
+                        .build(),
+                Stats.StatsFilter.CommodityRequest.newBuilder()
+                        .setCommodityName("stat2")
+                        .build()
+        ));
+    }
+
+    @Test
+    public void testToEntityStatsRequestDefaults() {
+        // Arrange
+        Set<Long> entityOids = Sets.newLinkedHashSet(1L, 2L);
+        StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
+
+        // Act
+        EntityStatsRequest requestProtobuf = StatsMapper.toEntityStatsRequest(entityOids,
+                apiRequestInput, Optional.empty());
+
+        // Assert
+        assertThat(requestProtobuf.getEntitiesCount(), equalTo(entityOids.size()));
+        assertTrue(requestProtobuf.hasFilter());
+        final Stats.StatsFilter filter = requestProtobuf.getFilter();
+        assertFalse(filter.hasStartDate());
+        assertFalse(filter.hasEndDate());
+        assertThat(filter.getCommodityRequestsCount(), equalTo(0));
+        assertThat(filter.getCommodityRequestsCount(), equalTo(0));
+        assertThat(filter.getCommodityAttributesCount(), equalTo(0));
     }
 
     private void verifyMappedStatRecord(StatRecord test,
