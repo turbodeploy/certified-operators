@@ -355,7 +355,7 @@ ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
 # Create docker logical volumes
 pvcreate /dev/sda3
 vgcreate dockdata /dev/sda3
-lvcreate --wipesignatures y -n docker -l 100%FREE dockdata
+lvcreate -y --wipesignatures y -n docker -l 100%FREE dockdata
 mkfs.xfs /dev/dockdata/docker
 mkdir -p /var/lib/docker
 echo "/dev/dockdata/docker /var/lib/docker    xfs     defaults        1 3" >> /etc/fstab
