@@ -8,6 +8,7 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -20,12 +21,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.io.IoBuilder;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.docker.compose.DockerComposeRule;
@@ -37,6 +32,13 @@ import com.palantir.docker.compose.connection.DockerPort;
 import io.grpc.Channel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.netty.NettyChannelBuilder;
+
+import org.apache.http.client.utils.URIBuilder;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.io.IoBuilder;
+
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -154,8 +156,7 @@ public class ComponentCluster {
      */
     public void down() {
         try {
-            List<Component> orderedComponents = components.values().stream()
-                .collect(Collectors.toList());
+            final List<Component> orderedComponents = new ArrayList<>(components.values());
             Collections.reverse(orderedComponents);
             orderedComponents.forEach(Component::close);
         } finally {
@@ -165,7 +166,7 @@ public class ComponentCluster {
 
     /**
      * Get the connection configuration to connect to a service using the *.api-provided
-     * clients for the particular component. For example, see: {@link com.vmturbo.market.component.api.impl.MarketComponentClient}.
+     * clients for the particular component. For example, see: {@link com.vmturbo.topology.processor.api.impl.TopologyProcessorClient}.
      *
      * @param service The service name.
      * @return The connection configuration.
@@ -385,7 +386,8 @@ public class ComponentCluster {
         void up(@Nonnull final Container clusterMgr,
                 @Nonnull final DockerComposeRule dockerComposeRule,
                 @Nonnull final ServiceLogger serviceLogger) {
-            up(clusterMgr, dockerComposeRule, serviceLogger, ServiceConfiguration.forService(getName()));
+            up(clusterMgr, dockerComposeRule, serviceLogger,
+                    ServiceConfiguration.forService(getName(), getName() + "-1"));
         }
 
         @VisibleForTesting

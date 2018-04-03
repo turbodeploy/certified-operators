@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.io.OutputStream;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -11,7 +12,6 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.api.serviceinterfaces.IClusterService;
-import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
 
 /**
  * Implementation for the Cluster Manager Service API calls.
@@ -29,8 +29,8 @@ public class ClusterService implements IClusterService {
             , "sslKeystorePassword"
             , "readonlyPassword");
 
-    public ClusterService(ClusterMgrClient clusterManagerClient) {
-        clusterMgrApi = clusterManagerClient;
+    public ClusterService(@Nonnull IClusterService clusterManagerClient) {
+        clusterMgrApi = Objects.requireNonNull(clusterManagerClient);
     }
 
     @Override
@@ -70,13 +70,10 @@ public class ClusterService implements IClusterService {
     }
 
     @Override
-    public String setPropertyForComponentType(String componentType, String propertyName, String propertyValue) {
-        return clusterMgrApi.setPropertyForComponentType(componentType, propertyName, propertyValue);
-    }
-
-    @Override
-    public String setPropertyForComponentInstance(String componentType, String instanceId, String propertyName, String propertyValue) {
-        return clusterMgrApi.setPropertyForComponentInstance( componentType,  instanceId,  propertyName,  propertyValue);
+    public String setPropertyForComponentInstance(String componentType, String instanceId,
+            String propertyName, String propertyValue) {
+        return clusterMgrApi.setPropertyForComponentInstance(componentType, instanceId,
+                propertyName, propertyValue);
     }
 
     @Override
@@ -160,25 +157,6 @@ public class ClusterService implements IClusterService {
             if (dto.containsKey(key)) dto.put(key, ASTERISKS);
         }));
        return dto;
-    }
-
-    /**
-     * Update new properties based on component type.
-     * Note: it's called by UI, so before sending them out, we need to restore the masked values with
-     * original values if they are not changed.
-     *
-     * @param componentType component type
-     * @param newProperties new properties to be updated
-     * @return
-     */
-    @Override
-    public ComponentPropertiesDTO putDefaultPropertiesForComponentType(String componentType, ComponentPropertiesDTO newProperties) {
-        ComponentPropertiesDTO originalDto = clusterMgrApi.getDefaultPropertiesForComponentType(componentType);
-        sensitiveKeySet.forEach((key -> {
-            if (newProperties.containsKey(key) && newProperties.get(key).equals(ASTERISKS))
-                newProperties.put(key, originalDto.get(key));
-        }));
-        return clusterMgrApi.putDefaultPropertiesForComponentType(componentType, newProperties);
     }
 
     @Override

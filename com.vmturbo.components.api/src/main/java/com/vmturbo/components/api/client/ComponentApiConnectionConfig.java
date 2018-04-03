@@ -13,7 +13,6 @@ import javax.annotation.concurrent.Immutable;
 @Immutable
 public class ComponentApiConnectionConfig {
 
-    private static final long DEFAULT_CONN_RETRY_INTERVAL_S = 30;
 
     private final String host;
 
@@ -27,30 +26,18 @@ public class ComponentApiConnectionConfig {
 
     private final String sslKeystorePassword;
 
-    private final long silentRetriesTime;
-
-    private final long connRetryIntervalSeconds;
-
-    private final long pongMessageTimeout;
-
-    private ComponentApiConnectionConfig(@Nonnull final String host,
+    protected ComponentApiConnectionConfig(@Nonnull final String host,
                                          final int port,
                                          @Nullable final String userName,
                                          @Nullable final String userPassword,
                                          @Nullable final File sslKeystoreFile,
-                                         @Nullable final String sslKeystorePassword,
-                                         final long silentRetriesTime,
-                                         final long connRetryIntervalSeconds,
-                                         final long pongMessageTimeout) {
+                                         @Nullable final String sslKeystorePassword) {
         this.host = host;
         this.port = port;
         this.userName = userName;
         this.userPassword = userPassword;
         this.sslKeystoreFile = sslKeystoreFile;
         this.sslKeystorePassword = sslKeystorePassword;
-        this.silentRetriesTime = silentRetriesTime;
-        this.connRetryIntervalSeconds = connRetryIntervalSeconds;
-        this.pongMessageTimeout = pongMessageTimeout;
     }
 
     @Nonnull
@@ -82,23 +69,6 @@ public class ComponentApiConnectionConfig {
         return sslKeystorePassword;
     }
 
-    public long getSilentRetriesTime() {
-        return silentRetriesTime;
-    }
-
-    public long getConnRetryIntervalSeconds() {
-        return connRetryIntervalSeconds;
-    }
-
-    public long getPongMessageTimeout() {
-        return pongMessageTimeout;
-    }
-
-    public static Builder newBuilder(@Nonnull final ComponentApiConnectionConfig prototype) {
-        return new Builder(Objects.requireNonNull(prototype));
-
-    }
-
     public static AddressBuilder newBuilder() {
         return new AddressBuilder();
     }
@@ -114,12 +84,11 @@ public class ComponentApiConnectionConfig {
     }
 
     /**
-     * Builder for the {@link ComponentApiConnectionConfig}.
+     * Abstract implementation of connection configuration builder.
      *
-     * <p>Use the {@link ComponentApiConnectionConfig#newBuilder()} or
-     * {@link ComponentApiConnectionConfig#newBuilder(ComponentApiConnectionConfig)} to initialize.
+     * @param <T> type of descendant class
      */
-    public static class Builder {
+    protected abstract static class AbstractBuilder<T extends AbstractBuilder> {
         private final String host;
         private final int port;
 
@@ -127,67 +96,80 @@ public class ComponentApiConnectionConfig {
         private String userPassword = null;
         private File sslKeystoreFile = null;
         private String sslKeystorePassword = null;
-        private long silentRetriesTime = 0;
-        private long connRetryIntervalSeconds = DEFAULT_CONN_RETRY_INTERVAL_S;
-        private long pongMessageTimeout = 10000;
 
-        private Builder(@Nonnull final String host, final int port) {
+        protected AbstractBuilder(@Nonnull final String host, final int port) {
             this.host = Objects.requireNonNull(host);
             this.port = port;
         }
 
-        private Builder(@Nonnull final ComponentApiConnectionConfig prototype) {
-            this.host = Objects.requireNonNull(prototype.host);
-            this.port = prototype.port;
-
-            this.userName = prototype.getUserName();
-            this.userPassword = prototype.getUserPassword();
-            this.sslKeystoreFile = prototype.getSSLKeystoreFile();
-            this.sslKeystorePassword = prototype.getSSLKeystorePassword();
-            this.silentRetriesTime = prototype.getSilentRetriesTime();
-            this.connRetryIntervalSeconds = prototype.getConnRetryIntervalSeconds();
-            this.pongMessageTimeout = prototype.getPongMessageTimeout();
-        }
-
-        public Builder setUserName(@Nonnull final String userName) {
+        public T setUserName(@Nonnull final String userName) {
             this.userName = Objects.requireNonNull(userName);
-            return this;
+            return getSelf();
         }
 
-        public Builder setUserPassword(@Nonnull final String userPassword) {
+        public T setUserPassword(@Nonnull final String userPassword) {
             this.userPassword = Objects.requireNonNull(userPassword);
-            return this;
+            return getSelf();
         }
 
-        public Builder setSslKeystoreFile(@Nonnull final File sslKeystoreFile) {
+        public T setSslKeystoreFile(@Nonnull final File sslKeystoreFile) {
             this.sslKeystoreFile = Objects.requireNonNull(sslKeystoreFile);
-            return this;
+            return getSelf();
         }
 
-        public Builder setSslKeystorePassword(@Nonnull final String sslKeystorePassword) {
+        public T setSslKeystorePassword(@Nonnull final String sslKeystorePassword) {
             this.sslKeystorePassword = Objects.requireNonNull(sslKeystorePassword);
-            return this;
+            return getSelf();
         }
 
-        public Builder setSilentRetriesTime(final long silentRetriesTime) {
-            this.silentRetriesTime = silentRetriesTime;
-            return this;
+
+        public String getHost() {
+            return host;
         }
 
-        public Builder setConnRetryIntervalSeconds(final long connRetryIntervalSeconds) {
-            this.connRetryIntervalSeconds = connRetryIntervalSeconds;
-            return this;
+        public int getPort() {
+            return port;
         }
 
-        public Builder setPongMessageTimeout(final long pongMessageTimeout) {
-            this.pongMessageTimeout = pongMessageTimeout;
+        public String getUserName() {
+            return userName;
+        }
+
+        public String getUserPassword() {
+            return userPassword;
+        }
+
+        public File getSslKeystoreFile() {
+            return sslKeystoreFile;
+        }
+
+        public String getSslKeystorePassword() {
+            return sslKeystorePassword;
+        }
+
+        protected abstract T getSelf();
+    }
+
+    /**
+     * Builder for the {@link ComponentApiConnectionConfig}.
+     *
+     * <p>Use the {@link ComponentApiConnectionConfig#newBuilder()} or
+     * {@link ComponentApiConnectionConfig#newBuilder(ComponentApiConnectionConfig)} to initialize.
+     */
+    public static class Builder extends AbstractBuilder<Builder> {
+
+        private Builder(@Nonnull String host, int port) {
+            super(host, port);
+        }
+
+        @Override
+        protected Builder getSelf() {
             return this;
         }
 
         public ComponentApiConnectionConfig build() {
-            return new ComponentApiConnectionConfig(host, port, userName, userPassword,
-                    sslKeystoreFile, sslKeystorePassword, silentRetriesTime,
-                    connRetryIntervalSeconds, pongMessageTimeout);
+            return new ComponentApiConnectionConfig(getHost(), getPort(), getUserName(),
+                    getUserPassword(), getSslKeystoreFile(), getSslKeystorePassword());
         }
     }
 }

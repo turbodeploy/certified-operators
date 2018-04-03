@@ -34,6 +34,7 @@ import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
 
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
+import com.vmturbo.api.serviceinterfaces.IClusterService;
 import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
@@ -380,19 +381,22 @@ public abstract class BaseVmtComponent implements IVmtComponent {
                 "Missing 'component_type' configuration.");
         final String clusterMgrHost = Objects.requireNonNull(System.getenv("clustermgr_host"),
                 "Missing ClusterMgr host name ('clustermgr_host').");
+        final String instanceId = Objects.requireNonNull(System.getenv("instance_id"),
+                "Missing 'instance_id' configuration");
 
-        logger.info("Fetching configuration from ClusterMgr for '{}' component", componentType);
+        logger.info("Fetching configuration from ClusterMgr for '{}' component of type '{}'",
+                instanceId, componentType);
         logger.info("clustermgr_host: {}, clustermgr_port: {}", clusterMgrHost, clusterMgrPort);
 
         // call ClusterMgr to fetch the configuration for this component type
-        ClusterMgrClient clusterMgrClient = ClusterMgrClient.rpcOnly(
+        final IClusterService clusterMgrClient = ClusterMgrClient.createClient(
                 ComponentApiConnectionConfig.newBuilder()
                         .setHostAndPort(clusterMgrHost, clusterMgrPort)
                         .build());
         do {
             try {
                 ComponentPropertiesDTO componentProperties =
-                        clusterMgrClient.getDefaultPropertiesForComponentType(componentType);
+                        clusterMgrClient.getComponentInstanceProperties(componentType, instanceId);
                 componentProperties.forEach((configKey, configValue) -> {
                     logger.info("       {} = {}", configKey, configValue);
                     System.setProperty(configKey, configValue);

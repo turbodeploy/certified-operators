@@ -163,26 +163,6 @@ public class ClusterMgrController {
     }
 
     /**
-     * Replace the default {@link ComponentProperties}, (property name -> value), for a VMTurbo component type.
-     * Any previous {@link ComponentProperties} will be removed.
-     *
-     * @param componentType the component type
-     * @param newProperties the new default {@link ComponentProperties} to apply for this component type
-     * @return the map of default property-name/value pairs for the given component type
-     */
-    @ApiOperation("Replace the default ComponentProperties, (property name -> value), for a component type.")
-    @RequestMapping(path = "components/{componentType}/defaults",
-            consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
-            method = RequestMethod.PUT)
-    @ResponseBody
-    @SuppressWarnings("unused")
-    public ComponentProperties putDefaultPropertiesForComponentType(
-            @PathVariable("componentType") String componentType,
-            @RequestBody ComponentProperties newProperties) {
-        return clusterMgrService.putDefaultPropertiesForComponentType(componentType, newProperties);
-    }
-
-    /**
      * Return the Set of component instances for a given component type that are defined.
      *
      * The instance ids are returned regardless of the execution state of each instance. In other words,
@@ -237,7 +217,8 @@ public class ClusterMgrController {
     }
 
     /**
-     * Get the map of (property name -> value) for a VMTurbo component instance.
+     * Get the map of (property name -> value) for a VMTurbo component instance. If some properties
+     * are absent, they are substituted with defaults for this component type.
      *
      * @return the map of property-name/value pairs for the given component instance
      */
@@ -283,24 +264,6 @@ public class ClusterMgrController {
             @PathVariable("componentType") String componentType,
             @PathVariable("propertyName") String propertyName) {
         return clusterMgrService.getComponentTypeProperty(componentType, propertyName);
-    }
-
-    /**
-     * Set the value of a default configuration property for a VMTurbo component type.
-     *
-     * @return the new value of the named property for the given component type
-     */
-    @ApiOperation("Set the value of a default configuration property for a VMTurbo component type.")
-    @RequestMapping(path = "components/{componentType}/defaults/{propertyName}",
-            consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE},
-            method = RequestMethod.PUT)
-    @ResponseBody
-    @SuppressWarnings("unused")
-    public String setPropertyForComponentType(
-            @PathVariable("componentType") String componentType,
-            @PathVariable("propertyName") String propertyName,
-            @RequestBody String propertyValue) {
-        return clusterMgrService.setPropertyForComponentType(componentType, propertyName, propertyValue);
     }
 
     /**

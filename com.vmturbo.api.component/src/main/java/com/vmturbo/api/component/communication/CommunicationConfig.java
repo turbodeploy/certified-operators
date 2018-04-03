@@ -21,6 +21,7 @@ import com.vmturbo.api.ReportNotificationDTO.ReportStatusNotification.ReportStat
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.api.serviceinterfaces.IClusterService;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
@@ -186,10 +187,9 @@ public class CommunicationConfig {
     }
 
     @Bean
-    public ClusterMgrClient clusterMgr() {
-        return ClusterMgrClient.rpcOnly(ComponentApiConnectionConfig.newBuilder()
+    public IClusterService clusterMgr() {
+        return ClusterMgrClient.createClient(ComponentApiConnectionConfig.newBuilder()
                 .setHostAndPort(clusterMgrHost, httpPort)
-                .setPongMessageTimeout(websocketPongTimeout)
                 .build());
     }
 

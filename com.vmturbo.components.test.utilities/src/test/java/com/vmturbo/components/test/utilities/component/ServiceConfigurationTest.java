@@ -6,27 +6,16 @@ import static org.mockito.Mockito.verify;
 
 import org.junit.Test;
 
+import com.vmturbo.api.serviceinterfaces.IClusterService;
 import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
 
 public class ServiceConfigurationTest {
 
-    final ClusterMgrClient clusterMgr = mock(ClusterMgrClient.class);
-
-    @Test
-    public void testService() throws Exception {
-        ServiceConfiguration.forService("market")
-            .withConfiguration("foo", "bar")
-            .withConfiguration("baz", "frob")
-            .apply(clusterMgr);
-
-        verify(clusterMgr).setPropertyForComponentType(eq("market"), eq("foo"), eq("bar"));
-        verify(clusterMgr).setPropertyForComponentType(eq("market"), eq("baz"), eq("frob"));
-    }
+    final IClusterService clusterMgr = mock(IClusterService.class);
 
     @Test
     public void testInstance() throws Exception {
-        ServiceConfiguration.forService("market")
-            .instance("market_1")
+        ServiceConfiguration.forService("market", "market_1")
             .withConfiguration("foo", "bar")
             .apply(clusterMgr);
 

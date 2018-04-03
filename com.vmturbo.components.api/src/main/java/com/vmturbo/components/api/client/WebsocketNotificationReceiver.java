@@ -15,12 +15,12 @@ import java.util.function.BiConsumer;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.protobuf.AbstractMessage;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.Empty;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.AbstractProtobufEndpoint;
 import com.vmturbo.communication.CommunicationException;
@@ -54,7 +54,7 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
      * @param deserializer deserializer for the notification message.
      */
     public WebsocketNotificationReceiver(
-            @Nonnull final ComponentApiConnectionConfig connectionConfig,
+            @Nonnull final WebsocketConnectionConfig connectionConfig,
             @Nonnull String websocketPath, @Nonnull ExecutorService threadPool,
             @Nonnull Deserializer<T> deserializer) {
         this.deserializer = Objects.requireNonNull(deserializer);
@@ -84,7 +84,7 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
     @Nonnull
     private AbstractProtobufEndpoint<Empty, T> createEndpoint(
             @Nonnull final ITransport<ByteBuffer, InputStream> transport) {
-        final AbstractProtobufEndpoint<Empty, T> endpoint =
+        final AbstractProtobufEndpoint<Empty, T>  endpoint =
                 new AbstractProtobufEndpoint<Empty, T>(transport) {
                     @Override
                     protected T parseFromData(CodedInputStream bytes) throws IOException {
@@ -134,10 +134,10 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
      */
     private static class InternalConnectionConfig implements ConnectionConfig {
         private final URI finalUri;
-        private final ComponentApiConnectionConfig innerConfig;
+        private final WebsocketConnectionConfig innerConfig;
 
         InternalConnectionConfig(@Nonnull final URI finalUri,
-                @Nonnull final ComponentApiConnectionConfig innerConfig) {
+                @Nonnull final WebsocketConnectionConfig innerConfig) {
             this.finalUri = finalUri;
             this.innerConfig = innerConfig;
         }

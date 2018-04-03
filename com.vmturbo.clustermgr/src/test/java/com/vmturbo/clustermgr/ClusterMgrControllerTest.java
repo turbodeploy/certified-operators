@@ -133,30 +133,6 @@ public class ClusterMgrControllerTest {
     }
 
     @Test
-    public void setDefaultsForComponentType() throws Exception {
-        // Arrange
-        ComponentProperties testProperties = new ComponentProperties();
-        testProperties.put("p1", "a");
-        testProperties.put("p2", "b");
-        ObjectMapper mapper = new ObjectMapper();
-        String testPropertiesString = mapper.writeValueAsString(testProperties);
-        // Act
-        MvcResult result = mockMvc.perform(put(API_PREFIX + "/components/c1/defaults")
-                .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
-                .content(testPropertiesString))
-                .andExpect(status().isOk())
-                .andReturn();
-        // Assert
-        ArgumentCaptor<String> componentTypeCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<ComponentProperties> propertiesCaptor = ArgumentCaptor.forClass(ComponentProperties.class);
-        verify(clusterMgrServiceMock, times(1)).putDefaultPropertiesForComponentType(componentTypeCaptor.capture(),
-                propertiesCaptor.capture());
-        assertThat(componentTypeCaptor.getValue(), is("c1"));
-        assertThat(propertiesCaptor.getValue().entrySet(), equalTo(testProperties.entrySet()));
-        verifyNoMoreInteractions(clusterMgrServiceMock);
-    }
-
-    @Test
     public void getPropertiesForComponentInstance() throws Exception {
         // Arrange
         // Act

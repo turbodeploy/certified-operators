@@ -35,8 +35,7 @@ import com.vmturbo.components.api.client.ComponentRestClient;
 /**
  * Wrapper for the REST API for the ClusterMgr Component.
  **/
-class ClusterMgrRestClient extends ComponentRestClient
-        implements IClusterService {
+class ClusterMgrRestClient extends ComponentRestClient implements IClusterService {
 
     private static final String REST_API_PREFIX = "";
 
@@ -166,12 +165,6 @@ class ClusterMgrRestClient extends ComponentRestClient
     }
 
     @Override
-    public String setPropertyForComponentType(String componentType, String propertyName, String propertyValue) {
-        return new RestPutRequestor<String, String>(COMPONENT_TYPE_DEFAULT_PROPERTY_URI, String.class)
-                .invoke(propertyValue, componentType, propertyName);
-    }
-
-    @Override
     public String setPropertyForComponentInstance(String componentType,
                                                   String instanceId,
                                                   String propertyName,
@@ -236,15 +229,6 @@ class ClusterMgrRestClient extends ComponentRestClient
     public ComponentPropertiesDTO getDefaultPropertiesForComponentType(String componentType) {
         return new RestGetRequestor<ComponentPropertiesDTO>(COMPONENT_TYPE_DEFAULTS_URI, ComponentPropertiesDTO.class)
                 .invoke(componentType);
-    }
-
-    @Override
-    public ComponentPropertiesDTO putDefaultPropertiesForComponentType(String componentType,
-                                                                       ComponentPropertiesDTO newProperties) {
-        return new RestPutRequestor<ComponentPropertiesDTO, ComponentPropertiesDTO>(
-                COMPONENT_TYPE_DEFAULTS_URI,
-                ComponentPropertiesDTO.class)
-                .invoke(newProperties, componentType);
     }
 
     @Override

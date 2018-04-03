@@ -22,7 +22,7 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.client.WebsocketConnectionConfig;
 import com.vmturbo.components.api.server.WebsocketNotificationSender;
 
 /**
@@ -111,10 +111,7 @@ public class IntegrationTestServer implements AutoCloseable {
         return (T)Objects.requireNonNull(applicationContext.getBean(name));
     }
 
-    public ComponentApiConnectionConfig connectionConfig() throws URISyntaxException {
-        return ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort("localhost", serverPort)
-                .setConnRetryIntervalSeconds(1)
-                .build();
+    public WebsocketConnectionConfig connectionConfig() throws URISyntaxException {
+        return WebsocketConnectionConfig.newBuilder("localhost", serverPort).build();
     }
 }

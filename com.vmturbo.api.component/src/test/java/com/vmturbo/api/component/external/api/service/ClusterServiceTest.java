@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -14,7 +13,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
-import com.vmturbo.clustermgr.api.impl.ClusterMgrClient;
+import com.vmturbo.api.serviceinterfaces.IClusterService;
 
 /**
  * Test services for {@link ClusterService}
@@ -32,7 +31,7 @@ public class ClusterServiceTest {
     public static final String DB = "db";
     public static final String USERNAME = "username";
 
-    private static ClusterMgrClient clusterManagerClient = Mockito.mock(ClusterMgrClient.class);
+    private static IClusterService clusterManagerClient = Mockito.mock(IClusterService.class);
 
     @Autowired
     ClusterService serviceUnderTest;
@@ -87,74 +86,6 @@ public class ClusterServiceTest {
         assertEquals(ASTERISKS, resultArrango);
         String resultDB = serviceUnderTest.getComponentTypeProperty(GROUP, DB_HOST);
         assertEquals(DB, resultDB);
-    }
-
-    @Test
-    public void testPutDefaultPropertiesForComponentTypeWithNoChanges() {
-        ComponentPropertiesDTO originalPropertiesDTO = new ComponentPropertiesDTO();
-        // arrango password
-        originalPropertiesDTO.put(ARANGODB_PASS, "root");
-        originalPropertiesDTO.put(DB_HOST, DB);
-
-        ComponentPropertiesDTO newPropertiesDTO = new ComponentPropertiesDTO();
-        newPropertiesDTO.put(ARANGODB_PASS, ASTERISKS);
-        newPropertiesDTO.put(DB_HOST, DB);
-
-        Mockito.when(clusterManagerClient.getDefaultPropertiesForComponentType(GROUP))
-                .thenReturn(originalPropertiesDTO);
-
-        serviceUnderTest.putDefaultPropertiesForComponentType(GROUP, newPropertiesDTO);
-
-        Mockito.verify(clusterManagerClient, Mockito.times(1))
-                .putDefaultPropertiesForComponentType(GROUP, originalPropertiesDTO);
-    }
-
-    @Test
-    public void testPutDefaultPropertiesForComponentTypeWithChangeOnNotSensitiveValue() {
-        ComponentPropertiesDTO originalPropertiesDTO = new ComponentPropertiesDTO();
-        // arrango password
-        originalPropertiesDTO.put(ARANGODB_PASS, "root");
-        originalPropertiesDTO.put(DB_HOST, DB);
-
-        ComponentPropertiesDTO newPropertiesDTO = new ComponentPropertiesDTO();
-        newPropertiesDTO.put(ARANGODB_PASS, ASTERISKS);
-        newPropertiesDTO.put(DB_HOST, "1");
-
-        ComponentPropertiesDTO mergedPropertiesDTO = new ComponentPropertiesDTO();
-        mergedPropertiesDTO.put(ARANGODB_PASS, "root");
-        mergedPropertiesDTO.put(DB_HOST, "1");
-
-        Mockito.when(clusterManagerClient.getDefaultPropertiesForComponentType(GROUP))
-                .thenReturn(originalPropertiesDTO);
-
-        serviceUnderTest.putDefaultPropertiesForComponentType(GROUP, newPropertiesDTO);
-
-        Mockito.verify(clusterManagerClient, Mockito.times(1))
-                .putDefaultPropertiesForComponentType(GROUP, mergedPropertiesDTO);
-    }
-
-    @Test
-    public void testPutDefaultPropertiesForComponentTypeWithChangeOnSensitiveValue() {
-        ComponentPropertiesDTO originalPropertiesDTO = new ComponentPropertiesDTO();
-        // arrango password
-        originalPropertiesDTO.put(ARANGODB_PASS, "root");
-        originalPropertiesDTO.put(DB_HOST, DB);
-
-        ComponentPropertiesDTO newPropertiesDTO = new ComponentPropertiesDTO();
-        newPropertiesDTO.put(ARANGODB_PASS, "newpassword");
-        newPropertiesDTO.put(DB_HOST, DB);
-
-        ComponentPropertiesDTO mergedPropertiesDTO = new ComponentPropertiesDTO();
-        mergedPropertiesDTO.put(ARANGODB_PASS, "newpassword");
-        mergedPropertiesDTO.put(DB_HOST, DB);
-
-        Mockito.when(clusterManagerClient.getDefaultPropertiesForComponentType(GROUP))
-                .thenReturn(originalPropertiesDTO);
-
-        serviceUnderTest.putDefaultPropertiesForComponentType(GROUP, newPropertiesDTO);
-
-        Mockito.verify(clusterManagerClient, Mockito.times(1))
-                .putDefaultPropertiesForComponentType(GROUP, mergedPropertiesDTO);
     }
 
     @Test

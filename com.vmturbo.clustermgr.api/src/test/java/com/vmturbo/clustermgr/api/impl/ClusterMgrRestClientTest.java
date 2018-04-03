@@ -3,7 +3,9 @@ package com.vmturbo.clustermgr.api.impl;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import java.io.ByteArrayOutputStream;
@@ -18,7 +20,8 @@ import com.google.gson.Gson;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
+import org.junit.Before;
+import org.junit.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -27,8 +30,6 @@ import org.springframework.web.client.RestTemplate;
 import com.vmturbo.api.dto.cluster.ClusterConfigurationDTO;
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import org.junit.Before;
-import org.junit.Test;
 
 /**
  * Class to exercise the ClusterMgr REST API entrypoints. Most of these entrypoints forward requests directly to
@@ -118,22 +119,6 @@ public class ClusterMgrRestClientTest {
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));
-    }
-
-    @Test
-    public void testSetPropertyForComponentType() throws Exception {
-        // Arrange
-        String newValue = "mock-post-value";
-        String expectedUri = baseTestURL + "/components/test-type/defaults/test-property";
-        mockServer.expect(requestTo(expectedUri))
-                .andExpect(method(HttpMethod.PUT))
-                .andExpect(content().string(newValue))
-                .andRespond(withSuccess(newValue, MediaType.APPLICATION_JSON_UTF8));
-        // Act
-        String result = testRestClient.setPropertyForComponentType("test-type", "test-property", newValue);
-        // Assert
-        mockServer.verify();
-        assertThat(result, is(newValue));
     }
 
     @Test
@@ -245,25 +230,6 @@ public class ClusterMgrRestClientTest {
                 .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
         // Act
         ComponentPropertiesDTO result = testRestClient.getDefaultPropertiesForComponentType("test-type");
-        // Assert
-        mockServer.verify();
-        assertThat(result, is(testResponse));
-    }
-
-    @Test
-    public void testPutDefaultPropertiesForComponentType() throws Exception {
-        // Arrange
-        ComponentPropertiesDTO newValue = new ComponentPropertiesDTO();
-        String newValueString = gson.toJson(newValue);
-        ComponentPropertiesDTO testResponse = new ComponentPropertiesDTO();
-        String testResponseString = gson.toJson(testResponse);
-        String expectedUri = baseTestURL + "/components/test-type/defaults";
-        mockServer.expect(requestTo(expectedUri))
-                .andExpect(method(HttpMethod.PUT))
-                .andExpect(content().string(testResponseString))
-                .andRespond(withSuccess(testResponseString, MediaType.APPLICATION_JSON_UTF8));
-        // Act
-        ComponentPropertiesDTO result = testRestClient.putDefaultPropertiesForComponentType("test-type", testResponse);
         // Assert
         mockServer.verify();
         assertThat(result, is(testResponse));

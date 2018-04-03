@@ -68,7 +68,6 @@ import org.springframework.stereotype.Component;
  * <p>
  * Consul values may be any byte string, with a size limit of 512kB.
  ***/
-@Component
 public class ClusterMgrService {
     // Consul key path component names to implement the Component/Node/Properties schema above
     private static final Character CONSUL_PATH_SEPARATOR = '/';
@@ -317,35 +316,6 @@ public class ClusterMgrService {
             throw new RuntimeException("Value keyPrefix does not end with CONSUL_PATH_SEPARATOR: "
                     + CONSUL_PATH_SEPARATOR);
         }
-    }
-
-    /**
-     * Set the value of a given component property for the given component type.
-     *
-     * Set the value for the given property on the given component instance. Based on the semantics of Consul, any
-     * previous value for this property will be overwritten, and if the property did not exist before then it is created.
-     *
-     * The new value may be null, which effectively deletes this property. The "customer" will need to provide a suitable
-     * default. This will help us implement a "search path" of configuration properties.
-     *
-     * Returns the new value. Note that there is a write/read with no locking, and so the value returned may
-     * differ if there has been an intervening write.
-     *
-     * See the {@literal COMPONENT_INSTANCE_PROPERTY_FORMAT} format for the full key to be used in Consul.
-     *
-     * @param componentType the component type to update
-     * @param propertyName the name of the configuration property to set
-     * @param propertyValue the new value for the given configuration property
-     * @return the new value of the configuration property
-     */
-    public String setPropertyForComponentType(
-            String componentType,
-            String propertyName,
-            String propertyValue) {
-        String instancePropertiesKey = getComponentDefaultPropertyKey(componentType, propertyName);
-        setComponentKeyValue(instancePropertiesKey, propertyValue);
-        notifyInstanceConfigurationChanged(componentType);
-        return getComponentKeyValue(instancePropertiesKey);
     }
 
     /**
@@ -990,8 +960,16 @@ public class ClusterMgrService {
      * component instance.
      */
     public ComponentProperties getComponentInstanceProperties(String componentType, String componentInstanceId) {
-        String instancePropertiesKey = getComponentInstancePropertiesKey(componentType, componentInstanceId);
-        return getComponentPropertiesWithPrefix(instancePropertiesKey);
+        final String defaultPropertiesKey = getComponentDefaultsKey(componentType);
+        final ComponentProperties componentProperties =
+                getComponentPropertiesWithPrefix(defaultPropertiesKey);
+
+        final String instancePropertiesKey =
+                getComponentInstancePropertiesKey(componentType, componentInstanceId);
+        final ComponentProperties instanceSpecificProperties =
+                getComponentPropertiesWithPrefix(instancePropertiesKey);
+        componentProperties.putAll(instanceSpecificProperties);
+        return componentProperties;
     }
 
     /**

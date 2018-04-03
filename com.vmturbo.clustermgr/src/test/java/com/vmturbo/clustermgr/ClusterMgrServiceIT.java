@@ -1,15 +1,16 @@
 package com.vmturbo.clustermgr;
 
 import java.util.Collections;
+import java.util.Map;
+
+import com.google.common.collect.Sets;
+import com.pszymczyk.consul.junit.ConsulResource;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.Sets;
-import com.pszymczyk.consul.junit.ConsulResource;
 
 /**
  * Integration tests for {@link ClusterMgrService}. Run against live consul (started
@@ -27,20 +28,21 @@ public class ClusterMgrServiceIT {
     public final ConsulResource consul = new ConsulResource();
 
     private ClusterMgrService svc;
+    private ComponentPropertiesMap factoryInstalledComponents;
 
     @Before
     public void startup() {
-        final ComponentPropertiesMap componentPropertiesMap = new ComponentPropertiesMap();
+        factoryInstalledComponents = new ComponentPropertiesMap();
         final FactoryInstalledComponentsService fic =
                 Mockito.mock(FactoryInstalledComponentsService.class);
-        Mockito.when(fic.getFactoryInstalledComponents()).thenReturn(componentPropertiesMap);
+        Mockito.when(fic.getFactoryInstalledComponents()).thenReturn(factoryInstalledComponents);
         final ConsulService consulService = new ConsulService("localhost", consul.getHttpPort());
         svc = new ClusterMgrService(consulService, fic);
 
         final ComponentProperties componentProperties = new ComponentProperties();
         componentProperties.put(PROP_1, PROP_1_DEF_VAL);
         componentProperties.put(PROP_2, PROP_2_DEF_VAL);
-        componentPropertiesMap.addComponentConfiguration(COMP_TYPE_1, componentProperties);
+        factoryInstalledComponents.addComponentConfiguration(COMP_TYPE_1, componentProperties);
     }
 
     /**
@@ -66,35 +68,44 @@ public class ClusterMgrServiceIT {
     }
 
     /**
-     * Tests reinitialization of default values (mimics restart of cluster manager). It is
-     * expected, that instance-specific values are not rewritten, while default values are fully
-     * rewritten.
+     * Tests reinitialization of default values (mimics restart migration to a new version of
+     * appliance). It is expected, that new components will receive new set of properties,
+     * defined in new factoryInstalledComponents.yml file
      */
     @Test
-    public void testInitializeRewritesDefaults() {
+    public void testsChangeOfPropertiesSet() {
         svc.initializeClusterKVStore();
-
         final String instanceId = svc.getComponentInstanceIds(COMP_TYPE_1).iterator().next();
+        Assert.assertEquals(Sets.newHashSet(PROP_1, PROP_2),
+                svc.getComponentInstanceProperties(COMP_TYPE_1, instanceId).keySet());
+
         final String val1 = "Devil pixies";
         final String val2 = "Durmstrang";
         final String prop3 = "favourite spell";
         final String prop3val = "Expelliarmus";
-        svc.setPropertyForComponentType(COMP_TYPE_1, PROP_1, val1);
-        svc.setPropertyForComponentType(COMP_TYPE_1, prop3, prop3val);
-        svc.setPropertyForComponentInstance(COMP_TYPE_1, instanceId, PROP_2, val2);
-        Assert.assertEquals(val1,
-                svc.getDefaultPropertiesForComponentType(COMP_TYPE_1).get(PROP_1));
-        Assert.assertEquals(prop3val,
-                svc.getDefaultPropertiesForComponentType(COMP_TYPE_1).get(prop3));
-        Assert.assertEquals(val2,
-                svc.getComponentInstanceProperty(COMP_TYPE_1, instanceId, PROP_2));
-
+        final ComponentProperties componentProperties = new ComponentProperties();
+        componentProperties.put(PROP_1, val1);
+        componentProperties.put(PROP_2, PROP_2_DEF_VAL);
+        componentProperties.put(prop3, prop3val);
+        factoryInstalledComponents.addComponentConfiguration(COMP_TYPE_1, componentProperties);
         svc.initializeClusterKVStore();
-        Assert.assertEquals(PROP_1_DEF_VAL,
-                svc.getDefaultPropertiesForComponentType(COMP_TYPE_1).get(PROP_1));
-        Assert.assertEquals(val2,
-                svc.getComponentInstanceProperty(COMP_TYPE_1, instanceId, PROP_2));
-        Assert.assertEquals(Sets.newHashSet(PROP_1, PROP_2),
-                svc.getDefaultPropertiesForComponentType(COMP_TYPE_1).keySet());
+        Assert.assertEquals(componentProperties,
+                svc.getComponentInstanceProperties(COMP_TYPE_1, instanceId));
+
+    }
+
+    /**
+     * Tests, that method {@link ClusterMgrService#getComponentInstanceProperties} returns the
+     * values where defaults are ovewritten by instance-specific values.
+     */
+    @Test
+    public void testGetInstanceProperties() {
+        svc.initializeClusterKVStore();
+        final String instanceId = svc.getComponentInstanceIds(COMP_TYPE_1).iterator().next();
+        svc.setPropertyForComponentInstance(COMP_TYPE_1, instanceId, PROP_1, "new value");
+        final Map<String, String> props =
+                svc.getComponentInstanceProperties(COMP_TYPE_1, instanceId);
+        Assert.assertEquals("new value", props.get(PROP_1));
+        Assert.assertEquals(PROP_2_DEF_VAL, props.get(PROP_2));
     }
 }
