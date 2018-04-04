@@ -31,6 +31,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 public class TemplateConverterFactoryTest {
@@ -46,6 +47,8 @@ public class TemplateConverterFactoryTest {
     private final Set<Integer> provisionCommodityType =
             ImmutableSet.of(CommodityType.CPU_PROVISIONED_VALUE, CommodityType.MEM_PROVISIONED_VALUE,
                     CommodityType.STORAGE_PROVISIONED_VALUE);
+
+    private final Map<Long, TopologyEntity.Builder> topology = Collections.emptyMap();
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole);
@@ -68,7 +71,7 @@ public class TemplateConverterFactoryTest {
                         .build()));
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
                 templateConverterFactory.generateTopologyEntityFromTemplates(templateAdditions,
-                        ArrayListMultimap.create());
+                        ArrayListMultimap.create(), topology);
         final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates
                 .map(Builder::build)
                 .collect(Collectors.toList());
@@ -119,7 +122,7 @@ public class TemplateConverterFactoryTest {
         templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityTwo);
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
                 templateConverterFactory.generateTopologyEntityFromTemplates(Collections.emptyMap(),
-                        templateToReplacedEntity);
+                        templateToReplacedEntity, topology);
         final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates
                 .map(Builder::build)
                 .collect(Collectors.toList());
@@ -141,7 +144,7 @@ public class TemplateConverterFactoryTest {
                         .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
                         .build()));
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
-                templateConverterFactory.generateReservationEntityFromTemplates(templateAdditions);
+                templateConverterFactory.generateReservationEntityFromTemplates(templateAdditions, topology);
         final List<TopologyEntityDTO> topologyEntityDTOList = topologyEntityForTemplates
                 .map(Builder::build)
                 .collect(Collectors.toList());

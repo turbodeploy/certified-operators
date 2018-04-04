@@ -98,7 +98,7 @@ public class ReservationManager {
         final List<TopologyEntity.Builder> reservationTopologyEntities = new ArrayList<>();
 
         final List<Reservation> updateReservations =
-                handlePotentialActiveReservation(todayActiveReservations, reservationTopologyEntities);
+                handlePotentialActiveReservation(todayActiveReservations, reservationTopologyEntities, topology);
         handleReservedReservation(reservedReservations, reservationTopologyEntities, topology);
         // Update reservations which have just become active.
         if (!updateReservations.isEmpty()) {
@@ -182,7 +182,7 @@ public class ReservationManager {
         // Reservation inactive or delete reservations.
         try {
             final List<TopologyEntityDTO.Builder> topologyEntityDTOBuilder =
-                    templateConverterFactory.generateReservationEntityFromTemplates(templateCountMap)
+                    templateConverterFactory.generateReservationEntityFromTemplates(templateCountMap, topology)
                             .collect(Collectors.toList());
             final List<ReservationInstance> reservationInstances =
                     reservationTemplate.getReservationInstanceList();
@@ -399,12 +399,14 @@ public class ReservationManager {
      *
      * @param todayActiveReservations a Set of {@link Reservation}.
      * @param reservationTopologyEntities a list of {@link TopologyEntity.Builder}.
+     * @param topology The entities in the topology, arranged by ID.
      * @return a list of {@link Reservation} need to update.
      */
     @VisibleForTesting
     List<Reservation> handlePotentialActiveReservation(
             @Nonnull final Set<Reservation> todayActiveReservations,
-            @Nonnull final List<TopologyEntity.Builder> reservationTopologyEntities) {
+            @Nonnull final List<TopologyEntity.Builder> reservationTopologyEntities,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final List<Reservation> updateReservationsWithEntityOid = new ArrayList<>();
         // handle reservations which have just become active.
         final Set<Reservation.Builder> reservationsBuilder = todayActiveReservations.stream()
@@ -416,7 +418,7 @@ public class ReservationManager {
                     .getReservationTemplateCollectionBuilder()
                     .getReservationTemplateBuilderList()) {
                 createNewReservationTemplate(reservationTopologyEntities, reservationTemplate,
-                        reservationBuilder.getName(), instanceCount);
+                    topology, reservationBuilder.getName(), instanceCount);
                 instanceCount += reservationTemplate.getCount();
             }
             updateReservationsWithEntityOid.add(reservationBuilder
@@ -433,6 +435,7 @@ public class ReservationManager {
      * @param reservationTopologyEntities a list of {@link TopologyEntity.Builder} contains all
      *                                    reservation entities created from templates.
      * @param reservationTemplate {@link ReservationTemplate.Builder}.
+     * @param topology The entities in the topology, arranged by ID.
      * @param reservationName name of reservation.
      * @param instanceCount cont index of reservation, used for create name for reservation instance.
      * @return new crated {@link ReservationTemplate}.
@@ -440,6 +443,7 @@ public class ReservationManager {
     private void createNewReservationTemplate(
             @Nonnull final List<TopologyEntity.Builder> reservationTopologyEntities,
             @Nonnull final ReservationTemplate.Builder reservationTemplate,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull final String reservationName,
             long instanceCount) {
         final Map<Long, Long> templateCountMap =
@@ -449,7 +453,7 @@ public class ReservationManager {
         // Reservation inactive or delete reservations.
         try {
             final List<TopologyEntityDTO.Builder> createdTopologyEntityDTO =
-                    templateConverterFactory.generateReservationEntityFromTemplates(templateCountMap)
+                    templateConverterFactory.generateReservationEntityFromTemplates(templateCountMap, topology)
                             .collect(Collectors.toList());
 
             final List<TopologyEntityDTO.Builder> updatedTopologyEntityDTO = new ArrayList<>();

@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
 
@@ -62,11 +63,15 @@ public class TemplateConverterFactory {
      *
      * @param templateAdditions map key is template id, value is the number of template need to add.
      * @param templateToReplacedEntity map key is template id, value is a list of replaced topology entity.
+     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
+     *                 entities related to the entity being replaced may be updated to fix up relationships
+     *                 to point to the new entity along with the old entity.
      * @return set of {@link TopologyEntityDTO}.
      */
     public Stream<TopologyEntityDTO.Builder> generateTopologyEntityFromTemplates(
             @Nonnull final Map<Long, Long> templateAdditions,
-            @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity) {
+            @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final Set<Long> templateIds = Sets.union(templateAdditions.keySet(), templateToReplacedEntity.keySet());
         final Stream<Template> templates = getTemplatesByIds(templateIds);
         return templates.flatMap(template -> {
@@ -74,9 +79,9 @@ public class TemplateConverterFactory {
             final Collection<TopologyEntityDTO> replacedEntities =
                     templateToReplacedEntity.get(template.getId());
             final Stream<TopologyEntityDTO.Builder> additionTemplates =
-                    generateEntityByTemplateAddition(template, additionCount, false);
+                    generateEntityByTemplateAddition(template, topology, additionCount, false);
             final Stream<TopologyEntityDTO.Builder> replacedTemplates =
-                    generateEntityByTemplateReplaced(template, replacedEntities);
+                    generateEntityByTemplateReplaced(template, topology, replacedEntities);
             return Stream.concat(additionTemplates, replacedTemplates);
         });
     }
@@ -86,14 +91,18 @@ public class TemplateConverterFactory {
      * , there are no replace templates.
      *
      * @param templateAdditions map key is template id, value is the number of template need to add.
+     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
+     *                 entities related to the entity being replaced may be updated to fix up relationships
+     *                 to point to the new entity along with the old entity.
      * @return set of {@link TopologyEntityDTO} which newly created.
      */
     public Stream<TopologyEntityDTO.Builder> generateReservationEntityFromTemplates(
-            @Nonnull final Map<Long, Long> templateAdditions) {
+            @Nonnull final Map<Long, Long> templateAdditions,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final Stream<Template> templates = getTemplatesByIds(templateAdditions.keySet());
         return templates.flatMap(template -> {
             final long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
-            return generateEntityByTemplateAddition(template, additionCount, true);
+            return generateEntityByTemplateAddition(template, topology, additionCount, true);
         });
     }
 
@@ -125,6 +134,7 @@ public class TemplateConverterFactory {
 
     private Stream<TopologyEntityDTO.Builder> generateEntityByTemplateAddition(
             @Nonnull final Template template,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             final long additionCount,
             final boolean isReservation) {
         return LongStream.range(0L, additionCount)
@@ -135,12 +145,13 @@ public class TemplateConverterFactory {
                     .setOid(identityProvider.generateTopologyId())
                     .setDisplayName(template.getTemplateInfo().getName() + " - Clone #" + number);
                 return generateTopologyEntityByType(template, topologyEntityBuilder,
-                        null, isReservation);
+                        topology, null, isReservation);
             });
     }
 
     private Stream<TopologyEntityDTO.Builder> generateEntityByTemplateReplaced(
             @Nonnull final Template template,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull Collection<TopologyEntityDTO> replacedEntities) {
         return replacedEntities.stream()
             .map(entity -> {
@@ -149,7 +160,8 @@ public class TemplateConverterFactory {
                 topologyEntityBuilder
                     .setOid(identityProvider.generateTopologyId())
                     .setDisplayName(template.getTemplateInfo().getName() + " - Clone for replacement");
-                return generateTopologyEntityByType(template, topologyEntityBuilder, entity, false);
+                return generateTopologyEntityByType(template, topologyEntityBuilder, topology,
+                    entity, false);
             });
     }
 
@@ -158,6 +170,9 @@ public class TemplateConverterFactory {
      *
      * @param template {@link Template} used to create {@link TopologyEntityDTO}.
      * @param topologyEntityBuilder topologyEntity builder contains setting up basic fields.
+     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
+     *                 entities related to the entity being replaced may be updated to fix up relationships
+     *                 to point to the new entity along with the old entity.
      * @param originalTopologyEntity the original topology entity which this template want to keep its
      *                               commodity constrains.
      * @param isReservation if true means generate reservation entity templates, if false means generate normal
@@ -168,6 +183,7 @@ public class TemplateConverterFactory {
     private TopologyEntityDTO.Builder generateTopologyEntityByType(
             @Nonnull final Template template,
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nullable final TopologyEntityDTO originalTopologyEntity,
             final boolean isReservation) {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
@@ -177,6 +193,7 @@ public class TemplateConverterFactory {
             throw new NotImplementedException(templateEntityType + " template is not supported.");
         }
         return converterMap.get(templateEntityType)
-            .createTopologyEntityFromTemplate(template, topologyEntityBuilder, originalTopologyEntity);
+            .createTopologyEntityFromTemplate(template, topologyEntityBuilder,
+                topology, originalTopologyEntity);
     }
 }

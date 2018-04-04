@@ -14,6 +14,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -21,10 +24,6 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -48,7 +47,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
@@ -200,7 +198,7 @@ public class TopologyEditor {
 
         // Mark added entities with the Plan Origin so they aren't counted in "before" plan
         // stats
-        addTemplateTopologyEntities(templateToAdd, templateToReplacedEntity)
+        addTemplateTopologyEntities(templateToAdd, templateToReplacedEntity, topology)
             .forEach(entity -> {
                         // entities added in plan are marked with a plan origin
                         entity.setOrigin(entityOrigin);
@@ -452,16 +450,18 @@ public class TopologyEditor {
      *
      * @param templateAdditions a map which key is template id, value is the addition count.
      * @param templateToReplacedEntity a map which key is template id, value is a list of replaced entity.
+     * @param topology The entities in the topology, arranged by ID.
      */
     private Stream<TopologyEntityDTO.Builder> addTemplateTopologyEntities(
         @Nonnull Map<Long, Long> templateAdditions,
-        @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity) {
+        @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity,
+        @Nonnull Map<Long, TopologyEntity.Builder> topology) {
         // Check if there are templates additions or replaced
         if (templateAdditions.isEmpty() && templateToReplacedEntity.isEmpty()) {
             return Stream.empty();
         } else {
             return templateConverterFactory.generateTopologyEntityFromTemplates(templateAdditions,
-                templateToReplacedEntity);
+                templateToReplacedEntity, topology);
         }
     }
 

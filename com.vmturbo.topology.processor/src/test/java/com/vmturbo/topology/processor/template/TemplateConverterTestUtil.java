@@ -1,9 +1,12 @@
 package com.vmturbo.topology.processor.template;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
 
 import org.assertj.core.util.Lists;
 
@@ -137,11 +140,16 @@ public class TemplateConverterTestUtil {
     public final static List<CommoditiesBoughtFromProvider> VM_COMMODITY_BOUGHT_FROM_PROVIDER =
             Stream.of(commodityBoughtFromProviderHost, commodityBoughtFromProviderStorage).collect(Collectors.toList());
 
-
-    public static double getCommoditySoldValue(List<CommoditySoldDTO> commoditySoldDTOList, int commodityType) {
+    public static Optional<CommoditySoldDTO> getCommoditySold(@Nonnull final List<CommoditySoldDTO> commoditySoldDTOList,
+                                                              final int commodityType) {
         return commoditySoldDTOList.stream()
             .filter(commodity -> commodity.getCommodityType().getType() == commodityType)
-            .findFirst()
+            .findFirst();
+    }
+
+    public static double getCommoditySoldValue(@Nonnull final List<CommoditySoldDTO> commoditySoldDTOList,
+                                               final int commodityType) {
+        return getCommoditySold(commoditySoldDTOList, commodityType)
             .map(CommoditySoldDTO::getCapacity)
             .get();
     }

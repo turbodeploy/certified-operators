@@ -357,7 +357,7 @@ public class TopologyEditorTest {
         final Map<Long, Long> topologyAdditionEmpty = Collections.emptyMap();
         when(templateConverterFactory.
                 generateTopologyEntityFromTemplates(eq(topologyAdditionEmpty),
-                        eq(templateToReplacedEntity)))
+                        eq(templateToReplacedEntity), eq(topology)))
                 .thenReturn(Stream.of(pm.getEntityBuilder().clone()
                     .setOid(1234L)
                     .setDisplayName("Test PM1")));

@@ -6,7 +6,9 @@ import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -29,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 
 public class StorageEntityConstructorTest {
     private double epsilon = 1e-5;
@@ -92,6 +95,8 @@ public class StorageEntityConstructorTest {
     public static List<CommoditiesBoughtFromProvider> stCommodityBoughtFromProvider =
         Stream.of(commodityBoughtFromProviderDiskArray).collect(Collectors.toList());
 
+    private final Map<Long, TopologyEntity.Builder> topology = Collections.emptyMap();
+
     @Test
     public void testSTConvert() {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
@@ -99,7 +104,7 @@ public class StorageEntityConstructorTest {
             .setOid(1);
         final TopologyEntityDTO.Builder topologyEntityDTO =
             new StorageEntityConstructor().createTopologyEntityFromTemplate(ST_TEMPLATE, builder,
-                null);
+                topology, null);
 
         assertEquals(2, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
@@ -118,7 +123,7 @@ public class StorageEntityConstructorTest {
             .setEntityType(EntityType.STORAGE_VALUE)
             .setOid(1);
         final TopologyEntityDTO.Builder topologyEntityDTO =
-            new StorageEntityConstructor().createTopologyEntityFromTemplate(ST_TEMPLATE, builder,
+            new StorageEntityConstructor().createTopologyEntityFromTemplate(ST_TEMPLATE, builder, topology,
                 TopologyEntityDTO.newBuilder()
                     .setOid(1)
                     .setEntityType(2)

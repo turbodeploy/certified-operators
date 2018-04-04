@@ -5,12 +5,16 @@ import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySoldValue;
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collections;
+import java.util.Map;
+
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 
 public class VirtualMachineEntityConstructorTest {
     private double epsilon = 1e-5;
@@ -20,6 +24,8 @@ public class VirtualMachineEntityConstructorTest {
         .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
         .build();
 
+    private final Map<Long, TopologyEntity.Builder> topology = Collections.emptyMap();
+
     @Test
     public void testVMConvert() {
         final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
@@ -27,7 +33,7 @@ public class VirtualMachineEntityConstructorTest {
             .setOid(1);
         final TopologyEntityDTO.Builder topologyEntityDTO =
             new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder,
-                null);
+                topology, null);
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(400.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
@@ -62,7 +68,7 @@ public class VirtualMachineEntityConstructorTest {
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setOid(1);
         final TopologyEntityDTO.Builder topologyEntityDTO =
-            new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder,
+            new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder, topology,
                 TopologyEntityDTO.newBuilder()
                     .setOid(1)
                     .setEntityType(10)
@@ -99,8 +105,8 @@ public class VirtualMachineEntityConstructorTest {
                 .setOid(1);
         final TopologyEntityDTO.Builder topologyEntityDTO =
                 new VirtualMachineEntityConstructor(true)
-                        .createTopologyEntityFromTemplate(VM_TEMPLATE, builder,
-                                null);
+                        .createTopologyEntityFromTemplate(VM_TEMPLATE, builder, topology,
+                            null);
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(400.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),

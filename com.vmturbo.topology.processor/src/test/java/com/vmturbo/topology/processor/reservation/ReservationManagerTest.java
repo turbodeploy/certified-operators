@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.argThat;
 
 import java.util.HashMap;
@@ -166,10 +167,10 @@ public class ReservationManagerTest {
     @Test
     public void testApplyReservationReservedAndFuture() {
         Mockito.when(templateConverterFactory.generateReservationEntityFromTemplates(
-                (Map<Long, Long>) argThat(hasEntry(456L, 1L))))
+                (Map<Long, Long>) argThat(hasEntry(456L, 1L)), anyMap()))
                 .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
         Mockito.when(templateConverterFactory.generateReservationEntityFromTemplates(
-                (Map<Long, Long>) argThat(hasEntry(567L, 1L))))
+                (Map<Long, Long>) argThat(hasEntry(567L, 1L)), anyMap()))
                 .thenReturn(Lists.newArrayList(topologyEntityBuildFuture).stream());
         final Map<Long, Builder> topology = new HashMap<>();
         ArgumentCaptor<UpdateReservationsRequest> updateRequestCaptor =

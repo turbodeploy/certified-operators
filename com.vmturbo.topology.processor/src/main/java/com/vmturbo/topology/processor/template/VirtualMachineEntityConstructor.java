@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * Create a TopologyEntityDTO from Virtual Machine Template. The new Topology Entity contains such as OID,
@@ -62,7 +63,11 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     /**
      * Create a TopologyEntityDTO from Virtual Machine Template. based on input template.
      *
-     * @param template virtual machine template.
+     * @param template {@link Template}
+     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
+     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
+     *                 entities related to the entity being replaced may be updated to fix up relationships
+     *                 to point to the new entity along with the old entity.
      * @param originalTopologyEntity the original topology entity which this template want to keep its
      *                               commodity constrains. It could be null, if it is new adding template.
      * @return {@link TopologyEntityDTO}
@@ -71,6 +76,7 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template,
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nullable final TopologyEntityDTO originalTopologyEntity) {
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints =
                 sortAccessCommodityBought(getActiveCommoditiesWithKeysGroups(originalTopologyEntity));

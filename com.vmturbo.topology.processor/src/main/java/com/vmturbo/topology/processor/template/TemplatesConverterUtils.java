@@ -8,6 +8,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -32,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.stitching.TopologyEntity;
 
 
 /**
@@ -318,6 +320,52 @@ public class TemplatesConverterUtils {
     }
 
     /**
+     * Update accesses relationships that point to the original entity to instead to point to the replacement
+     * entity. As an example: When replacing a host (Physical Machine), the host contains Datastore commodities
+     * with Accesses relationships pointing to Storages. These Storages in turn contain DSPM commodities with
+     * Accesses relationships that in turn point back to the host. However, when replacing a host, the Accesses
+     * in the DSPM on the storages will point to the old host, and not the replacement host. As a result,
+     * when the market attempts to create bicliques containing the hosts and storages, the replacement PM will
+     * not be in the biclique it belongs in and VMs will not be able to move to the replacement host.
+     *
+     * This method, in the example above, will add an additional equivalent commodity sold that Accesses
+     * the replacement entity.
+     *
+     * @param originalEntityId The ID of the entity being replaced.
+     * @param replacementEntityId The ID of the entity doing the replacement.
+     * @param commoditySoldConstraints The constraint commodities that may contain accesses relationships that
+     *                                 must be updated.
+     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
+     *                 entities related to the entity being replaced may be updated to fix up relationships
+     *                 to point to the new entity along with the old entity.
+     */
+    public static void updateRelatedEntityAccesses(final long originalEntityId,
+                                                   final long replacementEntityId,
+                                                   @Nonnull final Collection<CommoditySoldDTO> commoditySoldConstraints,
+                                                   @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        commoditySoldConstraints.stream()
+            .filter(CommoditySoldDTO::hasAccesses)
+            .map(CommoditySoldDTO::getAccesses)
+            .map(topology::get)
+            .filter(Objects::nonNull)
+            .forEach(relatedEntity -> {
+                final List<CommoditySoldDTO.Builder> commoditiesAccessingOriginal = relatedEntity
+                    .getEntityBuilder().getCommoditySoldListBuilderList().stream()
+                    .filter(CommoditySoldDTO.Builder::hasAccesses)
+                    .filter(relatedEntityCommodity -> relatedEntityCommodity.getAccesses() == originalEntityId)
+                    .collect(Collectors.toList());
+
+                // In addition to accessing the original, the related entity should also be able to
+                // access the replacement. Keep the relation to the original as well because the original
+                // remains in the topology until scoping happens in the market component.
+                commoditiesAccessingOriginal.forEach(commodityAccessingOriginal ->
+                    relatedEntity.getEntityBuilder().addCommoditySoldList(
+                        commodityAccessingOriginal.clone()
+                            .setAccesses(replacementEntityId)));
+            });
+    }
+
+    /**
      * Get all template fields from template resources.
      *
      * @param templateResources list of {@link TemplateResource}.
@@ -344,6 +392,14 @@ public class TemplatesConverterUtils {
         return CommoditySoldDTO.newBuilder()
             .setActive(true)
             .setCapacity(capacity)
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(commodityType))
+            .build();
+    }
+
+    public static CommoditySoldDTO createCommoditySoldDTO(int commodityType) {
+        return CommoditySoldDTO.newBuilder()
+            .setActive(true)
             .setCommodityType(CommodityType.newBuilder()
                 .setType(commodityType))
             .build();
