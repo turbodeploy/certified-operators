@@ -16,6 +16,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.BiMap;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -58,12 +59,12 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO.Com
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -75,6 +76,8 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
+import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 
 /**
  * A class containing methods to convert java classes used by analysis to Protobuf messages.
@@ -729,11 +732,13 @@ public final class AnalysisToProtobuf {
                         complianceCommSet.add(commBought.getType());
                     } else {
                         CommoditySold newCommSold = newSupplier.getCommoditySold(commBought);
+                        FunctionalOperator updatingFunction = newCommSold.getSettings().getUpdatingFunction();
                         // if the comm utilization is less than min desired util, we dont consider
                         // it as reason commodities even though the quote at destination may be
                         // smaller, because from a user's point of view, move away from such a low
                         // utilized supplier is not congestion
-                        if (oldCommSold.getUtilization() < oldCommSold.getSettings()
+                        if (oldCommSold.getSettings().getUtilizationCheckForCongestion()
+                                        && oldCommSold.getUtilization() < oldCommSold.getSettings()
                                         .getUtilizationUpperBound() * oldSupplier.getSettings()
                                         .getMinDesiredUtil()) {
                             continue;
@@ -744,9 +749,9 @@ public final class AnalysisToProtobuf {
                         // calculate the price at the old and new supplier and get the quote
                         // difference
                         double oldQuote = calculateQuote(oldCommSold, quantityBought, peakQuantityBought,
-                                                         oldSupplier, economy);
+                                                         oldSupplier, economy, move.getTarget());
                         double newQuote = calculateQuote(newCommSold, quantityBought, peakQuantityBought,
-                                                         newSupplier, economy);
+                                                         newSupplier, economy, move.getTarget());
                         double quoteDiff = newQuote - oldQuote;
 
                         // if the difference in quote is positive, or it is not bigger than
@@ -813,21 +818,22 @@ public final class AnalysisToProtobuf {
      * @param peakQuantityBought The peak quantity bought of the commodity
      * @param seller is the seller that sells the commSold
      * @param economy that the commodities are traded in
+     * @param sl The shopping list
      * @return quote for the given {@link CommoditySold}
      */
     private static double calculateQuote(CommoditySold commSold, double quantityBought,
-                    double peakQuantityBought, Trader seller, UnmodifiableEconomy economy) {
+                    double peakQuantityBought, Trader seller, UnmodifiableEconomy economy, ShoppingList sl) {
         PriceFunction pf = commSold.getSettings().getPriceFunction();
         double startQuantity = commSold.getStartQuantity();
         double startPeakQuantity = commSold.getStartPeakQuantity();
         double effectiveCapacity = commSold.getEffectiveCapacity();
         double excessQuantity = peakQuantityBought - quantityBought;
 
-        double usedPrice = pf.unitPrice(startQuantity / effectiveCapacity, null, seller, commSold, economy);
+        double usedPrice = pf.unitPrice(startQuantity / effectiveCapacity, sl, seller, commSold, economy);
         double peakPrice = pf.unitPrice(Math.max(0, startPeakQuantity - startQuantity)/
                                         (effectiveCapacity - commSold.getSettings()
                                                         .getUtilizationUpperBound()*startQuantity)
-                                                        , null, seller, commSold, economy);
+                                                        , sl, seller, commSold, economy);
 
         return ((quantityBought == 0 ? 0 : quantityBought * usedPrice) +
                         (excessQuantity > 0 ? excessQuantity * peakPrice : 0)) / effectiveCapacity;

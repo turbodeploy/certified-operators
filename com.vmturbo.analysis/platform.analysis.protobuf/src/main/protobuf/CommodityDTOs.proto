@@ -72,6 +72,8 @@ message CommoditySoldSettingsTO {
     // A function from comm sold to the method used to update its quantity.
     optional UpdatingFunctionTO update_function = 7;
 
+    // Should utilization be checked to determine if there is congestion.
+    optional bool utilizationCheckForCongestion = 8;
 }
 
 // A commodity sold by a single trader. It includes the quantity(s) sold and a number of settings.

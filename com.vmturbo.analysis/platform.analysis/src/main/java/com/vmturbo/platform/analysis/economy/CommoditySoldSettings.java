@@ -85,6 +85,15 @@ public interface CommoditySoldSettings {
     @NonNull @PolyRead PriceFunction getPriceFunction(@PolyRead CommoditySoldSettings this);
 
     /**
+     * Gets the value of utilizationCheckForCongestion for {@code this} commodity.
+     *
+     * @return true if utilization should be considered to check if this commodity
+     * is the reason for congestion. false otherwise.
+     */
+    @Pure
+    boolean getUtilizationCheckForCongestion(@ReadOnly CommoditySoldSettings this);
+
+    /**
      * Returns the value of the <b>cloneWithNewType</b> field.
      *
      */
@@ -220,5 +229,20 @@ public interface CommoditySoldSettings {
      * @return {@code this}
      */
     @NonNull CommoditySoldSettings setCloneWithNewKey(boolean cloneWithNewKey);
+
+    /**
+     * Sets the value of the <b>utilizationCheckForCongestion</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param utilizationCheckForCongestion the new value for the field.
+     * @return {@code this}
+     *
+     * @see #getUtilizationCheckForCongestion()
+     */
+    @Pure
+    @NonNull CommoditySoldSettings setUtilizationCheckForCongestion(boolean utilizationCheckForCongestion);
 
 } // end CommoditySoldSettings interface

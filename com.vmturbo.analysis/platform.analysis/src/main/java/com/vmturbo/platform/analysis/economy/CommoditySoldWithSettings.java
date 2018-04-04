@@ -22,6 +22,7 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     private double origUtilizationUpperBound_ = 1.0;
     private @NonNull PriceFunction priceFunction_ = PriceFunction.Cache.createStandardWeightedPriceFunction(1.0);
     private @NonNull FunctionalOperator updatingFunction_;
+    private boolean utilizationCheckForCongestion_ = true;
     // Constructors
 
     /**
@@ -165,6 +166,18 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Override
     public @NonNull CommoditySoldSettings setCloneWithNewKey(boolean cloneWithNewType) {
         cloneWithNewType_ = cloneWithNewType;
+        return this;
+    }
+
+    @Override
+    public boolean getUtilizationCheckForCongestion() {
+        return utilizationCheckForCongestion_;
+    }
+
+    @Override
+    public @NonNull CommoditySoldSettings
+                    setUtilizationCheckForCongestion(boolean utilizationCheckForCongestion) {
+        utilizationCheckForCongestion_ = utilizationCheckForCongestion;
         return this;
     }
 

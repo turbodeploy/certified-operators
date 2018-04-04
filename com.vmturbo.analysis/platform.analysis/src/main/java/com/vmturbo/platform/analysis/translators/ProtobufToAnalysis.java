@@ -223,6 +223,7 @@ public final class ProtobufToAnalysis {
                         entitySett.getQuoteFunction().getRiskBased().getCloudCost() : null;
         destination.setUpdatingFunction(FunctionalOperatorUtil.createUpdatingFunction(
                                                   costDTO, source.getUpdateFunction()));
+        destination.setUtilizationCheckForCongestion(source.getUtilizationCheckForCongestion());
     }
 
     /**
