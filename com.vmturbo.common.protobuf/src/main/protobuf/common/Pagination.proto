@@ -1,0 +1,86 @@
+syntax = "proto2";
+
+package common;
+
+option java_package = "com.vmturbo.common.protobuf.common";
+
+// The single OrderBy message represents the ordering possibilities of
+// all services that have pagination.
+//
+// The current number of services with pagination is not particularly high right now
+// (April 2, 2018) so it's not too overbearing to have all the possibilities in
+// one place. The advantage of doing it in one place is that we can use a single
+// Pagination Parameters message in all request messages, and that we can see
+// all the pagination possibilities right here! Also, it will make it more obvious
+// where to make changes when the source-of-truth Java implementation changes.
+message OrderBy {
+    // The ordering parameters for action requests.
+    // This should stay in sync with the Java implementation.
+    // See: com.vmturbo.api.pagination.ActionOrderBy
+    enum ActionOrderBy {
+        ACTION_DETAILS = 1;
+        ACTION_SEVERITY = 2;
+        ACTION_RISK_CATEGORY = 3;
+    }
+
+    // The ordering parameters for search requests.
+    // This should stay in sync with the Java implementation.
+    // See: com.vmturbo.api.pagination.SearchOrderBy
+    enum SearchOrderBy {
+        ENTITY_NAME = 1;
+        ENTITY_UTILIZATION = 2;
+        ENTITY_SEVERITY = 3;
+        ENTITY_COST = 4;
+    }
+
+    // The ordering parameters for entity stats requests.
+    // This should stay in sync with the Java implementation.
+    // See: com.vmturbo.api.pagination.EntityStatsOrderBy
+    message EntityStatsOrderBy {
+        // Order by the value of this specific stat.
+        optional string stat_name = 1;
+    }
+
+    oneof type {
+        ActionOrderBy action = 1;
+        SearchOrderBy search = 2;
+        EntityStatsOrderBy entity_stats = 3;
+    }
+}
+
+// Pagination parameters for shared use by all services that support pagination.
+// These should be included in the request message.
+message PaginationParameters {
+    // The cursor is just an opaque string passed between the client
+    // and the server. The first call will always have the cursor not set.
+    // Subsequent calls should use the next_cursor returned by the first
+    // call (see PaginationResponse).
+    //
+    // If the provided cursor is invalid, the service should return an INVALID_ARGUMENT status.
+    optional string cursor = 1;
+
+    // The maximum number of results to return. The service will return no more than this number
+    // of results. The service may return less results if:
+    // 1) There are less than "limit" results available.
+    // 2) The limit is higher than the service's maximum limit.
+    //
+    // If not set, the service should provide a default limit.
+    optional int32 limit = 2;
+
+    // The order in which to return the results.
+    // If not set, the order will be service-dependent.
+    optional OrderBy order_by = 3;
+
+    // Whether to return the results in ascending order
+    optional bool ascending = 4 [default = true];
+}
+
+// The pagination response, which should be included in the response message.
+message PaginationResponse {
+    // The next cursor is the cursor the client should use for subsequent requests to get
+    // additional results.
+    //
+    // If not set, there are no more results.
+    optional string next_cursor = 1;
+}
+

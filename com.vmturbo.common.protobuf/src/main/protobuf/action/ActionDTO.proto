@@ -3,6 +3,7 @@ package action;
 
 option java_package = "com.vmturbo.common.protobuf.action";
 
+import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 
 message Explanation {
