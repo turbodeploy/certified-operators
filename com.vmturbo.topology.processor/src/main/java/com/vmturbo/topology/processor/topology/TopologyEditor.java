@@ -329,7 +329,8 @@ public class TopologyEditor {
             long oldProvider = bought.getProviderId();
             CommoditiesBoughtFromProvider.Builder clonedProvider =
                 CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(--noProvider);
+                    .setProviderId(--noProvider)
+                    .setProviderEntityType(bought.getProviderEntityType());
             // In legacy opsmgr, during topology addition, all constraints are
             // implicitly ignored. We do the same thing here.
             // A Commodity has a constraint if it has a key in its CommodityType.
