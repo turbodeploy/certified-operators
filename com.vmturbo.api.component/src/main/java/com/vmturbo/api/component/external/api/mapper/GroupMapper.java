@@ -30,6 +30,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -118,7 +119,7 @@ public class GroupMapper {
         TempGroupInfo.Builder tempGroupInfoBuilder = TempGroupInfo.newBuilder()
                 .setEntityType(ServiceEntityMapper.fromUIEntityType(apiDTO.getGroupType()))
                 .setMembers(StaticGroupMembers.newBuilder()
-                        .addAllStaticMemberOids(node.getMemberOidsList()))
+                        .addAllStaticMemberOids(RepositoryDTOUtil.getAllMemberOids(node)))
                 .setName(apiDTO.getDisplayName());
         // check if the temp group's scope is Market or not.
         final boolean isGlobalScopeGroup = apiDTO.getScope().size() == 1 &&

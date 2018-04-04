@@ -2,8 +2,6 @@ package com.vmturbo.repository.graph.executor;
 
 import static com.vmturbo.repository.graph.ArangoDBResultFixtures.TEST_COLLECTION;
 import static com.vmturbo.repository.graph.ArangoDBResultFixtures.TEST_DATABASE;
-import static com.vmturbo.repository.graph.result.ResultsFixture.APP_TYPE;
-import static com.vmturbo.repository.graph.result.ResultsFixture.DC_TYPE;
 import static com.vmturbo.repository.graph.result.ResultsFixture.PM_TYPE;
 import static com.vmturbo.repository.graph.result.ResultsFixture.VM_TYPE;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,7 +16,6 @@ import org.mockito.Mock;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.arangodb.ArangoDB;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.guava.GuavaModule;
@@ -28,7 +25,6 @@ import com.google.common.collect.Lists;
 import javaslang.collection.List;
 import reactor.core.publisher.Flux;
 
-import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.ArangoDBCursorTestData;
 import com.vmturbo.repository.graph.ArangoDBResultFixtures;
 import com.vmturbo.repository.graph.ImmutableArangoDBCursorTestData;
@@ -36,8 +32,7 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.ScopedEntity;
-import com.vmturbo.repository.graph.result.SupplyChainFluxResult;
-import com.vmturbo.repository.graph.result.TypeAndOids;
+import com.vmturbo.repository.graph.result.SupplyChainOidsGroup;
 
 @RunWith(MockitoJUnitRunner.class)
 public class ReactiveArangoDBExecutorTest {
@@ -95,13 +90,13 @@ public class ReactiveArangoDBExecutorTest {
     @Test
     public void testGlobalSupplyChain() {
 
-        final List<TypeAndOids> referenceTypeAndOids = List.of(
-                new TypeAndOids("VirtualMachine", Lists.newArrayList(1L, 2L, 3L)),
-                new TypeAndOids("PhysicalMachine", Lists.newArrayList(4L, 5L, 6L, 7L)));
+        final List<SupplyChainOidsGroup> referenceTypeAndOids = List.of(
+                new SupplyChainOidsGroup("VirtualMachine", "ACTIVE", Lists.newArrayList(1L, 2L, 3L)),
+                new SupplyChainOidsGroup("PhysicalMachine", "ACTIVE", Lists.newArrayList(4L, 5L, 6L, 7L)));
 
-        final ArangoDBCursorTestData<TypeAndOids> testData = ImmutableArangoDBCursorTestData.<TypeAndOids>builder()
+        final ArangoDBCursorTestData<SupplyChainOidsGroup> testData = ImmutableArangoDBCursorTestData.<SupplyChainOidsGroup>builder()
                 .data(referenceTypeAndOids)
-                .klass(TypeAndOids.class)
+                .klass(SupplyChainOidsGroup.class)
                 .build();
 
         ArangoDBResultFixtures.givenArangoDBQueryWillReturnResults(arangoDatabaseFactory,
@@ -116,47 +111,5 @@ public class ReactiveArangoDBExecutorTest {
                 .executeGlobalSupplyChainCmd(globalSupplyChainCmd);
 
         assertThat(List.ofAll(globalResults.entities().collectList().block())).isEqualTo(referenceTypeAndOids);
-    }
-
-    @Test
-    public void testSupplyChain() throws JsonProcessingException {
-        // Test input data
-        final ServiceEntityRepoDTO origin = new ServiceEntityRepoDTO();
-        origin.setDisplayName("unit test service entity");
-        origin.setOid("9000");
-
-        final List<TypeAndOids> providerResults = List.of(
-                new TypeAndOids(DC_TYPE, Lists.newArrayList(1L)),
-                new TypeAndOids(PM_TYPE, Lists.newArrayList(2L, 3L, 4L)));
-        final ArangoDBCursorTestData<TypeAndOids> providerTestData = ImmutableArangoDBCursorTestData.<TypeAndOids>builder()
-                .data(providerResults)
-                .klass(TypeAndOids.class)
-                .build();
-
-        final List<TypeAndOids> consumerResults = List.of(
-                new TypeAndOids(APP_TYPE, Lists.newArrayList(5L, 6L)));
-        final ArangoDBCursorTestData<TypeAndOids> consumerTestData = ImmutableArangoDBCursorTestData.<TypeAndOids>builder()
-                .data(consumerResults)
-                .klass(TypeAndOids.class)
-                .build();
-
-        final List<ServiceEntityRepoDTO> originResult = List.of(origin);
-        final ArangoDBCursorTestData<ServiceEntityRepoDTO> originTestData =
-                ImmutableArangoDBCursorTestData.<ServiceEntityRepoDTO>builder()
-                        .data(originResult)
-                        .klass(ServiceEntityRepoDTO.class)
-                        .build();
-
-        // Stub the database results
-        ArangoDBResultFixtures.givenSupplyCahinQueryWillReturnResults(arangoDatabaseFactory, TEST_DATABASE,
-                providerTestData, consumerTestData, originTestData, objectMapper);
-
-        final GraphCmd.GetSupplyChain supplyChainCmd = new GraphCmd.GetSupplyChain("start",
-                TEST_DATABASE, "graphName", TEST_COLLECTION);
-        final SupplyChainFluxResult supplyChainResult = reactiveArangoDBExecutor.executeSupplyChainCmd(supplyChainCmd);
-
-        assertThat(List.ofAll(supplyChainResult.providerResults().collectList().block())).isEqualTo(providerResults);
-        assertThat(List.ofAll(supplyChainResult.consumerResults().collectList().block())).isEqualTo(consumerResults);
-        assertThat(supplyChainResult.origin().block()).isEqualTo(origin);
     }
 }

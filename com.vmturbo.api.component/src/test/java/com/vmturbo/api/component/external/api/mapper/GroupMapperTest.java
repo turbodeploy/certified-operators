@@ -41,6 +41,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
@@ -51,6 +52,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class GroupMapperTest {
@@ -530,7 +532,8 @@ public class GroupMapperTest {
         when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
         when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
-                .addMemberOids(7L)
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(7L).build())
                 .build()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
 

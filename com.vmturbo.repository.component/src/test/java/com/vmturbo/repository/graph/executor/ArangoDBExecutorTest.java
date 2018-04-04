@@ -40,6 +40,7 @@ import com.arangodb.model.AqlQueryOptions;
 
 import javaslang.control.Try;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -100,10 +101,8 @@ public class ArangoDBExecutorTest {
         givenSupplyChainSubgraphResults(emptySubgraphFor(host(1)), consumerResults);
         whenExecuteSupplyChainCmd();
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
-        assertEquals(1, supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue())
-            .getMemberOidsCount());
-        assertEquals(4, supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
-            .getMemberOidsCount());
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue())));
+        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())));
 
         org.hamcrest.MatcherAssert.assertThat(
             supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue()).getConnectedConsumerTypesList(),
@@ -139,11 +138,9 @@ public class ArangoDBExecutorTest {
         whenExecuteSupplyChainCmd();
         final Map<String, SupplyChainNode> supplyChainNodes = nodeMapFor(supplyChainSubgraph.get());
         final SupplyChainNode pmNode = supplyChainNodes.get(RepoEntityType.PHYSICAL_MACHINE.getValue());
-        assertEquals(1, pmNode.getMemberOidsCount());
-        assertEquals(4, supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())
-            .getMemberOidsCount());
-        assertEquals(1, supplyChainNodes.get(RepoEntityType.DATACENTER.getValue())
-            .getMemberOidsCount());
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(pmNode));
+        assertEquals(4, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.VIRTUAL_MACHINE.getValue())));
+        assertEquals(1, RepositoryDTOUtil.getMemberCount(supplyChainNodes.get(RepoEntityType.DATACENTER.getValue())));
 
         org.hamcrest.MatcherAssert.assertThat(pmNode.getConnectedConsumerTypesList(),
             contains(RepoEntityType.VIRTUAL_MACHINE.getValue()));

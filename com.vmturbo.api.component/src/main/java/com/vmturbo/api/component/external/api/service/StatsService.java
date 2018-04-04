@@ -60,6 +60,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -472,10 +473,9 @@ public class StatsService implements IStatsService {
                 if (relatedTypeNode == null) {
                     return paginationRequest.allResultsResponse(Collections.emptyList());
                 }
-                expandedUuids = Sets.newHashSet(relatedTypeNode.getMemberOidsList());
+                expandedUuids = RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
             } else {
-                expandedUuids = groupExpander.expandUuids(
-                        seedUuids);
+                expandedUuids = groupExpander.expandUuids(seedUuids);
             }
 
             // if not a global scope, then expanded OIDs are expected
@@ -747,7 +747,7 @@ public class StatsService implements IStatsService {
                             .fetch();
                     SupplyChainNode relatedEntities = supplyChainMap.get(relatedEntityType);
                     if (relatedEntities != null) {
-                        expandedEntityOids.addAll(relatedEntities.getMemberOidsList());
+                        expandedEntityOids.addAll(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
                     } else {
                         logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
                                 "the entity is discarded", relatedEntityType, expandEntity.getUuid());

@@ -1,26 +1,14 @@
 package com.vmturbo.repository.graph.executor;
 
-import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
-import com.vmturbo.repository.graph.result.ScopedEntity;
-import com.vmturbo.repository.graph.result.SupplyChainFluxResult;
-import com.vmturbo.repository.topology.TopologyDatabase;
-
 import javaslang.collection.List;
 import reactor.core.publisher.Flux;
 
-public interface ReactiveGraphDBExecutor {
-    /**
-     * Compute a supply chain starting from a particular entity.
-     *
-     * The {@link GraphCmd.GetSupplyChain} command contains the starting service entity and other data
-     * for computing a supply chain.
-     *
-     * @param supplyChain A command that contains information needed to compute a supply chain.
-     * @return {@link SupplyChainFluxResult}.
-     */
-    SupplyChainFluxResult executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChain);
+import com.vmturbo.repository.graph.parameter.GraphCmd;
+import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
+import com.vmturbo.repository.graph.result.ScopedEntity;
+import com.vmturbo.repository.topology.TopologyDatabase;
 
+public interface ReactiveGraphDBExecutor {
     /**
      * Compute the global supplychain
      *

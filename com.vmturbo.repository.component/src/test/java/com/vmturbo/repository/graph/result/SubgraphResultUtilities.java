@@ -23,6 +23,7 @@ import com.google.common.base.Preconditions;
 import sun.security.provider.certpath.Vertex;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.repository.constant.RepoObjectState.RepoEntityState;
 import com.vmturbo.repository.constant.RepoObjectType.RepoEntityType;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.EdgeCollectionResult;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultEdge;
@@ -77,7 +78,8 @@ public class SubgraphResultUtilities {
             final String entityType = startingVertexEntityType
                 .orElse(findVertexEntityType(startingVertexOid, edges));
 
-            return new SubgraphResult(new ResultVertex(startingVertexOid, entityType), edges);
+            return new SubgraphResult(new ResultVertex(startingVertexOid, entityType,
+                    RepoEntityState.ACTIVE.getValue()), edges);
         }
 
         private String findVertexEntityType(@Nonnull final String oid,
@@ -128,27 +130,39 @@ public class SubgraphResultUtilities {
     }
 
     public static ResultVertexBuilder app(@Nonnull final long oid) {
-        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid), RepoEntityType.APPLICATION.getValue()));
+        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
+                RepoEntityType.APPLICATION.getValue(),
+                RepoEntityState.ACTIVE.getValue()));
     }
 
     public static ResultVertexBuilder vm(@Nonnull final long oid) {
-        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid), RepoEntityType.VIRTUAL_MACHINE.getValue()));
+        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
+                RepoEntityType.VIRTUAL_MACHINE.getValue(),
+                RepoEntityState.ACTIVE.getValue()));
     }
 
     public static ResultVertexBuilder host(@Nonnull final long oid) {
-        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid), RepoEntityType.PHYSICAL_MACHINE.getValue()));
+        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
+                RepoEntityType.PHYSICAL_MACHINE.getValue(),
+                RepoEntityState.ACTIVE.getValue()));
     }
 
     public static ResultVertexBuilder dc(@Nonnull final long oid) {
-        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid), RepoEntityType.DATACENTER.getValue()));
+        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
+                RepoEntityType.DATACENTER.getValue(),
+                RepoEntityState.ACTIVE.getValue()));
     }
 
     public static ResultVertexBuilder storage(@Nonnull final long oid) {
-        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid), RepoEntityType.STORAGE.getValue()));
+        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
+                RepoEntityType.STORAGE.getValue(),
+                RepoEntityState.ACTIVE.getValue()));
     }
 
     public static ResultVertexBuilder da(@Nonnull final long oid) {
-        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid), RepoEntityType.DISKARRAY.getValue()));
+        return new ResultVertexBuilder(new ResultVertex(Long.toString(oid),
+                RepoEntityType.DISKARRAY.getValue(),
+                RepoEntityState.ACTIVE.getValue()));
     }
 
     public static Map<String, SupplyChainNode> nodeMapFor(@Nonnull final SupplyChainSubgraph subgraph) {

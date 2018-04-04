@@ -26,12 +26,13 @@ import com.google.common.collect.HashMultimap;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
 import com.vmturbo.repository.graph.parameter.GraphCmd.GetGlobalSupplyChain;
 import com.vmturbo.repository.graph.result.ImmutableGlobalSupplyChainFluxResult;
-import com.vmturbo.repository.graph.result.TypeAndOids;
+import com.vmturbo.repository.graph.result.SupplyChainOidsGroup;
 import com.vmturbo.repository.service.SupplyChainServiceTest.TestConfig;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
@@ -59,10 +60,10 @@ public class SupplyChainServiceTest {
      */
     @Test
     public void testGlobalSupplyChain() throws Exception {
-        final TypeAndOids vms = new TypeAndOids(VMS, Arrays.asList(1L, 2L, 3L, 4L));
-        final TypeAndOids hosts = new TypeAndOids(HOSTS, Arrays.asList(5L, 6L, 7L));
+        final SupplyChainOidsGroup vms = new SupplyChainOidsGroup(VMS, "ACTIVE", Arrays.asList(1L, 2L, 3L, 4L));
+        final SupplyChainOidsGroup hosts = new SupplyChainOidsGroup(HOSTS, "ACTIVE", Arrays.asList(5L, 6L, 7L));
 
-        final Flux<TypeAndOids> typesAndOids = Flux.fromIterable(Arrays.asList(vms, hosts));
+        final Flux<SupplyChainOidsGroup> typesAndOids = Flux.fromIterable(Arrays.asList(vms, hosts));
         final ImmutableGlobalSupplyChainFluxResult supplyChainFluxResult =
             ImmutableGlobalSupplyChainFluxResult.builder().entities(typesAndOids).build();
         Mockito.when(testConfig.reactiveExecutor()
@@ -73,8 +74,10 @@ public class SupplyChainServiceTest {
             testConfig.supplyChainService().getGlobalSupplyChain(Optional.empty());
         final Map<String, SupplyChainNode> result = globalSupplyChain.toFuture().get();
         Assert.assertEquals(2, result.size());
-        assertThat(result.get(VMS).getMemberOidsList(), containsInAnyOrder(vms.getOids().toArray()));
-        assertThat(result.get(HOSTS).getMemberOidsList(), containsInAnyOrder(hosts.getOids().toArray()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(result.get(VMS)),
+                containsInAnyOrder(vms.getOids().toArray()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(result.get(HOSTS)),
+                containsInAnyOrder(hosts.getOids().toArray()));
     }
 
     /**

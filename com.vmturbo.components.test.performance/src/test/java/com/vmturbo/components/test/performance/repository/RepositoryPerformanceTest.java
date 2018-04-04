@@ -24,6 +24,7 @@ import org.junit.Test;
 import io.grpc.Channel;
 import tec.units.ri.unit.MetricPrefix;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
@@ -168,7 +169,7 @@ public class RepositoryPerformanceTest {
             () -> supplyChainService.getSupplyChain(supplyChainRequest.build());
 
         logger.info(message + StreamSupport.stream(supplyChain.spliterator(), false)
-            .map(supplyChainNode -> supplyChainNode.getMemberOidsCount() + " " + supplyChainNode.getEntityType())
+            .map(supplyChainNode -> RepositoryDTOUtil.getMemberCount(supplyChainNode) + " " + supplyChainNode.getEntityType())
             .collect(Collectors.joining("\n")));
     }
 

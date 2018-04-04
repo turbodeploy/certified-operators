@@ -2,6 +2,7 @@ package com.vmturbo.repository.graph.result;
 
 import static com.vmturbo.repository.graph.result.ResultsConverter.fillNodeRelationships;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -15,6 +16,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
@@ -23,6 +27,8 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
+import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
 
 /**
@@ -43,7 +49,6 @@ public class SupplyChainResultsConverter {
 
         return results.entities()
                .collect(new SupplyChainFluxCollector())
-               .map(SupplyChainResultsConverter::toSupplyChainNodeBuilders)
                .map(nodesMap -> {
                    fillNodeRelationships(nodesMap, providerRels, consumerRels, GraphCmd.SupplyChainDirection.PROVIDER);
                    fillNodeRelationships(nodesMap, consumerRels, providerRels, GraphCmd.SupplyChainDirection.CONSUMER);
@@ -53,62 +58,107 @@ public class SupplyChainResultsConverter {
                });
     }
 
-    /**
-     * Convert the result from the database to a map of entity types to {@link SupplyChainNode.Builder}s.
-     *
-     * @param typeOidsAgg A mapping of entity types and OIDs.
-     * @return A map of entity types to {@link SupplyChainNode}.
-     */
-    public static Map<String, SupplyChainNode.Builder> toSupplyChainNodeBuilders(final Map<String, Set<Long>> typeOidsAgg) {
-        return typeOidsAgg.entrySet().stream()
-            .collect(Collectors.toMap(Entry::getKey,
-                entry -> SupplyChainNode.newBuilder()
-                    .setEntityType(entry.getKey())
-                    .addAllMemberOids(entry.getValue()))
-        );
-    }
 
     /**
      * A collector of database results.
      */
-    public static class SupplyChainFluxCollector implements Collector<TypeAndOids, Map<String, Set<Long>>, Map<String, Set<Long>>> {
+    public static class SupplyChainFluxCollector implements
+            Collector<SupplyChainOidsGroup, MergedSupplyChainOidsGroup, Map<String, SupplyChainNode.Builder>> {
 
         @Override
-        public Supplier<Map<String, Set<Long>>> supplier() {
-            return HashMap::new;
+        public Supplier<MergedSupplyChainOidsGroup> supplier() {
+            return MergedSupplyChainOidsGroup::new;
         }
 
         @Override
-        public BiConsumer<Map<String, Set<Long>>, TypeAndOids> accumulator() {
-            return (map, typeAndOids) -> {
-                final Set<Long> oidsForType = map.getOrDefault(typeAndOids.getEntityType(), new HashSet<>());
-                oidsForType.addAll(typeAndOids.getOids());
-                map.put(typeAndOids.getEntityType(), oidsForType);
-            };
+        public BiConsumer<MergedSupplyChainOidsGroup, SupplyChainOidsGroup> accumulator() {
+            return MergedSupplyChainOidsGroup::addOidsGroup;
         }
 
         @Override
-        public BinaryOperator<Map<String, Set<Long>>> combiner() {
-            return (m1, m2) -> {
-                final Map<String, Set<Long>> combined = new HashMap<>(m1);
-                m2.forEach((type, oids) -> {
-                    final Set<Long> oidsForType = combined.getOrDefault(type, new HashSet<>(oids.size()));
-                    oidsForType.addAll(oids);
-                    combined.put(type, oidsForType);
-                });
-
-                return combined;
-            };
+        public BinaryOperator<MergedSupplyChainOidsGroup> combiner() {
+            return MergedSupplyChainOidsGroup::mergeOidsGroup;
         }
 
         @Override
-        public Function<Map<String, Set<Long>>, Map<String, Set<Long>>> finisher() {
-            return Function.identity();
+        public Function<MergedSupplyChainOidsGroup, Map<String, SupplyChainNode.Builder>> finisher() {
+            return MergedSupplyChainOidsGroup::toNodeBuilders;
         }
 
         @Override
         public Set<Characteristics> characteristics() {
             return Collections.emptySet();
+        }
+    }
+
+    /**
+     * A utility class to help merge {@link SupplyChainOidsGroup} into {@link SupplyChainNode}s.
+     *
+     * We use it because sometimes multiple {@link SupplyChainOidsGroup}s need to be combined into
+     * a single {@link SupplyChainNode} (e.g. when there are entities of the same type, but
+     * different states).
+     */
+    private static class MergedSupplyChainOidsGroup {
+        final Map<String, Map<Integer, Set<Long>>> oidsByTypeAndState = new HashMap<>();
+
+        /**
+         * Add a new {@link SupplyChainOidsGroup} to this merged group.
+         *
+         * @param group The new {@link SupplyChainOidsGroup}.
+         */
+        public void addOidsGroup(@Nonnull final SupplyChainOidsGroup group) {
+            if (group.getEntityType() == null || group.getState() == null || group.getOids() == null) {
+                return;
+            }
+            addOids(group.getEntityType(),
+                    RepoObjectState.toTopologyEntityState(group.getState()),
+                    group.getOids());
+        }
+
+        /**
+         * Merge a {@link MergedSupplyChainOidsGroup} into this group.
+         *
+         * @param otherMergedGroup The group to merge. The group to merge will NOT be modified.
+         * @return A reference to this {@link MergedSupplyChainOidsGroup}, with the other group
+         *         merged in.
+         */
+        @Nonnull
+        public MergedSupplyChainOidsGroup mergeOidsGroup(@Nullable final MergedSupplyChainOidsGroup otherMergedGroup) {
+            if (otherMergedGroup != null) {
+                otherMergedGroup.oidsByTypeAndState.forEach((entityType, oidsByState) -> {
+                    oidsByState.forEach((state, oids) -> addOids(entityType, state, oids));
+                });
+            }
+            return this;
+        }
+
+        /**
+         * Create a map of {@link SupplyChainNode.Builder}s to represent this merged group.
+         *
+         * @return A map of entity type -> {@link SupplyChainNode.Builder} for that type.
+         */
+        @Nonnull
+        public Map<String, SupplyChainNode.Builder> toNodeBuilders() {
+            final Map<String, SupplyChainNode.Builder> retMap = new HashMap<>();
+            oidsByTypeAndState.forEach((entityType, oidsByState) -> {
+                final SupplyChainNode.Builder thisNodeBuilder = SupplyChainNode.newBuilder()
+                        .setEntityType(entityType);
+                oidsByState.forEach((state, oidsForState) -> {
+                    thisNodeBuilder.putMembersByState(state,
+                            MemberList.newBuilder().addAllMemberOids(oidsForState).build());
+                });
+                retMap.put(entityType, thisNodeBuilder);
+            });
+            return retMap;
+        }
+
+        private void addOids(@Nonnull final String entityType,
+                             @Nonnull final Integer state,
+                             @Nonnull final Collection<Long> newOids) {
+            final Map<Integer, Set<Long>> oidsByState =
+                    oidsByTypeAndState.computeIfAbsent(entityType, k -> new HashMap<>());
+            final Set<Long> oidsToAddTo = oidsByState.computeIfAbsent(state, k -> new HashSet<>());
+            oidsToAddTo.addAll(newOids);
         }
     }
 }

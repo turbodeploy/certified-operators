@@ -1,5 +1,9 @@
 package com.vmturbo.repository.constant;
 
+import javax.annotation.Nullable;
+
+import org.apache.commons.lang3.StringUtils;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -69,7 +73,7 @@ public class RepoObjectState {
      * @param topologyEntityState The entity state used in the TopologyEntityDTO
      * @return     The corresponding entity state string in the repository
      */
-    public static String mapEntityType(EntityState topologyEntityState) {
+    public static String toRepoEntityState(EntityState topologyEntityState) {
         final RepoEntityState repoEntityState = ENTITY_STATE_MAPPINGS.get(topologyEntityState);
 
         if (repoEntityState == null) {
@@ -85,11 +89,11 @@ public class RepoObjectState {
      * @param repoState The entity state string to convert
      * @return The entity state integer converted
      */
-    public static int toTopologyEntityState(String repoState) {
-        final EntityState topologyEntityState = ENTITY_STATE_MAPPINGS.inverse()
-                        .get(RepoEntityState.fromString(repoState));
+    public static int toTopologyEntityState(@Nullable final String repoState) {
+        final EntityState topologyEntityState = StringUtils.isEmpty(repoState) ?
+                EntityState.UNKNOWN : ENTITY_STATE_MAPPINGS.inverse()
+                        .getOrDefault(RepoEntityState.fromString(repoState), EntityState.UNKNOWN);
 
-        return topologyEntityState != null ? topologyEntityState.getNumber()
-                                           : EntityState.UNKNOWN.getNumber();
+        return topologyEntityState.getNumber();
     }
 }

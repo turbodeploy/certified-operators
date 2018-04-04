@@ -14,7 +14,6 @@ import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -59,7 +58,7 @@ public class TopologyConverterTest {
         vmServiceEntity.setOid("111");
         vmServiceEntity.setUuid("111");
         vmServiceEntity.setEntityType(RepoObjectType.mapEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
-        vmServiceEntity.setState(RepoObjectState.mapEntityType(TopologyDTO.EntityState.POWERED_ON));
+        vmServiceEntity.setState(RepoObjectState.toRepoEntityState(TopologyDTO.EntityState.POWERED_ON));
         final CommoditySoldRepoDTO commoditySoldRepoDTO = new CommoditySoldRepoDTO();
         commoditySoldRepoDTO.setCapacity(123);
         commoditySoldRepoDTO.setKey("test-sold-key");

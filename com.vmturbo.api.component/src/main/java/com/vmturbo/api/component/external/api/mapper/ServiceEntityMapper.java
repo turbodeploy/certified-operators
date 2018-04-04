@@ -126,7 +126,7 @@ public class ServiceEntityMapper {
      *
      * TODO: Refactor this and RepoObjectState so this conversion lives in one place.
      */
-    static String toState(int state) {
+    public static String toState(int state) {
         switch (state) {
             case EntityState.POWERED_ON_VALUE: return "ACTIVE";
             case EntityState.POWERED_OFF_VALUE: return "IDLE";

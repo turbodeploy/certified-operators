@@ -1,39 +1,29 @@
 package com.vmturbo.repository.graph.executor;
 
-import static javaslang.API.Case;
-import static javaslang.API.Match;
-
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-
-import com.arangodb.ArangoCursor;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableMap;
-
-import javaslang.collection.List;
-import javaslang.control.Try.CheckedSupplier;
 
 import org.apache.commons.lang3.text.StrSubstitutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.arangodb.ArangoCursor;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableMap;
+
+import javaslang.collection.List;
+import javaslang.control.Try.CheckedSupplier;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
-import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
-import com.vmturbo.repository.graph.parameter.GraphCmd.SupplyChainDirection;
 import com.vmturbo.repository.graph.result.GlobalSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.ImmutableGlobalSupplyChainFluxResult;
-import com.vmturbo.repository.graph.result.ImmutableSupplyChainFluxResult;
 import com.vmturbo.repository.graph.result.ScopedEntity;
-import com.vmturbo.repository.graph.result.SupplyChainFluxResult;
-import com.vmturbo.repository.graph.result.TypeAndOids;
+import com.vmturbo.repository.graph.result.SupplyChainOidsGroup;
 import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyDatabases;
 
@@ -55,29 +45,6 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
         aqlQueryScheduler = Schedulers.newParallel("AQL-Executor", 20);
     }
 
-    private static String getSupplyChainQuery(final SupplyChainDirection direction,
-                                              final GraphCmd.GetSupplyChain supplyChainCmd) {
-
-        final String startingId = Joiner.on("/").join(supplyChainCmd.getVertexCollection(),
-                                                      supplyChainCmd.getStartingVertex());
-
-        final String arangoTraverseDirection = Match(direction).of(
-                Case(SupplyChainDirection.PROVIDER, "INBOUND"),
-                Case(SupplyChainDirection.CONSUMER, "OUTBOUND")
-        );
-
-        final Map<String, String> valuesMap = new ImmutableMap.Builder<String, String>()
-                .put("edgeCollection", supplyChainCmd.getGraphName())
-                .put("startingId", startingId)
-                .put("vertexCollection", supplyChainCmd.getVertexCollection())
-                .put("direction", arangoTraverseDirection)
-                .build();
-
-        final StrSubstitutor substitutor = new StrSubstitutor(valuesMap);
-
-        return substitutor.replace(ArangoDBQueries.SUPPLY_CHAIN_REACTIVE_QUERY_STRING);
-    }
-
     private static String getGlobalSupplyChainQuery(final GraphCmd.GetGlobalSupplyChain globalSupplyChainCmd) {
         final Map<String, String> valuesMap = new ImmutableMap.Builder<String, String>()
                 .put("seCollection", globalSupplyChainCmd.getVertexCollection())
@@ -86,18 +53,6 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
         final StrSubstitutor substitutor = new StrSubstitutor(valuesMap);
 
         return substitutor.replace(ArangoDBQueries.GLOBAL_SUPPLY_CHAIN_REACTIVE_QUERY_STRING);
-    }
-
-    private static String getSupplyChainOriginQuery(final GraphCmd.GetSupplyChain supplyChainCmd) {
-        final Map<String, String> valuesMap = new ImmutableMap.Builder<String, String>()
-                .put("collection", supplyChainCmd.getVertexCollection())
-                .put("commaSepLongs", supplyChainCmd.getStartingVertex())
-                .build();
-
-        final StrSubstitutor substitutor = new StrSubstitutor(valuesMap);
-
-        return substitutor.replace(ArangoDBQueries.GET_ENTITIES_BY_OID);
-
     }
 
     private static String scopedEntitiesQuery(final String collection, final List<Long> oids) {
@@ -113,34 +68,11 @@ public class ReactiveArangoDBExecutor implements ReactiveGraphDBExecutor {
     }
 
     @Override
-    public SupplyChainFluxResult executeSupplyChainCmd(final GraphCmd.GetSupplyChain supplyChainCmd) {
-        final String providerQuery = getSupplyChainQuery(SupplyChainDirection.PROVIDER, supplyChainCmd);
-        final String consumerQuery = getSupplyChainQuery(SupplyChainDirection.CONSUMER, supplyChainCmd);
-        final String originQuery   = getSupplyChainOriginQuery(supplyChainCmd);
-        final String databaseName  = TopologyDatabases.getDbName(supplyChainCmd.getTopologyDatabase());
-
-        final Flux<TypeAndOids> providerStream = fluxify(databaseName, providerQuery, TypeAndOids.class)
-                .doOnError(err -> LOGGER.error("Provider query failed with query " + providerQuery, err));
-        final Flux<TypeAndOids> consumerStream = fluxify(databaseName, consumerQuery, TypeAndOids.class)
-                .doOnError(err -> LOGGER.error("Consumer query failed with query " + consumerQuery, err));
-        final Flux<ServiceEntityRepoDTO> originStream = fluxify(databaseName, originQuery, ServiceEntityRepoDTO.class)
-                .doOnError(err -> LOGGER.error("Origin query failed with query " + originQuery, err));
-
-        final SupplyChainFluxResult fluxResults = ImmutableSupplyChainFluxResult.builder()
-                .providerResults(providerStream)
-                .consumerResults(consumerStream)
-                .origin(originStream.next())
-                .build();
-
-        return fluxResults;
-    }
-
-    @Override
     public GlobalSupplyChainFluxResult executeGlobalSupplyChainCmd(final GraphCmd.GetGlobalSupplyChain globalSupplyChainCmd) {
         final String globalQuery = getGlobalSupplyChainQuery(globalSupplyChainCmd);
         final String databaseName = TopologyDatabases.getDbName(globalSupplyChainCmd.getTopologyDatabase());
 
-        final Flux<TypeAndOids> stream = fluxify(databaseName, globalQuery, TypeAndOids.class)
+        final Flux<SupplyChainOidsGroup> stream = fluxify(databaseName, globalQuery, SupplyChainOidsGroup.class)
                 .doOnError(err -> LOGGER.error("Error encountered while executing query: " + globalQuery, err));
 
         final GlobalSupplyChainFluxResult result = ImmutableGlobalSupplyChainFluxResult.builder()

@@ -22,6 +22,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
+import com.vmturbo.repository.constant.RepoObjectState;
 
 /**
  * An in-memory graph built from supply chain queries used for traversal in order to compute the actual
@@ -101,6 +103,7 @@ public class SupplyChainSubgraph {
         return startingVertexEntityType;
     }
 
+
     /**
      * Get a collection of {@link SupplyChainNode}s for the supply chain starting from the starting vertex
      * for this subgraph.
@@ -126,7 +129,7 @@ public class SupplyChainSubgraph {
          * A map of entityType -> SupplyChainNode of that entity type.
          * Entities are added to the nodes in the nodeMap as the BFS proceeds.
          */
-        final Map<String, SupplyChainNode.Builder> nodeMap = new HashMap<>();
+        final Map<String, SupplyChainNodeBuilder> nodeMap = new HashMap<>();
 
         /**
          * Perform a breadth-first-search starting from the starting node.
@@ -149,27 +152,24 @@ public class SupplyChainSubgraph {
             consumer -> new VertexAndNeighbor(consumer, startingVertex)));
         traverseSupplyChainBFS(nodeMap, frontier, SupplyChainVertex::getConsumers, 1);
 
-        makeInstancesUnique(nodeMap);
-        addConnectedEntityTypes(nodeMap);
-
         return nodeMap.values().stream()
-            .map(SupplyChainNode.Builder::build)
+            .map(nodeBuilder -> nodeBuilder.buildNode(graph))
             .collect(Collectors.toList());
     }
 
     /**
      * Perform a breadth-first-search traversal starting from the nodes contained in the frontier {@link Deque}.
      *
-     * @param nodeMap The map of OID->SupplyChainNode builders containing the results being built
-     *                from the BFS traversal. Vertices in the graph of a type that already has an entry in the nodeMap
-     *                are skipped.
-     * @param frontier The traversal frontier for the BFS.
-     *                 Frontier contains the entities being traversed at the current depth of the BFS.
+     * @param nodeMap          The map of OID->SupplyChainNode builders containing the results being built
+     *                         from the BFS traversal. Vertices in the graph of a type that already has an entry in the nodeMap
+     *                         are skipped.
+     * @param frontier         The traversal frontier for the BFS.
+     *                         Frontier contains the entities being traversed at the current depth of the BFS.
      * @param neighborFunction The function that, given a vertex, can retrieve the neighbors for the vertex in
      *                         a particular direction (ie provider or consumer neighbors).
-     * @param currentDepth The current depth of the BFS (ie how many hops we are from the starting vertex).
+     * @param currentDepth     The current depth of the BFS (ie how many hops we are from the starting vertex).
      */
-    private void traverseSupplyChainBFS(@Nonnull final Map<String, SupplyChainNode.Builder> nodeMap,
+    private void traverseSupplyChainBFS(@Nonnull final Map<String, SupplyChainNodeBuilder> nodeMap,
                                         @Nonnull final Deque<VertexAndNeighbor> frontier,
                                         @Nonnull final NeighborFunction neighborFunction,
                                         final int currentDepth) {
@@ -188,14 +188,14 @@ public class SupplyChainSubgraph {
              */
             if (!visitedEntityTypes.contains(vertex.getEntityType()) || vertexAndNeighbor.sameEntityTypes()) {
                 nextFrontier.addAll(neighborFunction.neighborsFor(vertex).stream()
-                    .map(neighbor -> new VertexAndNeighbor(neighbor, vertex))
-                    .collect(Collectors.toList()));
-                final SupplyChainNode.Builder nodeBuilder =
-                    nodeMap.computeIfAbsent(vertex.getEntityType(), entityType -> SupplyChainNode.newBuilder());
+                        .map(neighbor -> new VertexAndNeighbor(neighbor, vertex))
+                        .collect(Collectors.toList()));
+                final SupplyChainNodeBuilder nodeBuilder =
+                        nodeMap.computeIfAbsent(vertex.getEntityType(), entityType -> new SupplyChainNodeBuilder());
 
                 nodeBuilder.setSupplyChainDepth(currentDepth);
                 nodeBuilder.setEntityType(vertex.getEntityType());
-                nodeBuilder.addMemberOids(Long.valueOf(vertex.getOid()));
+                nodeBuilder.addMember(vertex.getOid(), vertex.getState());
             }
         }
 
@@ -204,66 +204,6 @@ public class SupplyChainSubgraph {
         if (!nextFrontier.isEmpty()) {
             traverseSupplyChainBFS(nodeMap, nextFrontier, neighborFunction, currentDepth + 1);
         }
-    }
-
-    /**
-     * Nodes in the values of the nodeMap may have duplicates in their member OID lists.
-     * Calling this method clears duplicate entries from the node member OID lists.
-     *
-     * Example:
-     *   1      VM
-     *  / \
-     * 22 33    STORAGE
-     *  \ /
-     *  444     DISK_ARRAY
-     *
-     *  would lead to 444 being added to the DISK_ARRAY node twice.
-     *
-     * @param nodeMap The map whose node builder member OID lists should be cleared of duplicates.
-     */
-    private void makeInstancesUnique(@Nonnull final Map<String, SupplyChainNode.Builder> nodeMap) {
-        nodeMap.values().stream().forEach(node -> {
-            final List<Long> memberOids = node.getMemberOidsList();
-            final List<Long> distinctMemberOids = memberOids.stream()
-                .distinct()
-                .collect(Collectors.toList());
-            node.clearMemberOids();
-            node.addAllMemberOids(distinctMemberOids);
-        });
-    }
-
-    /**
-     * For each node in the values of the nodeMap, add connected provider and consumer neighbor types.
-     *
-     * @param nodeMap The map whose provider and consumer neighbor types should be added.
-     */
-    private void addConnectedEntityTypes(@Nonnull final Map<String, SupplyChainNode.Builder> nodeMap) {
-        nodeMap.values().forEach(node -> {
-            node.addAllConnectedProviderTypes(
-                neighborTypesFor(node.getMemberOidsList(), SupplyChainVertex::getProviders));
-            node.addAllConnectedConsumerTypes(
-                neighborTypesFor(node.getMemberOidsList(), SupplyChainVertex::getConsumers));
-        });
-    }
-
-    /**
-     * Get the types of the neighbors for all entities in the oids list in the direction of the neighbor function.
-     *
-     * @param oids The oids of the entities whose neighbor types should be looked up.
-     * @param neighborFunction The function that, given a vertex, can retrieve the neighbors for the vertex in
-     *                         a particular direction (ie provider or consumer neighbors).
-     * @return The types of the neighbors of the entities in the oids list.
-     */
-    private Collection<String> neighborTypesFor(@Nonnull final List<Long> oids,
-                                                @Nonnull final NeighborFunction neighborFunction) {
-        return oids.stream()
-            .map(Object::toString)
-            .map(graph::get)
-            .filter(vertex -> vertex != null)
-            .flatMap(vertex -> neighborFunction.neighborsFor(vertex).stream())
-            .map(SupplyChainVertex::getEntityType)
-            .distinct()
-            .collect(Collectors.toList());
     }
 
     /**
@@ -316,14 +256,18 @@ public class SupplyChainSubgraph {
 
         private final String entityType;
 
+        private final String state;
+
         public SupplyChainVertex(@Nonnull ResultVertex resultVertex) {
-            this(resultVertex.getId(), resultVertex.getEntityType());
+            this(resultVertex.getId(), resultVertex.getEntityType(), resultVertex.getState());
         }
 
         public SupplyChainVertex(@Nonnull final String oid,
-                                 @Nonnull final String entityType) {
+                                 @Nonnull final String entityType,
+                                 @Nonnull final String state) {
             this.oid = Objects.requireNonNull(oid);
             this.entityType = Objects.requireNonNull(entityType);
+            this.state = Objects.requireNonNull(state);
             consumers = new ArrayList<>();
             providers = new ArrayList<>();
         }
@@ -346,6 +290,11 @@ public class SupplyChainSubgraph {
         @Nonnull
         public String getOid() {
             return oid;
+        }
+
+        @Nonnull
+        public String getState() {
+            return state;
         }
     }
 
@@ -487,17 +436,20 @@ public class SupplyChainSubgraph {
 
         private final String entityType;
 
+        private final String state;
+
         /**
          * Default constructor required for initialization with ArangoDB's java driver.
          */
         public ResultVertex() {
-            this("", "");
+            this("", "", "");
         }
 
         @VisibleForTesting
-        ResultVertex(@Nonnull final String id, @Nonnull final String entityType) {
+        ResultVertex(@Nonnull final String id, @Nonnull final String entityType, @Nonnull final String state) {
             this.id = Objects.requireNonNull(id);
             this.entityType = Objects.requireNonNull(entityType);
+            this.state = Objects.requireNonNull(state);
         }
 
         public String getId() {
@@ -508,9 +460,13 @@ public class SupplyChainSubgraph {
             return entityType;
         }
 
+        public String getState() {
+            return state;
+        }
+
         @Override
         public int hashCode() {
-            return com.google.common.base.Objects.hashCode(id, entityType);
+            return Objects.hash(id, entityType, state);
         }
 
         @Override
@@ -520,8 +476,69 @@ public class SupplyChainSubgraph {
             }
 
             ResultVertex v = (ResultVertex)other;
-            return com.google.common.base.Objects.equal(id, v.id) &&
-                com.google.common.base.Objects.equal(entityType, v.entityType);
+            return Objects.equals(id, v.id) &&
+                Objects.equals(entityType, v.entityType) &&
+                Objects.equals(state, v.state);
+        }
+    }
+
+    /**
+     * A better version of {@link SupplyChainNode.Builder}, mainly for efficient computation
+     * of the per-state members.
+     */
+    @VisibleForTesting
+    public static class SupplyChainNodeBuilder {
+        private final Map<Integer, Set<Long>> membersByState = new HashMap<>();
+
+        private int supplyChainDepth;
+
+        private String entityType;
+
+        public void setSupplyChainDepth(final int supplyChainDepth) {
+            this.supplyChainDepth = supplyChainDepth;
+        }
+
+        public void setEntityType(@Nullable final String entityType) {
+            if (entityType != null) {
+                this.entityType = entityType;
+            }
+        }
+
+        public void addMember(@Nonnull final String oid, @Nullable final String state) {
+            if (state != null) {
+                final Set<Long> membersForState = membersByState.computeIfAbsent(
+                        RepoObjectState.toTopologyEntityState(state),
+                        k -> new HashSet<>());
+                membersForState.add(Long.parseLong(oid));
+            }
+        }
+
+        @Nonnull
+        public SupplyChainNode buildNode(@Nonnull final Map<String, SupplyChainVertex> graph) {
+            final SupplyChainNode.Builder protoNodeBuilder = SupplyChainNode.newBuilder()
+                    .setSupplyChainDepth(supplyChainDepth);
+            if (entityType != null) {
+                protoNodeBuilder.setEntityType(entityType);
+            }
+            final Set<String> connectedProviderTypes = new HashSet<>();
+            final Set<String> connectedConsumerTypes = new HashSet<>();
+            membersByState.forEach((state, memberSet) -> {
+                protoNodeBuilder.putMembersByState(state, MemberList.newBuilder()
+                        .addAllMemberOids(memberSet)
+                        .build());
+                memberSet.forEach(memberOid -> {
+                    final SupplyChainVertex vertex = graph.get(memberOid.toString());
+                    if (vertex != null) {
+                        vertex.getProviders().forEach(provider ->
+                                connectedProviderTypes.add(provider.getEntityType()));
+                        vertex.getConsumers().forEach(provider ->
+                                connectedConsumerTypes.add(provider.getEntityType()));
+                    }
+                });
+            });
+            protoNodeBuilder.addAllConnectedProviderTypes(connectedProviderTypes);
+            protoNodeBuilder.addAllConnectedConsumerTypes(connectedConsumerTypes);
+            return protoNodeBuilder.build();
         }
     }
 }

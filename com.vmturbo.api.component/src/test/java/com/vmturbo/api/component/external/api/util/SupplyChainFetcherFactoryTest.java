@@ -3,6 +3,8 @@ package com.vmturbo.api.component.external.api.util;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
@@ -31,10 +33,12 @@ import org.springframework.web.client.RestTemplate;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
@@ -44,8 +48,10 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityS
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class SupplyChainFetcherFactoryTest {
@@ -115,44 +121,37 @@ public class SupplyChainFetcherFactoryTest {
      */
     @Test
     public void testHealthStatusAllNormal() throws Exception {
+        final String onState = ServiceEntityMapper.toState(EntityState.POWERED_ON_VALUE);
+        final String offState = ServiceEntityMapper.toState(EntityState.POWERED_OFF_VALUE);
         final SupplyChainNode vms = SupplyChainNode.newBuilder()
             .setEntityType(VM)
-            .addMemberOids(1L)
-            .build();
-        final SupplyChainNode hosts = SupplyChainNode.newBuilder()
-            .setEntityType(PM)
-            .addMemberOids(5L)
+            .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                .addMemberOids(1L)
+                .addMemberOids(2L)
+                .build())
+            .putMembersByState(EntityState.POWERED_OFF_VALUE, MemberList.newBuilder()
+                .addMemberOids(3L)
+                .build())
             .build();
 
         when(supplyChainServiceBackend.getSupplyChain(any()))
-                .thenReturn(Arrays.asList(vms, hosts));
-
-        when(severityServiceBackend.getSeverityCounts(MultiEntityRequest.newBuilder()
-            .setTopologyContextId(LIVE_TOPOLOGY_ID)
-            .addEntityIds(1L)
-            .build()))
-            .thenReturn(SeverityCountsResponse.newBuilder()
-                .addCounts(newSeverityCount(Severity.NORMAL, 1L))
-                .build());
-        when(severityServiceBackend.getSeverityCounts(MultiEntityRequest.newBuilder()
-            .setTopologyContextId(LIVE_TOPOLOGY_ID)
-            .addEntityIds(5L)
-            .build()))
-            .thenReturn(SeverityCountsResponse.newBuilder()
-                .addCounts(newSeverityCount(Severity.NORMAL, 1L))
-                .build());
+                .thenReturn(Arrays.asList(vms));
 
         final SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
                 .topologyContextId(LIVE_TOPOLOGY_ID)
-                .includeHealthSummary(true)
+                .includeHealthSummary(false)
                 .fetch();
 
-        assertThat(result.getSeMap().size(), is(2));
-        assertThat(getObjectsCountInHealth(result, VM), is(vms.getMemberOidsList().size()));
-        assertThat(getObjectsCountInHealth(result, PM), is(hosts.getMemberOidsList().size()));
+        assertThat(result.getSeMap().size(), is(1));
+        final Map<String, Integer> stateSummary = result.getSeMap().get(VM).getStateSummary();
+        assertNotNull(stateSummary);
+        assertThat(stateSummary.keySet(), containsInAnyOrder(onState, offState));
+        assertThat(stateSummary.get(onState), is(2));
+        assertThat(stateSummary.get(offState), is(1));
+    }
 
-        assertThat(getSeveritySize(result, VM, Severity.NORMAL), is(vms.getMemberOidsList().size()));
-        assertThat(getSeveritySize(result, PM, Severity.NORMAL), is(hosts.getMemberOidsList().size()));
+    @Test
+    public void testSupplyChainStateSummary() throws Exception {
     }
 
     @Test
@@ -182,12 +181,16 @@ public class SupplyChainFetcherFactoryTest {
         // arrange
         final SupplyChainNode vms = SupplyChainNode.newBuilder()
             .setEntityType(VM)
-            .addMemberOids(1L)
-            .addMemberOids(2L)
+            .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                    .addMemberOids(1L)
+                    .addMemberOids(2L)
+                    .build())
             .build();
         final SupplyChainNode hosts = SupplyChainNode.newBuilder()
             .setEntityType(PM)
-            .addMemberOids(5L)
+            .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                    .addMemberOids(5L)
+                    .build())
             .build();
         when(supplyChainServiceBackend.getSupplyChain(any()))
                 .thenReturn(Arrays.asList(vms, hosts));
@@ -219,8 +222,8 @@ public class SupplyChainFetcherFactoryTest {
 
         // assert
         Assert.assertEquals(2, result.getSeMap().size());
-        Assert.assertEquals(vms.getMemberOidsList().size(), getObjectsCountInHealth(result, VM));
-        Assert.assertEquals(hosts.getMemberOidsList().size(), getObjectsCountInHealth(result, PM));
+        Assert.assertEquals(RepositoryDTOUtil.getMemberCount(vms), getObjectsCountInHealth(result, VM));
+        Assert.assertEquals(RepositoryDTOUtil.getMemberCount(hosts), getObjectsCountInHealth(result, PM));
 
         Assert.assertEquals(1, getSeveritySize(result, VM, Severity.CRITICAL));
         Assert.assertEquals(1, getSeveritySize(result, VM, Severity.NORMAL));

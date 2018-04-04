@@ -5,5 +5,5 @@ import reactor.core.publisher.Flux;
 
 @Value.Immutable
 public abstract class GlobalSupplyChainFluxResult {
-    public abstract Flux<TypeAndOids> entities();
+    public abstract Flux<SupplyChainOidsGroup> entities();
 }

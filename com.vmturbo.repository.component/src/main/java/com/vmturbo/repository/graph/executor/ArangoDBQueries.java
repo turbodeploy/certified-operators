@@ -17,29 +17,32 @@ public class ArangoDBQueries {
         "       ${edgeCollection}\n" +
         "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
         // From are starting vertices on the directed edges (the consumers).
-        "       LET from = (\n" +
+        "       LET from = FIRST(\n" +
         "           FOR fv IN ${vertexCollection}\n" +
         "               FILTER fv._id == e._from\n" +
-        "               RETURN { entityType: fv.entityType, id: fv._key}\n" +
+        "               RETURN fv\n" +
         "       )\n" +
         // To are the ending vertices on the directed edges (the providers).
-        "       LET to = (\n" +
+        "       LET to = FIRST(\n" +
         "           FOR tv IN ${vertexCollection}\n" +
         "               FILTER tv._id == e._to\n" +
-        "               RETURN { entityType: tv.entityType, id: tv._key}\n" +
+        "               RETURN tv\n" +
         "       )\n" +
         // "ftype" is the type of the first "from" vertex and because we group by entity type,
         // it will be the type for all "from" vertices in the edgeCollection.
-        "   COLLECT ftype = FIRST(from).entityType\n" +
-        "   INTO   groups = { provider: FIRST(from), consumer: FIRST(to) }\n" +
-        "   RETURN { type: ftype, edges:  UNIQUE(groups[*]) }\n" +
+        "       COLLECT ftype = from.entityType\n" +
+        "       INTO groups = {\n" +
+        "           provider: { entityType: from.entityType, state: from.state, id: from._key },\n" +
+        "           consumer: { entityType: to.entityType, state: to.state, id: to._key }\n" +
+        "       }\n" +
+        "       RETURN { type: ftype, edges:  UNIQUE(groups[*]) }\n" +
         ")\n" +
         // Collect information on the origin vertex (the vertex where the search started).
         "LET originCollection = ( RETURN DOCUMENT('${startingId}') )\n" +
         "LET origin = FIRST(originCollection)\n" +
         // Return a document containing the origin and all edges up to 10 degrees away from the origin
         // that are reachable by traversing in the consumer direction.
-        "RETURN { origin: {id: origin._key, entityType: origin.entityType}, edgeCollection: edgeCollection }\n";
+        "RETURN { origin: {id: origin._key, entityType: origin.entityType, state: origin.state}, edgeCollection: edgeCollection }\n";
 
     /**
      * Provider side of the supply chain query.
@@ -53,46 +56,39 @@ public class ArangoDBQueries {
         "       ${edgeCollection}\n" +
         "       OPTIONS { bfs: true, uniqueVertices: 'path', uniqueEdges: 'path' }\n" +
         // From are starting vertices on the directed edges (the consumers).
-        "       LET from = (\n" +
+        "       LET from = FIRST(\n" +
         "           FOR fv IN ${vertexCollection}\n" +
         "               FILTER fv._id == e._from\n" +
-        "               RETURN { entityType: fv.entityType, id: fv._key}\n" +
+        "               RETURN fv\n" +
         "       )\n" +
         // To are the ending vertices on the directed edges (the providers).
-        "       LET to = (\n" +
+        "       LET to = FIRST(\n" +
         "           FOR tv IN ${vertexCollection}\n" +
         "               FILTER tv._id == e._to\n" +
-        "               RETURN { entityType: tv.entityType, id: tv._key}\n" +
+        "               RETURN tv\n" +
         "       )\n" +
         // "ttype" is the type of the first "to" vertex and because we group by entity type,
         // it will be the type for all "to" vertices in the edgeCollection.
-        "       COLLECT ttype = FIRST(to).entityType\n" +
-        "       INTO   groups = { provider: FIRST(from), consumer: FIRST(to) }\n" +
+        "       COLLECT ttype = to.entityType\n" +
+        "       INTO groups = {\n" +
+        "           provider: { entityType: from.entityType, state: from.state, id: from._key },\n" +
+        "           consumer: { entityType: to.entityType, state: to.state, id: to._key }\n" +
+        "       }\n" +
         "       RETURN { entityType: ttype, edges:  UNIQUE(groups[*]) }\n" +
         ")\n" +
         "LET originCollection = ( RETURN DOCUMENT('${startingId}') )\n" +
         "LET origin = FIRST(originCollection)\n" +
         // Return a document containing the origin and all edges up to 10 degrees away from the origin
         // that are reachable by traversing in the provider direction.
-        "RETURN { origin: {id: origin._key, entityType: origin.entityType}, edgeCollection: edgeCollection }\n";
-
-    /**
-     * New query for computing the supply chain for an entity.
-     */
-    static final String SUPPLY_CHAIN_REACTIVE_QUERY_STRING =
-            "FOR v IN 1..10\n" +
-            "${direction} '${startingId}'\n" +
-            "${edgeCollection}\n" +
-            "COLLECT types = v.entityType INTO oids = v.oid\n" +
-            "RETURN {\"entityType\": types, \"oids\": UNIQUE(oids)}";
+        "RETURN { origin: {id: origin._key, entityType: origin.entityType, state: origin.state}, edgeCollection: edgeCollection }\n";
 
     /**
      * New query for computing the global supply chain.
      */
     static final String GLOBAL_SUPPLY_CHAIN_REACTIVE_QUERY_STRING =
             "FOR entity IN ${seCollection}\n" +
-            "COLLECT types = entity.entityType INTO oids = entity.oid\n" +
-            "RETURN { \"entityType\": types, \"oids\": oids }";
+            "COLLECT types = entity.entityType, states = entity.state INTO oids = entity.oid\n" +
+            "RETURN { \"entityType\": types, \"state\": states, \"oids\": oids }";
 
     /**
      * Perform a <code>FULLTEXT</code> search on a field with a <code>FULLTEXT</code> index.

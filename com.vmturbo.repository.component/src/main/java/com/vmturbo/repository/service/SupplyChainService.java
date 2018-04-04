@@ -21,6 +21,7 @@ import javaslang.control.Either;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
@@ -102,8 +103,7 @@ public class SupplyChainService {
             return getGlobalSupplyChain(Optional.of(contextID))
                 .map(nodeMap -> nodeMap.entrySet().stream()
                     .collect(Collectors.toMap(
-                        Entry::getKey,
-                        entry -> new HashSet<>(entry.getValue().getMemberOidsList())
+                        Entry::getKey, entry -> RepositoryDTOUtil.getAllMemberOids(entry.getValue())
                     )));
         } else {
             return Mono.fromCallable(() -> {
@@ -112,9 +112,7 @@ public class SupplyChainService {
 
                 final Either<String, Map<String, Set<Long>>> e = supplyChain
                     .map(nodeStream -> nodeStream.collect(Collectors.toMap(
-                        SupplyChainNode::getEntityType,
-                        supplyChainNode -> new HashSet<>(supplyChainNode.getMemberOidsList())
-                    )));
+                        SupplyChainNode::getEntityType, RepositoryDTOUtil::getAllMemberOids)));
 
                 return e.getOrElse(Collections.emptyMap());
             });

@@ -30,6 +30,7 @@ import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -278,7 +279,7 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
      * this MergedSupplyChainNode holds the information pertaining to a single EntityType.
      */
     private static class MergedSupplyChainNode {
-        private final Set<Long> memberOids;
+        private final Map<Integer, Set<Long>> membersByState;
         private final Set<String> connectedConsumerTypes;
         private final Set<String> connectedProviderTypes;
         private Optional<Integer> supplyChainDepth;
@@ -293,13 +294,15 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
          *                        the internal variables for capturing the merged information later
          */
         MergedSupplyChainNode(@Nonnull final SupplyChainNode supplyChainNode) {
-            this.memberOids = new HashSet<>(supplyChainNode.getMemberOidsCount());
             this.connectedConsumerTypes = new HashSet<>(supplyChainNode.getConnectedConsumerTypesCount());
             this.connectedProviderTypes = new HashSet<>(supplyChainNode.getConnectedProviderTypesCount());
             this.supplyChainDepth = supplyChainNode.hasSupplyChainDepth() ?
                 Optional.of(supplyChainNode.getSupplyChainDepth()) :
                 Optional.empty();
             this.entityType = supplyChainNode.getEntityType();
+            this.membersByState = new HashMap<>(supplyChainNode.getMembersByStateCount());
+            supplyChainNode.getMembersByStateMap().forEach((state, membersForState) ->
+                    membersByState.put(state, new HashSet<>(membersForState.getMemberOidsList())));
         }
 
         /**
@@ -328,7 +331,11 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
             }
 
             // Merge by taking the union of known members and connected types with the new ones.
-            memberOids.addAll(supplyChainNode.getMemberOidsList());
+            supplyChainNode.getMembersByStateMap().forEach((state, membersForState) -> {
+                final Set<Long> allMembersForState = membersByState.computeIfAbsent(state,
+                        k -> new HashSet<>(membersForState.getMemberOidsCount()));
+                allMembersForState.addAll(membersForState.getMemberOidsList());
+            });
             connectedConsumerTypes.addAll(supplyChainNode.getConnectedConsumerTypesList());
             connectedProviderTypes.addAll(supplyChainNode.getConnectedProviderTypesList());
         }
@@ -343,9 +350,13 @@ public class SupplyChainRpcService extends SupplyChainServiceImplBase {
         SupplyChainNode toSupplyChainNode() {
             final SupplyChainNode.Builder builder = SupplyChainNode.newBuilder()
                 .setEntityType(entityType)
-                .addAllMemberOids(memberOids)
                 .addAllConnectedConsumerTypes(connectedConsumerTypes)
                 .addAllConnectedProviderTypes(connectedProviderTypes);
+            membersByState.forEach((state, membersForState) -> {
+                builder.putMembersByState(state, MemberList.newBuilder()
+                    .addAllMemberOids(membersForState)
+                    .build());
+            });
             supplyChainDepth.ifPresent(builder::setSupplyChainDepth);
 
             return builder.build();

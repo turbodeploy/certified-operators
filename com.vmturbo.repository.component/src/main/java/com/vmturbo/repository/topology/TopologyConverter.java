@@ -113,7 +113,7 @@ public class TopologyConverter {
          * @return A string of entity state that UI expects
          */
         static String mapEntityState(EntityState topologyEntityState) {
-            return RepoObjectState.mapEntityType(topologyEntityState);
+            return RepoObjectState.toRepoEntityState(topologyEntityState);
         }
     }
 

@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -15,6 +16,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -43,6 +45,7 @@ import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
@@ -50,9 +53,11 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 
 /**
  * A factory class for various {@link SupplychainFetcher}s.
@@ -398,7 +403,10 @@ public class SupplyChainFetcherFactory {
                         if (groupType.equals(desiredEntityType)) {
                             onNext(SupplyChainNode.newBuilder()
                                     .setEntityType(groupType)
-                                    .addAllMemberOids(groupExpander.expandUuid(groupUuid))
+                                    .putMembersByState(EntityState.POWERED_ON_VALUE,
+                                            MemberList.newBuilder()
+                                                .addAllMemberOids(groupExpander.expandUuid(groupUuid))
+                                                .build())
                                     .build());
                             return getResult();
                         }
@@ -563,7 +571,7 @@ public class SupplyChainFetcherFactory {
          */
         @Override
         public void onNext(SupplyChainNode supplyChainNode) {
-            final List<Long> memberOidsList = supplyChainNode.getMemberOidsList();
+            final Set<Long> memberOidsList = RepositoryDTOUtil.getAllMemberOids(supplyChainNode);
 
             // fetch service entities, if requested
             final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
@@ -572,7 +580,7 @@ public class SupplyChainFetcherFactory {
                 // optional is empty if the OID was not found; include severities
                 Map<Long, Optional<ServiceEntityApiDTO>> serviceEntitiesFromRepository =
                         repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(
-                                new HashSet<>(memberOidsList)).build());
+                                memberOidsList).build());
 
                 // ignore the unknown OIDs for now...perhaps should complain in the future
                 serviceEntityApiDTOS.putAll(serviceEntitiesFromRepository.entrySet().stream()
@@ -619,7 +627,7 @@ public class SupplyChainFetcherFactory {
 
             final SeverityCountsResponse response =
                 severityRpcService.getSeverityCounts(severityCountRequest);
-            response.getCountsList().stream().forEach(severityCount -> {
+            response.getCountsList().forEach(severityCount -> {
                 final Severity severity = severityCount.getSeverity();
                 final long currentCount = severities.getOrDefault(severity, 0L);
                 severities.put(severity, currentCount + severityCount.getEntityCount());
@@ -674,17 +682,13 @@ public class SupplyChainFetcherFactory {
                 @Nonnull Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS) {
             logger.debug("Compiling results for {}", node.getEntityType());
 
-            SupplychainEntryDTO supplyChainEntry = resultApiDTO.getSeMap().get(node.getEntityType());
-
-            // add these SE's into the SupplyChainEntryDTO being built.
-            if (supplyChainEntry == null) {
+            // This is thread-safe because we're doing it in a synchronized method.
+            resultApiDTO.getSeMap().computeIfAbsent(node.getEntityType(), entityType -> {
                 // first SupplychainEntryDTO for this entity type; create one and just store the values
-                supplyChainEntry = new SupplychainEntryDTO();
-                resultApiDTO.getSeMap().put(node.getEntityType(), supplyChainEntry);
+                final SupplychainEntryDTO supplyChainEntry = new SupplychainEntryDTO();
                 supplyChainEntry.setConnectedConsumerTypes(new HashSet<>(node.getConnectedConsumerTypesList()));
                 supplyChainEntry.setConnectedProviderTypes(new HashSet<>(node.getConnectedProviderTypesList()));
                 supplyChainEntry.setDepth(node.getSupplyChainDepth());
-                supplyChainEntry.setEntitiesCount(node.getMemberOidsCount());
                 supplyChainEntry.setInstances(serviceEntityApiDTOS);
 
                 // Set health summary if we were able to retrieve severities.
@@ -693,7 +697,28 @@ public class SupplyChainFetcherFactory {
                                 entry -> ActionDTOUtil.getSeverityName(entry.getKey()),
                                 entry -> entry.getValue().intValue()));
                 supplyChainEntry.setHealthSummary(healthSummary);
-            }
+
+                // Compile the entities count from the members-by-state map, since
+                // the member OIDs field is deprecated.
+                int entitiesCount = 0;
+                final Map<String, Integer> stateSummary = new HashMap<>();
+                for (final Entry<Integer, MemberList> entry : node.getMembersByStateMap().entrySet()) {
+                    entitiesCount += entry.getValue().getMemberOidsCount();
+                    stateSummary.compute(ServiceEntityMapper.toState(entry.getKey()),
+                        (k, existingValue) -> {
+                            if (existingValue != null) {
+                                logger.warn("Multiple states in supply chain node for entity type " +
+                                        "{} map to API state {}", node.getEntityType(), k);
+                                return existingValue + entry.getValue().getMemberOidsCount();
+                            } else {
+                                return entry.getValue().getMemberOidsCount();
+                            }
+                    });
+                }
+                supplyChainEntry.setStateSummary(stateSummary);
+                supplyChainEntry.setEntitiesCount(entitiesCount);
+                return supplyChainEntry;
+            });
         }
 
         @Override

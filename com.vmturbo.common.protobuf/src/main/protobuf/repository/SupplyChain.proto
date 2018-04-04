@@ -25,6 +25,12 @@ message SupplyChainRequest {
 // The response to a supply chain request consists of a series of supply chain nodes
 // that express graph of connections in the supply chain.
 message SupplyChainNode {
+
+    // A list of node members of a particular state.
+    message MemberList {
+        repeated int64 member_oids = 1;
+    }
+
     // The entity type in this node of the supply chain. A node in
     // the chain may contain only one type of entity.
     optional string entity_type = 1;
@@ -40,8 +46,13 @@ message SupplyChainNode {
     // at this node in the supply chain.
     repeated string connected_consumer_types = 4;
 
+    // A map from entity state -> members of that state.
+    map<int32, MemberList> members_by_state = 6;
+
     // The OIDs of entities belonging to this node.
-    repeated int64 member_oids = 5;
+    // This field is deprecated - you can get the member OIDs from the
+    // members by state map.
+    repeated int64 __member_oids = 5 [deprecated = true];
 }
 
 // A service for fetching information about supply chains.

@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -216,6 +217,6 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
         Iterable<SupplyChainNode> iterable = () -> supplyChainNodeIterator;
         Stream<SupplyChainNode> nodeStream = StreamSupport.stream(iterable.spliterator(), false);
-        return nodeStream.map(SupplyChainNode::getMemberOidsCount).reduce(0, Integer::sum);
+        return nodeStream.map(RepositoryDTOUtil::getMemberCount).reduce(0, Integer::sum);
     }
 }

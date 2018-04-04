@@ -29,6 +29,7 @@ import javaslang.control.Either;
 import reactor.core.publisher.Mono;
 
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
@@ -46,11 +47,18 @@ public class SupplyChainRpcServiceTest {
     private SupplyChainServiceBlockingStub supplyChainStub;
 
     private final SupplyChainNode pmNode = SupplyChainNode.newBuilder()
-            .addAllMemberOids(Lists.newArrayList(1L, 2L))
+            .putMembersByState(0, MemberList.newBuilder()
+                .addMemberOids(1L)
+                .addMemberOids(2L)
+                .build())
             .setEntityType("PhysicalMachine")
             .build();
     private final SupplyChainNode vmNode = SupplyChainNode.newBuilder()
-            .addAllMemberOids(Lists.newArrayList(3L, 4L, 5L))
+            .putMembersByState(0, MemberList.newBuilder()
+                    .addMemberOids(3L)
+                    .addMemberOids(4L)
+                    .addMemberOids(5L)
+                    .build())
             .setEntityType("VirtualMachine")
             .build();
 
@@ -119,19 +127,33 @@ public class SupplyChainRpcServiceTest {
     public void testMergedSupplyChain() throws Exception {
 
         final SupplyChainNode pmNode2 = SupplyChainNode.newBuilder()
-                .addAllMemberOids(Lists.newArrayList(1L, 5L))
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addMemberOids(1L)
+                        .addMemberOids(5L)
+                        .build())
                 .setEntityType("PhysicalMachine")
                 .build();
         final SupplyChainNode pmMergedNode = SupplyChainNode.newBuilder()
-                .addAllMemberOids(Lists.newArrayList(1L, 5L, 2L))
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addMemberOids(1L)
+                        .addMemberOids(5L)
+                        .addMemberOids(2L)
+                        .build())
                 .setEntityType("PhysicalMachine")
                 .build();
         final SupplyChainNode vmNode2 = SupplyChainNode.newBuilder()
-                .addAllMemberOids(Lists.newArrayList(3L, 4L))
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addMemberOids(3L)
+                        .addMemberOids(4L)
+                        .build())
                 .setEntityType("VirtualMachine")
                 .build();
         final SupplyChainNode vmMergedNode = SupplyChainNode.newBuilder()
-                .addAllMemberOids(Lists.newArrayList(3L, 4L, 5L))
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addMemberOids(3L)
+                        .addMemberOids(4L)
+                        .addMemberOids(5L)
+                        .build())
                 .setEntityType("VirtualMachine")
                 .build();
 
@@ -155,19 +177,33 @@ public class SupplyChainRpcServiceTest {
     public void testMergedSupplyChainFiltered() throws Exception {
 
         final SupplyChainNode pmNode2 = SupplyChainNode.newBuilder()
-                .addAllMemberOids(Lists.newArrayList(1L, 5L))
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addMemberOids(1L)
+                        .addMemberOids(5L)
+                        .build())
                 .setEntityType("PhysicalMachine")
                 .build();
         final SupplyChainNode pmMergedNode = SupplyChainNode.newBuilder()
-                .addAllMemberOids(Lists.newArrayList(1L, 5L, 2L))
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addMemberOids(1L)
+                        .addMemberOids(5L)
+                        .addMemberOids(2L)
+                        .build())
                 .setEntityType("PhysicalMachine")
                 .build();
         final SupplyChainNode vmNode2 = SupplyChainNode.newBuilder()
-                .addAllMemberOids(Lists.newArrayList(3L, 4L))
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addMemberOids(3L)
+                        .addMemberOids(4L)
+                        .build())
                 .setEntityType("VirtualMachine")
                 .build();
         final SupplyChainNode vmMergedNode = SupplyChainNode.newBuilder()
-                .addAllMemberOids(Lists.newArrayList(3L, 4L, 5L))
+                .putMembersByState(0, MemberList.newBuilder()
+                        .addMemberOids(3L)
+                        .addMemberOids(4L)
+                        .addMemberOids(5L)
+                        .build())
                 .setEntityType("VirtualMachine")
                 .build();
 
@@ -228,10 +264,11 @@ public class SupplyChainRpcServiceTest {
     private void compareSupplyChainNode(SupplyChainNode node1, SupplyChainNode node2) {
         assertEquals(node1.getEntityType(), node2.getEntityType());
         assertEquals(node1.getSupplyChainDepth(), node2.getSupplyChainDepth());
-        assertThat(node1.getMemberOidsList().size(),
-                equalTo(node2.getMemberOidsList().size()));
-        assertThat(node1.getMemberOidsList(),
-                containsInAnyOrder(node2.getMemberOidsList().toArray()));
+        assertThat(node1.getMembersByStateCount(), equalTo(node2.getMembersByStateCount()));
+        node1.getMembersByStateMap().forEach((state, membersForState) -> {
+            assertThat(node2.getMembersByStateMap().get(state).getMemberOidsList(),
+                    containsInAnyOrder(membersForState.getMemberOidsList().toArray()));
+        });
         assertThat(node1.getConnectedConsumerTypesList().size(),
                 equalTo(node2.getConnectedConsumerTypesList().size()));
         assertThat(node1.getConnectedConsumerTypesList(),
