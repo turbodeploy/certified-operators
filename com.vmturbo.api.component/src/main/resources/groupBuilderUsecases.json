@@ -5,7 +5,8 @@
             {"inputType": "*", "elements": "PhysicalMachine:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByPMName"},
             {"inputType": "*", "elements": "Storage:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByStorage"},
             {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
-            {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"}
+            {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"},
+            {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDC"}
         ]
     },
 
@@ -18,7 +19,8 @@
     "PhysicalMachine" : {
         "criteria" : [
             {"inputType": "*", "elements": "PhysicalMachine:displayName", "filterCategory": "property", "filterType": "pmsByName"},
-            {"inputType": "*", "elements": "PhysicalMachine:Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"}
+            {"inputType": "*", "elements": "PhysicalMachine:Cluster", "filterCategory": "entity", "filterType": "pmsByClusterName"},
+            {"inputType": "*", "elements": "DataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "pmsByDC"}
         ]
     },
 
