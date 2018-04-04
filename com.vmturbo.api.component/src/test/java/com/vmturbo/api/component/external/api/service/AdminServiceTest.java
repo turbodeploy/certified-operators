@@ -53,7 +53,7 @@ public class AdminServiceTest {
 
         // Arrange
         // Act
-        ProductVersionDTO answer = serviceUnderTest.getVersionInfo();
+        ProductVersionDTO answer = serviceUnderTest.getVersionInfo(true);
         // Assert
         String versionInfo = answer.getVersionInfo();
         assertTrue(versionInfo.contains(instance1Type + ": " + instance1Version));

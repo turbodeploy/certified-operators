@@ -40,60 +40,56 @@ public class AdminService implements IAdminService {
     }
 
     @Override
-    public LoggingApiDTO getLoggingLevels() throws Exception {
+    public LoggingApiDTO getLoggingLevels() {
         throw ApiUtils.notImplementedInXL();
     }
 
     @Override
-    public LoggingApiDTO setLoggingLevelForGivenComponent(final LoggingApiDTO loggingDTO)
-            throws Exception {
+    public LoggingApiDTO setLoggingLevelForGivenComponent(final LoggingApiDTO loggingDTO) {
         throw ApiUtils.notImplementedInXL();
     }
 
     @Override
-    public boolean exportDiagData() throws Exception {
+    public boolean exportDiagData() {
         throw ApiUtils.notImplementedInXL();
     }
 
     @Override
-    public boolean loadConfigFiles(final ConfigurationType configType, final String topology)
-            throws Exception {
+    public boolean loadConfigFiles(final ConfigurationType configType, final String topology) {
         throw ApiUtils.notImplementedInXL();
     }
 
     @Override
-    public ProductVersionDTO getVersionInfo() throws Exception {
+    public ProductVersionDTO getVersionInfo(boolean checkForUpdates) {
         ProductVersionDTO answer = new ProductVersionDTO();
         answer.setVersionInfo(getVersionInfoString());
+        // TODO: 'checkForUpdates' is not yet implemented
         answer.setUpdates(UPDATES_NOT_IMPLEMENTED);
         return answer;
     }
 
     @Override
-    public boolean updateAppliance() throws Exception {
+    public boolean updateAppliance() {
         throw ApiUtils.notImplementedInXL();
     }
 
     @Override
-    public HttpProxyDTO getProxyInfo() throws Exception {
+    public HttpProxyDTO getProxyInfo() {
         throw ApiUtils.notImplementedInXL();
     }
 
     @Override
-    public HttpProxyDTO setProxyConfig(final HttpProxyDTO maintenanceDTO) throws Exception {
+    public HttpProxyDTO setProxyConfig(final HttpProxyDTO maintenanceDTO) {
         throw ApiUtils.notImplementedInXL();
     }
 
     private String getVersionInfoString() {
         String header = MessageFormat.format(VERSION_INFO_HEADER, publicVersionString, buildNumber, buildTime);
         ClusterConfigurationDTO clusterConfig = clusterService.getClusterConfiguration();
-        String componentVersions = clusterConfig.getInstances().values().stream()
+        return header + clusterConfig.getInstances().values().stream()
                 .filter(instanceInfo -> instanceInfo.getComponentVersion() != null)
-                .map(instanceInfo -> new StringBuilder(instanceInfo.getComponentType())
-                        .append(": ")
-                        .append(instanceInfo.getComponentVersion())
-                        .toString())
+                .map(instanceInfo -> String.format("%s: %s", instanceInfo.getComponentType(),
+                        instanceInfo.getComponentVersion()))
                 .collect(Collectors.joining("\n"));
-        return new StringBuilder(header).append(componentVersions).toString();
     }
 }
