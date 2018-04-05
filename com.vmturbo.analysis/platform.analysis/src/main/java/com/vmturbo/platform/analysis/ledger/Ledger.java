@@ -352,7 +352,7 @@ public class Ledger {
         final String missingMessage = missing.stream()
             .map(commoditySpecification -> commoditySpecification.getDebugInfoNeverUseInCode())
             .collect(Collectors.joining(",", "Missing=[", "]"));
-        logger.warn("Buyer " + shoppingList.getBuyer().getDebugInfoNeverUseInCode() + " placed on the "
+        logger.debug("Buyer " + shoppingList.getBuyer().getDebugInfoNeverUseInCode() + " placed on the "
             + "wrong provider " + seller.getDebugInfoNeverUseInCode() + " " + missingMessage
             + " hence returning INFINITE expense");
     }
