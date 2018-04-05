@@ -78,6 +78,39 @@ public class Analysis {
 
     private final TopologyInfo topologyInfo;
 
+    private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
+        .withName("mkt_economy_scoping_duration_seconds")
+        .withHelp("Time to scope the economy for analysis.")
+        .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+        .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+        .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+        .withMaxAgeSeconds(60 * 10) // 10 mins.
+        .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+        .build()
+        .register();
+
+    private static final DataMetricSummary TOPOLOGY_CONVERT_TO_TRADER_SUMMARY = DataMetricSummary.builder()
+        .withName("mkt_economy_convert_to_traders_duration_seconds")
+        .withHelp("Time to convert from TopologyDTO to TraderTO before sending for analysis.")
+        .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+        .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+        .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+        .withMaxAgeSeconds(60 * 10) // 10 mins.
+        .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+        .build()
+        .register();
+
+    private static final DataMetricSummary TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY = DataMetricSummary.builder()
+        .withName("mkt_economy_convert_from_traders_duration_seconds")
+        .withHelp("Time to convert from TraderTO back to TopologyDTO for projected topology after analysis.")
+        .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+        .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+        .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+        .withMaxAgeSeconds(60 * 10) // 10 mins.
+        .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+        .build()
+        .register();
+
     /**
      * The clock used to time market analysis.
      */
@@ -145,13 +178,18 @@ public class Analysis {
             final TopologyConverter converter =
                 new TopologyConverter(topologyInfo, includeVDC);
 
-            Set<TraderTO> traderTOs = converter.convertToMarket(
-                    Lists.newLinkedList(topologyDTOs));
+            final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
+            Set<TraderTO> traderTOs = converter.convertToMarket(topologyDTOs);
+            conversionTimer.observe();
+
             // if a scope 'seed' entity OID list is specified, then scope the topology starting with
             // the given 'seed' entities
             if (!topologyInfo.getScopeSeedOidsList().isEmpty()) {
-                traderTOs = scopeTopology(traderTOs,
-                    ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
+                try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
+                    traderTOs = scopeTopology(traderTOs,
+                        ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
+                }
+
                 // save the scoped topology for later broadcast
                 captureScopedTopology(traderTOs);
             }
@@ -189,7 +227,11 @@ public class Analysis {
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
             converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
             logger.info(logPrefix + "Done performing analysis");
-            projectedEntities = converter.convertFromMarket(results.getProjectedTopoEntityTOList(), topologyDTOs);
+
+            try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
+                projectedEntities = converter.convertFromMarket(results.getProjectedTopoEntityTOList(), topologyDTOs);
+            }
+
             // Create the action plan
             logger.info(logPrefix + "Creating action plan");
             final ActionPlan.Builder actionPlanBuilder = ActionPlan.newBuilder()
@@ -446,7 +488,6 @@ public class Analysis {
      **/
     @VisibleForTesting
     Set<TraderTO> scopeTopology(@Nonnull Set<TraderTO> traderTOs, @Nonnull Set<Long> seedOids) {
-
         // the resulting scoped topology - contains at least the seed OIDs
         final Set<Long> scopedTopologyOIDs = Sets.newHashSet(seedOids);
 

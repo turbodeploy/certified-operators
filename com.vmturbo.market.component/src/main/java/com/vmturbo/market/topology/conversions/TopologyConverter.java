@@ -175,7 +175,7 @@ public class TopologyConverter {
     }
 
     /**
-     * Convert a list of common protobuf topology entity DTOs to analysis protobuf economy DTOs.
+     * Convert a collection of common protobuf topology entity DTOs to analysis protobuf economy DTOs.
      * @param entities list of topology entity DTOs
      * @return set of economy DTOs
      * @throws InvalidTopologyException when the topology is invalid, e.g. used > capacity

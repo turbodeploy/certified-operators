@@ -47,6 +47,10 @@ public class TopologyEntitiesHandler {
     }
 
     private static final Logger logger = LogManager.getLogger();
+    private static final String SCOPED_ANALYSIS_LABEL = "scoped";
+    private static final String GLOBAL_ANALYSIS_LABEL = "global";
+    public static final String PLAN_CONTEXT_TYPE_LABEL = "plan";
+    public static final String LIVE_CONTEXT_TYPE_LABEL = "live";
 
     private static final DataMetricSummary ECONOMY_BUILD = DataMetricSummary.builder()
             .withName("mkt_economy_build_duration_seconds")
@@ -62,6 +66,7 @@ public class TopologyEntitiesHandler {
     private static final DataMetricSummary ANALYSIS_RUNTIME = DataMetricSummary.builder()
             .withName("mkt_analysis_duration_seconds")
             .withHelp("Time to run the analysis.")
+            .withLabelNames("scope_type")
             .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
             .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
             .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
@@ -69,6 +74,13 @@ public class TopologyEntitiesHandler {
             .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
             .build()
             .register();
+
+    private static final DataMetricSummary ANALYSIS_ECONOMY_SIZE = DataMetricSummary.builder()
+        .withName("mkt_analysis_economy_size")
+        .withHelp("Number of traders in the economy for each market analysis.")
+        .withLabelNames("scope_type", "context_type")
+        .build()
+        .register();
 
     /**
      * Create an {@link Economy} from a set of {@link TraderTO}s
@@ -114,7 +126,12 @@ public class TopologyEntitiesHandler {
         buildTimer.observe();
 
         final boolean isRealtime = topologyInfo.getTopologyType() == TopologyType.REALTIME;
-        final DataMetricTimer runTimer = ANALYSIS_RUNTIME.startTimer();
+        final String scopeType = topologyInfo.getScopeSeedOidsCount() > 0 ?
+            SCOPED_ANALYSIS_LABEL :
+            GLOBAL_ANALYSIS_LABEL;
+        final DataMetricTimer runTimer = ANALYSIS_RUNTIME
+            .labels(scopeType)
+            .startTimer();
         final List<Action> actions;
 
         // The current implementation of headroom plans in M2 requires a different method call
@@ -143,6 +160,12 @@ public class TopologyEntitiesHandler {
                 topology.getShoppingListOids(), stop - start,
                 topology, startPriceStatement);
         runTimer.observe();
+
+        // Capture a metric about the size of the economy analyzed
+        final String contextType = topologyInfo.hasPlanInfo() ? PLAN_CONTEXT_TYPE_LABEL : LIVE_CONTEXT_TYPE_LABEL;
+        ANALYSIS_ECONOMY_SIZE
+            .labels(scopeType, contextType)
+            .observe((double) traderTOs.size());
 
         logger.info("Completed analysis, with {} actions, and a projected topology of {} traders",
                 results.getActionsCount(), results.getProjectedTopoEntityTOCount());
