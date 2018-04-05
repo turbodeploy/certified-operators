@@ -16,6 +16,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.http.HttpStatus;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.reporting.api.protobuf.Reporting.ReportData;
@@ -47,6 +48,10 @@ public class ReportCgiServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        if (req.getRemoteUser() == null) {
+            resp.sendError(HttpStatus.FORBIDDEN.value(), "Authentication required");
+            return;
+        }
         if (ACTION_REPORT.equals(req.getParameter(ACTION_PARAM))) {
             final String reportId = req.getParameter("output");
             if (StringUtils.isNumeric(reportId)) {

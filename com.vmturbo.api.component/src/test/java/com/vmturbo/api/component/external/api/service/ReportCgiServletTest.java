@@ -1,8 +1,20 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Optional;
+
+import javax.security.auth.Subject;
+import javax.servlet.DispatcherType;
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
 
 import com.google.common.base.Charsets;
 import com.google.protobuf.ByteString;
@@ -11,13 +23,17 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.http.HttpResponse;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
+import org.eclipse.jetty.security.DefaultUserIdentity;
+import org.eclipse.jetty.security.UserAuthentication;
 import org.eclipse.jetty.server.NetworkConnector;
+import org.eclipse.jetty.server.Request;
 import org.eclipse.jetty.server.Server;
 import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.UserIdentity;
+import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.hamcrest.CoreMatchers;
@@ -28,6 +44,9 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
 import org.mockito.Mockito;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StreamUtils;
 
 import com.vmturbo.api.enums.ReportOutputFormat;
@@ -66,6 +85,34 @@ public class ReportCgiServletTest {
         final ServletHolder holder = new ServletHolder();
         holder.setServlet(servlet);
         context.addServlet(holder, ServiceConfig.REPORT_CGI_PATH);
+        final Filter filter = new Filter() {
+            @Override
+            public void init(FilterConfig filterConfig) throws ServletException {
+
+            }
+
+            @Override
+            public void doFilter(ServletRequest request, ServletResponse response,
+                    FilterChain chain) throws IOException, ServletException {
+                final UsernamePasswordAuthenticationToken principal =
+                        new UsernamePasswordAuthenticationToken("administrator", "secret",
+                                Collections.singleton(
+                                        new SimpleGrantedAuthority("ROLE_ADMINISTRATOR")));
+                SecurityContextHolder.getContext().setAuthentication(principal);
+                final Request req = (Request)request;
+                final UserIdentity userIdentity = new DefaultUserIdentity(new Subject(), principal,
+                        new String[]{"ROLE_ADMINISTRATOR"});
+                req.setAuthentication(new UserAuthentication("FAKE", userIdentity));
+                chain.doFilter(request, response);
+            }
+
+            @Override
+            public void destroy() {
+
+            }
+        };
+        final FilterHolder filters = new FilterHolder(filter);
+        context.addFilter(filters, "/*", EnumSet.of(DispatcherType.REQUEST));
         final NetworkConnector connector = new ServerConnector(jettyServer);
         jettyServer.addConnector(connector);
         jettyServer.start();
