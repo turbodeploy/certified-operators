@@ -14,7 +14,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
-import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
@@ -345,17 +344,15 @@ public class UsersService implements IUsersService {
      */
     @Override
     public Boolean deleteUser(String uuid) {
+        String request = baseRequest().path("/users/remove/" + uuid).build().toUriString();
+        HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
         try {
-            String request = baseRequest().path("/users/remove/" + uuid).build()
-                                          .toUriString();
-            HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
-            restTemplate_.exchange(request, HttpMethod.DELETE, entity,
-                                   Void.class);
-            return Boolean.TRUE;
+            restTemplate_.exchange(request, HttpMethod.DELETE, entity, Void.class);
         } catch (Exception e) {
-            logger_.error("Error deleting user", e);
-            return Boolean.FALSE;
+            logger_.error("Unable to remove user {}", uuid, e.getCause());
+            throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
         }
+        return Boolean.TRUE;
     }
 
     /**
