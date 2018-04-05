@@ -178,6 +178,8 @@ public class Provision {
                                         + mostProfitableTrader.getDebugInfoNeverUseInCode()
                                         + " as the RoI of the modelSeller does not go down");
                         }
+                        // Because if we roll back original action, subsequent actions will roll back too.
+                        actions.removeAll(subActions);
                         // remove IncomeStatement from ledger and rollback actions
                         rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
                         break;
