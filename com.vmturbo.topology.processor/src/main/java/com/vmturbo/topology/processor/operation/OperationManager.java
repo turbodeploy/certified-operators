@@ -709,8 +709,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         }
         logger.info("Completed " + operation);
 
-        ongoingOperations.remove(operation.getId());
         operationListener.notifyOperationState(operation);
+        ongoingOperations.remove(operation.getId());
         ONGOING_OPERATION_GAUGE.labels(operation.getClass().getName().toLowerCase()).decrement();
     }
 
