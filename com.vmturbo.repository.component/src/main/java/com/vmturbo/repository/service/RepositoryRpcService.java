@@ -9,6 +9,7 @@ import static javaslang.API.Match;
 import static javaslang.Patterns.Left;
 import static javaslang.Patterns.Right;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -197,9 +198,9 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
 
     /**
      * Fetch the stats related to a Plan topology. Depending on the 'startTime' of the
-     * request: if there is a 'startTime', then this request is assumed to be from the
-     * projected plan topology. If there is no 'startTime' then this request is assumed
-     * to be to refer to the plan input topology (not yet implemented).
+     * request: if there is a 'startTime' and it is in the future, then this request is
+     * satisfied from the projected plan topology. If there is no 'startTime' or in the past, then
+     * this request is to be to satisfied from the plan input topology (not yet implemented).
      *
      * @param request the parameters for this request, including the plan topology id and a StatsFilter
      *                object describing which stats to include in the result
@@ -208,13 +209,18 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
     @Override
     public void getPlanTopologyStats(@Nonnull final PlanTopologyStatsRequest request,
                                       @Nonnull final StreamObserver<PlanEntityStats> responseObserver) {
-        // is the request for the plan projected topology plan input topology
-        if (!request.hasFilter() || !request.getFilter().hasStartDate()) {
-            // request is for the future
-            returnProjectedPlanStats(request, request.getTopologyId(), responseObserver);
+        // what is the timeframe for this stats request?
+        if (request.hasFilter() &&
+                request.getFilter().hasStartDate() &&
+                request.getFilter().getStartDate() > Instant.now().toEpochMilli()) {
+                // future = fetch from plan projected topology
+                returnProjectedPlanStats(request, request.getTopologyId(), responseObserver);
         } else {
-            // fetch from plan input topology - not implemented; return empty result
+            // either no timeframe or timeframe is in the past - fetch from plan input topology
+            // NOT IMPLEMENTED, and not required by the UI at the present; return empty result
             logger.warn("Plan stats request for 'now' = plan source topology; not implemented");
+            responseObserver.onNext(PlanEntityStats.getDefaultInstance());
+            responseObserver.onCompleted();
         }
     }
 
