@@ -374,14 +374,5 @@ public class TopologyEditorTest {
                     .map(TopologyEntityDTO::getEdit)
                     .filter(Edit::hasReplaced)
                     .count());
-        // make sure consumers of replaced PM are unplaced
-        assertTrue(topologyEntityDTOS.stream()
-                .filter(topologyEntity ->
-                        topologyEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                .map(TopologyEntityDTO::getCommoditiesBoughtFromProvidersList)
-                .flatMap(List::stream)
-                .anyMatch(commoditiesBoughtFromProvider ->
-                        !commoditiesBoughtFromProvider.hasProviderId() ||
-                                commoditiesBoughtFromProvider.getProviderId() <= 0));
     }
 }

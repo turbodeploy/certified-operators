@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.topology;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -353,15 +352,7 @@ public class TopologyEditor {
     }
 
     /**
-     * prepareEntitiesForRemoval iterates over entire topology and finds all existing consumers of
-     * the entities being removed. These consumers will be "unplaced" by having the provider id's of
-     * their bought commodities unset.
-     *
-     * This logic also applies to entities being "replaced" in a plan -- the replacement is
-     * implemented as a "removal" of the original entity and an "addition" of the replacement
-     * entity.
-     *
-     * In addition, the entities being removed (or replaced) will be marked with an Edit property
+     * The entities being removed (or replaced) will be marked with an Edit property
      * that flags these entities for removal in the Market.
      *
      * @param entitiesToRemove a set of replaced entity oids.
@@ -371,78 +362,24 @@ public class TopologyEditor {
     private void prepareEntitiesForRemoval(@Nonnull Set<Long> entitiesToRemove,
                                            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
                                            @Nonnull Edit edit) {
-        // Unplace existing consumers
-        for (Long entityOid : topology.keySet()) {
-            final TopologyEntityDTO.Builder topologyBuilder = topology.get(entityOid).getEntityBuilder();
-            if (isConsumerOfReplacedEntities(entitiesToRemove, topologyBuilder)) {
-                final Map<Long, Long> oldProvidersMap = Maps.newHashMap();
-                TopologyEntityDTO.Builder unplacedTopologyBuilder = topologyBuilder.clone()
-                    .clearCommoditiesBoughtFromProviders()
-                    .addAllCommoditiesBoughtFromProviders(unplacedCommoditiesBoughtGroup(
-                        topologyBuilder.getCommoditiesBoughtFromProvidersList(), entitiesToRemove,
-                        oldProvidersMap));
-                Map<String, String> entityProperties = Maps.newHashMap();
-                if (!oldProvidersMap.isEmpty()) {
-                    // TODO: OM-26631 - get rid of unstructured data and Gson
-                    entityProperties.put("oldProviders", new Gson().toJson(oldProvidersMap));
-                }
-                unplacedTopologyBuilder.putAllEntityPropertyMap(entityProperties);
-                topology.put(entityOid,
-                    TopologyEntity.newBuilder(unplacedTopologyBuilder));
-            }
-        }
-        // Mark the entities as Edited.
+        /**
+         * Mark the entities as edited. The entities remain in the topology and all related entities
+         * maintain their relationships to the entities marked for removal. The marked entities will
+         * actually be removed in the market component prior to analysis.
+         *
+         * It is important to retain the entities in the topology and the relationships to those entities
+         * for correctness. For example, consider the scoping algorithm which occurs after these
+         * edits take place. If we were to run a plan on a cluster (ie the scope seeds are the hosts in
+         * the cluster) and then replace those hosts, if we removed the hosts now, the scoping algorithm
+         * would be unable to scope from the seeds. Further, even if we retained the hosts but unplaced
+         * the VMs buying from those hosts, the scoping algorithm would be unable to traverse from
+         * the hosts to their consumers for scoping purposes because no entities buy from the hosts being
+         * removed. Another example of why we should not unplace due to removal at this time is because
+         * if a group applies to the entities consuming from or providing to the entities being removed,
+         * that group would be invalidated by removing the relationship to the entity being removed. As
+         * a result, policy and setting application would do the wrong thing.
+         */
         entitiesToRemove.forEach(entityOid -> tagEntityWithEdit(entityOid, topology, edit));
-    }
-
-    /**
-     * Check if the topologyEntity is a consumer of replaced entities.
-     *
-     * @param entitiesToReplace a set of replaced entity oids.
-     * @param topologyBuilder {@link TopologyEntityDTO.Builder}
-     * @return a boolean.
-     */
-    private boolean isConsumerOfReplacedEntities(@Nonnull Set<Long> entitiesToReplace,
-                                                 @Nonnull final TopologyEntityDTO.Builder topologyBuilder) {
-        return topologyBuilder.getCommoditiesBoughtFromProvidersList().stream()
-            .filter(CommoditiesBoughtFromProvider::hasProviderId)
-            .map(CommoditiesBoughtFromProvider::getProviderId)
-            .anyMatch(entitiesToReplace::contains);
-    }
-
-    /**
-     * Remove all provider id of {@link CommoditiesBoughtFromProvider} if the provider id is one of
-     * replaced entity oids. And generate a fake provider id and keep the mapping relationship from
-     * fake provider id to original id to entityProperties map.
-     *
-     * @param commoditiesBoughtFromProviders a list of {@link CommoditiesBoughtFromProvider}
-     * @param entitiesToReplace a set of replaced entity oids.
-     * @param entityProperties a map contains mapping relationship from fake provider it to original
-     *                         provder id.
-     * @return a list of {@link CommoditiesBoughtFromProvider}.
-     */
-    private List<CommoditiesBoughtFromProvider> unplacedCommoditiesBoughtGroup(
-        @Nonnull final List<CommoditiesBoughtFromProvider> commoditiesBoughtFromProviders,
-        @Nonnull final Set<Long> entitiesToReplace,
-        @Nonnull final Map<Long, Long> entityProperties) {
-        final List<CommoditiesBoughtFromProvider> unplacedCommoditiesBoughtList = new ArrayList<>();
-        long fakeProvider = 0;
-        for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider : commoditiesBoughtFromProviders) {
-            if (commoditiesBoughtFromProvider.hasProviderId() &&
-                entitiesToReplace.contains(commoditiesBoughtFromProvider.getProviderId())) {
-                final long oldProvider = commoditiesBoughtFromProvider.getProviderId();
-                CommoditiesBoughtFromProvider unplacedCommodityBoughtFromProvider =
-                    CommoditiesBoughtFromProvider.newBuilder(commoditiesBoughtFromProvider)
-                        .clearProviderId()
-                        .setProviderId(--fakeProvider)
-                        .build();
-                entityProperties.put(fakeProvider, oldProvider);
-                unplacedCommoditiesBoughtList.add(unplacedCommodityBoughtFromProvider);
-            } else {
-                unplacedCommoditiesBoughtList.add(commoditiesBoughtFromProvider);
-            }
-        }
-        return unplacedCommoditiesBoughtList;
     }
 
     /**

@@ -199,6 +199,11 @@ public class Analysis {
             // traders available in the "old providers maps" so the biclique calculation can
             // preserve the original topology structure. We may refactor this in a way that lets us
             // remove the old provider map though -- see OM-26631.
+            //
+            // Note that although we do NOT attempt to unplace buyers of the entities being removed
+            // here, the effect on the analysis is exactly equivalent if we had unplaced them
+            // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
+            // an infinite quote which is exactly the same as not having a provider.
             Set<Long> oidsToRemove = topologyDTOs.stream()
                     .filter(dto -> dto.hasEdit())
                     .filter(dto -> dto.getEdit().hasRemoved()
