@@ -7,21 +7,20 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.StringJoiner;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.group.FilterApiDTO;
@@ -42,7 +41,6 @@ import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
@@ -374,16 +372,25 @@ public class GroupMapper {
                     // add a traversal filter
                     TraversalDirection direction = TraversalDirection.valueOf(currentToken);
                     currentTokenIndex++;
-                    StoppingCondition stopper;
-                    int hops = 0;
-                    if (currentTokenIndex < elements.length ) {
-                        // we have hops, people! Add a hop-based traversal!
-                        hops = Integer.valueOf(elements[currentTokenIndex]);
+                    final StoppingCondition stopper;
+                    if (currentTokenIndex < elements.length) {
+                        // An explicit stopper can either be the number of hops, or an
+                        // entity type. And note that hops number can not contains '+' or '-'.
+                        if (StringUtils.isNumeric(elements[currentTokenIndex])) {
+                            final int hops = Integer.valueOf(elements[currentTokenIndex]);
+                            if (hops <= 0) {
+                                throw new IllegalArgumentException("Illegal hops number " + hops
+                                        + "; should be positive.");
+                            }
+                            stopper = StoppingCondition.newBuilder().setNumberHops(hops).build();
+                        } else {
+                            final String stopEntityType = elements[currentTokenIndex];
+                            stopper = StoppingCondition.newBuilder()
+                                    .setStoppingPropertyFilter(SearchMapper.entityTypeFilter(stopEntityType))
+                                    .build();
+                        }
                         currentTokenIndex++;
-                        stopper = StoppingCondition.newBuilder().setNumberHops(hops).build();
                     } else {
-                        // it's hopless. sigh.
-                        // the traversal stops when the target entity type is encountered.
                         stopper = StoppingCondition.newBuilder()
                                 .setStoppingPropertyFilter(SearchMapper.entityTypeFilter(className))
                                 .build();
@@ -393,8 +400,8 @@ public class GroupMapper {
                             .setStoppingCondition(stopper)
                             .build();
                     parametersBuilder.addSearchFilter(SearchMapper.searchFilterTraversal(traversal));
-                    // add a final entity type filter if we are doing a hop-count based traverse
-                    if (hops > 0) {
+                    // add a final entity type filter if the last filer is a hop-count based traverse
+                    if (currentTokenIndex >= elements.length && stopper.hasNumberHops()) {
                         parametersBuilder.addSearchFilter(
                                 SearchMapper.searchFilterProperty(
                                         SearchMapper.entityTypeFilter(className)));

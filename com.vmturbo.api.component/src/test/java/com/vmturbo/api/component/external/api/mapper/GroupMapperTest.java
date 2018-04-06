@@ -73,13 +73,18 @@ public class GroupMapperTest {
     private static String VM_TYPE = "VirtualMachine";
     private static String PM_TYPE = "PhysicalMachine";
     private static String DS_TYPE = "Storage";
+    private static String DISK_ARRAY_TYPE = "DiskArray";
+    private static String VDC_TYPE = "VirtualDataCenter";
     private static SearchFilter DISPLAYNAME_IS_FOO = SearchMapper.searchFilterProperty(SearchMapper.nameFilter(FOO));
     private static SearchFilter DISPLAYNAME_IS_BAR = SearchMapper.searchFilterProperty(SearchMapper.nameFilter(BAR));
     private static PropertyFilter TYPE_IS_VM = SearchMapper.entityTypeFilter(VM_TYPE);
     private static PropertyFilter TYPE_IS_PM = SearchMapper.entityTypeFilter(PM_TYPE);
     private static PropertyFilter TYPE_IS_DS = SearchMapper.entityTypeFilter(DS_TYPE);
+    private static PropertyFilter TYPE_IS_DISK_ARRAY = SearchMapper.entityTypeFilter(DISK_ARRAY_TYPE);
+    private static PropertyFilter TYPE_IS_VDC = SearchMapper.entityTypeFilter(VDC_TYPE);
     private static SearchFilter PRODUCES_VMS = SearchMapper.searchFilterTraversal(SearchMapper.traverseToType(TraversalDirection.PRODUCES, VM_TYPE));
     private static SearchFilter PRODUCES_ONE_HOP = SearchMapper.searchFilterTraversal(SearchMapper.numberOfHops(TraversalDirection.PRODUCES, 1));
+    private static SearchFilter PRODUCES_ST = SearchMapper.searchFilterTraversal(SearchMapper.traverseToType(TraversalDirection.PRODUCES, DS_TYPE));
 
     /**
      * Test static group converting GroupApiDTO to GroupInfo
@@ -372,6 +377,48 @@ public class GroupMapperTest {
         assertEquals(DISPLAYNAME_IS_BAR, byPMNameByVMName.getSearchFilter(0));
         assertEquals(PRODUCES_ONE_HOP, byPMNameByVMName.getSearchFilter(1));
         assertEquals(SearchMapper.searchFilterProperty(TYPE_IS_VM), byPMNameByVMName.getSearchFilter(2));
+    }
+
+    @Test
+    public void testVmsByDiskArrayNameSearch() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
+                filterDTO(GroupMapper.EQUAL, FOO, "vmsByDiskArrayName"));
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        assertEquals(1, parameters.size());
+        SearchParameters byName = parameters.get(0);
+        assertEquals(TYPE_IS_DISK_ARRAY, byName.getStartingFilter());
+        assertEquals(4, byName.getSearchFilterCount());
+        assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
+        assertEquals(PRODUCES_ST, byName.getSearchFilter(1));
+        assertEquals(PRODUCES_ONE_HOP, byName.getSearchFilter(2));
+        assertEquals(SearchMapper.searchFilterProperty(TYPE_IS_VM), byName.getSearchFilter(3));
+    }
+
+    @Test
+    public void testVmsByVdcNameSearch() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
+                filterDTO(GroupMapper.EQUAL, FOO, "vmsByVDC"));
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        assertEquals(1, parameters.size());
+        SearchParameters byName = parameters.get(0);
+        assertEquals(TYPE_IS_VDC, byName.getStartingFilter());
+        assertEquals(3, byName.getSearchFilterCount());
+        assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
+        assertEquals(PRODUCES_ONE_HOP, byName.getSearchFilter(1));
+        assertEquals(SearchMapper.searchFilterProperty(TYPE_IS_VM), byName.getSearchFilter(2));
+    }
+
+    @Test
+    public void testVmsByVdcNestedNameSearch() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
+                filterDTO(GroupMapper.EQUAL, FOO, "vmsByDCnested"));
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        assertEquals(1, parameters.size());
+        SearchParameters byName = parameters.get(0);
+        assertEquals(TYPE_IS_VDC, byName.getStartingFilter());
+        assertEquals(2, byName.getSearchFilterCount());
+        assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
+        assertEquals(PRODUCES_VMS, byName.getSearchFilter(1));
     }
 
     /**

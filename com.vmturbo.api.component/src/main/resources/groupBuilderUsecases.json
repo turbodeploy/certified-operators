@@ -3,6 +3,9 @@
         "criteria" : [
             {"inputType": "*", "elements": "VirtualMachine:displayName", "filterCategory": "property", "filterType": "vmsByName"},
             {"inputType": "*", "elements": "PhysicalMachine:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByPMName"},
+            {"inputType": "*", "elements": "VirtualDataCenter:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByVDC"},
+            {"inputType": "*", "elements": "VirtualDataCenter:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByDCnested"},
+            {"inputType": "*", "elements": "DiskArray:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByDiskArrayName"},
             {"inputType": "*", "elements": "Storage:displayName:PRODUCES", "filterCategory": "entity", "filterType": "vmsByStorage"},
             {"inputType": "*", "elements": "Application:displayName:CONSUMES", "filterCategory": "entity", "filterType": "vmsByApplication"},
             {"inputType": "*", "elements": "PhysicalMachine:Cluster:PRODUCES", "filterCategory": "entity", "filterType": "vmsByClusterName"},
