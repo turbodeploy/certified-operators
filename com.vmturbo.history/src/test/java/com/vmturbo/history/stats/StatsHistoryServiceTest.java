@@ -66,6 +66,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRespo
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -230,12 +231,11 @@ public class StatsHistoryServiceTest {
         // arrange
         long startDate = System.currentTimeMillis();
         long endDate = startDate + Duration.ofSeconds(1).toMillis();
+        List<CommodityRequest> commodityRequests = buildCommodityRequests("c1", "c2", "c3");
         StatsFilter.Builder reqStatsBuilder = StatsFilter.newBuilder()
-                    .setStartDate(startDate)
-                    .setEndDate(endDate);
-        List<String> commodityNames = Lists.newArrayList("c1", "c2", "c3");
-        commodityNames.forEach(commodityName ->
-                reqStatsBuilder.addCommodityRequests(buildCommodityRequest(commodityName)));
+                .setStartDate(startDate)
+                .setEndDate(endDate)
+                .addAllCommodityRequests(commodityRequests);
 
         // full 'Market' stats request has no entities
         Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
@@ -246,7 +246,8 @@ public class StatsHistoryServiceTest {
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 1, "c1", "c1-subtype");
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 2, "c2", "c2-subtype");
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 3, "c3", "c3-subtype");
-        when(mockLivestatsreader.getFullMarketStatsRecords(startDate, endDate, commodityNames, Optional.empty()))
+        when(mockLivestatsreader.getFullMarketStatsRecords(startDate, endDate, commodityRequests,
+                Optional.empty()))
                 .thenReturn(statsRecordsList);
 
         // act
@@ -262,10 +263,11 @@ public class StatsHistoryServiceTest {
 
     }
 
-    private StatsFilter.CommodityRequest buildCommodityRequest(String commodityName){
-        return StatsFilter.CommodityRequest.newBuilder()
+    private List<CommodityRequest> buildCommodityRequests(String ...commodityNames){
+        return Arrays.stream(commodityNames).map(commodityName -> CommodityRequest.newBuilder()
                 .setCommodityName(commodityName)
-                .build();
+                .build())
+                .collect(Collectors.toList());
     }
 
     /**
@@ -323,16 +325,15 @@ public class StatsHistoryServiceTest {
         StatsFilter.Builder reqStatsBuilder = StatsFilter.newBuilder()
             .setStartDate(startDate)
             .setEndDate(endDate);
-        List<String> commodityNames = Lists.newArrayList("c1", "c2", "c3");
-        commodityNames.forEach(commodityName ->
-                reqStatsBuilder.addCommodityRequests(buildCommodityRequest(commodityName)));
+        final List<CommodityRequest> commodityRequests = buildCommodityRequests("c1", "c2", "c3");
+        reqStatsBuilder.addAllCommodityRequests(commodityRequests);
 
         List<Record> statsRecordsList = new ArrayList<>();
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 1, "c1", "c1-subtype");
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 2, "c2", "c2-subtype");
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 3, "c3", "c3-subtype");
         when(mockLivestatsreader.getStatsRecords(eq(entityUuidsStr), eq(startDate), eq(endDate),
-                eq(commodityNames))).thenReturn(statsRecordsList);
+                eq(commodityRequests))).thenReturn(statsRecordsList);
 
         Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
                 .addAllEntities(entityUuids)
@@ -343,7 +344,7 @@ public class StatsHistoryServiceTest {
 
         // assert
         verify(mockLivestatsreader).getStatsRecords(eq(entityUuidsStr), eq(startDate), eq(endDate),
-                eq(commodityNames));
+                eq(commodityRequests));
         verify(mockStatSnapshotStreamObserver).onNext(anyObject());
         verify(mockStatSnapshotStreamObserver).onCompleted();
         verifyNoMoreInteractions(mockPlanStatsReader);
@@ -373,9 +374,8 @@ public class StatsHistoryServiceTest {
         StatsFilter.Builder reqStatsBuilder = StatsFilter.newBuilder()
                 .setStartDate(startDate)
                 .setEndDate(endDate);
-        List<String> commodityNames = Lists.newArrayList("c1");
-        commodityNames.forEach(commodityName ->
-                reqStatsBuilder.addCommodityRequests(buildCommodityRequest(commodityName)));
+        final List<CommodityRequest> commodityRequests = buildCommodityRequests("c1");
+        reqStatsBuilder.addAllCommodityRequests(commodityRequests);
         Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
                 .addAllEntities(queryEntityUuids)
                 .setFilter(reqStatsBuilder)
@@ -388,7 +388,7 @@ public class StatsHistoryServiceTest {
         addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 3d, "c1", "c1-subtype");
 
         when(mockLivestatsreader.getStatsRecords(eq(queryEntityUuidsStr), eq(startDate), eq(endDate),
-                eq(commodityNames))).thenReturn(statsRecordsList);
+                eq(commodityRequests))).thenReturn(statsRecordsList);
 
         // act
         statsHistoryService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
@@ -622,8 +622,7 @@ public class StatsHistoryServiceTest {
         ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
                 .setClusterId(Long.parseLong(clusterId))
                 .setStats(StatsFilter.newBuilder()
-                        .addCommodityRequests(buildCommodityRequest(commodityNames[0]))
-                        .addCommodityRequests(buildCommodityRequest(commodityNames[1]))
+                        .addAllCommodityRequests(buildCommodityRequests(commodityNames))
                         .build())
                 .build();
 
@@ -662,8 +661,7 @@ public class StatsHistoryServiceTest {
                 .setStats(StatsFilter.newBuilder()
                         .setStartDate(startDate)
                         .setEndDate(endDate)
-                        .addCommodityRequests(buildCommodityRequest(commodityNames[0]))
-                        .addCommodityRequests(buildCommodityRequest(commodityNames[1]))
+                        .addAllCommodityRequests(buildCommodityRequests(commodityNames))
                         .build())
                 .build();
 
@@ -702,8 +700,7 @@ public class StatsHistoryServiceTest {
                 .setStats(StatsFilter.newBuilder()
                         .setStartDate(startDate)
                         .setEndDate(endDate)
-                        .addCommodityRequests(buildCommodityRequest(commodityNames[0]))
-                        .addCommodityRequests(buildCommodityRequest(commodityNames[1]))
+                        .addAllCommodityRequests(buildCommodityRequests(commodityNames))
                         .build())
                 .build();
         statsHistoryService.getClusterStats(request, mockStatSnapshotStreamObserver);

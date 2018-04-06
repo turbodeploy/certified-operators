@@ -70,12 +70,12 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingRespo
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.CommodityTypes;
-import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
@@ -202,9 +202,6 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                 endDate = filter.getEndDate();
             }
 
-            // collect the commodity names to fetch from each commodity requests
-            final List<String> commodityNames = collectCommodityNames(filter);
-
             // determine if this request is for stats for a plan topology; for efficiency, check
             // first for the special case ID of the entire live topology, "Market" (i.e. not a plan)
             boolean isPlan = entitiesList.size() == 1
@@ -219,16 +216,14 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
             if (isPlan) {
                 // read from plan topologies
-                // TODO: we will want to pass the commodity requests lists, not just the commodity names,
-                // so that only the requested stats rows will be returned - OM-33667
                 returnPlanTopologyStats(responseObserver, entitiesList.get(0),
-                        commodityNames);
+                        filter.getCommodityRequestsList());
             } else {
                 // read from live topologies
                 Optional<String> relatedEntityType = (request.hasRelatedEntityType())
                         ? Optional.of(request.getRelatedEntityType())
                         : Optional.empty();
-                returnLiveMarketStats(responseObserver, startDate, endDate, commodityNames,
+                returnLiveMarketStats(responseObserver, startDate, endDate, filter.getCommodityRequestsList(),
                         entitiesList, relatedEntityType);
             }
 
@@ -257,11 +252,10 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
                 logger.debug("getEntityStats: {}", entityOid);
                 final StatsFilter statsFilter = request.getFilter();
-                final List<String> commodityNames = collectCommodityNames(statsFilter);
                 List<Record> statDBRecords = liveStatsReader.getStatsRecords(
                         Collections.singletonList(Long.toString(entityOid)),
                         statsFilter.getStartDate(), statsFilter.getEndDate(),
-                        commodityNames);
+                        statsFilter.getCommodityRequestsList());
                 EntityStats.Builder statsForEntity = EntityStats.newBuilder()
                         .setOid(entityOid);
 
@@ -470,21 +464,20 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * only one.
      * Package the stats up in a StatSnapshot response protobuf and pass it back via the chunking
      * response "onNext()" cal.
-     *
-     * @param responseObserver the chunking channel on which the response should be returned
+     *  @param responseObserver the chunking channel on which the response should be returned
      * @param topologyContextId the context id for the plan topology to look up
-     * @param commodityNames the names of the commodities to include.
+     * @param commodityRequests the commodities to include.
      */
     private void returnPlanTopologyStats(StreamObserver<StatSnapshot> responseObserver,
                                          long topologyContextId,
-                                         List<String> commodityNames) {
+                                         List<CommodityRequest> commodityRequests) {
         StatSnapshot.Builder beforePlanStatSnapshotResponseBuilder = StatSnapshot.newBuilder();
         StatSnapshot.Builder afterPlanStatSnapshotResponseBuilder = StatSnapshot.newBuilder();
         List<MktSnapshotsStatsRecord> dbSnapshotStatsRecords;
         try {
             dbSnapshotStatsRecords = planStatsReader.getStatsRecords(
-                    topologyContextId, commodityNames);
-        } catch (VmtDbException | SQLException e) {
+                    topologyContextId, commodityRequests);
+        } catch (VmtDbException e) {
             throw new RuntimeException("Error fetching plan market stats for "
                     + topologyContextId, e);
         }
@@ -555,7 +548,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * @param responseObserver the chunking channel on which the response should be returned
      * @param startDate return stats with date equal to or after this date
      * @param endDate return stats with date before this date
-     * @param commodityNames the names of the commodities to include.
+     * @param commodityRequests the names of the commodities to include.
      * @param entities A list of service entity OIDs; an empty list implies full market, which
      *                 may be filtered based on relatedEntityType
      * @param relatedEntityType optional of entityType to sample if entities list is empty;
@@ -565,7 +558,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      */
     private void returnLiveMarketStats(@Nonnull StreamObserver<StatSnapshot> responseObserver,
                                        @Nullable Long startDate, @Nullable Long endDate,
-                                       @Nullable List<String> commodityNames,
+                                       @Nullable List<CommodityRequest> commodityRequests,
                                        @Nonnull List<Long> entities,
                                        @Nonnull Optional<String> relatedEntityType) throws VmtDbException {
 
@@ -574,7 +567,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         final boolean fullMarket = entities.size() == 0;
         if (fullMarket) {
             statDBRecords = liveStatsReader.getFullMarketStatsRecords(startDate, endDate,
-                    commodityNames, relatedEntityType);
+                    commodityRequests, relatedEntityType);
         } else {
             if (relatedEntityType.isPresent() &&
                     !StringUtils.isEmpty(relatedEntityType.get())) {
@@ -585,7 +578,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     entities.stream()
                             .map(id -> Long.toString(id))
                             .collect(Collectors.toList()),
-                    startDate, endDate, commodityNames);
+                    startDate, endDate, commodityRequests);
         }
 
         // organize the stats DB records into StatSnapshots and return them to the caller
@@ -623,21 +616,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     Record dbFirstStatRecord = dbStatRecordList.iterator().next();
                     final String propertyType = dbFirstStatRecord.getValue(PROPERTY_TYPE, String.class);
                     String propertySubtype = dbFirstStatRecord.getValue(PROPERTY_SUBTYPE, String.class);
-
-                    // In the full-market requests the "relation" column (in market_stats_* tables)
-                    // is an integer that gets mapped to a value.
-                    //
-                    // TODO (roman, Feb 23, 2017): This is getting out of hand, the
-                    // StatsHistoryService shouldn't be handling the various types of database
-                    // records, and this is in need of refactoring.
-                    String relation;
-                    if (fullMarket) {
-                        final RelationType relationType =
-                                dbFirstStatRecord.getValue(RELATION, RelationType.class);
-                        relation = relationType == null ? null : relationType.getLiteral();
-                    } else {
-                        relation = dbFirstStatRecord.getValue(RELATION, String.class);
-                    }
+                    String relation = dbFirstStatRecord.getValue(RELATION, String.class);
 
                     // In the full-market request we return aggregate stats with no commodity_key
                     // or producer_uuid.

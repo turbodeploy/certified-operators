@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.history.db.jooq.JooqUtils.dField;
 import static com.vmturbo.history.db.jooq.JooqUtils.floorDateTime;
 import static com.vmturbo.history.db.jooq.JooqUtils.number;
+import static com.vmturbo.history.db.jooq.JooqUtils.relation;
 import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
 import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
@@ -70,6 +71,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
@@ -137,25 +140,38 @@ public class LiveStatsReader {
      *                  expanded before we get here
      * @param startTime the timestamp of the oldest stats to gather; the default is "now"
      * @param endTime the timestamp of the most recent stats to gather; the default is "now"
-     * @param commodityNames a list of commodities to gather; the default is "all commodities known"
+     * @param commodityRequests a list of commodities to gather; the default is "all commodities known"
      * @return a list of Jooq records, one for each stats information row retrieved
      */
     public @Nonnull List<Record> getStatsRecords(@Nonnull List<String> entityIds,
                                                  @Nullable Long startTime,
                                                  @Nullable Long endTime,
-                                                 @Nullable List<String> commodityNames)
+                                                 @Nullable List<CommodityRequest> commodityRequests)
             throws VmtDbException {
 
-
-        // get most recent date from _latest database
+        // assume that either both startTime and endTime are null, or startTime and endTime are set
+        if ((startTime == null || startTime == 0) != (endTime == null || endTime == 0)) {
+            throw new IllegalArgumentException("one of 'startTime', 'endTime' null but not both: "
+                    + startTime + ":" + endTime);
+        }
+        // get most recent snapshot_time from _latest database
         final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp();
         if (!mostRecentDbTimestamp.isPresent()) {
             // no data persisted yet; just return an empty answer
             return Collections.emptyList();
         }
         long mostRecentTimestamp = mostRecentDbTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, mostRecentTimestamp);
-        endTime = applyTimeDefault(endTime, mostRecentTimestamp);
+
+        // if startTime / endtime are not set, use the most recent timestamp
+        if (startTime == null || startTime == 0) {
+            startTime = endTime = mostRecentTimestamp;
+        } else {
+            // if the startTime and endTime are equal, and within the LATEST table window, open
+            // up the window a bit so that we will catch a stats value
+            if (startTime.equals(endTime) && millis2TimeFrame(startTime).equals(TimeFrame.LATEST)) {
+                startTime -= latestTableTimeWindowMS;
+            }
+        }
 
         Map<String, String> entityClsMap = historydbIO.getTypesForEntities(entityIds);
 
@@ -188,7 +204,7 @@ public class LiveStatsReader {
                 int nextIndex = Math.min(entityIndex+ENTITIES_PER_CHUNK, numberOfEntitiesToPersist);
                 List<String> entityIdChunk = entityIdsForType.subList(entityIndex, nextIndex);
                 Optional<Select<?>> query = getQueryString(entityIdChunk, entityType.get(),
-                        commodityNames, startTime, endTime, AGGREGATE.NO_AGG);
+                        commodityRequests, startTime, endTime, AGGREGATE.NO_AGG);
                 if (!query.isPresent()) {
                     continue;
                 }
@@ -210,56 +226,10 @@ public class LiveStatsReader {
         }
 
         // if requested, add counts
-        addCountStats(mostRecentTimestamp, entityClsMap, commodityNames, answer);
+        addCountStats(mostRecentTimestamp, entityClsMap, commodityRequests, answer);
         Duration overallElapsed = Duration.between(overallStart, Instant.now());
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(), overallElapsed);
         return answer;
-    }
-
-    /**
-     * Fetch rows from the stats tables based on an entity type, startTime, endTime, and restricted
-     * to a specific set of commodityNames. If either startTime or endTime are null, then the current
-     * time is used. If the commodityNames list is null then all commodities are returned.
-     *
-     * The combination of startTime, endTime, and entitType determine which DB table to query, e.g.
-     * "PhysicalMachine", now, now -> PM_STATS_LATEST; "VirtualMachine", '3 days ago' -> VM_STATS_BY_DAY.
-     *
-     * @param entityType the type of entity to query
-     * @param startTime the first (oldest) timestamp in the time range; null -> now
-     * @param endTime the last (most recent) timestamp in the time range; null -> now
-     * @param commodityNames the list of commodity names to include in the answer; null -> all
-     * @return the DB records from the table corresponding to entityType for the given time range,
-     * filtered by the commodityNames (if specified)
-     * @throws VmtDbException if there is an error reading from the DB
-     */
-    public @Nonnull List<Record> getStatsRecordsForType(@Nonnull String entityType,
-                                                 @Nullable Long startTime,
-                                                 @Nullable Long endTime,
-                                                 @Nullable List<String> commodityNames)
-            throws VmtDbException {
-
-        // get most recent date from _latest database
-        final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp();
-        if (!mostRecentDbTimestamp.isPresent()) {
-            // no data persisted yet; just return an empty answer
-            return Collections.emptyList();
-        }
-        long mostRecentTimestamp = mostRecentDbTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, mostRecentTimestamp);
-        endTime = applyTimeDefault(endTime, mostRecentTimestamp);
-
-        EntityType dbEntityType = EntityType.getTypeForName(entityType).orElseThrow(
-                () -> new IllegalArgumentException("DB Entity type not found for clsName "
-                        + entityType)
-        );
-
-        Select<?> query = getQueryString(Collections.emptyList(), dbEntityType,
-                commodityNames, startTime, endTime, AGGREGATE.NO_AGG)
-                .orElseThrow(() -> new IllegalArgumentException("DB Entity type not found for clsName "
-                        + entityType)
-        );
-
-        return Lists.newArrayList(historydbIO.execute(Style.FORCED, query));
     }
 
     /**
@@ -290,7 +260,7 @@ public class LiveStatsReader {
      *
      * @param startTime beginning time range to query
      * @param endTime end time range
-     * @param commodityNames the list of commodities to search
+     * @param commodityRequests the list of commodities to search
      * @param entityType optional of entity type
      * @return an ImmutableList of DB Stats Records containing the result from searching all the stats tables
      * for the given time range and commodity names
@@ -299,7 +269,7 @@ public class LiveStatsReader {
     public @Nonnull List<Record> getFullMarketStatsRecords(
                                                  @Nullable Long startTime,
                                                  @Nullable Long endTime,
-                                                 @Nullable List<String> commodityNames,
+                                                 @Nullable List<CommodityRequest> commodityRequests,
                                                  @Nonnull Optional<String> entityType)
             throws VmtDbException {
 
@@ -310,7 +280,7 @@ public class LiveStatsReader {
             return ImmutableList.of();
         }
         long now = mostRecentTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, now - latestTableTimeWindowMS);
+        startTime = applyTimeDefault(startTime, now);
         endTime = applyTimeDefault(endTime, now);
 
         logger.debug("getting stats for full market");
@@ -329,10 +299,10 @@ public class LiveStatsReader {
         if (timeRangeCondition != null) {
             whereConditions.add(timeRangeCondition);
         }
-        // add select on the given commodity names; if no commodityNames specified,
+        // add select on the given commodity requests; if no commodityRequests specified,
         // leave out the were clause and thereby include all commodities.
-        Optional<Condition> commodityNamesCond = commodityNamesCond(commodityNames, table);
-        commodityNamesCond.ifPresent(whereConditions::add);
+        Optional<Condition> commodityRequestsCond = commodityRequestsCond(commodityRequests, table);
+        commodityRequestsCond.ifPresent(whereConditions::add);
 
         // if no entity type provided, it will include all entity type.
         Optional<Condition> entityTypeCond = entityTypeCond(entityType, table);
@@ -352,11 +322,11 @@ public class LiveStatsReader {
         final List<Record> answer = new ArrayList<>(results);
 
         final Set<String> requestedRatioProps = new HashSet<>(countPerSEsMetrics);
-        if (commodityNames != null && !commodityNames.isEmpty()) {
+        if (commodityRequests != null && !commodityRequests.isEmpty()) {
             // This does countStats.size() lookups in commodityNames, which is a list.
             // This is acceptable because the asked-for commodityNames is supposed to be
             // a small ( < 10) list.
-            requestedRatioProps.retainAll(commodityNames);
+            requestedRatioProps.retainAll(commodityRequests);
         }
 
         // Count any "__ per __" (e.g. vm per host) stats.
@@ -456,15 +426,14 @@ public class LiveStatsReader {
      * add stats records to the snapshot.
      *
      * If the commodityNames list is null or empty, then include all count-based stats.
-     *
-     * @param currentSnapshotTime the time of the current snapshot
+     *  @param currentSnapshotTime the time of the current snapshot
      * @param entityClassMap map from entity OID to entity class name
      * @param commodityNames a list of the commodity names to filter on
      * @param countStatsRecords the list that count stats will be added to
      */
     private void addCountStats(long currentSnapshotTime,
                                @Nonnull Map<String, String> entityClassMap,
-                               @Nullable List<String> commodityNames,
+                               @Nullable List<CommodityRequest> commodityNames,
                                @Nonnull List<Record> countStatsRecords) {
 
         // use the startTime for the all counted stats
@@ -539,7 +508,7 @@ public class LiveStatsReader {
             countRecord.setSnapshotTime(snapshotTimestamp);
             countRecord.setPropertyType(commodityName);
             countRecord.setAvgValue(statValue);
-            countRecord.setRelation(RelationType.COMMODITIES_FROM_ATTRIBUTES);
+            countRecord.setRelation(RelationType.METRICS);
             countStatsRecords.add(countRecord);
         }
     }
@@ -555,9 +524,11 @@ public class LiveStatsReader {
      * <p>note: when the stats roll-up is implemented, the time-frame must be used to iterate over
      * the different stats tables, e.g. _latest, _hourly, _daily, etc.
      *
+     * TODO: Implement the 'groupBy' feature of the CommodityRequest list, if specified
+     *
      * @param entityIdChunk the Entity OID to which the commodities belong
      * @param entityType the EntityType
-     * @param commodityNames a list of commodity names to gather; default is all known commodities
+     * @param commodityRequests a list of commodity information to gather; default is all known commodities
      * @param startTime the oldest snapshot time to include
      * @param endTime the most recent snapshot time to include
      * @param agg whether or not to aggregate results
@@ -567,7 +538,7 @@ public class LiveStatsReader {
      */
     private @Nonnull Optional<Select<?>> getQueryString(@Nonnull List<String> entityIdChunk,
                              @Nonnull EntityType entityType,
-                             @Nullable List<String> commodityNames,
+                             @Nullable List<CommodityRequest> commodityRequests,
                              long startTime,
                              long endTime,
                              @Nonnull AGGREGATE agg) {
@@ -582,11 +553,6 @@ public class LiveStatsReader {
 
         // accumulate the conditions for this query
         List<Condition> whereConditions = new ArrayList<>();
-
-        // adjust time range for LATEST queries with width less than the time window
-        if (tFrame.equals(TimeFrame.LATEST) && startTime == endTime) {
-            startTime = startTime - latestTableTimeWindowMS;
-        }
 
         // add where clause for time range; null if the timeframe cannot be determined
         final Condition timeRangeCondition = betweenStartEndTimestampCond(dField(table, SNAPSHOT_TIME),
@@ -604,10 +570,10 @@ public class LiveStatsReader {
 
         // note: the legacy DB code defines expression conditions that are not used by new UI
 
-        // add select on the given commodity names; if no commodityNames specified,
+        // add select on the given commodity reqyests; if no commodityRequests specified,
         // leave out the were clause and thereby include all commodities.
-        Optional<Condition> commodityNamesCond = commodityNamesCond(commodityNames, table);
-        commodityNamesCond.ifPresent(whereConditions::add);
+        Optional<Condition> commodityRequestsCond = commodityRequestsCond(commodityRequests, table);
+        commodityRequestsCond.ifPresent(whereConditions::add);
 
         // whereConditions.add(propertyExprCond);  // TODO: implement expression conditions
 
@@ -673,20 +639,50 @@ public class LiveStatsReader {
      * indicating there should be no selection condition on the commodity name. In other words,
      * all commodities will be returned.
      *
-     * @param commodityNames a list of commodity names to include in the result set; null or empty
-     *                       list implies no commodity names condition at all
+     * @param commodityRequests a list of commodity names to include in the result set, and optionally
+     *                          a filter to apply to the commodity row, e.g. "relation==bought";
+     *                          if there are more than commodity requests, then the filters
+     *                          are 'or'ed together; a null or empty list implies no commodity names
+     *                          filter condition at all, i.e. all commodities will be returned
+     *                          TODO: Implement relatedEntity filtering
      * @param table the DB table from which these stats will be collected
-     * @return an Optional containing a Jooq conditional to only include the desired commodities,
-     * or Optional.empty() if no commodity selection is desired
+     * @return an Optional containing a Jooq conditional to only include the desired commodities
+     * with associated filters (if any) 'and'ed in; Optional.empty() if no commodity selection is desired
      */
-    private @Nonnull Optional<Condition> commodityNamesCond(@Nullable List<String> commodityNames,
-                                                            @Nonnull Table<?> table) {
-        if (commodityNames == null || commodityNames.isEmpty()) {
+    private @Nonnull Optional<Condition> commodityRequestsCond(@Nullable List<CommodityRequest> commodityRequests,
+                                                               @Nonnull Table<?> table) {
+        if (commodityRequests == null || commodityRequests.isEmpty()) {
             return Optional.empty();
         }
-        final Condition whereInCommodityNames = str(dField(table, PROPERTY_TYPE))
-                .in(commodityNames);
-        return Optional.of(whereInCommodityNames);
+        Condition commodityTests = null;
+        for (CommodityRequest commodityRequest : commodityRequests) {
+            // create a conditional for this commodity
+            Condition commodityTest = str(dField(table, PROPERTY_TYPE))
+                    .eq(commodityRequest.getCommodityName());
+            // add an 'and' for each property value filter specified
+            for (PropertyValueFilter propertyValueFilter : commodityRequest.getPropertyValueFilterList()) {
+                // add a relationType filter if specified
+                switch (propertyValueFilter.getProperty()) {
+                    case RELATION:
+                        // 'bought/sold' are represented in the DB by integers, so we need to map here
+                        RelationType desiredRelation = RelationType.getApiRelationType(
+                                propertyValueFilter.getValue());
+                        commodityTest = commodityTest.and(relation(dField(table, RELATION))
+                                .eq(desiredRelation));
+                        break;
+                    default:
+                        // default is to use 'property' as column name and perform a string match
+                        commodityTest = commodityTest.and(
+                                str(dField(table, propertyValueFilter.getProperty()))
+                                .eq(propertyValueFilter.getValue()));
+                }
+            }
+            // construct the "or" of all the different commodityTests
+            commodityTests = commodityTests == null
+                    ? commodityTest
+                    : commodityTests.or(commodityTest);
+        }
+        return Optional.of(commodityTests);
     }
 
     /**

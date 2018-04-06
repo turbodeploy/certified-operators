@@ -47,7 +47,7 @@ public class EntityCountInfoTest {
                 .build();
         final StatRecord expectedRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
-                .setRelation(RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral())
+                .setRelation(RelationType.METRICS.getLiteral())
                 .setCurrentValue(value)
                 .setCapacity(value)
                 .setUsed(expectedValue)

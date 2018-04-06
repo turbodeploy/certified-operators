@@ -37,6 +37,7 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 
@@ -115,11 +116,13 @@ public class StatsReaderTimeframeTest {
 
 
         List<String> entityIds = ImmutableList.of("PM1");
-        List<String> commodityNames = ImmutableList.of("C1");
+        List<CommodityRequest> commodityRequests = ImmutableList.of(CommodityRequest.newBuilder()
+                .setCommodityName("C1")
+                .build());
 
         // Act
         statsReaderUndertest.getStatsRecords(entityIds, NOW - startTimeDeltaMs, NOW + endTimeDeltaMs,
-                commodityNames);
+                commodityRequests);
 
         // Assert
         verify(mockHistorydbIO).getMostRecentTimestamp();

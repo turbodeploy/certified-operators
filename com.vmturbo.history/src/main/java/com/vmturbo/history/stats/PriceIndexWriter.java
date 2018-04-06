@@ -10,7 +10,6 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.InsertSetMoreStep;
-import org.jooq.InsertSetStep;
 import org.jooq.Query;
 import org.jooq.Table;
 
@@ -76,9 +75,7 @@ public class PriceIndexWriter {
                     topologyContextId, topologyId, payloadList.size());
             SharedMetrics.UPDATE_PRICE_INDEX_DURATION_SUMMARY
                     .labels(SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-                    .time(() -> {
-                        persistPriceIndexInfoInternal(payloadList, topologyOrganizer);
-                    });
+                    .time(() -> persistPriceIndexInfoInternal(payloadList, topologyOrganizer));
         });
     }
 
@@ -132,16 +129,16 @@ public class PriceIndexWriter {
                 }
                 InsertSetMoreStep<?> insertStmt = historydbIO.getCommodityInsertStatement(dbTable);
                 historydbIO.initializeCommodityInsert(StringConstants.PRICE_INDEX, snapshotTime,
-                        entityId, RelationType.COMMODITIES_FROM_ATTRIBUTES, null, null,
-                        null, (InsertSetStep<?>) insertStmt, dbTable);
+                        entityId, RelationType.METRICS, null, null,
+                        null, insertStmt, dbTable);
                 // set the values specific to used component of commodity and write
                 historydbIO.setCommodityValues(StringConstants.PRICE_INDEX, priceIndexCurrent,
-                        (InsertSetStep) insertStmt, dbTable);
+                        insertStmt, dbTable);
                 commodityInsertStatements.add(insertStmt);
                 if (commodityInsertStatements.size() > writeTopologyChunkSize) {
                     // execute a batch of updates - FORCED implies repeat until successful
                     historydbIO.execute(BasedbIO.Style.FORCED, commodityInsertStatements);
-                    commodityInsertStatements = new ArrayList<Query>(writeTopologyChunkSize);
+                    commodityInsertStatements = new ArrayList<>(writeTopologyChunkSize);
                 }
             }
             if (missingEntityOids.size() > 0) {

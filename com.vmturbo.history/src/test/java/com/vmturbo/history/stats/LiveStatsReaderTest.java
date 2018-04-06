@@ -1,10 +1,15 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.tables.PmStatsLatest.PM_STATS_LATEST;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.contains;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
@@ -15,18 +20,23 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.assertj.core.util.Lists;
+import org.jooq.Condition;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 
 public class LiveStatsReaderTest {
@@ -69,6 +79,55 @@ public class LiveStatsReaderTest {
     }
 
     /**
+     * Test that the DB select statement includes the select statements to implement the
+     * CommodityRequests given.
+     */
+    @Test
+    public void testGetStatsCommoditySelect() throws Exception {
+        // arrange
+        LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0,
+                LATEST_TABLE_TIME_WINDOW_MIN);
+        List<CommodityRequest> commodityRequests = Lists.newArrayList(
+                CommodityRequest.newBuilder()
+                        .setCommodityName("X")
+                        .addPropertyValueFilter(
+                                Stats.StatsFilter.PropertyValueFilter.newBuilder()
+                                        .setProperty("relation")
+                                        .setValue("bought")
+                                        .build())
+                        .build(),
+                CommodityRequest.newBuilder()
+                        .setCommodityName("Y")
+                        .build()
+        );
+        final String X_TEST = PM_STATS_BY_MONTH.PROPERTY_TYPE.eq("X")
+                .and(PM_STATS_BY_MONTH.RELATION.eq(RelationType.COMMODITIESBOUGHT)).toString();
+        final String Y_TEST = PM_STATS_BY_MONTH.PROPERTY_TYPE.eq("Y").toString();
+
+        // act
+        liveStatsReader.getStatsRecords(
+                entities.stream()
+                        .map(id -> Long.toString(id))
+                        .collect(Collectors.toList()),
+                null, null, commodityRequests);
+
+        // assert
+        ArgumentCaptor<List> whereCaptor = ArgumentCaptor.forClass(List.class);
+        verify(mockHistorydbIO).getStatsSelect(anyObject(), anyList(), whereCaptor.capture(),
+                anyObject());
+        final List<List> whereClauses = whereCaptor.getAllValues();
+        assertThat(whereClauses.size(), equalTo(1));
+        List<Condition> innerWhereClauses = whereClauses.get(0);
+        // conditions: snapshot_time, uuid, properties
+        assertThat(innerWhereClauses.size(), equalTo(3));
+
+        // convert the properties where clause to string
+        String propertiesConditionsString = innerWhereClauses.get(2).toString();
+        assertThat(propertiesConditionsString, containsString(X_TEST));
+        assertThat(propertiesConditionsString, containsString(Y_TEST));
+    }
+
+    /**
      * Test that the timestamp of the counted-values match the timestamp returned from the DB.
      * The count values are given by four simple SE counts, e.g. NUM_HOSTS, listed in
      * HistoryStatsUtils.countSEsMetrics, and four SE's "per" SE-type, e.g. NUM_VMS_PER_HOST,
@@ -97,21 +156,6 @@ public class LiveStatsReaderTest {
                 equalTo(latestFromDb)));
     }
 
-    @Test
-    public void testGetStatsRecordsForType() throws VmtDbException {
-        // arrange
-
-        LiveStatsReader liveStatsReader = new LiveStatsReader(mockHistorydbIO, 0, 0, 0,
-                LATEST_TABLE_TIME_WINDOW_MIN);
-
-        // act
-        List<Record> records = liveStatsReader.getStatsRecordsForType("PhysicalMachine",
-                null, null, Lists.emptyList());
-
-        // assert
-        // two stats records in the setup; there are no count stats generated for this call
-        assertThat(records.size(), equalTo(2));
-    }
     /**
      * Create a DB record for the PmStatsLatest table with the given timestamp, propertyType, and
      * propertySubtype. The value fields are not set, as the test above does not require it.

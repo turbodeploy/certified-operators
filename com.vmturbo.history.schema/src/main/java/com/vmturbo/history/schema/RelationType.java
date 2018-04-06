@@ -1,74 +1,49 @@
 package com.vmturbo.history.schema;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+/**
+ * Map between the Commodity Relation Types as stored in the DB, as tinyints, and
+ * the character nomenclature used in the REST API. The "literal" value is returned from
+ * the server to the REST API. The API_TO_RELATION_MAP translates from filter-request strings
+ * to RelationType enums used in queries to filter stats.
+ */
 public enum RelationType {
 
-	COMMODITIES(0, "COMMODITIES", "Commodities"),
+    // In the Legacy nomenclature, "Commodities" === commodities sold
+	COMMODITIES(0, "Commodities"),
 
-	COMMODITIESBOUGHT(1, "COMMODITIESBOUGHT", "CommoditiesBought"),
+	COMMODITIESBOUGHT(1, "CommoditiesBought"),
 
-	// Commodities neither bought nor sold; e.g. priceIndex, numVCPUs, etc.
-	COMMODITIES_FROM_ATTRIBUTES(-1, "COMMODITIES_FROM_ATTRIBUTES", "CommoditiesFromAttributes");
+	// Derived values e.g. priceIndex, numVCPUs, etc.
+	METRICS(-1, "CommoditiesFromAttributes");
 
-	private static final int COMMODITIES_VALUE = 0;
-	private static final int COMMODITIESBOUGHT_VALUE = 1;
+    // map a string used in the REST API queries to a RelationType
+    private static Map<String, RelationType> API_TO_RELATION_MAP =
+            new ImmutableMap.Builder<String, RelationType>()
+                    .put("bought", COMMODITIESBOUGHT)
+                    .put("sold", COMMODITIES)
+                    .put("metrics", METRICS)
+                    .build();
 
-	private static Map<String, RelationType> LITERAL_TO_RELATION_MAP =
-			new ImmutableMap.Builder<String, RelationType>()
-			.put("COMMODITIES", COMMODITIES)
-			.put("COMMODITIESBOUGHT", COMMODITIESBOUGHT)
-			.build();
+	public static RelationType getApiRelationType(String literal) {
+	    return API_TO_RELATION_MAP.get(literal.toLowerCase());
+    }
 
-	private static final RelationType[] VALUES_ARRAY =
-		new RelationType[] {
-			COMMODITIES,
-			COMMODITIESBOUGHT,
-		};
-	public static final List<RelationType> VALUES = Collections.unmodifiableList(Arrays.asList(VALUES_ARRAY));
-
-	public static RelationType get(String literal) {
-		return LITERAL_TO_RELATION_MAP.get(literal.toUpperCase());
-	}
-
-	private static Map<String, RelationType> NAME_TO_RELATION_MAP =
-			new ImmutableMap.Builder<String, RelationType>()
-			.put("Commodities", COMMODITIES)
-			.put("CommoditiesBought", COMMODITIESBOUGHT)
-			.build();
-
-	public static RelationType getByName(String name) {
-		return NAME_TO_RELATION_MAP.get(name);
-	}
-
-	public static RelationType get(int value) {
-		switch (value) {
-			case COMMODITIES_VALUE: return COMMODITIES;
-			case COMMODITIESBOUGHT_VALUE: return COMMODITIESBOUGHT;
-		}
-		return null;
-	}
-
+	// the small integer value recorded in the DB
 	private final int value;
-	private final String name;
+	// the string value to be returned in /stats query responses
 	private final String literal;
 
-	private RelationType(int value, String name, String literal) {
+	RelationType(int value, String literal) {
 		this.value = value;
-		this.name = name;
 		this.literal = literal;
 	}
 
 	public int getValue() {
 	  return value;
-	}
-
-	public String getName() {
-	  return name;
 	}
 
 	public String getLiteral() {

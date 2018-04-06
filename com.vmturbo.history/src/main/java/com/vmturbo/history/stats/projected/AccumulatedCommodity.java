@@ -179,7 +179,7 @@ abstract class AccumulatedCommodity {
          *
          * @param value The value for this attribute commodity
          */
-        void recordAttributeCommodity(@Nonnull final double value) {
+        void recordAttributeCommodity(final double value) {
             recordUsed(value);
             recordPeak(value);
             recordCapacity(value);
@@ -188,7 +188,7 @@ abstract class AccumulatedCommodity {
         @Nonnull
         @Override
         protected StatRecord finalizeStatRecord(@Nonnull final StatRecord.Builder builder) {
-            builder.setRelation(RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral());
+            builder.setRelation(RelationType.METRICS.getLiteral());
             return builder.build();
         }
     }

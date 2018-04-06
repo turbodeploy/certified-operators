@@ -177,7 +177,7 @@ public class MarketStatsAccumulator {
      */
     private void addEntityCountStat(String countStatsName, double count) {
         internalAddCommodity(countStatsName, countStatsName, count, count, count,
-                RelationType.COMMODITIES_FROM_ATTRIBUTES);
+                RelationType.METRICS);
     }
 
     /**
@@ -198,7 +198,7 @@ public class MarketStatsAccumulator {
                                       double peak,
                                       RelationType relationType) {
         String commodityKey = MessageFormat.format("{0}::{1}::{2}",
-                propertyType, propertySubtype, RelationType.COMMODITIES_FROM_ATTRIBUTES.getValue());
+                propertyType, propertySubtype, RelationType.METRICS.getValue());
 
         synchronized (statsMap) {
             MarketStatsData statsData = statsMap.computeIfAbsent(commodityKey, key ->
@@ -403,7 +403,7 @@ public class MarketStatsAccumulator {
                     persistEntityAttribute(snapshotTime, entityId, commodityType,
                             floatValue, insertStmt, dbTable);
                     internalAddCommodity(commodityType, commodityType, floatValue, floatValue, floatValue,
-                            RelationType.COMMODITIES_FROM_ATTRIBUTES);
+                            RelationType.METRICS);
                 } catch (NumberFormatException e) {
                     logger.warn("error converting {} for {} = {}",
                             propertyKey, entityDTO.getDisplayName(), propertyValue);
@@ -432,7 +432,7 @@ public class MarketStatsAccumulator {
                                         @Nonnull Table<?> dbTable) throws VmtDbException {
         // initialize the common values for this row
         historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime, entityId,
-                RelationType.COMMODITIES_FROM_ATTRIBUTES, /*providerId*/null,
+                RelationType.METRICS, /*providerId*/null,
                 null, null, insertStmt, dbTable);
         // set the values specific to used component of commodity and write
         historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, insertStmt,

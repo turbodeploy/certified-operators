@@ -64,7 +64,7 @@ class EntityCountInfo {
                 .setValues(val)
                 .setUsed(val)
                 .setPeak(val)
-                .setRelation(RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral())
+                .setRelation(RelationType.METRICS.getLiteral())
                 .build();
     }
 

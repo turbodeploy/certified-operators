@@ -19,7 +19,6 @@ import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.history.schema.StringConstants.UUID;
 import static com.vmturbo.history.schema.abstraction.Tables.AUDIT_LOG_RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS;
-import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS_STATS;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
@@ -51,7 +50,6 @@ import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Result;
 import org.jooq.Select;
-import org.jooq.SelectConditionStep;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -642,24 +640,6 @@ public class HistorydbIO extends BasedbIO {
      */
     public boolean entityIdIsPlan(final long entityId) {
         return getScenariosRecord(entityId).isPresent();
-    }
-
-    public Result<MktSnapshotsStatsRecord> getPlanStats(long topologyContextId,
-                                                        List<String> commodityNames)
-            throws VmtDbException, SQLException {
-        try (Connection conn = getAutoCommitConnection()) {
-            SelectConditionStep<MktSnapshotsStatsRecord> queryBuilder = JooqBuilder()
-                    .selectFrom(MKT_SNAPSHOTS_STATS)
-                    .where(MKT_SNAPSHOTS_STATS.MKT_SNAPSHOT_ID.equal(topologyContextId));
-
-            // An empty list of commodity names means we're looking for all commodities.
-            // A non-empty list means we're looking for specific ones.
-            if (!commodityNames.isEmpty()) {
-                queryBuilder = queryBuilder.and(MKT_SNAPSHOTS_STATS.PROPERTY_TYPE.in(commodityNames));
-            }
-
-            return (Result<MktSnapshotsStatsRecord>) execute(queryBuilder, conn);
-        }
     }
 
     /**
