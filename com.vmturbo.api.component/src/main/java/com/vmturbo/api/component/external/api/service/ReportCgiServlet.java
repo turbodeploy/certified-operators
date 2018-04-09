@@ -47,10 +47,6 @@ public class ReportCgiServlet extends HttpServlet {
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
-        if (req.getRemoteUser() == null) {
-            resp.sendError(403, "Authentication required");
-            return;
-        }
         if (ACTION_REPORT.equals(req.getParameter(ACTION_PARAM))) {
             final String reportId = req.getParameter("output");
             if (StringUtils.isNumeric(reportId)) {
