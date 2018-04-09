@@ -235,8 +235,8 @@ public final class Ede {
             if (getReplayActions() != null) {
                 getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
             }
+            logger.info(actionStats.phaseLogEntry("suspending"));
         }
-        logger.info(actionStats.phaseLogEntry("suspending"));
         // suspension time
         statsUtils.after();
 
