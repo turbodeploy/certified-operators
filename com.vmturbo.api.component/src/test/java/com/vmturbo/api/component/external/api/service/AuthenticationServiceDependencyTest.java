@@ -6,11 +6,16 @@ import static org.mockito.Mockito.when;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 
@@ -23,9 +28,12 @@ public class AuthenticationServiceDependencyTest {
 
     private static final int AUTH_PORT = 4321;
     public static final String AUTH_HOST = "AUTH_HOST";
-    AuthenticationService testAuthenticationService;
-    JWTAuthorizationVerifier mockVerifier;
-    RestTemplate mockRestTemplate;
+    private AuthenticationService testAuthenticationService;
+    private JWTAuthorizationVerifier mockVerifier;
+    private RestTemplate mockRestTemplate;
+
+    @Rule
+    public ExpectedException expectedException = ExpectedException.none();
 
     @Before
     public void setup() {
@@ -70,11 +78,12 @@ public class AuthenticationServiceDependencyTest {
     }
 
     /**
-     * Test exception thrown when /users/checkAdminInit request to Auth component
-     * throws RestClientException.
+     * Test exception thrown when /users/checkAdminInit request to Auth component.
+     *
+     * @throws Exception if exceptions occur
      */
     @Test(expected = ServiceUnavailableException.class)
-    public void testLoginAuthServiceDown() {
+    public void testLoginAuthServiceDown() throws Exception {
         // Arrange
         when(mockRestTemplate.getForEntity(anyString(), any(Class.class)))
                 .thenThrow(new RestClientException("test"));
@@ -82,5 +91,19 @@ public class AuthenticationServiceDependencyTest {
         testAuthenticationService.login("username", "password", true);
         // Assert
         Assert.fail("should have thrown an exception");
+    }
+
+    /**
+     * Tests failure of authentication rest server. It is expected to be treated as bad credentials.
+     *
+     * @throws Exception if exceptions occur
+     */
+    @Test
+    public void testLoginFailed() throws Exception {
+        Mockito.when(mockRestTemplate.getForEntity(anyString(), any(Class.class)))
+                .thenThrow(new HttpServerErrorException(HttpStatus.UNAUTHORIZED));
+
+        expectedException.expect(InvalidCredentialsException.class);
+        testAuthenticationService.login("username", "password", true);
     }
 }

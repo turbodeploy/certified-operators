@@ -9,6 +9,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
 import com.vmturbo.api.component.external.api.service.LicenseService;
+import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
 import com.vmturbo.api.controller.AuthenticationController;
@@ -53,7 +54,7 @@ import com.vmturbo.api.xlcontroller.ClusterController;
  */
 @Configuration
 @EnableWebMvc
-@Import(ApiSecurityConfig.class)
+@Import({ApiSecurityConfig.class, ServiceConfig.class})
 // DO NOT import configurations outside the external.api.dispatcher package here, because
 // that will re-create the configuration's beans in the child context for the dispatcher servlet.
 // You will end up with multiple instances of the same beans, which could lead to tricky bugs.
@@ -64,7 +65,7 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
      * This should get wired in from the root context.
      */
     @Autowired
-    LicenseService licenseService;
+    public ServiceConfig serviceConfig;
 
     @Bean
     public ActionsController actionsController() {
@@ -78,7 +79,7 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public AuthenticationController authenticationController() {
-        return new AuthenticationController();
+        return new AuthenticationController(serviceConfig.authenticationService());
     }
 
     @Bean
@@ -183,7 +184,7 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public LicensesController licenseController() {
-        return new LicensesController(licenseService);
+        return new LicensesController(serviceConfig.licenseService());
     }
 
     @Bean

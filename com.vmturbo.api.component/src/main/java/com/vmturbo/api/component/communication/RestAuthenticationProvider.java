@@ -150,6 +150,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      * @throws AuthenticationException if authentication fails.
      */
     @Override
+    @Nonnull
     public Authentication authenticate(Authentication authentication)
             throws AuthenticationException {
         Object principal = authentication.getPrincipal();

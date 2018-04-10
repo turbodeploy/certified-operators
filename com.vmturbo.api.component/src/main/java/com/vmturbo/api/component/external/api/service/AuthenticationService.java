@@ -4,6 +4,8 @@ import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
@@ -27,6 +29,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.serviceinterfaces.IAuthenticationService;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
@@ -79,6 +82,7 @@ public class AuthenticationService implements IAuthenticationService {
     private static final String AUTH_SERVICE_NOT_AVAILABLE_MSG =
             "The Authorization Service is not responding";
 
+    private final Logger logger = LogManager.getLogger(getClass());
     /**
      * Constructs the authentication service.
      *
@@ -145,7 +149,8 @@ public class AuthenticationService implements IAuthenticationService {
     }
 
     @Override
-    public BaseApiDTO login(String username, String password, Boolean remember) {
+    public BaseApiDTO login(String username, String password, Boolean remember)
+            throws InvalidCredentialsException {
 
         // TODO (roman, May 24 2017): Determine what the proper handling of "remember" should be.
 
@@ -168,33 +173,26 @@ public class AuthenticationService implements IAuthenticationService {
         // authenticate
         try {
             Authentication result = authProvider.authenticate(auth);
-            if (result != null) {
                 // prevent session fixation attack, it should be put before setting security context.
-                changeSessionId();
-                SecurityContextHolder.getContext().setAuthentication(result);
-                AuthUserDTO dto = (AuthUserDTO)result.getPrincipal();
-                user.setUuid(dto.getUuid());
-                user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
-                user.setAuthToken(dto.getToken());
-                // just like legacy, pass the user role to UI
-                if (!dto.getRoles().isEmpty()) {
-                    user.setRoleName(dto.getRoles().get(0));
-                }
-                // TODO: it's a hack to avoid infinite loop, remove it when OM-24011 is fixed
-                setSessionMaxInactiveInterval(0);
-                return user;
+            changeSessionId();
+            SecurityContextHolder.getContext().setAuthentication(result);
+            AuthUserDTO dto = (AuthUserDTO)result.getPrincipal();
+            user.setUuid(dto.getUuid());
+            user.setLoginProvider(LoginProviderMapper.toApi(dto.getProvider()));
+            user.setAuthToken(dto.getToken());
+            // just like legacy, pass the user role to UI
+            if (!dto.getRoles().isEmpty()) {
+                user.setRoleName(dto.getRoles().get(0));
             }
+            // TODO: it's a hack to avoid infinite loop, remove it when OM-24011 is fixed
+            setSessionMaxInactiveInterval(0);
+            return user;
         } catch (AuthenticationException e) {
-            ErrorApiDTO error = new ErrorApiDTO();
-            error.setMessage("Authentication Failed");
-            return error;
+            logger.warn("Authentication for user " + username + " failed", e);
+            throw new InvalidCredentialsException("Authentication failed");
         } catch (RestClientException e) {
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
-
-        ErrorApiDTO error = new ErrorApiDTO();
-        error.setMessage("FAIL");
-        return error;
     }
 
     @Override
