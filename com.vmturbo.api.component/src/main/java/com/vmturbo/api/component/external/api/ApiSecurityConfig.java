@@ -1,10 +1,13 @@
 package com.vmturbo.api.component.external.api;
 
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.web.AuthenticationEntryPoint;
+
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -47,9 +50,19 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
             ImmutableList.copyOf(Iterables.transform(ExternalApiConfig.BASE_URL_MAPPINGS,
                             mappingsToBaseURI));
 
+    @Bean
+    public AuthenticationEntryPoint restAuthenticationEntryPoint() {
+        return new RestAuthenticationEntryPoint();
+    }
+
     @Override
     protected void configure(HttpSecurity http) throws Exception {
         http.csrf().disable();
+        // Add a custom authentication exception entry point to replace the default handler.
+        // The reason is, for example, if there are some request without login authenticated, the default
+        // handler "Http403ForbiddenEntryPoint" will send 403 Forbidden response, but the right
+        // response should be 401 Unauthorized.
+        http.exceptionHandling().authenticationEntryPoint(restAuthenticationEntryPoint());
         // Preventing session fixation is implemented in AuthenticationService::login().
         // Not here with Java configuration, because:
         // 1. login/logout is not configured in the standard way (E.g. by setting the formLogin, loginPage),
