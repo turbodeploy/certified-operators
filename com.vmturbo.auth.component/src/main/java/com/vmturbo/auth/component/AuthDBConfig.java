@@ -1,10 +1,8 @@
 package com.vmturbo.auth.component;
 
-import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.Base64;
 import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.sql.DataSource;
@@ -67,6 +65,11 @@ public class AuthDBConfig {
     public static final String CONSUL_ROOT_KEY = "rootdbcreds";
 
     /**
+     * The arango root DB password key.
+     */
+    public static final String ARANGO_ROOT_PW_KEY = "arangocreds";
+
+    /**
      * The DB host.
      */
     @Value("${dbHost}")
@@ -121,19 +124,36 @@ public class AuthDBConfig {
     }
 
     /**
-     * Returns the root DB password.
+     * Returns the root SQL DB password.
      * In case the password is not yet encrypted and stored in Consul, do that.
      *
      * @return The root DB password.
      */
     @Bean
-    public  @Nonnull String getRootDBPassword() {
+    public  @Nonnull String getRootSqlDBPassword() {
         Optional<String> rootDbPassword = authRESTSecurityConfig.keyValueStore().get(CONSUL_ROOT_KEY);
         if (rootDbPassword.isPresent()) {
             return CryptoFacility.decrypt(rootDbPassword.get());
         }
         String defaultPwd = DBPasswordUtil.obtainDefaultPW();
         authRESTSecurityConfig.keyValueStore().put(CONSUL_ROOT_KEY, CryptoFacility.encrypt(defaultPwd));
+        return defaultPwd;
+    }
+
+    /**
+     * Returns the root Arango password.
+     * In case the password is not yet encrypted and stored in Consul, do that.
+     *
+     * @return The root Arango password.
+     */
+    @Bean
+    public  @Nonnull String getDefaultArangoRootPassword() {
+        Optional<String> arangoDbPassword = authRESTSecurityConfig.keyValueStore().get(ARANGO_ROOT_PW_KEY);
+        if (arangoDbPassword.isPresent()) {
+            return CryptoFacility.decrypt(arangoDbPassword.get());
+        }
+        String defaultPwd = DBPasswordUtil.obtainDefaultArangoPW();
+        authRESTSecurityConfig.keyValueStore().put(ARANGO_ROOT_PW_KEY, CryptoFacility.encrypt(defaultPwd));
         return defaultPwd;
     }
 
@@ -161,7 +181,7 @@ public class AuthDBConfig {
         } else {
             // Use the well worn out defaults.
             dataSource.setUser("root");
-            dataSource.setPassword(getRootDBPassword());
+            dataSource.setPassword(getRootSqlDBPassword());
         }
 
         // Ensure the connection is available before proceeding.
@@ -253,7 +273,7 @@ public class AuthDBConfig {
             // We are doing the inlined code here, since creating multiple beans causes the circular
             // dependencies in Sprint.
             dataSource.setUser("root");
-            dataSource.setPassword(getRootDBPassword());
+            dataSource.setPassword(getRootSqlDBPassword());
             try (Connection connection = dataSource.getConnection()) {
                 try (PreparedStatement stmt = connection.prepareStatement(
                         "CREATE USER 'auth'@'%' IDENTIFIED BY ?;")) {

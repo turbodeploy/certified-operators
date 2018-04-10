@@ -340,6 +340,7 @@ services:
       - arangodb
       - clustermgr
       - kafka1
+      - auth
     environment:
       component_type: repository
       instance_id: repository-1

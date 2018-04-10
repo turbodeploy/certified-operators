@@ -160,29 +160,29 @@ public class DBStore implements ISecureStore {
     }
 
     /**
-     * Retrieves the database root password.
+     * Retrieves the SQL database root password.
      *
      * @return The database root password.
      */
-    public @Nonnull String getRootDBPassword() {
+    public @Nonnull String getRootSqlDBPassword() {
         Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_KEY);
         return CryptoFacility.decrypt(
-                rootDbPassword.orElseThrow(() -> new SecurityException("No root DB password")));
+                rootDbPassword.orElseThrow(() -> new SecurityException("No root SQL DB password")));
     }
 
     /**
-     * Sets the database root password.
+     * Sets the SQL database root password.
      *
      * @param existingPassword The existing root database password.
      * @param newPassword      The new root database password.
      * @return {@code true} iff the password change was successful.
      */
-    public boolean setRootDBPassword(final @Nonnull String existingPassword,
-                                     final @Nonnull String newPassword) {
+    public boolean setRootSqlDBPassword(final @Nonnull String existingPassword,
+                                        final @Nonnull String newPassword) {
         Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.CONSUL_ROOT_KEY);
         if (!rootDbPassword.isPresent() ||
             !Objects.equals(existingPassword, CryptoFacility.decrypt(rootDbPassword.get()))) {
-            logger.error("Error changing DB root password. The existing password doesn't match.");
+            logger.error("Error changing SQL DB root password. The existing password doesn't match.");
             return false;
         }
         Connection connection = null;
@@ -207,7 +207,7 @@ public class DBStore implements ISecureStore {
             if (changed) {
                 keyValueStore_.put(AuthDBConfig.CONSUL_ROOT_KEY,
                                    CryptoFacility.encrypt(newPassword));
-                logger.info("Successfully changed the DB root password");
+                logger.info("Successfully changed the SQL DB root password");
             } else {
                 logger.info("Unable to locate root user");
             }
@@ -216,7 +216,7 @@ public class DBStore implements ISecureStore {
             logger.error("Error establishing JDBC connection:", e);
             return false;
         } catch (SQLException e) {
-            logger.error("Error changing DB root password:", e);
+            logger.error("Error changing SQL DB root password:", e);
             return false;
         } finally {
             if (connection != null) {
@@ -227,6 +227,17 @@ public class DBStore implements ISecureStore {
                 }
             }
         }
+    }
+
+    /**
+     * Retrieves the Arango database root password.
+     *
+     * @return The database root password.
+     */
+    public @Nonnull String getRootArangoDBPassword() {
+        Optional<String> rootDbPassword = keyValueStore_.get(AuthDBConfig.ARANGO_ROOT_PW_KEY);
+        return CryptoFacility.decrypt(
+            rootDbPassword.orElseThrow(() -> new SecurityException("No root Arango DB password")));
     }
 
     /**

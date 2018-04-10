@@ -81,6 +81,6 @@ public class SecureStorageTestIT {
 
     @Test(expected = SecurityException.class)
     public void testGetDefaultRootPassword() {
-        Assert.assertEquals("vmturbo", store.getRootDBPassword());
+        Assert.assertEquals("vmturbo", store.getRootSqlDBPassword());
     }
 }

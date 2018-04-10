@@ -1,11 +1,10 @@
 package com.vmturbo.auth.component.store;
 
 import java.util.Optional;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException;
-import com.vmturbo.auth.component.AuthDBConfig;
-import com.vmturbo.components.crypto.CryptoFacility;
 
 /**
  * The ISecureStore implements RDBMS-backed secure storage.
@@ -49,19 +48,26 @@ public interface ISecureStore {
             throws AuthorizationException;
 
     /**
-     * Retrieves the database root password.
+     * Retrieves the SQL database root password.
      *
      * @return The database root password.
      */
-    @Nonnull String getRootDBPassword();
+    @Nonnull String getRootSqlDBPassword();
 
     /**
-     * Sets the database root password.
+     * Sets the SQL database root password.
      *
      * @param existingPassword The existing root database password.
      * @param newPassword      The new root database password.
      * @return {@code true} iff the password change was successful.
      */
-    boolean setRootDBPassword(final @Nonnull String existingPassword,
-                              final @Nonnull String newPassword);
+    boolean setRootSqlDBPassword(final @Nonnull String existingPassword,
+                                 final @Nonnull String newPassword);
+
+    /**
+     * Retrieves the database root password.
+     *
+     * @return The database root password.
+     */
+    @Nonnull String getRootArangoDBPassword();
 }

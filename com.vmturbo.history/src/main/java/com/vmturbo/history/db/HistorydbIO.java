@@ -190,7 +190,7 @@ public class HistorydbIO extends BasedbIO {
      */
     @Override
     public String getPassword() {
-        return dbPasswordUtil.getRootPassword();
+        return dbPasswordUtil.getSqlDbRootPassword();
     }
 
     @Override

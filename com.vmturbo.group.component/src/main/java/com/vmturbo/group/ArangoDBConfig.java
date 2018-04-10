@@ -13,6 +13,7 @@ import com.arangodb.velocypack.ValueType;
 import com.arangodb.velocypack.exception.VPackBuilderException;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
@@ -26,7 +27,6 @@ public class ArangoDBConfig {
     private static final String DOCUMENT_KEY_FIELD = "_key";
     private static final String POLICY_PROTO_FIELD ="policy_proto";
     private static final String GROUP_PROTO_FIELD ="group_proto";
-    private static final String CLUSTER_PROTO_FIELD ="cluster_proto";
 
     @Value("${arangodbPort:8529}")
     private int arangodbPort;
@@ -37,8 +37,14 @@ public class ArangoDBConfig {
     @Value("${arangodbUser:root}")
     private String arangodbUser;
 
-    @Value("${arangodbPass:root}")
-    private String arangodbPass;
+    @Value("${authHost}")
+    private String authHost;
+
+    @Value("${authPort}")
+    private int authPort;
+
+    @Value("${authRetryDelaySecs}")
+    private int authRetryDelaySecs;
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
@@ -80,15 +86,18 @@ public class ArangoDBConfig {
 
     @Bean
     public ArangoDriverFactory arangoDriverFactory() {
+        final DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort,
+            authRetryDelaySecs);
+        final String arangodbPassword = dbPasswordUtil.getArangoDbRootPassword();
+
         // implements the functional interface ArangoDriverFactory::getDriver method
         // returns a new instance/connection every time the method is called
         // this is in order to try to prevent the connection to got stuck
         return () -> {
             return new ArangoDB.Builder()
-                            .host(arangodbHost)
-                            .port(arangodbPort)
+                            .host(arangodbHost, arangodbPort)
                             .user(arangodbUser)
-                            .password(arangodbPass)
+                            .password(arangodbPassword)
                             .registerSerializer(PolicyDTO.InputPolicy.class, inputPolicyVPackSerializer())
                             .registerDeserializer(PolicyDTO.InputPolicy.class, inputPolicyVPackDeserializer())
                             .registerSerializer(GroupDTO.Group.class, groupVPackSerializer())

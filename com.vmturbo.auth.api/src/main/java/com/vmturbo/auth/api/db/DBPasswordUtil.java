@@ -9,15 +9,16 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.xml.Jaxb2RootElementHttpMessageConverter;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.components.api.ComponentRestTemplate;
 
 /**
- * Contains the method to retrieve the root password.
+ * Contains the method to retrieve the root password for both the SQL and Arango databases.
  */
 public class DBPasswordUtil {
     /**
@@ -25,6 +26,10 @@ public class DBPasswordUtil {
      */
     private static final Logger logger = LogManager.getLogger(
             DBPasswordUtil.class);
+
+    static final String SECURESTORAGE_PATH = "/securestorage/";
+    static final String SQL_DB_ROOT_PASSWORD_PATH = "getSqlDBRootPassword";
+    static final String ARANGO_DB_ROOT_PASSWORD_PATH = "getArangoDBRootPassword";
 
     /**
      * The database root password.
@@ -37,10 +42,18 @@ public class DBPasswordUtil {
     private static final Charset DB_PASSW_CHARSET = Charset.forName("UTF-8");
 
     /**
-     * The default DB password. We repeat the password string to confuse the enemy.
+     * The default SQL DB password. We repeat the password string to confuse the enemy.
      * The Base64-encoded variant has been precomputed.
+     * TODO: https://vmturbo.atlassian.net/browse/OM-34291
      */
-    private static final String DEFAULT_DB_PASSWORD = "dm10dXJib3ZtdHVyYm8=";
+    private static final String DEFAULT_SQL_DB_PASSWORD = "dm10dXJib3ZtdHVyYm8=";
+
+    /**
+     * The default Arango password. We repeat the password string three times to confuse the enemy.
+     * The Base64-encoded variant has been precomputed.
+     * TODO: https://vmturbo.atlassian.net/browse/OM-34291
+     */
+    private static final String ARANGO_DB_DEFAULT_PASSWORD = "cm9vdHJvb3Ryb290";
 
     /**
      * The synchronous client-side HTTP access.
@@ -73,13 +86,57 @@ public class DBPasswordUtil {
      */
     public static @Nonnull String obtainDefaultPW() {
         String defPwd = new String(
-                Base64.getDecoder().decode(DEFAULT_DB_PASSWORD.getBytes(DB_PASSW_CHARSET)),
+                Base64.getDecoder().decode(DEFAULT_SQL_DB_PASSWORD.getBytes(DB_PASSW_CHARSET)),
                 DB_PASSW_CHARSET);
         return defPwd.substring(0, defPwd.length() / 2);
     }
 
     /**
-     * Retrieves the database root password from the Auth component.
+     * Obtains the default Arango password.
+     * We have Base64 encoded default password repeating itself three times.
+     * So we decode it.
+     *
+     * @return The default password.
+     */
+    public static @Nonnull String obtainDefaultArangoPW() {
+        String defPwd = new String(
+                Base64.getDecoder().decode(ARANGO_DB_DEFAULT_PASSWORD.getBytes(DB_PASSW_CHARSET)),
+                DB_PASSW_CHARSET);
+        return defPwd.substring(0, defPwd.length() / 3);
+    }
+
+    /**
+     * Fetch the the SQL database root password from the Auth component.
+     *
+     * In case we have an error obtaining the database root password from the auth component,
+     * retry continually with a configured delay between each retry.
+     *
+     * If the auth component is down and the database root password has been changed, there will be
+     * no security implications, as the component will not be able to access the database..
+     *
+     * @return The SQL database root password.
+     */
+    public synchronized @Nonnull String getSqlDbRootPassword() {
+        return getRootPassword(SQL_DB_ROOT_PASSWORD_PATH, "SQL");
+    }
+
+    /**
+     * Fetch the the Arango database root password from the Auth component.
+     *
+     * In case we have an error obtaining the database root password from the auth component,
+     * retry continually with a configured delay between each retry.
+     *
+     * If the auth component is down and the database root password has been changed, there will be
+     * no security implications, as the component will not be able to access the database..
+     *
+     * @return The Arango database root password.
+     */
+    public synchronized @Nonnull String getArangoDbRootPassword() {
+        return getRootPassword(ARANGO_DB_ROOT_PASSWORD_PATH, "Arango");
+    }
+
+    /**
+     * Retrieves a database root password from the Auth component.
      *
      * In case we have an error obtaining the database root password from the auth component,
      * retry continually with a configured delay between each retry.
@@ -89,28 +146,29 @@ public class DBPasswordUtil {
      *
      * @return The database root password.
      */
-    public synchronized @Nonnull String getRootPassword() {
+    private @Nonnull String getRootPassword(@Nonnull final String passwordKeyOffset,
+                                            @Nonnull final String databaseType) {
         for (int i = 1; dbRootPassword == null; i++) {
             // Obtains the database root password.
             // Since the password change in the database will require the JDBC pools to be
             // restarted, that implies we need to restart the history component. Which means
             // we can cache the password here.
             final String request = UriComponentsBuilder.newInstance()
-                    .scheme("http")
-                    .host(authHost)
-                    .port(authPort)
-                    .path("/securestorage/getDBRootPassword")
-                    .build().toUriString();
+                .scheme("http")
+                .host(authHost)
+                .port(authPort)
+                .path(SECURESTORAGE_PATH + passwordKeyOffset)
+                .build().toUriString();
             try {
                 ResponseEntity<String> result =
-                        restTemplate.getForEntity(request, String.class);
+                    restTemplate.getForEntity(request, String.class);
                 dbRootPassword = result.getBody();
                 if (dbRootPassword.isEmpty()) {
-                    throw new IllegalArgumentException("root db password is empty");
+                    throw new IllegalArgumentException("root " + databaseType + " db password is empty");
                 }
             } catch (ResourceAccessException e) {
-                logger.warn("...Unable to fetch the database root password; sleep {} secs; try {}",
-                        authRetryDelaySecs, i);
+                logger.warn("...Unable to fetch the {} database root password; sleep {} secs; try {}",
+                    databaseType, authRetryDelaySecs, i);
                 try {
                     Thread.sleep(Duration.ofSeconds(authRetryDelaySecs).toMillis());
                 } catch (InterruptedException e2) {
@@ -119,5 +177,15 @@ public class DBPasswordUtil {
             }
         }
         return dbRootPassword;
+    }
+
+    /**
+     * Get the rest template used in all requests.
+     *
+     * @return The rest template used in all requests.
+     */
+    @VisibleForTesting
+    RestTemplate getRestTemplate() {
+        return restTemplate;
     }
 }

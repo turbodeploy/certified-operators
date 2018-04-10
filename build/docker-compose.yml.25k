@@ -138,6 +138,7 @@ services:
     mem_limit: 512M
     depends_on:
       - db
+      - auth
       - clustermgr
       - kafka1
 
@@ -152,6 +153,7 @@ services:
       - db
       - clustermgr
       - kafka1
+      - auth
 
   arangodb:
     extends:
@@ -170,6 +172,7 @@ services:
       - arangodb
       - clustermgr
       - kafka1
+      - auth
 
   group:
     extends:
@@ -182,6 +185,7 @@ services:
       - arangodb
       - clustermgr
       - db
+      - auth
 
   history:
     extends:
@@ -194,6 +198,7 @@ services:
       - db
       - clustermgr
       - kafka1
+      - auth
 
   plan-orchestrator:
     extends:
@@ -206,6 +211,7 @@ services:
       - db
       - clustermgr
       - kafka1
+      - auth
 
   reporting:
     extends:
@@ -217,6 +223,7 @@ services:
     depends_on:
       - db
       - clustermgr
+      - auth
 
   mediation-vcenter:
     extends:

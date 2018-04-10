@@ -41,6 +41,7 @@ import javaslang.circuitbreaker.CircuitBreakerRegistry;
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
 import com.vmturbo.common.protobuf.search.SearchREST.SearchServiceController;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -57,6 +58,7 @@ import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.controller.GraphServiceEntityController;
 import com.vmturbo.repository.controller.GraphTopologyController;
 import com.vmturbo.repository.controller.RepositoryDiagnosticController;
+import com.vmturbo.repository.controller.RepositorySecurityConfig;
 import com.vmturbo.repository.controller.SearchController;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.graph.GraphDefinition;
@@ -87,7 +89,12 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
 @EnableAutoConfiguration
 @EnableDiscoveryClient
 @EnableConfigurationProperties(RepositoryProperties.class)
-@Import({RepositoryApiConfig.class, TopologyProcessorClientConfig.class, MarketClientConfig.class})
+@Import({
+    RepositoryApiConfig.class,
+    TopologyProcessorClientConfig.class,
+    MarketClientConfig.class,
+    RepositorySecurityConfig.class
+})
 public class RepositoryComponent extends BaseVmtComponent {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryComponent.class);
     private static final String DOCUMENT_KEY_FIELD = "_key";
@@ -123,7 +130,16 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
-    private final ArangoDB arangoDB;
+    @Value("${authHost}")
+    private String authHost;
+
+    @Value("${authPort}")
+    private int authPort;
+
+    @Value("${authRetryDelaySecs}")
+    private int authRetryDelaySecs;
+
+    private ArangoDB arangoDB;
 
     private final com.vmturbo.repository.RepositoryProperties.ArangoDB arangoProps;
 
@@ -135,19 +151,24 @@ public class RepositoryComponent extends BaseVmtComponent {
         this.fileFolderZipper = fileFolderZipper;
         this.osCommandProcessRunner = osCommandProcessRunner;
         this.arangoProps = repositoryProperties.getArangodb();
+    }
+
+    @PostConstruct
+    private void setup() {
+        logger.info("Setting up connection to ArangoDB...");
+        final String arangoDbPassword = new DBPasswordUtil(authHost, authPort, authRetryDelaySecs)
+            .getArangoDbRootPassword();
+
         this.arangoDB =
             new ArangoDB.Builder()
                 .host(arangoProps.getHost(), arangoProps.getPort())
                 .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
                 .registerDeserializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_DESERIALIZER)
-                .password(arangoProps.getPassword())
+                .password(arangoDbPassword)
                 .user(arangoProps.getUsername())
                 .maxConnections(arangoProps.getMaxConnections())
                 .build();
-    }
 
-    @PostConstruct
-    private void setup() {
         logger.info("Adding ArangoDB health check to the component health monitor.");
         // add a health monitor for Arango
         getHealthMonitor().addHealthCheck(

@@ -94,6 +94,7 @@ repository:
   websocket.pong.timeout: 30000
   arangodbHealthCheckIntervalSeconds: 60
   realtimeTopologyContextId: 777777
+  <<: *auth_conn_info
 
 group:
   <<: *baseVmtComponentSettings
@@ -102,7 +103,6 @@ group:
   arangodbPort: 8529
   arangodbHost: arangodb
   arangodbUser: root
-  arangodbPass: root
   arangodbHealthCheckIntervalSeconds: 60
   mariadbHealthCheckIntervalSeconds: 60
   grpcPingIntervalSeconds: 300

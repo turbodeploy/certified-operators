@@ -49,7 +49,7 @@ public class ReportingDbConfig extends SQLDatabaseConfig {
 
         dataSource.setUrl(getDbUrl() + '/' + vmtDbSchema);
         dataSource.setUser(dbUsername);
-        dataSource.setPassword(dbPasswordUtil.getRootPassword());
+        dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
         return dataSource;
     }
 

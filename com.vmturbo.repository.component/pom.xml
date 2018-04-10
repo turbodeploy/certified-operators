@@ -101,6 +101,10 @@
             <artifactId>com.vmturbo.repository.api</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>auth-api</artifactId>
+        </dependency>
 
         <!-- XL project dependencies -->
         <dependency>

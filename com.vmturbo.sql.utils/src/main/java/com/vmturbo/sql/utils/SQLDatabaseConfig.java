@@ -73,7 +73,7 @@ public class SQLDatabaseConfig {
 
         dataSource.setUrl(getDbUrl());
         dataSource.setUser(dbUsername);
-        dataSource.setPassword(dbPasswordUtil.getRootPassword());
+        dataSource.setPassword(dbPasswordUtil.getSqlDbRootPassword());
 
         return dataSource;
     }

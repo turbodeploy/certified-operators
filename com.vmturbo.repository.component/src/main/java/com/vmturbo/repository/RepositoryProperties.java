@@ -9,18 +9,11 @@ public class RepositoryProperties {
 
     final ArangoDB arangoDB = new ArangoDB();
 
-    final Graphite graphite = new Graphite();
-
     public ArangoDB getArangodb() {
         return arangoDB;
     }
 
-    public Graphite getGraphite() {
-        return graphite;
-    }
-
-    // TODO : karthikt - All these config values should be moved
-    // to consul. Also storing the root password for the DB is a bad idea.
+    // TODO : karthikt - All these config values should be moved to consul.
     static class ArangoDB {
         String host = "127.0.0.1";
 
@@ -29,8 +22,6 @@ public class RepositoryProperties {
         String defaultDatabase = "_system";
 
         String username = "root";
-
-        String password = "root";
 
         String arangoDumpPath = "/home/turbonomic/arangodump";
 
@@ -68,14 +59,6 @@ public class RepositoryProperties {
 
         public void setDefaultDatabase(String defaultDatabase) {
             this.defaultDatabase = defaultDatabase;
-        }
-
-        public String getPassword() {
-            return password;
-        }
-
-        public void setPassword(String password) {
-            this.password = password;
         }
 
         public String getUsername() {
@@ -124,48 +107,6 @@ public class RepositoryProperties {
 
         public void getMaxConnections(int maxConns) {
             this.maxConnections = maxConns;
-        }
-    }
-
-    static class Graphite {
-        String host = "graphite";
-
-        int port = 2003;
-
-        long reportingFreqMinutes = 1;
-
-        boolean enable = false;
-
-        public String getHost() {
-            return host;
-        }
-
-        public void setHost(String host) {
-            this.host = host;
-        }
-
-        public int getPort() {
-            return port;
-        }
-
-        public void setPort(int port) {
-            this.port = port;
-        }
-
-        public long getReportingFreqMinutes() {
-            return reportingFreqMinutes;
-        }
-
-        public void setReportingFreqMinutes(long reportingFreqMinutes) {
-            this.reportingFreqMinutes = reportingFreqMinutes;
-        }
-
-        public boolean isEnable() {
-            return enable;
-        }
-
-        public void setEnable(boolean enable) {
-            this.enable = enable;
         }
     }
 }

@@ -27,6 +27,7 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 
 import com.vmturbo.auth.api.authentication.AuthenticationException;
+import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.db.DBPasswordDTO;
 import com.vmturbo.auth.component.store.ISecureStore;
 
@@ -60,37 +61,25 @@ public class SecureStorageController {
     }
 
     /**
-     * Checks whether the subject is in fact the authenticated user.
+     * Checks the authorization status of the user.
      *
-     * @param subject The subject.
-     * @return {@code true} if subject is a logged on user.
+     * @param subject The username.
+     * @return {@code HttpStatus.OK} if subject is a logged on user.
+     *         {@code HttpStatus.UNAUTHORIZED} if there is no user.
+     *         {@code HttpStatus.FORBIDDEN} if there is a user but that user does not have permission.
      */
-    private boolean isCurrentlyAuthenticatedUser(final @Nonnull String subject) {
+    private HttpStatus checkAuthorizationStatus(final @Nonnull String subject) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth == null) {
-            return false;
-        }
-        return subject.equals(auth.getPrincipal());
-    }
-
-    /**
-     * Returns the logged on user.
-     *
-     * @param subject The subject.
-     * @return {@code true} if subject is a logged on user.
-     */
-    private boolean hasRole(final @Nonnull String subject, final @Nonnull String role) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null) {
-            return false;
-        }
-        for (GrantedAuthority ga : auth.getAuthorities()) {
-            if (role.equals(ga.getAuthority())) {
-                return true;
-            }
+            return HttpStatus.UNAUTHORIZED; // There is no user.
         }
 
-        return false;
+        // TODO: We might want to consider a more sophisticated principal than a raw String.
+        // For example, a Spring Security User object. {@see SpringAuthFilter} for how the principal
+        // is set.
+        return subject.equals(auth.getPrincipal()) ?
+            HttpStatus.OK :         // The user is authorized
+            HttpStatus.FORBIDDEN;   // The user is unauthorized
     }
 
     /**
@@ -107,18 +96,23 @@ public class SecureStorageController {
                     method = RequestMethod.GET,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public @Nonnull String get(@ApiParam(value = "The subject name", required = true)
+    public @Nonnull ResponseEntity<String> get(@ApiParam(value = "The subject name", required = true)
                                @PathVariable("subject") @Nonnull String subject,
                                @ApiParam(value = "The key", required = true)
                                @PathVariable("key") @Nonnull String key) throws Exception {
-        if (!isCurrentlyAuthenticatedUser(subject)) {
-            throw new AuthenticationException("Wrong principal.");
+        switch (checkAuthorizationStatus(subject)) {
+            case UNAUTHORIZED:
+                return new ResponseEntity<>("Please log in.", HttpStatus.UNAUTHORIZED);
+            case FORBIDDEN:
+                return new ResponseEntity<>("You are not authorized to view this resource.", HttpStatus.FORBIDDEN);
         }
+
         Optional<String> result = store_.get(subject, URLDecoder.decode(key, "UTF-8"));
         if (result.isPresent()) {
-            return result.get();
+            return new ResponseEntity<>(result.get(), HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>("Resource " + key + " does not exist.", HttpStatus.BAD_REQUEST);
         }
-        throw new IllegalStateException("No data for the key and owner");
     }
 
     /**
@@ -139,15 +133,24 @@ public class SecureStorageController {
                     consumes = {MediaType.APPLICATION_JSON_VALUE},
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public String modify(@ApiParam(value = "The subject name", required = true)
+    public ResponseEntity<String> modify(@ApiParam(value = "The subject name", required = true)
                          @PathVariable("subject") @Nonnull String subject,
                          @ApiParam(value = "The key", required = true)
                          @PathVariable("key") @Nonnull String key,
                          @RequestBody @Nonnull String data) throws Exception {
-        if (!isCurrentlyAuthenticatedUser(subject)) {
-            throw new AuthenticationException("Wrong principal.");
+        switch (checkAuthorizationStatus(subject)) {
+            case UNAUTHORIZED:
+                return new ResponseEntity<>("Please log in.", HttpStatus.UNAUTHORIZED);
+            case FORBIDDEN:
+                return new ResponseEntity<>("You are not authorized to modify this resource.", HttpStatus.FORBIDDEN);
         }
-        return store_.modify(subject, URLDecoder.decode(key, "UTF-8"), data);
+
+        try {
+            final String value = store_.modify(subject, URLDecoder.decode(key, "UTF-8"), data);
+            return new ResponseEntity<>(value, HttpStatus.OK);
+        } catch (AuthorizationException e) {
+            return new ResponseEntity<>(e.getLocalizedMessage(), HttpStatus.FORBIDDEN);
+        }
     }
 
     /**
@@ -163,51 +166,74 @@ public class SecureStorageController {
                     method = RequestMethod.DELETE,
                     consumes = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public void delete(@ApiParam(value = "The subject name", required = true)
+    public ResponseEntity<Void> delete(@ApiParam(value = "The subject name", required = true)
                        @PathVariable("subject") @Nonnull String subject,
                        @ApiParam(value = "The key", required = true)
                        @PathVariable("key") @Nonnull String key) throws Exception {
-        if (!isCurrentlyAuthenticatedUser(subject) && !hasRole(subject, "ROLE_ADMINISTRATOR")) {
-            throw new AuthenticationException("Wrong principal.");
+        switch (checkAuthorizationStatus(subject)) {
+            case UNAUTHORIZED:
+                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+            case FORBIDDEN:
+                return new ResponseEntity<>(HttpStatus.FORBIDDEN);
         }
-        store_.delete(subject, URLDecoder.decode(key, "UTF-8"));
+
+        try {
+            store_.delete(subject, URLDecoder.decode(key, "UTF-8"));
+            return new ResponseEntity<>(HttpStatus.OK);
+        } catch (AuthorizationException e) {
+            return new ResponseEntity<>(HttpStatus.FORBIDDEN);
+        }
     }
 
     /**
-     * Returns DB root password.
+     * Returns (SQL) DB root password.
      *
      * @return The user resource URL if successful.
      * @throws Exception In case of an error adding user.
      */
-    @ApiOperation(value = "Returns DB root password")
-    @RequestMapping(path = "getDBRootPassword",
+    @ApiOperation(value = "Returns (SQL) DB root password")
+    @RequestMapping(path = "getSqlDBRootPassword",
                     method = RequestMethod.GET,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public @Nonnull String getDBRootPassword() throws Exception {
-        String password = store_.getRootDBPassword();
-        return password;
+    public @Nonnull String getSqlDBRootPassword() throws Exception {
+        return store_.getRootSqlDBPassword();
     }
 
     /**
-     * Returns DB root password.
+     * Sets the (SQL) DB root password.
      *
      * @return The user resource URL if successful.
      * @throws Exception In case of an error adding user.
      */
-    @ApiOperation(value = "Sets DB root password")
-    @RequestMapping(path = "setDBRootPassword",
+    @ApiOperation(value = "Sets (SQL) DB root password")
+    @RequestMapping(path = "setSqlDBRootPassword",
                     method = RequestMethod.PUT,
                     consumes = {MediaType.APPLICATION_JSON_VALUE},
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
     public ResponseEntity<String> setDBRootPassword(@RequestBody final @Nonnull DBPasswordDTO dto)
             throws Exception {
-        if (store_.setRootDBPassword(dto.getExistingPassword(), dto.getNewPassword())) {
+        if (store_.setRootSqlDBPassword(dto.getExistingPassword(), dto.getNewPassword())) {
             return new ResponseEntity<>("Changing DB root password succeeded.", HttpStatus.OK);
         }
         return new ResponseEntity<>("Unable to change the DB root password.",
                                     HttpStatus.UNAUTHORIZED);
+    }
+
+    /**
+     * Returns Arango DB root password.
+     *
+     * @return The user resource URL if successful.
+     * @throws Exception In case of an error adding user.
+     */
+    @ApiOperation(value = "Returns Arango DB root password")
+    @RequestMapping(path = "getArangoDBRootPassword",
+        method = RequestMethod.GET,
+        produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull String getArangoDBRootPassword() throws Exception {
+        return store_.getRootArangoDBPassword();
     }
 
 }

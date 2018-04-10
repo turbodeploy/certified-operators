@@ -26,7 +26,7 @@ public class ClipStatsValueTest {
     public static void setup() {
         // always return the default DB password for this test
         DBPasswordUtil dbPasswordUtilMock = Mockito.mock(DBPasswordUtil.class);
-        when(dbPasswordUtilMock.getRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
+        when(dbPasswordUtilMock.getSqlDbRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
         historydbIO = new HistorydbIO(dbPasswordUtilMock);
     }
 

@@ -12,7 +12,6 @@
 
     <artifactId>sql-utils</artifactId>
 
-
     <dependencies>
         <dependency>
             <groupId>com.vmturbo</groupId>
@@ -36,9 +35,6 @@
         </dependency>
 
         <!-- START Database-related dependencies -->
-        <!-- Not all components need to work with a database, but we keep some utilities for
-             working with databases in components.common to facilitate code sharing. If this
-             gets too cumbersome, we can split off db-related utilities into a separate package -->
         <dependency>
             <groupId>org.jooq</groupId>
             <artifactId>jooq</artifactId>
