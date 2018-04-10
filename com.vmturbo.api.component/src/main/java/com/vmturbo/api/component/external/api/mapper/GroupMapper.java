@@ -7,17 +7,18 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.StringJoiner;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser.GroupUseCase.GroupUseCaseCriteria;
@@ -65,6 +66,7 @@ public class GroupMapper {
 
     public static final String EQUAL = "EQ";
     public static final String NOT_EQUAL = "NEQ";
+    public static final String STATE = "state";
 
     private final GroupUseCaseParser groupUseCaseParser;
 
@@ -330,20 +332,18 @@ public class GroupMapper {
         // build the search parameters based on the filter criteria
         SearchParameters.Builder parametersBuilder = SearchParameters.newBuilder();
 
-        String[] elements = useCase.getElements().split(ELEMENTS_DELIMITER);
+        final String[] elements = useCase.getElements().split(ELEMENTS_DELIMITER);
 
         int currentTokenIndex = 0;
         while (currentTokenIndex < elements.length) {
             String currentToken = elements[currentTokenIndex];
             switch(currentToken) {
                 case DISPLAY_NAME:
-                    PropertyFilter nameFilter = SearchMapper.nameFilter(filter.getExpVal(),
-                            filter.getExpType().equals(EQUAL));
-                    if (parametersBuilder.hasStartingFilter()) {
-                        parametersBuilder.addSearchFilter(SearchMapper.searchFilterProperty(nameFilter));
-                    } else {
-                        parametersBuilder.setStartingFilter(nameFilter);
-                    }
+                    addPropertyFilter(filter, parametersBuilder, SearchMapper::nameFilter);
+                    currentTokenIndex++;
+                    break;
+                case STATE:
+                    addStatePropertyFilter(filter, className, parametersBuilder);
                     currentTokenIndex++;
                     break;
                 case CLUSTER:
@@ -429,6 +429,28 @@ public class GroupMapper {
         return parametersBuilder.build();
     }
 
+    private void addStatePropertyFilter(@Nonnull FilterApiDTO filter, @Nonnull String className,
+                    SearchParameters.Builder parametersBuilder) {
+        if (!parametersBuilder.hasStartingFilter()) {
+            parametersBuilder.setStartingFilter(SearchMapper.entityTypeFilter(className));
+        }
+        final PropertyFilter stateFilter = SearchMapper.stateFilter(filter.getExpVal(),
+                        filter.getExpType().equals(EQUAL));
+        parametersBuilder.addSearchFilter(SearchMapper.searchFilterProperty(stateFilter));
+    }
+
+    private void addPropertyFilter(@Nonnull FilterApiDTO filter,
+                    @Nonnull SearchParameters.Builder parametersBuilder,
+                    @Nonnull BiFunction<String, Boolean, PropertyFilter> filterSupplier) {
+        final PropertyFilter propertyFilter = filterSupplier.apply(filter.getExpVal(),
+                        filter.getExpType().equals(EQUAL));
+        if (parametersBuilder.hasStartingFilter()) {
+            parametersBuilder.addSearchFilter(SearchMapper.searchFilterProperty(propertyFilter));
+        } else {
+            parametersBuilder.setStartingFilter(propertyFilter);
+        }
+    }
+
     /**
      * Convert one set of search parameters to a filter DTO, use group entity type to get related
      * useCase json map value, and use starting filter's entity type to get filter type. And also
@@ -481,6 +503,9 @@ public class GroupMapper {
             case SearchMapper.DISPLAY_NAME_PROPERTY:
                 // the display name filter element is just 'displayName'
                 elementsJoiner.add(SearchMapper.DISPLAY_NAME_PROPERTY);
+                break;
+            case SearchMapper.STATE_PROPERTY:
+                elementsJoiner.add(SearchMapper.STATE_PROPERTY);
                 break;
         }
 

@@ -3,8 +3,9 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.CLUSTER;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STORAGE_CLUSTER;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +46,7 @@ import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -414,9 +416,13 @@ public class SearchService implements ISearchService {
                                                          final List<String> scopes,
                                                          final String entityType,
                                                          final EnvironmentType envType) throws Exception {
-        // This is not implemented in XL yet, but if we throw an exception here search
-        // does not work. Return an empty list instead - it's safe to do so, it's as if
-        // no criteria options were found.
-        return Collections.emptyList();
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        Arrays.stream(EntityState.values())
+                        .forEach(option -> {
+                            final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+                            optionApiDTO.setValue(option.name());
+                            optionApiDTOs.add(optionApiDTO);
+                        });
+        return optionApiDTOs;
     }
 }

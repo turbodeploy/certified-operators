@@ -3,6 +3,8 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -25,6 +27,7 @@ public class SearchMapper {
 
     public static final String ENTITY_TYPE_PROPERTY = "entityType";
     public static final String DISPLAY_NAME_PROPERTY = "displayName";
+    public static final String STATE_PROPERTY = "state";
 
     /**
      * Wrap an instance of {@link PropertyFilter} with a {@link SearchFilter}.
@@ -129,6 +132,18 @@ public class SearchMapper {
      */
     public static PropertyFilter nameFilter(String displayName, boolean match) {
         return stringFilter(DISPLAY_NAME_PROPERTY, displayName, match);
+    }
+
+    /**
+     * Creates a property filter that searches for entities by their state.
+     * @param state the entity state to use for the search
+     * @param match If true, the property should match. If false, should return true only
+     *              when the match fails.
+     * @return a property filter
+     */
+    @Nonnull
+    public static PropertyFilter stateFilter(@Nonnull String state, boolean match) {
+        return stringFilter(STATE_PROPERTY, state, match);
     }
 
     /**

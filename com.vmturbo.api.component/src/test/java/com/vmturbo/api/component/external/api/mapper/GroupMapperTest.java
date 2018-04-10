@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -334,6 +335,32 @@ public class GroupMapperTest {
         assertEquals(1, byName.getSearchFilterCount());
         assertEquals(FOO, byName.getSearchFilter(0).getPropertyFilter().getStringFilter().getStringPropertyRegex());
         assertFalse(byName.getSearchFilter(0).getPropertyFilter().getStringFilter().getMatch());
+    }
+
+    @Test
+    public void testByStateSearchEqual() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL,
+                        "IDLE", "vmsByState"));
+        final List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO,
+                        inputDTO.getClassName());
+        final PropertyFilter propertyFilter = parameters.get(0).getSearchFilter(0).getPropertyFilter();
+        Assert.assertEquals(1, parameters.size());
+        Assert.assertEquals(TYPE_IS_VM, parameters.get(0).getStartingFilter());
+        Assert.assertEquals("state", propertyFilter.getPropertyName());
+        Assert.assertEquals("IDLE", propertyFilter.getStringFilter().getStringPropertyRegex());
+    }
+
+    @Test
+    public void testByStateSearchNotEqual() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, PM_TYPE, filterDTO(GroupMapper.NOT_EQUAL,
+                        "ACTIVE", "pmsByState"));
+        final List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO,
+                        inputDTO.getClassName());
+        final PropertyFilter propertyFilter = parameters.get(0).getSearchFilter(0).getPropertyFilter();
+        Assert.assertEquals(1, parameters.size());
+        Assert.assertEquals(TYPE_IS_PM, parameters.get(0).getStartingFilter());
+        Assert.assertEquals("state", propertyFilter.getPropertyName());
+        Assert.assertEquals("ACTIVE", propertyFilter.getStringFilter().getStringPropertyRegex());
     }
 
     /**
