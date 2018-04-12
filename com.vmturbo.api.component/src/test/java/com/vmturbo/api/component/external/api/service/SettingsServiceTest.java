@@ -2,8 +2,6 @@ package com.vmturbo.api.component.external.api.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.core.IsNull.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -33,6 +31,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
@@ -122,24 +121,6 @@ public class SettingsServiceTest {
     @Captor
     ArgumentCaptor<Setting> settingArgumentCaptor;
 
-    @Test
-    public void testGetSpecsEntityTypeApplied() throws Exception {
-        final SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
-        mgrDto.setUuid("test");
-        final SettingApiDTO settingDto = new SettingApiDTO();
-        mgrDto.setSettings(Collections.singletonList(settingDto));
-
-        when(settingsMapper.toManagerDtos(any()))
-                .thenReturn(Collections.singletonList(mgrDto));
-
-        List<SettingsManagerApiDTO> result =
-                settingsService.getSettingsSpecs(null, ENTITY_TYPE_STR, false);
-        assertThat(result.size(), is(1));
-        SettingsManagerApiDTO retDto = result.get(0);
-        assertThat(retDto.getSettings(), notNullValue());
-        assertThat(retDto.getSettings().get(0).getEntityType(), is(ENTITY_TYPE_STR));
-    }
-
     /**
      * Verify that a request without a specific manager UUID calls the appropriate mapping method.
      */
@@ -148,7 +129,7 @@ public class SettingsServiceTest {
         SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
         mgrDto.setUuid("test");
 
-        when(settingsMapper.toManagerDtos(any()))
+        when(settingsMapper.toManagerDtos(any(), any()))
             .thenReturn(Collections.singletonList(mgrDto));
 
         List<SettingsManagerApiDTO> result =
@@ -156,7 +137,7 @@ public class SettingsServiceTest {
         assertEquals(1, result.size());
         assertEquals("test", result.get(0).getUuid());
 
-        verify(settingsMapper).toManagerDtos(specCaptor.capture());
+        verify(settingsMapper).toManagerDtos(specCaptor.capture(), eq(Optional.empty()));
         assertThat(specCaptor.getValue(), containsInAnyOrder(vmSettingSpec));
     }
 
@@ -170,13 +151,13 @@ public class SettingsServiceTest {
         mgrDto.setUuid("test");
 
         final String mgrId = "mgrId";
-        when(settingsMapper.toManagerDto(any(), eq(mgrId)))
+        when(settingsMapper.toManagerDto(any(), any(), eq(mgrId)))
             .thenReturn(Optional.of(mgrDto));
         List<SettingsManagerApiDTO> result =
                 settingsService.getSettingsSpecs(mgrId, null, false);
         assertEquals(1, result.size());
         assertEquals("test", result.get(0).getUuid());
-        verify(settingsMapper).toManagerDto(specCaptor.capture(), eq(mgrId));
+        verify(settingsMapper).toManagerDto(specCaptor.capture(), eq(Optional.empty()), eq(mgrId));
         assertThat(specCaptor.getValue(), containsInAnyOrder(vmSettingSpec));
     }
 
@@ -187,12 +168,12 @@ public class SettingsServiceTest {
     public void testGetSingleEntityTypeSpecs() throws Exception {
         final SettingsManagerApiDTO mgrDto = new SettingsManagerApiDTO();
         mgrDto.setUuid("test");
-        when(settingsMapper.toManagerDtos(any()))
+        when(settingsMapper.toManagerDtos(any(), any()))
                 .thenReturn(Collections.singletonList(mgrDto));
 
         List<SettingsManagerApiDTO> result =
                 settingsService.getSettingsSpecs(null, "Container", false);
-        verify(settingsMapper).toManagerDtos(specCaptor.capture());
+        verify(settingsMapper).toManagerDtos(specCaptor.capture(), eq(Optional.of("Container")));
         assertTrue(specCaptor.getValue().isEmpty());
     }
 
@@ -235,43 +216,28 @@ public class SettingsServiceTest {
      */
     @Test
     public void testGetSettingsByUuid() throws Exception {
-        String managerName = "emailmanager";
-        List<Setting> settings = getSettingsList();
+        final String settingSpecName = "globalSetting";
+        final String managerName = "emailmanager";
+        final Setting globalSetting = Setting.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .setStringSettingValue(StringSettingValue.newBuilder()
+                        .setValue("no one cares"))
+                .build();
+        final SettingApiDTO mappedDto = new SettingApiDTO();
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getGlobalSetting()).thenReturn(Optional.of(mappedDto));
+        when(settingsMapper.toSettingApiDto(globalSetting)).thenReturn(possibilities);
 
-        SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
+        final SettingsManagerInfo managerInfo = mock(SettingsManagerInfo.class);
 
         when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(Optional.of(managerInfo));
 
         when(settingRpcServiceSpy.getMultipleGlobalSettings(GetMultipleGlobalSettingsRequest.getDefaultInstance()))
-                .thenReturn(settings);
+                .thenReturn(Collections.singletonList(globalSetting));
 
         List<SettingApiDTO> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
-        assertEquals(settings.size(), settingApiDTOList.size());
+        assertThat(settingApiDTOList, containsInAnyOrder(mappedDto));
         verify(settingRpcServiceSpy).getMultipleGlobalSettings(any(GetMultipleGlobalSettingsRequest.class));
-    }
-
-    private List<Setting> getSettingsList() {
-        List<Setting> settingsList = new ArrayList<>();
-
-        settingsList.add(Setting.newBuilder().setSettingSpecName("smtpServer")
-                .setStringSettingValue(StringSettingValue.newBuilder()
-                        .setValue("smtp.gmail.com")
-                        .build())
-                .build());
-
-        settingsList.add(Setting.newBuilder().setSettingSpecName("smtpPort")
-                .setNumericSettingValue(NumericSettingValue.newBuilder()
-                        .setValue(25f)
-                        .build())
-                .build());
-
-        settingsList.add(Setting.newBuilder().setSettingSpecName("SMTP_ENCRYPTION")
-                .setEnumSettingValue(EnumSettingValue.newBuilder()
-                        .setValue(MailConfiguration.EncryptionType.SSL.name())
-                        .build())
-                .build());
-
-        return settingsList;
     }
 
     /**
@@ -281,12 +247,22 @@ public class SettingsServiceTest {
      */
     @Test
     public void testPutSettingByUuidAndName() throws Exception {
-        String managerName = "emailmanager";
-        String settingSpecName = "smtpPort";
-        String settingValue = "25";
+        final String managerName = "emailmanager";
+        final String settingSpecName = "smtpPort";
+        final String settingValue = "25";
 
-        SettingApiInputDTO settingInput = new SettingApiInputDTO();
+        final SettingApiInputDTO settingInput = new SettingApiInputDTO();
         settingInput.setValue(settingValue);
+
+        final Setting setting = Setting.newBuilder()
+            .setSettingSpecName(settingSpecName)
+            .setStringSettingValue(StringSettingValue.newBuilder()
+                    .setValue(settingValue))
+            .build();
+        final SettingApiDTO mappedDto = new SettingApiDTO();
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getGlobalSetting()).thenReturn(Optional.of(mappedDto));
+        when(settingsMapper.toSettingApiDto(setting)).thenReturn(possibilities);
 
         when(settingRpcServiceSpy.getGlobalSetting(any())).thenReturn(
             GetGlobalSettingResponse.newBuilder().setSetting(Setting.newBuilder()
@@ -389,21 +365,32 @@ public class SettingsServiceTest {
     @Test
     public void testGetSettingsByUuidPersistenceManager() throws Exception {
 
-        String managerName = SettingsService.PERSISTENCE_MANAGER;
-        Setting statSetting =
+        final String managerName = SettingsService.PERSISTENCE_MANAGER;
+        final Setting statSetting =
             Setting.newBuilder()
                 .setSettingSpecName(GlobalSettingSpecs.StatsRetentionDays.getSettingName())
                 .setNumericSettingValue(NumericSettingValue.newBuilder()
                     .setValue(10)
                     .build())
                 .build();
-        Setting auditSetting =
+        final SettingApiDTO mappedStatSetting = mock(SettingApiDTO.class);
+        final SettingApiDTOPossibilities statPossibilities = mock(SettingApiDTOPossibilities.class);
+        when(statPossibilities.getGlobalSetting()).thenReturn(Optional.ofNullable(mappedStatSetting));
+
+        final Setting auditSetting =
             Setting.newBuilder()
                 .setSettingSpecName(GlobalSettingSpecs.AuditLogRetentionDays.getSettingName())
                 .setNumericSettingValue(NumericSettingValue.newBuilder()
                     .setValue(10)
                     .build())
                 .build();
+        final SettingApiDTO mappedAuditSetting = mock(SettingApiDTO.class);
+        final SettingApiDTOPossibilities auditPossibilities = mock(SettingApiDTOPossibilities.class);
+        when(auditPossibilities.getGlobalSetting()).thenReturn(Optional.ofNullable(mappedAuditSetting));
+
+        when(settingsMapper.toSettingApiDto(statSetting)).thenReturn(statPossibilities);
+        when(settingsMapper.toSettingApiDto(auditSetting)).thenReturn(auditPossibilities);
+
         when (statsRpcSpy.getStatsDataRetentionSettings(
                 GetStatsDataRetentionSettingsRequest.getDefaultInstance()))
             .thenReturn(Collections.singletonList(statSetting));
@@ -417,6 +404,6 @@ public class SettingsServiceTest {
         when(settingsManagerMapping.getManagerInfo(eq(managerName))).thenReturn(Optional.of(managerInfo));
 
         List<SettingApiDTO> settingApiDTOList = settingsService.getSettingsByUuid(managerName);
-        assertThat(settingApiDTOList.size(), equalTo(2));
+        assertThat(settingApiDTOList, containsInAnyOrder(mappedStatSetting, mappedAuditSetting));
     }
 }

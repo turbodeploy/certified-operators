@@ -1,10 +1,10 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -13,19 +13,25 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.joda.time.DateTime;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+
 import io.grpc.Channel;
 
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
@@ -122,6 +128,16 @@ public class SettingsMapper {
                 apiDTO.setValue(setting.getEnumSettingValue().getValue());
                 apiDTO.setValueType(InputValueType.STRING);
             })
+            .build();
+
+    /**
+     * (April 10 2017) In the UI, all settings - including global settings - are organized by
+     * entity type. This map contains the "global setting name" -> "entity type" mappings to use
+     * when formatting DTOs to return to the UI.
+     */
+    public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
+        ImmutableMap.<String, String>builder()
+            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.getValue())
             .build();
 
     /**
@@ -227,9 +243,13 @@ public class SettingsMapper {
      * that will represent these settings to the UI.
      *
      * @param specs The collection of specs.
+     * @param entityType An {@link Optional} containing the entity type to limit returned
+     *                   {@link SettingApiDTO}s to. This is necessary because a {@link SettingSpec}
+     *                   may be associated with multiple entity types.
      * @return The {@link SettingsManagerApiDTO}s.
      */
-    public List<SettingsManagerApiDTO> toManagerDtos(@Nonnull final Collection<SettingSpec> specs) {
+    public List<SettingsManagerApiDTO> toManagerDtos(@Nonnull final Collection<SettingSpec> specs,
+                                                     @Nonnull final Optional<String> entityType) {
         final Map<String, List<SettingSpec>> specsByMgr = specs.stream()
                 .collect(Collectors.groupingBy(spec -> managerMapping.getManagerUuid(spec.getName())
                         .orElse(NO_MANAGER)));
@@ -250,14 +270,14 @@ public class SettingsMapper {
                     final SettingsManagerInfo info = managerMapping.getManagerInfo(entry.getKey())
                             .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                     entry.getKey() + " not found despite being in the mappings earlier."));
-                    return createMgrDto(entry.getKey(), info, entry.getValue());
+                    return createMgrDto(entry.getKey(), entityType, info, entry.getValue());
                 })
                 .collect(Collectors.toList());
     }
 
     /**
      * Convert a collection of {@link SettingSpec} objects into a specific
-     * {@link SettingsManagerApiDTO}. This is like {@link SettingsMapper#toManagerDtos(Collection)},
+     * {@link SettingsManagerApiDTO}. This is like {@link SettingsMapper#toManagerDtos(Collection, Optional)},
      * just for one specific manager.
      *
      * @param specs The {@link SettingSpec}s. These don't have to all be managed by the desired
@@ -268,9 +288,10 @@ public class SettingsMapper {
      */
     public Optional<SettingsManagerApiDTO> toManagerDto(
             @Nonnull final Collection<SettingSpec> specs,
+            @Nonnull final Optional<String> entityType,
             @Nonnull final String desiredMgrId) {
         final Optional<SettingsManagerInfo> infoOpt = managerMapping.getManagerInfo(desiredMgrId);
-        return infoOpt.map(info -> createMgrDto(desiredMgrId, info, specs.stream()
+        return infoOpt.map(info -> createMgrDto(desiredMgrId, entityType, info, specs.stream()
                 .filter(spec -> managerMapping.getManagerUuid(spec.getName())
                     .map(name -> name.equals(desiredMgrId))
                     .orElse(false))
@@ -408,8 +429,7 @@ public class SettingsMapper {
                             " not found in the specs given to the mapper.");
                 }
                 return toProtoSetting(settingApiDto, spec);
-            }).forEach(setting -> infoBuilder.addSettings(
-                        setting));
+            }).forEach(infoBuilder::addSettings);
 
         return infoBuilder.build();
     }
@@ -529,33 +549,45 @@ public class SettingsMapper {
     /**
      * Create a {@link SettingsManagerApiDTO} containing information about settings, but not their
      * values. This will be a "thicker" manager than the one created by
-     * {@link DefaultSettingPolicyMapper#createValMgrDto(String, SettingsManagerInfo, Collection)},
+     * {@link DefaultSettingPolicyMapper#createValMgrDto(String, SettingsManagerInfo, String, Collection)},
      * but none of the settings will have values (since this is only a description of what the
      * settings are).
      *
      * @param mgrId The ID of the manager.
-     * @param info The information about the manager.
+     * @param entityType An {@link Optional} containing the entity type to limit returned
+     *                   {@link SettingApiDTO}s to. This is necessary because a {@link SettingSpec}
+     *                   may be associated with multiple entity types.
+     * @param info  The information about the manager.
      * @param specs The {@link SettingSpec}s managed by this manager. This function assumes all
      *              the settings belong to the manager.
      * @return The {@link SettingsManagerApiDTO}.
      */
     @Nonnull
     private SettingsManagerApiDTO createMgrDto(@Nonnull final String mgrId,
-                                        @Nonnull final SettingsManagerInfo info,
-                                        @Nonnull final Collection<SettingSpec> specs) {
+                                               @Nonnull final Optional<String> entityType,
+                                               @Nonnull final SettingsManagerInfo info,
+                                               @Nonnull final Collection<SettingSpec> specs) {
         final SettingsManagerApiDTO mgrApiDto = info.newApiDTO(mgrId);
 
         mgrApiDto.setSettings(specs.stream()
-                .map(spec -> settingSpecMapper.settingSpecToApi(spec))
-                .filter(Optional::isPresent).map(Optional::get)
+                .map(settingSpec -> settingSpecMapper.settingSpecToApi(Optional.of(settingSpec), Optional.empty()))
+                .flatMap(settingPossibilities -> {
+                    if (entityType.isPresent()) {
+                        return settingPossibilities.getSettingForEntityType(entityType.get())
+                                .map(Stream::of)
+                                .orElseGet(Stream::empty);
+                    } else {
+                        return settingPossibilities.getAll().stream();
+                    }
+                })
                 .collect(Collectors.toList()));
 
         // configure UI presentation information
         for (SettingApiDTO apiDto : mgrApiDto.getSettings()) {
             String specName = apiDto.getUuid();
             settingSpecStyleMapping.getStyleInfo(specName)
-                .ifPresent(styleInfo ->
-                                apiDto.setRange(styleInfo.getRange().getRangeApiDTO()));
+                    .ifPresent(styleInfo ->
+                            apiDto.setRange(styleInfo.getRange().getRangeApiDTO()));
         }
 
         return mgrApiDto;
@@ -678,7 +710,7 @@ public class SettingsMapper {
                         final SettingsManagerInfo mgrInfo = managerMapping.getManagerInfo(entry.getKey())
                                 .orElseThrow(() -> new IllegalStateException("Manager ID " +
                                         entry.getKey() + " not found despite being in the mappings earlier."));
-                        return createValMgrDto(entry.getKey(), mgrInfo, entry.getValue());
+                        return createValMgrDto(entry.getKey(), mgrInfo, apiDto.getEntityType(), entry.getValue());
                     })
                     .collect(Collectors.toList()));
 
@@ -785,11 +817,13 @@ public class SettingsMapper {
         @VisibleForTesting
         SettingsManagerApiDTO createValMgrDto(@Nonnull final String mgrId,
                                               @Nonnull final SettingsManagerInfo mgrInfo,
+                                              @Nonnull final String entityType,
                                               @Nonnull final Collection<Setting> settings) {
             final SettingsManagerApiDTO mgrApiDto = mgrInfo.newApiDTO(mgrId);
 
             mgrApiDto.setSettings(settings.stream()
-                    .map(SettingsMapper::toSettingApiDto)
+                    .map(setting -> mapper.toSettingApiDto(setting).getSettingForEntityType(entityType))
+                    .filter(Optional::isPresent).map(Optional::get)
                     .collect(Collectors.toList()));
             return mgrApiDto;
         }
@@ -801,22 +835,14 @@ public class SettingsMapper {
      * @param setting The {@link Setting} object representing the value of a particular setting.
      * @return The {@link SettingApiDTO} representing the value of the setting.
      */
-    public static SettingApiDTO toSettingApiDto(@Nonnull final Setting setting) {
-        SettingApiDTO apiDto = new SettingApiDTO();
-        apiDto.setUuid(setting.getSettingSpecName());
-        Optional<SettingSpec> spec = getSettingSpec(setting.getSettingSpecName());
-        Optional<SettingApiDTO> dto;
-
+    @Nonnull
+    public SettingApiDTOPossibilities toSettingApiDto(@Nonnull final Setting setting) {
         // UI needs both the setting and its setting spec to be set.
-        if (spec.isPresent()) {
-            dto = (new DefaultSettingSpecMapper()).settingSpecToApi(spec.get());
-            if (dto.isPresent()) {
-                apiDto = dto.get();
-            }
+        final Optional<SettingSpec> settingSpec = getSettingSpec(setting.getSettingSpecName());
+        if (!settingSpec.isPresent()) {
+            logger.warn("Could not find setting spec for setting {}", setting.getSettingSpecName());
         }
-
-        API_SETTING_VALUE_INJECTORS.get(setting.getValueCase()).setSettingValue(setting, apiDto);
-        return apiDto;
+        return settingSpecMapper.settingSpecToApi(settingSpec, Optional.of(setting));
     }
 
     /**
@@ -890,15 +916,29 @@ public class SettingsMapper {
         void setSettingValue(@Nonnull final Setting setting, @Nonnull final SettingApiDTO apiDTO);
     }
 
-
     /**
-     * The mapper from {@link SettingSpec} to {@link SettingApiDTO}, extracted as an interface
+     * The mapper from {@link SettingSpec} to {@link SettingApiDTO}s, extracted as an interface
      * for unit testing/mocking purposes.
      */
     @FunctionalInterface
     @VisibleForTesting
     interface SettingSpecMapper {
-        Optional<SettingApiDTO> settingSpecToApi(@Nonnull final SettingSpec settingSpec);
+        /**
+         * Convert a {@link SettingSpec} to all possible {@link SettingApiDTO}s that can be derived
+         * from that setting spec.
+         *
+         * @param settingSpec Optional {@link SettingSpec}. If not present, there will be no
+         *                    {@link SettingApiDTO}s in the response.
+         * @param setting Optional {@link Setting} containing an actual value for the setting. If
+         *                present, all {@link SettingApiDTO}s in the response will contain the value.
+         *                If not present, all {@link SettingApiDTO}s in the response will have no
+         *                value set (i.e. {@link SettingApiDTO#getValue()} will return null).
+         * @return The {@link SettingApiDTOPossibilities} describing the possible
+         *         {@link SettingApiDTO}s that can be derived from the input setting spec.
+         */
+        @Nonnull
+        SettingApiDTOPossibilities settingSpecToApi(@Nonnull final Optional<SettingSpec> settingSpec,
+                                                    @Nonnull final Optional<Setting> setting);
     }
 
     /**
@@ -908,89 +948,10 @@ public class SettingsMapper {
     static class DefaultSettingSpecMapper implements SettingSpecMapper {
 
         @Override
-        public Optional<SettingApiDTO> settingSpecToApi(@Nonnull final SettingSpec settingSpec) {
-            final SettingApiDTO apiDTO = new SettingApiDTO();
-            apiDTO.setUuid(settingSpec.getName());
-            apiDTO.setDisplayName(settingSpec.getDisplayName());
-
-            if (settingSpec.hasPath()) {
-                final List<String> categories = new LinkedList<>();
-                SettingCategoryPathNode pathNode = settingSpec.getPath().getRootPathNode();
-                categories.add(pathNode.getNodeName());
-                while (pathNode.hasChildNode()) {
-                    pathNode = pathNode.getChildNode();
-                    categories.add(pathNode.getNodeName());
-                }
-                apiDTO.setCategories(categories);
-            }
-
-            switch (settingSpec.getSettingTypeCase()) {
-                case ENTITY_SETTING_SPEC:
-                    final EntitySettingScope entityScope =
-                            settingSpec.getEntitySettingSpec().getEntitySettingScope();
-                    // We explicitly want the scope unset, because for API purposes LOCAL scope
-                    // settings are those that are ONLY applicable to groups. However, entity
-                    // setting specs also have globally editable defaults (which are considered
-                    // global), so we can't say they have LOCAL or GLOBAL scope.
-                    //
-                    // In the API, something that has both LOCAL and GLOBAL scope has a "null"
-                    // scope at the time of this writing (Oct 10 2017) :)
-                    if (settingSpec.getEntitySettingSpec().getAllowGlobalDefault()) {
-                        apiDTO.setScope(null);
-                    } else {
-                        apiDTO.setScope(SettingScope.LOCAL);
-                    }
-
-                    // (Nov 2017) In XL, Setting Specs can support multiple entity types.
-                    // The SettingApiDTO only supports one type. Therefore, we set the entity type
-                    // to null, and rely on the caller (SettingsService) to set the entity type
-                    // based on the entity type the API/UI requested settings for.
-                    apiDTO.setEntityType(null);
-                    break;
-                case GLOBAL_SETTING_SPEC:
-                    apiDTO.setScope(SettingScope.GLOBAL);
-                    break;
-            }
-
-            switch (settingSpec.getSettingValueTypeCase()) {
-                case BOOLEAN_SETTING_VALUE_TYPE:
-                    apiDTO.setValueType(InputValueType.BOOLEAN);
-                    apiDTO.setDefaultValue(
-                            Boolean.toString(settingSpec.getBooleanSettingValueType().getDefault()));
-                    break;
-                case NUMERIC_SETTING_VALUE_TYPE:
-                    apiDTO.setValueType(InputValueType.NUMERIC);
-                    final NumericSettingValueType numericType = settingSpec.getNumericSettingValueType();
-                    apiDTO.setDefaultValue(Float.toString(numericType.getDefault()));
-                    if (numericType.hasMin()) {
-                        apiDTO.setMin((double) numericType.getMin());
-                    }
-                    if (numericType.hasMax()) {
-                        apiDTO.setMax((double) numericType.getMax());
-                    }
-                    break;
-                case STRING_SETTING_VALUE_TYPE:
-                    apiDTO.setValueType(InputValueType.STRING);
-                    final StringSettingValueType stringType = settingSpec.getStringSettingValueType();
-                    apiDTO.setDefaultValue(stringType.getDefault());
-                    break;
-                case ENUM_SETTING_VALUE_TYPE:
-                    // Enum is basically a string with predefined allowable values.
-                    apiDTO.setValueType(InputValueType.STRING);
-                    final EnumSettingValueType enumType = settingSpec.getEnumSettingValueType();
-                    apiDTO.setDefaultValue(enumType.getDefault());
-                    apiDTO.setOptions(enumType.getEnumValuesList().stream()
-                            .map(enumValue -> {
-                                final SettingOptionApiDTO enumOption = new SettingOptionApiDTO();
-                                enumOption.setLabel(enumValue);
-                                enumOption.setValue(enumValue);
-                                return enumOption;
-                            })
-                            .collect(Collectors.toList()));
-                    break;
-            }
-
-            return Optional.of(apiDTO);
+        @Nonnull
+        public SettingApiDTOPossibilities settingSpecToApi(@Nonnull final Optional<SettingSpec> settingSpec,
+                                                           @Nonnull final Optional<Setting> setting) {
+            return new SettingApiDTOPossibilities(settingSpec, setting);
         }
     }
 
@@ -1004,7 +965,7 @@ public class SettingsMapper {
         return (EntityType.VIRTUAL_MACHINE.getNumber() == entityType);
     }
 
-    private static Optional<SettingSpec> getSettingSpec(@Nonnull String settingSpecName) {
+    private static Optional<SettingSpec> getSettingSpec(@Nonnull final String settingSpecName) {
         Optional<EntitySettingSpecs> entitySpec =
             EntitySettingSpecs.getSettingByName(settingSpecName);
         if (entitySpec.isPresent()) {
@@ -1019,6 +980,231 @@ public class SettingsMapper {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * An object to represent the possible {@link SettingApiDTO}s associated with a single
+     * {@link SettingSpec}. The {@link SettingApiDTO}s may or may not have values, depending
+     * on whether a {@link Setting} is provided.
+     * <p>
+     * In XL, a single {@link SettingSpec} may apply to multiple entity types. However, a
+     * {@link SettingApiDTO} applies to just one entity type. There are circumstances where we need
+     * all the {@link SettingApiDTO}s that can be derived from a {@link SettingSpec}, and other
+     * circumstances where we only need the {@link SettingApiDTO} for a specific entity type.
+     * This object is meant to provide an easy way to pass all these possibilities around when
+     * mapping between XL and the API DTOs.
+     */
+    public static class SettingApiDTOPossibilities {
+
+        /**
+         * {@link SettingApiDTO}s arranged by entity type. This should be null if the provided
+         * {@link SettingSpec} was a global setting.
+         */
+        @Nullable
+        private final Map<String, SettingApiDTO> settingsByEntityType;
+
+        /**
+         * The {@link SettingApiDTO} associated with the global {@link SettingSpec}. This should
+         * be null if the provided {@link SettingSpec} was an entity setting.
+         */
+        @Nullable
+        private final SettingApiDTO globalSetting;
+
+        private SettingApiDTOPossibilities(@Nonnull final Optional<SettingSpec> settingSpec,
+                                   @Nonnull final Optional<Setting> settingValue) {
+            this.settingsByEntityType = settingSpec
+                    .map(spec -> makeEntitySettings(spec, settingValue)).orElse(null);
+            this.globalSetting = settingSpec
+                    .map(spec -> makeGlobalSetting(spec, settingValue)).orElse(null);
+
+            Preconditions.checkArgument(!(settingsByEntityType != null && globalSetting != null),
+                "A single setting spec cannot be mapped to both per-entity  and global " +
+                "settings. Spec: " + settingSpec.map(SettingSpec::toString).orElse("NONE"));
+        }
+
+        /**
+         * Get all possible {@link SettingApiDTO}s associated with the input {@link SettingSpec}.
+         *
+         * @return A collection of {@link SettingApiDTO}s. May be empty.
+         */
+        @Nonnull
+        public Collection<SettingApiDTO> getAll() {
+            if (globalSetting != null) {
+                return Collections.singletonList(globalSetting);
+            } else if (settingsByEntityType != null) {
+                return settingsByEntityType.values();
+            } else {
+                return Collections.emptyList();
+            }
+        }
+
+        /**
+         * Get the {@link SettingApiDTO} associated with the global setting represented by
+         * the input {@link SettingSpec}.
+         *
+         * @return An {@link Optional} containing the {@link SettingApiDTO}. An empty optional if
+         *         the input {@link SettingSpec} did not represent a global setting.
+         */
+        @Nonnull
+        public Optional<SettingApiDTO> getGlobalSetting() {
+            return Optional.ofNullable(globalSetting);
+        }
+
+        /**
+         * Get the {@link SettingApiDTO} associated with the entity setting for a particular entity
+         * type represented by the input {@link SettingSpec}.
+         *
+         * @param entityType The UI entity type (i.e. one of {@link UIEntityType}) to search for.
+         * @return An {@link Optional} containing the {@link SettingApiDTO}. An empty optional if
+         *         the input {@link SettingSpec} did not represent an entity setting, or if the
+         *         input {@link SettingSpec} does not apply to the specified entity type.
+         */
+        @Nonnull
+        public Optional<SettingApiDTO> getSettingForEntityType(@Nonnull final String entityType) {
+            if (settingsByEntityType != null) {
+                return Optional.ofNullable(settingsByEntityType.get(entityType));
+            } else if (globalSetting != null) {
+                return StringUtils.equals(globalSetting.getEntityType(), entityType) ?
+                        Optional.of(globalSetting) : Optional.empty();
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        @Nullable
+        private static SettingApiDTO makeGlobalSetting(
+                @Nonnull final SettingSpec settingSpec,
+                @Nonnull final Optional<Setting> settingValue) {
+            if (!settingSpec.hasGlobalSettingSpec()) {
+                return null;
+            }
+
+            final SettingApiDTO apiDto = new SettingApiDTO();
+            apiDto.setScope(SettingScope.GLOBAL);
+            apiDto.setEntityType(GLOBAL_SETTING_ENTITY_TYPES.get(settingSpec.getName()));
+            fillSkeleton(settingSpec, settingValue, apiDto);
+            return apiDto;
+        }
+
+        @Nullable
+        private static Map<String, SettingApiDTO> makeEntitySettings(
+                @Nonnull final SettingSpec settingSpec,
+                @Nonnull final Optional<Setting> settingValue) {
+            if (!settingSpec.hasEntitySettingSpec()) {
+                return null;
+            }
+
+            final Set<String> applicableTypes = new HashSet<>();
+            final EntitySettingScope scope =
+                    settingSpec.getEntitySettingSpec().getEntitySettingScope();
+            switch (scope.getScopeCase()) {
+                case ENTITY_TYPE_SET:
+                    scope.getEntityTypeSet().getEntityTypeList().forEach(entityType ->
+                            applicableTypes.add(ServiceEntityMapper.toUIEntityType(entityType)));
+                    break;
+                case ALL_ENTITY_TYPE:
+                    for (UIEntityType validType : UIEntityType.values()) {
+                        applicableTypes.add(validType.getValue());
+                    }
+                    break;
+                default:
+                    logger.error("Invalid entity scope {} for setting spec {}.",
+                            scope.getScopeCase(), settingSpec);
+                    return null;
+            }
+
+            return applicableTypes.stream()
+                    .map(entityType -> {
+                        final SettingApiDTO apiDto = new SettingApiDTO();
+                        if (settingSpec.getEntitySettingSpec().getAllowGlobalDefault()) {
+                            // We explicitly want the scope unset, because for API purposes LOCAL scope
+                            // settings are those that are ONLY applicable to groups. However, entity
+                            // setting specs also have globally editable defaults (which are considered
+                            // global), so we can't say they have LOCAL or GLOBAL scope.
+                            //
+                            // In the API, something that has both LOCAL and GLOBAL scope has a "null"
+                            // scope at the time of this writing (Oct 10 2017) :)
+                            apiDto.setScope(null);
+                        } else {
+                            // If a global default is NOT allowed, then it's a pure local scope.
+                            apiDto.setScope(SettingScope.LOCAL);
+                        }
+
+                        apiDto.setEntityType(entityType);
+                        fillSkeleton(settingSpec, settingValue, apiDto);
+                        return apiDto;
+                    }).collect(Collectors.toMap(SettingApiDTO::getEntityType, Function.identity()));
+        }
+
+        /**
+         * A utility method to fill a {@link SettingApiDTO} with the various information
+         * contained in a {@link SettingSpec} and {@link Setting}. This handles all fields common
+         * to both global and entity settings.
+         *
+         * @param settingSpec The {@link SettingSpec} the {@link SettingApiDTO} is derived from.
+         * @param settingVal An {@link Optional} containing a {@link Setting} value. May be absent
+         *                   if we just want to provide a description of the setting.
+         * @param dtoSkeleton A {@link SettingApiDTO} that will be modified by this method.
+         */
+        private static void fillSkeleton(@Nonnull final SettingSpec settingSpec,
+                                         @Nonnull final Optional<Setting> settingVal,
+                                         @Nonnull final SettingApiDTO dtoSkeleton) {
+            dtoSkeleton.setUuid(settingSpec.getName());
+            dtoSkeleton.setDisplayName(settingSpec.getDisplayName());
+
+            if (settingSpec.hasPath()) {
+                final List<String> categories = new LinkedList<>();
+                SettingCategoryPathNode pathNode = settingSpec.getPath().getRootPathNode();
+                categories.add(pathNode.getNodeName());
+                while (pathNode.hasChildNode()) {
+                    pathNode = pathNode.getChildNode();
+                    categories.add(pathNode.getNodeName());
+                }
+                dtoSkeleton.setCategories(categories);
+            }
+
+            switch (settingSpec.getSettingValueTypeCase()) {
+                case BOOLEAN_SETTING_VALUE_TYPE:
+                    dtoSkeleton.setValueType(InputValueType.BOOLEAN);
+                    dtoSkeleton.setDefaultValue(
+                            Boolean.toString(settingSpec.getBooleanSettingValueType().getDefault()));
+                    break;
+                case NUMERIC_SETTING_VALUE_TYPE:
+                    dtoSkeleton.setValueType(InputValueType.NUMERIC);
+                    final NumericSettingValueType numericType = settingSpec.getNumericSettingValueType();
+                    dtoSkeleton.setDefaultValue(Float.toString(numericType.getDefault()));
+                    if (numericType.hasMin()) {
+                        dtoSkeleton.setMin((double) numericType.getMin());
+                    }
+                    if (numericType.hasMax()) {
+                        dtoSkeleton.setMax((double) numericType.getMax());
+                    }
+                    break;
+                case STRING_SETTING_VALUE_TYPE:
+                    dtoSkeleton.setValueType(InputValueType.STRING);
+                    final StringSettingValueType stringType = settingSpec.getStringSettingValueType();
+                    dtoSkeleton.setDefaultValue(stringType.getDefault());
+                    break;
+                case ENUM_SETTING_VALUE_TYPE:
+                    // Enum is basically a string with predefined allowable values.
+                    dtoSkeleton.setValueType(InputValueType.STRING);
+                    final EnumSettingValueType enumType = settingSpec.getEnumSettingValueType();
+                    dtoSkeleton.setDefaultValue(enumType.getDefault());
+                    dtoSkeleton.setOptions(enumType.getEnumValuesList().stream()
+                            .map(enumValue -> {
+                                final SettingOptionApiDTO enumOption = new SettingOptionApiDTO();
+                                enumOption.setLabel(enumValue);
+                                enumOption.setValue(enumValue);
+                                return enumOption;
+                            })
+                            .collect(Collectors.toList()));
+                    break;
+            }
+
+            settingVal.ifPresent(setting -> API_SETTING_VALUE_INJECTORS.get(setting.getValueCase())
+                    .setSettingValue(setting, dtoSkeleton));
+        }
+
     }
 }
 

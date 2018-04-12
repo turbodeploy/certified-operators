@@ -33,6 +33,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
@@ -613,7 +614,7 @@ public class ScenarioMapper {
         final List<SettingApiDTO> settingChanges = changes.stream()
                 .filter(ScenarioChange::hasSettingOverride)
                 .map(ScenarioChange::getSettingOverride)
-                .map(this::createApiSettingFromOverride)
+                .flatMap(override -> createApiSettingFromOverride(override).stream())
                 .collect(Collectors.toList());
 
         final List<PlanChanges> allPlanChanges = changes.stream()
@@ -662,14 +663,20 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private SettingApiDTO createApiSettingFromOverride(@Nonnull final SettingOverride settingOverride) {
-        final SettingApiDTO apiDTO =
-                SettingsMapper.toSettingApiDto(settingOverride.getSetting());
+    private Collection<SettingApiDTO> createApiSettingFromOverride(@Nonnull final SettingOverride settingOverride) {
+        final SettingApiDTOPossibilities possibilities =
+                settingsMapper.toSettingApiDto(settingOverride.getSetting());
+
         if (settingOverride.hasEntityType()) {
-            apiDTO.setEntityType(
-                    ServiceEntityMapper.toUIEntityType(settingOverride.getEntityType()));
+            final String entityType = ServiceEntityMapper.toUIEntityType(
+                    settingOverride.getEntityType());
+            return Collections.singletonList(possibilities.getSettingForEntityType(entityType)
+                .orElseThrow(() -> new IllegalStateException("Entity type " + entityType +
+                        " not supported by the setting " +
+                        settingOverride.getSetting().getSettingSpecName() + " being overriden.")));
+        } else {
+            return possibilities.getAll();
         }
-        return apiDTO;
     }
 
     @Nonnull

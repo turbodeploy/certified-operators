@@ -35,6 +35,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper.ScenarioChangeMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -318,22 +319,30 @@ public class ScenarioMapperTest {
     public void testSettingOverrideToApiDto() {
         final Scenario scenario = buildScenario(buildNumericSettingOverride("foo", 1.2f));
 
+        final SettingApiDTO apiDto = new SettingApiDTO();
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getAll()).thenReturn(Collections.singletonList(apiDto));
+        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
         // Pass-through plan settings conversion
         when(settingsManagerMapping.convertToPlanSetting(any()))
             .thenAnswer(invocation -> invocation.getArguments()[0]);
 
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
         final SettingApiDTO apiFoo = scenarioApiDTO.getConfigChanges().getAutomationSettingList().get(0);
-        assertSettingApiDTOHasSetting(apiFoo, "1.2", "foo");
+        assertEquals(apiFoo, apiDto);
 
         verify(settingsManagerMapping).convertToPlanSetting(any());
     }
 
     @Test
     public void testSettingOverrideToApiDtoWithPlanSetting() {
-        final Scenario scenario = buildScenario(buildNumericSettingOverride("foo", 1.2f));
+        final Scenario scenario = buildScenario(buildNumericSettingOverride("foo",1.2f));
 
         final SettingApiDTO convertedSetting = new SettingApiDTO();
+
+        final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
+        when(possibilities.getAll()).thenReturn(Collections.singletonList(new SettingApiDTO()));
+        when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
 
         // Plan settings conversion substitutes the setting.
         when(settingsManagerMapping.convertToPlanSetting(any()))
@@ -533,7 +542,7 @@ public class ScenarioMapperTest {
     }
 
     @Nonnull
-    private ScenarioChange buildNumericSettingOverride(@Nonnull String name, float value) {
+    private ScenarioChange buildNumericSettingOverride(String name, float value) {
         return ScenarioChange.newBuilder().setSettingOverride(
                 SettingOverride.newBuilder().setSetting(Setting.newBuilder()
                         .setSettingSpecName(name)
