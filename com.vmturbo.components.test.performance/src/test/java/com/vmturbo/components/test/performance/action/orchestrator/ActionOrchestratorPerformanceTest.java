@@ -8,12 +8,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -39,18 +37,19 @@ import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNoti
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetEntitiesInfoRequest;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
@@ -235,17 +234,18 @@ public class ActionOrchestratorPerformanceTest {
                              @Nonnull final FilteredActionRequest request,
                              @Nonnull final String type) throws Exception {
         final long startFetchVisible = System.currentTimeMillis();
-        Iterable<ActionOrchestratorAction> fetchedActions = () -> actionsService.getAllActions(request);
 
-        // The fetch is lazy - force evaluation and count them.
-        final AtomicInteger counter = new AtomicInteger(0);
-        StreamSupport.stream(fetchedActions.spliterator(), false)
-            .forEach(action -> counter.getAndIncrement());
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                // Set a high limit. The server may trim it down.
+                .setLimit(100000)
+                .build();
+        final FilteredActionResponse response = actionsService.getAllActions(request.toBuilder()
+                .setPaginationParams(paginationParameters)
+                .build());
+        final int counter = response.getActionsCount();
 
-        logger.info("Took {} retrieve {} {} actions.",
-            (System.currentTimeMillis() - startFetchVisible) / 1000.0f,
-            type,
-            counter.get());
+        logger.info("Took {} retrieve the first page of {} {} actions.",
+            (System.currentTimeMillis() - startFetchVisible) / 1000.0f, type, counter);
     }
 
     public void fetchSeverities(long actionPlanSize) throws Exception {

@@ -18,9 +18,10 @@ message OrderBy {
     // This should stay in sync with the Java implementation.
     // See: com.vmturbo.api.pagination.ActionOrderBy
     enum ActionOrderBy {
-        ACTION_DETAILS = 1;
+        ACTION_TYPE = 1;
         ACTION_SEVERITY = 2;
         ACTION_RISK_CATEGORY = 3;
+        ACTION_SAVINGS = 4;
     }
 
     // The ordering parameters for search requests.
@@ -65,6 +66,9 @@ message PaginationParameters {
     // 2) The limit is higher than the service's maximum limit.
     //
     // If not set, the service should provide a default limit.
+    //
+    // This must be a positive integer. If the provided limit is invalid, the service should
+    // return an INVALID_ARGUMENT status.
     optional int32 limit = 2;
 
     // The order in which to return the results.

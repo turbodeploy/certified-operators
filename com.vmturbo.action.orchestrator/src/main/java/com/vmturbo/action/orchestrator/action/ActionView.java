@@ -8,6 +8,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -110,6 +111,16 @@ public interface ActionView {
      * @return the status of the translation associated with this action.
      */
     TranslationStatus getTranslationStatus();
+
+    /**
+     * Get the action category associated with this action.
+     * This should return the same result as what's extracted from the recommendation's explanation,
+     * but all users of the action should use this call.
+     *
+     * @return the category with the action.
+     */
+    @Nonnull
+    ActionCategory getActionCategory();
 
     /**
      * Determine whether the action is executable.

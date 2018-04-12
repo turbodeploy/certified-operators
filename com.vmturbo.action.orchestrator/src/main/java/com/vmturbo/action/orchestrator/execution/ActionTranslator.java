@@ -220,7 +220,7 @@ public class ActionTranslator {
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
             .setExplanation(ExplanationComposer.composeExplanation(recommendationForDisplay.getExplanation()))
-            .setCategory(ActionCategoryExtractor.assignActionCategory(recommendationForDisplay.getExplanation()));
+            .setCategory(actionView.getActionCategory());
 
         actionView.getDecision()
             .ifPresent(specBuilder::setDecision);

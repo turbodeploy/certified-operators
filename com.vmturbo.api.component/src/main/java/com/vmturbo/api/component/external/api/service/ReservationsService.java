@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -27,6 +28,7 @@ import com.google.common.collect.Multimap;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -38,13 +40,18 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IReservationsService;
 import com.vmturbo.api.utils.ParamStrings;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
@@ -335,15 +342,27 @@ public class ReservationsService implements IReservationsService {
      */
     @VisibleForTesting
     List<PlacementInfo> getPlacementResults(final long planId, @Nonnull final Set<Integer> entityTypes) {
-        final Iterable<ActionOrchestratorAction> response = () ->
-                actionOrchestratorService.getAllActions(FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(planId)
-                        .build());
+        List<ActionOrchestratorAction> allPlanMoveActions = new ArrayList<>();
+        Optional<String> nextCursor = Optional.empty();
+        do {
+            final FilteredActionRequest.Builder requestBuilder = FilteredActionRequest.newBuilder()
+                    .setTopologyContextId(planId)
+                    .setFilter(ActionQueryFilter.newBuilder()
+                            .addTypes(ActionType.MOVE))
+                    .setPaginationParams(PaginationParameters.getDefaultInstance());
+            nextCursor.ifPresent(cursor -> requestBuilder.getPaginationParamsBuilder().setCursor(cursor));
+
+            final FilteredActionResponse response =
+                    actionOrchestratorService.getAllActions(requestBuilder.build());
+            allPlanMoveActions.addAll(response.getActionsList());
+            nextCursor = PaginationProtoUtil.getNextCursor(response.getPaginationResponse());
+        } while (nextCursor.isPresent());
+
         // Because some reservation instance could be unplaced, they are also movable, it needs to
         // filter out those instances' move action.
         final Set<Long> reservationEntityIds = getReservationReservedEntityIds();
         final Multimap<Long, Long> entityToProviders = ArrayListMultimap.create();
-        StreamSupport.stream(response.spliterator(), false)
+        allPlanMoveActions.stream()
                 .map(ActionOrchestratorAction::getActionSpec)
                 .map(ActionSpec::getRecommendation)
                 .map(Action::getInfo)

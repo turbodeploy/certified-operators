@@ -13,6 +13,10 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.validation.Errors;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -20,15 +24,12 @@ import com.google.common.collect.Sets;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.validation.Errors;
-
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
@@ -58,10 +59,11 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IGroupsService;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -240,17 +242,19 @@ public class GroupsService implements IGroupsService {
                         actionSpecMapper.createActionFilter(inputDto, getMemberIds(uuid));
 
         // Note this is a blocking call.
-        Iterable<ActionOrchestratorAction> actions = () -> actionOrchestratorRpc.getAllActions(
-            FilteredActionRequest.newBuilder()
-                .setTopologyContextId(realtimeTopologyContextId)
-                .setFilter(filter)
-                .build()
-        );
-        List<ActionSpec> specs = StreamSupport.stream(actions.spliterator(), false)
-            .map(ActionOrchestratorAction::getActionSpec)
-            .collect(Collectors.toList());
-        return paginationRequest.allResultsResponse(
-                actionSpecMapper.mapActionSpecsToActionApiDTOs(specs, realtimeTopologyContextId));
+        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
+                FilteredActionRequest.newBuilder()
+                        .setTopologyContextId(realtimeTopologyContextId)
+                        .setFilter(filter)
+                        .setPaginationParams(PaginationMapper.toProtoParams(paginationRequest))
+                        .build());
+        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
+            response.getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList()), realtimeTopologyContextId);
+        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor))
+                .orElseGet(() -> paginationRequest.finalPageResponse(results));
     }
 
     @Override

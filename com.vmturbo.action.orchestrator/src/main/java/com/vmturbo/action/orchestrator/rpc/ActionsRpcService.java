@@ -27,6 +27,8 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionTypeToActionTypeCaseConverter;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
@@ -58,6 +60,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.Builder;
@@ -75,6 +78,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 
 /**
  * Implements the RPC calls supported by the action orchestrator for retrieving and executing actions.
@@ -87,6 +91,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
     private final ActionTranslator actionTranslator;
 
+    private final ActionPaginatorFactory paginatorFactory;
+
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -97,10 +103,12 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     public ActionsRpcService(@Nonnull final ActionStorehouse actionStorehouse,
                              @Nonnull final ActionExecutor actionExecutor,
-                             @Nonnull final ActionTranslator actionTranslator) {
+                             @Nonnull final ActionTranslator actionTranslator,
+                             @Nonnull final ActionPaginatorFactory paginatorFactory) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.paginatorFactory = Objects.requireNonNull(paginatorFactory);
     }
 
     /**
@@ -183,26 +191,45 @@ public class ActionsRpcService extends ActionsServiceImplBase {
      */
     @Override
     public void getAllActions(FilteredActionRequest request,
-                              StreamObserver<ActionOrchestratorAction> responseObserver) {
-        if (request.hasTopologyContextId()) {
-            final Optional<ActionStore> store = actionStorehouse.getStore(request.getTopologyContextId());
-            if (store.isPresent()) {
-                Optional<ActionQueryFilter> filter = request.hasFilter() ?
-                    Optional.of(request.getFilter()) :
-                    Optional.empty();
-                final Stream<ActionView> actionViews = new QueryFilter(filter)
-                    .filteredActionViews(store.get());
+                              StreamObserver<FilteredActionResponse> responseObserver) {
+        try {
+            if (request.hasTopologyContextId()) {
+                final Optional<ActionStore> store = actionStorehouse.getStore(request.getTopologyContextId());
+                if (store.isPresent()) {
+                    Optional<ActionQueryFilter> filter = request.hasFilter() ?
+                            Optional.of(request.getFilter()) :
+                            Optional.empty();
+                    final Stream<ActionView> resultViews = new QueryFilter(filter)
+                            .filteredActionViews(store.get());
 
-                actionTranslator.translateToSpecs(actionViews)
-                    .forEach(actionSpec -> responseObserver.onNext(aoAction(actionSpec)));
-                responseObserver.onCompleted();
+                    final FilteredActionResponse.Builder responseBuilder =
+                            FilteredActionResponse.newBuilder()
+                                    .setPaginationResponse(PaginationResponse.newBuilder());
+
+                    final PaginatedActionViews paginatedViews = paginatorFactory.newPaginator()
+                            .applyPagination(resultViews, request.getPaginationParams());
+
+                    paginatedViews.getNextCursor().ifPresent(nextCursor ->
+                            responseBuilder.getPaginationResponseBuilder().setNextCursor(nextCursor));
+
+                    actionTranslator.translateToSpecs(paginatedViews.getResults().stream())
+                            .map(ActionsRpcService::aoAction)
+                            .forEach(responseBuilder::addActions);
+
+                    responseObserver.onNext(responseBuilder.build());
+                    responseObserver.onCompleted();
+                } else {
+                    contextNotFoundError(responseObserver, request.getTopologyContextId());
+                }
             } else {
-                contextNotFoundError(responseObserver, request.getTopologyContextId());
+                responseObserver.onError(Status.INVALID_ARGUMENT
+                        .withDescription("Missing required parameter topologyContextId.")
+                        .asException());
             }
-        } else {
+        } catch (IllegalArgumentException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Missing required parameter topologyContextId.")
-                .asException());
+                    .withDescription(e.getLocalizedMessage())
+                    .asException());
         }
     }
 

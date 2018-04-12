@@ -11,6 +11,7 @@ import org.mockito.Mockito;
 
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.action.ActionTypeToActionTypeCaseConverter;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetByProbeCategoryResolver;
@@ -34,7 +35,9 @@ public class ProbePrioritiesRpcTest {
     @Before
     public void setup() {
         actionsRpcService = new ActionsRpcService(Mockito.mock(ActionStorehouse.class),
-                Mockito.mock(ActionExecutor.class), Mockito.mock(ActionTranslator.class));
+                Mockito.mock(ActionExecutor.class),
+                Mockito.mock(ActionTranslator.class),
+                Mockito.mock(ActionPaginatorFactory.class));
     }
 
     /**

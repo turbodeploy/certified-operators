@@ -16,6 +16,8 @@ action-orchestrator:
     authRetryDelaySecs: 30
   grpcPingIntervalSeconds: 300
   websocket.pong.timeout: 30000
+  actionPaginationDefaultLimit: 100
+  actionPaginationMaxLimit: 500
   mariadbHealthCheckIntervalSeconds: 60
   repositoryHost: 'repository'
   entityTypeRetryIntervalMillis: 1000

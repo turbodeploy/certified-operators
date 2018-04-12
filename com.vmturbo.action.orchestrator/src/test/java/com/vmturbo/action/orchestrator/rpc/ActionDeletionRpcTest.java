@@ -11,6 +11,7 @@ import org.mockito.Mockito;
 
 import io.grpc.Status.Code;
 
+import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -32,11 +33,15 @@ public class ActionDeletionRpcTest {
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
+    private final ActionPaginatorFactory paginatorFactory = Mockito.mock(ActionPaginatorFactory.class);
 
     private final long topologyContextId = 3;
 
     private ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, Mockito.mock(ActionExecutor.class), Mockito.mock(ActionTranslator.class));
+            new ActionsRpcService(actionStorehouse,
+                    Mockito.mock(ActionExecutor.class),
+                    Mockito.mock(ActionTranslator.class),
+                    paginatorFactory);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

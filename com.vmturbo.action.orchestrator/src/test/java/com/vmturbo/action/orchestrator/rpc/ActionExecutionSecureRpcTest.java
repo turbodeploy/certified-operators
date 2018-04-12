@@ -30,6 +30,7 @@ import io.grpc.inprocess.InProcessServerBuilder;
 import com.vmturbo.action.orchestrator.ActionOrchestratorComponent;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
@@ -97,10 +98,11 @@ public class ActionExecutionSecureRpcTest {
             })));
     private final ActionSupportResolver filter = mock
             (ActionSupportResolver.class);
+    private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
     private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
+            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator, paginatorFactory);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;

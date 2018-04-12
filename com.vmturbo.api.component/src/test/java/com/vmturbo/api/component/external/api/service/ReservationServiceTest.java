@@ -25,16 +25,20 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -167,6 +171,9 @@ public class ReservationServiceTest {
         final long planId = 123L;
         final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
                 .setTopologyContextId(planId)
+                .setFilter(ActionQueryFilter.newBuilder()
+                        .addTypes(ActionType.MOVE))
+                .setPaginationParams(PaginationParameters.getDefaultInstance())
                 .build();
         final ActionOrchestratorAction placementMoveAction = ActionOrchestratorAction.newBuilder()
                         .setActionId(1L)
@@ -221,7 +228,10 @@ public class ReservationServiceTest {
                     .build())
                 .build();
         Mockito.when(actionsServiceMole.getAllActions(actionRequest))
-                .thenReturn(Lists.newArrayList(placementMoveAction, reservationMoveAction));
+            .thenReturn(FilteredActionResponse.newBuilder()
+                .addActions(placementMoveAction)
+                .addActions(reservationMoveAction)
+                .build());
         final GetReservationByStatusRequest reservationRequest = GetReservationByStatusRequest.newBuilder()
                 .setStatus(ReservationStatus.RESERVED)
                 .build();

@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -25,6 +24,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -49,10 +49,12 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IEntitiesService;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -149,19 +151,20 @@ public class EntitiesService implements IEntitiesService {
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
                                      inputDto, Optional.of(Collections.singletonList(entityId)));
 
-        Iterable<ActionOrchestratorAction> actions = () -> actionOrchestratorRpcService.getAllActions(
-            FilteredActionRequest.newBuilder()
-                .setTopologyContextId(realtimeTopologyContextId)
-                .setFilter(filter)
-                .build()
-        );
+        final FilteredActionResponse response = actionOrchestratorRpcService.getAllActions(
+                FilteredActionRequest.newBuilder()
+                        .setTopologyContextId(realtimeTopologyContextId)
+                        .setFilter(filter)
+                        .setPaginationParams(PaginationMapper.toProtoParams(paginationRequest))
+                        .build());
 
-        final Map<Long, ActionSpec> entityRelatedActionInfo = StreamSupport.stream(actions.spliterator(), false)
-            .collect(Collectors.toMap(ActionOrchestratorAction::getActionId, ActionOrchestratorAction::getActionSpec));
-
-        return paginationRequest.allResultsResponse(
-                actionSpecMapper.mapActionSpecsToActionApiDTOs(entityRelatedActionInfo.values(),
-                realtimeTopologyContextId));
+        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
+            response.getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList()), realtimeTopologyContextId);
+        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor))
+                .orElseGet(() -> paginationRequest.finalPageResponse(results));
     }
 
     @Override

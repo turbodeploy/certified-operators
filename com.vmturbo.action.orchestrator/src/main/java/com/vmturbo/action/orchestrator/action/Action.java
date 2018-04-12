@@ -28,6 +28,7 @@ import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
@@ -126,6 +127,17 @@ public class Action implements ActionView {
     private final ImmutableMap<ActionTypeCase, ActionMode> actionTypeSettingDefault;
 
     /**
+     * The category of the action, extracted from the explanation in the {@link ActionDTO.Action}
+     * and saved here for efficiency.
+     * <p>
+     * The category of an action is determined from explanations, which are affected by translation.
+     * However, the translation shouldn't affect the category (i.e. running an action through
+     * translation shouldn't change the purpose of doing the action), so we should be safe
+     * saving the {@link ActionCategory} regardless of the translation status.
+     */
+    private final ActionCategory actionCategory;
+
+    /**
      * Map of action type to target ID getter method.
      */
     private static final ImmutableMap<ActionTypeCase, Function<ActionInfo, Long>>
@@ -157,6 +169,7 @@ public class Action implements ActionView {
         this.entitySettings = null;
         this.actionTypeSettingFilter = loadSettingFilterMap(false);
         this.actionTypeSettingDefault = loadSettingDefaultMap(false);
+        this.actionCategory = savedState.actionCategory;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -172,6 +185,8 @@ public class Action implements ActionView {
         this.entitySettings = null;
         this.actionTypeSettingFilter = loadSettingFilterMap(false);
         this.actionTypeSettingDefault = loadSettingDefaultMap(false);
+        this.actionCategory = ActionCategoryExtractor.assignActionCategory(
+                recommendation.getExplanation());
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -188,6 +203,8 @@ public class Action implements ActionView {
         this.entitySettings = Objects.requireNonNull(entitySettings);
         this.actionTypeSettingFilter = loadSettingFilterMap(true);
         this.actionTypeSettingDefault = loadSettingDefaultMap(true);
+        this.actionCategory = ActionCategoryExtractor.assignActionCategory(
+                recommendation.getExplanation());
     }
 
     public Action(Action prototype, ActionDTO.Action.SupportLevel supportLevel) {
@@ -202,6 +219,7 @@ public class Action implements ActionView {
         this.actionTypeSettingFilter = loadSettingFilterMap(this.entitySettings != null);
         this.actionTypeSettingDefault = loadSettingDefaultMap(this.entitySettings != null);
         this.stateMachine = ActionStateMachine.newInstance(this, prototype.getState());
+        this.actionCategory = prototype.actionCategory;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -465,6 +483,17 @@ public class Action implements ActionView {
     }
 
     /**
+     * Get the {@link ActionCategory} associated with the action.
+     *
+     * @return The {@link ActionCategory}.
+     */
+    @Override
+    @Nonnull
+    public ActionCategory getActionCategory() {
+        return actionCategory;
+    }
+
+    /**
      * Get the translation of the action from the market's domain-agnostic representation into
      * the domain-specific real-world representaiton. See {@link ActionTranslation} for more details.
      *
@@ -718,6 +747,10 @@ public class Action implements ActionView {
             return currentState;
         }
 
+        public ActionCategory getActionCategory() {
+            return actionCategory;
+        }
+
         final LocalDateTime recommendationTime;
 
         final ActionDecision actionDecision;
@@ -728,6 +761,13 @@ public class Action implements ActionView {
 
         final ActionTranslation actionTranslation;
 
+        /**
+         * We don't really need to save the category because it can be extracted from the
+         * recommendation, but saving it anyway so that we know what got extracted - and
+         * so that we can restore properly even if the extraction code changes.
+         */
+        final ActionCategory actionCategory;
+
         public SerializationState(@Nonnull final Action action) {
             this.actionPlanId = action.actionPlanId;
             this.recommendation = action.recommendation;
@@ -736,6 +776,7 @@ public class Action implements ActionView {
             this.executionStep = action.executableStep.map(ExecutableStep::getExecutionStep).orElse(null);
             this.currentState = action.stateMachine.getState();
             this.actionTranslation = action.actionTranslation;
+            this.actionCategory = action.getActionCategory();
         }
 
         public SerializationState(final long actionPlanId,
@@ -752,6 +793,8 @@ public class Action implements ActionView {
             this.executionStep = executableStep;
             this.currentState = actionState;
             this.actionTranslation = actionTranslation;
+            this.actionCategory =
+                    ActionCategoryExtractor.assignActionCategory(recommendation.getExplanation());
         }
     }
 

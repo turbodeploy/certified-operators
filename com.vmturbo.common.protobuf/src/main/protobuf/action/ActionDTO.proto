@@ -668,6 +668,21 @@ message FilteredActionRequest {
     // A filter to be applied to the actions retrieved. If no filter is supplied
     // all actions are returned.
     optional ActionQueryFilter filter = 2;
+
+    // The pagination parameters for the request.
+    // If not set, the service will use the default sort order and limit.
+    optional common.PaginationParameters pagination_params = 3;
+}
+
+message FilteredActionResponse {
+    // The list of actions.
+    // The length of this list will not exceed the limit set in the request pagination
+    // parameters.
+    // The actions will be ordered according to the order in the request pagination parameters.
+    repeated ActionOrchestratorAction actions = 1;
+
+    // The response message containing pagination-related response parameters.
+    optional common.PaginationResponse pagination_response = 2;
 }
 
 // The response to an AcceptAction request.
@@ -821,7 +836,7 @@ service ActionsService {
     rpc GetAction(SingleActionRequest) returns (ActionOrchestratorAction);
 
     // Get information about all actions the Action Orchestrator knows about for an a given context.
-    rpc GetAllActions(FilteredActionRequest) returns (stream ActionOrchestratorAction);
+    rpc GetAllActions(FilteredActionRequest) returns (FilteredActionResponse);
 
     // Get information about multiple actions in a topology context.
     // If an ID present in the IDs in the MultiActionRequest

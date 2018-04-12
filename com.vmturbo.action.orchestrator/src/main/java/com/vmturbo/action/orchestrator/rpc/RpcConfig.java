@@ -3,11 +3,14 @@ package com.vmturbo.action.orchestrator.rpc;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
@@ -30,13 +33,27 @@ public class RpcConfig {
     @Autowired
     private ActionTranslator actionTranslator;
 
+    @Value("${actionPaginationDefaultLimit}")
+    private int actionPaginationDefaultLimit;
+
+    @Value("${actionPaginationMaxLimit}")
+    private int actionPaginationMaxLimit;
+
     @Bean
     public ActionsRpcService actionRpcService() {
         return new ActionsRpcService(
             actionStoreConfig.actionStorehouse(),
             actionExecutor,
-            actionTranslator
+            actionTranslator,
+            actionPaginatorFactory()
         );
+    }
+
+    @Bean
+    public ActionPaginatorFactory actionPaginatorFactory() {
+        return new DefaultActionPaginatorFactory(
+                actionPaginationDefaultLimit,
+                actionPaginationMaxLimit);
     }
 
     @Bean

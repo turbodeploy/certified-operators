@@ -3,10 +3,13 @@ package com.vmturbo.action.orchestrator.rpc;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
@@ -21,7 +24,6 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -35,6 +37,10 @@ import io.grpc.Status.Code;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionPaginator;
+import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.action.ActionPaginator.DefaultActionPaginatorFactory;
+import com.vmturbo.action.orchestrator.action.ActionPaginator.PaginatedActionViews;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
@@ -49,15 +55,17 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
-import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -75,11 +83,15 @@ public class ActionQueryRpcTest {
             return action;
         }));
 
+    private final ActionPaginatorFactory paginatorFactory =
+            Mockito.spy(new DefaultActionPaginatorFactory(1000, 1000));
+
     private final long actionPlanId = 2;
     private final long topologyContextId = 3;
 
-    private ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, Mockito.mock(ActionExecutor.class), actionTranslator);
+    private ActionsRpcService actionsRpcService = new ActionsRpcService(
+            actionStorehouse, Mockito.mock(ActionExecutor.class),
+            actionTranslator, paginatorFactory);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -174,8 +186,74 @@ public class ActionQueryRpcTest {
             .setTopologyContextId(topologyContextId)
             .build();
 
-        List<ActionSpec> actionSpecs = fetchSpecList(() -> actionOrchestratorServiceClient.getAllActions(actionRequest));
+        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
+                .getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList());
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
+    }
+
+    @Test
+    public void testGetAllActionsPaginationParamsSetWithCursor() {
+        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                visibleAction.getId(), visibleAction);
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                .setLimit(10)
+                .build();
+
+        final PaginatedActionViews paginatedViews = Mockito.mock(PaginatedActionViews.class);
+        when(paginatedViews.getResults()).thenReturn(Collections.singletonList(visibleAction));
+        final String cursor = "THECURSOR";
+        when(paginatedViews.getNextCursor()).thenReturn(Optional.of(cursor));
+
+        final ActionPaginator mockPaginator = Mockito.mock(ActionPaginator.class);
+        when(mockPaginator.applyPagination(any(), eq(paginationParameters))).thenReturn(paginatedViews);
+
+        when(paginatorFactory.newPaginator()).thenReturn(mockPaginator);
+
+        FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .setPaginationParams(paginationParameters)
+                .build();
+
+        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest);
+        assertTrue(response.hasPaginationResponse());
+        assertThat(response.getPaginationResponse().getNextCursor(), is(cursor));
+    }
+
+    @Test
+    public void testGetAllActionsPaginationParamsSetNoCursor() {
+        final ActionView visibleAction = ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId);
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                visibleAction.getId(), visibleAction);
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                .setLimit(10)
+                .build();
+
+        final PaginatedActionViews paginatedViews = Mockito.mock(PaginatedActionViews.class);
+        when(paginatedViews.getResults()).thenReturn(Collections.singletonList(visibleAction));
+        when(paginatedViews.getNextCursor()).thenReturn(Optional.empty());
+
+        final ActionPaginator mockPaginator = Mockito.mock(ActionPaginator.class);
+        when(mockPaginator.applyPagination(any(), eq(paginationParameters))).thenReturn(paginatedViews);
+
+        when(paginatorFactory.newPaginator()).thenReturn(mockPaginator);
+
+        FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .setPaginationParams(paginationParameters)
+                .build();
+
+        final FilteredActionResponse response = actionOrchestratorServiceClient.getAllActions(actionRequest);
+        assertTrue(response.hasPaginationResponse());
+        assertFalse(response.getPaginationResponse().hasNextCursor());
     }
 
     @Test
@@ -194,10 +272,14 @@ public class ActionQueryRpcTest {
             .setFilter(ActionQueryFilter.newBuilder().setVisible(true))
             .build();
 
-        List<ActionSpec> actionSpecs = fetchSpecList(() -> actionOrchestratorServiceClient.getAllActions(actionRequest));
+        final FilteredActionResponse response =
+                actionOrchestratorServiceClient.getAllActions(actionRequest);
+        final List<ActionSpec> resultSpecs = response.getActionsList().stream()
+            .map(ActionOrchestratorAction::getActionSpec)
+            .collect(Collectors.toList());
 
-        assertThat(actionSpecs, contains(spec(visibleAction)));
-        assertThat(actionSpecs, not(contains(spec(disabledAction))));
+        assertThat(resultSpecs, contains(spec(visibleAction)));
+        assertThat(resultSpecs, not(contains(spec(disabledAction))));
     }
 
     // All plan actions should be visible.
@@ -212,12 +294,15 @@ public class ActionQueryRpcTest {
         when(actionStore.getActionViews()).thenReturn(actionViews);
         when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
 
-        FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
+        final FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
             .setTopologyContextId(topologyContextId)
             .setFilter(ActionQueryFilter.newBuilder().setVisible(true))
             .build();
 
-        List<ActionSpec> actionSpecs = fetchSpecList(() -> actionOrchestratorServiceClient.getAllActions(actionRequest));
+        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
+                .getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList());
 
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
     }
@@ -232,7 +317,7 @@ public class ActionQueryRpcTest {
 
         // Because getAllActions returns a lazily-evaluated stream, we have to force the evaluation somehow
         // to get the desired exception.
-        fetchSpecList(() -> actionOrchestratorServiceClient.getAllActions(actionRequest));
+        actionOrchestratorServiceClient.getAllActions(actionRequest);
     }
 
     @Test
@@ -247,7 +332,7 @@ public class ActionQueryRpcTest {
 
         // Because getAllActions returns a lazily-evaluated stream, we have to force the evaluation somehow
         // to get the desired exception.
-        fetchSpecList(() -> actionOrchestratorServiceClient.getAllActions(actionRequest));
+        actionOrchestratorServiceClient.getAllActions(actionRequest);
     }
 
     @Test
@@ -395,7 +480,7 @@ public class ActionQueryRpcTest {
         final ActionStore store = Mockito.mock(ActionStore.class);
         when(store.getActionViews()).thenReturn(actionViews);
 
-        when(actionStorehouse.getStore(Mockito.eq(topologyContextId)))
+        when(actionStorehouse.getStore(eq(topologyContextId)))
             .thenReturn(Optional.of(store));
 
         final GetActionCountsResponse response = actionOrchestratorServiceClient.getActionCounts(
@@ -431,7 +516,7 @@ public class ActionQueryRpcTest {
         when(store.getActionViews()).thenReturn(actionViews);
         when(store.getVisibilityPredicate()).thenReturn(spec -> true);
 
-        when(actionStorehouse.getStore(Mockito.eq(topologyContextId)))
+        when(actionStorehouse.getStore(eq(topologyContextId)))
                 .thenReturn(Optional.of(store));
 
         final GetActionCountsResponse response = actionOrchestratorServiceClient.getActionCounts(
@@ -454,7 +539,7 @@ public class ActionQueryRpcTest {
 
     @Test
     public void testGetActionCountsContextNotFound() throws Exception {
-        when(actionStorehouse.getStore(Mockito.eq(topologyContextId)))
+        when(actionStorehouse.getStore(eq(topologyContextId)))
                 .thenReturn(Optional.empty());
 
         expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)

@@ -33,6 +33,7 @@ import com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -64,9 +65,11 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPagina
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
@@ -231,18 +234,22 @@ public class MarketsService implements IMarketsService {
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
-        ActionQueryFilter filter =
+        final ActionQueryFilter filter =
                 actionSpecMapper.createActionFilter(inputDto, Optional.empty());
-        final Iterable<ActionOrchestratorAction> result =
-                () -> actionRpcService.getAllActions(FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(apiId.oid())
-                        .setFilter(filter)
-                        .build());
-        return paginationRequest.allResultsResponse(actionSpecMapper.mapActionSpecsToActionApiDTOs(
-            StreamSupport.stream(result.spliterator(), false)
+        final FilteredActionResponse response = actionRpcService.getAllActions(
+            FilteredActionRequest.newBuilder()
+                .setTopologyContextId(apiId.oid())
+                .setFilter(filter)
+                .setPaginationParams(PaginationMapper.toProtoParams(paginationRequest))
+                .build());
+        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
+            response.getActionsList().stream()
                 .filter(ActionOrchestratorAction::hasActionSpec)
                 .map(ActionOrchestratorAction::getActionSpec)
-                .collect(Collectors.toList()), apiId.oid()));
+                .collect(Collectors.toList()), apiId.oid());
+        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor))
+                .orElseGet(() -> paginationRequest.finalPageResponse(results));
     }
 
     @Override

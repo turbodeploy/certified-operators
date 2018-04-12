@@ -26,6 +26,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
@@ -75,6 +76,7 @@ public class ActionExecutionRpcTest {
             action.getActionTranslation().setPassthroughTranslationSuccess();
             return action;
         })));
+    private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final ActionSupportResolver filter = mock(ActionSupportResolver.class);
 
@@ -85,7 +87,7 @@ public class ActionExecutionRpcTest {
     private static final long ACTION_ID = 9999;
 
     private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator);
+            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator, paginatorFactory);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
