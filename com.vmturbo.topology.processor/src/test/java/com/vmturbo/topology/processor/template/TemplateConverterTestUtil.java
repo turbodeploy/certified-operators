@@ -25,9 +25,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
+/**
+ * Utility functions for testing templates.
+ */
 public class TemplateConverterTestUtil {
 
-    public final static TemplateInfo VM_TEMPLATE_INFO = TemplateInfo.newBuilder()
+    private TemplateConverterTestUtil() {}
+
+    public static final TemplateInfo VM_TEMPLATE_INFO = TemplateInfo.newBuilder()
             .setName("test-VM-template")
             .setTemplateSpecId(123)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -69,7 +74,7 @@ public class TemplateConverterTestUtil {
                             .setValue("0.1")))
             .build();
 
-    public final static Set<CommoditySoldDTO> VM_COMMODITY_SOLD = Sets.newHashSet(
+    public static final Set<CommoditySoldDTO> VM_COMMODITY_SOLD = Sets.newHashSet(
             CommoditySoldDTO.newBuilder()
                     .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.APPLICATION_VALUE)
@@ -77,7 +82,8 @@ public class TemplateConverterTestUtil {
                     .setUsed(1)
                     .build()
     );
-    private final static List<CommodityBoughtDTO> VM_COMMODITY_BOUGHT_FROM_HOST = Lists.newArrayList(
+
+    private static final List<CommodityBoughtDTO> VM_COMMODITY_BOUGHT_FROM_HOST = Lists.newArrayList(
             CommodityBoughtDTO.newBuilder()
                     .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
@@ -103,7 +109,8 @@ public class TemplateConverterTestUtil {
                     .setUsed(1)
                     .build()
     );
-    private final static List<CommodityBoughtDTO> VM_COMMODITY_BOUGHT_FROM_STORAGE = Lists.newArrayList(
+
+    private static final List<CommodityBoughtDTO> VM_COMMODITY_BOUGHT_FROM_STORAGE = Lists.newArrayList(
             CommodityBoughtDTO.newBuilder()
                     .setCommodityType(TopologyDTO.CommodityType.newBuilder()
                             .setType(CommodityDTO.CommodityType.STORAGE_CLUSTER_VALUE)
@@ -123,21 +130,22 @@ public class TemplateConverterTestUtil {
                     .setUsed(1)
                     .build()
     );
-    private final static CommoditiesBoughtFromProvider commodityBoughtFromProviderHost =
+
+    private static final CommoditiesBoughtFromProvider commodityBoughtFromProviderHost =
             CommoditiesBoughtFromProvider.newBuilder()
                     .addAllCommodityBought(VM_COMMODITY_BOUGHT_FROM_HOST)
                     .setProviderId(123)
                     .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .build();
 
-    private final static CommoditiesBoughtFromProvider commodityBoughtFromProviderStorage =
+    private static final CommoditiesBoughtFromProvider commodityBoughtFromProviderStorage =
             CommoditiesBoughtFromProvider.newBuilder()
                     .addAllCommodityBought(VM_COMMODITY_BOUGHT_FROM_STORAGE)
                     .setProviderId(456)
                     .setProviderEntityType(EntityType.STORAGE_VALUE)
                     .build();
 
-    public final static List<CommoditiesBoughtFromProvider> VM_COMMODITY_BOUGHT_FROM_PROVIDER =
+    public static final List<CommoditiesBoughtFromProvider> VM_COMMODITY_BOUGHT_FROM_PROVIDER =
             Stream.of(commodityBoughtFromProviderHost, commodityBoughtFromProviderStorage).collect(Collectors.toList());
 
     public static Optional<CommoditySoldDTO> getCommoditySold(@Nonnull final List<CommoditySoldDTO> commoditySoldDTOList,

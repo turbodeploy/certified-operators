@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 
 /**
@@ -14,6 +15,7 @@ import com.vmturbo.stitching.TopologyEntity;
  * And also it will try to keep all commodity constrains from the original topology entity.
  */
 public interface TopologyEntityConstructor {
+
     /**
      * Creating a TopologyEntityDTO from TemplateDTO.
      *
@@ -30,5 +32,5 @@ public interface TopologyEntityConstructor {
         @Nonnull final Template template,
         @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
         @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-        @Nullable final TopologyEntityDTO originalTopologyEntity);
+        @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity);
 }

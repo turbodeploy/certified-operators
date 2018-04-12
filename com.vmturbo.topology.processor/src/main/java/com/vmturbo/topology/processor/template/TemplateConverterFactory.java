@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -70,13 +71,13 @@ public class TemplateConverterFactory {
      */
     public Stream<TopologyEntityDTO.Builder> generateTopologyEntityFromTemplates(
             @Nonnull final Map<Long, Long> templateAdditions,
-            @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity,
+            @Nonnull Multimap<Long, Long> templateToReplacedEntity,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
         final Set<Long> templateIds = Sets.union(templateAdditions.keySet(), templateToReplacedEntity.keySet());
         final Stream<Template> templates = getTemplatesByIds(templateIds);
         return templates.flatMap(template -> {
             final long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
-            final Collection<TopologyEntityDTO> replacedEntities =
+            final Collection<Long> replacedEntities =
                     templateToReplacedEntity.get(template.getId());
             final Stream<TopologyEntityDTO.Builder> additionTemplates =
                     generateEntityByTemplateAddition(template, topology, additionCount, false);
@@ -152,16 +153,16 @@ public class TemplateConverterFactory {
     private Stream<TopologyEntityDTO.Builder> generateEntityByTemplateReplaced(
             @Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nonnull Collection<TopologyEntityDTO> replacedEntities) {
+            @Nonnull Collection<Long> replacedEntities) {
         return replacedEntities.stream()
-            .map(entity -> {
+            .map(entityOid -> {
                 final TopologyEntityDTO.Builder topologyEntityBuilder =
                     TemplatesConverterUtils.generateTopologyEntityBuilder(template);
                 topologyEntityBuilder
                     .setOid(identityProvider.generateTopologyId())
                     .setDisplayName(template.getTemplateInfo().getName() + " - Clone for replacement");
                 return generateTopologyEntityByType(template, topologyEntityBuilder, topology,
-                    entity, false);
+                    entityOid, false);
             });
     }
 
@@ -173,8 +174,8 @@ public class TemplateConverterFactory {
      * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
      *                 entities related to the entity being replaced may be updated to fix up relationships
      *                 to point to the new entity along with the old entity.
-     * @param originalTopologyEntity the original topology entity which this template want to keep its
-     *                               commodity constrains.
+     * @param originalTopologyEntityOid the oid of the original topology entity which this template want
+     *                  to keep its commodity constrains.
      * @param isReservation if true means generate reservation entity templates, if false means generate normal
      *                      entity from templates. The difference is for reservation entity, it will
      *                      only buy provision commodity.
@@ -184,8 +185,11 @@ public class TemplateConverterFactory {
             @Nonnull final Template template,
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTO originalTopologyEntity,
+            @Nullable final Long originalTopologyEntityOid,
             final boolean isReservation) {
+        final TopologyEntityDTOOrBuilder originalTopologyEntity = originalTopologyEntityOid == null
+                        ? null
+                        : topology.get(originalTopologyEntityOid).getEntityBuilder();
         final int templateEntityType = template.getTemplateInfo().getEntityType();
         final Map<Integer, TopologyEntityConstructor> converterMap =
                 isReservation ? reservationTemplateConvertMap : templateConverterMap;

@@ -2,8 +2,10 @@ package com.vmturbo.topology.processor.template;
 
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtKey;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtValue;
+import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySold;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySoldValue;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
@@ -33,10 +35,13 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 
+/**
+ * Unit tests for {@link StorageEntityConstructor}.
+ */
 public class StorageEntityConstructorTest {
     private double epsilon = 1e-5;
 
-    private final static TemplateInfo ST_TEMPLATE_INFO = TemplateInfo.newBuilder()
+    private static final TemplateInfo ST_TEMPLATE_INFO = TemplateInfo.newBuilder()
         .setName("test-st-template")
         .setTemplateSpecId(3)
         .setEntityType(EntityType.STORAGE_VALUE)
@@ -51,7 +56,7 @@ public class StorageEntityConstructorTest {
                 .setValue("200")))
         .build();
 
-    private final static Template ST_TEMPLATE = Template.newBuilder()
+    private static final Template ST_TEMPLATE = Template.newBuilder()
         .setId(123)
         .setTemplateInfo(ST_TEMPLATE_INFO)
         .build();
@@ -106,12 +111,16 @@ public class StorageEntityConstructorTest {
             new StorageEntityConstructor().createTopologyEntityFromTemplate(ST_TEMPLATE, builder,
                 topology, null);
 
-        assertEquals(2, topologyEntityDTO.getCommoditySoldListCount());
+        // 4 commodities sold: storage latency, provisioned, amount and access
+        assertEquals(4, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(200.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
             CommodityType.STORAGE_AMOUNT_VALUE), epsilon);
         assertEquals(100.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
             CommodityType.STORAGE_ACCESS_VALUE), epsilon);
+        // Verify that latency capacity is not set
+        assertFalse(getCommoditySold(topologyEntityDTO.getCommoditySoldListList(),
+            CommodityType.STORAGE_LATENCY_VALUE).get().hasCapacity());
         assertEquals(1.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
             CommodityType.EXTENT_VALUE), epsilon);
         assertTrue(topologyEntityDTO.getCommoditiesBoughtFromProviders(0).getMovable());
@@ -130,7 +139,9 @@ public class StorageEntityConstructorTest {
                     .addAllCommoditySoldList(stCommoditySold)
                     .addAllCommoditiesBoughtFromProviders(stCommodityBoughtFromProvider)
                     .build());
-        assertEquals(5, topologyEntityDTO.getCommoditySoldListCount());
+        // 7 commodities sold: storage latency, provisioned, amount and access
+        //     storage cluster commodity and two dspm access commodities
+        assertEquals(7, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(3, topologyEntityDTO.getCommoditySoldListList().stream()
             .filter(commoditySoldDTO ->
                 !commoditySoldDTO.getCommodityType().getKey().isEmpty())

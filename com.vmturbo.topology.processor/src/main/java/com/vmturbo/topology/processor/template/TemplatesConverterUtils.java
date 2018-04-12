@@ -33,13 +33,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.stitching.TopologyEntity;
-
 
 /**
  * A helper class used for create TopologyEntity from Templates.
  */
 public class TemplatesConverterUtils {
+
+    private TemplatesConverterUtils() {}
+
     // compute
     public static final String CPU_CONSUMED_FACTOR = "cpuConsumedFactor";
     public static final String CPU_SPEED = "cpuSpeed";
@@ -87,7 +90,7 @@ public class TemplatesConverterUtils {
      *         return a empty list.
      */
     public static List<CommoditiesBoughtFromProvider> getActiveCommoditiesWithKeysGroups(
-        @Nullable final TopologyEntityDTO entityDTO) {
+        @Nullable final TopologyEntityDTOOrBuilder entityDTO) {
         if (entityDTO == null) {
             return Collections.emptyList();
         }
@@ -127,7 +130,7 @@ public class TemplatesConverterUtils {
      * @return set of {@link CommoditySoldDTO}
      */
     public static Set<CommoditySoldDTO> getCommoditySoldConstraint(
-        @Nullable final TopologyEntityDTO entityDTO) {
+        @Nullable final TopologyEntityDTOOrBuilder entityDTO) {
         if (entityDTO == null) {
             return Collections.emptySet();
         }

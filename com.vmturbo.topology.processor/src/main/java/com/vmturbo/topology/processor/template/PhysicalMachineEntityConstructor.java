@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -34,6 +35,7 @@ import com.vmturbo.stitching.TopologyEntity;
  * And also it will try to keep all commodity constrains from the original topology entity.
  */
 public class PhysicalMachineEntityConstructor implements TopologyEntityConstructor {
+
     private static final String ZERO = "0";
 
     // Max 256 LUNS based on https://www.vmware.com/pdf/vsphere6/r60/vsphere-60-configuration-maximums.pdf
@@ -61,7 +63,7 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             @Nonnull final Template template,
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTO originalTopologyEntity) {
+            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
             originalTopologyEntity);
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
@@ -74,9 +76,9 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
         // to sell biclique commodities, so set shopTogether to false.
         topologyEntityBuilder.getAnalysisSettingsBuilder().setShopTogether(false);
 
-        final List<TemplateResource> InfraTemplateResources =
+        final List<TemplateResource> infraTemplateResources =
             TemplatesConverterUtils.getTemplateResources(template, Infrastructure);
-        addInfraCommodities(topologyEntityBuilder, InfraTemplateResources);
+        addInfraCommodities(topologyEntityBuilder, infraTemplateResources);
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
         if (originalTopologyEntity != null) {
             updateRelatedEntityAccesses(originalTopologyEntity.getOid(), topologyEntityBuilder.getOid(),

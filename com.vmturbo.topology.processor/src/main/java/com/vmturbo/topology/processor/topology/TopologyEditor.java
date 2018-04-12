@@ -52,8 +52,8 @@ import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 /**
  * The {@link TopologyEditor} is responsible for applying a set of changes (reflected
  * by {@link ScenarioChange} objects) to a topology.
- * <p>
- * Topology editing is an important phase of the plan lifecycle, since a key part of plans
+ *
+ * <p>Topology editing is an important phase of the plan lifecycle, since a key part of plans
  * is testing the addition/removal/replacement of entities.
  */
 public class TopologyEditor {
@@ -96,7 +96,7 @@ public class TopologyEditor {
         final Set<Long> entitiesToReplace = new HashSet<>();
         final Map<Long, Long> templateToAdd = new HashMap<>();
         // Map key is template id, and value is the replaced topologyEntity.
-        final Multimap<Long, TopologyEntityDTO> templateToReplacedEntity =
+        final Multimap<Long, Long> templateToReplacedEntity =
             ArrayListMultimap.create();
         final Map<Long, Group> groupIdToGroupMap = getGroups(changes);
         final TopologyGraph topologyGraph =
@@ -142,8 +142,7 @@ public class TopologyEditor {
                         throwEntityNotFoundException(id);
                     }
                     entitiesToReplace.add(id);
-                    templateToReplacedEntity.put(replace.getAddTemplateId(),
-                        topology.get(id).getEntityBuilder().build());
+                    templateToReplacedEntity.put(replace.getAddTemplateId(), id);
                 });
             // only change utilization when plan changes have utilization level message.
             } else if (change.hasPlanChanges() && change.getPlanChanges().hasUtilizationLevel()) {
@@ -383,15 +382,17 @@ public class TopologyEditor {
     }
 
     /**
-     * Add all addition or replaced topology entities which converted from templates
+     * Add all addition or replaced topology entities which converted from templates.
      *
      * @param templateAdditions a map which key is template id, value is the addition count.
      * @param templateToReplacedEntity a map which key is template id, value is a list of replaced entity.
      * @param topology The entities in the topology, arranged by ID.
+     *
+     * @return a stream of builders of entities created from the specified templates
      */
     private Stream<TopologyEntityDTO.Builder> addTemplateTopologyEntities(
         @Nonnull Map<Long, Long> templateAdditions,
-        @Nonnull Multimap<Long, TopologyEntityDTO> templateToReplacedEntity,
+        @Nonnull Multimap<Long, Long> templateToReplacedEntity,
         @Nonnull Map<Long, TopologyEntity.Builder> topology) {
         // Check if there are templates additions or replaced
         if (templateAdditions.isEmpty() && templateToReplacedEntity.isEmpty()) {

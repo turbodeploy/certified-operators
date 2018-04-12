@@ -19,6 +19,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesByIdsRequest;
@@ -28,12 +29,14 @@ import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 
+/**
+ * Unit tests for {@link TemplateConverterFactory}.
+ */
 public class TemplateConverterFactoryTest {
 
     private final TemplateServiceMole templateServiceMole = Mockito.spy(new TemplateServiceMole());
@@ -42,13 +45,13 @@ public class TemplateConverterFactoryTest {
 
     private TemplateConverterFactory templateConverterFactory;
 
-    private final Long TEMPLATE_ID = 123L;
+    private static final Long TEMPLATE_ID = 123L;
 
     private final Set<Integer> provisionCommodityType =
             ImmutableSet.of(CommodityType.CPU_PROVISIONED_VALUE, CommodityType.MEM_PROVISIONED_VALUE,
                     CommodityType.STORAGE_PROVISIONED_VALUE);
 
-    private final Map<Long, TopologyEntity.Builder> topology = Collections.emptyMap();
+    private Map<Long, TopologyEntity.Builder> topology = Maps.newHashMap();
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateServiceMole);
@@ -62,8 +65,8 @@ public class TemplateConverterFactoryTest {
     @Test
     public void testTemplateAddition() {
         final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 2L);
-        when(templateServiceMole.
-                getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
+        when(templateServiceMole
+               .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
                         .addTemplateIds(TEMPLATE_ID).build()))
                 .thenReturn(Lists.newArrayList(Template.newBuilder()
                         .setId(TEMPLATE_ID)
@@ -110,16 +113,20 @@ public class TemplateConverterFactoryTest {
                 .addAllCommoditiesBoughtFromProviders(
                         TemplateConverterTestUtil.VM_COMMODITY_BOUGHT_FROM_PROVIDER)
                 .build();
-        when(templateServiceMole.
-                getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
+        topology.put(originalTopologyEntityOne.getOid(),
+            TopologyEntity.newBuilder(originalTopologyEntityOne.toBuilder()));
+        topology.put(originalTopologyEntityTwo.getOid(),
+            TopologyEntity.newBuilder(originalTopologyEntityTwo.toBuilder()));
+        when(templateServiceMole
+                .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
                         .addTemplateIds(TEMPLATE_ID).build()))
                 .thenReturn(Lists.newArrayList(Template.newBuilder()
                         .setId(TEMPLATE_ID)
                         .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
                         .build()));
-        final Multimap<Long, TopologyEntityDTO> templateToReplacedEntity = ArrayListMultimap.create();
-        templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityOne);
-        templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityTwo);
+        final Multimap<Long, Long> templateToReplacedEntity = ArrayListMultimap.create();
+        templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityOne.getOid());
+        templateToReplacedEntity.put(TEMPLATE_ID, originalTopologyEntityTwo.getOid());
         final Stream<TopologyEntityDTO.Builder> topologyEntityForTemplates =
                 templateConverterFactory.generateTopologyEntityFromTemplates(Collections.emptyMap(),
                         templateToReplacedEntity, topology);
@@ -136,8 +143,8 @@ public class TemplateConverterFactoryTest {
     @Test
     public void testTemplateAdditionForReservation() {
         final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 3L);
-        when(templateServiceMole.
-                getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
+        when(templateServiceMole
+                .getTemplatesByIds(GetTemplatesByIdsRequest.newBuilder()
                         .addTemplateIds(TEMPLATE_ID).build()))
                 .thenReturn(Lists.newArrayList(Template.newBuilder()
                         .setId(TEMPLATE_ID)

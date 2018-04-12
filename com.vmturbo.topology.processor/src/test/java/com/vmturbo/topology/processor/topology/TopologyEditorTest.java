@@ -21,18 +21,18 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.hamcrest.Matchers;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
-
-import org.hamcrest.Matchers;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -74,7 +74,7 @@ public class TopologyEditorTest {
     private static final CommodityType LATENCY = CommodityType.newBuilder().setType(3).build();
     private static final CommodityType IOPS = CommodityType.newBuilder().setType(4).build();
 
-    private final static TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
+    private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
             .setOid(vmId)
             .setDisplayName("VM")
@@ -95,7 +95,7 @@ public class TopologyEditorTest {
                 .build())
     );
 
-    private final static TopologyEntity.Builder unplacedVm = TopologyEntityUtils.topologyEntityBuilder(
+    private static final TopologyEntity.Builder unplacedVm = TopologyEntityUtils.topologyEntityBuilder(
             TopologyEntityDTO.newBuilder()
                     .setOid(vmId)
                     .setDisplayName("UNPLACED-VM")
@@ -115,7 +115,7 @@ public class TopologyEditorTest {
                             .build())
     );
 
-    private final static TopologyEntity.Builder pm = TopologyEntityUtils.topologyEntityBuilder(
+    private static final TopologyEntity.Builder pm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
             .setOid(pmId)
             .setDisplayName("PM")
@@ -137,18 +137,18 @@ public class TopologyEditorTest {
                 .setAccesses(vmId).setUsed(USED).build())
     );
 
-    private static int NUM_CLONES = 5;
+    private static final int NUM_CLONES = 5;
 
-    private static long TEMPLATE_ID = 123;
+    private static final long TEMPLATE_ID = 123;
 
-    private final ScenarioChange ADD = ScenarioChange.newBuilder()
+    private static final ScenarioChange ADD = ScenarioChange.newBuilder()
                     .setTopologyAddition(TopologyAddition.newBuilder()
                         .setAdditionCount(NUM_CLONES)
                         .setEntityId(vmId)
                         .build())
                     .build();
 
-    private final ScenarioChange REPLACE = ScenarioChange.newBuilder()
+    private static final ScenarioChange REPLACE = ScenarioChange.newBuilder()
                     .setTopologyReplace(TopologyReplace.newBuilder()
                             .setAddTemplateId(TEMPLATE_ID)
                             .setRemoveEntityId(pmId))
@@ -352,11 +352,11 @@ public class TopologyEditorTest {
         Map<Long, TopologyEntity.Builder> topology = Stream.of(vm, pm, st)
                 .collect(Collectors.toMap(TopologyEntity.Builder::getOid, Function.identity()));
         List<ScenarioChange> changes = Lists.newArrayList(REPLACE);
-        final Multimap<Long, TopologyEntityDTO> templateToReplacedEntity = ArrayListMultimap.create();
-        templateToReplacedEntity.put(TEMPLATE_ID, pm.getEntityBuilder().build());
+        final Multimap<Long, Long> templateToReplacedEntity = ArrayListMultimap.create();
+        templateToReplacedEntity.put(TEMPLATE_ID, pm.getEntityBuilder().getOid());
         final Map<Long, Long> topologyAdditionEmpty = Collections.emptyMap();
-        when(templateConverterFactory.
-                generateTopologyEntityFromTemplates(eq(topologyAdditionEmpty),
+        when(templateConverterFactory
+                .generateTopologyEntityFromTemplates(eq(topologyAdditionEmpty),
                         eq(templateToReplacedEntity), eq(topology)))
                 .thenReturn(Stream.of(pm.getEntityBuilder().clone()
                     .setOid(1234L)

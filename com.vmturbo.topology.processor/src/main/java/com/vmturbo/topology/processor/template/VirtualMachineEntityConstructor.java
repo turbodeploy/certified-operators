@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -37,15 +38,15 @@ import com.vmturbo.stitching.TopologyEntity;
  * Create a TopologyEntityDTO from Virtual Machine Template. The new Topology Entity contains such as OID,
  * displayName, commodity sold, commodity bought, entity state, provider policy and consumer policy.
  * And also it will try to keep all commodity constrains from the original topology entity.
- * <p>
- * This class will also handle reservation virtual machine entity, the only difference between normal
+ *
+ * <p>This class will also handle reservation virtual machine entity, the only difference between normal
  * virtual machine with reservation virtual machine is that reservation virtual machine entity only
  * buy provision commodity, all other commodity boght value will be set to zero. It use isReservationEntity
  * field to represent it is a reservation virtual machine or not.
  */
 public class VirtualMachineEntityConstructor implements TopologyEntityConstructor {
-    private static final String ZERO = "0";
 
+    private static final String ZERO = "0";
     private static final String RDM = "RDM";
 
     // represent that whether the new created entity is reservation entity or not. If it is reservation
@@ -77,7 +78,7 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
             @Nonnull final Template template,
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTO originalTopologyEntity) {
+            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints =
                 sortAccessCommodityBought(getActiveCommoditiesWithKeysGroups(originalTopologyEntity));
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
@@ -149,7 +150,7 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
      * @param topologyEntityBuilder builder of TopologyEntityDTO.
      * @param fieldNameValueMap a Map which key is template field name and value is field value.
      */
-    private void addComputeCommoditiesBought (
+    private void addComputeCommoditiesBought(
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull Map<String, String> fieldNameValueMap) {
         final List<CommodityBoughtDTO> cpuCommodity =

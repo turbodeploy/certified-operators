@@ -6,6 +6,7 @@ import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.cr
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommoditySoldDTO;
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getActiveCommoditiesWithKeysGroups;
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
+import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.updateRelatedEntityAccesses;
 
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -28,10 +30,9 @@ import com.vmturbo.stitching.TopologyEntity;
  * Create a TopologyEntityDTO from Storage Template. The new Topology Entity contains such as OID, displayName,
  * commodity sold, commodity bought, entity state, provider policy and consumer policy.
  * And also it will try to keep all commodity constrains from the original topology entity.
- *
- * TODO: OM-33899: review commodities sold by storages and Accesses relationships. See also OM-33861
  */
 public class StorageEntityConstructor implements TopologyEntityConstructor {
+
     private static final String ZERO = "0";
 
     /**
@@ -47,11 +48,11 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
      * @return {@link TopologyEntityDTO}.
      */
     @Override
-    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate (
+    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template,
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTO originalTopologyEntity) {
+            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
             originalTopologyEntity);
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
@@ -59,7 +60,16 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
         final List<TemplateResource> storageTemplateResources =
             TemplatesConverterUtils.getTemplateResources(template, Storage);
         addStorageCommodities(topologyEntityBuilder, storageTemplateResources);
+
+        // shopRogether entities are not allowed to sell biclique commodities (why???), and storages need
+        // to sell biclique commodities, so set shopTogether to false.
+        topologyEntityBuilder.getAnalysisSettingsBuilder().setShopTogether(false);
+
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
+        if (originalTopologyEntity != null) {
+            updateRelatedEntityAccesses(originalTopologyEntity.getOid(), topologyEntityBuilder.getOid(),
+                commoditySoldConstraints, topology);
+        }
         return topologyEntityBuilder;
     }
 
@@ -103,18 +113,31 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
      */
     private static void addStorageCommoditiesSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
                                                   @Nonnull Map<String, String> fieldNameValueMap) {
-        final double disSize =
+        final double diskSize =
             Double.valueOf(fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_SIZE, ZERO));
-        final double disIops =
+        final double diskIops =
             Double.valueOf(fieldNameValueMap.getOrDefault(TemplatesConverterUtils.DISK_IOPS, ZERO));
 
         CommoditySoldDTO storageAmoutCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, disSize);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, diskSize);
         CommoditySoldDTO storageAccessCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, disIops);
+            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops);
+        // Since storage templates don't have a latency value, but VMs do buy a latency commodity,
+        // a sold commodity is added. Capacity is left unset - StorageLatencyPostStitchingOperation
+        // will set it to the default value from EntitySettingSpecs.LatencyCapacity.
+        CommoditySoldDTO storageLatencyCommodity =
+            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE);
+        // Because we don't have access to settings at this time, we can't calculate capacities for
+        // provisioned commodities. By leaving capacities unset, they will be set later in the
+        // topology pipeline when settings are avaialble by the
+        // OverprovisionCapacityPostStitchingOperation.
+        CommoditySoldDTO storageProvisionedCommodity =
+            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE);
 
         topologyEntityBuilder
             .addCommoditySoldList(storageAccessCommodity)
-            .addCommoditySoldList(storageAmoutCommodity);
+            .addCommoditySoldList(storageAmoutCommodity)
+            .addCommoditySoldList(storageLatencyCommodity)
+            .addCommoditySoldList(storageProvisionedCommodity);
     }
 }
