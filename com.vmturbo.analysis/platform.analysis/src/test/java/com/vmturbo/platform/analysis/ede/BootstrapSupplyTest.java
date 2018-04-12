@@ -112,10 +112,10 @@ public class BootstrapSupplyTest {
         ShoppingList sl1 = economy.addBasketBought(vm1, new Basket(TestUtils.CPU, TestUtils.MEM));
         //Buyer does not fit in seller
         sl1.setQuantity(sl1.getBasket().indexOf(TestUtils.CPU), 50);
-        assertFalse(BootstrapSupply.canBuyerFitInSeller(sl1, pm1));
+        assertFalse(BootstrapSupply.canBuyerFitInSeller(sl1, pm1, economy));
         //Buyer fits in seller
         sl1.setQuantity(sl1.getBasket().indexOf(TestUtils.CPU), 30);
-        assertTrue(BootstrapSupply.canBuyerFitInSeller(sl1, pm1));
+        assertTrue(BootstrapSupply.canBuyerFitInSeller(sl1, pm1, economy));
     }
 
     /**

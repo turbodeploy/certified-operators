@@ -151,7 +151,7 @@ public class BootstrapSupply {
                 List<Trader> sellers = mkt.getCliques().get(clique).stream()
                                 .filter(t -> mkt.getActiveSellersAvailableForPlacement().contains(t))
                                 .collect(Collectors.toList());
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, mkt);
+                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, mkt, economy);
                 if (sellerThatFits != null) {
                     provisionOrActivateTrader(sellerThatFits, mkt, allActions, economy);
                     CliqueMinimizer minimizerWithSupply = Placement
@@ -273,7 +273,7 @@ public class BootstrapSupply {
             // not all sl in movableSlByMarket needs additional supply, we should check by quote.
             // If quote is infinity, we need to cache it and add supply for it later.
             if (Double.isInfinite(minimizer.getBestQuote())) {
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market);
+                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy);
                 // provision by supply
                 if (sellerThatFits != null) {
                     // cache the sl that need ProvisionBySupply in slsThatNeedProvBySupply
@@ -476,7 +476,7 @@ public class BootstrapSupply {
             if (Double.isInfinite(minimizer.getBestQuote())) {
                 // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
                 // clone one of the sellers or reactivate an inactive seller that the VM can fit in
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market);
+                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy);
                 if (sellerThatFits != null) {
                     Trader provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
                             allActions, economy);
@@ -529,7 +529,7 @@ public class BootstrapSupply {
                         .filter(seller -> seller.getSettings().isCloneable()).count() == 0) {
             return actions;
         }
-        Trader sellerThatFits = findTraderThatFitsBuyer (shoppingList, activeSellers, market);
+        Trader sellerThatFits = findTraderThatFitsBuyer (shoppingList, activeSellers, market, economy);
         if (sellerThatFits != null) {
             // log shoppingLists that need ProvisionBySupply in slsThatNeedProvBySupply
             slsThatNeedProvBySupply.put(shoppingList, new Long(0));
@@ -589,21 +589,22 @@ public class BootstrapSupply {
      * @param buyerShoppingList is the {@Link shoppingList} of the buyer
      * @param candidateSellers is the list of candidate {@link Trader sellers} to examine
      * @param market is the {@link Market} in which we try finding the best provider to reactivate/clone
+     * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
      *
      * @return the any of the candidateSellers that can fit the buyer when cloned, or NULL if none
      * is big enough
      */
     private static Trader findTraderThatFitsBuyer(ShoppingList buyerShoppingList, List<Trader>
-                                                  candidateSellers, Market market) {
+                                                  candidateSellers, Market market, Economy economy) {
         for (Trader seller : market.getInactiveSellers()) {
-            if (canBuyerFitInSeller(buyerShoppingList, seller)) {
+            if (canBuyerFitInSeller(buyerShoppingList, seller, economy)) {
                 return seller;
             }
         }
         for (Trader seller : candidateSellers) {
             // pick the first candidate seller that can fit the demand
             if (seller.getSettings().isCloneable() && canBuyerFitInSeller(buyerShoppingList
-                            , seller)) {
+                            , seller, economy)) {
                 return seller;
             }
         }
@@ -616,10 +617,12 @@ public class BootstrapSupply {
      * @param buyerShoppingList is the {@Link shoppingList} of the buyer
      * @param modelSeller is the {@Link Trader} that we will be checking to see if there is enough
      *                    capacity for all the commodities listed in the modelBuyer
+     * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
      *
      * @return TRUE if the buyer fits in this modelSeller, FALSE otherwise
      */
-    public static boolean canBuyerFitInSeller (ShoppingList buyerShoppingList, Trader modelSeller){
+    public static boolean canBuyerFitInSeller (ShoppingList buyerShoppingList, Trader modelSeller,
+                    Economy economy){
 
         Basket basket = buyerShoppingList.getBasket();
         for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size()
@@ -632,29 +635,33 @@ public class BootstrapSupply {
                 soldIndex++;
             }
             CommoditySold commSold = modelSeller.getCommoditiesSold().get(soldIndex);
-            // eliminate the overhead from the effective capacity to make sure there is still
-            // enough resource for shopping list
-            double overHead = commSold.getQuantity();
-            double overHeadPeak = commSold.getPeakQuantity();
-            // Inactive trader usually have no customers so it will skip the loop
-            for (ShoppingList sl : modelSeller.getCustomers()) {
-                int index = sl.getBasket().indexOf(basketCommSpec);
-                if (index != -1) {
-                    overHead = overHead - sl.getQuantity(index);
-                    overHeadPeak = overHeadPeak - sl.getPeakQuantity(index);
+            double overHead = 0;
+            double overHeadPeak = 0;
+            if (economy.getCommsToAdjustOverhead().contains(basketCommSpec)) {
+                // eliminate the overhead from the effective capacity to make sure there is still
+                // enough resource for shopping list
+                overHead = commSold.getQuantity();
+                overHeadPeak = commSold.getPeakQuantity();
+                // Inactive trader usually have no customers so it will skip the loop
+                for (ShoppingList sl : modelSeller.getCustomers()) {
+                    int index = sl.getBasket().indexOf(basketCommSpec);
+                    if (index != -1) {
+                        overHead = overHead - sl.getQuantity(index);
+                        overHeadPeak = overHeadPeak - sl.getPeakQuantity(index);
+                    }
                 }
-            }
-            if (overHead < 0) {
-                logger.warn("Overhead is less than 0 for seller "
-                                + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
-                                + modelSeller.getBasketSold().get(soldIndex).getDebugInfoNeverUseInCode());
-                overHead = 0;
-            }
-            if (overHeadPeak < 0) {
-                logger.warn("OverheadPeak is less than 0 for seller "
-                                + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
-                                + modelSeller.getBasketSold().get(soldIndex).getDebugInfoNeverUseInCode());
-                overHeadPeak = 0;
+                if (overHead < 0) {
+                    logger.warn("overHead is less than 0 for seller "
+                                    + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
+                                    + modelSeller.getBasketSold().get(soldIndex).getDebugInfoNeverUseInCode());
+                    overHead = 0;
+                }
+                if (overHeadPeak < 0) {
+                    logger.debug("overHeadPeak is less than 0 for seller "
+                                    + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
+                                    + modelSeller.getBasketSold().get(soldIndex).getDebugInfoNeverUseInCode());
+                    overHeadPeak = 0;
+                }
             }
             if ((buyerShoppingList.getQuantities()[boughtIndex] > (commSold.getEffectiveCapacity() - overHead))
                             || (buyerShoppingList.getPeakQuantities()[boughtIndex] >
