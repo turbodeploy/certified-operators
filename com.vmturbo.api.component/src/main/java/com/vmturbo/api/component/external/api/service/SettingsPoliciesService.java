@@ -32,6 +32,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
@@ -142,16 +144,25 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                                                    SettingsPolicyApiDTO settingPolicy)
             throws Exception {
         final long id = Long.valueOf(uuid);
-        final SettingPolicyInfo policyInfo =
-                settingsMapper.convertEditedInputPolicy(id, settingPolicy);
-
-        final UpdateSettingPolicyResponse response;
+        final SettingPolicy editedPolicy;
         try {
-            response = settingPolicyService.updateSettingPolicy(
-                UpdateSettingPolicyRequest.newBuilder()
-                    .setId(id)
-                    .setNewInfo(policyInfo)
-                    .build());
+            if (setDefault) {
+                final ResetSettingPolicyResponse response =
+                        settingPolicyService.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
+                                .setSettingPolicyId(id)
+                                .build());
+                editedPolicy = response.getSettingPolicy();
+            } else {
+                final SettingPolicyInfo policyInfo =
+                        settingsMapper.convertEditedInputPolicy(id, settingPolicy);
+
+                final UpdateSettingPolicyResponse response = settingPolicyService.updateSettingPolicy(
+                        UpdateSettingPolicyRequest.newBuilder()
+                                .setId(id)
+                                .setNewInfo(policyInfo)
+                                .build());
+                editedPolicy = response.getSettingPolicy();
+            }
         } catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.ALREADY_EXISTS)) {
                 throw new OperationFailedException(e.getStatus().getDescription());
@@ -164,7 +175,7 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
             }
         }
 
-        return settingsMapper.convertSettingPolicy(response.getSettingPolicy());
+        return settingsMapper.convertSettingPolicy(editedPolicy);
     }
 
     @Override

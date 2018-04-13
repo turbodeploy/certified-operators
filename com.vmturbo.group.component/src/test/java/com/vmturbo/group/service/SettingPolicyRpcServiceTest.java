@@ -1,6 +1,7 @@
 package com.vmturbo.group.service;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -42,6 +43,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -171,6 +174,63 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains("foo"));
     }
 
+    @Test
+    public void testResetPolicy() throws Exception {
+        final SettingPolicy resetPolicy = SettingPolicy.newBuilder()
+                .setId(7L)
+                .build();
+        final StreamObserver<ResetSettingPolicyResponse> responseObserver =
+                (StreamObserver<ResetSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.resetSettingPolicy(7L)).thenReturn(resetPolicy);
+
+        service.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
+                .setSettingPolicyId(7)
+                .build(), responseObserver);
+        final ArgumentCaptor<ResetSettingPolicyResponse> responseCaptor =
+                ArgumentCaptor.forClass(ResetSettingPolicyResponse.class);
+        verify(responseObserver).onNext(responseCaptor.capture());
+        verify(responseObserver).onCompleted();
+
+        assertThat(resetPolicy, is(responseCaptor.getValue().getSettingPolicy()));
+    }
+
+    @Test
+    public void testResetPolicyNotFound() throws Exception {
+        final StreamObserver<ResetSettingPolicyResponse> responseObserver =
+                (StreamObserver<ResetSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.resetSettingPolicy(7L))
+            .thenThrow(new SettingPolicyNotFoundException(7L));
+
+        service.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
+                .setSettingPolicyId(7)
+                .build(), responseObserver);
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.NOT_FOUND)
+                .descriptionContains("7"));
+    }
+
+    @Test
+    public void testResetPolicyInvalid() throws Exception {
+        final StreamObserver<ResetSettingPolicyResponse> responseObserver =
+                (StreamObserver<ResetSettingPolicyResponse>)mock(StreamObserver.class);
+        when(settingStore.resetSettingPolicy(7L))
+                .thenThrow(new IllegalArgumentException("gesundheit"));
+
+        service.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
+                .setSettingPolicyId(7)
+                .build(), responseObserver);
+        final ArgumentCaptor<StatusException> exceptionCaptor =
+                ArgumentCaptor.forClass(StatusException.class);
+        verify(responseObserver).onError(exceptionCaptor.capture());
+
+        final StatusException exception = exceptionCaptor.getValue();
+        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
+                .descriptionContains("gesundheit"));
+    }
     @Test
     public void testUpdatePolicy() throws Exception {
         final SettingPolicy updatedPolicy = SettingPolicy.newBuilder()

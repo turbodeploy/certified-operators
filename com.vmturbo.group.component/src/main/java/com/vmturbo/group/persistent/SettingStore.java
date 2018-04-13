@@ -68,6 +68,8 @@ public class SettingStore implements Diagnosable {
      */
     private final DSLContext dslContext;
 
+    private final SettingSpecStore settingSpecStore;
+
     private final IdentityProvider identityProvider;
 
     private final SettingPolicyValidator settingPolicyValidator;
@@ -82,6 +84,7 @@ public class SettingStore implements Diagnosable {
     public SettingStore(@Nonnull final SettingSpecStore settingSpecStore,
             @Nonnull final DSLContext dslContext, @Nonnull final IdentityProvider identityProvider,
             @Nonnull final SettingPolicyValidator settingPolicyValidator) {
+        this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.identityProvider = Objects.requireNonNull(identityProvider);
 
@@ -275,18 +278,7 @@ public class SettingStore implements Diagnosable {
                         "discovered setting policy.");
                 }
 
-                record.setEntityType(newInfo.getEntityType());
-                record.setName(newInfo.getName());
-                record.setSettingPolicyData(newInfo);
-                record.setTargetId(newInfo.getTargetId());
-                final int modifiedRecords = record.update();
-                if (modifiedRecords == 0) {
-                    // This should never happen, because we overwrote fields in the record,
-                    // and update() should always execute an UPDATE statement if some fields
-                    // got overwritten.
-                    throw new IllegalStateException("Failed to update record.");
-                }
-                return toSettingPolicy(record);
+                return modifySettingPolicyRecord(record, newInfo);
             });
         } catch (DataAccessException e) {
             // Jooq will rethrow exceptions thrown in the transactionResult call
@@ -297,6 +289,103 @@ public class SettingStore implements Diagnosable {
                 throw (SettingPolicyNotFoundException)e.getCause();
             } else if (e.getCause() instanceof InvalidSettingPolicyException) {
                 throw (InvalidSettingPolicyException)e.getCause();
+            } else {
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * Modify a {@link SettingPolicyRecord} with a new {@link SettingPolicyInfo}. This should be
+     * done inside a transaction.
+     *
+     * Calling this method will actually update the record!
+     *
+     * @param record The {@link SettingPolicyRecord} to update. Calling this method will actually
+     *               update the record!
+     * @param newInfo The {@link SettingPolicyInfo} that the record should reflect.
+     * @return A {@link SettingProto.SettingPolicy} representing the updated record.
+     */
+    @Nonnull
+    private SettingProto.SettingPolicy modifySettingPolicyRecord(
+            @Nonnull final SettingPolicyRecord record,
+            @Nonnull final SettingPolicyInfo newInfo) {
+        record.setEntityType(newInfo.getEntityType());
+        record.setName(newInfo.getName());
+        record.setSettingPolicyData(newInfo);
+        record.setTargetId(newInfo.getTargetId());
+        final int modifiedRecords = record.update();
+        if (modifiedRecords == 0) {
+            // This should never happen, because we overwrote fields in the record,
+            // and update() should always execute an UPDATE statement if some fields
+            // got overwritten.
+            throw new IllegalStateException("Failed to update record.");
+        }
+        return toSettingPolicy(record);
+    }
+
+    /**
+     * Reset a default setting policy to the factory defaults.
+     *
+     * @param id The ID of the setting policy.
+     * @return The {@link SettingProto.SettingPolicy} representing the updated setting policy.
+     * @throws SettingPolicyNotFoundException If the setting policy does not exist.
+     * @throws IllegalArgumentException If the setting policy ID refers to an invalid policy (i.e.
+     *         a non-default policy).
+     */
+    public SettingProto.SettingPolicy resetSettingPolicy(final long id)
+            throws SettingPolicyNotFoundException, IllegalArgumentException {
+        try {
+            return dslContext.transactionResult(configuration -> {
+                final DSLContext context = DSL.using(configuration);
+
+                final SettingPolicyRecord record =
+                        context.fetchOne(SETTING_POLICY, SETTING_POLICY.ID.eq(id));
+                if (record == null) {
+                    throw new SettingPolicyNotFoundException(id);
+                }
+
+                final SettingProto.SettingPolicy.Type type =
+                        SettingPolicyTypeConverter.typeFromDb(record.getPolicyType());
+
+                if (!type.equals(Type.DEFAULT)) {
+                    throw new IllegalArgumentException("Cannot reset setting policy " + id +
+                            ". Type is " + type + ". Must be " + Type.DEFAULT);
+                }
+
+                final Map<Integer, SettingPolicyInfo> defaultSettingPolicies =
+                        DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(
+                                settingSpecStore.getAllSettingSpecs());
+                final SettingPolicyInfo newPolicyInfo =
+                        defaultSettingPolicies.get(record.getEntityType());
+                if (newPolicyInfo == null) {
+                    // As of right now (April 6 2018) this could happen if we remove all settings
+                    // for an entity type during a migration. In this case, don't update anything.
+                    logger.error("Attempting to reset a default setting policy {} failed because " +
+                        "there are no setting specs for entity type {} in the setting spec store.",
+                        id, record.getEntityType());
+                    return toSettingPolicy(record);
+                }
+
+                try {
+                    settingPolicyValidator.validateSettingPolicy(newPolicyInfo, type);
+                } catch (InvalidSettingPolicyException e) {
+                    // This shouldn't happen, because default setting policies created from the
+                    // setting specs should always be valid. Must be some programming error!
+                    throw new IllegalStateException("DefaultSettingPolicyCreator produced an " +
+                        "invalid setting policy for entity type " + record.getEntityType() +
+                        "! Error: " + e.getMessage());
+                }
+
+                return modifySettingPolicyRecord(record, newPolicyInfo);
+            });
+        } catch (DataAccessException e) {
+            // Jooq will rethrow exceptions thrown in the transactionResult call
+            // wrapped in a DataAccessException. Check to see if that's why the transaction failed.
+            if (e.getCause() instanceof SettingPolicyNotFoundException) {
+                throw (SettingPolicyNotFoundException) e.getCause();
+            } else if (e.getCause() instanceof IllegalArgumentException) {
+                throw (IllegalArgumentException) e.getCause();
             } else {
                 throw e;
             }

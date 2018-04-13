@@ -25,6 +25,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
@@ -119,6 +121,32 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     .withDescription(e.getMessage()).asException());
         } catch (SettingPolicyNotFoundException e) {
             responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getMessage()).asException());
+        }
+    }
+
+    @Override
+    public void resetSettingPolicy(ResetSettingPolicyRequest request,
+                                   StreamObserver<ResetSettingPolicyResponse> responseObserver) {
+        if (!request.hasSettingPolicyId()) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
+                    .withDescription("Update request must have ID and new setting policy info.")
+                    .asException());
+            return;
+        }
+
+        try {
+            final SettingPolicy policy =
+                    settingStore.resetSettingPolicy(request.getSettingPolicyId());
+            responseObserver.onNext(ResetSettingPolicyResponse.newBuilder()
+                    .setSettingPolicy(policy)
+                    .build());
+            responseObserver.onCompleted();
+        } catch (SettingPolicyNotFoundException e) {
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getMessage()).asException());
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage()).asException());
         }
     }

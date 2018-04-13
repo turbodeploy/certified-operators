@@ -641,6 +641,17 @@ message CreateSettingPolicyResponse {
     optional SettingPolicy setting_policy = 1;
 }
 
+message ResetSettingPolicyRequest {
+    // The ID of the setting policy to reset. This should be the ID of an existing DEFAULT setting
+    // policy.
+    optional int64 setting_policy_id = 1;
+}
+
+message ResetSettingPolicyResponse {
+    // The setting policy, after the reset.
+    optional SettingPolicy setting_policy = 1;
+}
+
 // The SettingPolicyService provides RPC's for CRUD-type operations related to SettingPolicy objects.
 service SettingPolicyService {
     // Create a setting policy
@@ -655,6 +666,14 @@ service SettingPolicyService {
     // If the edited setting policy is invalid, this will return an INVALID_ARGUMENT status.
     // If a setting policy of the same name already exists, this will return an ALREADY_EXIST status.
     rpc UpdateSettingPolicy(UpdateSettingPolicyRequest) returns (UpdateSettingPolicyResponse);
+
+    // Reset a default setting policy back to "factory" settings.
+    //
+    // Resetting a setting policy only makes sense for default setting policies.
+    //
+    // If the specified policy is not found, this will return a NOT_FOUND status.
+    // If the specified policy is not a default policy, this will return an INVALID_ARGUMENT status.
+    rpc ResetSettingPolicy(ResetSettingPolicyRequest) returns (ResetSettingPolicyResponse);
 
     // Delete an existing setting policy.
     //

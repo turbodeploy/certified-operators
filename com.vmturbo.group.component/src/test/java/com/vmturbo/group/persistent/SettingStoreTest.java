@@ -1,6 +1,8 @@
 package com.vmturbo.group.persistent;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -38,6 +40,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.ProtocolStringList;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
@@ -202,6 +205,36 @@ public class SettingStoreTest {
                 .build());
 
         settingStore.updateSettingPolicy(policy.getId(), updatedInfo);
+    }
+
+    @Test
+    public void testResetSettingPolicy() throws Exception {
+        final Map<Integer, SettingPolicyInfo> defaultSettingPolicies =
+            DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(
+                settingSpecStore.getAllSettingSpecs());
+        final SettingPolicyInfo vmSettingPolicy = defaultSettingPolicies.get(10);
+        final SettingProto.SettingPolicy settingPolicy = settingStore.createDefaultSettingPolicy(
+            vmSettingPolicy.toBuilder()
+                .setName("testName")
+                .build());
+
+        assertThat(settingPolicy, not(vmSettingPolicy));
+
+        final SettingProto.SettingPolicy postResetPolicy =
+                settingStore.resetSettingPolicy(settingPolicy.getId());
+        assertThat(postResetPolicy.getId(), is(settingPolicy.getId()));
+        assertThat(postResetPolicy.getInfo(), is(vmSettingPolicy));
+    }
+
+    @Test(expected = SettingPolicyNotFoundException.class)
+    public void testResetSettingPolicyNotFound() throws Exception {
+        settingStore.resetSettingPolicy(7L);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testResetNonDefaultSettingPolicy() throws Exception {
+        final SettingPolicy policy = settingStore.createUserSettingPolicy(info);
+        settingStore.resetSettingPolicy(policy.getId());
     }
 
     @Test

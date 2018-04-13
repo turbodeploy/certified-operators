@@ -143,7 +143,7 @@ public class DefaultSettingPolicyCreator implements Runnable {
      * entity type.
      */
     @Nonnull
-    private static Map<Integer, SettingPolicyInfo> defaultSettingPoliciesFromSpecs(
+    public static Map<Integer, SettingPolicyInfo> defaultSettingPoliciesFromSpecs(
             @Nonnull final Collection<SettingSpec> specs) {
         // Arrange the setting specs by entity type,
         // removing irrelevant ones.

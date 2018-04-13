@@ -36,6 +36,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -201,6 +203,26 @@ public class SettingPoliciesServiceTest {
 
         final SettingsPolicyApiDTO retDto =
                 settingsPoliciesService.editSettingsPolicy(Long.toString(id), false, inputPolicy);
+        assertEquals(retDto, RET_SP_DTO);
+    }
+
+    @Test
+    public void testUpdatePolicySetDefault() throws Exception {
+        final long id = 7;
+        when(settingsMapper.convertEditedInputPolicy(eq(id), eq(inputPolicy)))
+                .thenReturn(SCOPE_POLICY_INFO);
+        when(settingPolicyBackend.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
+                .setSettingPolicyId(id)
+                .build()))
+                .thenReturn(ResetSettingPolicyResponse.newBuilder()
+                        .setSettingPolicy(SCOPE_POLICY)
+                        .build());
+
+        when(settingsMapper.convertSettingPolicy(eq(SCOPE_POLICY)))
+                .thenReturn(RET_SP_DTO);
+        final SettingsPolicyApiDTO retDto =
+                settingsPoliciesService.editSettingsPolicy(Long.toString(id), true, inputPolicy);
+        verify(settingPolicyBackend).resetSettingPolicy(any());
         assertEquals(retDto, RET_SP_DTO);
     }
 
