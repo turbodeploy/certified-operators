@@ -172,7 +172,8 @@ public enum EntitySettingSpecs {
      */
     IOPSCapacity("iopsCapacity", "IOPS Capacity",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY),
+            EnumSet.of(EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                EntityType.STORAGE_CONTROLLER),
             new NumericSettingDataType(20f, 1000000, 5000,
                     Collections.singletonMap(EntityType.DISK_ARRAY, 10_000f)), true),
     /**

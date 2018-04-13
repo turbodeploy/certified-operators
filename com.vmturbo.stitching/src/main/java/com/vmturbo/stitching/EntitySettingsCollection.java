@@ -54,9 +54,7 @@ public class EntitySettingsCollection {
         }
 
         // Return the user setting if it exists, and if not, look up the default setting if it exists.
-        return settingsForEntity.getUserSettingsList().stream()
-            .filter(setting -> setting.getSettingSpecName().equals(settingName))
-            .findFirst()
+        return getEntityUserSetting(oid, settingName)
             .map(Optional::of)
             .orElseGet(() -> associatedDefaultSetting(settingsForEntity, settingName));
     }
@@ -100,5 +98,35 @@ public class EntitySettingsCollection {
             : defaultSettingPolicy.getInfo().getSettingsList().stream()
                 .filter(setting -> setting.getSettingSpecName().equals(settingName))
                 .findFirst();
+    }
+
+    /**
+     * Get a user setting for an entity.
+     *
+     * @param oid The object ID of the entity.
+     * @param settingName The {@link EntitySettingSpecs} describing the name of the setting to look up.
+     * @return The user setting with the given name, if there is one, for the entity with the given OID.
+     */
+    private Optional<Setting> getEntityUserSetting(final long oid, @Nonnull final String settingName) {
+        final EntitySettings settingsForEntity = settingsByEntity.get(oid);
+        if (settingsForEntity == null) {
+            return Optional.empty();
+        }
+
+        return settingsForEntity.getUserSettingsList().stream()
+            .filter(setting -> setting.getSettingSpecName().equals(settingName))
+            .findFirst();
+    }
+
+    /**
+     * Get a user setting for an entity.
+     *
+     * @param entity The {@link TopologyEntity} whose user setting should be looked up.
+     * @param setting The {@link EntitySettingSpecs} describing the name of the setting to look up.
+     * @return The user setting of the given type, if there is one, for the given entity with the given OID.
+     */
+    public Optional<Setting> getEntityUserSetting(@Nonnull final TopologyEntity entity,
+                                                  @Nonnull final EntitySettingSpecs setting) {
+        return getEntityUserSetting(entity.getOid(), setting.getSettingName());
     }
 }

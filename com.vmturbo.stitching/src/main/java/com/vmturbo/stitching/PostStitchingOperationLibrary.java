@@ -11,7 +11,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.IndependentStorageAccessPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageEntityAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.MemoryProvisionedPostStitchingOperation;
@@ -20,9 +20,7 @@ import com.vmturbo.stitching.poststitching.PropagateStorageAccessAndLatencyPostS
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.stitching.poststitching.SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation;
-import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.DiskArrayStorageAccessPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.LogicalPoolStorageAccessPostStitchingOperation;
-import com.vmturbo.stitching.poststitching.StorageAccessPostStitchingOperation.StorageControllerStorageAccessPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.StorageAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.DiskArrayLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.LogicalPoolLatencyPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.StorageControllerLatencyPostStitchingOperation;
@@ -77,10 +75,10 @@ public class PostStitchingOperationLibrary {
             new StorageEntityStorageProvisionedPostStitchingOperation(),
             new LogicalPoolStorageProvisionedPostStitchingOperation(),
             new PmMemoryAllocationPostStitchingOperation(),
-            new StorageControllerStorageAccessPostStitchingOperation(),
-            new DiskArrayStorageAccessPostStitchingOperation(),
-            new LogicalPoolStorageAccessPostStitchingOperation(),
-            new IndependentStorageAccessPostStitchingOperation(),
+            new StorageAccessCapacityPostStitchingOperation(EntityType.DISK_ARRAY),
+            new StorageAccessCapacityPostStitchingOperation(EntityType.LOGICAL_POOL),
+            new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER),
+            new StorageEntityAccessCapacityPostStitchingOperation(),
             new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig),
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation()
         );

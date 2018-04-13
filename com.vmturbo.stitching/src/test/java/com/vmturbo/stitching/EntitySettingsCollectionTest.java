@@ -117,4 +117,22 @@ public class EntitySettingsCollectionTest {
         assertFalse(settingsCollection.getEntitySetting(PARENT_ENTITY, EntitySettingSpecs.StorageAmountUtilization)
             .isPresent());
     }
+
+    @Test
+    public void testGetUserSetting() {
+        final EntitySettingsCollection settingsCollection =
+            new EntitySettingsCollection(defaultSettingPolicies, settingsByEntity);
+
+        final Setting moveSetting = settingsCollection
+            .getEntityUserSetting(PARENT_ENTITY, EntitySettingSpecs.Move)
+            .get();
+        assertEquals(MOVE_DISABLED_SETTING, moveSetting);
+    }
+
+    @Test
+    public void testGetUserSettingIgnoresDefault() {
+        final EntitySettingsCollection settingsCollection =
+            new EntitySettingsCollection(defaultSettingPolicies, noUserSettings);
+        assertFalse(settingsCollection.getEntityUserSetting(PARENT_ENTITY, EntitySettingSpecs.Move).isPresent());
+    }
 }

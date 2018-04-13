@@ -98,12 +98,12 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
                 if (probeStore.registerNewProbe(probeInfo, serverEndpoint)) {
                     newProbes.add(probeInfo);
                 }
+                logger.info("Transport has been registered");
             } catch (ProbeException e) {
                 logger.error("Probe " + probeInfo.getProbeType() + " from " + serverEndpoint
                                 + " failed to register", e);
             }
         }
-        logger.info("Transport has been registered");
         registerTransportHandlers(serverEndpoint);
     }
 
@@ -169,11 +169,7 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         return ImmutableSet.copyOf(probeStore.getProbes().values().stream()
                 .filter(probeInfo -> {
                     Optional<Long> probeId = probeStore.getProbeIdForType(probeInfo.getProbeType());
-                    if (probeId.isPresent()) {
-                        return probeStore.isProbeConnected(probeId.get());
-                    } else {
-                        return false;
-                    }
+                    return probeId.isPresent() && probeStore.isProbeConnected(probeId.get());
                 })
                 .collect(Collectors.toSet()));
     }
