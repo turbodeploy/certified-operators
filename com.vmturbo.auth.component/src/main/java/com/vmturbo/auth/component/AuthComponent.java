@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Import;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -102,12 +103,16 @@ public class AuthComponent extends BaseVmtComponent {
     @Override
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
+        // Monitor for server metrics with prometheus.
+        final MonitoringServerInterceptor monitoringInterceptor =
+            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+
         // gRPC JWT token interceptor
         final JwtServerInterceptor jwtInterceptor =
                 new JwtServerInterceptor(securityConfig.apiAuthKVStore());
         return Optional.of(builder
                 .addService(ServerInterceptors.intercept(widgetsetConfig.widgetsetRpcService(
-                        authRESTSecurityConfig.targetStore()), jwtInterceptor))
+                        authRESTSecurityConfig.targetStore()), jwtInterceptor, monitoringInterceptor))
                 .build());
     }
 

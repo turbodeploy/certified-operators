@@ -18,6 +18,8 @@ import org.springframework.context.annotation.Import;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -129,15 +131,20 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     @Override
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        return Optional.of(builder.addService(scenarioConfig.scenarioService())
-                .addService(planConfig.planService())
-                .addService(templatesConfig.templatesService())
-                .addService(templatesConfig.templateSpecService())
-                .addService(templatesConfig.discoveredTemplateDeploymentProfileService())
-                .addService(deploymentProfileConfig.deploymentProfileRpcService())
-                .addService(planProjectConfig.planProjectService())
-                .addService(reservationConfig.reservationRpcService())
-                .build());
+        // Monitor for server metrics with prometheus.
+        final MonitoringServerInterceptor monitoringInterceptor =
+            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+
+        return Optional.of(builder
+            .addService(ServerInterceptors.intercept(scenarioConfig.scenarioService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(planConfig.planService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(templatesConfig.templatesService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(templatesConfig.templateSpecService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(templatesConfig.discoveredTemplateDeploymentProfileService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(deploymentProfileConfig.deploymentProfileRpcService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(planProjectConfig.planProjectService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(reservationConfig.reservationRpcService(), monitoringInterceptor))
+            .build());
     }
 
     @Override

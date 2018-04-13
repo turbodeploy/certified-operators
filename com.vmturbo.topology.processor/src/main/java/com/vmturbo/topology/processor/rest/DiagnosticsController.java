@@ -25,12 +25,9 @@ import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler;
-import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetDeserializationException;
-import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * Controller for the REST interface for topology processor diags.

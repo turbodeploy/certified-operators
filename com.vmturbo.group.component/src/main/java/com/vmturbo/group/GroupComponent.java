@@ -19,6 +19,8 @@ import org.springframework.context.annotation.Import;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.DiscoveredGroupServiceController;
@@ -132,13 +134,17 @@ public class GroupComponent extends BaseVmtComponent {
     @Nonnull
     @Override
     protected Optional<Server> buildGrpcServer(@Nonnull ServerBuilder builder) {
+        // Monitor for server metrics with prometheus.
+        final MonitoringServerInterceptor monitoringInterceptor =
+            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+
         return Optional.of(builder
-                .addService(policyService())
-                .addService(groupService())
-                .addService(discoveredCollectionsRpcService())
-                .addService(settingConfig.settingService())
-                .addService(settingConfig.settingPolicyService())
-                .build());
+            .addService(ServerInterceptors.intercept(policyService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(groupService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(discoveredCollectionsRpcService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(settingConfig.settingService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(settingConfig.settingPolicyService(), monitoringInterceptor))
+            .build());
     }
 
     public static void main(String[] args) {

@@ -7,6 +7,8 @@ import javax.annotation.PostConstruct;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -73,7 +75,13 @@ public class ReportsComponent extends BaseVmtComponent {
     @Override
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        return Optional.of(builder.addService(reportingConfig.reportingService()).build());
+        // Monitor for server metrics with prometheus.
+        final MonitoringServerInterceptor monitoringInterceptor =
+            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+
+        return Optional.of(builder
+            .addService(ServerInterceptors.intercept(reportingConfig.reportingService(), monitoringInterceptor))
+            .build());
     }
 
     @Bean

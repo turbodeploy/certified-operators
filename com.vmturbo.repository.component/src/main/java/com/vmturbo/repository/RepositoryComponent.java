@@ -35,8 +35,10 @@ import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
@@ -456,10 +458,14 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
         try {
+            // Monitor for server metrics with prometheus.
+            final MonitoringServerInterceptor monitoringInterceptor =
+                MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+
             return Optional.of(builder
-                .addService(repositoryRpcService())
-                .addService(searchService())
-                .addService(supplyChainRpcService())
+                .addService(ServerInterceptors.intercept(repositoryRpcService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(searchService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(supplyChainRpcService(), monitoringInterceptor))
                 .build());
         } catch (InterruptedException | CommunicationException
                 | URISyntaxException | GraphDatabaseException e) {

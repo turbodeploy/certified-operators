@@ -26,6 +26,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import io.prometheus.client.CollectorRegistry;
+
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
@@ -77,6 +79,8 @@ public class GroupDiagnosticsHandlerTest {
             eq(policyLines), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE),
             eq(settingLines), eq(zos));
+        verify(diagnosticsWriter).writePrometheusMetrics(any(CollectorRegistry.class),
+            eq(zos));
         verify(diagnosticsWriter, times(0)).writeZipEntry(
             eq(GroupDiagnosticsHandler.ERRORS_FILE), anyList(), any());
     }

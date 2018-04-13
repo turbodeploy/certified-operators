@@ -23,6 +23,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import io.prometheus.client.CollectorRegistry;
+
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.components.common.DiagnosticsWriter;
@@ -175,6 +177,8 @@ public class RepositoryDiagnosticsHandler {
         } catch (DiagnosticsException e) {
             errors.addAll(e.getErrors());
         }
+
+        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
 
         if (!errors.isEmpty()) {
             diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);

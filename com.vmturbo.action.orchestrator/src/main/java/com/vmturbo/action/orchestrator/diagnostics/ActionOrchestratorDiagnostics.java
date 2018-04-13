@@ -22,6 +22,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
+import io.prometheus.client.CollectorRegistry;
+
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.store.ActionStore;
@@ -75,6 +77,8 @@ public class ActionOrchestratorDiagnostics {
         diagnosticsWriter.writeZipEntry(SERIALIZED_FILE_NAME,
                 Collections.singletonList(GSON.toJson(storehouseData)),
                 zipOutputStream);
+
+        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, zipOutputStream);
     }
 
     public void restore(@Nonnull final ZipInputStream zipInputStream)

@@ -11,6 +11,8 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableBiMap;
 
+import io.prometheus.client.CollectorRegistry;
+
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
@@ -80,6 +82,8 @@ public class PlanOrchestratorDiagnosticsHandler {
         filenameToDiagnosableMap.forEach((filename, diagnosable) ->
             errors.addAll(writeDiags(filename, diagnosable, diagnosticZip))
         );
+
+        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
 
         if (!errors.isEmpty()) {
             diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);

@@ -18,6 +18,8 @@ import org.springframework.context.annotation.Import;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -122,8 +124,8 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     private void setup() {
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(
-                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                        dbConfig.dataSource()::getConnection));
+            new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.kafkaProducerHealthMonitor());
     }
 
@@ -140,14 +142,19 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @Override
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
-        return Optional.of(builder.addService(analysisConfig.analysisService())
-            .addService(actionsConfig.actionExecutionService())
-            .addService(schedulerConfig.scheduleRpcService())
-            .addService(entityConfig.entityInfoRpcService())
-            .addService(topologyProcessorRpcConfig.topologyRpcService())
-            .addService(identityProviderConfig.identityRpcService())
-            .addService(topologyProcessorRpcConfig.discoveredGroupRpcService())
-            .addService(probeConfig.probeActionPoliciesService())
+        // Monitor for server metrics with prometheus.
+        final MonitoringServerInterceptor monitoringInterceptor =
+            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+
+        return Optional.of(builder
+            .addService(ServerInterceptors.intercept(analysisConfig.analysisService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(actionsConfig.actionExecutionService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(schedulerConfig.scheduleRpcService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(entityConfig.entityInfoRpcService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.topologyRpcService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(identityProviderConfig.identityRpcService()))
+            .addService(ServerInterceptors.intercept(topologyProcessorRpcConfig.discoveredGroupRpcService()))
+            .addService(ServerInterceptors.intercept(probeConfig.probeActionPoliciesService()))
             .build());
     }
 
@@ -156,7 +163,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
         fetchConfigurationProperties();
         // instantiate and run this component
         new SpringApplicationBuilder()
-                .sources(TopologyProcessorComponent.class)
-                .run(args);
+            .sources(TopologyProcessorComponent.class)
+            .run(args);
     }
 }

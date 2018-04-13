@@ -269,6 +269,11 @@
             <groupId>io.prometheus</groupId>
             <artifactId>simpleclient_hotspot</artifactId>
         </dependency>
+        <dependency>
+            <!-- Permit easy instrumentation of gRPC with Prometheus -->
+            <groupId>me.dinowernli</groupId>
+            <artifactId>java-grpc-prometheus</artifactId>
+        </dependency>
         <!-- END Prometheus dependencies, for component metrics -->
     </dependencies>
 </project>

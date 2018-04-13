@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import io.prometheus.client.CollectorRegistry;
+
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
@@ -106,6 +108,8 @@ public class GroupDiagnosticsHandler {
         } catch (DiagnosticsException e) {
             errors.addAll(e.getErrors());
         }
+
+        diagnosticsWriter.writePrometheusMetrics(CollectorRegistry.defaultRegistry, diagnosticZip);
 
         if (!errors.isEmpty()) {
             diagnosticsWriter.writeZipEntry(ERRORS_FILE, errors, diagnosticZip);

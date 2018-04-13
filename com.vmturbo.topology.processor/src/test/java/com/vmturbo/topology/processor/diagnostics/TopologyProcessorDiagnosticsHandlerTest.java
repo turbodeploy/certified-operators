@@ -232,6 +232,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertEquals("Identity.diags", ze.getName());
 
         ze = zis.getNextEntry();
+        assertEquals("PrometheusMetrics.diags", ze.getName());
+
+        ze = zis.getNextEntry();
         assertNull(ze);
         zis.close();
     }
@@ -432,6 +435,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
         ze = zis.getNextEntry();
         assertEquals("Identity.diags", ze.getName());
+
+        ze = zis.getNextEntry();
+        assertEquals("PrometheusMetrics.diags", ze.getName());
 
         ze = zis.getNextEntry();
         assertNull(ze);

@@ -1,12 +1,19 @@
 package com.vmturbo.components.common;
 
 import java.io.IOException;
+import java.io.StringWriter;
+import java.util.Collections;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.exporter.common.TextFormat;
 
 /**
  * Handle the writing of diagnostics data.
@@ -15,6 +22,8 @@ public class DiagnosticsWriter {
 
     private static final byte[] NL = "\n".getBytes();
     private final Logger logger = LogManager.getLogger();
+
+    public static final String PROMETHEUS_METRICS_FILE_NAME = "PrometheusMetrics.diags";
 
     /**
      * Write a list of strings to a new {@link ZipEntry} in a zip output stream.
@@ -53,6 +62,25 @@ public class DiagnosticsWriter {
             zos.closeEntry();
         } catch (IOException e) {
             logger.error(String.format("Exception trying to create entry %s", entryName), e);
+        }
+    }
+
+    /**
+     * Write prometheus metrics to the diagnosticsZip.
+     *
+     * @param collectorRegistry The registry of prometheus metrics whose contents should be written.
+     * @param diagnosticZip the ZipOutputStream to dump diags to
+     */
+    public void writePrometheusMetrics(@Nonnull final CollectorRegistry collectorRegistry,
+                                       @Nonnull final ZipOutputStream diagnosticZip) {
+        try (StringWriter writer = new StringWriter()) {
+            TextFormat.write004(writer, collectorRegistry.metricFamilySamples());
+
+            writeZipEntry(PROMETHEUS_METRICS_FILE_NAME,
+                Collections.singletonList(writer.toString()),
+                diagnosticZip);
+        } catch (IOException e) {
+            logger.error(e);
         }
     }
 

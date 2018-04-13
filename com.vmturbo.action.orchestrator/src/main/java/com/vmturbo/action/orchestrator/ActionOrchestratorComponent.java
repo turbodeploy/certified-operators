@@ -19,6 +19,7 @@ import org.springframework.context.annotation.Import;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.api.ApiSecurityConfig;
@@ -100,12 +101,19 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     @Override
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
+        // Monitor for server metrics with prometheus.
+        final MonitoringServerInterceptor monitoringInterceptor =
+            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+
         // gRPC JWT token interceptor
         final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(securityConfig.apiAuthKVStore());
         builder
-            .addService(ServerInterceptors.intercept(rpcConfig.actionRpcService(), jwtInterceptor))
-            .addService(rpcConfig.entitySeverityRpcService());
-        rpcConfig.actionsDebugRpcService().ifPresent(builder::addService);
+            .addService(ServerInterceptors.intercept(rpcConfig.actionRpcService(),
+                jwtInterceptor,
+                monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(rpcConfig.entitySeverityRpcService(), monitoringInterceptor));
+        rpcConfig.actionsDebugRpcService().ifPresent(actionsDebugRpcService ->
+            builder.addService(ServerInterceptors.intercept(actionsDebugRpcService, monitoringInterceptor)));
 
         return Optional.of(builder.build());
     }

@@ -32,6 +32,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import io.prometheus.client.CollectorRegistry;
+
 import com.vmturbo.arangodb.tool.ArangoDump;
 import com.vmturbo.arangodb.tool.ArangoRestore;
 import com.vmturbo.components.common.DiagnosticsWriter;
@@ -109,6 +111,7 @@ public class RepositoryDiagnosticsHandlerTest {
         verify(diagnosticsWriter).writeZipEntry(eq(SUPPLY_CHAIN_RELATIONSHIP_FILE),
                 eq(relationshipRecorderDiagLines), eq(zos));
         verify(diagnosticsWriter).writeZipEntry(eq(ID_MGR_FILE), eq(idMgrDiagLines), eq(zos));
+        verify(diagnosticsWriter).writePrometheusMetrics(any(CollectorRegistry.class), eq(zos));
         verify(diagnosticsWriter, times(0)).writeZipEntry(eq(ERRORS_FILE), any(List.class), any());
     }
 

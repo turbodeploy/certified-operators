@@ -20,6 +20,8 @@ import java.util.zip.ZipOutputStream;
 
 import org.junit.Test;
 
+import io.prometheus.client.CollectorRegistry;
+
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
@@ -34,7 +36,7 @@ import com.vmturbo.plan.orchestrator.scenario.ScenarioDao;
 import com.vmturbo.plan.orchestrator.templates.TemplateSpecParser;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
-public class DiagnosticsHandlerTest {
+public class PlanOrchestratorDiagnosticsHandlerTest {
 
     private static final List<String> SUCCESS_MSG =
         Collections.singletonList("diags have been collected!");
@@ -80,6 +82,7 @@ public class DiagnosticsHandlerTest {
         verify(mockWriter, never())
             .writeZipEntry(eq(PlanOrchestratorDiagnosticsHandler.ERRORS_FILE),
                 anyListOf(String.class), any());
+        verify(mockWriter).writePrometheusMetrics(any(CollectorRegistry.class), eq(mockZos));
     }
 
     @Test

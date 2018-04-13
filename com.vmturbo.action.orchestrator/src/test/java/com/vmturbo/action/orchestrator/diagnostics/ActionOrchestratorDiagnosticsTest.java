@@ -1,8 +1,10 @@
 package com.vmturbo.action.orchestrator.diagnostics;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
@@ -26,6 +28,8 @@ import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableMap;
+
+import io.prometheus.client.CollectorRegistry;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -58,7 +62,7 @@ public class ActionOrchestratorDiagnosticsTest {
 
     private final IActionFactory actionFactory = new ActionFactory();
     private final IActionStoreFactory storeFactory = mock(IActionStoreFactory.class);
-    private final DiagnosticsWriter diagnosticsWriter = new DiagnosticsWriter();
+    private final DiagnosticsWriter diagnosticsWriter = Mockito.spy(new DiagnosticsWriter());
 
     private final ActionOrchestratorDiagnostics diagnostics =
             new ActionOrchestratorDiagnostics(actionStorehouse, actionFactory, diagnosticsWriter);
@@ -261,6 +265,7 @@ public class ActionOrchestratorDiagnosticsTest {
         Assert.assertEquals(1, deserializedActions.size());
         final Action deserializedAction = deserializedActions.get(0);
 
+        verify(diagnosticsWriter).writePrometheusMetrics(any(CollectorRegistry.class), any(ZipOutputStream.class));
         ActionOrchestratorTestUtils.assertActionsEqual(action, deserializedAction);
     }
 

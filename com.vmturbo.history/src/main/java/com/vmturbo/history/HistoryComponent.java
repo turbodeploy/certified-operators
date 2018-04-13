@@ -19,6 +19,8 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -87,9 +89,13 @@ public class HistoryComponent extends BaseVmtComponent {
     @Override
     @Nonnull
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
+        // Monitor for server metrics with prometheus.
+        final MonitoringServerInterceptor monitoringInterceptor =
+            MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+
         return Optional.of(builder
-                .addService(statsConfig.statsRpcService())
-                .build());
+            .addService(ServerInterceptors.intercept(statsConfig.statsRpcService(), monitoringInterceptor))
+            .build());
     }
 
     /**

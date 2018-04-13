@@ -37,7 +37,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 @WebAppConfiguration
 @ContextConfiguration(loader = AnnotationConfigWebContextLoader.class)
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD) //to count mock interactions
-public class DiagnosticsControllerTest {
+public class PlanOrchestratorDiagnosticsControllerTest {
 
     @Configuration
     @EnableWebMvc
