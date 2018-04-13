@@ -246,11 +246,32 @@ class DiscoveredGroupInterpreter {
 
         final Optional<Map<String, Long>> idMapOpt =
                 entityStore.getTargetEntityIdMap(targetId);
-        StaticGroupMembers retMembers = null;
         if (!idMapOpt.isPresent()) {
             logger.warn("No entity ID map available for target {}", targetId);
+            return Optional.empty();
         } else {
-            Map<String, Long> idMap = idMapOpt.get();
+            /*
+             * If a group_name equals uuid of some entity of the same target, this means, that group
+             * represents the entity. We do omit such groups, as this is a type of hacks in Legacy.
+             * As we do not support group of folder, the group newly created will appear an empty
+             * one. This is an example of group, reported for DC
+             *
+             * entity_type: PHYSICAL_MACHINE
+             * display_name: "Datacenter-dc9"
+             * group_name: "vsphere-dc9.eng.vmturbo.com-Datacenter-datacenter-21"
+             * member_list {
+             *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-n25"
+             *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-s24"
+             *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-v22"
+             *     member: "vsphere-dc9.eng.vmturbo.com-Folder-group-h23"
+             * }
+             */
+            final Map<String, Long> idMap = idMapOpt.get();
+            if (idMap.containsKey(groupDTO.getGroupName())) {
+                logger.debug("Skipping group {} as it is represented by entity already",
+                        groupDTO::getGroupName);
+                return Optional.empty();
+            }
             final StaticGroupMembers.Builder staticMemberBldr =
                     StaticGroupMembers.newBuilder();
             final AtomicInteger missingMemberCount = new AtomicInteger(0);
@@ -303,13 +324,13 @@ class DiscoveredGroupInterpreter {
                         }
                     });
             if (missingMemberCount.get() == 0) {
-                retMembers = staticMemberBldr.build();
+                return Optional.of(staticMemberBldr.build());
             } else {
                 logger.warn("Failed to find static group members in member list: {}",
                         groupDTO.getMemberList().getMemberList());
+                return Optional.empty();
             }
         }
-        return Optional.ofNullable(retMembers);
     }
 
     /**
