@@ -331,6 +331,7 @@ public class Placement {
                         .collect(Collectors.toList());
         List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
                         .collect(Collectors.toList());
+        // TODO : KT: This seems to be wrong. We are doing equality check on unordered lists.
         if (minimizer != null && !currentSuppliers.equals(minimizer.getBestSellers())) {
             double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
             if (minimizer.getBestTotalQuote() < currentTotalQuote
