@@ -72,7 +72,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
  * and the rest of the components in the system.
  */
 @Configuration
-@Import({ApiWebsocketConfig.class, TopologyProcessorClientConfig.class,
+@Import({TopologyProcessorClientConfig.class,
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
         GroupClientConfig.class, HistoryClientConfig.class, RepositoryClientConfig.class,
         ReportingClientConfig.class, AuthClientConfig.class})

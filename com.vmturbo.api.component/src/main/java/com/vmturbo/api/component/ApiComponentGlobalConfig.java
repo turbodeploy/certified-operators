@@ -3,12 +3,7 @@ package com.vmturbo.api.component;
 import java.nio.charset.Charset;
 import java.util.List;
 
-import org.apache.catalina.connector.Connector;
-import org.apache.coyote.http11.Http11NioProtocol;
-import org.apache.tomcat.util.net.Constants;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.context.embedded.EmbeddedServletContainerCustomizer;
-import org.springframework.boot.context.embedded.tomcat.TomcatEmbeddedServletContainerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -61,40 +56,6 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
         msgConverter.setGson(ComponentGsonFactory.createGson());
 
         converters.add(msgConverter);
-    }
-
-    /**
-     * Redirect HTTP to HTTPS.
-     *
-     * @return The TomcatEmbeddedServletContainerFactory.
-     */
-    @Bean
-    public EmbeddedServletContainerCustomizer containerCustomizer() {
-        return container -> {
-            TomcatEmbeddedServletContainerFactory tomcat =
-                    (TomcatEmbeddedServletContainerFactory)container;
-            Connector connector = new Connector(TomcatEmbeddedServletContainerFactory.DEFAULT_PROTOCOL);
-            connector.setPort(9443);
-            connector.setSecure(true);
-            connector.setScheme("https");
-
-            Http11NioProtocol proto = (Http11NioProtocol)connector.getProtocolHandler();
-            proto.setSSLEnabled(true);
-
-            proto.setSSLProtocol(Constants.SSL_PROTO_TLSv1_2);
-            proto.setSSLCipherSuite("TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256, " +
-                                    "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, " +
-                                    "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384, " +
-                                    "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
-            proto.setUseServerCipherSuitesOrder("true");
-            proto.setSSLHonorCipherOrder("true");
-
-            proto.setKeystoreFile(keystoreFile_);
-            proto.setKeystorePass(keystorePass_);
-            proto.setKeystoreType(keystoreType_);
-            proto.setKeyAlias(keystoreAlias_);
-            tomcat.addAdditionalTomcatConnectors(connector);
-        };
     }
 
     @Bean

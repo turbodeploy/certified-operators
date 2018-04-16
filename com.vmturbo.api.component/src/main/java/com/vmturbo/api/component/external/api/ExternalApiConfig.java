@@ -2,22 +2,21 @@ package com.vmturbo.api.component.external.api;
 
 import java.util.List;
 
-import org.springframework.boot.web.servlet.ServletRegistrationBean;
+import javax.servlet.ServletContext;
+
+import com.google.common.collect.ImmutableList;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
-import com.google.common.collect.ImmutableList;
-
-import com.vmturbo.api.component.external.api.dispatcher.DispatcherControllerConfig;
-import com.vmturbo.api.component.external.api.dispatcher.DispatcherValidatorConfig;
 import com.vmturbo.api.component.external.api.service.MarketsService;
-import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.components.common.LoggingFilter;
 
 /**
@@ -36,8 +35,13 @@ import com.vmturbo.components.common.LoggingFilter;
  * to support the V1 REST API, then we would simply add an additional DispatcherServlet.
  */
 @Configuration
-@Import({ApiSecurityConfig.class, ApiWebsocketConfig.class})
+@Import({ApiSecurityConfig.class})
 public class ExternalApiConfig extends WebMvcConfigurerAdapter {
+
+    @Autowired
+    private ServletContext servletContext;
+    @Autowired
+    private WebApplicationContext applicationContext;
 
     /**
      * The base URLs for the external REST API. All external REST API URL's should
@@ -61,32 +65,6 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
     @Bean
     public LoggingFilter loggingFilter() {
         return new LoggingFilter();
-    }
-
-    /**
-     * This bean registers a dispatcher servlet to catch all requests to the user-facing REST API.
-     *
-     * Spring Boot sets up a default DispatcherServlet to handle the basic HTTP request. We create
-     * another instance of DispatcherServlet here specifically to handle the REST calls for API-V2.
-     *
-     * The {@link ServletRegistrationBean} is the Spring-friendly way to register a servlet
-     * in Spring Boot.
-     *
-     * @return The registration bean.
-     */
-    @Bean
-    public ServletRegistrationBean restRegistration() {
-        AnnotationConfigWebApplicationContext applicationContext = new AnnotationConfigWebApplicationContext();
-        // The configuration containing the REST controllers to instantiate.
-        applicationContext.register(DispatcherControllerConfig.class);
-        applicationContext.register(DispatcherValidatorConfig.class);
-
-        DispatcherServlet dispatcherServlet = new DispatcherServlet(applicationContext);
-        ServletRegistrationBean servletRegistrationBean = new ServletRegistrationBean(dispatcherServlet);
-        servletRegistrationBean.setName("rest-dispatcher");
-        servletRegistrationBean.setUrlMappings(BASE_URL_MAPPINGS);
-        servletRegistrationBean.setLoadOnStartup(1);
-        return servletRegistrationBean;
     }
 
     /**
@@ -127,4 +105,5 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
         registry.addRedirectViewController("/vmturbo/apidoc", "/vmturbo/apidoc/index.html");
         registry.addRedirectViewController("/swagger", "/swagger/index.html");
     }
+
 }

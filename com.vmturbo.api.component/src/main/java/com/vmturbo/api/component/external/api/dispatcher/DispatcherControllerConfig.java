@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
@@ -36,6 +37,7 @@ import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
+import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.xlcontroller.ClusterController;
 
 /**
@@ -54,7 +56,8 @@ import com.vmturbo.api.xlcontroller.ClusterController;
  */
 @Configuration
 @EnableWebMvc
-@Import({ApiSecurityConfig.class, ServiceConfig.class})
+@EnableWebSecurity
+@Import({ApiSecurityConfig.class, ServiceConfig.class, SecurityChainProxyInvoker.class})
 // DO NOT import configurations outside the external.api.dispatcher package here, because
 // that will re-create the configuration's beans in the child context for the dispatcher servlet.
 // You will end up with multiple instances of the same beans, which could lead to tricky bugs.
@@ -200,5 +203,10 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public BusinessUnitsController businessUnitsController() {
         return new BusinessUnitsController();
+    }
+
+    @Bean
+    public GlobalExceptionHandler globalExceptionHandler() {
+        return new GlobalExceptionHandler();
     }
 }

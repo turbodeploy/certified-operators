@@ -3,12 +3,16 @@ package com.vmturbo.api.component.external.api.service;
 import java.time.Clock;
 import java.time.Duration;
 
+import javax.servlet.Servlet;
+import javax.servlet.ServletContext;
+import javax.servlet.ServletRegistration;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.PropertySource;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
@@ -16,6 +20,7 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
+import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 
@@ -26,7 +31,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
  */
 @Configuration
 @Import({SpringSecurityConfig.class, MapperConfig.class, CommunicationConfig.class,
-        ApiWebsocketConfig.class, RepositoryClientConfig.class, ReportingClientConfig.class})
+        RepositoryClientConfig.class, ReportingClientConfig.class})
+@PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
     /**
@@ -66,6 +72,9 @@ public class ServiceConfig {
 
     @Autowired
     private ReportingClientConfig reportingClientConfig;
+
+    @Autowired
+    private ServletContext servletContext;
 
     @Bean
     public ActionsService actionsService() {
@@ -172,20 +181,22 @@ public class ServiceConfig {
 
     @Bean
     public ReportsService reportsService() {
-        return new ReportsService(
-                ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel()),
-                        groupsService());
+        return new ReportsService(reportingRpcService(), groupsService());
     }
 
     @Bean
-    public ReportCgiServlet reportServlet() {
-        return new ReportCgiServlet(
-                ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel()));
+    public ReportingServiceBlockingStub reportingRpcService() {
+        return ReportingServiceGrpc.newBlockingStub(reportingClientConfig.reportingChannel());
     }
 
     @Bean
-    public ServletRegistrationBean servletRegistrationBean() {
-        return new ServletRegistrationBean(reportServlet(), REPORT_CGI_PATH);
+    public Servlet reportServlet() {
+        final Servlet servlet = new ReportCgiServlet(reportingRpcService());
+        final ServletRegistration.Dynamic registration =
+                servletContext.addServlet("reports-cgi-servlet", servlet);
+        registration.setLoadOnStartup(1);
+        registration.addMapping(REPORT_CGI_PATH);
+        return servlet;
     }
 
     @Bean
