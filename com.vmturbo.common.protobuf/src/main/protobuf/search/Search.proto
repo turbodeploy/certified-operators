@@ -16,6 +16,17 @@ message SearchParameters {
     // be applied to the topology. Every filter will be applied to the result of the previous one.
     repeated SearchFilter search_filter = 3;
 
+    // Source filter from which parameters were created
+    optional FilterSpecs source_filter_specs = 4;
+
+    // Specs of filter from which parameters were created
+    message FilterSpecs {
+        required string expression_type = 1;
+        required string expression_value = 2;
+        required string filter_type = 3;
+        optional bool is_case_sensitive = 4 [default = false];
+    }
+
 }
 
 // A filter that needs to be applied to the topology, in order to return a subset of the entities.

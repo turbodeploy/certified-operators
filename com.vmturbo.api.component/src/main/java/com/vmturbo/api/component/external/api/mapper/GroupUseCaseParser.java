@@ -41,13 +41,13 @@ public class GroupUseCaseParser {
     /**
      * A class represent for all need criteria of entity type to create dynamic group.
      */
-    public class GroupUseCase {
+    public static class GroupUseCase {
         private List<GroupUseCaseCriteria> criteria;
 
         /**
          * A class represent basic fields belong to criteria.
          */
-        public class GroupUseCaseCriteria {
+        public static class GroupUseCaseCriteria {
             private String inputType;
             private String elements;
             private String filterCategory;

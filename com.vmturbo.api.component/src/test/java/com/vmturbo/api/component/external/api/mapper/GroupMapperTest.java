@@ -16,12 +16,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.junit.Assert;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -57,9 +62,19 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class GroupMapperTest {
+
+    public static final SearchParameters.Builder SEARCH_PARAMETERS = SearchParameters.newBuilder()
+                    .setStartingFilter(PropertyFilter.newBuilder()
+                                    .setPropertyName("entityType").setStringFilter(StringFilter
+                                                    .newBuilder()
+                                                    .setStringPropertyRegex("PhysicalMachine")));
+
+    @Rule
+    public ExpectedException thrown = ExpectedException.none();
+
     private final String groupUseCaseFileName = "groupBuilderUsecases.json";
 
-    private final GroupUseCaseParser groupUseCaseParser = new GroupUseCaseParser(groupUseCaseFileName);
+    private final GroupUseCaseParser groupUseCaseParser = Mockito.spy(new GroupUseCaseParser(groupUseCaseFileName));
 
     private SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
 
@@ -225,11 +240,9 @@ public class GroupMapperTest {
                 .setName(displayName)
                 .setEntityType(groupType)
                 .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder()
-                                .setStartingFilter(PropertyFilter.newBuilder()
-                                        .setPropertyName("entityType")
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("PhysicalMachine"))))))
+                        .addSearchParameters(SEARCH_PARAMETERS.setSourceFilterSpecs(buildFilterSpecs(
+                                        "pmsByName", "foo", "foo"
+                        )))))
 
             .build();
 
@@ -254,6 +267,9 @@ public class GroupMapperTest {
         final Boolean isStatic = false;
         final long oid = 123L;
 
+        final SearchParameters.Builder vmParameters = getVmParameters();
+        final SearchParameters.Builder pmParameters = getVmByPmParameters();
+
         final Group group = Group.newBuilder()
                 .setId(oid)
                 .setType(Group.Type.GROUP)
@@ -261,34 +277,8 @@ public class GroupMapperTest {
                     .setName(displayName)
                     .setEntityType(groupType)
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                            .addSearchParameters(SearchParameters.newBuilder()
-                                    .setStartingFilter(PropertyFilter.newBuilder()
-                                            .setPropertyName("entityType")
-                                            .setNumericFilter(NumericFilter.newBuilder()
-                                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                                    .setValue(10)))
-                                    .addSearchFilter(SearchFilter.newBuilder()
-                                            .setPropertyFilter(PropertyFilter.newBuilder()
-                                                    .setPropertyName("displayName")
-                                                    .setStringFilter(StringFilter.newBuilder()
-                                                            .setStringPropertyRegex("VM#2")))))
-                            .addSearchParameters(SearchParameters.newBuilder()
-                                    .setStartingFilter(PropertyFilter.newBuilder()
-                                            .setPropertyName("entityType")
-                                            .setNumericFilter(NumericFilter.newBuilder()
-                                                    .setComparisonOperator(ComparisonOperator.EQ)
-                                                    .setValue(14)))
-                                    .addSearchFilter(SearchFilter.newBuilder()
-                                            .setPropertyFilter(PropertyFilter.newBuilder()
-                                                    .setPropertyName("displayName")
-                                                    .setStringFilter(StringFilter.newBuilder()
-                                                            .setStringPropertyRegex("PM#1"))))
-                                    .addSearchFilter(SearchFilter.newBuilder()
-                                            .setTraversalFilter(TraversalFilter.newBuilder()
-                                                    .setTraversalDirection(TraversalDirection.PRODUCES)
-                                                    .setStoppingCondition(StoppingCondition.newBuilder()
-                                                            .setNumberHops(1))))
-                            )))
+                            .addSearchParameters(vmParameters)
+                            .addSearchParameters(pmParameters)))
                 .build();
 
         final GroupApiDTO dto = groupMapper.toGroupApiDto(group);
@@ -307,6 +297,45 @@ public class GroupMapperTest {
         assertEquals(EnvironmentType.ONPREM, dto.getEnvironmentType());
     }
 
+    private SearchParameters.Builder getVmParameters() {
+        return SearchParameters.newBuilder().setSourceFilterSpecs(buildFilterSpecs("vmsByName",
+                        GroupMapper.EQUAL, "VM#2")).setStartingFilter(
+                        PropertyFilter.newBuilder().setPropertyName("entityType").setNumericFilter(
+                                        NumericFilter.newBuilder().setComparisonOperator(
+                                                        ComparisonOperator.EQ).setValue(10)))
+                        .addSearchFilter(SearchFilter.newBuilder().setPropertyFilter(
+                                        PropertyFilter.newBuilder().setPropertyName("displayName")
+                                                        .setStringFilter(StringFilter.newBuilder()
+                                                                        .setStringPropertyRegex("VM#2"))));
+    }
+
+    private SearchParameters.Builder getVmByPmParameters() {
+        return SearchParameters.newBuilder().setSourceFilterSpecs(buildFilterSpecs("vmsByPMName",
+                        GroupMapper.EQUAL, "PM#1"))
+                        .setStartingFilter(PropertyFilter.newBuilder().setPropertyName("entityType")
+                                        .setNumericFilter(NumericFilter.newBuilder()
+                                                        .setComparisonOperator(ComparisonOperator.EQ)
+                                                        .setValue(14))).addSearchFilter(
+                                        SearchFilter.newBuilder().setPropertyFilter(
+                                                        PropertyFilter.newBuilder()
+                                                                        .setPropertyName("displayName")
+                                                                        .setStringFilter(
+                                                                        StringFilter.newBuilder()
+                                                                        .setStringPropertyRegex("PM#1"))))
+                        .addSearchFilter(SearchFilter.newBuilder().setTraversalFilter(
+                                        TraversalFilter.newBuilder().setTraversalDirection(
+                                                        TraversalDirection.PRODUCES)
+                                                        .setStoppingCondition(StoppingCondition
+                                                                        .newBuilder()
+                                                                        .setNumberHops(1))));
+    }
+
+    private SearchParameters.FilterSpecs buildFilterSpecs(@Nonnull String filterType,
+                    @Nonnull String expType, @Nonnull String expValue) {
+        return SearchParameters.FilterSpecs.newBuilder().setFilterType(filterType)
+                        .setExpressionType(expType).setExpressionValue(expValue).build();
+    }
+
     /**
      * Verify that a simple byName criterion is converted properly.
      */
@@ -320,6 +349,18 @@ public class GroupMapperTest {
         assertEquals(1, byName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
         assertTrue(byName.getSearchFilter(0).getPropertyFilter().getStringFilter().getMatch());
+    }
+
+    /**
+     * Verify that exception will be thrown for unknown filter type.
+     */
+    @Test
+    public void testNotExistingFilter() {
+        GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL, FOO,
+                        "notExistingFilter"));
+        thrown.expect(IllegalArgumentException.class);
+        thrown.expectMessage("Not existing filter type provided: notExistingFilter");
+        groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
     }
 
     /**
@@ -526,7 +567,22 @@ public class GroupMapperTest {
 
     }
 
-
+    /**
+     * Tests converting of searchParameters of GroupInfo to filterApiDto.
+     */
+    @Test
+    public void testConvertToFilterApis() {
+        final GroupInfo groupInfo = GroupInfo.newBuilder().setSearchParametersCollection(
+                        SearchParametersCollection.newBuilder().addSearchParameters(
+                                        SEARCH_PARAMETERS.setSourceFilterSpecs(buildFilterSpecs(
+                                                        "filterType",
+                                                        "expType", "expValue")))
+                                        .build()).build();
+        final List<FilterApiDTO> filterApiDTOS = groupMapper.convertToFilterApis(groupInfo);
+        Assert.assertEquals("filterType", filterApiDTOS.get(0).getFilterType());
+        Assert.assertEquals("expType", filterApiDTOS.get(0).getExpType());
+        Assert.assertEquals("expValue", filterApiDTOS.get(0).getExpVal());
+    }
 
     private FilterApiDTO filterDTO(String expType, String expVal, String filterType) {
         FilterApiDTO filter = new FilterApiDTO();
@@ -675,12 +731,7 @@ public class GroupMapperTest {
                     .setName("group1")
                     .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder()
-                                .setStartingFilter(PropertyFilter.newBuilder()
-                                        .setPropertyName("entityType")
-                                        .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("PhysicalMachine")))
-                                .build())
+                        .addSearchParameters(SEARCH_PARAMETERS)
                          .build())
                     .build())
                 .build();

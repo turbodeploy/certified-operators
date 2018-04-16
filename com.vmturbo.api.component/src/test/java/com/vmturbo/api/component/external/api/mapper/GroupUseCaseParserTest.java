@@ -6,7 +6,11 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 
+import com.google.common.collect.ImmutableSet;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -43,9 +47,14 @@ public class GroupUseCaseParserTest {
     @Test
     public void testFirstIsByName() {
         Map<String, GroupUseCase> useCases = groupUseCaseParser.getUseCases();
+        final Set<String> groupTypes = ImmutableSet.of("Group", "Cluster", "StorageCluster");
+        groupTypes.forEach(type -> {
+            Assert.assertEquals(type + GroupMapper.ELEMENTS_DELIMITER + "displayName",
+                            useCases.get(type).getCriteria().get(0).getElements());
+            useCases.remove(type);
+        });
         useCases.forEach((key,useCase) -> {
-                    // the default use case is entity_type:displayName
-                    assertEquals(key +":displayName", useCase.getCriteria().get(0).getElements());
+                    assertEquals("displayName", useCase.getCriteria().get(0).getElements());
                 });
     }
 }
