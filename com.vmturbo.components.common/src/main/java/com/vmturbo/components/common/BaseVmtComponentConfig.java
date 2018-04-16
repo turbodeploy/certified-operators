@@ -19,7 +19,8 @@ import com.vmturbo.kvstore.KeyValueStoreConfig;
  * Create Spring Beans provided by com.vmturbo.components.common.
  **/
 @Configuration
-@Import({BaseVmtComponentConfig.DebugSwaggerConfig.class, KeyValueStoreConfig.class})
+@Import({BaseVmtComponentConfig.DebugSwaggerConfig.class, KeyValueStoreConfig.class,
+        ConsulDiscoveryManualConfig.class})
 public class BaseVmtComponentConfig {
 
     @Value("${deadlockCheckIntervalSecs:900}")

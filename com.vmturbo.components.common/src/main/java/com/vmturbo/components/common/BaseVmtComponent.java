@@ -8,30 +8,43 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import javax.annotation.concurrent.GuardedBy;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.web.servlet.ServletRegistrationBean;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.core.env.Environment;
-import org.springframework.web.client.ResourceAccessException;
+import javax.servlet.Servlet;
+import javax.servlet.ServletContext;
+import javax.servlet.ServletRegistration;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.ApplicationListener;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.event.ContextRefreshedEvent;
+import org.springframework.core.env.Environment;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.context.ContextLoaderListener;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+import org.springframework.web.servlet.DispatcherServlet;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import com.vmturbo.api.dto.cluster.ComponentPropertiesDTO;
 import com.vmturbo.api.serviceinterfaces.IClusterService;
@@ -43,7 +56,6 @@ import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
-import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
 /**
@@ -56,8 +68,11 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
  * e.g. is start() legal, and if so what is the next state?
  **/
 @Configuration
+@EnableWebMvc
+@EnableDiscoveryClient
 @Import({BaseVmtComponentConfig.class})
-public abstract class BaseVmtComponent implements IVmtComponent {
+public abstract class BaseVmtComponent implements IVmtComponent,
+        ApplicationListener<ContextRefreshedEvent> {
 
     public static final String KEY_COMPONENT_VERSION = "component.version";
     /**
@@ -65,6 +80,8 @@ public abstract class BaseVmtComponent implements IVmtComponent {
      * during the shutdown procedure for the component.
      */
     private static final int GRPC_SHUTDOWN_WAIT_S = 10;
+    private static final String PROP_COMPNENT_TYPE = "component_type";
+    private static final String PROP_INSTANCE_ID = "instance_id";
 
     /**
      * The URL at which to expose Prometheus metrics.
@@ -74,6 +91,7 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     private static Logger logger = LogManager.getLogger();
 
     private ExecutionStatus status = ExecutionStatus.NEW;
+    private final AtomicBoolean startFired = new AtomicBoolean(false);
 
     private static final DataMetricGauge STARTUP_DURATION_METRIC = DataMetricGauge.builder()
             .withName("component_startup_duration_ms")
@@ -81,7 +99,7 @@ public abstract class BaseVmtComponent implements IVmtComponent {
             .build()
             .register();
 
-    @Value("${component_type:}")
+    @Value("${" + PROP_COMPNENT_TYPE + ":}")
     private String componentType;
 
     private static final int SCHEDULED_METRICS_DELAY_MS=60000;
@@ -105,10 +123,14 @@ public abstract class BaseVmtComponent implements IVmtComponent {
     @Autowired(required = false)
     DiagnosticService diagnosticService;
 
+    @Autowired
+    private ServletContext servletContext;
+
     /**
      * Embed a component for monitoring dependency/subcomponent health
      */
-    private final CompositeHealthMonitor healthMonitor = new CompositeHealthMonitor(componentType +" Component");
+    private final CompositeHealthMonitor healthMonitor =
+            new CompositeHealthMonitor(componentType + " Component");
 
     static {
         // Capture the beginning of component execution - begins from when the Java static is loaded.
@@ -123,7 +145,7 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         // install a component ExecutionStatus-based health check into the monitor.
         // This health check will return true if the component is in the RUNNING state and false for
         // all other states.
-        getHealthMonitor().addHealthCheck(new HealthStatusProvider() {
+        healthMonitor.addHealthCheck(new HealthStatusProvider() {
             private HealthStatus lastStatus;
 
             @Override
@@ -138,6 +160,11 @@ public abstract class BaseVmtComponent implements IVmtComponent {
                 return lastStatus;
             }
         });
+    }
+
+    @Override
+    public String getComponentName() {
+        return componentType;
     }
 
     @PostConstruct
@@ -158,9 +185,13 @@ public abstract class BaseVmtComponent implements IVmtComponent {
      * The metrics endpoint that exposes Prometheus metrics on the pre-defined /metrics URL.
      */
     @Bean
-    public ServletRegistrationBean metricsServlet() {
-        return new ServletRegistrationBean(
-            new MetricsServlet(CollectorRegistry.defaultRegistry), METRICS_URL);
+    public Servlet metricsServlet() {
+        final Servlet servlet = new MetricsServlet(CollectorRegistry.defaultRegistry);
+        final ServletRegistration.Dynamic registration =
+                servletContext.addServlet("metrics-servlet", servlet);
+        registration.setLoadOnStartup(1);
+        registration.addMapping(METRICS_URL);
+        return servlet;
     }
 
     /**
@@ -189,11 +220,6 @@ public abstract class BaseVmtComponent implements IVmtComponent {
      */
     @Override
     public CompositeHealthMonitor getHealthMonitor() { return healthMonitor; }
-
-    @Bean
-    public CommandLineRunner startup() {
-        return args -> startComponent();
-    }
 
     /**
      * {@inheritDoc}
@@ -364,6 +390,98 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         }
     }
 
+    @Override
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        if (!startFired.getAndSet(true)) {
+            startComponent();
+        }
+    }
+
+    /**
+     * Returns environment variable value.
+     *
+     * @param propertyName environment variable name
+     * @return evironment variable value
+     * @throws NullPointerException if there is not such environment property set
+     */
+    @Nonnull
+    protected static String requireEnvProperty(@Nonnull String propertyName) {
+        final String sysPropValue = System.getProperty(propertyName);
+        if (sysPropValue != null) {
+            return sysPropValue;
+        }
+        return Objects.requireNonNull(System.getenv(propertyName),
+                "System or environment property \"" + propertyName + "\" must be set");
+    }
+
+    protected static ConfigurableApplicationContext attachSpringContext(
+            @Nonnull ServletContextHandler contextServer, @Nonnull Class<?> configurationClass) {
+        final AnnotationConfigWebApplicationContext applicationContext =
+                new AnnotationConfigWebApplicationContext();
+        applicationContext.register(configurationClass);
+        final Servlet dispatcherServlet = new DispatcherServlet(applicationContext);
+        final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
+        contextServer.addServlet(servletHolder, "/*");
+        // Setup Spring context
+        final ContextLoaderListener springListener = new ContextLoaderListener(applicationContext);
+        contextServer.addEventListener(springListener);
+        applicationContext.isActive();
+        return applicationContext;
+    }
+
+    /**
+     * Starts web server with Spring context, initialized from the specified configuration class.
+     *
+     * @param configurationClass spring context configuration class
+     * @return Spring context initialized
+     */
+    protected static ConfigurableApplicationContext startContext(
+            @Nonnull Class<?> configurationClass) {
+        return startContext(servletContextHolder -> attachSpringContext(servletContextHolder,
+                configurationClass));
+    }
+
+    /**
+     * Starts web server with Spring context, initialized from the specified configuration class.
+     *
+     * @param contextConfigurer configuration callback to perform some specific
+     *         configuration on the servlet context
+     */
+    protected static ConfigurableApplicationContext startContext(
+            @Nonnull ContextConfigurer contextConfigurer) {
+        fetchConfigurationProperties();
+        logger.info("Starting web server with spring context");
+        final String serverPort = requireEnvProperty("server_port");
+        System.setProperty("spring.cloud.consul.host", requireEnvProperty("consul_host"));
+        System.setProperty("spring.cloud.consul.port", requireEnvProperty("consul_port"));
+        System.setProperty("spring.cloud.consul.discovery.instanceId", requireEnvProperty(PROP_INSTANCE_ID));
+        System.setProperty("spring.cloud.consul.discovery.port", serverPort);
+        System.setProperty("server.port", serverPort);
+        System.setProperty("spring.application.name", requireEnvProperty(PROP_COMPNENT_TYPE));
+        System.setProperty("org.jooq.no-logo", "true");
+
+        final org.eclipse.jetty.server.Server server =
+                new org.eclipse.jetty.server.Server(Integer.valueOf(serverPort));
+        final ServletContextHandler contextServer =
+                new ServletContextHandler(ServletContextHandler.SESSIONS);
+        final ConfigurableApplicationContext context;
+        try {
+            server.setHandler(contextServer);
+            context = contextConfigurer.configure(contextServer);
+            server.start();
+            if (!context.isActive()) {
+                logger.error("Spring context failed to start. Shutting down.");
+                System.exit(1);
+            }
+            return context;
+        } catch (Exception e) {
+            logger.error("Web server failed to start. Shutting down.", e);
+            System.exit(1);
+        }
+        // Could should never reach here
+        return null;
+    }
+
     /**
      * Fetch the configuration for this component type from ClusterMgr and store them in
      * the System properties. Retry until you succeed - this is a blocking call.
@@ -377,12 +495,9 @@ public abstract class BaseVmtComponent implements IVmtComponent {
                 EnvironmentUtils.parseIntegerFromEnv("clustermgr_retry_delay_sec");
         final long clusterMgrConnectionRetryDelayMs =
                 Duration.ofSeconds(clusterMgrConnectionRetryDelaySecs).toMillis();
-        final String componentType = Objects.requireNonNull(System.getenv("component_type"),
-                "Missing 'component_type' configuration.");
-        final String clusterMgrHost = Objects.requireNonNull(System.getenv("clustermgr_host"),
-                "Missing ClusterMgr host name ('clustermgr_host').");
-        final String instanceId = Objects.requireNonNull(System.getenv("instance_id"),
-                "Missing 'instance_id' configuration");
+        final String componentType = requireEnvProperty(PROP_COMPNENT_TYPE);
+        final String clusterMgrHost = requireEnvProperty("clustermgr_host");
+        final String instanceId = requireEnvProperty(PROP_INSTANCE_ID);
 
         logger.info("Fetching configuration from ClusterMgr for '{}' component of type '{}'",
                 instanceId, componentType);
@@ -427,5 +542,33 @@ public abstract class BaseVmtComponent implements IVmtComponent {
         } else {
             logger.error("Could not get Specification-Version for component class {}", getClass());
         }
+    }
+
+    /**
+     * Exception to be thrown if error occurred while configuring servlet context holder.
+     */
+    public static class ContextConfigurationException extends Exception {
+        public ContextConfigurationException(@Nonnull String message, @Nonnull Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    /**
+     * Interface (callback) to configure servlet context.
+     */
+    public interface ContextConfigurer {
+        /**
+         * Creates application context and registers it with {@code servletContext}. If there are
+         * multiple contexts created, the one should be returned, that could be used to check
+         * the health status of the container.
+         *
+         * @param servletContext servlet context handler
+         * @return Spring context to track
+         * @throws ContextConfigurationException if exception thrown while configuring
+         *         servlets
+         *         and contexts
+         */
+        ConfigurableApplicationContext configure(@Nonnull ServletContextHandler servletContext)
+                throws ContextConfigurationException;
     }
 }

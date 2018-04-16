@@ -274,7 +274,6 @@ services:
       component_type: topology-processor
       instance_id: topology-processor-1
       node_name: default
-      consul_host: consul
       realtimeTopologyContextId: 777777
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${TOPOLOGY_PROCESSOR_XMX_MB}M ${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
@@ -440,7 +439,6 @@ services:
     volumes:
       - reporting:/home/turbonomic/data
     environment:
-      consul_host: consul
       component_type: reporting
       instance_id: reporting-1
       report.files.output.dir: /home/turbonomic/data

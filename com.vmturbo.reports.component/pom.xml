@@ -570,7 +570,6 @@
             <groupId>oro</groupId>
             <artifactId>oro</artifactId>
         </dependency>
-
     </dependencies>
     <build>
         <pluginManagement>
@@ -589,20 +588,39 @@
                         <enableAssertions>false</enableAssertions>
                     </configuration>
                 </plugin>
+                <!-- definitions common to the docker container for all components -->
+                <plugin>
+                    <groupId>com.spotify</groupId>
+                    <artifactId>docker-maven-plugin</artifactId>
+                    <configuration>
+                        <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
+                        <resources>
+                            <resource>
+                                <targetPath>/</targetPath>
+                                <directory>${project.build.directory}</directory>
+                                <include>${project.build.finalName}.jar</include>
+                            </resource>
+                            <resource>
+                                <targetPath>/srv</targetPath>
+                                <directory>${project.build.directory}/reports-resources/srv</directory>
+                            </resource>
+                            <resource>
+                                <targetPath>/lib</targetPath>
+                                <directory>${project.build.directory}/lib</directory>
+                            </resource>
+                            <resource>
+                                <targetPath>/swagger</targetPath>
+                                <directory>${project.build.directory}/generated-docs/swagger</directory>
+                            </resource>
+                        </resources>
+                    </configuration>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <!-- Publish only initial JAR, not Spring-boot to Maven repo -->
-                    <attach>false</attach>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>com.github.kongchen</groupId>
@@ -742,6 +760,54 @@
                             <directory>target/generated-sources/jooq</directory>
                         </target>
                     </generator>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <useBaseVersion>false</useBaseVersion>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>unpack-reports-resources</id>
+                        <goals>
+                            <goal>unpack</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>com.vmturbo</groupId>
+                                    <artifactId>com.vmturbo.reports.templates</artifactId>
+                                    <includes>srv/**</includes>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>${project.build.directory}/reports-resources</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>com.vmturbo.reports.component.ReportsComponent</mainClass>
+                            <classpathPrefix>lib/</classpathPrefix>
+                        </manifest>
+                    </archive>
                 </configuration>
             </plugin>
         </plugins>

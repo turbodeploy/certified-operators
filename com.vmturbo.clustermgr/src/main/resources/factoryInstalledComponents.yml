@@ -24,6 +24,10 @@ action-orchestrator:
   entityTypeMaxRetries: 6
   maxLiveActionPlanAgeSeconds: 600
   <<: &baseVmtComponentSettings
+    consul_host: consul
+    consul_port: 8500
+    server_port: 8080
+    server.grpcPort: 9001
     deadlockCheckIntervalSecs: 900
     maxHealthyUsedMemoryRatio: 0.95
     scheduledMetricsIntervalMs: 60000
