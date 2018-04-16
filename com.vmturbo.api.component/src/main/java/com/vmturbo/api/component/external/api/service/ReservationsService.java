@@ -28,7 +28,6 @@ import com.google.common.collect.Multimap;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper.PlacementInfo;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -348,7 +347,8 @@ public class ReservationsService implements IReservationsService {
             final FilteredActionRequest.Builder requestBuilder = FilteredActionRequest.newBuilder()
                     .setTopologyContextId(planId)
                     .setFilter(ActionQueryFilter.newBuilder()
-                            .addTypes(ActionType.MOVE))
+                            // For placement actions, the action type is Start
+                            .addTypes(ActionType.START))
                     .setPaginationParams(PaginationParameters.getDefaultInstance());
             nextCursor.ifPresent(cursor -> requestBuilder.getPaginationParamsBuilder().setCursor(cursor));
 
