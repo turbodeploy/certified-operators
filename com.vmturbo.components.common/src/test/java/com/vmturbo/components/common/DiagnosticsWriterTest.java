@@ -63,6 +63,10 @@ public class DiagnosticsWriterTest {
 
     @Test
     public void testWritePrometheusMetrics() throws IOException {
+        // Clear the registry so that only the metrics registered by this test are written
+        // by the diagnostics dump.
+        CollectorRegistry.defaultRegistry.clear();
+
         // Basic JVM metrics don't create a histogram or a summary, so add two of those.
         final Histogram histogram = Histogram.build()
             .name("testHist")
