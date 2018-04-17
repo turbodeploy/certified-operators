@@ -19,16 +19,17 @@ import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -46,9 +47,9 @@ import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
@@ -147,6 +148,8 @@ public class SearchService implements ISearchService {
                                                      String state,
                                                      String groupType,
                                                      EnvironmentType environmentType,
+                                                     // Ignored for now.
+                                                     @Nullable EntityDetailType entityDetailType,
                                                      SearchPaginationRequest paginationRequest)
             throws Exception {
         List<BaseApiDTO> result = null;
@@ -208,7 +211,7 @@ public class SearchService implements ISearchService {
                     .entityTypes(types)
                     .environmentType(environmentType)
                     .includeHealthSummary(false)
-                    .supplyChainDetailType(SupplyChainDetailType.entity)
+                    .entityDetailType(EntityDetailType.entity)
                     .fetch();
             supplychain.getSeMap().forEach((entityType, supplychainEntryDTO) -> {
                 if (types != null && types.contains(entityType)) {

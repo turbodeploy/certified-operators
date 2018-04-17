@@ -36,7 +36,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.api.enums.SupplyChainDetailType;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
@@ -217,7 +217,7 @@ public class SupplyChainFetcherFactoryTest {
                 .topologyContextId(LIVE_TOPOLOGY_ID)
                 .addSeedUuid("Market")
                 .includeHealthSummary(true)
-                .supplyChainDetailType(SupplyChainDetailType.entity)
+                .entityDetailType(EntityDetailType.entity)
                 .fetch();
 
         // assert

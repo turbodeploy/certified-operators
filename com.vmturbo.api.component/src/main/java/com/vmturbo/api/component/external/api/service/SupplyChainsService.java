@@ -36,9 +36,9 @@ import com.vmturbo.api.dto.supplychain.SupplyChainStatsApiInputDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EntitiesCountCriteria;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.api.serviceinterfaces.ISupplyChainsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
@@ -78,7 +78,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                                                    List<String> entityTypes,
                                                    List<EntityState> entityStates,
                                                    EnvironmentType environmentType,
-                                                   SupplyChainDetailType supplyChainDetailType,
+                                                   EntityDetailType entityDetailType,
                                                    Boolean includeHealthSummary) throws Exception {
         if (uuids.isEmpty()) {
             throw new RuntimeException("UUIDs list is empty");
@@ -89,7 +89,7 @@ public class SupplyChainsService implements ISupplyChainsService {
             supplyChainFetcherFactory.newApiDtoFetcher()
                 .entityTypes(entityTypes)
                 .environmentType(environmentType)
-                .supplyChainDetailType(supplyChainDetailType)
+                .entityDetailType(entityDetailType)
                 .includeHealthSummary(includeHealthSummary);
 
         //if the request is for a plan supply chain, the "seed uuid" should instead be used as the topology context ID.
@@ -221,7 +221,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 .newApiDtoFetcher()
                 .topologyContextId(liveTopologyContextId)
                 .addSeedUuids(uuids)
-                .supplyChainDetailType(onlyGroupBySeverity ? null : SupplyChainDetailType.entity)
+                .entityDetailType(onlyGroupBySeverity ? null : EntityDetailType.entity)
                 .includeHealthSummary(isHealthSummaryNeeded(criteriaToGroupBy));
 
         if (types != null) {

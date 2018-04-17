@@ -41,7 +41,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.SupplyChainDetailType;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -150,7 +150,7 @@ public class SupplyChainFetcherFactory {
      */
     public class SupplychainApiDTOFetcherBuilder extends SupplyChainFetcherBuilder<SupplychainApiDTOFetcherBuilder, SupplychainApiDTO> {
         protected EnvironmentType environmentType;
-        protected SupplyChainDetailType supplyChainDetailType;
+        protected EntityDetailType entityDetailType;
         protected Boolean includeHealthSummary = false;
 
         /**
@@ -175,13 +175,13 @@ public class SupplyChainFetcherFactory {
          *
          * NOTE:  this setting is not currently supported in XL.
          *
-         * @param supplyChainDetailType what level of detail to include in the supplychain result
+         * @param entityDetailType what level of detail to include in the supplychain result
          * @return the flow-style OperationBuilder for this SupplyChainFetcher
          */
         @Nonnull
-        public SupplychainApiDTOFetcherBuilder supplyChainDetailType(
-                @Nullable final SupplyChainDetailType supplyChainDetailType) {
-            this.supplyChainDetailType = supplyChainDetailType;
+        public SupplychainApiDTOFetcherBuilder entityDetailType(
+                @Nullable final EntityDetailType entityDetailType) {
+            this.entityDetailType = entityDetailType;
             return this;
         }
 
@@ -206,7 +206,7 @@ public class SupplyChainFetcherFactory {
         public SupplychainApiDTO fetch() throws OperationFailedException, InterruptedException {
             try {
                 final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId, seedUuids, entityTypes,
-                    environmentType, supplyChainDetailType, includeHealthSummary,
+                    environmentType, entityDetailType, includeHealthSummary,
                     supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
                     supplyChainFetcherTimeoutSeconds).fetch();
                 return dto;
@@ -522,7 +522,7 @@ public class SupplyChainFetcherFactory {
 
         private final EnvironmentType environmentType;
 
-        private final SupplyChainDetailType supplyChainDetailType;
+        private final EntityDetailType entityDetailType;
 
         private final EntitySeverityServiceBlockingStub severityRpcService;
 
@@ -538,7 +538,7 @@ public class SupplyChainFetcherFactory {
                                          @Nullable final Set<String> seedUuids,
                                          @Nullable final Set<String> entityTypes,
                                          @Nullable final EnvironmentType environmentType,
-                                         @Nullable final SupplyChainDetailType supplyChainDetailType,
+                                         @Nullable final EntityDetailType entityDetailType,
                                          final boolean includeHealthSummary,
                                          @Nonnull final SupplyChainServiceStub supplyChainRpcService,
                                          @Nonnull final EntitySeverityServiceBlockingStub severityRpcService,
@@ -548,7 +548,7 @@ public class SupplyChainFetcherFactory {
             super(topologyContextId, seedUuids, entityTypes, supplyChainRpcService,
                     groupExpander, supplyChainFetcherTimeoutSeconds);
             this.environmentType = environmentType;
-            this.supplyChainDetailType = supplyChainDetailType;
+            this.entityDetailType = entityDetailType;
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);
             this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -575,7 +575,7 @@ public class SupplyChainFetcherFactory {
 
             // fetch service entities, if requested
             final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
-            if (supplyChainDetailType != null) {
+            if (entityDetailType != null) {
                 // fetch a map from member OID to optional<ServiceEntityApiDTO>, where the
                 // optional is empty if the OID was not found; include severities
                 Map<Long, Optional<ServiceEntityApiDTO>> serviceEntitiesFromRepository =
@@ -590,7 +590,7 @@ public class SupplyChainFetcherFactory {
             }
 
             final Map<Severity, Long> severities = new HashMap<>();
-            if (includeHealthSummary || supplyChainDetailType != null) {
+            if (includeHealthSummary || entityDetailType != null) {
                 // fetch severities, either to include in a health summary or to decorate SE's
                 try {
                     logger.debug("Collecting severities for {}", supplyChainNode.getEntityType());
@@ -602,7 +602,7 @@ public class SupplyChainFetcherFactory {
                                 .setTopologyContextId(getTopologyContextId())
                                 .addAllEntityIds(memberOidsList)
                                 .build();
-                        if (supplyChainDetailType != null) {
+                        if (entityDetailType != null) {
                             fetchEntitySeverities(severityRequest, serviceEntityApiDTOS, severities);
                         } else {
                             fetchSeverityCounts(severityRequest, severities);
@@ -641,7 +641,7 @@ public class SupplyChainFetcherFactory {
         private void fetchEntitySeverities(@Nonnull final MultiEntityRequest entitySeverityRequest,
                                            @Nonnull final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS,
                                            @Nonnull final Map<Severity, Long> severities) {
-            Objects.requireNonNull(supplyChainDetailType);
+            Objects.requireNonNull(entityDetailType);
 
             severityRpcService.getEntitySeverities(entitySeverityRequest)
                 .forEachRemaining(entitySeverity -> {
@@ -730,7 +730,7 @@ public class SupplyChainFetcherFactory {
         public String toString() {
             return super.toString() + "\n" + MoreObjects.toStringHelper(this)
                     .add("environmentType", environmentType)
-                    .add("supplyChainDetailType", supplyChainDetailType)
+                    .add("entityDetailType", entityDetailType)
                     .add("includeHealthSummary", includeHealthSummary)
                     .add("resultApiDTO", resultApiDTO)
                     .add("actionOrchestratorAvailable", actionOrchestratorAvailable)

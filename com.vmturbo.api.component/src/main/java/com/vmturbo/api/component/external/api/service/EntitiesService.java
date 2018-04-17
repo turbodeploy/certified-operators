@@ -43,7 +43,7 @@ import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
-import com.vmturbo.api.enums.SupplyChainDetailType;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
@@ -212,7 +212,7 @@ public class EntitiesService implements IEntitiesService {
                 .addSeedUuids(Lists.newArrayList(uuid))
                 .entityTypes(entityTypes)
                 .includeHealthSummary(false)
-                .supplyChainDetailType(SupplyChainDetailType.entity)
+                .entityDetailType(EntityDetailType.entity)
                 .fetch();
         final Set<Long> supplyChainInstanceIds = supplyChain.getSeMap().entrySet().stream()
                 .map(Entry::getValue)

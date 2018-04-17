@@ -183,7 +183,7 @@ public class SearchServiceTest {
         when(mockOperationBuilder.entityTypes(anyObject())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.environmentType(anyObject())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.includeHealthSummary(anyBoolean())).thenReturn(mockOperationBuilder);
-        when(mockOperationBuilder.supplyChainDetailType(anyObject())).thenReturn(mockOperationBuilder);
+        when(mockOperationBuilder.entityDetailType(anyObject())).thenReturn(mockOperationBuilder);
         when(mockOperationBuilder.fetch()).thenReturn(mockSupplychainApiDto);
         when(groupExpander.expandUuids(eq(scopesSet))).thenReturn(ImmutableSet.of(1L, 2L, 3L, 4L));
 

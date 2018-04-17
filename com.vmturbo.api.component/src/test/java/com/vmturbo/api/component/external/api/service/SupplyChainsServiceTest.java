@@ -45,8 +45,8 @@ import com.vmturbo.api.dto.supplychain.SupplyChainStatsApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.EntitiesCountCriteria;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
-import com.vmturbo.api.enums.SupplyChainDetailType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -96,7 +96,7 @@ public class SupplyChainsServiceTest {
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.environmentType(any(EnvironmentType.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
-        when(supplyChainFetcherOperationBuilderMock.supplyChainDetailType(any(SupplyChainDetailType.class)))
+        when(supplyChainFetcherOperationBuilderMock.entityDetailType(any(EntityDetailType.class)))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.includeHealthSummary(anyBoolean()))
                 .thenReturn(supplyChainFetcherOperationBuilderMock);
