@@ -78,11 +78,16 @@
                     </executions>
                 </plugin>
                 <plugin>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
                     <configuration>
-                        <mainClass>com.vmturbo.mediation.client.MediationComponentMain</mainClass>
-                        <layout>ZIP</layout>
+                        <archive>
+                            <manifest>
+                                <addClasspath>true</addClasspath>
+                                <mainClass>com.vmturbo.mediation.client.MediationComponentMain</mainClass>
+                                <classpathPrefix>lib/</classpathPrefix>
+                            </manifest>
+                        </archive>
                     </configuration>
                 </plugin>
                 <plugin>
@@ -100,15 +105,40 @@
                                 <directory>${project.build.directory}/probe-jars</directory>
                             </resource>
                             <resource>
+                                <targetPath>/lib</targetPath>
+                                <directory>${project.build.directory}/lib</directory>
+                            </resource>
+                            <resource>
                                 <targetPath>/swagger</targetPath>
                                 <directory>${project.build.directory}/generated-docs/swagger</directory>
                             </resource>
                         </resources>
                     </configuration>
                 </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>copy-dependencies</id>
+                            <goals>
+                                <goal>copy-dependencies</goal>
+                            </goals>
+                            <phase>prepare-package</phase>
+                            <configuration>
+                                <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                                <useBaseVersion>false</useBaseVersion>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
             </plugins>
         </pluginManagement>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>xml-maven-plugin</artifactId>
@@ -116,10 +146,6 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
             <plugin>
                 <groupId>com.spotify</groupId>

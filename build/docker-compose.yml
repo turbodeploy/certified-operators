@@ -456,7 +456,6 @@ services:
       - "${MEDIATION_VCENTER_PORT}"
       - "${MEDIATION_VCENTER_DEBUG_PORT}"
     environment:
-      consul_host: consul
       component_type: mediation-vcenter
       instance_id: mediation-vcenter-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCENTER_XMX_MB}M ${MEDIATION_VCENTER_SYSTEM_PROPERTIES}"

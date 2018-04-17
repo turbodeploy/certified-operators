@@ -33,22 +33,23 @@ import com.vmturbo.components.api.server.WebsocketNotificationSender;
 public class IntegrationTestServer implements AutoCloseable {
     public static final String FIELD_TEST_NAME = "test.name";
 
-    private AnnotationConfigWebApplicationContext applicationContext;
+    private final AnnotationConfigWebApplicationContext applicationContext;
 
-    private Server webSocketServer;
+    private final Server webSocketServer;
 
-    private int serverPort;
+    private final int serverPort;
 
     private static final Logger logger = LogManager.getLogger();
 
     public IntegrationTestServer(TestName testName, Class<?> configurationClass) throws Exception {
+        this(testName, configurationClass, new MockEnvironment());
+    }
+
+    public IntegrationTestServer(TestName testName, Class<?> configurationClass,
+            @Nonnull MockEnvironment env) throws Exception {
         Objects.requireNonNull(testName);
         Objects.requireNonNull(configurationClass);
         logger.trace("Starting web socket endpoint on free port...");
-        if (webSocketServer != null) {
-            throw new IllegalStateException(
-                    "Websocket server should not be started before it is stopped");
-        }
         final QueuedThreadPool jettyPool = new QueuedThreadPool();
         jettyPool.setName(testName.getMethodName() + "-jetty");
         webSocketServer = new Server(jettyPool);
@@ -62,7 +63,6 @@ public class IntegrationTestServer implements AutoCloseable {
                 new ServletContextHandler(ServletContextHandler.SESSIONS);
 
         applicationContext = new AnnotationConfigWebApplicationContext();
-        final MockEnvironment env = new MockEnvironment();
         env.setProperty(FIELD_TEST_NAME, testName.getMethodName());
         env.setProperty("websocket.pong.timeout", Long.toString(10000));
         applicationContext.setEnvironment(env);
@@ -113,5 +113,9 @@ public class IntegrationTestServer implements AutoCloseable {
 
     public WebsocketConnectionConfig connectionConfig() throws URISyntaxException {
         return WebsocketConnectionConfig.newBuilder("localhost", serverPort).build();
+    }
+
+    public AnnotationConfigWebApplicationContext getApplicationContext() {
+        return applicationContext;
     }
 }

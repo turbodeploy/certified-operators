@@ -5,12 +5,15 @@ import java.util.zip.ZipOutputStream;
 
 import javax.servlet.http.HttpServletResponse;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.cloud.client.ServiceInstance;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,11 +23,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 
@@ -38,16 +36,9 @@ import com.vmturbo.components.common.health.CompositeHealthMonitor;
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 public class ComponentController {
 
-    private static final Logger logger = LoggerFactory.getLogger(ComponentController.class);
-
-    @Autowired
-    private DiscoveryClient discoveryClient;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     @Autowired
     @Qualifier("theComponent")
-    IVmtComponent theComponent;
+    private IVmtComponent theComponent;
 
     /**
      * Return information about the current component.
@@ -63,13 +54,12 @@ public class ComponentController {
     @ResponseBody
     public String listComponentMetadata() {
         StringBuilder sb = new StringBuilder();
-        ServiceInstance serviceInstance = discoveryClient.getLocalServiceInstance();
         return sb.append(theComponent.getComponentName())
                 .append(": ")
                 .append("\nstatus:\n")
                 .append(getComponentStatus())
                 .append("\nserviceInstance:\n")
-                .append(serviceInstance.toString())
+                .append(theComponent.getComponentName())
                 .append('\n')
                 .toString();
     }

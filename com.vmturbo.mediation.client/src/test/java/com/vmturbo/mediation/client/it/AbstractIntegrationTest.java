@@ -35,6 +35,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 
 import io.prometheus.client.CollectorRegistry;
 
+import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.mediation.client.MediationComponentConfig;
 import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
@@ -269,7 +270,7 @@ public abstract class AbstractIntegrationTest {
      */
     protected class SdkContainer implements AutoCloseable {
 
-        private final ConfigurableWebApplicationContext containerContext;
+        private final IntegrationTestServer testServer;
         private final SdkProbe probe;
         private final File probeHome;
 
@@ -299,6 +300,8 @@ public abstract class AbstractIntegrationTest {
             environment.setProperty("spring.cloud.consul.enabled", "false");
             environment.setProperty("spring.cloud.consul.config.enabled", "false");
             environment.setProperty("spring.cloud.consul.port", "0");
+            environment.setProperty("spring.cloud.consul.host", "consul");
+            environment.setProperty("spring.application.name", "the-component");
             environment.setProperty("kvStoreRetryIntervalMillis", "1000");
 
             // Alter JMX domain in order to start multiple spring-boot applications inside one
@@ -324,15 +327,11 @@ public abstract class AbstractIntegrationTest {
                 final ClassLoader appClassLoader =
                                 createClassLoader(instanceId, probe.getProbeConfig());
                 currentThread.setContextClassLoader(appClassLoader);
-                context =
-                                new SpringApplicationBuilder().environment(environment)
-                                                .sources(MediationComponentMain.class)
-                                                .sources(MediationComponentConfig.class)
-                                                .bannerMode(Banner.Mode.OFF).run(new String[0]);
+                testServer = new IntegrationTestServer(testName, MediationComponentMain.class,
+                        environment);
             } finally {
                 currentThread.setContextClassLoader(currentClassLoader);
             }
-            containerContext = (ConfigurableWebApplicationContext)context;
         }
 
         public void stop() throws Exception {
@@ -340,7 +339,7 @@ public abstract class AbstractIntegrationTest {
             final Callable<?> task = new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
-                    containerContext.close();
+                    testServer.close();
                     return null;
                 }
             };
@@ -364,7 +363,7 @@ public abstract class AbstractIntegrationTest {
          * @throws Exception on exception occurs
          */
         public void awaitUnregistered() throws Exception {
-            if (containerContext.isRunning()) {
+            if (testServer.getApplicationContext().isRunning()) {
                 throw new IllegalStateException(
                                 "Container is not stopped. Unable to wait until it is terminated");
             }

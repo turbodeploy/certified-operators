@@ -18,6 +18,8 @@ import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.http.converter.xml.SourceHttpMessageConverter;
+import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
 
 import com.google.common.base.Strings;
@@ -32,7 +34,7 @@ import com.vmturbo.proactivesupport.DataCollectorFramework;
  * Spring configuration for cluster manager component.
  */
 @Configuration
-public class ClusterMgrConfig {
+public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Value("${consul_host}")
     private String consulHost;
     @Value("${clustermgr.consul.port:8500}")
@@ -240,5 +242,17 @@ public class ClusterMgrConfig {
         });
         transfer.start();
         return instance;
+    }
+
+    /**
+     * We override the default path variable matcher in order to correctly interpret properties
+     * including dots. Without this setting, property "prop.name" is treated as "prop" in
+     * Spring MVC REST controllers
+     *
+     * @param matcher patch matcher configurer
+     */
+    @Override
+    public void configurePathMatch(PathMatchConfigurer matcher) {
+        matcher.setUseRegisteredSuffixPatternMatch(true);
     }
 }

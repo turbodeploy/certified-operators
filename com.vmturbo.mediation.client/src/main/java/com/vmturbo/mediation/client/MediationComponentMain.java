@@ -15,6 +15,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.ExecutionStatus;
@@ -28,8 +29,8 @@ import com.vmturbo.mediation.common.WorkerLifecycleListener;
  * @param <A> type of account values to use with this probe.
  */
 @Configuration("theComponent")
-@EnableAutoConfiguration
 @EnableDiscoveryClient
+@Import({MediationComponentConfig.class})
 public class MediationComponentMain<A> extends BaseVmtComponent {
 
     @Value("${probe-directory:probe-jars}")
@@ -46,13 +47,7 @@ public class MediationComponentMain<A> extends BaseVmtComponent {
     private Logger log = LogManager.getLogger();
 
     public static void main(String[] args) {
-        // apply the configuration properties for this component prior to Spring instantiation
-        fetchConfigurationProperties();
-        // instantiate and run this component
-        new SpringApplicationBuilder()
-                .sources(MediationComponentMain.class)
-                .sources(MediationComponentConfig.class)
-                .run(args);
+        startContext(MediationComponentMain.class);
     }
 
     @Bean
