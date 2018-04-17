@@ -135,9 +135,9 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
             })
         );
         synchronized (storeLock) {
-            DiscoveredTemplateToDeploymentProfile.replace(targetId,
+            DiscoveredTemplateToDeploymentProfile.put(targetId,
                 new EntityProfileToDeploymentProfileMap(reverseMap));
-            orphanedDeploymentProfile.replace(targetId,
+            orphanedDeploymentProfile.put(targetId,
                 profileTemplateMap.entrySet().stream()
                     .filter(entry -> entry.getValue().isEmpty()).map(Entry::getKey)
                     .collect(Collectors.toSet())

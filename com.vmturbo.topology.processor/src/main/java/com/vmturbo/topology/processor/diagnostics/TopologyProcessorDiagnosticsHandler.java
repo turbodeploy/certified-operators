@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.diagnostics;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringWriter;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +28,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
 import io.prometheus.client.CollectorRegistry;
-import io.prometheus.client.exporter.common.TextFormat;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;

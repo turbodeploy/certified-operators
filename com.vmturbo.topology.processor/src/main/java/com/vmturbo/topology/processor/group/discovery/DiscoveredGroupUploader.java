@@ -4,14 +4,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -27,7 +24,6 @@ import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
