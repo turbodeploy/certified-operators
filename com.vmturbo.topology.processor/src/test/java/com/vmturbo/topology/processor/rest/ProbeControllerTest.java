@@ -50,6 +50,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCapability;
+import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
@@ -146,6 +147,13 @@ public final class ProbeControllerTest {
                 .setProbeCategory("cat")
                 .addAccountDefinition(optionalEntry)
                 .addTargetIdentifierField("name")
+                .addActionPolicy(ActionPolicyDTO.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE)
+                        .addPolicyElement(ActionPolicyElement.newBuilder()
+                                .setActionCapability(ActionCapability.NOT_EXECUTABLE)
+                                .setActionType(ActionType.START)
+                                .build())
+                        .build())
                 .build();
 
         twoAccountFieldsProbe = ProbeInfo.newBuilder()

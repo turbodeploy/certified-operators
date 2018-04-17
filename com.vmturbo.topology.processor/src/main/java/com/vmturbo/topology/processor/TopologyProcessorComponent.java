@@ -5,21 +5,22 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
+import javax.servlet.ServletException;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -78,8 +79,6 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     TopologyConfig.class,
     SQLDatabaseConfig.class,
 })
-@EnableAutoConfiguration
-@EnableDiscoveryClient
 public class TopologyProcessorComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();
@@ -117,9 +116,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
 
-    @Value("${spring.application.name}")
-    private String componentName;
-
     @PostConstruct
     private void setup() {
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
@@ -127,11 +123,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
             new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
                 dbConfig.dataSource()::getConnection));
         getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.kafkaProducerHealthMonitor());
-    }
-
-    @Override
-    public String getComponentName() {
-        return componentName;
     }
 
     @Override
@@ -159,11 +150,15 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
-        // apply the configuration properties for this component prior to Spring instantiation
-        fetchConfigurationProperties();
-        // instantiate and run this component
-        new SpringApplicationBuilder()
-            .sources(TopologyProcessorComponent.class)
-            .run(args);
+        startContext((contextServer) -> {
+            try {
+                final ConfigurableApplicationContext context =
+                        attachSpringContext(contextServer, TopologyProcessorComponent.class);
+                WebSocketServerContainerInitializer.configureContext(contextServer);
+                return context;
+            } catch (ServletException e) {
+                throw new ContextConfigurationException("Could not configure websockets", e);
+            }
+        });
     }
 }
