@@ -3,39 +3,43 @@ package com.vmturbo.components.common.health;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.concurrent.TimeUnit;
-
 import javax.annotation.concurrent.NotThreadSafe;
 
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.env.MockEnvironment;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.AnnotationConfigWebContextLoader;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.ComponentController;
 
-@RunWith(SpringJUnit4ClassRunner.class)
 @WebAppConfiguration
 @ContextConfiguration(loader = AnnotationConfigWebContextLoader.class)
 @DirtiesContext(classMode = ClassMode.BEFORE_EACH_TEST_METHOD)
@@ -51,20 +55,20 @@ public class ComponentHealthCheckTest {
 
     protected MockMvc mockMvc;
 
-    @Autowired
     private ContextConfiguration testConfig;
 
     private static BaseVmtComponent testComponent;
     private static ComponentController testController;
 
-    @Autowired
     private WebApplicationContext wac;
+    private Server server;
 
     /**
      * Nested configuration for Spring context.
      */
     @Configuration
     @EnableWebMvc
+    @Import({BaseVmtComponentConfig.class})
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
         @Bean
         public BaseVmtComponent theComponent() {
@@ -79,41 +83,69 @@ public class ComponentHealthCheckTest {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
+        final Server server = new Server();
+
+        final AnnotationConfigWebApplicationContext context = new AnnotationConfigWebApplicationContext();
+        context.register(ContextConfiguration.class);
+        final MockEnvironment env = new MockEnvironment();
+        env.setProperty("server.grpcPort", "1");
+        env.setProperty("spring.cloud.consul.host", "ddd");
+        env.setProperty("spring.cloud.consul.port", "2");
+        env.setProperty("spring.application.name", "3");
+        env.setProperty("kvStoreRetryIntervalMillis", "4");
+        env.setProperty("spring.cloud.consul.config.enabled", "false");
+        env.setProperty("spring.cloud.service-registry.enabled", "false");
+        env.setProperty("spring.cloud.service-registry.auto-registration.enabled", "false");
+        context.setEnvironment(env);
+
+        final ServletContextHandler handler = new ServletContextHandler();
+        final DispatcherServlet servlet = new DispatcherServlet(context);
+        final ServletHolder holder = new ServletHolder(servlet);
+        handler.addServlet(holder, "/*");
+        final ContextLoaderListener springListener = new ContextLoaderListener(context);
+        handler.addEventListener(springListener);
+        server.setHandler(handler);
+        server.start();
+
+        wac = context;
         mockMvc = MockMvcBuilders.webAppContextSetup(wac).build();
         testComponent = wac.getBean(SimpleTestComponent.class);
         testController = wac.getBean(ComponentController.class);
+        testConfig = wac.getBean(ContextConfiguration.class);
+    }
+
+    @After
+    public void stop() throws Exception {
+        if (server != null) {
+            server.stop();
+            server.join();
+        }
     }
 
     @Test
     public void testSimpleHealthEndpointJson() throws Exception {
         // initially the component will not be ready.
-        Assert.assertFalse("Component should still be starting up",
+        Assert.assertTrue("Component should be already started",
                 testComponent.getHealthMonitor().getHealthStatus().isHealthy());
         // verify that the health end point also returns an error
         ResponseEntity<?> response = testController.getHealth();
         int responseCode = response.getStatusCodeValue();
-        Assert.assertFalse("/health endpoint should not return 2xx.",
+        Assert.assertTrue("/health endpoint should return 2xx.",
                 responseCode >= 200 && responseCode < 300);
         long startTime = System.nanoTime();
-        testComponent.startComponent();
-        // now wait for the component to finish starting
-        waitUntilHealthy();
-        // now verify that the component is reported as ready
+        testComponent.stopComponent();
         MvcResult result = mockMvc.perform(get(API_PREFIX + "/health")
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE,MediaType.ALL_VALUE))
-                .andExpect(status().isOk())
+                .andExpect(status().is5xxServerError())
                 .andReturn();
         responseCode = result.getResponse().getStatus();
-        Assert.assertTrue("/health endpoint should return 2xx after startup completes",responseCode >= 200 && responseCode < 300);
+        Assert.assertTrue("/health endpoint should return 5xx after shutdown",responseCode >= 500);
     }
 
     @Test
     public void testSimpleHealthEndpointText() throws Exception {
         long startTime = System.nanoTime();
-        testComponent.startComponent();
-        // now wait for the component to finish starting
-        waitUntilHealthy();
         // now verify that the component is reported as ready
         MvcResult result = mockMvc.perform(get(API_PREFIX + "/health")
                 .accept(MediaType.TEXT_PLAIN_VALUE,MediaType.ALL_VALUE))
@@ -127,28 +159,6 @@ public class ComponentHealthCheckTest {
         @Override
         public String getComponentName() {
             return "SimpleTestComponent";
-        }
-    }
-
-    /**
-     * Wait until the component is 'healthy' by calling the healthMonitor and fail after 5 seconds.
-     * There's a Thread.sleep() in the retry / wait loop.
-     *
-     * TODO - figure out how to not depend on timing, or change to Integration Test
-     *
-     * @throws InterruptedException if the Thread.sleep() is interrupted
-     */
-    private void waitUntilHealthy() throws InterruptedException {
-        long startTime = System.nanoTime();
-        while(! testComponent.getHealthMonitor().getHealthStatus().isHealthy()) {
-            long elapsedTime = System.nanoTime() - startTime;
-            if ( elapsedTime > TimeUnit.SECONDS.toNanos(MAX_WAIT_SECS) ) {
-                // if it took longer than 5 seconds to start up, something is wrong!
-                Assert.fail("Test Component still isn't healthy after "+ MAX_WAIT_SECS +" seconds!");
-                break;
-            }
-            System.out.println("Test component not healthy yet: "+ testComponent.getHealthMonitor().getHealthStatus().getDetails());
-            Thread.sleep(100);
         }
     }
 }
