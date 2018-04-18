@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
-import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -15,16 +14,6 @@ import com.vmturbo.components.api.ComponentGsonFactory;
  */
 @Configuration
 public class MarketGlobalConfig {
-
-    /**
-     * This bean performs registration of all configured websocket endpoints.
-     *
-     * @return bean
-     */
-    @Bean
-    public ServerEndpointExporter endpointExporter() {
-        return new ServerEndpointExporter();
-    }
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
