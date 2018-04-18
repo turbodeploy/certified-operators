@@ -9,20 +9,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
-import org.springframework.web.client.RestTemplate;
-
 import com.arangodb.ArangoDB;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
@@ -36,9 +22,24 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.web.client.RestTemplate;
+
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
@@ -88,8 +89,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 @Configuration("theComponent")
-@EnableAutoConfiguration
-@EnableDiscoveryClient
 @EnableConfigurationProperties(RepositoryProperties.class)
 @Import({
     RepositoryApiConfig.class,
@@ -119,9 +118,6 @@ public class RepositoryComponent extends BaseVmtComponent {
     FileFolderZipper fileFolderZipper;
 
     OsCommandProcessRunner osCommandProcessRunner;
-
-    @Value("${spring.application.name}")
-    private String componentName;
 
     @Value("${arangoDumpRestorePort:8599}")
     private int arangoDumpRestorePort;
@@ -475,17 +471,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
-        // apply the configuration properties for this component prior to Spring instantiation
-        fetchConfigurationProperties();
-        // instantiate and run this component
-        new SpringApplicationBuilder()
-                .sources(RepositoryComponent.class)
-                .run(args);
-    }
-
-    @Override
-    public String getComponentName() {
-        return componentName;
+        startContext(RepositoryComponent.class);
     }
 
     @Override
