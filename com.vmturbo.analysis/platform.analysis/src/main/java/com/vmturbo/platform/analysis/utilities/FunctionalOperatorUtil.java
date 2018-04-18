@@ -112,7 +112,7 @@ public class FunctionalOperatorUtil {
 
     public static FunctionalOperator createCouponUpdatingFunction(CostDTO costDTO,
                                                                     UpdatingFunctionTO updateFunctionTO) {
-        FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
+        FunctionalOperator UPDATE_COUPON_COMM = (buyer, boughtIndex, commSold, seller, economy, take, oldUsed)
                         -> {
                             CbtpCostDTO cbtpResourceBundle = costDTO.getCbtpResourceBundle();
                             // Find the template matched with the buyer
@@ -141,6 +141,12 @@ public class FunctionalOperatorUtil {
                                 return new double[] {commSold.getQuantity(), 0};
                             }
 
+                            // copy the sold commodity's old used into the quantity attribute when
+                            // the attribute was reset while using explicit combinator
+                            if (commSold.getQuantity() == 0) {
+                                commSold.setQuantity(oldUsed);
+                            }
+
                             // The capacity of coupon commodity sold by the matching tp holds the
                             // number of coupons associated with the template. This is the number of
                             // coupons consumed by a vm that got placed on a cbtp.
@@ -154,31 +160,40 @@ public class FunctionalOperatorUtil {
                             double availableCoupons = commSold.getCapacity() - commSold.getQuantity();
 
                             double discountedCost = 0;
+                            double discountCoefficient = 0;
                             if (availableCoupons > 0) {
-                                double discountCoefficient = Math.min(requestedCoupons, availableCoupons) / requestedCoupons;
+                                discountCoefficient = Math.min(requestedCoupons, availableCoupons) / requestedCoupons;
                                 discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
                                                 * ((1 - cbtpResourceBundle.getDiscountPercentage()) * templateCost));
                             }
                             // The cost of vm placed on a cbtp is the discounted cost
                             buyer.setCost(discountedCost);
+                            if (logger.isTraceEnabled()) {
+                                logger.trace(buyer.getBuyer().getDebugInfoNeverUseInCode() + " migrated to CBTP "
+                                             + seller.getDebugInfoNeverUseInCode() + " offering a dicount of "
+                                             + cbtpResourceBundle.getDiscountPercentage() + " on TP "
+                                             + matchingTP.getDebugInfoNeverUseInCode() + " at a discountCoeff of"
+                                             + discountCoefficient + " with a final discount of "
+                                             + discountedCost);
+                            }
                             // Increase the used value of coupon commodity sold by cbtp accordingly
                             return new double[]{(commSold.getQuantity() + requestedCoupons), 0};
                         };
                         return UPDATE_COUPON_COMM;
     }
 
-    public static FunctionalOperator ADD_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
+    public static FunctionalOperator ADD_COMM = (buyer, boughtIndex, commSold, seller, economy, take, oldUsed)
                     -> new double[]{buyer.getQuantities()[boughtIndex] + commSold.getQuantity(),
                                     buyer.getPeakQuantities()[boughtIndex] + commSold.getPeakQuantity()};
 
-    public static FunctionalOperator SUB_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
+    public static FunctionalOperator SUB_COMM = (buyer, boughtIndex, commSold, seller, economy, take, oldUsed)
                     -> new double[]{Math.max(0, commSold.getQuantity() - buyer.getQuantities()[boughtIndex]),
                                     Math.max(0, commSold.getPeakQuantity() - buyer.getPeakQuantities()[boughtIndex])};
 
     // Return commSoldUsed (template-cost) when taking the action and
     // (spent - oldTemplateCost + newTemplateCost) when not taking the action
     public static FunctionalOperator UPDATE_EXPENSES = (buyer, boughtIndex, commSold, seller,
-                        economy, take)
+                        economy, take, oldUsed)
                     -> {
                         BalanceAccount ba = seller.getSettings().getBalanceAccount();
                         if (take) {
@@ -196,7 +211,8 @@ public class FunctionalOperatorUtil {
 
     // when taking the action, Return commSoldUsed
     // when not taking the action, return 0 if the buyer fits or INFINITY otherwise
-    public static FunctionalOperator IGNORE_CONSUMPTION = (buyer, boughtIndex, commSold, seller, economy, take)
+    public static FunctionalOperator IGNORE_CONSUMPTION = (buyer, boughtIndex, commSold, seller, economy
+                    , take, oldUsed)
                     -> {if (take) {
                             return new double[]{commSold.getQuantity(), commSold.getPeakQuantity()};
                         } else {
@@ -207,7 +223,8 @@ public class FunctionalOperatorUtil {
                         }
                     };
 
-    public static FunctionalOperator AVG_COMMS = (buyer, boughtIndex, commSold, seller, economy, take)
+    public static FunctionalOperator AVG_COMMS = (buyer, boughtIndex, commSold, seller, economy
+                    , take, oldUsed)
                     -> {
                         // consider just the buyers that consume the commodity as customers
                         CommoditySpecification csBought = buyer.getBasket().get(boughtIndex);
@@ -225,20 +242,21 @@ public class FunctionalOperatorUtil {
                                             };
                     };
 
-    public static FunctionalOperator MAX_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
+    public static FunctionalOperator MAX_COMM = (buyer, boughtIndex, commSold, seller, economy, take, oldUsed)
                     -> new double[]{Math.max(buyer.getQuantities()[boughtIndex], commSold.getQuantity()),
                                     Math.max(buyer.getPeakQuantities()[boughtIndex], commSold.getPeakQuantity())};
 
-    public static FunctionalOperator MIN_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
+    public static FunctionalOperator MIN_COMM = (buyer, boughtIndex, commSold, seller, economy, take, oldUsed)
                     -> new double[]{Math.min(buyer.getQuantities()[boughtIndex], commSold.getQuantity()),
                                     Math.min(buyer.getPeakQuantities()[boughtIndex], commSold.getPeakQuantity())};
 
-    public static FunctionalOperator RETURN_BOUGHT_COMM = (buyer, boughtIndex, commSold, seller, economy, take)
+    public static FunctionalOperator RETURN_BOUGHT_COMM = (buyer, boughtIndex, commSold, seller, economy
+                    , take, oldUsed)
                     -> new double[]{buyer.getQuantities()[boughtIndex],
                                     buyer.getPeakQuantities()[boughtIndex]};
 
     public static FunctionalOperator EXTERNAL_UPDATING_FUNCTION =
-                    (buyer, boughtIndex, commSold, seller, economy, take) -> {
+                    (buyer, boughtIndex, commSold, seller, economy, take, oldUsed) -> {
                         // If we are moving, external function needs to call place on matrix
                         // interface, else do nothing
                         if (take) {

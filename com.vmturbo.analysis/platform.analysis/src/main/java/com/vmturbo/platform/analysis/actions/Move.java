@@ -253,10 +253,10 @@ public class Move extends MoveBase implements Action { // inheritance for code r
 
         FunctionalOperator explicitCombinator = commoditySold.getSettings().getUpdatingFunction();
         if (explicitCombinator == null) { // if there is no explicit combinator, use default one.
-            return defaultCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take);
+            return defaultCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take, 0);
         } if (incoming) {
             // include quantityBought to the current used of the corresponding commodity
-            return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take);
+            return explicitCombinator.operate(sl, boughtIndex, commoditySold, traderToUpdate, economy, take, 0);
         } else {
             // this loop is used when we use a combinator that is "max" for example, when we move out of this trader, we wouldnt know the initial value
             // that was replaced by the current quantity. For example, max(5,12), we wont know what 12 replaced.
@@ -276,7 +276,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 int specIndex = customer.getBasket().indexOf(specificationSold);
                 if (specIndex >= 0) {
                     double[] tempUpdatedQnty = explicitCombinator.operate(customer, specIndex,
-                                    commoditySold, traderToUpdate, economy, take);
+                                    commoditySold, traderToUpdate, economy, take, sellerOrigUsed);
                     commoditySold.setQuantity(tempUpdatedQnty[0]).setPeakQuantity(tempUpdatedQnty[1]);
                 }
             }
