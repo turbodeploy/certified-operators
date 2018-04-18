@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
-import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -35,10 +34,5 @@ public class GlobalConfig {
         final GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
         msgConverter.setGson(ComponentGsonFactory.createGson());
         return msgConverter;
-    }
-
-    @Bean
-    public ServerEndpointExporter endpointExporter() {
-        return new ServerEndpointExporter();
     }
 }

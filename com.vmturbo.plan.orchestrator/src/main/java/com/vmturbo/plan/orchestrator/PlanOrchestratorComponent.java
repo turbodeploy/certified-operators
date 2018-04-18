@@ -6,20 +6,18 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -39,8 +37,6 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  * Responsible for orchestrating plan workflow.
  */
 @Configuration("theComponent")
-@EnableAutoConfiguration
-@EnableDiscoveryClient
 @Import({DeploymentProfileConfig.class,
         PlanConfig.class,
         ScenarioConfig.class,
@@ -68,9 +64,6 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
 
     @Autowired
     private DeploymentProfileConfig deploymentProfileConfig;
-
-    @Value("${spring.application.name}")
-    private String componentName;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -105,17 +98,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
-        // apply the configuration properties for this component prior to Spring instantiation
-        fetchConfigurationProperties();
-        // instantiate and run this component
-        new SpringApplicationBuilder()
-                .sources(PlanOrchestratorComponent.class)
-                .run(args);
-    }
-
-    @Override
-    public String getComponentName() {
-        return componentName;
+        startContext(PlanOrchestratorComponent.class);
     }
 
     /**
