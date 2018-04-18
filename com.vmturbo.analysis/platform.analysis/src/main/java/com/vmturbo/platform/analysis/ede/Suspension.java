@@ -83,6 +83,10 @@ public class Suspension {
                         + " as it is not a seller in any market");
                 }
                 suspendTrader(economy, null, seller, allActions);
+                // Avoid further suspensions if setting is CLUSTER
+                if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
+                    makeCoSellersNonSuspendable(economy, seller);
+                }
             }
         }
         // run suspension for 3 rounds. We can have scenarios where, there are VMs that can move
@@ -120,6 +124,10 @@ public class Suspension {
                                             + " as there are no customers");
                         }
                         suspendTrader(economy, market, seller, allActions);
+                        // Avoid further suspensions if setting is CLUSTER
+                        if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
+                            makeCoSellersNonSuspendable(economy, seller);
+                        }
                         continue;
                     }
                     IncomeStatement incomeStmt = ledger.getTraderIncomeStatements()
