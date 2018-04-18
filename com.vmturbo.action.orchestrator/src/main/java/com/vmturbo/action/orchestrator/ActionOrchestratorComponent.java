@@ -6,20 +6,18 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.api.ApiSecurityConfig;
@@ -50,8 +48,6 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         ActionOrchestratorGlobalConfig.class,
         SQLDatabaseConfig.class,
         SpringSecurityConfig.class})
-@EnableAutoConfiguration
-@EnableDiscoveryClient
 public class ActionOrchestratorComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();
@@ -73,14 +69,6 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
      */
     @Autowired
     private SpringSecurityConfig securityConfig;
-
-    @Value("${spring.application.name}")
-    private String componentName;
-
-    @Override
-    public String getComponentName() {
-        return componentName;
-    }
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -119,11 +107,6 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
-        // apply the configuration properties for this component prior to Spring instantiation
-        fetchConfigurationProperties();
-        // instantiate and run this component
-        new SpringApplicationBuilder()
-                .sources(ActionOrchestratorComponent.class)
-                .run(args);
+        startContext(ActionOrchestratorComponent.class);
     }
 }

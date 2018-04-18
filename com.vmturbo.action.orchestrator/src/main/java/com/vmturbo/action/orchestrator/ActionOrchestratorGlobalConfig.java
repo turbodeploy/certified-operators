@@ -15,7 +15,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
-import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -35,16 +34,6 @@ public class ActionOrchestratorGlobalConfig {
 
     @Autowired
     private TopologyProcessorClientConfig tpClientConfig;
-
-    /**
-     * This bean performs registration of all configured websocket endpoints.
-     *
-     * @return bean
-     */
-    @Bean
-    public ServerEndpointExporter endpointExporter() {
-        return new ServerEndpointExporter();
-    }
 
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService tpClientExecutorService() {
