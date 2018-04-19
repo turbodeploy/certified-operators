@@ -10,6 +10,9 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableList;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,12 +21,10 @@ import org.springframework.http.converter.FormHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.http.converter.xml.SourceHttpMessageConverter;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter;
-
-import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.clustermgr.aggregator.DataAggregator;
 import com.vmturbo.clustermgr.collectors.DataMetricLogs;
@@ -34,6 +35,7 @@ import com.vmturbo.proactivesupport.DataCollectorFramework;
  * Spring configuration for cluster manager component.
  */
 @Configuration
+@EnableWebMvc
 public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Value("${consul_host}")
     private String consulHost;

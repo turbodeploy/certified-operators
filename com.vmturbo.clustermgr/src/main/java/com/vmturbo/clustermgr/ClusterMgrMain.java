@@ -1,35 +1,39 @@
 package com.vmturbo.clustermgr;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 
+import javax.annotation.Nonnull;
 import javax.annotation.PreDestroy;
+import javax.servlet.Servlet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.web.context.ContextLoaderListener;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationService;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
 
-/*
+/**
  * The ClusterMgrMain is a utility to launch each of the VmtComponent Docker Containers configured to run on the
  * current node (server).
  * The list of VmtComponents to launch, including component name and version number, is maintained on the shared
  * persistent key/value server and is injected automatically by Spring Cloud Configuration.
  */
 @Configuration("theComponent")
-@EnableAutoConfiguration
 @Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class})
-public class ClusterMgrMain implements CommandLineRunner {
+public class ClusterMgrMain {
 
     private Logger log = LogManager.getLogger();
 
@@ -47,10 +51,55 @@ public class ClusterMgrMain implements CommandLineRunner {
 
     private ExecutorService backgroundTaskRunner;
 
+    /**
+     * Returns environment variable value.
+     *
+     * @param propertyName environment variable name
+     * @return evironment variable value
+     * @throws NullPointerException if there is not such environment property set
+     */
+    @Nonnull
+    protected static String requireEnvProperty(@Nonnull String propertyName) {
+        final String sysPropValue = System.getProperty(propertyName);
+        if (sysPropValue != null) {
+            return sysPropValue;
+        }
+        return Objects.requireNonNull(System.getenv(propertyName),
+                "System or environment property \"" + propertyName + "\" must be set");
+    }
+
+
     public static void main(String[] args) throws Exception {
-        new SpringApplicationBuilder()
-                .sources(ClusterMgrMain.class)
-                .run(args);
+        final Logger logger = LogManager.getLogger();
+        logger.info("Starting web server with spring context");
+        final String serverPort = requireEnvProperty("server_port");
+
+        final org.eclipse.jetty.server.Server server =
+                new org.eclipse.jetty.server.Server(Integer.valueOf(serverPort));
+        final ServletContextHandler contextServer =
+                new ServletContextHandler(ServletContextHandler.SESSIONS);
+        try {
+            server.setHandler(contextServer);
+            final AnnotationConfigWebApplicationContext applicationContext =
+                    new AnnotationConfigWebApplicationContext();
+            applicationContext.register(ClusterMgrMain.class);
+            final Servlet dispatcherServlet = new DispatcherServlet(applicationContext);
+            final ServletHolder servletHolder = new ServletHolder(dispatcherServlet);
+            contextServer.addServlet(servletHolder, "/*");
+            // Setup Spring context
+            final ContextLoaderListener springListener = new ContextLoaderListener(applicationContext);
+            contextServer.addEventListener(springListener);
+
+            server.start();
+            if (!applicationContext.isActive()) {
+                logger.error("Spring context failed to start. Shutting down.");
+                System.exit(1);
+            }
+            applicationContext.getBean(ClusterMgrMain.class).run();
+        } catch (Exception e) {
+            logger.error("Web server failed to start. Shutting down.", e);
+            System.exit(1);
+        }
     }
 
     /*
@@ -61,7 +110,7 @@ public class ClusterMgrMain implements CommandLineRunner {
      * <li>launch each component (by calling the Docker API)</li>
      * </ul>
      */
-    public void run(String[] args) {
+    public void run() {
 
         log.info(">>>>>>>>>  clustermgr beginning for " + nodeName);
         // configure kafka

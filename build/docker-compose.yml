@@ -180,6 +180,7 @@ services:
     environment:
       component_type: clustermgr
       instance_id: clustermgr-1
+      server_port: 8080
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${CLUSTERMGR_XMX_MB}M ${CLUSTERMGR_SYSTEM_PROPERTIES}"
       node_name: default
       consul_host: consul

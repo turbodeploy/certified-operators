@@ -119,6 +119,7 @@ services:
       node_name: default
       consul_host: consul
       kafkaServers: kafka1:9092
+      server_port: 8080
       JAVA_OPTS: "-Xmx384M -verbose:gc -XX:+PrintGCDateStamps"
     volumes:
       - clustermgr:/home/turbonomic/data
