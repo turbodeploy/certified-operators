@@ -1,12 +1,19 @@
 package com.vmturbo.topology.processor.rest;
 
+import java.util.List;
 import java.util.Optional;
+
+import com.google.gson.Gson;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.json.GsonHttpMessageConverter;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
@@ -30,7 +37,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     GroupConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
 })
-public class RESTConfig {
+public class RESTConfig extends WebMvcConfigurerAdapter {
     @Autowired
     private EntityConfig entityConfig;
 
@@ -92,5 +99,13 @@ public class RESTConfig {
     @Bean
     public DiagnosticsController diagnosticsController() {
         return new DiagnosticsController(diagnosticsConfig.diagsHandler());
+    }
+
+    @Override
+    public void configureMessageConverters(List<HttpMessageConverter<?>> converters) {
+        final Gson GSON = ComponentGsonFactory.createGson();
+        GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
+        msgConverter.setGson(GSON);
+        converters.add(msgConverter);
     }
 }

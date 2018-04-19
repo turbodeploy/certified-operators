@@ -10,6 +10,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+
+import com.google.common.collect.Sets;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,12 +29,6 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
 import javaslang.control.Either;
 
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -72,7 +73,8 @@ public class GraphServiceEntityController {
     @RequestMapping(
             path = "/serviceentity/query/id",
             method = RequestMethod.POST,
-            produces = MediaType.APPLICATION_JSON_UTF8_VALUE
+            produces = MediaType.APPLICATION_JSON_UTF8_VALUE,
+            consumes = MediaType.APPLICATION_JSON_UTF8_VALUE
     )
     @ApiOperation(value = "Query the service entities in the repository by OID.")
     @ResponseBody
@@ -82,7 +84,7 @@ public class GraphServiceEntityController {
             @RequestParam(required = false, value = "projected", defaultValue = "false")
                 final boolean searchProjected,
             @ApiParam(value = "The list of IDs of service entities to retrieve.")
-            @RequestBody final ImmutableSet<Long> requestedIds) {
+            @RequestBody final Set<Long> requestedIds) {
 
         LOGGER.debug("Searching for service entities {}", requestedIds);
         final Either<String, Collection<ServiceEntityApiDTO>> result =
