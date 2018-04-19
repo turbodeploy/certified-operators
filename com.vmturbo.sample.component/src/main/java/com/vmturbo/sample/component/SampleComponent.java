@@ -4,19 +4,15 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
-import org.springframework.web.socket.server.standard.ServerEndpointExporter;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -38,14 +34,6 @@ import com.vmturbo.sample.component.notifications.SampleComponentNotificationsCo
 
 // The name "theComponent" is required for autowiring to work properly.
 @Configuration("theComponent")
-// Indicate that we want the Spring Boot startup mechanism.
-@EnableAutoConfiguration
-// Indicate that the application should register so other components can find it.
-@EnableDiscoveryClient
-// Each sub-package should have its own @Configuration class. This
-// should import ALL of these sub-configurations in order to initialize
-// them in the component's Spring context. We do this instead of using
-// @ComponentScan.
 @Import({EchoRpcConfig.class, SampleComponentNotificationsConfig.class})
 public class SampleComponent extends BaseVmtComponent {
 
@@ -66,14 +54,8 @@ public class SampleComponent extends BaseVmtComponent {
      * @param args Command-line arguments.
      */
     public static void main(String[] args) {
-        // apply the configuration properties for this component prior to Spring instantiation
-        fetchConfigurationProperties();
-        // instantiate and run this component
-        new SpringApplicationBuilder()
-                .sources(SampleComponent.class)
-                .run(args);
+        startContext(SampleComponent.class);
     }
-
 
     /**
      * This is the method used to actually hook in implementations of gRPC services
@@ -82,16 +64,6 @@ public class SampleComponent extends BaseVmtComponent {
     protected @Nonnull Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
         builder.addService(echoRpcConfig.echoRpcService());
         return Optional.of(builder.build());
-    }
-
-    /**
-     * This bean scans the Spring context for websocket endpoints (such as the one
-     * in {@link SampleComponentNotificationsConfig#sampleComponentNotificationSender()} and exposes them
-     * to the outside world.
-     */
-    @Bean
-    public ServerEndpointExporter endpointExporter() {
-        return new ServerEndpointExporter();
     }
 
     /**

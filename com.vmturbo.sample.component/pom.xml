@@ -29,24 +29,60 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
-            <!-- This is to allow you to run the spring boot app in-place, instead of in the
-                 docker component.
-                 TODO (roman, Feb 7 2017): Not clear if anyone actually uses this, because
-                 running a non-dockerized component can be difficult, especially with all the
-                 security stuff in place. -->
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <attach>false</attach>
-                </configuration>
-            </plugin>
             <!-- This is the plugin that will build the docker image for the component as
                  part of "mvn install". The configuration for the plugin is in
                  com.vmturbo.components/pom.xml -->
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
+                <configuration>
+                    <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
+                    <resources>
+                        <resource>
+                            <targetPath>/</targetPath>
+                            <directory>${project.build.directory}</directory>
+                            <include>${project.build.finalName}.jar</include>
+                        </resource>
+                        <resource>
+                            <targetPath>/lib</targetPath>
+                            <directory>${project.build.directory}/lib</directory>
+                        </resource>
+                        <resource>
+                            <targetPath>/swagger</targetPath>
+                            <directory>${project.build.directory}/generated-docs/swagger</directory>
+                        </resource>
+                    </resources>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>com.vmturbo.sample.component.SampleComponent</mainClass>
+                            <classpathPrefix>lib/</classpathPrefix>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <useBaseVersion>false</useBaseVersion>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <!-- This is the plugin that will build a swagger.json file describing the
             REST interface to any Controllers or gRPC Services -->
