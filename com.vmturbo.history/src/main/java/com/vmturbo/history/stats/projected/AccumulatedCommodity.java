@@ -7,14 +7,12 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.stats.StatsAccumulator;
 
 /**
  * Accumulated information about a single type of commodity over a set of entities.
@@ -22,11 +20,11 @@ import com.vmturbo.history.schema.RelationType;
  * {@link AccumulatedSoldCommodity}.
  */
 abstract class AccumulatedCommodity {
-    private Accumulation used = new Accumulation();
+    private StatsAccumulator used = new StatsAccumulator();
 
-    private Accumulation peak = new Accumulation();
+    private StatsAccumulator peak = new StatsAccumulator();
 
-    private Accumulation capacity = new Accumulation();
+    private StatsAccumulator capacity = new StatsAccumulator();
 
     private final String commodityName;
 
@@ -45,7 +43,7 @@ abstract class AccumulatedCommodity {
         final StatRecord.Builder builder = StatRecord.newBuilder();
 
         builder.setName(commodityName);
-        builder.setCapacity((float)capacity.getTotal());
+        builder.setCapacity(capacity.toStatValue());
         builder.setUsed(used.toStatValue());
         builder.setValues(used.toStatValue());
         builder.setPeak(peak.toStatValue());
@@ -190,50 +188,6 @@ abstract class AccumulatedCommodity {
         protected StatRecord finalizeStatRecord(@Nonnull final StatRecord.Builder builder) {
             builder.setRelation(RelationType.METRICS.getLiteral());
             return builder.build();
-        }
-    }
-
-    /**
-     * A utility class to accumulate values and keep track of the min, max, total and average.
-     */
-    @VisibleForTesting
-    static class Accumulation {
-        private double min = Double.MAX_VALUE;
-        private double max = Double.MIN_VALUE;
-        private double total = 0;
-        private int count = 0;
-
-        void record(double value) {
-            min = Math.min(value, min);
-            max = Math.max(value, max);
-            total += value;
-            ++count;
-        }
-
-        double getMin() {
-            return min;
-        }
-
-        double getMax() {
-            return max;
-        }
-
-        double getTotal() {
-            return total;
-        }
-
-        double getAvg() {
-            return count == 0 ? 0 : total / count;
-        }
-
-        @Nonnull
-        StatValue toStatValue() {
-            return StatValue.newBuilder()
-                    .setAvg((float)getAvg())
-                    .setTotal((float)getTotal())
-                    .setMax((float)getMax())
-                    .setMin((float)getMin())
-                    .build();
         }
     }
 }

@@ -351,7 +351,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                     .setCurrentValue((float) used)
                     .setUsed(buildStatValue((float) used))
                     .setPeak(buildStatValue((float) peak))
-                    .setCapacity((float) capacity)
+                    .setCapacity(buildStatValue((float) capacity))
                     .setStatKey(key)
                     .setProviderUuid(providerOidString)
                     .build();

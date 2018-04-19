@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class BoughtCommoditiesInfoTest {
@@ -45,6 +46,11 @@ public class BoughtCommoditiesInfoTest {
                     .setUsed(2)
                     .setPeak(3)))
             .build();
+
+    public static final StatValue TWO_VALUE_STAT = new StatsAccumulator()
+        .record(5)
+        .record(5)
+        .toStatValue();
 
     @Test
     public void testBoughtCommodityEmpty() {
@@ -97,7 +103,7 @@ public class BoughtCommoditiesInfoTest {
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity(2 * (float)providerCapacity)
+                .setCapacity(TWO_VALUE_STAT)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 // Current value is the avg of used - 1 & 3
@@ -147,7 +153,7 @@ public class BoughtCommoditiesInfoTest {
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity((float) providerCapacity)
+                .setCapacity(StatsAccumulator.singleStatValue((float) providerCapacity))
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 // Current value is the avg of used.
@@ -211,7 +217,7 @@ public class BoughtCommoditiesInfoTest {
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity((float)providerCapacity * 2)
+                .setCapacity(TWO_VALUE_STAT)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 // Current value is the avg of used.
@@ -244,12 +250,12 @@ public class BoughtCommoditiesInfoTest {
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity((float)providerCapacity * 2)
+                .setCapacity(TWO_VALUE_STAT)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
-                // Current value is the avg of used.
+                    // Current value is the avg of used.
                 .setCurrentValue(2)
-                // Used and values are the same thing
+                    // Used and values are the same thing
                 .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
                 .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(4).build())
                 .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(6).build())
@@ -279,19 +285,19 @@ public class BoughtCommoditiesInfoTest {
                         .orElseThrow(() -> new RuntimeException("Expected record"));
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
-                .setName(COMMODITY)
-                // For now, capacity is the total capacity.
-                .setCapacity((float)providerCapacity)
-                .setUnits(COMMODITY_UNITS)
-                .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
-                .setProviderUuid(Long.toString(7))
+            .setName(COMMODITY)
+            // For now, capacity is the total capacity.
+            .setCapacity(StatsAccumulator.singleStatValue((float) providerCapacity))
+            .setUnits(COMMODITY_UNITS)
+            .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
+            .setProviderUuid(Long.toString(7))
                 // Current value is the avg of used.
-                .setCurrentValue(2)
+            .setCurrentValue(2)
                 // Used and values are the same thing
-                .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
-                .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
-                .build();
+            .setUsed(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+            .setValues(StatValue.newBuilder().setAvg(2).setMax(2).setMin(2).setTotal(2).build())
+            .setPeak(StatValue.newBuilder().setAvg(3).setMax(3).setMin(3).setTotal(3).build())
+            .build();
 
         assertEquals(expectedStatRecord, record);
     }
@@ -322,7 +328,7 @@ public class BoughtCommoditiesInfoTest {
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
             .setName(COMMODITY)
-            .setCapacity((float)0.0)
+            .setCapacity(StatsAccumulator.singleStatValue(0))
             .setUnits(COMMODITY_UNITS)
             .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
             .setCurrentValue(2)
@@ -362,7 +368,7 @@ public class BoughtCommoditiesInfoTest {
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
             .setName(COMMODITY)
-            .setCapacity((float)providerCapacity)
+            .setCapacity(new StatsAccumulator().record(0).record(providerCapacity).toStatValue())
             .setUnits(COMMODITY_UNITS)
             .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
             .setCurrentValue(4)

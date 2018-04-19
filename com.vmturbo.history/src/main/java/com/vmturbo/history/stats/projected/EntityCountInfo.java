@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -59,7 +60,7 @@ class EntityCountInfo {
                 .build();
         return StatRecord.newBuilder()
                 .setName(statName)
-                .setCapacity(value)
+                .setCapacity(StatsAccumulator.singleStatValue(value))
                 .setCurrentValue(value)
                 .setValues(val)
                 .setUsed(val)

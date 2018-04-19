@@ -69,6 +69,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingReque
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
@@ -374,7 +375,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         return buildStatRecord(
                 dbRecord.getPropertyType(),
                 dbRecord.getPropertySubtype(),
-                null,
+                (Float)null,
                 null,
                 dbRecord.getValue().floatValue(),
                 dbRecord.getValue().floatValue(),
@@ -388,7 +389,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         return buildStatRecord(
                 dbRecord.getPropertyType(),
                 dbRecord.getPropertySubtype(),
-                null,
+                (Float)null,
                 null,
                 dbRecord.getValue().floatValue(),
                 dbRecord.getValue().floatValue(),
@@ -621,9 +622,10 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     // In the full-market request we return aggregate stats with no commodity_key
                     // or producer_uuid.
                     final String commodityKey = fullMarket ? null :
-                            dbFirstStatRecord.getValue(COMMODITY_KEY, String.class);
+                        dbFirstStatRecord.getValue(COMMODITY_KEY, String.class);
                     final String producerIdString = fullMarket ? null :
-                            dbFirstStatRecord.getValue(PRODUCER_UUID, String.class);
+                        dbFirstStatRecord.getValue(PRODUCER_UUID, String.class);
+                    final StatsAccumulator capacityValue = new StatsAccumulator();
                     Long producerId = null;
                     if (StringUtils.isNotEmpty(producerIdString)) {
                         producerId = Long.valueOf(producerIdString);
@@ -631,7 +633,6 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                     float avgTotal = 0.0f;
                     float minTotal = 0.0f;
                     float maxTotal = 0.0f;
-                    float capacityTotal = 0.0f;
 
                     // calculate totals
                     for (Record dbStatRecord : dbStatRecordList) {
@@ -649,7 +650,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
                         }
                         Float oneCapacityValue = dbStatRecord.getValue(CAPACITY, Float.class);
                         if (oneCapacityValue != null) {
-                            capacityTotal += oneCapacityValue;
+                            capacityValue.record(oneCapacityValue.doubleValue());
                         }
                     }
 
@@ -661,8 +662,8 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
                     // build the record for this stat (commodity type)
                     final StatRecord statRecord = buildStatRecord(propertyType, propertySubtype,
-                            capacityTotal, producerId, avgValueAvg, minValueAvg, maxValueAvg,
-                            commodityKey, avgValueAvg, relation);
+                        capacityValue.toStatValue(), producerId, avgValueAvg, minValueAvg, maxValueAvg,
+                        commodityKey, avgTotal, relation);
 
                     // return add this record to the snapshot for this timestamp
                     statSnapshotBuilder.addStatRecords(statRecord);
@@ -714,13 +715,12 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         return statRecordsByTimeByCommodity;
     }
 
-
     /**
      * Create a {@link StatRecord} protobuf to contain aggregate stats values.
      *
      * @param propertyType name for this stat, e.g. VMem
      * @param propertySubtype refinement for this stat, e.g. "used" vs "utilization"
-     * @param capacity available amount on the producer
+     * @param capacityStat The capacity stat.
      * @param producerId unique id of the producer for commodity bought
      * @param avgValue average value reported from discovery
      * @param minValue min value reported from discovery
@@ -730,22 +730,22 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
      * @param relation stat relation to entity, e.g., "CommoditiesBought"
      * @return a {@link StatRecord} protobuf populated with the given values
      */
-    private StatRecord buildStatRecord(String propertyType,
-                                       String propertySubtype,
-                                       Float capacity,
-                                       Long producerId,
-                                       Float avgValue,
-                                       Float minValue,
-                                       Float maxValue,
-                                       String commodityKey,
-                                       Float totalValue,
-                                       String relation) {
+    private StatRecord buildStatRecord(@Nonnull final String propertyType,
+                                       @Nullable final String propertySubtype,
+                                       @Nullable final StatValue capacityStat,
+                                       @Nullable final Long producerId,
+                                       @Nullable final Float avgValue,
+                                       @Nullable final Float minValue,
+                                       @Nullable final Float maxValue,
+                                       @Nullable final String commodityKey,
+                                       @Nullable final Float totalValue,
+                                       @Nullable final String relation) {
 
         StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
-                .setName(propertyType);
+            .setName(propertyType);
 
-        if (capacity != null) {
-            statRecordBuilder.setCapacity(capacity);
+        if (capacityStat != null) {
+            statRecordBuilder.setCapacity(capacityStat);
         }
 
         if (relation != null) {
@@ -789,7 +789,7 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
 
         // currentValue
         if (avgValue != null && (propertySubtype == null ||
-                StringConstants.PROPERTY_SUBTYPE_USED.equals(propertySubtype))) {
+            StringConstants.PROPERTY_SUBTYPE_USED.equals(propertySubtype))) {
             statRecordBuilder.setCurrentValue(avgValue);
         } else {
             if (maxValue != null) {
@@ -804,6 +804,43 @@ public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistorySer
         statRecordBuilder.setPeak(statValue);
 
         return statRecordBuilder.build();
+    }
+
+    /**
+     * Create a {@link StatRecord} protobuf to contain aggregate stats values.
+     *
+     * @param propertyType name for this stat, e.g. VMem
+     * @param propertySubtype refinement for this stat, e.g. "used" vs "utilization"
+     * @param capacity available amount on the producer
+     * @param producerId unique id of the producer for commodity bought
+     * @param avgValue average value reported from discovery
+     * @param minValue min value reported from discovery
+     * @param maxValue max value reported from discovery
+     * @param commodityKey unique key to associate commodities between seller and buyer
+     * @param totalValue total of value (avgValue) over all elements of a group
+     * @param relation stat relation to entity, e.g., "CommoditiesBought"
+     * @return a {@link StatRecord} protobuf populated with the given values
+     */
+    private StatRecord buildStatRecord(@Nonnull String propertyType,
+                                       @Nullable String propertySubtype,
+                                       @Nullable Float capacity,
+                                       @Nullable Long producerId,
+                                       @Nullable Float avgValue,
+                                       @Nullable Float minValue,
+                                       @Nullable Float maxValue,
+                                       @Nullable String commodityKey,
+                                       @Nullable Float totalValue,
+                                       @Nullable String relation) {
+        return buildStatRecord(propertyType,
+            propertySubtype,
+            capacity == null ? null : StatsAccumulator.singleStatValue(capacity),
+            producerId,
+            avgValue,
+            minValue,
+            maxValue,
+            commodityKey,
+            totalValue,
+            relation);
     }
 
     /**

@@ -101,7 +101,7 @@ message StatSnapshot {
         optional string name = 1;
 
         // capacity for the commodities PROVIDED by this entity; null otherwise
-        optional float capacity = 2;
+        optional StatValue capacity = 2;
 
         // amount reserved - ?for reservation/deployment functionality?
         optional float reserved = 3;

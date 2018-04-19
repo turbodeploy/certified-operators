@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class EntityCountInfoTest {
@@ -49,7 +50,7 @@ public class EntityCountInfoTest {
                 .setName(COMMODITY)
                 .setRelation(RelationType.METRICS.getLiteral())
                 .setCurrentValue(value)
-                .setCapacity(value)
+                .setCapacity(StatsAccumulator.singleStatValue(value))
                 .setUsed(expectedValue)
                 .setPeak(expectedValue)
                 .setValues(expectedValue)

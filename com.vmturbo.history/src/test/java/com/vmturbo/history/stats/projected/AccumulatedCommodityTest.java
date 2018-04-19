@@ -11,9 +11,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.history.schema.RelationType;
+import com.vmturbo.history.stats.StatsAccumulator;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedBoughtCommodity;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedSoldCommodity;
-import com.vmturbo.history.stats.projected.AccumulatedCommodity.Accumulation;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 public class AccumulatedCommodityTest {
@@ -26,39 +26,10 @@ public class AccumulatedCommodityTest {
 
     private final static String COMMODITY_UNITS = "KB";
 
-
-    @Test
-    public void testAccumulationOneValue() {
-        final Accumulation value = new Accumulation();
-        value.record(1);
-        assertEquals(1, value.getMin(), 0);
-        assertEquals(1, value.getMax(), 0);
-        assertEquals(1, value.getAvg(), 0);
-        assertEquals(1, value.getTotal(), 0);
-
-        final StatValue statValue = value.toStatValue();
-        assertEquals(1, statValue.getMin(), 0);
-        assertEquals(1, statValue.getMax(), 0);
-        assertEquals(1, statValue.getAvg(), 0);
-        assertEquals(1, statValue.getTotal(), 0);
-    }
-
-    @Test
-    public void testAccumulationTwoValues() {
-        final Accumulation value = new Accumulation();
-        value.record(1);
-        value.record(3);
-        assertEquals(1, value.getMin(), 0);
-        assertEquals(3, value.getMax(), 0);
-        assertEquals(2, value.getAvg(), 0);
-        assertEquals(4, value.getTotal(), 0);
-
-        final StatValue statValue = value.toStatValue();
-        assertEquals(1, statValue.getMin(), 0);
-        assertEquals(3, statValue.getMax(), 0);
-        assertEquals(2, statValue.getAvg(), 0);
-        assertEquals(4, statValue.getTotal(), 0);
-    }
+    public static final StatValue TWO_VALUE_STAT = new StatsAccumulator()
+        .record(5)
+        .record(5)
+        .toStatValue();
 
     @Test
     public void testAccumulatedSoldCommodityEmpty() {
@@ -84,7 +55,7 @@ public class AccumulatedCommodityTest {
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity(10)
+                .setCapacity(TWO_VALUE_STAT)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIES.getLiteral())
                 // Current value is the avg of used.
@@ -116,7 +87,7 @@ public class AccumulatedCommodityTest {
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 // For now, capacity is the total capacity.
-                .setCapacity(10)
+                .setCapacity(TWO_VALUE_STAT)
                 .setUnits(COMMODITY_UNITS)
                 .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
                 // Current value is the avg of used.
@@ -146,7 +117,7 @@ public class AccumulatedCommodityTest {
 
         final StatRecord expectedStatRecord = StatRecord.newBuilder()
             .setName(COMMODITY)
-            .setCapacity(0)
+            .setCapacity(StatsAccumulator.singleStatValue(0))
             .setUnits(COMMODITY_UNITS)
             .setRelation(RelationType.COMMODITIESBOUGHT.getLiteral())
             .setCurrentValue(3)

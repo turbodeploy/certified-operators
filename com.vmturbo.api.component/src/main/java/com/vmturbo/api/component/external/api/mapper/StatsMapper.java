@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.kafka.common.metrics.Stat;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -164,7 +165,7 @@ public class StatsMapper {
         // Only add capacity and reservation values when the stat is NOT a metric (ie when it is
         // a commodity)
         if (!METRIC_NAMES.contains(statRecord.getName())) {
-            statApiDTO.setCapacity(buildStatDTO(statRecord.getCapacity()));
+            statApiDTO.setCapacity(toStatValueApiDTO(statRecord.getCapacity()));
             statApiDTO.setReserved(buildStatDTO(statRecord.getReserved()));
         }
 
@@ -444,5 +445,4 @@ public class StatsMapper {
                 relatedType.equals(EntityType.DATA_CENTER.getClsName())?
                 EntityType.PHYSICAL_MACHINE.getClsName() : relatedType;
     }
-
 }

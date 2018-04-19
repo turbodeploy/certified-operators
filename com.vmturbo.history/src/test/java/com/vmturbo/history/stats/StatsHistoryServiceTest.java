@@ -411,8 +411,12 @@ public class StatsHistoryServiceTest {
         assertThat(statRecord.getValues().getMin(), equalTo(1f));
         // in this case current := avgMax since subtype != type
         assertThat(statRecord.getCurrentValue(), equalTo(4f));
+        assertThat(statRecord.getUsed().getTotal(), equalTo(6f));
         //      capacity = sum(3 x value) = 3, 6, 9; total 18
-        assertThat(statRecord.getCapacity(), equalTo(18f));
+        assertThat(statRecord.getCapacity().getMin(), equalTo(3f));
+        assertThat(statRecord.getCapacity().getMax(), equalTo(9f));
+        assertThat(statRecord.getCapacity().getAvg(), equalTo(6f));
+        assertThat(statRecord.getCapacity().getTotal(), equalTo(18f));
     }
 
     /**

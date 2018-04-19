@@ -7,12 +7,10 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -205,8 +203,12 @@ public class StatsMapperTest {
                                         StatApiDTO mappedStat,
                                         String relationshipType) {
         assertThat(mappedStat.getName(), is(test.getName()));
-        assertThat(mappedStat.getCapacity().getTotal(), is(test.getCapacity()));
         assertThat(mappedStat.getReserved().getTotal(), is(test.getReserved()));
+
+        assertEquals(mappedStat.getCapacity().getMin(), test.getCapacity().getMin(), 0);
+        assertEquals(mappedStat.getCapacity().getMax(), test.getCapacity().getMax(), 0);
+        assertEquals(mappedStat.getCapacity().getAvg(), test.getCapacity().getAvg(), 0);
+        assertEquals(mappedStat.getCapacity().getTotal(), test.getCapacity().getTotal(), 0);
 
         // Check the relationship type type.
         if (relationshipType.equals("bought") || relationshipType.equals("sold")) {
@@ -267,17 +269,17 @@ public class StatsMapperTest {
      */
     private StatRecord buildStatRecord(int index, String postfix, String relation) {
         return StatRecord.newBuilder()
-                .setName("name-" + postfix)
-                .setProviderUuid("puid-" + postfix)
-                .setProviderDisplayName("provider-" + postfix)
-                .setCapacity(1000+index)
-                .setReserved(2000+index)
-                .setCurrentValue(3000+index)
-                .setPeak(buildStatValue(index))
-                .setUsed(buildStatValue(index+100))
-                .setValues(buildStatValue(index+200))
-                .setRelation(relation)
-                .build();
+            .setName("name-" + postfix)
+            .setProviderUuid("puid-" + postfix)
+            .setProviderDisplayName("provider-" + postfix)
+            .setCapacity(buildStatValue(1000 + index))
+            .setReserved(2000 + index)
+            .setCurrentValue(3000 + index)
+            .setPeak(buildStatValue(index))
+            .setUsed(buildStatValue(index + 100))
+            .setValues(buildStatValue(index + 200))
+            .setRelation(relation)
+            .build();
     }
 
     private static StatValue buildStatValue(int seed) {
