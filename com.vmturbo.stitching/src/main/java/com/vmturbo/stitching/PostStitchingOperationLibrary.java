@@ -11,6 +11,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageEntityAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
@@ -50,6 +51,8 @@ public class PostStitchingOperationLibrary {
      *    CpuProvisionedPostStitchingOperation and PmCpuAllocationPostStitchingOperation.
      *  - DiskArrayStorageAccessPostStitchingOperation must be executed before
      *    LogicalPoolStorageAccessPostStitchingOperation.
+     *  - VmmPmMemoryAllocationPostStitchingOperation must be executed before
+     *    PmMemoryAllocationPostStitchingOperation.
      *
      * @param setMaxValuesConfig Configuration parameters for SetCommodityMaxQuantityPostStitchingOperation
      */
@@ -74,6 +77,7 @@ public class PostStitchingOperationLibrary {
             new DiskArrayStorageProvisionedPostStitchingOperation(),
             new StorageEntityStorageProvisionedPostStitchingOperation(),
             new LogicalPoolStorageProvisionedPostStitchingOperation(),
+            new VmmPmMemoryAllocationPostStitchingOperation(),
             new PmMemoryAllocationPostStitchingOperation(),
             new StorageAccessCapacityPostStitchingOperation(EntityType.DISK_ARRAY),
             new StorageAccessCapacityPostStitchingOperation(EntityType.LOGICAL_POOL),

@@ -33,6 +33,7 @@ import org.junit.runners.Parameterized.Parameters;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -161,21 +162,32 @@ public class PmAllocationPostStitchingOpTest {
             Arrays.asList(sourceCommodity, preloadedAllocation);
         final TopologyEntity testTE = makeTopologyEntity(origCommodities);
 
-        // This kind of defeats the whole of the parametrized test, but don't want to split the
-        // tests just for this difference in behaviour right now.
-        if (allocationCommodityType == CommodityType.MEM_ALLOCATION) {
-            final TopologicalChangelog result =
-                    operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-            result.getChanges().forEach(TopologicalChange::applyChange);
+        // check that there are no changes, because the capacity was already set
+        operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        assertTrue(resultBuilder.getChanges().isEmpty());
+    }
 
-            // For memory allocation, we actually override the probe-provided capacity.
-            assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
-                    containsInAnyOrder(sourceCommodity,
-                            makeCommoditySold(allocationCommodityType, expectedAllocationCapacity)));
-        } else {
-            operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
-            assertTrue(resultBuilder.getChanges().isEmpty());
-        }
+    @Test
+    public void testAllocationCommodityWithoutCapacity() {
+
+        final CommoditySoldDTO preloadedAllocation = CommoditySoldDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                .setType(allocationCommodityType.getNumber()))
+                .build();
+
+        final List<CommoditySoldDTO> origCommodities =
+                Arrays.asList(sourceCommodity, preloadedAllocation);
+        final TopologyEntity testTE = makeTopologyEntity(origCommodities);
+
+        // run the operation and apply changes
+        final TopologicalChangelog result =
+                operation.performOperation(Stream.of(testTE), settingsMock, resultBuilder);
+        result.getChanges().forEach(TopologicalChange::applyChange);
+
+        // check that the capacity is filled with the expected value
+        assertThat(testTE.getTopologyEntityDtoBuilder().getCommoditySoldListList(),
+                containsInAnyOrder(sourceCommodity,
+                        makeCommoditySold(allocationCommodityType, expectedAllocationCapacity)));
     }
 
     /**

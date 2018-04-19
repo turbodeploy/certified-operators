@@ -329,17 +329,65 @@ public abstract class OverprovisionCapacityPostStitchingOperation implements
 
         @Override
         boolean shouldOverwriteCapacity() {
-            // Right now the VMM probe sends the MEM_ALLOCATION capacity.
-            // This is a bug - since the mem allocation needs to be modified by the settings
-            // framework, the VMM probe shouldn't send a value.
-            // For now, we overwrite the capacity with MEM * over-provision factor.
-            return true;
+            return false;
         }
 
         @Override
         protected boolean matchCommodityKey() {
             // We don't match the key - this is consistent with the behaviour in opsmgr.
             return false;
+        }
+    }
+
+    /**
+     * Post-stitching operation for the purpose of setting Memory Allocation commodity capacities
+     * for only VMM physical machines.
+     *
+     * This operation is performing a similar calculation as {@link PmMemoryAllocationPostStitchingOperation},
+     * but the difference is that it's taking the mem allocation provided by the probe as a source
+     * (instead of mem), and multiply that with the overprovisioning factor.
+     * The calculated value will override the initial mem allocation capacity.
+     *
+     * This behavior is specific to VMM only, because they cannot use the value provided by the
+     * probe directly (i.e. like in VC), and they also cannot use the generic calculation derived
+     * by mem capacity. This is because the host can be part of multiple clouds, and the allocation
+     * value is not always equal to the mem itself.
+     *
+     * Commits related to this VMM behavior: [t:20621, s:jira] RB:16862 VMM SDK: Use
+     * mem.provisioned.capacity as the capacity of the memAllocation.capacity sold by PM
+     *
+     * ORDER DEPENDENCIES: This operation should run before PmMemoryAllocationPostStitchingOperation,
+     * so that VMM hosts will not be affected by this last operation (because at that time, the value
+     * will already be set, and hence skipped).
+     */
+    public static class VmmPmMemoryAllocationPostStitchingOperation extends
+            OverprovisionCapacityPostStitchingOperation {
+
+        private final String VMM_PROBE_TYPE_NAME = "VMM";
+
+        public VmmPmMemoryAllocationPostStitchingOperation() {
+            super(EntitySettingSpecs.MemoryOverprovisionedPercentage, CommodityType.MEM_ALLOCATION,
+                    CommodityType.MEM_ALLOCATION);
+        }
+
+        @Nonnull
+        @Override
+        public StitchingScope<TopologyEntity> getScope(@Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
+            return stitchingScopeFactory.probeEntityTypeScope(VMM_PROBE_TYPE_NAME,
+                    EntityType.PHYSICAL_MACHINE);
+        }
+
+        @Override
+        boolean shouldOverwriteCapacity() {
+            return true;
+        }
+
+        @Override
+        protected boolean matchCommodityKey() {
+            // in this case we need to match the commodities key, because there can be multiple
+            // mem allocation sold by the same host, and we are using mem allocation itself as the
+            // source
+            return true;
         }
     }
 
