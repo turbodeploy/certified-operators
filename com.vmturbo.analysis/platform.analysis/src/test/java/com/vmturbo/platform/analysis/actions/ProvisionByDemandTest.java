@@ -275,4 +275,40 @@ public class ProvisionByDemandTest {
         // check cliques are cloned
         assertEquals(cliques, ((ProvisionByDemand)action).getProvisionedSeller().getCliques());
     }
+
+    /**
+     * We set up a shopping list request 100 units of commSpec0. There is a model seller which sells
+     * 75 units of commSpec0, 75 units of commSpec1 and 5 units of commSpec2.
+     * The test checks that the newly provisioned seller sells greater than 75 units of commSpec0.
+     * The remaining commSpecs (1 and 2) should be the same capacity as of model seller.
+     *
+     */
+    @Test
+    public void testCapacitiesOfProvSeller() {
+        //Test setup
+        Economy e1 = new Economy();
+        ShoppingList sl = e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY),
+                new Basket(new CommoditySpecification(0)));
+        sl.setQuantity(0, 100).setPeakQuantity(0, 100);
+        Trader modelSeller = e1.addTrader(0, TraderState.ACTIVE,
+                new Basket(new CommoditySpecification(0),
+                        new CommoditySpecification(1),
+                        new CommoditySpecification(2))
+        );
+        modelSeller.getCommoditiesSold().get(0).setCapacity(75).setQuantity(0);
+        modelSeller.getCommoditiesSold().get(1).setCapacity(75).setQuantity(0);
+        modelSeller.getCommoditiesSold().get(2).setCapacity(5).setQuantity(0);
+        modelSeller.setDebugInfoNeverUseInCode(DEBUG_INFO);
+        // call provision by demand
+        ProvisionByDemand provision = (ProvisionByDemand)(new
+                ProvisionByDemand(e1, sl, modelSeller)).take();
+        Trader provSeller = provision.getProvisionedSeller();
+        //Asserts
+        assertEquals(true,provSeller.getCommoditiesSold().get(0).getCapacity() >
+                modelSeller.getCommoditiesSold().get(0).getCapacity());
+        assertEquals(modelSeller.getCommoditiesSold().get(1).getCapacity(),
+                provSeller.getCommoditiesSold().get(1).getCapacity(), 0.0);
+        assertEquals(modelSeller.getCommoditiesSold().get(2).getCapacity(),
+                provSeller.getCommoditiesSold().get(2).getCapacity(), 0.0);
+    }
 } // end ProvisionByDemandTest class

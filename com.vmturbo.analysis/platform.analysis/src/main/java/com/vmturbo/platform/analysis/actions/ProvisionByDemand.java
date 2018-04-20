@@ -209,6 +209,17 @@ public class ProvisionByDemand extends ActionImpl {
             provCommSold.getSettings().setUpdatingFunction(modelCommSold.getSettings()
                                                                     .getUpdatingFunction());
         }
+        // Set the capacities of all commodities sold by the provisioned seller
+        // ,which are not in the model buyer's basket, to be the same as those of model seller
+        // because these don't need a resize
+        for (CommoditySpecification commSpec : getModelSeller().getBasketSold()) {
+            if (!getModelBuyer().getBasket().contains(commSpec)) {
+                int indexOfCommSold = basketSold.indexOf(commSpec.getType());
+                CommoditySold modelCommSold = modelSeller_.getCommoditiesSold().get(indexOfCommSold);
+                CommoditySold provCommSold = provisionedSeller_.getCommoditiesSold().get(indexOfCommSold);
+                provCommSold.setCapacity(modelCommSold.getCapacity());
+            }
+        }
         Utility.adjustOverhead(getModelSeller(), getProvisionedSeller(), getEconomy());
         // if the trader being cloned is a provider for a gauranteedBuyer, then the clone should
         // be a provider for that guranteedBuyer as well
