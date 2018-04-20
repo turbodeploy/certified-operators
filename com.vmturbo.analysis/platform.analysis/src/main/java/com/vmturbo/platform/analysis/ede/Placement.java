@@ -3,11 +3,13 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -329,14 +331,18 @@ public class Placement {
         List<Action> actions = new ArrayList<>();
         List<ShoppingList> shoppingLists = movableSlByMarket.stream().map(Entry::getKey)
                         .collect(Collectors.toList());
-        List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
-                        .collect(Collectors.toList());
-        // TODO : KT: This seems to be wrong. We are doing equality check on unordered lists.
-        if (minimizer != null && !currentSuppliers.equals(minimizer.getBestSellers())) {
+        Set<Integer> currentSuppliersIds = traderIds(shoppingLists.stream()
+                        .map(ShoppingList::getSupplier));
+        Set<Integer> bestSellerIds = minimizer == null || minimizer.getBestSellers() == null
+                        ? Collections.emptySet()
+                        : traderIds(minimizer.getBestSellers().stream());
+        if (minimizer != null && !currentSuppliersIds.equals(bestSellerIds)) {
             double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
             if (minimizer.getBestTotalQuote() < currentTotalQuote
                             * shoppingLists.get(0).getBuyer().getSettings().getQuoteFactor()) {
                 List<Trader> bestSellers = minimizer.getBestSellers();
+                List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
+                                .collect(Collectors.toList());
                 CompoundMove compoundMove =
                                     CompoundMove.createAndCheckCompoundMoveWithExplicitSources(
                                         economy, shoppingLists, currentSuppliers, bestSellers);
@@ -347,6 +353,20 @@ public class Placement {
             }
         }
         return actions;
+    }
+
+    /**
+     * Convert a stream of traders to a set of the traders' ids. The id of a trader
+     * is its economy index.
+     *
+     * @param tradersStream a stream of traders
+     * @return a set contain ing the ids of the traders
+     */
+    private static Set<Integer> traderIds(Stream<Trader> tradersStream) {
+        return tradersStream
+                    .map(trader -> trader == null ? null : trader.getEconomyIndex())
+                    .collect(Collectors.toSet());
+
     }
 
     /**
