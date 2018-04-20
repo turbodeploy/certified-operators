@@ -258,7 +258,9 @@ public class BootstrapSupply {
         List<Trader> commonSellers =
                 newSeller.getCliques()
                     .stream()
-                    .flatMap(clqId -> cliquesInMarket.get(clqId).stream())
+                    .flatMap(clqId ->
+                            cliquesInMarket.getOrDefault(clqId,
+                                    Collections.emptyList()).stream())
                     .filter(trader -> sellersForSl.contains(trader))
                     .collect(Collectors.toList());
 
@@ -334,6 +336,9 @@ public class BootstrapSupply {
                     Map<ShoppingList, Long> slsThatNeedProvBySupply) {
         @NonNull List<Action> provisionedRelatedActions = new ArrayList<>();
         @NonNull Map<ShoppingList, Trader> newSuppliers = new HashMap<>();
+        // The newSuppliersToIgnore set stores the traders from the newSuppliers
+        // map for efficient lookup.
+        @NonNull Set<Trader> newSuppliersToIgnore = new HashSet<>();
         if (movableSlByMarket.isEmpty()) {
             return provisionedRelatedActions;
         }
@@ -341,11 +346,40 @@ public class BootstrapSupply {
         for (Entry<ShoppingList, Market> entry : movableSlByMarket) {
             ShoppingList sl = entry.getKey();
             Market market = entry.getValue();
-            // for a given clique, we found the sellers that associate with it. We will be using
+            // For a given clique, we found the sellers that associate with it. We will be using
             // those sellers to add supply in bootstrap so that the buying trader will be placed
-            // only on sellers associate with this given clique to make sure it is a valid shop
-            // together placement
-            @NonNull List<@NonNull Trader> sellers = market.getCliques().get(commonClique);
+            // only on sellers associated with this given clique to make sure it is a valid shop
+            // together placement.
+            @NonNull List<@NonNull Trader> sellers =
+                    market.getCliques().get(commonClique)
+                        .stream()
+                        // Since we don't actually place the SLs onto the newSuppliers in
+                        // this function, the utilization of the newSeller will not change.
+                        // Due to this, the best quote for all subsequent SLs which can fit
+                        // in the new seller will get finite quote. So we need to ignore
+                        // the newSellers to trigger provisionByDemand for each of the
+                        // SL(which needs provisionByDemand).
+                        // Excluding the newSellers here can lead to over provisioning.
+                        // But the overprovisioned sellers will eventually be suspended
+                        // during the suspension phase.
+                        //
+                        // E.g. Let's consider a scenario where there is a buyer
+                        // with 2 Storage SLs of equal size and they both can't
+                        // be placed on any exisiting Storages. The 1st SL will cause
+                        // a provision(byDemand) of a new storage to fit this SL.
+                        // Since we don't place the 1st SL in this function,
+                        // the 2nd SL will get a finite best quote(due to
+                        // the newly provisioned storage). Later when the 1st SL is
+                        // actually placed on this new storage, there won't be
+                        // any more capacity for the 2nd SL. So the VM which has
+                        // these SLs will go unplaced as the 2nd SL will get
+                        // infinite quote. To fix this problem, we need to provision
+                        // a new storage for the 2nd SL too. By ignoring the previously
+                        // provisoned storage as a potential seller, we force the
+                        // provisioning of a new storage.
+                        .filter(trader -> !newSuppliersToIgnore.contains(trader))
+                        .collect(Collectors.toList());
+
             // consider just sellersAvailableForPlacement
             sellers.retainAll(market.getActiveSellersAvailableForPlacement());
             @NonNull Stream<@NonNull Trader> stream =
@@ -381,6 +415,7 @@ public class BootstrapSupply {
                                                                         slsThatNeedProvBySupply));
                         provisionedRelatedActions.add(action);
                         newSuppliers.put(sl, newSeller);
+                        newSuppliersToIgnore.add(newSeller);
                     }
                 }
             }
