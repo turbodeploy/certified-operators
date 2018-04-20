@@ -120,10 +120,10 @@ public class BootstrapSupply {
      *                                are the shopping lists that may require provisions.
      * @return a list of actions generated
      */
-    public static @NonNull List<Action> processCachedShoptogetherSls(Economy economy,
-                                                                     Map<ShoppingList, Long> slsThatNeedProvBySupply) {
+    public static @NonNull List<Action> processCachedShoptogetherSls(
+            Economy economy, Map<ShoppingList, Long> slsThatNeedProvBySupply) {
         List<Action> allActions = new ArrayList<>();
-        // a set to keep traders that have been placed by processing cached sl lists in this method
+        // a set to keep traders that have been placed by processing cached shopping lists in this method
         Set<Trader> traderPlaced = new HashSet<>();
         Deque<Entry<ShoppingList, Long>> shoppingListsToProcess =
             new ArrayDeque<>(slsThatNeedProvBySupply.entrySet());
@@ -175,8 +175,8 @@ public class BootstrapSupply {
                         // One of the shopping list for the trader has an infinite quote.
                         // Find this shopping list and add it to the processing list.
                         // These shopping lists are missed in the initial slsThatNeedProvBySupply
-                        // list because we don't actually place the trader when creating the
-                        // slsThatNeedProvBySupply list.
+                        // list because in the case of shop together we don't actually place the
+                        // trader when creating the slsThatNeedProvBySupply list.
                         boolean hasSlWithInfiniteQuote = false;
                         for (Entry<ShoppingList, Market> slEntry : movableSlByMarket) {
                             ShoppingList shoppingList = slEntry.getKey();
@@ -185,28 +185,20 @@ public class BootstrapSupply {
                             if (shoppingList.equals(sl)) {
                                 continue;
                             }
-
-
-                            if (hasSlInfiniteQuote(economy,
-                                    shoppingList, slMarket, newSeller)) {
+                            // We add it to the front of the queue for efficiency reasons. For e.g.
+                            // consider the case where we are placing huge number of VMs. All the
+                            // PMs are highly utilized and the attached storages' have low
+                            // utilization. Since we don't actually place the traders while creating
+                            // the slsThatNeedProvBySupply list, the storage will still show low
+                            // utilization and will not be added to the slsThatNeedProvBySupply
+                            // list. The slsThatNeedProvBySupply will only have PMs. If we add at
+                            // the storage shopping list at the end of the shoppingListsToProcess
+                            // queue, we will have sequence of PM SLs followed by ST SLs. If we add
+                            // it at the front of the queue, the SL which was getting infinite quote
+                            // will get provisioned and hence it would be able to satisfy
+                            // the next set of VMs.
+                            if (hasSlInfiniteQuote(economy,  shoppingList, slMarket, newSeller)) {
                                 hasSlWithInfiniteQuote = true;
-                                // We add it to the front of the queue for efficiency
-                                // reasons. For e.g. consider the case where we
-                                // are placing huge number of VMs. All the PMs
-                                // are highly utilized and the attached storages'
-                                // have low utilization. Since we don't actually
-                                // place the traders while creating the
-                                // slsThatNeedProvBySupply list, the storage
-                                // will still show low utilization and will not
-                                // be added to the slsThatNeedProvBySupply list.
-                                // The slsThatNeedProvBySupply will only have PMs.
-                                // If we add at the storage shopping list at
-                                // the end of the shoppingListsToProcess queue, we
-                                // will have sequence of PM SLs followed by ST SLs.
-                                // If we add it at the front of the queue, the SL
-                                // which was getting infinite quote will get
-                                // provisioned and hence it would be able to satisfy
-                                // the next set of VMs.
                                 shoppingListsToProcess.addFirst(
                                     new AbstractMap.SimpleImmutableEntry(shoppingList,
                                         cliqueId));
@@ -222,7 +214,7 @@ public class BootstrapSupply {
                     } //end looking for infinteQuote SL.
                 } else {
                     @NonNull Trader buyer = entry.getKey().getBuyer();
-                    logger.warn("Quote is infinity, and unable to find a seller that will fit the trader: {}",
+                    logger.debug("Quote is infinity, and unable to find a seller that will fit the trader: {}",
                             buyer.getDebugInfoNeverUseInCode());
                 }
             } else if (minimizerWithoutSupply != null &&
@@ -241,7 +233,14 @@ public class BootstrapSupply {
     }
 
     /**
+     *
      * Extract and return the first shopping list which has infinite best quote.
+     *
+     * @param economy The Economy.
+     * @param shoppingList ShoppingList whose quote needs to computed.
+     * @param market The market in which the SL's quote has to be computed.
+     * @param newSeller The newly created seller.
+     * @return
      */
     private static boolean hasSlInfiniteQuote(
                     final Economy economy,
@@ -284,7 +283,8 @@ public class BootstrapSupply {
      */
     public static @NonNull List<@NonNull Action>
                     shopTogetherBootstrapForIndividualBuyer(Economy economy, Trader buyingTrader,
-                                                            Map<ShoppingList, Long> slsThatNeedProvBySupply) {
+                                                            Map<ShoppingList,
+                                                                    Long> slsThatNeedProvBySupply) {
         List<Action> allActions = new ArrayList<>();
         final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>> slByMarket =
                         economy.getMarketsAsBuyer(buyingTrader).entrySet();
@@ -359,9 +359,6 @@ public class BootstrapSupply {
                         // in the new seller will get finite quote. So we need to ignore
                         // the newSellers to trigger provisionByDemand for each of the
                         // SL(which needs provisionByDemand).
-                        // Excluding the newSellers here can lead to over provisioning.
-                        // But the overprovisioned sellers will eventually be suspended
-                        // during the suspension phase.
                         //
                         // E.g. Let's consider a scenario where there is a buyer
                         // with 2 Storage SLs of equal size and they both can't
