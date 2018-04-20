@@ -2,6 +2,7 @@ package com.vmturbo.group;
 
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
@@ -62,6 +63,9 @@ public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
     private SettingConfig settingConfig;
+
+    @Autowired
+    private GroupDiagnosticsConfig diagnosticsConfig;
 
     private static Logger logger = LoggerFactory.getLogger(GroupComponent.class);
 
@@ -161,4 +165,8 @@ public class GroupComponent extends BaseVmtComponent {
         return componentName;
     }
 
+    @Override
+    protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
+        diagnosticsConfig.diagsHandler().dump(diagnosticZip);
+    }
 }
