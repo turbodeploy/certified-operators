@@ -125,7 +125,13 @@ public abstract class AbstractDescriptor {
      */
     @Nonnull
     public String getQualifiedOriginalName() {
-        return javaPkgName + "." + outerClass.getProtoJavaClass() + "." + getNameWithinOuterClass();
+        // If multiple files is enabled, the protobuf compiler will NOT nest the classes for
+        // messages in an outer class.
+        if (outerClass.isMultipleFilesEnabled()) {
+            return javaPkgName + "." + getNameWithinOuterClass();
+        } else {
+            return javaPkgName + "." + outerClass.getProtoJavaClass() + "." + getNameWithinOuterClass();
+        }
     }
 
     /**

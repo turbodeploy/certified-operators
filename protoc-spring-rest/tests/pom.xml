@@ -18,20 +18,21 @@
     </properties>
 
     <modules>
-        <module>testUnderscores</module>
         <module>testFileNameFormat</module>
-        <module>testOuterName</module>
         <module>testCommentsToSwagger</module>
         <module>testEnum</module>
         <module>testImport</module>
         <module>testJavaKeyword</module>
+        <module>testJavaMultipleFiles</module>
         <module>testJavaOpt</module>
         <module>testNameCollisions</module>
         <module>testNested</module>
         <module>testNestedEnum</module>
         <module>testOneOf</module>
-        <module>testTypes</module>
+        <module>testOuterName</module>
         <module>testServices</module>
+        <module>testTypes</module>
+        <module>testUnderscores</module>
     </modules>
 
     <build>

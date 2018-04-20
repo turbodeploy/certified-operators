@@ -372,6 +372,19 @@ class FileDescriptorProcessingContext {
         private final String pluginJavaClass;
 
         /**
+         * If true, the java_multiple_files option is set in the file descriptor proto.
+         *
+         * Summary of the option (from google/protobuf/descriptor.proto):
+         * If set true, then the Java code generator will generate a separate .java
+         * file for each top-level message, enum, and service defined in the .proto
+         * file.  Thus, these types will *not* be nested inside the outer class
+         * named by java_outer_classname.  However, the outer class will still be
+         * generated to contain the file's getDescriptor() method as well as any
+         * top-level extensions defined in the file.
+         */
+        private boolean multipleFilesEnabled;
+
+        /**
          * Set to true during processing if an outer classname is not explicitly
          * specified and any message, service definition, or enum in the file has
          * the same name as the name of the file.
@@ -390,6 +403,7 @@ class FileDescriptorProcessingContext {
                           @Nonnull final FileDescriptorProto fileDescriptorProto) {
             this.protoJavaClass = getOriginalClass(fileDescriptorProto);
             this.pluginJavaClass = codeGenerator.generatePluginJavaClass(protoJavaClass);
+            this.multipleFilesEnabled = fileDescriptorProto.getOptions().getJavaMultipleFiles();
         }
 
         private String getOriginalClass(FileDescriptorProto fileDescriptorProto) {
@@ -419,6 +433,10 @@ class FileDescriptorProcessingContext {
 
         public String getPluginJavaClass() {
             return pluginJavaClass;
+        }
+
+        public boolean isMultipleFilesEnabled() {
+            return multipleFilesEnabled;
         }
 
         /**
