@@ -9,7 +9,7 @@ import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
@@ -61,7 +61,7 @@ public class StitchingConfig {
 
     @Bean
     public Channel historyChannel() {
-        return PingingChannelBuilder.forAddress(historyHost, grpcPort).usePlaintext(true).build();
+        return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort).build();
     }
 
     @Bean

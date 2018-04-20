@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Lazy;
 
 import io.grpc.Channel;
 
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.components.api.GrpcChannelFactory;
 
 @Configuration
 @Lazy
@@ -37,12 +37,11 @@ public class GroupClientConfig {
 
     @Bean
     public Channel groupChannel() {
-        return PingingChannelBuilder.forAddress(groupHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
+        return GrpcChannelFactory.newChannelBuilder(groupHost, grpcPort)
+                .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 // TODO (roman, Mar 8 2018) OM-32762: Go back to default max message size once the
                 // call to get entity settings is optimized.
-                .maxMessageSize(MAX_MSG_SIZE_BYTES)
+                .maxInboundMessageSize(MAX_MSG_SIZE_BYTES)
                 .build();
     }
 }

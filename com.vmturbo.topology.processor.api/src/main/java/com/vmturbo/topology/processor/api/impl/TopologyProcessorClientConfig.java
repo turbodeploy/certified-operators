@@ -17,10 +17,10 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 
@@ -120,8 +120,7 @@ public class TopologyProcessorClientConfig {
      */
     @Bean
     public Channel topologyProcessorChannel() {
-        return PingingChannelBuilder.forAddress(topologyProcessorHost, topologyProcessorRpcPort)
-                .usePlaintext(true)
+        return GrpcChannelFactory.newChannelBuilder(topologyProcessorHost, topologyProcessorRpcPort)
                 .build();
     }
 

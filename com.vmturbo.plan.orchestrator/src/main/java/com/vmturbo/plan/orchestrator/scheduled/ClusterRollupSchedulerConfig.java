@@ -1,11 +1,6 @@
 package com.vmturbo.plan.orchestrator.scheduled;
 
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,12 +12,13 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 
 /**

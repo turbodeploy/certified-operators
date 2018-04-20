@@ -9,6 +9,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.assertj.core.util.Lists;
 import org.assertj.core.util.Sets;
@@ -226,8 +227,8 @@ public class WidgetSetsServiceTest {
         updatedWidgetset.setScopeType(WIDGETSET_SCOPETYPE_1);
         updatedWidgetset.setWidgets(ImmutableList.of(widget1));
 
-        when(widgetsetsserviceSpy.updateWidgetset(anyObject()))
-                .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+        when(widgetsetsserviceSpy.updateWidgetsetError(anyObject()))
+                .thenReturn(Optional.of((Status.NOT_FOUND.asException())));
 
         expectedException.expect(UnknownObjectException.class);
         expectedException.expectMessage("Cannot find widgetset: " + WIDGETSET_NOT_FOUND_UUID);
@@ -256,8 +257,8 @@ public class WidgetSetsServiceTest {
     @Test
     public void testDeleteWidgetsetNotFound() throws Exception {
         // Arrange
-        when(widgetsetsserviceSpy.deleteWidgetset(anyObject()))
-                .thenThrow(new StatusRuntimeException(Status.NOT_FOUND));
+        when(widgetsetsserviceSpy.deleteWidgetsetError(anyObject()))
+                .thenReturn(Optional.of(Status.NOT_FOUND.asException()));
         expectedException.expect(UnknownObjectException.class);
         expectedException.expectMessage("Cannot find widgetset to delete: " + WIDGETSET_NOT_FOUND_UUID);
         // Act

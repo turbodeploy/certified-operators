@@ -15,7 +15,7 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.topology.processor.GlobalConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 
@@ -35,9 +35,8 @@ public class PlanConfig {
 
     @Bean
     public Channel planOrchestratorChannel() {
-        return PingingChannelBuilder.forAddress(planOrchestratorHost, globalConfig.grpcPort())
-            .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-            .usePlaintext(true)
+        return GrpcChannelFactory.newChannelBuilder(planOrchestratorHost, globalConfig.grpcPort())
+            .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
             .build();
     }
 

@@ -65,7 +65,7 @@ public class GroupPerformanceTest {
     public void setup() {
         settingPolicyRpcService = SettingPolicyServiceGrpc.newBlockingStub(
                 componentTestRule.getCluster().newGrpcChannelBuilder("group")
-                        .maxMessageSize(GroupClientConfig.MAX_MSG_SIZE_BYTES)
+                        .maxInboundMessageSize(GroupClientConfig.MAX_MSG_SIZE_BYTES)
                         .build());
     }
 

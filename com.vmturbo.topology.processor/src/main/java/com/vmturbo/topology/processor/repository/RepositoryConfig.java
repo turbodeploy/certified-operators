@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Bean;
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.repository.api.RepositoryClient;
 
 /**
@@ -26,9 +26,8 @@ public class RepositoryConfig {
 
     @Bean
     public Channel repositoryChannel() {
-        return PingingChannelBuilder.forAddress(repositoryHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
+        return GrpcChannelFactory.newChannelBuilder(repositoryHost, grpcPort)
+                .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }
 

@@ -19,10 +19,4 @@
            </plugin>
         </plugins>
     </build>
-    <dependencies>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>grpc-extensions</artifactId>
-        </dependency>
-    </dependencies>
 </project>

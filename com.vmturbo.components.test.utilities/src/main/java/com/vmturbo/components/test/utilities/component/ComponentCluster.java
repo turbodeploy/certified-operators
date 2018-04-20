@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -31,7 +30,6 @@ import com.palantir.docker.compose.connection.DockerPort;
 
 import io.grpc.Channel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.netty.NettyChannelBuilder;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.logging.log4j.Level;
@@ -41,10 +39,10 @@ import org.apache.logging.log4j.io.IoBuilder;
 
 import tec.units.ri.unit.MetricPrefix;
 
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.external.api.TurboApiClient;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 
 /**
  * The {@link ComponentCluster} is a wrapper around {@link DockerComposeRule} to do
@@ -220,10 +218,9 @@ public class ComponentCluster {
      *         {@link ManagedChannelBuilder#build()}.
      */
     @Nonnull
-    public NettyChannelBuilder newGrpcChannelBuilder(@Nonnull final String service) {
+    public ManagedChannelBuilder newGrpcChannelBuilder(@Nonnull final String service) {
         final DockerPort dockerPort = components.get(service).getGrpcPort();
-        return PingingChannelBuilder.forAddress(dockerPort.getIp(), dockerPort.getExternalPort())
-                .usePlaintext(true);
+        return GrpcChannelFactory.newChannelBuilder(dockerPort.getIp(), dockerPort.getExternalPort());
     }
 
     public URI getMetricsURI(@Nonnull final String service) {

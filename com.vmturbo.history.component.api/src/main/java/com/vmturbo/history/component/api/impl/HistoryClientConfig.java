@@ -15,9 +15,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.Channel;
 
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 
@@ -60,6 +60,6 @@ public class HistoryClientConfig {
 
     @Bean
     public Channel historyChannel() {
-        return PingingChannelBuilder.forAddress(historyHost, grpcPort).usePlaintext(true).build();
+        return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort).build();
     }
 }

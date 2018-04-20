@@ -17,9 +17,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 
 /**
@@ -66,9 +66,8 @@ public class PlanOrchestratorClientConfig {
 
     @Bean
     public Channel planOrchestratorChannel() {
-        return PingingChannelBuilder.forAddress(planOrchestratorHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
+        return GrpcChannelFactory.newChannelBuilder(planOrchestratorHost, grpcPort)
+                .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }
 }

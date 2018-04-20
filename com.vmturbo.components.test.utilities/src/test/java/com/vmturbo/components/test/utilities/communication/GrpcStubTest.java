@@ -16,8 +16,8 @@ import com.vmturbo.common.protobuf.sample.Echo.EchoResponse;
 import com.vmturbo.common.protobuf.sample.EchoServiceGrpc;
 import com.vmturbo.common.protobuf.sample.EchoServiceGrpc.EchoServiceBlockingStub;
 import com.vmturbo.common.protobuf.sample.EchoServiceGrpc.EchoServiceImplBase;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.test.utilities.component.ComponentUtils;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 
 public class GrpcStubTest {
 
@@ -29,9 +29,8 @@ public class GrpcStubTest {
                 .withGrpcServices(echoService)
                 .build()) {
             server.start();
-            Channel channel = PingingChannelBuilder
-                    .forAddress("localhost", ComponentUtils.GLOBAL_GRPC_PORT)
-                    .usePlaintext(true)
+            Channel channel = GrpcChannelFactory
+                    .newChannelBuilder("localhost", ComponentUtils.GLOBAL_GRPC_PORT)
                     .build();
             EchoServiceBlockingStub stub = EchoServiceGrpc.newBlockingStub(channel);
             EchoResponse resp = stub.singleEcho(EchoRequest.newBuilder()
@@ -50,9 +49,8 @@ public class GrpcStubTest {
                 .withGrpcServices(echoService, actionsService)
                 .build()) {
             server.start();
-            final Channel channel = PingingChannelBuilder
-                    .forAddress("localhost", ComponentUtils.GLOBAL_GRPC_PORT)
-                    .usePlaintext(true)
+            final Channel channel = GrpcChannelFactory
+                    .newChannelBuilder("localhost", ComponentUtils.GLOBAL_GRPC_PORT)
                     .build();
             final EchoServiceBlockingStub stub = EchoServiceGrpc.newBlockingStub(channel);
             final EchoResponse resp = stub.singleEcho(EchoRequest.newBuilder()

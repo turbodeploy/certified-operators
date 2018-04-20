@@ -21,6 +21,7 @@ import javax.servlet.ServletRegistration;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.netty.NettyServerBuilder;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
@@ -80,6 +81,15 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * during the shutdown procedure for the component.
      */
     private static final int GRPC_SHUTDOWN_WAIT_S = 10;
+
+    /**
+     * The minimum acceptable server-side keepalive rate.
+     * <p>
+     * In gRPC, the server only accepts keepalives every 5 minutes by default. We want to set it
+     * a little lower. The server will reject keepalives coming in at a greater rate.
+     */
+    private static final int GRPC_MIN_KEEPALIVE_TIME_MIN = 1;
+
     private static final String PROP_COMPNENT_TYPE = "component_type";
     private static final String PROP_INSTANCE_ID = "instance_id";
 
@@ -352,10 +362,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     private void startGrpc() {
         synchronized (grpcServerLock) {
-            final ServerBuilder serverBuilder = ServerBuilder.forPort(grpcPort);
+            final NettyServerBuilder serverBuilder = NettyServerBuilder.forPort(grpcPort)
+                    // Allow keepalives even when there are no existing calls, because we want
+                    // to send intermittent keepalives to keep the http2 connections open.
+                    .permitKeepAliveWithoutCalls(true)
+                    .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES);
             final Optional<Server> builtServer = buildGrpcServer(serverBuilder);
             if (builtServer.isPresent()) {
-                grpcServer = serverBuilder.build();
+                grpcServer = builtServer.get();
                 try {
                     grpcServer.start();
                     logger.info("Initialized gRPC server on port {}.", grpcPort);

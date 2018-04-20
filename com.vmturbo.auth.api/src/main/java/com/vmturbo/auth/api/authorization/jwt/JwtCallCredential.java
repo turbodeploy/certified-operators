@@ -54,4 +54,10 @@ public class JwtCallCredential implements CallCredentials {
             }
         });
     }
+
+    @Override
+    public void thisUsesUnstableApi() {
+        // Just a method to indicate that the underlying CallCredentials interface
+        // is experimental/unsable.
+    }
 }

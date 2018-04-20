@@ -173,10 +173,6 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.components.common</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>grpc-extensions</artifactId>
-        </dependency>
         <!-- Common test utilities. -->
         <dependency>
             <groupId>com.vmturbo</groupId>

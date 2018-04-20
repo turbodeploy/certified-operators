@@ -17,9 +17,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -65,9 +65,8 @@ public class RepositoryClientConfig {
 
     @Bean
     public Channel repositoryChannel() {
-        return PingingChannelBuilder.forAddress(repositoryHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
+        return GrpcChannelFactory.newChannelBuilder(repositoryHost, grpcPort)
+                .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }
 

@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 import io.grpc.Channel;
 
-import com.vmturbo.grpc.extensions.PingingChannelBuilder;
+import com.vmturbo.components.api.GrpcChannelFactory;
 
 /**
  * Spring configuration for a GRPC client of the Widgets functionality
@@ -27,9 +27,8 @@ public class AuthClientConfig {
 
     @Bean
     public Channel authClientChannel() {
-        return PingingChannelBuilder.forAddress(authHost, grpcPort)
-                .setPingInterval(grpcPingIntervalSeconds, TimeUnit.SECONDS)
-                .usePlaintext(true)
+        return GrpcChannelFactory.newChannelBuilder(authHost, grpcPort)
+                .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }
 
