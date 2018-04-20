@@ -16,7 +16,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import org.assertj.core.util.Lists;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;

@@ -7,13 +7,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
@@ -29,16 +29,15 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
-
 /**
  * Topology Graph for tests:
- *   VM5        VM6
- *  |   \      |    \
+ * VM5        VM6
+ * |   \      |    \
  * VDC9  \     VDC10 \
- *  |     \    |      \
- *  PM1 - ST3  PM2 -- ST4
- *  \          |
- *  DC7        DC8
+ * |     \    |      \
+ * PM1 - ST3  PM2 -- ST4
+ * \          |
+ * DC7        DC8
  */
 public class ReservationPolicyFactoryTest {
 
@@ -80,33 +79,32 @@ public class ReservationPolicyFactoryTest {
                 .setConstraintId(123L)
                 .setType(ReservationConstraintInfo.Type.CLUSTER)
                 .build();
-        final GetMembersRequest request = GetMembersRequest.newBuilder()
-                .setId(123L)
-                .build();
+        final GetMembersRequest request = GetMembersRequest.newBuilder().setId(123L).build();
         final GetMembersResponse response = GetMembersResponse.newBuilder()
                 .setMembers(Members.newBuilder().addAllIds(Lists.newArrayList(1L, 3L)))
                 .build();
         Mockito.when(groupServiceMole.getMembers(request)).thenReturn(response);
-        final PlacementPolicy placementPolicy = reservationPolicyFactory.generatePolicyForInitialPlacement(topologyGraph,
-                Lists.newArrayList(clusterConstraint), Sets.newHashSet(5L));
+        final PlacementPolicy placementPolicy =
+                reservationPolicyFactory.generatePolicyForInitialPlacement(topologyGraph,
+                        Lists.newArrayList(clusterConstraint), Sets.newHashSet(5L));
         final Policy policy = placementPolicy.getPolicyDefinition();
-        Mockito.verify(groupServiceMole, Mockito.times(1))
-                .getMembers(request);
+        Mockito.verify(groupServiceMole, Mockito.times(1)).getMembers(request);
         Assert.assertTrue(policy.getEnabled());
         Assert.assertTrue(policy.hasBindToGroup());
     }
 
     @Test
     public void testGenerateProviderMembersDataCenter() {
-        final ReservationConstraintInfo dataCenterConstraint = ReservationConstraintInfo.newBuilder()
-                .setConstraintId(7L)
-                .setType(ReservationConstraintInfo.Type.DATA_CENTER)
-                .build();
+        final ReservationConstraintInfo dataCenterConstraint =
+                ReservationConstraintInfo.newBuilder()
+                        .setConstraintId(7L)
+                        .setType(ReservationConstraintInfo.Type.DATA_CENTER)
+                        .build();
         final Map<Integer, Set<TopologyEntity>> entityMap =
-                reservationPolicyFactory.getProviderMembersOfConstraint(topologyGraph, dataCenterConstraint);
+                reservationPolicyFactory.getProviderMembersOfConstraint(topologyGraph,
+                        dataCenterConstraint);
         Assert.assertEquals(1L, entityMap.size());
-        Assert.assertEquals(1L,
-                entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
+        Assert.assertEquals(1L, entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
         Assert.assertEquals(1L,
                 entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).iterator().next().getOid());
     }
@@ -118,10 +116,10 @@ public class ReservationPolicyFactoryTest {
                 .setType(ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER)
                 .build();
         final Map<Integer, Set<TopologyEntity>> entityMap =
-                reservationPolicyFactory.getProviderMembersOfConstraint(topologyGraph, vdcConstraint);
+                reservationPolicyFactory.getProviderMembersOfConstraint(topologyGraph,
+                        vdcConstraint);
         Assert.assertEquals(1L, entityMap.size());
-        Assert.assertEquals(1L,
-                entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
+        Assert.assertEquals(1L, entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).size());
         Assert.assertEquals(1L,
                 entityMap.get(EntityType.PHYSICAL_MACHINE_VALUE).iterator().next().getOid());
     }

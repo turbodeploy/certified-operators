@@ -2,15 +2,12 @@ package com.vmturbo.topology.processor.group.policy;
 
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import org.assertj.core.util.Lists;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
@@ -19,8 +16,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
-
-
 
 /**
  * The tests use the following topology:
@@ -31,8 +26,6 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
  *  ST1     ST2  PM3
  */
 public class MergePolicyStorageClusterTest extends MergePolicyTestBase {
-
-
 
     @Before
     public void setup() {

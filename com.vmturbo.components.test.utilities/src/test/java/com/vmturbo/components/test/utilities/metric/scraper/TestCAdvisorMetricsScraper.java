@@ -2,36 +2,46 @@ package com.vmturbo.components.test.utilities.metric.scraper;
 
 import java.time.Clock;
 
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.rules.TestName;
 import org.mockito.Mockito;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.context.embedded.LocalServerPort;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.mock.env.MockEnvironment;
 
+import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.test.utilities.EnvOverrideableProperties;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest(webEnvironment= WebEnvironment.RANDOM_PORT,
-        properties={"spring.cloud.consul.config.enabled=false","instance_id=test"})
 public class TestCAdvisorMetricsScraper {
 
-    @SpringBootApplication
     static class ContextConfiguration {
         // An empty spring context means all requests should return 404.
     }
 
-    @LocalServerPort
-    private int localPort;
+    @Rule
+    public TestName testName = new TestName();
+
+    private IntegrationTestServer server;
+
+    @Before
+    public void startup() throws Exception {
+        final MockEnvironment env = new MockEnvironment();
+        env.setProperty("instance_id", "test");
+        server = new IntegrationTestServer(testName, ComponentMetricsScrapeTest.ContextConfiguration.class, env);
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        server.close();
+    }
 
     @Test
-    public void testCadvisorUnavailableNoError() {
+    public void testCadvisorUnavailableNoError() throws Exception {
         EnvOverrideableProperties props = Mockito.mock(EnvOverrideableProperties.class);
         Mockito.when(props.get(Mockito.eq(CAdvisorMetricsScraper.CADVISOR_PORT_PROP)))
-               .thenReturn(Integer.toString(localPort));
+               .thenReturn(Integer.toString(server.connectionConfig().getPort()));
         CAdvisorMetricsScraper scraper = new CAdvisorMetricsScraper(props, Clock.systemUTC());
         Assert.assertFalse(scraper.isCadvisorReachable());
         Assert.assertTrue(scraper.sampleMetrics().isEmpty());

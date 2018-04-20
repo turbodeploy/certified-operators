@@ -8,8 +8,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.assertj.core.util.Lists;
-
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;

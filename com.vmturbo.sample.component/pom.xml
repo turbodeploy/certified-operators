@@ -35,24 +35,6 @@
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
-                <configuration>
-                    <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
-                    <resources>
-                        <resource>
-                            <targetPath>/</targetPath>
-                            <directory>${project.build.directory}</directory>
-                            <include>${project.build.finalName}.jar</include>
-                        </resource>
-                        <resource>
-                            <targetPath>/lib</targetPath>
-                            <directory>${project.build.directory}/lib</directory>
-                        </resource>
-                        <resource>
-                            <targetPath>/swagger</targetPath>
-                            <directory>${project.build.directory}/generated-docs/swagger</directory>
-                        </resource>
-                    </resources>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -60,9 +42,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <addClasspath>true</addClasspath>
                             <mainClass>com.vmturbo.sample.component.SampleComponent</mainClass>
-                            <classpathPrefix>lib/</classpathPrefix>
                         </manifest>
                     </archive>
                 </configuration>
@@ -70,19 +50,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <useBaseVersion>false</useBaseVersion>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <!-- This is the plugin that will build a swagger.json file describing the
             REST interface to any Controllers or gRPC Services -->

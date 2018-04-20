@@ -29,9 +29,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -89,12 +86,12 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
 @Configuration("theComponent")
-@EnableConfigurationProperties(RepositoryProperties.class)
 @Import({
     RepositoryApiConfig.class,
     TopologyProcessorClientConfig.class,
     MarketClientConfig.class,
-    RepositorySecurityConfig.class
+    RepositorySecurityConfig.class,
+    RepositoryProperties.class
 })
 public class RepositoryComponent extends BaseVmtComponent {
     private static final Logger logger = LoggerFactory.getLogger(RepositoryComponent.class);

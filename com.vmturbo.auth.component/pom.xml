@@ -51,41 +51,10 @@
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
-                <configuration>
-                    <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
-                    <resources>
-                        <resource>
-                            <targetPath>/</targetPath>
-                            <directory>${project.build.directory}</directory>
-                            <include>${project.build.finalName}.jar</include>
-                        </resource>
-                        <resource>
-                            <targetPath>/lib</targetPath>
-                            <directory>${project.build.directory}/lib</directory>
-                        </resource>
-                        <resource>
-                            <targetPath>/swagger</targetPath>
-                            <directory>${project.build.directory}/generated-docs/swagger</directory>
-                        </resource>
-                    </resources>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <useBaseVersion>false</useBaseVersion>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -93,9 +62,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <addClasspath>true</addClasspath>
                             <mainClass>com.vmturbo.auth.component.AuthComponent</mainClass>
-                            <classpathPrefix>lib/</classpathPrefix>
                         </manifest>
                     </archive>
                 </configuration>
@@ -285,6 +252,11 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

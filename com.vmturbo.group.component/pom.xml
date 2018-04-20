@@ -100,10 +100,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.jolokia</groupId>
-            <artifactId>jolokia-core</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
             <version>${log4j2.version}</version>
@@ -139,45 +135,16 @@
             <version>${reactor.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>ch.qos.logback</groupId>
-                    <artifactId>logback-classic</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-configuration-processor</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>ch.qos.logback</groupId>
-                    <artifactId>logback-classic</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.springframework.retry</groupId>
+            <artifactId>spring-retry</artifactId>
+            <version>1.2.0.RELEASE</version>
+        </dependency>
 
         <!-- Test Scope -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
@@ -205,34 +172,8 @@
                 <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
             <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <!-- PUblish only initial JAR, not Spring-boot to Maven repo -->
-                    <attach>false</attach>
-                </configuration>
-            </plugin>
-            <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
-                <configuration>
-                    <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
-                    <resources>
-                        <resource>
-                            <targetPath>/</targetPath>
-                            <directory>${project.build.directory}</directory>
-                            <include>${project.build.finalName}.jar</include>
-                        </resource>
-                        <resource>
-                            <targetPath>/lib</targetPath>
-                            <directory>${project.build.directory}/lib</directory>
-                        </resource>
-                        <resource>
-                            <targetPath>/swagger</targetPath>
-                            <directory>${project.build.directory}/generated-docs/swagger</directory>
-                        </resource>
-                    </resources>
-                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -240,9 +181,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <addClasspath>true</addClasspath>
                             <mainClass>com.vmturbo.group.GroupComponent</mainClass>
-                            <classpathPrefix>lib/</classpathPrefix>
                         </manifest>
                     </archive>
                 </configuration>
@@ -250,19 +189,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <useBaseVersion>false</useBaseVersion>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.flywaydb</groupId>

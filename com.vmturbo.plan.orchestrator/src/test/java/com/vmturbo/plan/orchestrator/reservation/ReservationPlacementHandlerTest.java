@@ -1,13 +1,13 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
-import org.assertj.core.util.Lists;
-import org.assertj.core.util.Sets;
+import java.util.Collections;
+
+import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
@@ -125,13 +125,13 @@ public class ReservationPlacementHandlerTest {
                 .setTopologyContextId(contextId)
                 .setTopologyId(topologyId)
                 .setTopologyType(TopologyType.PROJECTED)
-                .addAllEntityOids(Lists.newArrayList(1L))
+                .addAllEntityOids(Collections.singletonList(1L))
                 .build();
         final RetrieveTopologyEntitiesRequest providerRequest = RetrieveTopologyEntitiesRequest.newBuilder()
                 .setTopologyContextId(contextId)
                 .setTopologyId(topologyId)
                 .setTopologyType(TopologyType.PROJECTED)
-                .addAllEntityOids(Lists.newArrayList(3L))
+                .addAllEntityOids(Collections.singletonList(3L))
                 .build();
         Mockito.when(repositoryServiceMole.retrieveTopologyEntities(entityRequest))
                 .thenReturn(RetrieveTopologyEntitiesResponse.newBuilder()

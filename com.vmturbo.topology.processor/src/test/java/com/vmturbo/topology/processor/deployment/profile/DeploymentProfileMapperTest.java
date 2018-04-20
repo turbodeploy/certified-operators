@@ -2,17 +2,15 @@ package com.vmturbo.topology.processor.deployment.profile;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
-
-import org.assertj.core.util.Lists;
-import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo.ScopeAccessType;

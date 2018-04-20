@@ -16,9 +16,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.assertj.core.util.Lists;
 import org.junit.Test;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;

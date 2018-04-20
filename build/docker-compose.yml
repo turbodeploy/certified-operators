@@ -161,7 +161,6 @@ services:
     environment:
       component_type: auth
       instance_id: auth-1
-      consul_host: consul
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${AUTH_XMX_MB}M ${AUTH_SYSTEM_PROPERTIES}"
     volumes:
       - auth:/home/turbonomic/data
@@ -202,12 +201,10 @@ services:
       - nginx
     ports:
       - "${API_HTTP_PORT}"
-      - "${API_HTTPS_PORT}"
       - "${API_DEBUG_PORT}"
     environment:
       component_type: api
       instance_id: api-1
-      consul_host: consul
       realtimeTopologyContextId: 777777
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${API_XMX_MB}M ${API_SYSTEM_PROPERTIES}"
@@ -267,7 +264,6 @@ services:
     environment:
       component_type: action-orchestrator
       instance_id: action-orchestrator-1
-      consul_host: consul
       realtimeTopologyContextId: 777777
       kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${ACTION_ORCHESTRATOR_XMX_MB}M ${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES}"
@@ -324,7 +320,6 @@ services:
     environment:
       component_type: sample
       instance_id: sample-1
-      consul_host: consul
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${SAMPLE_XMX_MB}M ${SAMPLE_SYSTEM_PROPERTIES}"
     volumes:
       - sample:/home/turbonomic/data
@@ -384,7 +379,6 @@ services:
     volumes:
       - group:/home/turbonomic/data
     environment:
-      consul_host: consul
       component_type: group
       instance_id: group-1
       realtimeTopologyContextId: 777777
@@ -409,7 +403,6 @@ services:
     volumes:
       - history:/home/turbonomic/data
     environment:
-      consul_host: consul
       component_type: history
       instance_id: history-1
       realtimeTopologyContextId: 777777
@@ -434,7 +427,6 @@ services:
     volumes:
       - plan-orchestrator:/home/turbonomic/data
     environment:
-      consul_host: consul
       component_type: plan-orchestrator
       instance_id: plan-orchestrator-1
       realtimeTopologyContextId: 777777
@@ -493,6 +485,10 @@ services:
     environment:
       component_type: mediation-stressprobe
       instance_id: mediation-stressprobe-1
+      server_port: 8080
+      server.grpcPort: 9001
+      consul_host: consul
+      consul_port: 8500
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STRESSPROBE_XMX_MB}M ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES}"
       kvStoreRetryIntervalMillis : 1000
     volumes:

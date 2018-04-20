@@ -5,8 +5,8 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
+import org.springframework.context.event.ContextRefreshedEvent;
 
 import com.vmturbo.components.common.metrics.ScheduledMetrics.ScheduledMetricsObserver;
 import com.vmturbo.proactivesupport.DataMetricGauge;
@@ -26,7 +26,8 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
  * will report a noticeably shorter uptime than the other components. So components with short
  * uptimes should be seen as likely to have either crashed or been manually reconfigured / restarted.
  */
-public class ComponentLifespanMetrics implements ScheduledMetricsObserver, ApplicationListener<ApplicationReadyEvent>  {
+public class ComponentLifespanMetrics implements ScheduledMetricsObserver,
+        ApplicationListener<ContextRefreshedEvent> {
     private Logger logger = LogManager.getLogger();
 
     private static ComponentLifespanMetrics instance;
@@ -55,7 +56,7 @@ public class ComponentLifespanMetrics implements ScheduledMetricsObserver, Appli
     }
 
     @Override
-    public void onApplicationEvent(final ApplicationReadyEvent applicationReadyEvent) {
+    public void onApplicationEvent(final ContextRefreshedEvent applicationReadyEvent) {
         // determine how long it took to start the component. We can calculate this using the jvm
         // start time relative to now.
         long jvmStartTime = ManagementFactory.getRuntimeMXBean().getStartTime();

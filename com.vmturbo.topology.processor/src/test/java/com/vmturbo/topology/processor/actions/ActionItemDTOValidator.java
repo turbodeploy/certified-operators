@@ -10,7 +10,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.netflix.servo.util.Strings;
 
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -180,7 +179,7 @@ public class ActionItemDTOValidator {
     public static class ValidationError extends Exception {
 
         public ValidationError(@Nonnull final Set<String> errors) {
-            super("Errors encountered: " + Strings.join(", ", errors.iterator()));
+            super("Errors encountered: " + String.join(", ", errors));
         }
     }
 }

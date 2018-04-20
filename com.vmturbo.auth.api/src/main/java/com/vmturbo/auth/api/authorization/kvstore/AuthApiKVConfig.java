@@ -16,13 +16,16 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class AuthApiKVConfig {
-    @Value("${spring.cloud.consul.host}")
+
+    public static final String AUTH_NAMESPACE = "auth";
+
+    @Value("${consul_host}")
     private String consulHost;
 
-    @Value("${spring.cloud.consul.port}")
+    @Value("${consul_port}")
     private String consulPort;
 
-    @Value("${spring.application.name}")
+    @Value("${instance_id}")
     private String applicationName;
 
     @Value("${kvStoreRetryIntervalMillis}")
@@ -37,7 +40,7 @@ public class AuthApiKVConfig {
     @Bean
     public KeyValueStore authKeyValueStore() {
         return new ConsulKeyValueStore(
-            "auth",
+                AUTH_NAMESPACE,
             consulHost,
             consulPort,
             kvStoreRetryIntervalMillis,

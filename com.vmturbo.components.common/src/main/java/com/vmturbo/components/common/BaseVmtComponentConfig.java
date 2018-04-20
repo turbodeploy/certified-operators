@@ -71,11 +71,6 @@ public class BaseVmtComponentConfig {
     }
 
     @Bean
-    public EnvironmentChangeListener environmentChangeListener() {
-        return new EnvironmentChangeListener();
-    }
-
-    @Bean
     public ComponentLifespanMetrics componentLifespanMetrics() {
         return ComponentLifespanMetrics.getInstance();
     }

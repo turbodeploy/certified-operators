@@ -4,7 +4,6 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -16,7 +15,6 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
-import com.vmturbo.common.protobuf.action.ActionsDebug;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
 
@@ -80,7 +78,6 @@ public class RpcConfig {
         return new EntitySeverityServiceController(entitySeverityRpcService());
     }
 
-    @ConditionalOnProperty(value="grpc.debug.services.enabled")
     @Bean
     public ActionsDebugServiceController actionsDebugServiceController() {
         return actionsDebugRpcService()

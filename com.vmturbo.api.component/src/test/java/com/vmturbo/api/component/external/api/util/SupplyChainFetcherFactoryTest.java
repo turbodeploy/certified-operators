@@ -22,7 +22,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.assertj.core.util.Sets;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -31,6 +30,7 @@ import org.mockito.Mockito;
 import org.springframework.web.client.RestTemplate;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;

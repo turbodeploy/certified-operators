@@ -7,19 +7,21 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.contains;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.assertj.core.util.Lists;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+
 import org.jooq.Condition;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -28,8 +30,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -53,8 +53,8 @@ public class LiveStatsReaderTest {
         mockHistorydbIO = Mockito.mock(HistorydbIO.class);
 
         // set up the return value for entity id -> entity type lookup
-        entities = Lists.newArrayList(1L);
-        List<String> entityUuids = Lists.newArrayList("1");
+        entities = Collections.singletonList(1L);
+        final List<String> entityUuids = Collections.singletonList("1");
         String entityType = "PhysicalMachine";
         Map<String, String> entityTypeMap = ImmutableMap.of("1", entityType);
         when(mockHistorydbIO.getTypesForEntities(entityUuids)).thenReturn(entityTypeMap);

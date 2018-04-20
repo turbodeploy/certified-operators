@@ -131,12 +131,12 @@ public class AuthDBConfig {
      */
     @Bean
     public  @Nonnull String getRootSqlDBPassword() {
-        Optional<String> rootDbPassword = authRESTSecurityConfig.keyValueStore().get(CONSUL_ROOT_KEY);
+        Optional<String> rootDbPassword = authRESTSecurityConfig.authKeyValueStore().get(CONSUL_ROOT_KEY);
         if (rootDbPassword.isPresent()) {
             return CryptoFacility.decrypt(rootDbPassword.get());
         }
         String defaultPwd = DBPasswordUtil.obtainDefaultPW();
-        authRESTSecurityConfig.keyValueStore().put(CONSUL_ROOT_KEY, CryptoFacility.encrypt(defaultPwd));
+        authRESTSecurityConfig.authKeyValueStore().put(CONSUL_ROOT_KEY, CryptoFacility.encrypt(defaultPwd));
         return defaultPwd;
     }
 
@@ -148,12 +148,12 @@ public class AuthDBConfig {
      */
     @Bean
     public  @Nonnull String getDefaultArangoRootPassword() {
-        Optional<String> arangoDbPassword = authRESTSecurityConfig.keyValueStore().get(ARANGO_ROOT_PW_KEY);
+        Optional<String> arangoDbPassword = authRESTSecurityConfig.authKeyValueStore().get(ARANGO_ROOT_PW_KEY);
         if (arangoDbPassword.isPresent()) {
             return CryptoFacility.decrypt(arangoDbPassword.get());
         }
         String defaultPwd = DBPasswordUtil.obtainDefaultArangoPW();
-        authRESTSecurityConfig.keyValueStore().put(ARANGO_ROOT_PW_KEY, CryptoFacility.encrypt(defaultPwd));
+        authRESTSecurityConfig.authKeyValueStore().put(ARANGO_ROOT_PW_KEY, CryptoFacility.encrypt(defaultPwd));
         return defaultPwd;
     }
 
@@ -174,7 +174,7 @@ public class AuthDBConfig {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
-        Optional<String> credentials = authRESTSecurityConfig.keyValueStore().get(CONSUL_KEY);
+        Optional<String> credentials = authRESTSecurityConfig.authKeyValueStore().get(CONSUL_KEY);
         if (credentials.isPresent()) {
             dataSource.setUser(dbSchemaName);
             dataSource.setPassword(credentials.get());
@@ -263,10 +263,10 @@ public class AuthDBConfig {
         }
 
         // Create the user and grant privileges in case the user has not been yet created.
-        Optional<String> credentials = authRESTSecurityConfig.keyValueStore().get(CONSUL_KEY);
+        Optional<String> credentials = authRESTSecurityConfig.authKeyValueStore().get(CONSUL_KEY);
         if (!credentials.isPresent()) {
             String dbPassword = generatePassword();
-            authRESTSecurityConfig.keyValueStore().put(CONSUL_KEY, dbPassword);
+            authRESTSecurityConfig.authKeyValueStore().put(CONSUL_KEY, dbPassword);
             // Make sure we have the proper user here.
             // The default are root/vmturbo. We call this only when the database user is not yet
             // been created and set.
@@ -320,7 +320,7 @@ public class AuthDBConfig {
      */
     @Bean
     public ISecureStore secureDataStore() {
-        return new DBStore(dslContext(), authRESTSecurityConfig.keyValueStore(), getDbUrl());
+        return new DBStore(dslContext(), authRESTSecurityConfig.authKeyValueStore(), getDbUrl());
     }
 
     /**

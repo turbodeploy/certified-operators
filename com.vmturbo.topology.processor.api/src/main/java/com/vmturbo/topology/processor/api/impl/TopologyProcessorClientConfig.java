@@ -40,7 +40,7 @@ public class TopologyProcessorClientConfig {
     @Value("${topologyProcessorHost}")
     private String topologyProcessorHost;
 
-    @Value("${server.port}")
+    @Value("${topologyProcessorPort}")
     private int topologyProcessorPort;
 
     @Value("${server.grpcPort}")

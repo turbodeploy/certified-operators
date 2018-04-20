@@ -13,12 +13,12 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.collections4.map.HashedMap;
-import org.assertj.core.util.Lists;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;

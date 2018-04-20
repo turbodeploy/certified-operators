@@ -28,10 +28,6 @@ import com.vmturbo.sample.api.SampleNotifications.SampleNotification;
 public class SampleComponentNotificationReceiver
         extends ComponentNotificationReceiver<SampleNotification> implements SampleComponent {
 
-    // The WEBSOCKET_PATH is used, in addition to the address and port, to establish a websocket
-    // connection to the Sample Component.
-    public static final String WEBSOCKET_PATH = "/sample";
-
     private final Logger logger = LogManager.getLogger();
 
     private final Set<EchoListener> listeners = Collections.synchronizedSet(new HashSet<>());

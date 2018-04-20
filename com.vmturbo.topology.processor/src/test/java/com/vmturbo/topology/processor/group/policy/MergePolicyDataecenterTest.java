@@ -6,7 +6,8 @@ import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchPa
 import java.util.HashMap;
 import java.util.Map;
 
-import org.assertj.core.util.Lists;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;

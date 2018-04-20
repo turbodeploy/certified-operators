@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Configuration;
  * This configuration holds all the dependency configuration, required to run Consul client.
  */
 @Configuration
-public class ConsulDiscoveryManualConfig {
+public class ConsulRegistrationConfig {
 
     public static final String DISABLE_CONSUL_REGISTRATION = "disable.consul.registration";
 
@@ -41,7 +41,7 @@ public class ConsulDiscoveryManualConfig {
     private Boolean disableConsulRegistration;
 
     @PostConstruct
-    protected void registerConsul() throws UnknownHostException {
+    private void registerConsul() throws UnknownHostException {
         if (Boolean.TRUE.equals(disableConsulRegistration)) {
             return;
         }

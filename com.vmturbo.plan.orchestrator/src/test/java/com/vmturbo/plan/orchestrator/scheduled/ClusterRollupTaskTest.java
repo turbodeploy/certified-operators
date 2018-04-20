@@ -2,8 +2,6 @@ package com.vmturbo.plan.orchestrator.scheduled;
 
 import static com.vmturbo.common.protobuf.stats.Stats.ClusterRollupRequest;
 import static com.vmturbo.common.protobuf.stats.Stats.ClusterRollupResponse;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.spy;
@@ -15,17 +13,18 @@ import java.time.Duration;
 import java.util.Date;
 import java.util.Optional;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
@@ -112,7 +111,7 @@ public class ClusterRollupTaskTest {
         // Assert
         int count = clusterRollupTask.getRollupCount();
         // there's one rollup requested immediately and two scheduled rollups via mock scheduler
-        assertThat(count).isEqualTo(3);
+        Assert.assertEquals(3, count);
         verify(statsHistoryService, times(count)).computeClusterRollup(anyObject(), anyObject());
         verify(groupServiceSpy, times(count)).getGroups(any());
     }
@@ -128,7 +127,8 @@ public class ClusterRollupTaskTest {
         try {
             clusterRollupTask.requestClusterRollup();
         } catch (RuntimeException e) {
-            fail("Exception should have been caught during rollup request: ", e);
+            Assert.fail(
+                    "Exception should have been caught during rollup request: " + e.getMessage());
         }
     }
 }

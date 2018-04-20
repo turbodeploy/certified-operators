@@ -21,7 +21,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.assertj.core.util.Sets;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -34,6 +33,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.service.SupplyChainsService.FilterSet;
 import com.vmturbo.api.component.external.api.util.GroupExpander;

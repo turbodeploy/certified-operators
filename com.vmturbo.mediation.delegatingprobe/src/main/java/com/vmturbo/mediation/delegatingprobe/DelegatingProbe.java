@@ -9,7 +9,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nonnull;
 
 import org.apache.log4j.Logger;
-import org.springframework.boot.web.client.RootUriTemplateHandler;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -19,6 +18,7 @@ import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.DefaultUriTemplateHandler;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -96,7 +96,9 @@ public class DelegatingProbe implements IProbe<DelegatingProbeAccount> {
         messageConverters.add(gsonHttpMessageConverter);
 
         final RestTemplate restTemplate = new RestTemplate(messageConverters);
-        RootUriTemplateHandler.addTo(restTemplate, accountValues.getDriverRootUri());
+        final DefaultUriTemplateHandler handler = new DefaultUriTemplateHandler();
+        handler.setBaseUrl(accountValues.getDriverRootUri());
+        restTemplate.setUriTemplateHandler(handler);
 
         final DelegatingDiscoveryRequest request = new DelegatingDiscoveryRequest(discoveryIndex.getAndIncrement());
         final ResponseEntity<byte[]> response =

@@ -8,12 +8,12 @@ import static org.junit.Assert.assertTrue;
 import java.util.List;
 import java.util.Set;
 
-import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.mapper.ReservationMapper;

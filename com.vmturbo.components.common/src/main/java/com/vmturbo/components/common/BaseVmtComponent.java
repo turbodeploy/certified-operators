@@ -32,10 +32,8 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -70,7 +68,6 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
  **/
 @Configuration
 @EnableWebMvc
-@EnableDiscoveryClient
 @Import({BaseVmtComponentConfig.class})
 public abstract class BaseVmtComponent implements IVmtComponent,
         ApplicationListener<ContextRefreshedEvent> {
@@ -90,13 +87,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     private static final int GRPC_MIN_KEEPALIVE_TIME_MIN = 1;
 
-    private static final String PROP_COMPNENT_TYPE = "component_type";
-    private static final String PROP_INSTANCE_ID = "instance_id";
+    public static final String PROP_COMPNENT_TYPE = "component_type";
+    public static final String PROP_INSTANCE_ID = "instance_id";
+    public static final String PROP_SERVER_PORT = "server_port";
 
     /**
      * The URL at which to expose Prometheus metrics.
      */
-    private static final String METRICS_URL = "/metrics";
+    public static final String METRICS_URL = "/metrics";
 
     private static Logger logger = LogManager.getLogger();
 
@@ -428,6 +426,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 "System or environment property \"" + propertyName + "\" must be set");
     }
 
+    @Nonnull
     protected static ConfigurableApplicationContext attachSpringContext(
             @Nonnull ServletContextHandler contextServer, @Nonnull Class<?> configurationClass) {
         final AnnotationConfigWebApplicationContext applicationContext =
@@ -449,6 +448,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * @param configurationClass spring context configuration class
      * @return Spring context initialized
      */
+    @Nonnull
     protected static ConfigurableApplicationContext startContext(
             @Nonnull Class<?> configurationClass) {
         return startContext(servletContextHolder -> attachSpringContext(servletContextHolder,
@@ -460,18 +460,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      *
      * @param contextConfigurer configuration callback to perform some specific
      *         configuration on the servlet context
+     * @return Spring context, created as the result of webserver startup.
      */
+    @Nonnull
     protected static ConfigurableApplicationContext startContext(
             @Nonnull ContextConfigurer contextConfigurer) {
         fetchConfigurationProperties();
         logger.info("Starting web server with spring context");
-        final String serverPort = requireEnvProperty("server_port");
-        System.setProperty("spring.cloud.consul.host", requireEnvProperty("consul_host"));
-        System.setProperty("spring.cloud.consul.port", requireEnvProperty("consul_port"));
-        System.setProperty("spring.cloud.consul.discovery.instanceId", requireEnvProperty(PROP_INSTANCE_ID));
-        System.setProperty("spring.cloud.consul.discovery.port", serverPort);
-        System.setProperty("server.port", serverPort);
-        System.setProperty("spring.application.name", requireEnvProperty(PROP_COMPNENT_TYPE));
+        final String serverPort = requireEnvProperty(PROP_SERVER_PORT);
         System.setProperty("org.jooq.no-logo", "true");
 
         final org.eclipse.jetty.server.Server server =
@@ -503,7 +499,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * This method is intended to be called by each component's main() method before
      * beginning Spring instantiation.
      */
-    protected static void fetchConfigurationProperties() {
+    private static void fetchConfigurationProperties() {
         final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv("clustermgr_port");
         final int clusterMgrConnectionRetryDelaySecs =
                 EnvironmentUtils.parseIntegerFromEnv("clustermgr_retry_delay_sec");

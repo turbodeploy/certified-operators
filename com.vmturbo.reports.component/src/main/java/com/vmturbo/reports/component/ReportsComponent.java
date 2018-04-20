@@ -7,6 +7,7 @@ import javax.annotation.PostConstruct;
 
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
+
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +17,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.stereotype.Component;
 
 import com.vmturbo.components.common.BaseVmtComponent;
-import com.vmturbo.components.common.ConsulDiscoveryManualConfig;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 
 /**

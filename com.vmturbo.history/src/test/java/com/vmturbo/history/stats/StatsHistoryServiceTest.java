@@ -30,7 +30,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.assertj.core.util.Sets;
+import com.google.common.collect.Lists;
+
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
+
 import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,11 +42,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.Lists;
-
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -541,7 +540,7 @@ public class StatsHistoryServiceTest {
                         .build())
                 .build();
 
-        final HashSet<String> commodityNamesSet = Sets.newHashSet(commodityNames);
+        final HashSet<String> commodityNamesSet = new HashSet<>(commodityNames);
         when(mockProjectedStatsStore.getStatSnapshotForEntities(Collections.singleton(1L),
                 commodityNamesSet)).thenReturn(Optional.of(statSnapshot1));
         when(mockProjectedStatsStore.getStatSnapshotForEntities(Collections.singleton(2L),

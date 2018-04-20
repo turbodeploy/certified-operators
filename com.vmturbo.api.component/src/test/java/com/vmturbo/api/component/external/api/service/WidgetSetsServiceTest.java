@@ -11,18 +11,16 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 
-import org.assertj.core.util.Lists;
-import org.assertj.core.util.Sets;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
+import io.grpc.Status;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableList;
-
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.external.api.mapper.WidgetsetMapper;
 import com.vmturbo.api.dto.widget.WidgetApiDTO;

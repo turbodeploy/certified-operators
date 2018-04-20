@@ -16,7 +16,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.apache.commons.collections.map.HashedMap;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+
 import org.jooq.DSLContext;
 import org.jooq.InsertSetMoreStep;
 import org.jooq.Query;
@@ -29,11 +33,6 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -221,7 +220,7 @@ public class MarketStatsAccumulatorTest {
         MarketStatsAccumulator marketStatsAccumulator = new MarketStatsAccumulator(APP_ENTITY_TYPE,
             historydbIO, WRITE_TOPOLOGY_CHUNK_SIZE, commoditiesToExclude);
 
-        Map<Long, Map<Integer, Double>> capacities = Mockito.mock(HashedMap.class);
+        Map<Long, Map<Integer, Double>> capacities = Mockito.mock(Map.class);
         Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought = HashMultimap.create();
 
         // act

@@ -97,13 +97,6 @@
                         <artifactId>jacoco-maven-plugin</artifactId>
                     </plugin>
                     <plugin>
-                        <groupId>org.springframework.boot</groupId>
-                        <artifactId>spring-boot-maven-plugin</artifactId>
-                        <configuration>
-                            <layout>ZIP</layout>
-                        </configuration>
-                    </plugin>
-                    <plugin>
                         <groupId>com.spotify</groupId>
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
@@ -192,21 +185,6 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-            <exclusions>
-                <!-- choose Log4j over default logging -->
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.slf4j</groupId>
-                    <artifactId>log4j-over-slf4j</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
         <!-- use Log4j2 (over default logging) -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -279,14 +257,6 @@
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>jcl-over-slf4j</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-commons</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-actuator</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>

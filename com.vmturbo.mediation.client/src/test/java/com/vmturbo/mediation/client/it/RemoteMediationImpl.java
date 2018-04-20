@@ -2,17 +2,13 @@ package com.vmturbo.mediation.client.it;
 
 import java.time.Clock;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
 
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-
-import rx.Completable;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
@@ -28,14 +24,11 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
-import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage.MediationClientMessageCase;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
-import com.vmturbo.topology.processor.communication.BaseMessageHandler;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.OperationManager;
-import com.vmturbo.topology.processor.operation.OperationMessageHandler;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;

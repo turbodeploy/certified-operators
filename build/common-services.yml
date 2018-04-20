@@ -19,7 +19,6 @@ services:
       clustermgr_host: clustermgr
       clustermgr_port: 8080
       clustermgr_retry_delay_sec: 10
-      consul_host: consul
       LOG_TO_STDOUT: "true"
 
   # A prod-component is a common service definition for a component that will be run in a development environment.
@@ -37,7 +36,6 @@ services:
       clustermgr_host: clustermgr
       clustermgr_port: 8080
       clustermgr_retry_delay_sec: 10
-      consul_host: consul
 
   # A common-service is a common service definition for a service that is not a fully-fledged component in the
   # XL system. For example, services such as consul, MariaDB, ArangoDB, etc. do not implement the component

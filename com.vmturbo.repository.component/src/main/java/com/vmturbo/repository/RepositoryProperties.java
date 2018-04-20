@@ -1,41 +1,42 @@
 package com.vmturbo.repository;
 
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-@Component
-@ConfigurationProperties("repository")
+@Configuration
 public class RepositoryProperties {
 
-    final ArangoDB arangoDB = new ArangoDB();
-
+    @Bean
     public ArangoDB getArangodb() {
-        return arangoDB;
+        return new ArangoDB();
     }
 
     // TODO : karthikt - All these config values should be moved to consul.
-    static class ArangoDB {
-        String host = "127.0.0.1";
+    @Configuration
+    public static class ArangoDB {
+        @Value("${REPOSITORY_ARANGODB_HOST:127.0.0.1}")
+        private String host;
 
-        int port = 8529;
+        private int port = 8529;
 
-        String defaultDatabase = "_system";
+        private String defaultDatabase = "_system";
 
-        String username = "root";
+        private String username = "root";
 
-        String arangoDumpPath = "/home/turbonomic/arangodump";
+        private String arangoDumpPath = "/home/turbonomic/arangodump";
 
-        String arangoDumpOutputDir = "/home/turbonomic/data/arangodb-topology";
+        private String arangoDumpOutputDir = "/home/turbonomic/data/arangodb-topology";
 
-        String arangoRestorePath = "/home/turbonomic/arangorestore";
+        private String arangoRestorePath = "/home/turbonomic/arangorestore";
 
-        String arangoRestoreBaseDir = "/home/turbonomic/data/arangodb-topology-received";
+        private String arangoRestoreBaseDir = "/home/turbonomic/data/arangodb-topology-received";
 
-        String arangoRestoreInputDir = "/home/turbonomic/data/arangodb-topology";
+        private String arangoRestoreInputDir = "/home/turbonomic/data/arangodb-topology";
 
-        int batchSize = 100;
+        private int batchSize = 100;
 
-        int maxConnections = 5;
+        private int maxConnections = 5;
 
         public String getHost() {
             return host;

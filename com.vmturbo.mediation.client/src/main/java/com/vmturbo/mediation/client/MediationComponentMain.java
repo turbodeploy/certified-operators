@@ -10,9 +10,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -29,7 +26,6 @@ import com.vmturbo.mediation.common.WorkerLifecycleListener;
  * @param <A> type of account values to use with this probe.
  */
 @Configuration("theComponent")
-@EnableDiscoveryClient
 @Import({MediationComponentConfig.class})
 public class MediationComponentMain<A> extends BaseVmtComponent {
 

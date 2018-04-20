@@ -1,17 +1,14 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.hasItems;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import org.assertj.core.util.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
-import org.junit.Test;
 import org.mockito.Mockito;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -23,8 +20,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.client.RestTemplate;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;

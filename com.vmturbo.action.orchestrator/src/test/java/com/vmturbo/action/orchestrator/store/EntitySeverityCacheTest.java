@@ -6,20 +6,19 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.assertj.core.util.Maps;
-import org.junit.Assert;
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -53,7 +52,7 @@ public class EntitySeverityCacheTest {
     public void testRefreshVisibleReady() {
         ActionView action = actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL));
         when(actionStore.getActionViews())
-            .thenReturn(Maps.newHashMap(action.getRecommendation().getId(), action));
+            .thenReturn(Collections.singletonMap(action.getRecommendation().getId(), action));
 
         entitySeverityCache.refresh(actionStore);
         assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
@@ -75,7 +74,7 @@ public class EntitySeverityCacheTest {
     public void testRefreshNotVisibleReady() {
         ActionView action = actionView(notExecutableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL));
         when(actionStore.getActionViews())
-            .thenReturn(Maps.newHashMap(action.getRecommendation().getId(), action));
+            .thenReturn(Collections.singletonMap(action.getRecommendation().getId(), action));
 
         entitySeverityCache.refresh(actionStore);
         assertEquals(Optional.empty(), entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID));

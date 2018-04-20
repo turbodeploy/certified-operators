@@ -43,9 +43,6 @@ public class ActionStoreConfig {
     @Autowired
     private ActionExecutionConfig actionExecutionConfig;
 
-    @Value("${server.port}")
-    private int httpPort;
-
     @Value("${entityTypeRetryIntervalMillis}")
     private long entityTypeRetryIntervalMillis;
 

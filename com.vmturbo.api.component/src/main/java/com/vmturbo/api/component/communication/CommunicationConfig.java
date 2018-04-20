@@ -94,20 +94,13 @@ public class CommunicationConfig {
     private ReportingClientConfig reportingClientConfig;
     @Autowired
     private AuthClientConfig authClientConfig;
-    @Value("${clusterMgrHost}")
+    @Value("${clustermgr_host}")
     private String clusterMgrHost;
-
-    @Value("${server.port}")
-    private int httpPort;
-
-    @Value("${authHost}")
-    public String authHost;
+    @Value("${clustermgr_port}")
+    private int clusterMgrPort;
 
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
-
-    @Value("${websocket.pong.timeout}")
-    private long websocketPongTimeout;
 
     @Value("${supplyChainFetcherTimeoutSeconds}")
     private Long supplyChainFetcherTimeoutSeconds;
@@ -117,14 +110,6 @@ public class CommunicationConfig {
 
     public long getRealtimeTopologyContextId() {
         return realtimeTopologyContextId;
-    }
-
-    public String getAuthHost() {
-        return authHost;
-    }
-
-    public int getHttpPort() {
-        return httpPort;
     }
 
     @Bean
@@ -177,8 +162,9 @@ public class CommunicationConfig {
 
     @Bean
     public RepositoryApi repositoryApi() {
-        return new RepositoryApi(repositoryClientConfig.getRepositoryHost(), httpPort,
-                serviceRestTemplate(), entitySeverityService(), getRealtimeTopologyContextId());
+        return new RepositoryApi(repositoryClientConfig.getRepositoryHost(),
+                repositoryClientConfig.getRepositoryPort(), serviceRestTemplate(),
+                entitySeverityService(), getRealtimeTopologyContextId());
     }
 
     @Bean
@@ -189,7 +175,7 @@ public class CommunicationConfig {
     @Bean
     public IClusterService clusterMgr() {
         return ClusterMgrClient.createClient(ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(clusterMgrHost, httpPort)
+                .setHostAndPort(clusterMgrHost, clusterMgrPort)
                 .build());
     }
 

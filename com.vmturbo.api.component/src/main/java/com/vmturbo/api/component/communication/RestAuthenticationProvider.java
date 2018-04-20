@@ -172,7 +172,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         try {
             dto = verifier_.verify(token, Collections.emptyList());
         } catch (AuthorizationException e) {
-            throw new BadCredentialsException(e.getMessage());
+            throw new BadCredentialsException(e.getMessage(), e);
         }
         // Process the data.
         List<String> roles = new ArrayList<String>();

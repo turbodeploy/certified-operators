@@ -5,6 +5,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +35,9 @@ public class RepositoryClientConfig {
 
     @Value("${repositoryHost}")
     private String repositoryHost;
+
+    @Value("${repositoryPort}")
+    private int repositoryPort;
 
     @Value("${server.grpcPort}")
     private int grpcPort;
@@ -75,7 +80,12 @@ public class RepositoryClientConfig {
         return new RepositoryClient(repositoryChannel());
     }
 
+    @Nonnull
     public String getRepositoryHost() {
         return repositoryHost;
+    }
+
+    public int getRepositoryPort() {
+        return repositoryPort;
     }
 }

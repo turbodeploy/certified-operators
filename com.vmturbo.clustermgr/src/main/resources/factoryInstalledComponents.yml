@@ -2,7 +2,9 @@
 #      to initialize the Consul key/value store. Going forward, new VmtComponent types may be added via the API.
 action-orchestrator:
   marketHost: 'market'
-  topologyProcessorHost: 'topology-processor'
+  <<: &topologyProcessorClient
+    topologyProcessorHost: 'topology-processor'
+    topologyProcessorPort: 8080
   groupHost: 'group'
   <<: &db_conn_info
     dbHost: 'db'
@@ -13,13 +15,14 @@ action-orchestrator:
   <<: &auth_conn_info
     authHost: 'auth'
     authPort: 8080
-    authRetryDelaySecs: 30
+    authRetryDelaySecs: 10
   grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
   actionPaginationDefaultLimit: 100
   actionPaginationMaxLimit: 500
   mariadbHealthCheckIntervalSeconds: 60
-  repositoryHost: 'repository'
+  <<: &repository_conn_info
+    repositoryHost: 'repository'
+    repositoryPort: 8080
   entityTypeRetryIntervalMillis: 1000
   entityTypeMaxRetries: 6
   maxLiveActionPlanAgeSeconds: 600
@@ -39,10 +42,9 @@ action-orchestrator:
 
 market:
   <<: *baseVmtComponentSettings
-  topologyProcessorHost: 'topology-processor'
+  <<: *topologyProcessorClient
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 2
-  websocket.pong.timeout: 30000
   groupHost: 'group'
   # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from
   # making analysis take too long. If this number is <= 0, uses the default set in the market analysis codebase.
@@ -70,7 +72,7 @@ topology-processor:
   groupHost: 'group'
   historyHost: 'history'
   planOrchestratorHost: 'plan-orchestrator'
-  repositoryHost: 'repository'
+  <<: *repository_conn_info
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 1
   # Urgent metrics are collected every 10 minutes, the offline every 3 days
@@ -95,17 +97,16 @@ topology-processor:
 
 repository:
   <<: *baseVmtComponentSettings
-  topologyProcessorHost: 'topology-processor'
+  <<: *topologyProcessorClient
   actionOrchestratorHost: 'action-orchestrator'
   grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
   arangodbHealthCheckIntervalSeconds: 60
   realtimeTopologyContextId: 777777
   <<: *auth_conn_info
 
 group:
   <<: *baseVmtComponentSettings
-  repositoryHost: 'repository'
+  <<: *repository_conn_info
   # TODO: Remove from source control and instead get these values from the auth component.
   arangodbPort: 8529
   arangodbHost: arangodb
@@ -130,9 +131,9 @@ group:
 api:
   <<: *baseVmtComponentSettings
   clusterMgrHost: 'clustermgr'
-  topologyProcessorHost: 'topology-processor'
+  <<: *topologyProcessorClient
   actionOrchestratorHost: 'action-orchestrator'
-  repositoryHost: 'repository'
+  <<: *repository_conn_info
   planOrchestratorHost: 'plan-orchestrator'
   groupHost: 'group'
   historyHost: 'history'
@@ -142,7 +143,6 @@ api:
   keystoreType: 'PKCS12'
   keystoreAlias: 'vmt'
   grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
   targetValidationTimeoutSeconds: 120
   targetValidationPollIntervalSeconds: 2
   supplyChainFetcherTimeoutSeconds: 360
@@ -208,8 +208,8 @@ plan-orchestrator:
   <<: *auth_conn_info
   mariadbHealthCheckIntervalSeconds: 60
   actionOrchestratorHost: 'action-orchestrator'
-  topologyProcessorHost: 'topology-processor'
-  repositoryHost: 'repository'
+  <<: *topologyProcessorClient
+  <<: *repository_conn_info
   historyHost: 'history'
   # cron spec for running cluster rollup at 1AM daily: second (0-60) ,minute (0-59), hour(0-23),
   #     day of month(1-31), month(1-12), day of week(0-7, 7=sun)
@@ -222,7 +222,6 @@ plan-orchestrator:
   planDeletionDelayBetweenDeletesSeconds: 120
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 3
-  websocket.pong.timeout: 30000
   templateSpecFile: "defaultTemplateSpec.json"
   defaultTemplatesFile: "defaultTemplates.json"
   # Config parameter to control the time out hours for running plan.
@@ -231,7 +230,7 @@ plan-orchestrator:
 
 history:
   <<: *baseVmtComponentSettings
-  topologyProcessorHost: 'topology-processor'
+  <<: *topologyProcessorClient
   writeTopologyChunkSize: 1000
   userName: vmtplatform
   requestHost: '%'
@@ -253,9 +252,8 @@ history:
   # list obtained from $legacy/com.vmturbo.components.common/src/main/java/com/vmturbo/components/common/ClassicEnumMapper.java
   # The commodities for which stats are not maintained/tracked in the DB. These are typically access commodities.
   excludedCommodities: ApplicationCommodity CLUSTERCommodity DATACENTERCommodity DATASTORECommodity DRSSEGMENTATIONCommodity DSPMAccessCommodity NETWORKCommodity SEGMENTATIONCommodity STORAGECLUSTERCommodity VAPPAccessCommodity VDCCommodity VMPMAccessCommodity
-  topologyProcessorHost: topology-processor
+  <<: *topologyProcessorClient
   grpcPingIntervalSeconds: 300
-  websocket.pong.timeout: 30000
   <<: *auth_conn_info
 
 reporting:

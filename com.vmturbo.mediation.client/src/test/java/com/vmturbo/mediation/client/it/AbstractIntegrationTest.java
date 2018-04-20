@@ -14,6 +14,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.prometheus.client.CollectorRegistry;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -21,22 +23,17 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestName;
-import org.springframework.boot.Banner;
-import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.mock.env.MockEnvironment;
-import org.springframework.web.context.ConfigurableWebApplicationContext;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
-import io.prometheus.client.CollectorRegistry;
-
 import com.vmturbo.components.api.test.IntegrationTestServer;
-import com.vmturbo.mediation.client.MediationComponentConfig;
+import com.vmturbo.components.common.ConsulRegistrationConfig;
 import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.mediation.common.tests.util.IntegrationTestProbeConfiguration;
@@ -128,7 +125,9 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty("kvStoreRetryIntervalMillis", "1000");
         environment.setProperty("websocket.pong.timeout", "10000");
         environment.setProperty("server.grpcPort", "0");
-        environment.setProperty("spring.cloud.consul.port", "0");
+        environment.setProperty("consul_port", "0");
+        environment.setProperty("consul_host", "consul");
+        environment.setProperty(ConsulRegistrationConfig.DISABLE_CONSUL_REGISTRATION, "true");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -295,12 +294,9 @@ public abstract class AbstractIntegrationTest {
             };
             environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                     testName.getMethodName());
-            environment.setProperty("spring.cloud.bus.enabled", "false");
-            environment.setProperty("spring.cloud.discovery.enabled", "false");
-            environment.setProperty("spring.cloud.consul.enabled", "false");
-            environment.setProperty("spring.cloud.consul.config.enabled", "false");
-            environment.setProperty("spring.cloud.consul.port", "0");
-            environment.setProperty("spring.cloud.consul.host", "consul");
+            environment.setProperty(ConsulRegistrationConfig.DISABLE_CONSUL_REGISTRATION, "true");
+            environment.setProperty("consul_host", "consul");
+            environment.setProperty("consul_port", "0");
             environment.setProperty("spring.application.name", "the-component");
             environment.setProperty("kvStoreRetryIntervalMillis", "1000");
 
@@ -308,7 +304,7 @@ public abstract class AbstractIntegrationTest {
             // JVM
             environment.setProperty("spring.jmx.default-domain",
                             "sdk-container-" + jmxCounter.getAndIncrement());
-            environment.setProperty("server.port", "0");
+            environment.setProperty("server_port", "0");
             environment.setProperty("server.grpcPort", "1");
 
             final String instanceId =

@@ -34,7 +34,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.assertj.core.util.Lists;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -43,10 +47,6 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;

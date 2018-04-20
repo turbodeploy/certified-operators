@@ -16,7 +16,6 @@ import static com.vmturbo.systest.policy.AnalysisResultsMatchers.toHost;
 import static com.vmturbo.systest.policy.AnalysisResultsMatchers.withConsumerCount;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -35,8 +34,9 @@ import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+
+import io.grpc.stub.StreamObserver;
+import io.swagger.annotations.ApiOperation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,40 +44,26 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
 import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.context.embedded.LocalServerPort;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.context.request.WebRequest;
-import org.springframework.web.context.request.WebRequestInterceptor;
-import org.springframework.web.servlet.HandlerInterceptor;
-import org.springframework.web.servlet.ModelAndView;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.UriComponentsBuilder;
-
-import io.grpc.stub.StreamObserver;
-import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -112,6 +98,7 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
+import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.components.test.utilities.communication.ComponentStubHost;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
@@ -146,14 +133,6 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
  * A policy is set up and the results are sent to the market. After analysis, the output
  * is examined to ensure that actions appropriate to the policy are generated.
  */
-@RunWith(SpringRunner.class)
-@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT,
-    properties = {
-        "spring.cloud.bus.enabled=false",
-        "spring.cloud.discovery.enabled=false",
-        "spring.cloud.consul.enabled=false",
-        "spring.cloud.consul.config.enabled=false",
-        "instance_id=test"})
 public class PlacementPolicySysTest {
     private static final Logger logger = LogManager.getLogger();
 
@@ -172,12 +151,9 @@ public class PlacementPolicySysTest {
     private IMessageReceiver<ProjectedTopology> projectedTopologyReceiver;
     private IMessageReceiver<ActionPlan> actionsReceiver;
 
-    @Autowired
     private DiscoveryDriverController discoveryDriverController;
     private KafkaMessageConsumer kafkaMessageConsumer;
-
-    @LocalServerPort
-    int port;
+    private IntegrationTestServer testServer;
 
     @Rule
     public ComponentTestRule componentTestRule = ComponentTestRule.newBuilder()
@@ -186,12 +162,19 @@ public class PlacementPolicySysTest {
                 .withConfiguration("groupHost", ComponentUtils.getDockerHostRoute())
                 .logsToLogger(logger))
             .withService(ComponentCluster.newService("mediation-delegatingprobe")
+                    .withConfiguration("server_port", "8080")
+                    .withConfiguration("consul_host", "consul")
+                    .withConfiguration("consul_port", "8500")
+                    .withConfiguration("server.grpcPort", "9001")
                 .logsToLogger(logger))
             .withService(ComponentCluster.newService("market")
                 .logsToLogger(logger)))
         .withStubs(ComponentStubHost.newBuilder()
             .withGrpcServices(policyServiceStub))
         .noMetricsCollection();
+
+    @Rule
+    public TestName testName = new TestName();
 
     // All hosts with the number two in their display name.
     private final GroupInfo hostsWithTwo = GroupInfo.newBuilder()
@@ -257,8 +240,11 @@ public class PlacementPolicySysTest {
         .build();
 
     @Before
-    public void setup() throws IOException {
+    public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
+        testServer = new IntegrationTestServer(testName, ContextConfiguration.class);
+        discoveryDriverController = testServer.getBean(DiscoveryDriverController.class);
+
         kafkaMessageConsumer = new KafkaMessageConsumer(DockerEnvironment.getKafkaBootstrapServers(),
                 "placement-policy-system-tests");
 
@@ -585,7 +571,7 @@ public class PlacementPolicySysTest {
         final String uri = UriComponentsBuilder.newInstance()
             .scheme("http")
             .host(ComponentUtils.getDockerHostRoute())
-            .port(port)
+            .port(testServer.connectionConfig().getPort())
             .path("discoveryDriver")
             .build()
             .toUriString();
@@ -755,16 +741,12 @@ public class PlacementPolicySysTest {
      * Nested configuration for Spring context. Allow construction and registration of the
      * controller for our test's REST API.
      */
-    @SpringBootApplication
+    @Configuration
     @EnableWebMvc
     // The default @EnableAutoConfiguration implied by @SpringBootApplication will pick up
     // the spring security JAR in the class-path, and set up authentication for the
     // test application. We want to avoid dealing with that for the purpose of the test, so
     // we explicitly exclude security-related AutoConfiguration.
-    @EnableAutoConfiguration(exclude = {
-            org.springframework.boot.autoconfigure.security.SecurityAutoConfiguration.class,
-            org.springframework.boot.actuate.autoconfigure.ManagementWebSecurityAutoConfiguration.class
-    })
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
         @Bean
         public DiscoveryDriverController discoveryDriverController() {

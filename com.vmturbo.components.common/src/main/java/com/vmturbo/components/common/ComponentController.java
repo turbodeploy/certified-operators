@@ -36,6 +36,8 @@ import com.vmturbo.components.common.health.CompositeHealthMonitor;
         produces = {MediaType.APPLICATION_JSON_UTF8_VALUE, MediaType.TEXT_PLAIN_VALUE})
 public class ComponentController {
 
+    public static final String HEALTH_PATH = "/health";
+
     @Autowired
     @Qualifier("theComponent")
     private IVmtComponent theComponent;
@@ -64,7 +66,7 @@ public class ComponentController {
                 .toString();
     }
 
-    @RequestMapping(path = "/health",
+    @RequestMapping(path = HEALTH_PATH,
             method = RequestMethod.GET,
             produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})
     @ApiOperation("Return the health of the current component.")

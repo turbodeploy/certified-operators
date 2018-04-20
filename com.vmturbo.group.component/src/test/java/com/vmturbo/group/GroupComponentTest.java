@@ -1,35 +1,43 @@
 package com.vmturbo.group;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.Mockito;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.test.context.support.AbstractTestExecutionListener;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
-
 import com.arangodb.ArangoDB;
 
+import org.junit.After;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.TestName;
+import org.mockito.Mockito;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-public class GroupComponentTest extends AbstractTestExecutionListener {
+public class GroupComponentTest {
+
+    @Rule
+    public TestName testName = new TestName();
+
+    private IntegrationTestServer server;
+
+    @Before
+    public void startup() throws Exception {
+        server = new IntegrationTestServer(testName, TestSQLDatabaseConfig.class);
+    }
+
+    @After
+    public void cleanup() throws Exception {
+        server.close();
+    }
 
     @Test
     public void contextLoads() {
         // Intentionally empty. This test is to make sure the context is created properly.
     }
 
-    @TestConfiguration
-    static class ArangoDatabaseFactoryConfig {
+    @Configuration
+    public static class ArangoDatabaseFactoryConfig {
 
         @Bean
         public ArangoDriverFactory arangoDriverFactory() {
@@ -42,6 +50,5 @@ public class GroupComponentTest extends AbstractTestExecutionListener {
                 return arangoDB;
             };
         }
-
     }
 }

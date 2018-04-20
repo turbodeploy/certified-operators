@@ -634,7 +634,6 @@
                             </locations>
                         </apiSource>
                     </apiSources>
-
                 </configuration>
             </plugin>
             <plugin>
@@ -667,7 +666,7 @@
                     <locations>
                         <!-- add a vmtplatform user just for the purpose of the flyway/jooq execution -->
                         <location>filesystem:${basedir}/src/build/resources/jooq-setup</location>
-                        <!-- Configure to the same location as configured in Spring Boot..-->
+                        <!-- Configure to the same location as configured in Spring..-->
                         <location>filesystem:${basedir}/src/main/resources/db/reporting/migration</location>
                     </locations>
                     <schemas>
@@ -767,17 +766,6 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
-                        <id>copy-dependencies</id>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <useBaseVersion>false</useBaseVersion>
-                        </configuration>
-                    </execution>
-                    <execution>
                         <id>unpack-reports-resources</id>
                         <goals>
                             <goal>unpack</goal>
@@ -803,9 +791,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <addClasspath>true</addClasspath>
                             <mainClass>com.vmturbo.reports.component.ReportsComponent</mainClass>
-                            <classpathPrefix>lib/</classpathPrefix>
                         </manifest>
                     </archive>
                 </configuration>

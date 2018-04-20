@@ -25,33 +25,6 @@
     </properties>
 
     <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>com.spotify</groupId>
-                    <artifactId>docker-maven-plugin</artifactId>
-                    <configuration>
-                        <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
-                        <resources>
-                            <resource>
-                                <targetPath>/</targetPath>
-                                <directory>${project.build.directory}</directory>
-                                <include>${project.build.finalName}.jar</include>
-                            </resource>
-                            <resource>
-                                <targetPath>/lib</targetPath>
-                                <directory>${project.build.directory}/lib</directory>
-                            </resource>
-                            <resource>
-                                <targetPath>/swagger</targetPath>
-                                <directory>${project.build.directory}/generated-docs/swagger</directory>
-                            </resource>
-                        </resources>
-                    </configuration>
-                </plugin>
-
-            </plugins>
-        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.jacoco</groupId>
@@ -60,6 +33,10 @@
             <plugin>
                 <groupId>com.spotify</groupId>
                 <artifactId>docker-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
             </plugin>
             <plugin>
                 <groupId>org.flywaydb</groupId>
@@ -78,7 +55,7 @@
                     <user>${db.username}</user>
                     <password>${db.password}</password>
                     <locations>
-                        <!-- Configure to the same location as configured in Spring Boot..-->
+                        <!-- Configure to the same location as configured in Spring..-->
                         <location>filesystem:${basedir}/src/main/resources/db/migration</location>
                     </locations>
                     <schemas>
@@ -86,8 +63,6 @@
                     </schemas>
                 </configuration>
             </plugin>
-            <!-- See comment from michael-simons at https://github.com/spring-projects/spring-boot/issues/6975
-                 on recommended configuration for a Spring Boot + Flyway + jOOQ setup-->
             <plugin>
                 <!-- Specify the maven code generator plugin -->
                 <groupId>org.jooq</groupId>
@@ -164,7 +139,6 @@
                             </locations>
                         </apiSource>
                     </apiSources>
-
                 </configuration>
             </plugin>
             <plugin>
@@ -173,29 +147,10 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <addClasspath>true</addClasspath>
                             <mainClass>com.vmturbo.topology.processor.TopologyProcessorComponent</mainClass>
-                            <classpathPrefix>lib/</classpathPrefix>
                         </manifest>
                     </archive>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <phase>prepare-package</phase>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <useBaseVersion>false</useBaseVersion>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

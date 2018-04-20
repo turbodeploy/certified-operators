@@ -15,8 +15,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-import org.assertj.core.util.Lists;
-import org.assertj.core.util.Sets;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import org.junit.Test;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -123,7 +124,7 @@ public class StatsMapperTest {
     @Test
     public void testToEntityStatsRequest() {
         // Arrange
-        Set<Long> entityOids = Sets.newLinkedHashSet(1L, 2L);
+        Set<Long> entityOids = Sets.newHashSet(1L, 2L);
         StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
         apiRequestInput.setStartDate(Long.toString(START_DATE));
         apiRequestInput.setEndDate(Long.toString(END_DATE));
@@ -181,7 +182,7 @@ public class StatsMapperTest {
     @Test
     public void testToEntityStatsRequestDefaults() {
         // Arrange
-        Set<Long> entityOids = Sets.newLinkedHashSet(1L, 2L);
+        Set<Long> entityOids = Sets.newHashSet(1L, 2L);
         StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
 
         // Act

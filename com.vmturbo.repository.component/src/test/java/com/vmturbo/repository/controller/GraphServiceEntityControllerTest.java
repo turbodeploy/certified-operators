@@ -7,23 +7,21 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Sets;
+
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.cloud.client.discovery.DiscoveryClient;
 import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.collect.Sets;
 
 import javaslang.control.Either;
 
@@ -32,8 +30,8 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 
-@RunWith(SpringRunner.class)
-@WebMvcTest(GraphServiceEntityController.class)
+@RunWith(SpringJUnit4ClassRunner.class)
+@WebAppConfiguration
 @DirtiesContext
 @TestPropertySource(
     properties = {"instance_id = repository", "actionOrchestratorHost = fake-host",
@@ -44,22 +42,19 @@ import com.vmturbo.repository.topology.TopologyID.TopologyType;
 public class GraphServiceEntityControllerTest {
 
     @Autowired
-    MockMvc mvc;
+    private MockMvc mvc;
 
     @Autowired
-    ObjectMapper objectMapper;
+    private ObjectMapper objectMapper;
 
-    @MockBean
-    DiscoveryClient discoveryClient;
+    @Autowired
+    private ComponentStartUpManager componentStartUpManager;
 
-    @MockBean
-    ComponentStartUpManager componentStartUpManager;
+    @Autowired
+    private GraphDBService graphDBService;
 
-    @MockBean
-    GraphDBService graphDBService;
-
-    @MockBean
-    ArangoDatabaseFactory arangoDatabaseFactory;
+    @Autowired
+    private ArangoDatabaseFactory arangoDatabaseFactory;
 
     @Ignore("TODO: Re-enable after updating spring configuration for this component. Fails now due to Spring configuration issues.")
     @Test

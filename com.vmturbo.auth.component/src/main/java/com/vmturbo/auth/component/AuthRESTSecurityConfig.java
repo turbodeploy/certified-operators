@@ -3,6 +3,7 @@ package com.vmturbo.auth.component;
 import java.util.concurrent.TimeUnit;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.kvstore.AuthApiKVConfig;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.services.LicenseController;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
@@ -32,14 +33,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableWebSecurity
 @Import(SpringSecurityConfig.class)
 public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
-    @Value("${spring.cloud.consul.host:localhost}")
+    @Value("${consul_host:localhost}")
     private String consulHost;
 
-    @Value("${spring.cloud.consul.port:8500}")
+    @Value("${consul_port:8500}")
     private String consulPort;
-
-    @Value("${spring.application.name:auth}")
-    private String applicationName;
 
     @Value("${kvStoreRetryIntervalMillis}")
     private long kvStoreRetryIntervalMillis;
@@ -110,9 +108,8 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
-    public KeyValueStore keyValueStore() {
-        return new ConsulKeyValueStore(
-                applicationName,
+    public KeyValueStore authKeyValueStore() {
+        return new ConsulKeyValueStore(AuthApiKVConfig.AUTH_NAMESPACE,
                 consulHost,
                 consulPort,
                 kvStoreRetryIntervalMillis,
@@ -122,12 +119,12 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Bean
     public AuthProvider targetStore() {
-        return new AuthProvider(keyValueStore());
+        return new AuthProvider(authKeyValueStore());
     }
 
     @Bean
     public ILicenseStore licenseStore() {
-        return new LicenseKVStore(keyValueStore());
+        return new LicenseKVStore(authKeyValueStore());
     }
 
     @Bean

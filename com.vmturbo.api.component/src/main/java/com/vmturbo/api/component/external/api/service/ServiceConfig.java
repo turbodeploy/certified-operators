@@ -18,6 +18,7 @@ import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
@@ -35,6 +36,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
+    @Autowired
+    private AuthClientConfig authConfig;
     /**
      * A path prefix to access reports data (implemented in Legacy as CGI-script) using
      * {@link ReportCgiServlet}.
@@ -91,10 +94,8 @@ public class ServiceConfig {
 
     @Bean
     public AuthenticationService authenticationService() {
-        return new AuthenticationService(communicationConfig.getAuthHost(),
-                                         communicationConfig.getHttpPort(),
-                                         securityConfig.verifier(),
-                                         communicationConfig.serviceRestTemplate());
+        return new AuthenticationService(authConfig.getAuthHost(), authConfig.getAuthPort(),
+                securityConfig.verifier(), communicationConfig.serviceRestTemplate());
     }
 
     @Bean
@@ -138,8 +139,8 @@ public class ServiceConfig {
 
     @Bean
     public LicenseService licenseService() {
-        return new LicenseService(communicationConfig.getAuthHost(),
-                communicationConfig.getHttpPort(),
+        return new LicenseService(authConfig.getAuthHost(),
+                authConfig.getAuthPort(),
                 communicationConfig.serviceRestTemplate());
     }
 
@@ -295,8 +296,8 @@ public class ServiceConfig {
 
     @Bean
     public UsersService usersService() {
-        return new UsersService(communicationConfig.getAuthHost(),
-                                communicationConfig.getHttpPort(),
+        return new UsersService(authConfig.getAuthHost(),
+                                authConfig.getAuthPort(),
                                 communicationConfig.serviceRestTemplate());
     }
 

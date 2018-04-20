@@ -80,6 +80,11 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-webmvc</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-core</artifactId>
+            <scope>compile</scope>
+        </dependency>
     </dependencies>
 
 </project>

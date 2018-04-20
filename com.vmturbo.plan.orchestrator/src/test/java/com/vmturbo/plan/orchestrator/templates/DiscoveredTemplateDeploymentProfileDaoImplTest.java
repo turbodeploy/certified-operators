@@ -3,12 +3,14 @@ package com.vmturbo.plan.orchestrator.templates;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.assertj.core.util.Lists;
+import com.google.common.collect.Lists;
+
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
@@ -105,9 +107,9 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
             .setProbeDeploymentProfileId("probe-dp-2")
             .build();
 
-        testMap.put(firstTemplateInfo, Lists.newArrayList(firstDeploymentProfile));
-        testMap.put(secondTemplateInfo, Lists.newArrayList(secondDeploymentProfile));
-        testMap.put(thirdTemplateInfo, Lists.emptyList());
+        testMap.put(firstTemplateInfo, Collections.singletonList(firstDeploymentProfile));
+        testMap.put(secondTemplateInfo, Collections.singletonList(secondDeploymentProfile));
+        testMap.put(thirdTemplateInfo, Collections.emptyList());
 
         uploadMap.put(targetId, testMap);
         noReferenceMap.put(targetId, new ArrayList<>());
@@ -145,7 +147,7 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
         noReferenceMap.clear();
         testMap.put(needToReplaceTemplateInfo, Lists.newArrayList(firstDeploymentProfile, secondDeploymentProfile));
         testMap.put(secondTemplateInfo, Lists.newArrayList(firstDeploymentProfile));
-        testMap.put(thirdTemplateInfo, Lists.emptyList());
+        testMap.put(thirdTemplateInfo, Collections.emptyList());
         uploadMap.put(targetId, testMap);
         noReferenceMap.put(targetId, Lists.newArrayList(noReferenceDeploymentProfile));
 
@@ -305,8 +307,8 @@ public class DiscoveredTemplateDeploymentProfileDaoImplTest {
             .setName("second-template")
             .build();
 
-        testMap.put(firstTemplateInfo, Lists.emptyList());
-        testMap.put(secondTemplateInfo, Lists.emptyList());
+        testMap.put(firstTemplateInfo, Collections.emptyList());
+        testMap.put(secondTemplateInfo, Collections.emptyList());
 
         uploadMap.put(targetId, testMap);
         noReferenceMap.put(targetId, new ArrayList<>());

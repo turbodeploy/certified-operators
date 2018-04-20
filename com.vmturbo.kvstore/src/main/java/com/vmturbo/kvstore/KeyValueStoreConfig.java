@@ -11,13 +11,13 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class KeyValueStoreConfig {
-    @Value("${spring.cloud.consul.host}")
+    @Value("${consul_host}")
     private String consulHost;
 
-    @Value("${spring.cloud.consul.port}")
+    @Value("${consul_port}")
     private String consulPort;
 
-    @Value("${spring.application.name}")
+    @Value("${instance_id}")
     private String applicationName;
 
     @Value("${kvStoreRetryIntervalMillis}")

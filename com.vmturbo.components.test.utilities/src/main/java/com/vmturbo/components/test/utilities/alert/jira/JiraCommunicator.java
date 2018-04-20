@@ -1,17 +1,34 @@
 package com.vmturbo.components.test.utilities.alert.jira;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.AuthCache;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.protocol.HttpContext;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.DefaultUriTemplateHandler;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.test.utilities.alert.jira.JiraIssue.JiraTransition;
@@ -26,7 +43,7 @@ import com.vmturbo.components.test.utilities.alert.jira.JiraIssue.JiraTransition
 public class JiraCommunicator {
     public static final String DEFAULT_USERNAME = "professor";
     private static final String DEFAULT_PASSWORD = "Turbonomic6";
-    private static final String DEFAULT_ROOT_JIRA_URL = "https://vmturbo.atlassian.net/rest/api/latest/";
+    private static final String DEFAULT_ROOT_JIRA_URL = "https://vmturbo.atlassian.net/rest/api/latest";
 
     /**
      * Message converter to decode incoming responses.
@@ -54,11 +71,46 @@ public class JiraCommunicator {
         msgConverter = new GsonHttpMessageConverter();
         msgConverter.setGson(ComponentGsonFactory.createGson());
 
-        restTemplate = new RestTemplateBuilder()
-            .rootUri(root_uri)
-            .basicAuthorization(username, password)
-            .additionalMessageConverters(msgConverter)
-            .build();
+        final CredentialsProvider creds = createCredentialsProvider(username, password);
+        final CloseableHttpClient client = HttpClientBuilder.create().
+                setDefaultCredentialsProvider(creds)
+                .build();
+        final URI uri;
+        try {
+            uri = new URI(root_uri);
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException("URI is incorrect: " + root_uri, e);
+        }
+        final HttpHost targetHost = new HttpHost(uri.getHost(), uri.getPort(), uri.getScheme());
+        // Create AuthCache instance
+        final AuthCache authCache = new BasicAuthCache();
+        // Generate BASIC scheme object and add it to the local auth cache
+        BasicScheme basicAuth = new BasicScheme();
+        authCache.put(targetHost, basicAuth);
+
+        // Add AuthCache to the execution context
+        final HttpClientContext context = HttpClientContext.create();
+        context.setCredentialsProvider(creds);
+        context.setAuthCache(authCache);
+
+        final HttpComponentsClientHttpRequestFactory requestFactory =
+                new ContextAwareHttpComponentsClientHttpRequestFactory(client, context);
+
+
+        final DefaultUriTemplateHandler handler = new DefaultUriTemplateHandler();
+        handler.setBaseUrl(root_uri);
+        restTemplate = new RestTemplate(requestFactory);
+        restTemplate.setUriTemplateHandler(handler);
+        restTemplate.setMessageConverters(Collections.singletonList(msgConverter));
+    }
+
+    private CredentialsProvider createCredentialsProvider(@Nonnull String username,
+            @Nonnull String password) {
+        final CredentialsProvider provider = new BasicCredentialsProvider();
+        final UsernamePasswordCredentials credentials =
+                new UsernamePasswordCredentials(username, password);
+        provider.setCredentials(AuthScope.ANY, credentials);
+        return provider;
     }
 
     /**
@@ -215,5 +267,21 @@ public class JiraCommunicator {
         public void setTransition(JiraTransition transition) {
             this.transition = transition;
         }
+    }
+
+    public class ContextAwareHttpComponentsClientHttpRequestFactory extends
+            HttpComponentsClientHttpRequestFactory {
+        private HttpContext httpContext;
+
+        public ContextAwareHttpComponentsClientHttpRequestFactory(HttpClient httpClient, HttpContext httpContext){
+            super(httpClient);
+            this.httpContext = httpContext;
+        }
+
+        protected HttpContext createHttpContext(HttpMethod httpMethod, URI uri) {
+            //Ignoring the URI and method.
+            return httpContext;
+        }
+
     }
 }

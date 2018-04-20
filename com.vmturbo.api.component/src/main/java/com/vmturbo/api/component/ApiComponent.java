@@ -9,7 +9,6 @@ import javax.servlet.Servlet;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -34,7 +33,6 @@ import com.vmturbo.components.common.BaseVmtComponent;
  * and then assemble the response - e.g. filtering, joining related information, etc.
  */
 @Configuration("theComponent")
-@EnableDiscoveryClient
 @Import({ApiComponentGlobalConfig.class, ApiWebsocketConfig.class, ExternalApiConfig.class,
         SwaggerConfig.class, DBAdminController.class})
 public class ApiComponent extends BaseVmtComponent {
