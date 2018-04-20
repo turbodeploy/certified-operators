@@ -7,21 +7,19 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
-
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.ServerInterceptors;
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.DiscoveredGroupServiceController;
@@ -38,7 +36,6 @@ import com.vmturbo.group.service.PolicyService;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration("theComponent")
-@EnableDiscoveryClient
 @Import({ArangoDBConfig.class,
         IdentityProviderConfig.class,
         GrpcConfig.class,
@@ -46,7 +43,6 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         SQLDatabaseConfig.class,
         GroupApiSecurityConfig.class,
         GroupDiagnosticsConfig.class})
-@EnableAutoConfiguration
 public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
@@ -68,9 +64,6 @@ public class GroupComponent extends BaseVmtComponent {
     private GroupDiagnosticsConfig diagnosticsConfig;
 
     private static Logger logger = LoggerFactory.getLogger(GroupComponent.class);
-
-    @Value("${spring.application.name}")
-    private String componentName;
 
     @Value("${arangodbHealthCheckIntervalSeconds:60}")
     private int arangoHealthCheckIntervalSeconds;
@@ -152,19 +145,8 @@ public class GroupComponent extends BaseVmtComponent {
     }
 
     public static void main(String[] args) {
-        // apply the configuration properties for this component prior to Spring instantiation
-        fetchConfigurationProperties();
-        // instantiate and run this component
-        new SpringApplicationBuilder()
-                .sources(GroupComponent.class)
-                .run(args);
+        startContext(GroupComponent.class);
     }
-
-    @Override
-    public String getComponentName() {
-        return componentName;
-    }
-
     @Override
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
         diagnosticsConfig.diagsHandler().dump(diagnosticZip);
