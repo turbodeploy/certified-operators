@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -170,7 +171,8 @@ public class EntitySettingsApplicator {
 
     /**
      * Applies the "move" setting to a {@link TopologyEntityDTO.Builder}. In particular,
-     * if the "move" is disabled, set the commodities purchased from a host to non-movable.
+     * if it is VM and the "move" is disabled, set the commodities purchased from a host to non-movable.
+     * If it is storage and the "move" is disabled, set the all commodities bought to non-movable.
      */
     private static class MoveApplicator extends SingleSettingApplicator {
 
@@ -183,16 +185,46 @@ public class EntitySettingsApplicator {
                           @Nonnull final Setting setting) {
             final boolean movable =
                     !setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name());
+
             entity.getCommoditiesBoughtFromProvidersBuilderList().stream()
                 // Only disable moves for placed entities (i.e. those that have providers).
                 // Doesn't make sense to disable them for unplaced ones.
                 .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderId)
                 .filter(CommoditiesBoughtFromProviderOrBuilder::hasProviderEntityType)
-                // The "move" setting controls host moves. So we only want to set the group
-                // of commodities bought from hosts (physical machines) to non-movable.
-                .filter(commBought -> commBought.getProviderEntityType() ==
-                        EntityType.PHYSICAL_MACHINE_VALUE)
+                // The "move" setting controls vm moves between hosts and storage moves between its
+                // providers(disk array, logical pool). We want to set the VM group of commodities
+                // bought from hosts (physical machines) to non-movable and Storage group of
+                // commodities bought from its providers to non-movable.
+                .filter(commBought -> shouldOverrideMovable(commBought, entity.getEntityType()))
                 .forEach(commBought -> commBought.setMovable(movable));
+        }
+    }
+
+    /**
+     * For move setting, it supports both VM and Storage entities. For VM entity, it only controls
+     * moves between hosts, because moves between storage is controlled by storage setting.
+     * For Storage entity, it controls all moves between its provider, no matter its provider is
+     * Disk Array or Logical Pool.
+     *
+     * @param commoditiesBought {@link CommoditiesBoughtFromProvider} of the entity.
+     * @param entityType entity type.
+     * @return a boolean, true means should override movable for this commodity bought, false
+     *         should not override movable for this commodity bought.
+     */
+    private static boolean shouldOverrideMovable(
+            @Nonnull final CommoditiesBoughtFromProvider.Builder commoditiesBought,
+            final long entityType) {
+        if (entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+            // if it is a VM entity, only override movable for hosts providers. Because Storage move
+            // is controlled by StorageMoveApplicator.
+            return commoditiesBought.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE;
+        } else if (entityType == EntityType.STORAGE_VALUE) {
+            // if it is a storage entity, override movable for its all providers(e.g. disk array,
+            // logical pool).
+            return true;
+        } else {
+            logger.error("Unknown entity type scope {} for Move setting.", entityType);
+            return false;
         }
     }
 

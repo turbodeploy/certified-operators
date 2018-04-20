@@ -116,8 +116,9 @@ public class EntitySettingsApplicatorTest {
      * Tests move setting application. The result topology entity has to be marked not movable.
      */
     @Test
-    public void testMoveApplicator() {
+    public void testMoveApplicatorForVM() {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                         .setProviderId(PARENT_ID)
                         .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -131,10 +132,33 @@ public class EntitySettingsApplicatorTest {
      * The result topology entity has to remain marked as movable.
      */
     @Test
-    public void testMoveApplicatorNoProvider() {
+    public void testMoveApplicatorNoProviderForVM() {
         final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .addCommoditiesBoughtFromProviders(
                         CommoditiesBoughtFromProvider.newBuilder().setMovable(true));
+        applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
+        assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
+    }
+
+    @Test
+    public void testMovaApplicatorForStorage() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.STORAGE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.DISK_ARRAY_VALUE)
+                        .setMovable(true));
+        applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
+        assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    @Test
+    public void testMovaApplicatorNoProviderForStorage() {
+        final TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.STORAGE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(true));
     }

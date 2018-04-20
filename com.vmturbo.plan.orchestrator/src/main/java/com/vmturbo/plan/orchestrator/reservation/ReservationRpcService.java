@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 
 import io.grpc.Status;
@@ -45,6 +46,7 @@ import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Implementation of gRpc service for Reservation.
@@ -331,12 +333,14 @@ public class ReservationRpcService extends ReservationServiceImplBase {
      *
      * @return list of {@link ScenarioChange}.
      */
-    private List<ScenarioChange> createPlacementActionSettingOverride() {
-        ScenarioChange settingOverrideDisablePMMove = ScenarioChange.newBuilder()
+    @VisibleForTesting
+    List<ScenarioChange> createPlacementActionSettingOverride() {
+        ScenarioChange settingOverrideDisableVMMoveBetweenHosts = ScenarioChange.newBuilder()
                 .setSettingOverride(SettingOverride.newBuilder()
                         .setSetting(Setting.newBuilder()
                                 .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
-                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED))))
+                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
                 .build();
         ScenarioChange settingOverrideDisableClone = ScenarioChange.newBuilder()
                 .setSettingOverride(SettingOverride.newBuilder()
@@ -344,14 +348,22 @@ public class ReservationRpcService extends ReservationServiceImplBase {
                                 .setSettingSpecName(EntitySettingSpecs.Provision.getSettingName())
                                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED))))
                 .build();
-        ScenarioChange settingOverrideDisableSTMove = ScenarioChange.newBuilder()
+        ScenarioChange settingOverrideDisableVMMoveBetweenST = ScenarioChange.newBuilder()
                 .setSettingOverride(SettingOverride.newBuilder()
                         .setSetting(Setting.newBuilder()
                                 .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
-                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED))))
+                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
                 .build();
-        return Lists.newArrayList(settingOverrideDisablePMMove, settingOverrideDisableSTMove,
-                settingOverrideDisableClone);
+        ScenarioChange settingOverrideDisableSTMove = ScenarioChange.newBuilder()
+                .setSettingOverride(SettingOverride.newBuilder()
+                        .setSetting(Setting.newBuilder()
+                                .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+                                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(DISABLED)))
+                        .setEntityType(EntityType.STORAGE_VALUE))
+                .build();
+        return Lists.newArrayList(settingOverrideDisableVMMoveBetweenHosts, settingOverrideDisableVMMoveBetweenST,
+                settingOverrideDisableClone, settingOverrideDisableSTMove);
     }
 
     /**
