@@ -84,7 +84,7 @@ public class Resizer {
                                         incomeStatement.getMaxDesiredExpenses() : expenses);
                             double currentRevenue = incomeStatement.getRevenues();
                             double desiredCapacity =
-                               calculateDesiredCapacity(commoditySold, currentRevenue, newRevenue
+                               calculateDesiredCapacity(commoditySold, newRevenue
                                                         , seller, economy);
                             CommoditySold rawMaterial = findSellerCommodity(economy, seller,
                                                                             soldIndex);
@@ -103,7 +103,7 @@ public class Resizer {
                                 actions.add(resizeAction);
                             }
                         } catch (Exception bisectionException) {
-                            logger.error(bisectionException.getMessage() + " : Capacity "
+                            logger.info(bisectionException.getMessage() + " : Capacity "
                                          + commoditySold.getEffectiveCapacity() + " Quantity "
                                          + commoditySold.getQuantity() + " Revenues "
                                          + incomeStatement.getRevenues() + " Expenses "
@@ -265,13 +265,11 @@ public class Resizer {
      * Finds the new commodity capacity needed for the target revenue.
      *
      * @param resizeCommodity Commodity to be resized.
-     * @param currentRevenue Current revenue for the commodity to be resized.
      * @param newRevenue The target revenue for the commodity after resize.
      * @return The new capacity
      * @throws Exception If it cannot find the new capacity.
      */
-    private static double calculateDesiredCapacity(CommoditySold resizeCommodity,
-                                                   double currentRevenue, double newRevenue,
+    private static double calculateDesiredCapacity(CommoditySold resizeCommodity, double newRevenue,
                                                    Trader seller, Economy economy) {
         double currentQuantity = resizeCommodity.getQuantity();
         PriceFunction priceFunction = resizeCommodity.getSettings().getPriceFunction();
