@@ -166,10 +166,12 @@ public class ReportingServiceTest {
                 Sets.newHashSet(stub.listAllInstances(Empty.getDefaultInstance()));
         Assert.assertEquals(Collections.emptySet(), initialInstances);
         final ReportTemplate template = stub.listAllTemplates(Empty.getDefaultInstance()).next();
-        final ReportInstanceId response = stub.generateReport(GenerateReportRequest.newBuilder()
+        final GenerateReportRequest request = GenerateReportRequest.newBuilder()
                 .setFormat(ReportOutputFormat.PDF.getLiteral())
                 .setTemplate(template.getId())
-                .build());
+                .build();
+
+        final ReportInstanceId response = stub.generateReport(request);
         Assert.assertTrue(response.getId() > 0);
         final ReportListener listener = Mockito.mock(ReportListener.class);
 

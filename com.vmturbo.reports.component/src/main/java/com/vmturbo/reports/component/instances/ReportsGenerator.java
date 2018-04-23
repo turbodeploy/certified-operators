@@ -141,6 +141,10 @@ public class ReportsGenerator {
                 logger.warn("Could not find entity name for oid {}", oid);
             }
         }
+        // Some reports require this group to retrieve child elements. We still do not support this
+        // in XL but this fake group will prevent report from being failed.
+        // TODO
+        result.put("vm_group_name", "fake_vm_group");
         return result;
     }
 
@@ -174,6 +178,8 @@ public class ReportsGenerator {
                                     outputFile, emailAddresses), mailEx);
                 }
             } catch (DbException | ReportingException e) {
+                logger.warn("Error occurred while rendering report " + reportInstance.getId() +
+                        " from file " + reportRequest.getRptDesign(), e);
                 notificationSender.notifyReportGenerationFailed(reportInstance.getId(),
                                 e.getMessage());
             }
