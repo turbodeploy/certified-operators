@@ -91,7 +91,7 @@ public class GroupService extends GroupServiceImplBase {
                     .build());
             responseObserver.onCompleted();
         } catch (DatabaseException | DuplicateGroupException e) {
-            logger.error("Failed to create group: " + groupInfo, e);
+            logger.error("Failed to create group: {}", groupInfo, e);
             responseObserver.onError(Status.ABORTED.withDescription(e.getLocalizedMessage())
                     .asRuntimeException());
         }
@@ -113,7 +113,7 @@ public class GroupService extends GroupServiceImplBase {
                     .build());
             responseObserver.onCompleted();
         } catch (InvalidTempGroupException e) {
-            logger.error("Failed to create temporary group: {}", e.getMessage());
+            logger.error("Failed to create temporary group", e);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage()).asException());
         }
@@ -128,7 +128,7 @@ public class GroupService extends GroupServiceImplBase {
             return;
         }
 
-        logger.info("Attempting to retrieve group: {}", gid);
+        logger.debug("Attempting to retrieve group: {}", gid);
 
         try {
             // Try the temporary group cache first because it's much faster.
@@ -141,7 +141,7 @@ public class GroupService extends GroupServiceImplBase {
             responseObserver.onNext(builder.build());
             responseObserver.onCompleted();
         } catch (DatabaseException e) {
-            logger.error("Failed to retrieve group: " + gid, e);
+            logger.error("Failed to retrieve group: {}", gid, e);
             responseObserver.onError(Status.INTERNAL
                 .withDescription(e.getLocalizedMessage()).asException());
         }
@@ -149,7 +149,7 @@ public class GroupService extends GroupServiceImplBase {
 
     @Override
     public void getGroups(GetGroupsRequest request, StreamObserver<Group> responseObserver) {
-        logger.info("Get all user groups");
+        logger.trace("Get all user groups");
 
         boolean resolveClusterFilters = request.hasResolveClusterSearchFilters() &&
             request.getResolveClusterSearchFilters();

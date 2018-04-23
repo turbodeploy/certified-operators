@@ -138,7 +138,7 @@ public class PolicyService extends PolicyServiceImplBase {
         try {
             final Collection<PolicyDTO.InputPolicy> allInputPolicies = policyStore.getAll();
 
-            logger.info("Get all policies - will return {} policies", allInputPolicies.size());
+            logger.debug("Get all policies - will return {} policies", allInputPolicies.size());
 
             allInputPolicies.forEach(inputPolicy -> {
                 final Either<Throwable, PolicyDTO.Policy> convertedPolicy = convertToPolicy(inputPolicy);

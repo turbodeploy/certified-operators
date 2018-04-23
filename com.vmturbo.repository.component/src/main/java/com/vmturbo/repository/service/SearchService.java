@@ -56,7 +56,7 @@ public class SearchService extends SearchServiceImplBase {
     @Override
     public void searchEntityOids(SearchRequest request,
                                  StreamObserver<SearchResponse> responseObserver) {
-        logger.info("Searching for entity OIDs with request: {}", request);
+        logger.debug("Searching for entity OIDs with request: {}", request);
 
         // Return empty result if current topology doesn't exist.
         Optional<TopologyDatabase> realtimeDb = lifecycleManager.getRealtimeDatabase();
@@ -95,7 +95,7 @@ public class SearchService extends SearchServiceImplBase {
             responseObserver.onNext(SearchResponse.newBuilder().addAllEntities(entities).build());
             responseObserver.onCompleted();
         } catch (Throwable e) {
-            logger.error("Search entity OIDs failed with an exception", e);
+            logger.error("Search entity OIDs failed for request {} with exception", request, e);
             final Status status = Status.INVALID_ARGUMENT.withCause(e).withDescription(e.getMessage());
             responseObserver.onError(status.asRuntimeException());
         }
@@ -141,7 +141,7 @@ public class SearchService extends SearchServiceImplBase {
             entities.forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (Throwable e) {
-            logger.error("Search entity failed with an exception", e);
+            logger.error("Search entity failed for request {} with exception", request, e);
             final Status status = Status.INVALID_ARGUMENT.withCause(e).withDescription(e.getMessage());
             responseObserver.onError(status.asRuntimeException());
         }
