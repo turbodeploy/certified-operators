@@ -1,11 +1,17 @@
 package com.vmturbo.group.persistent;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -31,6 +37,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Tests creation of default setting policies.
@@ -344,6 +351,16 @@ public class DefaultSettingPolicyCreatorTest {
                         .setAllowGlobalDefault(false))
                 .build();
         getPolicyInfo(0, spec);
+    }
+
+    @Test
+    public void testDoesNotCreateUnnecessaryPolicies() throws Exception {
+        final Map<Integer, SettingPolicyInfo> defaultsMap =
+            DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(new EnumBasedSettingSpecStore()
+                .getAllSettingSpecs());
+
+        assertThat(defaultsMap.size(), is(lessThan(EntityType.values().length)));
+        assertThat(defaultsMap.keySet(), not(contains(EntityType.UNKNOWN.getValue())));
     }
 
     private List<SettingPolicyInfo> getPolicyInfo(int expectedCount, SettingSpec... specs)
