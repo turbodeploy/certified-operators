@@ -5,7 +5,6 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 import java.util.function.Function;
 import java.util.function.IntFunction;
-
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -262,6 +261,31 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             // that was replaced by the current quantity. For example, max(5,12), we wont know what 12 replaced.
             // Find the quantities bought by all shopping lists and calculate the quantity sold.
 
+            // TODO: change the definition of updateQuantities to prevent re-computation overhead several times
+            // while moving in
+
+            // incomingSl is TRUE when the VM is moving in and false when moving out
+            boolean incomingSl = traderToUpdate.getCustomers().contains(sl);
+            double overhead = commoditySold.getQuantity();
+            for (ShoppingList customer : traderToUpdate.getCustomers()) {
+                int commIndex = customer.getBasket().indexOf(specificationSold);
+                if (customer != sl && commIndex != -1) {
+                    // subtract the used value of comm in question of all the customers but the
+                    // incoming shoppingList from the current used value of the sold commodity
+                    overhead -= customer.getQuantity(commIndex);
+                }
+            }
+            // when a sl is moving out, it will not be part of the seller's customers. In that case,
+            // we get the used value of the comm in question bought by the sl and remove from overhead
+            if (!incomingSl) {
+                int commIndex = sl.getBasket().indexOf(specificationSold);
+                if (commIndex != -1) {
+                    // subtract the used value of comm in question of all the customers but the
+                    // incoming shoppingList from the current used value of the sold commodity
+                    overhead -= sl.getQuantity(commIndex);
+                }
+            }
+
             // set used and peakUsed to 0 when starting for the seller
             double sellerOrigUsed = commoditySold.getQuantity();
             double sellerOrigPeak = commoditySold.getPeakQuantity();
@@ -276,7 +300,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 int specIndex = customer.getBasket().indexOf(specificationSold);
                 if (specIndex >= 0) {
                     double[] tempUpdatedQnty = explicitCombinator.operate(customer, specIndex,
-                                    commoditySold, traderToUpdate, economy, take, sellerOrigUsed);
+                                    commoditySold, traderToUpdate, economy, take, overhead);
                     commoditySold.setQuantity(tempUpdatedQnty[0]).setPeakQuantity(tempUpdatedQnty[1]);
                 }
             }
