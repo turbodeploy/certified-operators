@@ -196,14 +196,13 @@ services:
       file: common-services.yml
       service: dev-component
     image: turbonomic/com.vmturbo.api.component
-    expose:
-      - "${API_HTTP_PORT}"
-      - "${API_HTTPS_PORT}"
     depends_on:
       - clustermgr
       - kafka1
       - nginx
     ports:
+      - "${API_HTTP_PORT}"
+      - "${API_HTTPS_PORT}"
       - "${API_DEBUG_PORT}"
     environment:
       component_type: api
