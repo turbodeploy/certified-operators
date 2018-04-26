@@ -70,6 +70,8 @@ public class DockerEnvironment {
             .put("API_HTTP_PORT", "8080")
             .put("API_HTTPS_PORT", "9443")
             .put("API_DEBUG_PORT", "8000")
+            .put("NGINX_HTTP_PORT", "80")
+            .put("NGINX_HTTPS_PORT", "443")
             .put("MARKET_PORT", "8080")
             .put("MARKET_DEBUG_PORT", "8000")
             .put("ACTION_ORCHESTRATOR_PORT", "8080")
