@@ -30,6 +30,7 @@
         <module>testNestedEnum</module>
         <module>testOneOf</module>
         <module>testOuterName</module>
+	<module>testProto3</module>
         <module>testServices</module>
         <module>testTypes</module>
         <module>testUnderscores</module>

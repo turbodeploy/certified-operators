@@ -6,6 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.CaseFormat;
+import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
@@ -35,6 +36,8 @@ public class FieldDescriptor {
 
     private final Registry registry;
 
+    private final DescriptorProto parentMessageProto;
+
     private final FieldDescriptorProto fieldDescriptorProto;
 
     /**
@@ -45,19 +48,28 @@ public class FieldDescriptor {
     private final boolean appendFieldNumber;
 
     /**
+     * True iff the field is declared using proto3 syntax (i.e. no optional/required).
+     */
+    private final boolean isProto3;
+
+    /**
+     * @param parentMessage The message within which the field is declared.
      * @param duplicateNameMap A map containing the names of fields that end up being duplicates
      *                         in the message the field is defined in. Names end up as duplicates
      *                         when the only thing that distinguishes them is the underscore.
      */
     public FieldDescriptor(@Nonnull final FileDescriptorProcessingContext context,
+                           @Nonnull final DescriptorProto parentMessage,
                            @Nonnull final FieldDescriptorProto fieldDescriptorProto,
                            @Nonnull final Map<String, Boolean> duplicateNameMap) {
         this.comment = context.getCommentAtPath();
         this.registry = context.getRegistry();
         this.fieldDescriptorProto = fieldDescriptorProto;
+        this.parentMessageProto = parentMessage;
         appendFieldNumber =
                 duplicateNameMap.getOrDefault(formatFieldName(fieldDescriptorProto.getName()),
                         false);
+        this.isProto3 = context.isProto3Syntax();
     }
 
     /**
@@ -103,6 +115,33 @@ public class FieldDescriptor {
     @Nonnull
     public String getComment() {
         return comment;
+    }
+
+    public boolean isProto3Syntax() {
+        return isProto3;
+    }
+
+    /**
+     * Get the camelcase name of the enclosing oneof, if this field is declared inside a oneof.
+     *
+     * oneof my_oneof {
+     *    string this_field = 1;
+     * }
+     *
+     * Will return:
+     * myOneof
+     *
+     * @return An {@link Optional} containing the name of the enclosing oneof. An empty optional
+     *         if the field is not enclosed in a oneof.
+     */
+    public Optional<String> getOneofName() {
+        if (fieldDescriptorProto.hasOneofIndex()) {
+            return Optional.of(formatFieldName(
+                    parentMessageProto.getOneofDecl(fieldDescriptorProto.getOneofIndex())
+                            .getName()));
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

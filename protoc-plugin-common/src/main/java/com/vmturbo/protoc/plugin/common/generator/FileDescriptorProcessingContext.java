@@ -36,6 +36,12 @@ class FileDescriptorProcessingContext {
 
     static final String EMPTY_COMMENT = "\"\"";
 
+    /**
+     * The value for "syntax" that indicates proto3 syntax.
+     * See google/protobuf/descriptor.proto
+     */
+    static final String PROTO_3_SYNTAX = "proto3";
+
     // START - Common, immutable information
     private final Registry registry;
 
@@ -81,6 +87,11 @@ class FileDescriptorProcessingContext {
      */
     private final FileDescriptorProto fileDescriptorProto;
 
+    /**
+     * Whether this file uses proto3 syntax.
+     */
+    private final boolean proto3Syntax;
+
     // END - Common, immutable information
 
     // START - State during traversal.
@@ -111,6 +122,8 @@ class FileDescriptorProcessingContext {
         this.javaPkg = getPackage(fileDescriptorProto);
         this.protoPkg = fileDescriptorProto.getPackage();
         this.outerClass = new OuterClass(generator, fileDescriptorProto);
+        // Anything other than the proto3 syntax is treated as not-proto-3.
+        this.proto3Syntax = fileDescriptorProto.getSyntax().equals(PROTO_3_SYNTAX);
         // Create map of comments in this file. Need this to annotate
         // da fields with da comments.
         this.commentsByPath = Collections.unmodifiableMap(
@@ -195,6 +208,10 @@ class FileDescriptorProcessingContext {
     @Nonnull
     public OuterClass getOuterClass() {
         return outerClass;
+    }
+
+    public boolean isProto3Syntax() {
+        return proto3Syntax;
     }
 
     /**

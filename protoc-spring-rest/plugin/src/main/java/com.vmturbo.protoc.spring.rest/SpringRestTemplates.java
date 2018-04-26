@@ -244,6 +244,20 @@ class SpringRestTemplates {
                             "<endif>" +
                         ";" +
                     "<endif>" +
+                "<elseif(isOneOf)>" +
+                    "input.get<oneOfName>Case().getNumber() != <fieldNumber> ? " +
+                        "null : " +
+                        "<if(isMsg)>" +
+                            "<msgType>.fromProto(input.get<capProtoName>());" +
+                        "<else>" +
+                            "input.get<capProtoName>();" +
+                        "<endif>" +
+                "<elseif(isProto3)>" +
+                    "<if(isMsg)>" +
+                        "<msgType>.fromProto(input.get<capProtoName>());" +
+                    "<else>" +
+                        "input.get<capProtoName>();" +
+                    "<endif>" +
                 "<else>" +
                     "!input.has<capProtoName>() ? null :" +
                         "<if(isMsg)>" +

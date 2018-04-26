@@ -66,7 +66,8 @@ public class MessageDescriptor extends AbstractDescriptor {
         for (int i = 0; i < descriptorProto.getFieldCount(); ++i) {
             context.startListElement(i);
 
-            final FieldDescriptor fieldDescriptor = new FieldDescriptor(context, descriptorProto.getField(i), duplicateNameMap);
+            final FieldDescriptor fieldDescriptor = new FieldDescriptor(context, descriptorProto,
+                    descriptorProto.getField(i), duplicateNameMap);
             fieldDescriptorBuilder.add(fieldDescriptor);
 
             context.endListElement();

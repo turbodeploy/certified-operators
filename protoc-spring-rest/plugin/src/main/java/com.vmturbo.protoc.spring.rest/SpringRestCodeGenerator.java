@@ -218,12 +218,19 @@ class SpringRestCodeGenerator extends ProtocPluginCodeGenerator {
                                         @Nonnull final String msgName) {
         final ST template = SpringRestTemplates.setFieldFromProto()
                 .add("isMsg", fieldDescriptor.getContentMessage().isPresent())
+                .add("isProto3", fieldDescriptor.isProto3Syntax())
                 .add("msgName", msgName)
                 .add("fieldName", fieldDescriptor.getSuffixedName())
+                .add("fieldNumber", fieldDescriptor.getProto().getNumber())
                 .add("capProtoName", StringUtils.capitalize(fieldDescriptor.getName()))
                 .add("msgType", fieldDescriptor.getTypeName())
                 .add("isList", fieldDescriptor.isList())
                 .add("isMap", fieldDescriptor.isMapField());
+
+        fieldDescriptor.getOneofName().ifPresent(oneOfName -> {
+            template.add("isOneOf", true);
+            template.add("oneOfName", StringUtils.capitalize(oneOfName));
+        });
 
         if (fieldDescriptor.isMapField()) {
             FieldDescriptor value = fieldDescriptor.getContentMessage()
