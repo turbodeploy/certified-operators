@@ -78,6 +78,8 @@ public class ReservationMapper {
 
     private final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
 
+    private final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
+
     public ReservationMapper(@Nonnull final RepositoryApi repositoryApi,
                              @Nonnull final TemplateServiceBlockingStub templateService,
                              @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
@@ -179,7 +181,10 @@ public class ReservationMapper {
                 .setTemplateId(topologyAddition.getTemplateId())
                 .build());
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap = getServiceEntityMap(placementInfos);
-        DemandReservationApiDTO reservationApiDTO = generateDemandReservationApiDTO(topologyAddition);
+        // if can not find placements, need to set status to placement failed.
+        final String placementStatus = placementInfos.isEmpty() ? PLACEMENT_FAILED : PLACEMENT_SUCCEEDED;
+        DemandReservationApiDTO reservationApiDTO =
+                generateDemandReservationApiDTO(topologyAddition, placementStatus);
         final List<DemandEntityInfoDTO> demandEntityInfoDTOS = new ArrayList<>();
         for (PlacementInfo placementInfo : placementInfos) {
             try {
@@ -432,10 +437,11 @@ public class ReservationMapper {
     }
 
     private DemandReservationApiDTO generateDemandReservationApiDTO(
-            @Nonnull final TopologyAddition topologyAddition) {
+            @Nonnull final TopologyAddition topologyAddition,
+            @Nonnull final String placementStatus) {
         DemandReservationApiDTO reservationApiDTO = new DemandReservationApiDTO();
         reservationApiDTO.setCount(topologyAddition.getAdditionCount());
-        reservationApiDTO.setStatus(PLACEMENT_SUCCEEDED);
+        reservationApiDTO.setStatus(placementStatus);
         return reservationApiDTO;
     }
 

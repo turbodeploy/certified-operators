@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import static junit.framework.TestCase.assertTrue;
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -90,6 +91,10 @@ public class ReservationMapperTest {
     private  ServiceEntityApiDTO pmServiceEntity = new ServiceEntityApiDTO();
 
     private ServiceEntityApiDTO stServiceEntity = new ServiceEntityApiDTO();
+
+    private final String PLACEMENT_SUCCEEDED = "PLACEMENT_SUCCEEDED";
+
+    private final String PLACEMENT_FAILED = "PLACEMENT_FAILED";
 
     final Template template = Template.newBuilder()
             .setId(TEMPLATE_ID)
@@ -210,6 +215,7 @@ public class ReservationMapperTest {
                 reservationMapper.convertToDemandReservationApiDTO(scenarioChange.getTopologyAddition(),
                         Lists.newArrayList(placementInfo));
         assertEquals(1, (int)demandReservationApiDTO.getCount());
+        assertEquals(PLACEMENT_SUCCEEDED, demandReservationApiDTO.getStatus());
         final List<DemandEntityInfoDTO> demandEntities = demandReservationApiDTO.getDemandEntities();
         assertEquals(1L, demandEntities.size());
         final BaseApiDTO templateResponse = demandEntities.get(0).getTemplate();
@@ -224,6 +230,12 @@ public class ReservationMapperTest {
                 placementInfoDTO.getComputeResources().get(0).getProvider().getDisplayName());
         assertEquals("ST #1",
                 placementInfoDTO.getStorageResources().get(0).getProvider().getDisplayName());
+
+        final DemandReservationApiDTO emptyDemandReservationApiDTO =
+                reservationMapper.convertToDemandReservationApiDTO(scenarioChange.getTopologyAddition(),
+                        Collections.EMPTY_LIST);
+        assertEquals(1, (int)emptyDemandReservationApiDTO.getCount());
+        assertEquals(PLACEMENT_FAILED, emptyDemandReservationApiDTO.getStatus());
     }
 
     @Test
