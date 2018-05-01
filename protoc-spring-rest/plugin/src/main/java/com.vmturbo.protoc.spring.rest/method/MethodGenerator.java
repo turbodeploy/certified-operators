@@ -265,6 +265,7 @@ public class MethodGenerator {
                 .add("comments", serviceMethodDescriptor.getComment())
                 .add("methodName", StringUtils.uncapitalize(serviceMethodDescriptor.getName()))
                 .add("methodType", springMethodType.getType())
+                .add("serviceName", serviceDescriptor.getName())
                 // Defaults.
                 .add(REQUEST_ARGS_NAME, "@RequestBody " + requestBodyType + " inputDto")
                 .add(PATH_NAME, "/" + serviceDescriptor.getName() + "/" + StringUtils.uncapitalize(serviceMethodDescriptor.getName()))
