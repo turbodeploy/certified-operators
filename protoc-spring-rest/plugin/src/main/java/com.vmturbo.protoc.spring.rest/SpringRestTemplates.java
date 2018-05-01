@@ -11,38 +11,38 @@ import org.stringtemplate.v4.ST;
  * These string templates can be unwieldy. Consider migrating the code
  * generation to a library such as CodeModel or JavaPoet.
  */
-class SpringRestTemplates {
+public class SpringRestTemplates {
     private SpringRestTemplates() {}
 
-    static ST service() {
+    public static ST service() {
         return new ST(SERVICE_TEMPLATE);
     }
 
-    static ST serviceMethod() {
+    public static ST serviceMethod() {
         return new ST(SERVICE_METHOD_TEMPLATE);
     }
 
-    static ST message() {
+    public static ST message() {
         return new ST(MESSAGE_TEMPLATE);
     }
 
-    static ST enumerator() {
+    public static ST enumerator() {
         return new ST(ENUM_TEMPLATE);
     }
 
-    static ST fieldDeclaration() {
+    public static ST fieldDeclaration() {
         return new ST(FIELD_DECL_TEMPLATE);
     }
 
-    static ST setFieldFromProto() {
+    public static ST setFieldFromProto() {
         return new ST(SET_FIELD_FROM_PROTO_TEMPLATE);
     }
 
-    static ST addFieldToProtoBuilder() {
+    public static ST addFieldToProtoBuilder() {
         return new ST(ADD_FIELD_TO_PROTO_BUILDER_TEMPLATE);
     }
 
-    static String imports() {
+    public static String imports() {
         return IMPORTS;
     }
 
@@ -57,6 +57,8 @@ class SpringRestTemplates {
             "import io.swagger.annotations.ApiModelProperty;" +
             "import org.springframework.http.MediaType;" +
             "import org.springframework.http.ResponseEntity;" +
+            "import org.springframework.web.bind.annotation.PathVariable;" +
+            "import org.springframework.web.bind.annotation.RequestParam;" +
             "import org.springframework.web.bind.annotation.RequestBody;" +
             "import org.springframework.web.bind.annotation.RequestMapping;" +
             "import org.springframework.web.bind.annotation.RequestMethod;" +
@@ -79,7 +81,6 @@ class SpringRestTemplates {
 
     private static final String SERVICE_TEMPLATE =
         "@Api(value=\"/<serviceName>\") " +
-        "@RequestMapping(value=\"/<serviceName>\") " +
         "@RestController " +
         "public static class <serviceName>Controller {" +
             "@ApiModel(description=\"Wrapper around the responses from <serviceName> to provide optional error information.\")" +
@@ -101,19 +102,27 @@ class SpringRestTemplates {
             "<methodDefinitions>" +
         "}";
 
-    // We keep it simple - this interface is very restless, and no frills.
-    // POST <service name>/<method name>
     private static final String SERVICE_METHOD_TEMPLATE =
-        "\n@ApiOperation(value=\"<methodName>\",notes=<comments>)" +
-        "@RequestMapping(path=\"<methodName>\",method=RequestMethod.POST,"+
+        "\n@ApiOperation(value=\"<path>\",notes=<comments>)" +
+        "@RequestMapping(path=\"<path>\",method=<methodType>,"+
         "consumes = {MediaType.APPLICATION_JSON_UTF8_VALUE}," +
         "produces = {MediaType.APPLICATION_JSON_UTF8_VALUE})" +
-        "public ResponseEntity\\<<responseBodyType>> <methodName> (@RequestBody <requestBodyType> input) {" +
+        "public ResponseEntity\\<<responseBodyType>> <restMethodName> (<requestArgs>) {" +
             "if (service == null) {" +
                 "return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)" +
                     ".body(<responseWrapper>.error(\"The service <serviceName> was not injected " +
-                        "into the RestController. Check that a bean implementing <serviceName>ImplBase" +
-                        " exists in the Spring configuration.\"));" +
+                    "into the RestController. Check that a bean implementing <serviceName>ImplBase" +
+                    " exists in the Spring configuration.\"));" +
+            "}" +
+            "// The plugin code should assign a value to this variable inside \\<prepareInput\\>\n" +
+            "final <protoInputType> input;" +
+            "try {" +
+                // Prepare the "input" field out of the request args.
+                // If the "input" field does not get set here, there will be a compilation error.
+                "<prepareInput>" +
+            "} catch (RuntimeException e) {" +
+                "return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)" +
+                    ".body(<responseWrapper>.error(\"Failed to prepare input for method <methodName>: \" + e.getMessage()));" +
             "}" +
             "List\\<<resultType>> responseList = new ArrayList\\<>();" +
             "LinkedBlockingQueue\\<Status> statusQueue = new LinkedBlockingQueue\\<>(1);" +
@@ -136,7 +145,7 @@ class SpringRestTemplates {
                 "<if(isClientStream)>" +
                     "StreamObserver\\<<requestProto>> requestObserver = service.<methodName>(responseObserver);" +
                     "try {" +
-                        "input.stream().map(<requestType>::toProto).forEach(requestObserver::onNext);" +
+                        "input.stream().forEach(requestObserver::onNext);" +
                         "requestObserver.onCompleted();" +
                     "} catch (Exception e) {" +
                         "requestObserver.onError(e);" +
@@ -144,7 +153,7 @@ class SpringRestTemplates {
                             ".body(<responseWrapper>.error(\"Error during input processing: \" + e.getMessage()));" +
                     "}" +
                 "<else>" +
-                    "service.<methodName>(input.toProto(), responseObserver);" +
+                    "service.<methodName>(input, responseObserver);" +
                 "<endif>" +
             "} catch (RuntimeException e) {" +
                 "return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)" +

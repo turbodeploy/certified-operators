@@ -11,10 +11,12 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.api.AnnotationsProto;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.EnumDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
 import com.google.protobuf.DescriptorProtos.ServiceDescriptorProto;
+import com.google.protobuf.ExtensionRegistry;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorRequest;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse;
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse.File;
@@ -149,7 +151,11 @@ public abstract class ProtocPluginCodeGenerator {
      * @throws IOException If there is an issue with reading/writing from/to stdin/stdout.
      */
     public final void generate() throws IOException {
-        final CodeGeneratorRequest req = CodeGeneratorRequest.parseFrom(new BufferedInputStream(System.in));
+        final ExtensionRegistry extensionRegistry = ExtensionRegistry.newInstance();
+        extensionRegistry.add(AnnotationsProto.http);
+
+        final CodeGeneratorRequest req =
+                CodeGeneratorRequest.parseFrom(new BufferedInputStream(System.in), extensionRegistry);
         // The request presents the proto file descriptors in topological order
         // w.r.t. dependencies - i.e. the dependencies appear before the dependents.
         // This means we can process one file at a time without a separate linking step,

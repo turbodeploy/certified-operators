@@ -1,7 +1,12 @@
 package com.vmturbo.protoc.plugin.common.generator;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 
+import com.google.api.AnnotationsProto;
+import com.google.api.HttpRule;
+import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.DescriptorProtos.MethodDescriptorProto;
 
 import jdk.nashorn.internal.ir.annotations.Immutable;
@@ -74,6 +79,16 @@ public class ServiceMethodDescriptor {
     @Nonnull
     public MessageDescriptor getOutputMessage() {
         return outputMessage;
+    }
+
+    @Nonnull
+    public Optional<HttpRule> getHttpRule() {
+        final DescriptorProtos.MethodOptions messageOptions = methodDescriptorProto.getOptions();
+        if (messageOptions.hasExtension(AnnotationsProto.http)) {
+            return Optional.of(messageOptions.getExtension(AnnotationsProto.http));
+        } else {
+            return Optional.empty();
+        }
     }
 
     /**

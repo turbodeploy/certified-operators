@@ -132,7 +132,12 @@ class FileDescriptorProcessingContext {
                         .filter(location -> location.hasTrailingComments() || location.hasLeadingComments())
                         .collect(Collectors.toMap(
                                 Location::getPathList,
-                                this::getComment)));
+                                this::getComment,
+                                (comment1, comment2) -> {
+                                    logger.warn("Discarding comment due to duplicate path: {}",
+                                            comment2);
+                                    return comment1;
+                                })));
     }
 
 

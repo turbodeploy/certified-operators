@@ -8,24 +8,28 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.stringtemplate.v4.ST;
 
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 
-import com.vmturbo.protoc.plugin.common.generator.ProtocPluginCodeGenerator;
 import com.vmturbo.protoc.plugin.common.generator.EnumDescriptor;
 import com.vmturbo.protoc.plugin.common.generator.FieldDescriptor;
 import com.vmturbo.protoc.plugin.common.generator.MessageDescriptor;
-import com.vmturbo.protoc.plugin.common.generator.ServiceMethodDescriptor;
-import com.vmturbo.protoc.plugin.common.generator.ServiceMethodDescriptor.MethodType;
+import com.vmturbo.protoc.plugin.common.generator.ProtocPluginCodeGenerator;
 import com.vmturbo.protoc.plugin.common.generator.ServiceDescriptor;
+import com.vmturbo.protoc.spring.rest.method.MethodGenerator;
 
 /**
  * An implementation of {@link ProtocPluginCodeGenerator} that generates Spring Framework-compatible
  * REST controllers and swagger-annotated POJOs for gRPC services.
  */
 class SpringRestCodeGenerator extends ProtocPluginCodeGenerator {
+
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * {@inheritDoc}
      */
@@ -91,42 +95,10 @@ class SpringRestCodeGenerator extends ProtocPluginCodeGenerator {
                 .add("responseWrapper", responseWrapper)
                 .add("package", serviceDescriptor.getJavaPkgName())
                 .add("methodDefinitions", serviceDescriptor.getMethodDescriptors().stream()
-                        .map(serviceMethodDescriptor -> generateMethodCode(serviceMethodDescriptor, responseWrapper))
-                        .collect(Collectors.toList()))
+                    .map(serviceMethodDescriptor -> new MethodGenerator(serviceDescriptor,
+                            serviceMethodDescriptor, responseWrapper).generateCode())
+                    .collect(Collectors.toList()))
                 .render());
-    }
-
-    @Nonnull
-    private String generateMethodCode(@Nonnull final ServiceMethodDescriptor serviceMethodDescriptor,
-                                      @Nonnull final String responseWrapper) {
-        final MessageDescriptor inputDescriptor = serviceMethodDescriptor.getInputMessage();
-        final MessageDescriptor outputDescriptor = serviceMethodDescriptor.getOutputMessage();
-
-        final MethodType type = serviceMethodDescriptor.getType();
-        String requestBodyType = inputDescriptor.getQualifiedName();
-        if (type == MethodType.CLIENT_STREAM || type == MethodType.BI_STREAM) {
-            requestBodyType = "List<" + requestBodyType + ">";
-        }
-
-        String responseBodyType = outputDescriptor.getQualifiedName();
-        if (type == MethodType.SERVER_STREAM || type == MethodType.BI_STREAM) {
-            responseBodyType = "List<" + responseBodyType + ">";
-        }
-        responseBodyType = responseWrapper + "<" + responseBodyType + ">";
-
-        return SpringRestTemplates.serviceMethod()
-                .add("resultProto", outputDescriptor.getQualifiedOriginalName())
-                .add("resultType", outputDescriptor.getQualifiedName())
-                .add("requestProto", inputDescriptor.getQualifiedOriginalName())
-                .add("requestType", inputDescriptor.getQualifiedName())
-                .add("responseBodyType", responseBodyType)
-                .add("requestBodyType", requestBodyType)
-                .add("responseWrapper", responseWrapper)
-                .add("methodName", StringUtils.uncapitalize(serviceMethodDescriptor.getName()))
-                .add("comments", serviceMethodDescriptor.getComment())
-                .add("isClientStream", type == MethodType.BI_STREAM || type == MethodType.CLIENT_STREAM)
-                .add("isSingleResponse", type == MethodType.SIMPLE || type == MethodType.CLIENT_STREAM)
-                .render();
     }
 
     /**
@@ -225,12 +197,11 @@ class SpringRestCodeGenerator extends ProtocPluginCodeGenerator {
                 .add("capProtoName", StringUtils.capitalize(fieldDescriptor.getName()))
                 .add("msgType", fieldDescriptor.getTypeName())
                 .add("isList", fieldDescriptor.isList())
-                .add("isMap", fieldDescriptor.isMapField());
+                .add("isMap", fieldDescriptor.isMapField())
+                .add("isOneOf", fieldDescriptor.getOneofName().isPresent());
 
-        fieldDescriptor.getOneofName().ifPresent(oneOfName -> {
-            template.add("isOneOf", true);
-            template.add("oneOfName", StringUtils.capitalize(oneOfName));
-        });
+        fieldDescriptor.getOneofName().ifPresent(oneOfName ->
+                template.add("oneOfName", StringUtils.capitalize(oneOfName)));
 
         if (fieldDescriptor.isMapField()) {
             FieldDescriptor value = fieldDescriptor.getContentMessage()

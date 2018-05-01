@@ -6,7 +6,6 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.CaseFormat;
-import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Label;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
@@ -36,7 +35,7 @@ public class FieldDescriptor {
 
     private final Registry registry;
 
-    private final DescriptorProto parentMessageProto;
+    private final MessageDescriptor parentMessage;
 
     private final FieldDescriptorProto fieldDescriptorProto;
 
@@ -59,13 +58,13 @@ public class FieldDescriptor {
      *                         when the only thing that distinguishes them is the underscore.
      */
     public FieldDescriptor(@Nonnull final FileDescriptorProcessingContext context,
-                           @Nonnull final DescriptorProto parentMessage,
+                           @Nonnull final MessageDescriptor parentMessage,
                            @Nonnull final FieldDescriptorProto fieldDescriptorProto,
                            @Nonnull final Map<String, Boolean> duplicateNameMap) {
         this.comment = context.getCommentAtPath();
         this.registry = context.getRegistry();
         this.fieldDescriptorProto = fieldDescriptorProto;
-        this.parentMessageProto = parentMessage;
+        this.parentMessage = parentMessage;
         appendFieldNumber =
                 duplicateNameMap.getOrDefault(formatFieldName(fieldDescriptorProto.getName()),
                         false);
@@ -121,6 +120,10 @@ public class FieldDescriptor {
         return isProto3;
     }
 
+    public boolean isRequired() {
+        return fieldDescriptorProto.getLabel().equals(Label.LABEL_REQUIRED);
+    }
+
     /**
      * Get the camelcase name of the enclosing oneof, if this field is declared inside a oneof.
      *
@@ -137,7 +140,7 @@ public class FieldDescriptor {
     public Optional<String> getOneofName() {
         if (fieldDescriptorProto.hasOneofIndex()) {
             return Optional.of(formatFieldName(
-                    parentMessageProto.getOneofDecl(fieldDescriptorProto.getOneofIndex())
+                    parentMessage.getDescriptorProto().getOneofDecl(fieldDescriptorProto.getOneofIndex())
                             .getName()));
         } else {
             return Optional.empty();
@@ -154,7 +157,7 @@ public class FieldDescriptor {
     @Nonnull
     public String getTypeName() {
         return getContentMessage()
-                .map(descriptor -> descriptor.getQualifiedName())
+                .map(AbstractDescriptor::getQualifiedName)
                 .orElseGet(() -> getBaseFieldType(fieldDescriptorProto.getType()));
     }
 

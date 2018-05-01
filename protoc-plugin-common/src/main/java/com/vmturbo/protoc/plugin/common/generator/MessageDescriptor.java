@@ -10,6 +10,7 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.DescriptorProtos.DescriptorProto;
 import com.google.protobuf.DescriptorProtos.FieldDescriptorProto;
+import com.google.protobuf.DescriptorProtos.FieldDescriptorProto.Type;
 
 /**
  * A wrapper around {@link DescriptorProto} with additional information and utility methods.
@@ -42,7 +43,7 @@ public class MessageDescriptor extends AbstractDescriptor {
      *     optional SomeType two_field = 2;
      * }
      */
-    private final ImmutableList<FieldDescriptor> fieldDescriptors;
+    private final List<FieldDescriptor> fieldDescriptors;
 
     public MessageDescriptor(@Nonnull final FileDescriptorProcessingContext context,
                              @Nonnull final DescriptorProto descriptorProto,
@@ -62,11 +63,12 @@ public class MessageDescriptor extends AbstractDescriptor {
             duplicateNameMap.put(formattedName, duplicateNameMap.containsKey(formattedName));
         }
 
-        final ImmutableList.Builder<FieldDescriptor> fieldDescriptorBuilder = ImmutableList.builder();
+        final ImmutableList.Builder<FieldDescriptor> fieldDescriptorBuilder =
+                ImmutableList.builder();
         for (int i = 0; i < descriptorProto.getFieldCount(); ++i) {
             context.startListElement(i);
 
-            final FieldDescriptor fieldDescriptor = new FieldDescriptor(context, descriptorProto,
+            final FieldDescriptor fieldDescriptor = new FieldDescriptor(context, this,
                     descriptorProto.getField(i), duplicateNameMap);
             fieldDescriptorBuilder.add(fieldDescriptor);
 
@@ -89,6 +91,41 @@ public class MessageDescriptor extends AbstractDescriptor {
     @Nonnull
     public List<FieldDescriptor> getFieldDescriptors() {
         return fieldDescriptors;
+    }
+
+    /**
+     * A visitor for all the fields (recursive) of a message described by a
+     * {@link MessageDescriptor}.
+     */
+    public interface MessageFieldVisitor {
+
+        boolean startMessageField(@Nonnull final FieldDescriptor field, @Nonnull final MessageDescriptor messageType);
+
+        void endMessageField(@Nonnull final FieldDescriptor field, @Nonnull final MessageDescriptor messageType);
+
+        void visitBaseField(@Nonnull final FieldDescriptor field);
+
+        void visitEnumField(@Nonnull final FieldDescriptor field, @Nonnull final EnumDescriptor enumDescriptor);
+    }
+
+    public void visitFields(@Nonnull final MessageFieldVisitor fieldVisitor) {
+        fieldDescriptors.forEach(descriptor -> {
+            if (descriptor.getProto().getType().equals(Type.TYPE_MESSAGE)) {
+                final MessageDescriptor message = (MessageDescriptor) registry.getMessageDescriptor(
+                        descriptor.getProto().getTypeName());
+                final boolean deepTraversal = fieldVisitor.startMessageField(descriptor, message);
+                if (deepTraversal) {
+                    message.visitFields(fieldVisitor);
+                }
+                fieldVisitor.endMessageField(descriptor, message);
+            } else if (descriptor.getProto().getType().equals(Type.TYPE_ENUM)) {
+                final EnumDescriptor enumDescriptor = (EnumDescriptor) registry.getMessageDescriptor(
+                        descriptor.getProto().getTypeName());
+                fieldVisitor.visitEnumField(descriptor, enumDescriptor);
+            } else {
+                fieldVisitor.visitBaseField(descriptor);
+            }
+        });
     }
 
     // START - MapEntry related methods.
