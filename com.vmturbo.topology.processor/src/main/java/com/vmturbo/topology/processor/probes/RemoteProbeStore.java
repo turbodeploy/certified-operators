@@ -79,12 +79,16 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final StitchingOperationStore stitchingOperationStore;
 
+    private final ProbeInfoCompatibilityChecker compatibilityChecker;
+
     public RemoteProbeStore(@Nonnull final KeyValueStore keyValueStore,
                             @Nonnull IdentityProvider identityProvider,
-                            @Nonnull final StitchingOperationStore stitchingOperationStore) {
+                            @Nonnull final StitchingOperationStore stitchingOperationStore,
+                            @Nonnull final ProbeInfoCompatibilityChecker compatibilityChecker) {
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         identityProvider_ = Objects.requireNonNull(identityProvider);
-        this.stitchingOperationStore = stitchingOperationStore;
+        this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
+        this.compatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
         // Load ProbeInfo persisted in Consul.
         Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_PREFIX);
@@ -118,10 +122,10 @@ public class RemoteProbeStore implements ProbeStore {
         synchronized (dataLock) {
             long probeId = identityProvider_.getProbeId(probeInfo);
             final ProbeInfo existing = probeInfos.get(probeId);
-            if (existing != null && !ProbeInfoComparator.equals(existing, probeInfo)) {
+            if (existing != null && !compatibilityChecker.areCompatible(existing, probeInfo)) {
                 throw new ProbeException("Probe configuration " + probeInfo
-                                + ", received from " + transport + " differs "
-                                + "from already registered probe with the same probe type: "
+                                + ", received from " + transport + " is incompatible "
+                                + "with already registered probe with the same probe type: "
                                 + existing);
             } else {
                 logger.debug("Adding endpoint to probe type map: " + transport + " " + probeInfo.getProbeType());
@@ -129,28 +133,26 @@ public class RemoteProbeStore implements ProbeStore {
                 stitchingOperationStore.setOperationsForProbe(probeId, probeInfo);
 
                 probes.put(probeId, transport);
-                // Store ProbeInfo only if it does not exist. It is not updated with the latest
-                // because of concerns about backward compatibility.
-                if (!probeInfos.containsKey(probeId)) {
-                    probeInfos.put(probeId, probeInfo);
-                    try {
-                        keyValueStore.put(PROBE_PREFIX + Long.toString(probeId),
-                                JsonFormat.printer().print(probeInfo));
-                    } catch (InvalidProtocolBufferException e) {
-                        logger.error("Failed to persist probe info in Consul. Probe ID: " + probeId);
-                    }
+                // If we passed the compatibility check, it is safe to replace the old registration
+                // information in the store.
+                probeInfos.put(probeId, probeInfo);
+                try {
+                    keyValueStore.put(PROBE_PREFIX + Long.toString(probeId),
+                            JsonFormat.printer().print(probeInfo));
+                } catch (InvalidProtocolBufferException e) {
+                    logger.error("Failed to persist probe info in Consul. Probe ID: " + probeId);
+                }
 
-                    if (probeExists) {
-                        logger.info("Connected probe " + probeId +
-                                " type=" + probeInfo.getProbeType() +
-                                " category=" + probeInfo.getProbeCategory()
-                        );
-                    } else {
-                        logger.info("Registered new probe " + probeId +
-                                " type=" + probeInfo.getProbeType() +
-                                " category=" + probeInfo.getProbeCategory()
-                        );
-                    }
+                if (probeExists) {
+                    logger.info("Connected probe " + probeId +
+                            " type=" + probeInfo.getProbeType() +
+                            " category=" + probeInfo.getProbeCategory()
+                    );
+                } else {
+                    logger.info("Registered new probe " + probeId +
+                            " type=" + probeInfo.getProbeType() +
+                            " category=" + probeInfo.getProbeCategory()
+                    );
                 }
 
                 // notify listeners

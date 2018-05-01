@@ -75,6 +75,7 @@ import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUn
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -117,7 +118,8 @@ public class TargetControllerTest {
 
         @Bean
         ProbeStore probeStore() {
-            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore());
+            return new RemoteProbeStore(keyValueStore(), identityService(), stitchingOperationStore(),
+                new ProbeInfoCompatibilityChecker());
         }
 
         @Bean

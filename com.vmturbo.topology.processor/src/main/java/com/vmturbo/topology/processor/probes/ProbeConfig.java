@@ -26,10 +26,16 @@ public class ProbeConfig {
     private KeyValueStoreConfig keyValueStoreConfig;
 
     @Bean
+    public ProbeInfoCompatibilityChecker compatibilityChecker() {
+        return new ProbeInfoCompatibilityChecker();
+    }
+
+    @Bean
     public ProbeStore probeStore() {
         return new RemoteProbeStore(keyValueStoreConfig.keyValueStore(),
                 identityProviderConfig.identityProvider(),
-                stitchingConfig.stitchingOperationStore());
+                stitchingConfig.stitchingOperationStore(),
+                compatibilityChecker());
     }
 
     @Bean

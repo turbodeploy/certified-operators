@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.probes;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
@@ -9,7 +11,6 @@ import static org.mockito.Mockito.when;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -40,12 +41,17 @@ public class RemoteProbeStoreTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
-            createTransport();
+        createTransport();
+
+    private final ProbeInfoCompatibilityChecker compatibilityChecker =
+        Mockito.mock(ProbeInfoCompatibilityChecker.class);
 
     @Before
     public void setup() {
         idProvider = Mockito.mock(IdentityProvider.class);
-        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore);
+        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
+            .thenReturn(true);
+        store = new RemoteProbeStore(keyValueStore, idProvider, stitchingOperationStore, compatibilityChecker);
     }
 
     @Test
@@ -102,14 +108,14 @@ public class RemoteProbeStoreTest {
         final String tgt1 = "tgt1";
         final String tgt2 = "tgt2";
         final ProbeInfo probe1 = ProbeInfo.newBuilder(Probes.defaultProbe)
-                .addTargetIdentifierField(tgt1)
-                .addTargetIdentifierField(tgt2)
-                .build();
+            .addTargetIdentifierField(tgt1)
+            .addTargetIdentifierField(tgt2)
+            .build();
         final ProbeInfo probe2 = ProbeInfo.newBuilder(Probes.defaultProbe)
-                .addTargetIdentifierField(tgt2)
-                .addTargetIdentifierField(tgt1)
-                .build();
-        when(idProvider.getProbeId(Mockito.any(ProbeInfo.class))).thenReturn(1234L);
+            .addTargetIdentifierField(tgt2)
+            .addTargetIdentifierField(tgt1)
+            .build();
+        when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(1234L);
 
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 = createTransport();
         store.registerNewProbe(probe1, transport);
@@ -126,23 +132,25 @@ public class RemoteProbeStoreTest {
      * @throws Exception on exception occur
      */
     @Test
-    public void testAddTransportForincompatibleProbe() throws Exception {
+    public void testAddTransportForIncompatibleProbe() throws Exception {
         ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
         store.addListener(listener);
         final String tgt1 = "tgt1";
         final String tgt2 = "tgt2";
         final ProbeInfo probe1 = ProbeInfo.newBuilder(Probes.defaultProbe)
-                .addTargetIdentifierField(tgt1)
-                .addTargetIdentifierField(tgt2)
-                .build();
+            .addTargetIdentifierField(tgt1)
+            .addTargetIdentifierField(tgt2)
+            .build();
         final ProbeInfo probe2 = ProbeInfo.newBuilder(Probes.defaultProbe)
-                .addTargetIdentifierField(tgt1)
-                .build();
-        when(idProvider.getProbeId(Mockito.any(ProbeInfo.class))).thenReturn(1234L);
+            .addTargetIdentifierField(tgt1)
+            .build();
+        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
+            .thenReturn(false);
+        when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(1234L);
 
         store.registerNewProbe(probe1, transport);
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage("differs from already registered probe");
+        expectedException.expectMessage("is incompatible with already registered probe");
         store.registerNewProbe(probe2, transport);
     }
 
@@ -154,34 +162,72 @@ public class RemoteProbeStoreTest {
      * @throws Exception on exception occur
      */
     @Test
-    public void testUpdatedProbe() throws Exception {
+    public void testUpdatedProbeRejected() throws Exception {
         ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
         store.addListener(listener);
         final String tgt1 = "tgt1";
         final String tgt2 = "tgt2";
         final ProbeInfo probe1 = ProbeInfo.newBuilder(Probes.defaultProbe)
-                .addTargetIdentifierField(tgt1)
-                .addTargetIdentifierField(tgt2)
-                .build();
+            .addTargetIdentifierField(tgt1)
+            .addTargetIdentifierField(tgt2)
+            .build();
         final ProbeInfo probe2 = ProbeInfo.newBuilder(Probes.defaultProbe)
-                .addTargetIdentifierField(tgt1)
-                .build();
+            .addTargetIdentifierField(tgt1)
+            .build();
         final long probeId = 1234L;
-        Mockito.when(idProvider.getProbeId(Mockito.any(ProbeInfo.class))).thenReturn(probeId);
+        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
+            .thenReturn(false);
+        Mockito.when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(probeId);
 
         store.registerNewProbe(probe1, transport);
         store.removeTransport(transport);
         verify(stitchingOperationStore).removeOperationsForProbe(anyLong());
         final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
-                createTransport();
+            createTransport();
         expectedException.expect(ProbeException.class);
-        expectedException.expectMessage("differs from already registered probe");
+        expectedException.expectMessage("is incompatible with already registered probe");
         store.registerNewProbe(probe2, transport2);
+    }
+
+    /**
+     * Tests adding a probe with updated registration information of the same probe type, after the previous
+     * transport has gone away. The new registration information should replace the old. This simulates the
+     * case where a user upgrades their probe version in a backward-compatible way.
+     *
+     * @throws Exception on exception occur
+     */
+    @Test
+    public void testUpdatedProbePermitted() throws Exception {
+        ProbeStoreListener listener = Mockito.mock(ProbeStoreListener.class);
+        store.addListener(listener);
+        final String tgt1 = "tgt1";
+        final ProbeInfo probe1 = ProbeInfo.newBuilder(Probes.defaultProbe)
+            .addTargetIdentifierField(tgt1)
+            .build();
+        final ProbeInfo probe2 = ProbeInfo.newBuilder(Probes.defaultProbe)
+            .addTargetIdentifierField(tgt1)
+            .setDiscoversSupplyChain(true)
+            .build();
+        final long probeId = 1234L;
+        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
+            .thenReturn(true);
+        Mockito.when(idProvider.getProbeId(any(ProbeInfo.class))).thenReturn(probeId);
+
+        store.registerNewProbe(probe1, transport);
+        assertEquals(probe1, store.getProbe(probeId).get());
+        store.removeTransport(transport);
+        verify(stitchingOperationStore).removeOperationsForProbe(anyLong());
+        final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
+            createTransport();
+
+        store.registerNewProbe(probe2, transport2);
+        assertEquals(probe2, store.getProbe(probeId).get());
+
     }
 
     @SuppressWarnings("unchecked")
     private static ITransport<MediationServerMessage, MediationClientMessage> createTransport() {
         return (ITransport<MediationServerMessage, MediationClientMessage>)Mockito.mock(
-                ITransport.class);
+            ITransport.class);
     }
 }

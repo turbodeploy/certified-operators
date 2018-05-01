@@ -30,6 +30,7 @@ import com.vmturbo.topology.processor.identity.IdentityService;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
+import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -76,8 +77,14 @@ public class TestMediationCommonConfig {
     }
 
     @Bean
+    public ProbeInfoCompatibilityChecker compatibilityChecker() {
+        return new ProbeInfoCompatibilityChecker();
+    }
+
+    @Bean
     public ProbeStore probeStore() {
-        return new RemoteProbeStore(keyValueStore(), identityProvider(), stitchingOperationStore());
+        return new RemoteProbeStore(keyValueStore(), identityProvider(),
+            stitchingOperationStore(), compatibilityChecker());
     }
 
     @Bean

@@ -57,7 +57,7 @@ public class ProbeRegistrationTest {
                         new HeuristicsMatcher()),
                 new MapKeyValueStore(), 0L);
         remoteMediation = new RemoteMediationServer(new RemoteProbeStore(keyValueStore,
-                identityProvider, stitchingOperationStore));
+                identityProvider, stitchingOperationStore, new ProbeInfoCompatibilityChecker()));
         probeInfoBuilder = ProbeInfo.newBuilder(Probes.defaultProbe);
     }
 
