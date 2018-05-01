@@ -19,10 +19,8 @@
         <derive4j.version>0.9.1</derive4j.version>
         <handlerbars.version>4.0.6</handlerbars.version>
         <immutables.version>2.3.9</immutables.version>
-        <log4j2.version>2.7</log4j2.version>
         <javaslang.version>2.0.5</javaslang.version>
         <javaslang-circuitbreaker.version>0.5.0</javaslang-circuitbreaker.version>
-        <slf4j-log4j2.version>${log4j2.version}</slf4j-log4j2.version>
         <zt-zip.version>1.9</zt-zip.version>
     </properties>
 
@@ -203,7 +201,7 @@
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
-            <version>${slf4j-log4j2.version}</version>
+            <version>${log4j2.Version}</version>
         </dependency>
         <dependency>
             <groupId>io.prometheus</groupId>
@@ -212,12 +210,12 @@
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>${log4j2.version}</version>
+            <version>${log4j2.Version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
-            <version>${log4j2.version}</version>
+            <version>${log4j2.Version}</version>
         </dependency>
         <dependency>
             <groupId>io.projectreactor</groupId>

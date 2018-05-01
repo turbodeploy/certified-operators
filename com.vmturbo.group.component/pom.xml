@@ -21,9 +21,7 @@
         <immutables.version>2.3.10</immutables.version>
         <immutables-javaslang.version>0.1.0</immutables-javaslang.version>
         <javaslang.version>2.0.5</javaslang.version>
-        <log4j2.version>2.7</log4j2.version>
         <reactor.version>3.0.3.RELEASE</reactor.version>
-        <slf4j-log4j2.version>${log4j2.version}</slf4j-log4j2.version>
 
         <!-- TODO: user and password configuration should NOT be checked into source control -->
         <db.url>jdbc:mysql://localhost:3306</db.url>
@@ -102,17 +100,17 @@
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>${log4j2.version}</version>
+            <version>${log4j2.Version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
-            <version>${log4j2.version}</version>
+            <version>${log4j2.Version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
-            <version>${slf4j-log4j2.version}</version>
+            <version>${log4j2.Version}</version>
         </dependency>
         <dependency>
             <groupId>io.javaslang</groupId>

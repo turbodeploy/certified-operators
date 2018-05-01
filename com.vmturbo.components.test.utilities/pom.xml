@@ -23,6 +23,13 @@
     </build>
 
     <dependencies>
+        <!-- Resolve dependency conflict with other inject versions -->
+        <dependency>
+            <groupId>org.javassist</groupId>
+            <artifactId>javassist</artifactId>
+            <version>${javassist.version}</version>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>external-api-stubs</artifactId>
