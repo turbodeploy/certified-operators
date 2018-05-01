@@ -16,6 +16,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
@@ -61,7 +62,7 @@ public final class AddSupplyAndDemandThroughActions {
             logger.info("--- Double Supply. ---");
             for (@NonNull @ReadOnly Trader trader : new ArrayList<>(economy.getTraders())) {
                 if ("Abstraction:PhysicalMachine".equals(topology.getTraderTypes().getName(trader.getType()))) {
-                    final ProvisionBySupply action = new ProvisionBySupply(economy, trader);
+                    final ProvisionBySupply action = new ProvisionBySupply(economy, trader, new CommoditySpecification(0));
 
                     action.take();
                     supplementaryNames.put(action.getProvisionedSeller(), supplementaryNames.get(action.getModelSeller())+"_clone");
@@ -80,7 +81,7 @@ public final class AddSupplyAndDemandThroughActions {
             logger.info("--- Add " + nVMsToAdd +" VMs. ---");
             Trader modelVM = topology.getUuids().inverse().get("42230438-3374-9038-7352-07e0ba2754c1");
             for (int i = 0 ; i < nVMsToAdd ; ++i) {
-                final ProvisionBySupply action = new ProvisionBySupply(economy, modelVM);
+                final ProvisionBySupply action = new ProvisionBySupply(economy, modelVM, new CommoditySpecification(0));
 
                 action.take();
                 supplementaryNames.put(action.getProvisionedSeller(), supplementaryNames.get(action.getModelSeller())+"_clone-"+i);

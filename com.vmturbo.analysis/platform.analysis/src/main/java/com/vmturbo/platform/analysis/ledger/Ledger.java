@@ -189,7 +189,7 @@ public class Ledger {
      *
      * @return price of the {@link CommoditySold} that generates most revenue
      */
-    public double calculateExpRevForTraderAndGetTopRevenue(Economy economy, Trader seller) {
+    public MostExpensiveCommodityDetails calculateExpRevForTraderAndGetTopRevenue(Economy economy, Trader seller) {
 
         IncomeStatement sellerIncomeStmt = getTraderIncomeStatements().get(seller.getEconomyIndex());
         sellerIncomeStmt.resetIncomeStatement();
@@ -247,9 +247,35 @@ public class Ledger {
                         .setMaxDesiredRevenues(tempCurrMinMaxRev[2] * sellerMaxDesUtil);
 
         calculateExpensesForSeller(economy, seller);
-        return topRev[0];
+        return new MostExpensiveCommodityDetails(
+                        topSellingComm[0] == null ? null
+                                        : seller.getBasketSold()
+                                                        .get(seller.getCommoditiesSold()
+                                                                        .indexOf(topSellingComm[0])),
+                        topRev[0]);
     }
 
+    /*
+     * Contains most expensive commodity specification and related revenues.
+     */
+    public class MostExpensiveCommodityDetails {
+
+        CommoditySpecification commSpec;
+        double revenues;
+
+        public MostExpensiveCommodityDetails(CommoditySpecification commoditySpec, double topRevenue) {
+            commSpec = commoditySpec;
+            revenues = topRevenue;
+        }
+
+        public CommoditySpecification getCommoditySpecification() {
+            return commSpec;
+        }
+
+        public double getRevenues() {
+            return revenues;
+        }
+    }
     /**
      * Computes the expenses and revenues for the traders in this {@link Economy}
      *

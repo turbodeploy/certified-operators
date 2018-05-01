@@ -236,11 +236,13 @@ public class EstimateSupply {
             // Reactivate current inactive host first (if there is one)
             if (!commResourceHighestRev.getInactiveCandidateHeap().isEmpty()) {
                 newSeller = commResourceHighestRev.getInactiveCandidateHeap().poll();
-                action = (new Activate(economy_, newSeller, market, newSeller)).take();
+                action = (new Activate(economy_, newSeller, market, newSeller,
+                                commResourceHighestRev.getCommoditySpecification())).take();
                 logger.info("CHURN : activating trader " + newSeller.getDebugInfoNeverUseInCode());
             } else { // clone existing
                 newSeller = commResourceHighestRev.getCandidateClone();
-                action = (new ProvisionBySupply(economy_, newSeller)).take();
+                action = (new ProvisionBySupply(economy_, newSeller,
+                                commResourceHighestRev.getCommoditySpecification())).take();
                 logger.info("CHURN :" + " adding trader " + ((ProvisionBySupply)action).getProvisionedSeller().getDebugInfoNeverUseInCode()
                             + " basedOn " + newSeller.getDebugInfoNeverUseInCode());
                 ledger_.addTraderIncomeStatement(((ProvisionBySupply)action)

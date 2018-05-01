@@ -19,6 +19,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 import junitparams.JUnitParamsRunner;
@@ -32,14 +33,13 @@ import junitparams.naming.TestCaseName;
 public class ActivateTest {
     // Fields
     private static final Basket EMPTY = new Basket();
-
     // Methods
 
     @Test
     @Parameters
     @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3})")
     public final void testActivate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean unusedFlag) {
-        @NonNull Activate activation = new Activate(economy, target, sourceMarket, modelSeller);
+        @NonNull Activate activation = new Activate(economy, target, sourceMarket, modelSeller, TestUtils.CPU);
 
         assertSame(target, activation.getTarget());
         assertSame(sourceMarket, activation.getSourceMarket());
@@ -102,8 +102,8 @@ public class ActivateTest {
         oids.put(t2, "id2");
 
         return new Object[][]{
-            {new Activate(e1, t1, e1.getMarket(EMPTY), t3),oid,"<action type=\"activate\" target=\"id1\" />"},
-            {new Activate(e1, t2, e1.getMarket(EMPTY), t4),oid,"<action type=\"activate\" target=\"id2\" />"}
+            {new Activate(e1, t1, e1.getMarket(EMPTY), t3, TestUtils.CPU),oid,"<action type=\"activate\" target=\"id1\" />"},
+            {new Activate(e1, t2, e1.getMarket(EMPTY), t4, TestUtils.CPU),oid,"<action type=\"activate\" target=\"id2\" />"}
         };
     }
 
@@ -112,7 +112,7 @@ public class ActivateTest {
     @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).take()  throw == {4}")
     public final void testTake(@NonNull Economy economy, @NonNull Trader target,
                     @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean valid) {
-        @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
+        @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller, TestUtils.CPU);
 
         try {
             assertSame(activation, activation.take());
@@ -127,7 +127,7 @@ public class ActivateTest {
     @Parameters(method = "parametersForTestActivate")
     @TestCaseName("Test #{index}: new Activate({0},{1},{2},{3}).rollback()  throw == {4}")
     public final void testRollback(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller, boolean invalid) {
-        @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller);
+        @NonNull Activate activation = new Activate(economy, target,sourceMarket, modelSeller, TestUtils.CPU);
         // mock the actionTaken flag as if it is being taken
         try {
             Field actionTakenField = ActionImpl.class.getDeclaredField("actionTaken");
@@ -169,8 +169,8 @@ public class ActivateTest {
         topology1.addBasketBought(t4, Arrays.asList("b"));
 
         return new Object[][]{
-            {new Activate(e1, t1, topology1.getEconomy().getMarket(EMPTY), t3),topology1,"Activate name1 [id1] (#0)."},
-            {new Activate(e1, t2, topology1.getEconomy().getMarket(EMPTY), t4),topology1,"Activate name2 [id2] (#1)."},
+            {new Activate(e1, t1, topology1.getEconomy().getMarket(EMPTY), t3, TestUtils.CPU),topology1,"Activate name1 [id1] (#0)."},
+            {new Activate(e1, t2, topology1.getEconomy().getMarket(EMPTY), t4, TestUtils.CPU),topology1,"Activate name2 [id2] (#1)."},
         };
     }
 
@@ -198,8 +198,8 @@ public class ActivateTest {
         topology1.addBasketBought(t4, Arrays.asList("b"));
 
         return new Object[][]{
-            {new Activate(e1, t1, topology1.getEconomy().getMarket(EMPTY), t3),topology1,"To satisfy increased demand for []."},
-            {new Activate(e1, t2, topology1.getEconomy().getMarket(EMPTY), t4),topology1,"To satisfy increased demand for []."},
+            {new Activate(e1, t1, topology1.getEconomy().getMarket(EMPTY), t3, TestUtils.CPU),topology1,"To satisfy increased demand for []."},
+            {new Activate(e1, t2, topology1.getEconomy().getMarket(EMPTY), t4, TestUtils.CPU),topology1,"To satisfy increased demand for []."},
         };
     }
 
@@ -218,10 +218,10 @@ public class ActivateTest {
 
         Market m1 = e.getMarket(b2);
 
-        Activate activate1 = new Activate(e, t3, m1, t4);
-        Activate activate2 = new Activate(e, t3, m1, t4);
-        Activate activate3 = new Activate(e, t4, m1, t3);
-        Activate activate4 = new Activate(e, t4, m1, t4);
+        Activate activate1 = new Activate(e, t3, m1, t4, TestUtils.CPU);
+        Activate activate2 = new Activate(e, t3, m1, t4, TestUtils.CPU);
+        Activate activate3 = new Activate(e, t4, m1, t3, TestUtils.CPU);
+        Activate activate4 = new Activate(e, t4, m1, t4, TestUtils.CPU);
         return new Object[][] {{activate1, activate2, true}, {activate1, activate3, false},
                         {activate1, activate4, false}};
     }

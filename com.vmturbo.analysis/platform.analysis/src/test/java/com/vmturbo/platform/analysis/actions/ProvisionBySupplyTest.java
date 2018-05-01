@@ -47,7 +47,7 @@ public class ProvisionBySupplyTest {
     @Parameters
     @TestCaseName("Test #{index}: new ProvisionBySupply({0},{1})")
     public final void testProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller) {
-        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
+        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller, CPU);
 
         assertSame(economy, provision.getEconomy());
         assertSame(modelSeller, provision.getModelSeller());
@@ -107,6 +107,7 @@ public class ProvisionBySupplyTest {
 
         Economy e1 = new Economy();
         Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
+        CommoditySpecification commSpec = CPU;
         Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
         e1.populateMarketsWithSellers();
 
@@ -114,8 +115,8 @@ public class ProvisionBySupplyTest {
         oids.put(t2, "id2");
 
         return new Object[][]{
-            {new ProvisionBySupply(e1, t1), oid, "<action type=\"provisionBySupply\" modelSeller=\"id1\" />"},
-            {new ProvisionBySupply(e1, t2), oid, "<action type=\"provisionBySupply\" modelSeller=\"id2\" />"}
+            {new ProvisionBySupply(e1, t1, commSpec), oid, "<action type=\"provisionBySupply\" modelSeller=\"id1\" />"},
+            {new ProvisionBySupply(e1, t2, commSpec), oid, "<action type=\"provisionBySupply\" modelSeller=\"id2\" />"}
         };
     }
 
@@ -124,7 +125,7 @@ public class ProvisionBySupplyTest {
     @TestCaseName("Test #{index}: new ProvisionBySupply({0},{1}).take().rollback()")
     public final void testTakeRollback(@NonNull Economy economy, @NonNull Trader modelSeller) {
         final int oldSize = economy.getTraders().size();
-        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
+        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller, CPU);
         modelSeller.setDebugInfoNeverUseInCode(DEBUG_INFO);
 
         assertSame(provision, provision.take());
@@ -168,9 +169,9 @@ public class ProvisionBySupplyTest {
         topology1.populateMarketsWithSellers();
 
         return new Object[][]{
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1), topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1, CPU), topology1,
                 "Provision a new VM similar to VM1 [id1] (#0)."},
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2), topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2, CPU), topology1,
                 "Provision a new Container similar to Container2 [id2] (#1)."},
             // TODO: update test when we figure out how to get correct type!
         };
@@ -196,9 +197,9 @@ public class ProvisionBySupplyTest {
         topology1.populateMarketsWithSellers();
 
         return new Object[][]{
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1), topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t1, CPU), topology1,
                 "No VM has enough leftover capacity for [buyer]."},
-            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2), topology1,
+            {new ProvisionBySupply((Economy)topology1.getEconomy(), t2, CPU), topology1,
                 "No Container has enough leftover capacity for [buyer]."},
             // TODO: update test when we figure out how to get correct type!
         };
@@ -208,7 +209,7 @@ public class ProvisionBySupplyTest {
     @Parameters(method = "parametersForTestWithGuaranteedBuyer")
     @TestCaseName("Test #{index}: new ProvisionBySupply({0},{1}).take().rollback()")
     public final void testTakeRollbackWithGuranteedBuyer(@NonNull Economy economy, @NonNull Trader modelSeller) {
-        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller);
+        @NonNull ProvisionBySupply provision = new ProvisionBySupply(economy, modelSeller, CPU);
         provision.take();
         Trader provisionedSeller = provision.getProvisionedSeller();
 
@@ -246,9 +247,9 @@ public class ProvisionBySupplyTest {
         shop2.move(t3);
         e.populateMarketsWithSellers();
 
-        ProvisionBySupply provisionBySupply1 = new ProvisionBySupply(e, t2);
-        ProvisionBySupply provisionBySupply2 = new ProvisionBySupply(e, t2);
-        ProvisionBySupply provisionBySupply3 = new ProvisionBySupply(e, t3);
+        ProvisionBySupply provisionBySupply1 = new ProvisionBySupply(e, t2, CPU);
+        ProvisionBySupply provisionBySupply2 = new ProvisionBySupply(e, t2, CPU);
+        ProvisionBySupply provisionBySupply3 = new ProvisionBySupply(e, t3, CPU);
         return new Object[][] {{provisionBySupply1, provisionBySupply2, true},
                         {provisionBySupply1, provisionBySupply3, false}};
     }
@@ -274,7 +275,7 @@ public class ProvisionBySupplyTest {
         shop1.move(t2);
         e.populateMarketsWithSellers();
 
-        Action action = new ProvisionBySupply(e, t2).take();
+        Action action = new ProvisionBySupply(e, t2, CPU).take();
         // check cliques are cloned
         assertEquals(cliques, ((ProvisionBySupply)action).getProvisionedSeller().getCliques());
     }
@@ -318,7 +319,7 @@ public class ProvisionBySupplyTest {
        ShoppingList sl4 = e.addBasketBought(vapp, b2);
        TestUtils.moveSlOnSupplier(e, sl4, app2, new double[]{150});
 
-       ProvisionBySupply provision1 = (ProvisionBySupply)new ProvisionBySupply(e, app1).take();
+       ProvisionBySupply provision1 = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
 
        assertTrue(e.getTraders().size() == 7);
        assertTrue(e.getMarketsAsBuyer(vapp).keySet().size() == 3);
@@ -382,7 +383,7 @@ public class ProvisionBySupplyTest {
         TestUtils.moveSlOnSupplier(e, sl4, c2, new double[]{50});
         e.populateMarketsWithSellers();
 
-        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1).take();
+        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
         assertTrue(e.getTraders().size() == 8);
         assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
                    .count() == 3);
@@ -423,7 +424,7 @@ public class ProvisionBySupplyTest {
         TestUtils.moveSlOnSupplier(e, sl2, app1, new double[]{70});
         e.populateMarketsWithSellers();
 
-        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1).take();
+        ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
         boolean findAppCommInContainerClone = false;
         for (Action a : provision.getSubsequentActions()) {
             if (a instanceof ProvisionBySupply) {

@@ -14,6 +14,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -159,7 +161,8 @@ public class BootstrapSupply {
                                 .collect(Collectors.toList());
                 Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, mkt, economy);
                 if (sellerThatFits != null) {
-                    Trader newSeller = provisionOrActivateTrader(sellerThatFits, mkt, allActions, economy);
+                    CommoditySpecification commSpec = findCommSpecWithInfiniteQuote(sellerThatFits, sl, economy);
+                    Trader newSeller = provisionOrActivateTrader(sellerThatFits, mkt, allActions, economy, commSpec);
                     CliqueMinimizer minimizerWithSupply = Placement
                                     .computeBestQuote(economy, movableSlByMarket, cliques);
                     // if minimizerWithSupply is finite, we can place the current buyer with
@@ -449,20 +452,21 @@ public class BootstrapSupply {
      * @param market is the {@link Market} in which the sellerThatFits sells
      * @param actions the list of {@Link Action}s generated during bootstrap
      * @param economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param commSpec commodity that led to provision or activation.
      * @return a {@link Trader} the activated/provisioned trader
      */
     private static Trader provisionOrActivateTrader (Trader sellerThatFits,
-                        Market market, List<Action> actions, Economy economy) {
+                        Market market, List<Action> actions, Economy economy, CommoditySpecification commSpec) {
         Action action;
         Trader newSeller;
         // clone one of the sellers or reactivate an inactive seller that the VM can fit in
         if (sellerThatFits.getState() == TraderState.ACTIVE) {
-            action = new ProvisionBySupply(economy, sellerThatFits).take();
+            action = new ProvisionBySupply(economy, sellerThatFits, commSpec).take();
             actions.add(action);
             newSeller = ((ProvisionBySupply)action).getProvisionedSeller();
             actions.addAll(((ProvisionBySupply)action).getSubsequentActions());
         } else {
-            action = new Activate(economy, sellerThatFits, market, sellerThatFits)
+            action = new Activate(economy, sellerThatFits, market, sellerThatFits, commSpec)
                             .take();
             actions.add(action);
             newSeller = sellerThatFits;
@@ -592,8 +596,10 @@ public class BootstrapSupply {
                 // clone one of the sellers or reactivate an inactive seller that the VM can fit in
                 Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy);
                 if (sellerThatFits != null) {
+                    CommoditySpecification commoditySpecWithInfiniteQuote =
+                                    findCommSpecWithInfiniteQuote(sellerThatFits, sl, economy);
                     Trader provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
-                            allActions, economy);
+                            allActions, economy, commoditySpecWithInfiniteQuote);
                     allActions.add(new Move(economy, sl, provisionedSeller).take()
                             .setImportance(Double.POSITIVE_INFINITY));
                 } else {
@@ -612,6 +618,37 @@ public class BootstrapSupply {
             }
         }
         return allActions;
+    }
+
+    /**
+     * Returns the commodity specification in shopping list that led to infinite quote
+     * for current or future seller.
+     * @param sellerThatFits future supplier of given shopping list.
+     * @param sl shopping list's commodities to iterate over.
+     * @param economy economy in which current seller and shopping list exist.
+     * @return commWithInfQuote commodity that led to infinite quote if any.
+     */
+     private static @Nullable CommoditySpecification findCommSpecWithInfiniteQuote(Trader sellerThatFits,
+                    ShoppingList sl, Economy economy) {
+        Trader traderToInspect = sl.getSupplier() == null ? sellerThatFits : sl.getSupplier() ;
+        int boughtIndex = 0;
+        CommoditySpecification commWithInfQuote = null;
+        Basket basket = sl.getBasket();
+        for (int soldIndex = 0; boughtIndex < basket.size(); boughtIndex++) {
+            CommoditySpecification basketCommSpec = basket.get(boughtIndex);
+            while (!basketCommSpec.isSatisfiedBy(traderToInspect.getBasketSold().get(soldIndex))) {
+                soldIndex++;
+            }
+            double[] tempQuote = EdeCommon.computeCommodityCost(economy, sl, traderToInspect,
+                                                                soldIndex, boughtIndex, false);
+            if (Double.isInfinite(tempQuote[0])) {
+                commWithInfQuote = basketCommSpec;
+                logger.info("Provision in BootStrap due to : "
+                                + basketCommSpec.getDebugInfoNeverUseInCode());
+                break;
+            }
+        }
+        return commWithInfQuote;
     }
 
     /**

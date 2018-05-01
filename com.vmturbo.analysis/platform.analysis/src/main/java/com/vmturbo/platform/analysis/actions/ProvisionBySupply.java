@@ -39,6 +39,7 @@ public class ProvisionBySupply extends ActionImpl {
     private final @NonNull Trader modelSeller_;
     private @Nullable Trader provisionedSeller_;
     private @NonNull Map<CommoditySpecification, CommoditySpecification> commSoldToReplaceMap_;
+    private @NonNull CommoditySpecification reasonCommodity;
     private long oid_;
     // a list of actions triggered by taking provisionBySupply action
     private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
@@ -51,14 +52,17 @@ public class ProvisionBySupply extends ActionImpl {
      *
      * @param economy The economy in which the seller will be provisioned.
      * @param modelSeller The seller that should be used as a template for the new seller.
+     * @param commCausingProvision commodity that led to activation
      */
-    public ProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller) {
+    public ProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller,
+                    @Nullable CommoditySpecification commCausingProvision) {
         economy_ = economy;
         // provisionBySupply means create an exact copy of modelSeller, in case the modelSeller
         // is itself a clone, go all the way back to the original modelSeller to simplify action
         // handling by entities outside M2 that are not necessarily aware of cloned traders
         modelSeller_ = economy.getCloneOfTrader(modelSeller);
         commSoldToReplaceMap_ = new HashMap<>();
+        reasonCommodity = commCausingProvision;
     }
 
     /**
@@ -69,13 +73,15 @@ public class ProvisionBySupply extends ActionImpl {
      * @param commToReplaceMap the mapping for commodity specification to new commodity specification
      */
     public ProvisionBySupply(@NonNull Economy economy, @NonNull Trader modelSeller,
-                             Map <CommoditySpecification, CommoditySpecification> commToReplaceMap) {
+                    Map<CommoditySpecification, CommoditySpecification> commToReplaceMap,
+                    CommoditySpecification mostProfitableCommoditySpecification) {
         economy_ = economy;
         // provisionBySupply means create an exact copy of modelSeller, in case the modelSeller
         // is itself a clone, go all the way back to the original modelSeller to simplify action
         // handling by entities outside M2 that are not necessarily aware of cloned traders
         modelSeller_ = economy.getCloneOfTrader(modelSeller);
         commSoldToReplaceMap_ = commToReplaceMap;
+        reasonCommodity = mostProfitableCommoditySpecification;
     }
     // Methods
 
@@ -121,6 +127,11 @@ public class ProvisionBySupply extends ActionImpl {
         return new StringBuilder().append("<action type=\"provisionBySupply\" modelSeller=\"")
             .append(oid.apply(getModelSeller())).append("\" />").toString();
     }
+
+    @Override
+    public CommoditySpecification getReason() {
+        return reasonCommodity;
+     }
 
     @Override
     public @NonNull Action take() {
@@ -177,8 +188,8 @@ public class ProvisionBySupply extends ActionImpl {
             // place the provisionedSeller on it
             if (currentSupplier != null && currentSupplier.getSettings().isMandatorySupplier()) {
                 ProvisionBySupply cloneMandatorySupplier = new ProvisionBySupply(getEconomy(),
-                                                                                 currentSupplier,
-                                                                                 commToReplaceMap);
+                                currentSupplier, commToReplaceMap,
+                                getReason());
                 subsequentActions_.add(cloneMandatorySupplier.take());
                 subsequentActions_.addAll(cloneMandatorySupplier.getSubsequentActions());
                 // move the sl of the provisionedSeller directly to the newly cloned mandotorySeller

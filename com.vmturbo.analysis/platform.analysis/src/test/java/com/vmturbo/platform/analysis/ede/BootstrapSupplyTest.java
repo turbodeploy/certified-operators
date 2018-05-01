@@ -13,6 +13,7 @@ import org.junit.Test;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
+import com.vmturbo.platform.analysis.actions.Activate;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
@@ -240,6 +241,7 @@ public class BootstrapSupplyTest {
                 case PROVISION_BY_SUPPLY:
                     provisionActionIndex = i;
                     assertEquals(pm1, provisionBySupply.getModelSeller());
+                    assertEquals(TestUtils.CPU, provisionBySupply.getReason());
                     computeProvisioned = true;
                     break;
                 default:
@@ -409,6 +411,7 @@ public class BootstrapSupplyTest {
 
         assertTrue(bootStrapActionList.size() == 2);
         assertEquals(ActionType.PROVISION_BY_SUPPLY, bootStrapActionList.get(0).getType());
+        assertEquals(TestUtils.CPU, ((ProvisionBySupply)bootStrapActionList.get(0)).getReason());
         assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(1).getType());
         //Assert that the provision by supply was modelled off pm1
         ProvisionBySupply provisionBySupply = (ProvisionBySupply)bootStrapActionList.get(0);
@@ -570,7 +573,6 @@ public class BootstrapSupplyTest {
                         BootstrapSupply.shopTogetherBootstrap(economy);
 
         assertTrue(bootStrapActionList.size() == 2);
-        assertEquals(ActionType.ACTIVATE, bootStrapActionList.get(0).getType());
         assertEquals(bootStrapActionList.get(0).getActionTarget(), pm2);
         assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(1).getType());
         Move expectedComputeMove1 = new Move(economy, sl1, pm1, pm2);
@@ -622,6 +624,7 @@ public class BootstrapSupplyTest {
 
         assertTrue(bootStrapActionList.size() == 2);
         assertEquals(ActionType.ACTIVATE, bootStrapActionList.get(0).getType());
+        assertEquals(TestUtils.CPU, ((Activate) bootStrapActionList.get(0)).getReason());
         assertEquals(bootStrapActionList.get(0).getActionTarget(), pm2);
         assertEquals(ActionType.MOVE, bootStrapActionList.get(1).getType());
         Move expectedComputeMove1 = new Move(economy, sl1, pm1, pm2);
@@ -671,6 +674,7 @@ public class BootstrapSupplyTest {
 
         assertTrue(bootStrapActionList.size() == 2);
         assertEquals(ActionType.PROVISION_BY_SUPPLY, bootStrapActionList.get(0).getType());
+        assertEquals(TestUtils.CPU, ((ProvisionBySupply)bootStrapActionList.get(0)).getReason());
         assertEquals(ActionType.MOVE, bootStrapActionList.get(1).getType());
         //Assert that the provision by supply was modeled off pm1
         ProvisionBySupply provisionBySupply = (ProvisionBySupply)bootStrapActionList.get(0);

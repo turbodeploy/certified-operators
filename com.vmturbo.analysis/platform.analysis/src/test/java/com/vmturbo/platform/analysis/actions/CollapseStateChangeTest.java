@@ -15,6 +15,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -229,7 +230,7 @@ public class CollapseStateChangeTest {
     private Action actionDifferentBP(int c) {
         switch (c) {
         case 'A':
-            return new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
+            return new Activate(EC, vm1, EC.getMarket(EMPTY), vm2, TestUtils.CPU);
         case 'M':
             ShoppingList bp = EC.addBasketBought(vm1, BASKET);
             return new Move(EC, bp, pm1, pm2);
@@ -270,7 +271,7 @@ public class CollapseStateChangeTest {
     private Action actionSameBP(int c) {
         switch (c) {
         case 'A':
-            return new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
+            return new Activate(EC, vm1, EC.getMarket(EMPTY), vm2, TestUtils.CPU);
         case 'M':
             Trader moveFrom = lastMoveTo == null ? pm1 : lastMoveTo;
             Trader newMoveTo = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
@@ -303,22 +304,22 @@ public class CollapseStateChangeTest {
         Trader pm3 = EC.addTrader(TYPE_PM, TraderState.ACTIVE, BASKET);
 
         // Trader 1 : AMDAM -> AMM (two BPs)
-        Action A1_1 = new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
+        Action A1_1 = new Activate(EC, vm1, EC.getMarket(EMPTY), vm2, TestUtils.CPU);
         Action A1_2 = new Move(EC, bp1_1, pm1, pm2);
         Action A1_3 = new Deactivate(EC, vm1, EC.getMarket(EMPTY));
-        Action A1_4 = new Activate(EC, vm1, EC.getMarket(EMPTY), vm2);
+        Action A1_4 = new Activate(EC, vm1, EC.getMarket(EMPTY), vm2, TestUtils.CPU);
         Action A1_5 = new Move(EC, bp1_2, pm1, pm2);
 
         // Trader 2 : MMDA -> [] (one BP moves from pm1 to pm2 and back to to pm1)
         Action A2_1 = new Move(EC, bp2_1, pm1, pm2);
         Action A2_2 = new Move(EC, bp2_1, pm2, pm1);
         Action A2_3 = new Deactivate(EC, vm2, EC.getMarket(EMPTY));
-        Action A2_4 = new Activate(EC, vm2, EC.getMarket(EMPTY), vm1);
+        Action A2_4 = new Activate(EC, vm2, EC.getMarket(EMPTY), vm1, TestUtils.CPU);
 
         // Trader 3 : MDAMD -> D (two BPs)
         Action A3_1 = new Move(EC, bp3_1, pm1, pm2);
         Action A3_2 = new Deactivate(EC, vm3, EC.getMarket(EMPTY));
-        Action A3_3 = new Activate(EC, vm3, EC.getMarket(EMPTY), vm1);
+        Action A3_3 = new Activate(EC, vm3, EC.getMarket(EMPTY), vm1, TestUtils.CPU);
         Action A3_4 = new Move(EC, bp3_2, pm2, pm3);
         Action A3_5 = new Deactivate(EC, vm3, EC.getMarket(EMPTY));
 
@@ -353,7 +354,7 @@ public class CollapseStateChangeTest {
         List<Action> actions = Lists.newArrayList();
         actions.add(new Move(EC, bp0, pm1, pm2));
         actions.add(new Deactivate(EC, vm1, EC.getMarket(EMPTY)));
-        actions.add(new Activate(EC, vm1, EC.getMarket(EMPTY), vm2));
+        actions.add(new Activate(EC, vm1, EC.getMarket(EMPTY), vm2, TestUtils.CPU));
         actions.add(new Move(EC, bp0, pm2, pm1));
         List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertTrue(collapsed.isEmpty());

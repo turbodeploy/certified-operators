@@ -384,8 +384,14 @@ public final class AnalysisToProtobuf {
             builder.setActivate(ActivateTO.newBuilder()
                             .setTraderToActivate(traderOid.get(activate.getTarget()))
                             .setModelSeller(traderOid.get(activate.getModelSeller()))
-                            .setMostExpensiveCommodity(findMostExpensiveCommodity(activate
-                                            .getModelSeller(), topology.getEconomy()).getBaseType())
+                            .setMostExpensiveCommodity(
+                                            activate.getReason() == null
+                                                            ? findMostExpensiveCommodity(
+                                                                            activate.getModelSeller(),
+                                                                            topology.getEconomy())
+                                                                                            .getBaseType()
+                                                            : activate.getReason()
+                                                                            .getBaseType())
                 .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket())));
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
@@ -452,13 +458,19 @@ public final class AnalysisToProtobuf {
         } else if (input instanceof ProvisionBySupply) {
             ProvisionBySupply provSupply = (ProvisionBySupply)input;
             ProvisionBySupplyTO.Builder provSupplyTO = ProvisionBySupplyTO.newBuilder()
-                .setModelSeller(traderOid.get(provSupply.getModelSeller()))
-                // the newly provisioned trader does not have OID, assign one for it and add
-                // the oid into BiMap traderOids_
-                .setProvisionedSeller(topology.addProvisionedTrader(
-                                provSupply.getProvisionedSeller()))
-                .setMostExpensiveCommodity(findMostExpensiveCommodity(provSupply
-                                .getModelSeller(), topology.getEconomy()).getBaseType());
+                            .setModelSeller(traderOid.get(provSupply.getModelSeller()))
+                            // the newly provisioned trader does not have OID, assign one for it and add
+                            // the oid into BiMap traderOids_
+                            .setProvisionedSeller(topology.addProvisionedTrader(
+                                            provSupply.getProvisionedSeller()))
+                            .setMostExpensiveCommodity(
+                                            provSupply.getReason() == null
+                                                            ? findMostExpensiveCommodity(provSupply
+                                                                            .getModelSeller(),
+                                                                            topology.getEconomy())
+                                                                                            .getBaseType()
+                                                            : provSupply.getReason()
+                                                                            .getBaseType());
             // set oid for use in the next round for replaying of actions
             provSupply.setOid(topology.getTraderOids().get(provSupply.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists

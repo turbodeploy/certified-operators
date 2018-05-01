@@ -3,13 +3,17 @@ package com.vmturbo.platform.analysis.ede;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
+import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -78,7 +82,7 @@ public class ProvisionTest {
     @Parameters
     @TestCaseName("Test #{index}: ProvisionTest({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11})")
     public final void testProvisionDecisions(int pm1Cpu, int pm1Mem, int st1Sto, int vm1Cpu, int vm1Mem, int vm1Sto,
-                    int vm2Cpu, int vm2Mem, int vm2Sto, int allActions, int provisionBySupplyActions, int moveActions) {
+                    int vm2Cpu, int vm2Mem, int vm2Sto, int allActions, int provisionBySupplyActions, int moveActions, int baseTypeOfReasonCommodity) {
         Economy economy = new Economy();
         economy.getSettings().setEstimatesEnabled(false);
         Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), pm1Cpu, pm1Mem, true);
@@ -107,21 +111,35 @@ public class ProvisionTest {
                                                                         new Ede());
 
         assertAllCount(actions, allActions);
-        assertProvisionBySupplyCount(actions, provisionBySupplyActions);
+        if (baseTypeOfReasonCommodity == -1) {
+            assertProvisionBySupplyCount(actions, provisionBySupplyActions);
+        } else {
+            // Match reason commodity, based on utilization values, that led to provision
+            ProvisionBySupply provisionBySupplyAction =
+                            (ProvisionBySupply)actions.stream().findFirst()
+                                            .filter(action -> action
+                                                            .getType() == ActionType.PROVISION_BY_SUPPLY)
+                                            .get();
+            assertTrue(provisionBySupplyAction.getReason()
+                            .getBaseType() == baseTypeOfReasonCommodity);
+        }
         assertMoveCount(actions, moveActions);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestProvisionDecisions() {
         return new Object[][] {
-           {100, 100, 300, 30, 30, 100, 30, 30, 100, 0, 0, 0},
-           {100, 100, 300, 46, 46, 140, 46, 46, 140, 4, 2, 2},
-           {100, 100, 300, 46, 46, 100, 46, 46, 100, 2, 1, 1},
-           {100, 100, 300, 49, 44, 140, 49, 44, 140, 4, 2, 2},
-           {100, 100, 300, 46, 30, 140, 46, 30, 140, 2, 1, 1},
-           {100, 100, 300, 49, 44, 100, 49, 44, 100, 2, 1, 1},
-           {100, 100, 300, 46, 30, 100, 46, 30, 100, 0, 0, 0},
-           {100, 100, 300, 30, 30, 140, 30, 30, 140, 2, 1, 1}
+           {100, 100, 300, 30, 30, 100, 30, 30, 100, 0, 0, 0, -1},
+           {100, 100, 300, 46, 46, 140, 46, 46, 140, 4, 2, 2, -1},
+           {100, 100, 300, 46, 46, 100, 46, 46, 100, 2, 1, 1, TestUtils.CPU.getBaseType()},
+           {100, 100, 300, 49, 44, 140, 49, 44, 140, 4, 2, 2, -1},
+           {100, 100, 300, 46, 30, 140, 46, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType()},
+           {100, 100, 300, 49, 44, 100, 49, 44, 100, 2, 1, 1, TestUtils.CPU.getBaseType()},
+           {100, 100, 300, 44, 49, 100, 44, 49, 100, 2, 1, 1, TestUtils.MEM.getBaseType()},
+           {100, 100, 300, 46, 30, 100, 46, 30, 100, 0, 0, 0, -1},
+           {100, 100, 300, 30, 30, 140, 30, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType()},
+           {100, 100, 300, 30, 30, 140, 30, 30, 140, 2, 1, 1, TestUtils.ST_AMT.getBaseType()},
+           {100, 100, 300, 30, 50, 100, 30, 50, 100, 2, 1, 1, TestUtils.MEM.getBaseType()}
         };
      }
 

@@ -133,7 +133,8 @@ public class ReplayActions {
                     // then take the action
                     Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "ProvisionBySupply");
                     if (newTrader.getSettings().isCloneable()) {
-                        ProvisionBySupply pbs = new ProvisionBySupply(economy, newTrader);
+                        ProvisionBySupply pbs = new ProvisionBySupply(economy, newTrader,
+                                        oldAction.getReason());
                         pbs.take();
                         Long oid = oldAction.getOid();
                         topology.addProvisionedTrader(pbs.getProvisionedSeller(), oid);
@@ -149,7 +150,7 @@ public class ReplayActions {
                         Activate act = new Activate(economy,
                                         translateTrader(oldAction.getTarget(), economy, "Activate1"),
                                         oldAction.getSourceMarket(),
-                                        newTrader);
+                                        newTrader, oldAction.getReason());
                         act.take();
                         actions.add(act);
                     }

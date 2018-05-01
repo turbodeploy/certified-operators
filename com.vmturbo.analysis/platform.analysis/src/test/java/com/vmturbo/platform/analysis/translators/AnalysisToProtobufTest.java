@@ -45,6 +45,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 import junitparams.JUnitParamsRunner;
@@ -188,9 +189,11 @@ public class AnalysisToProtobufTest {
         } catch (Exception e) {
 
         }
-        Action activate = new Activate(e, pm1, e.getMarket(basketBought1), pm2);
+        Action activate = new Activate(e, pm1, e.getMarket(basketBought1), pm2, TestUtils.CPU);
         ActionTO activateTO = ActionTO.newBuilder().setActivate(ActivateTO.newBuilder()
-                        .setTraderToActivate(2l).setModelSeller(3l).setMostExpensiveCommodity(1000)
+                        .setTraderToActivate(2l).setModelSeller(3l)
+                        .setMostExpensiveCommodity(((Activate)activate)
+                                        .getReason().getBaseType())
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(100)
                                         .setBaseType(1000).setQualityLowerBound(0)
                                         .setQualityUpperBound(Integer.MAX_VALUE)
@@ -258,7 +261,7 @@ public class AnalysisToProtobufTest {
                         .setIsNotExecutable(false)
                         .build();
 
-        Action provisionBySupply = new ProvisionBySupply(e, pm1);
+        Action provisionBySupply = new ProvisionBySupply(e, pm1, TestUtils.CPU);
         provisionBySupply.take(); // we call take to create provisionedSeller
         // assign -2 as oid for the newly povisioned seller
         traderOids.put(((ProvisionBySupply)provisionBySupply).getProvisionedSeller(), -2l);
@@ -266,7 +269,10 @@ public class AnalysisToProtobufTest {
                         .setProvisionBySupply(
                                         ProvisionBySupplyTO.newBuilder().setModelSeller(2l)
                                         .setProvisionedSeller(-2l)
-                                        .setMostExpensiveCommodity(1000)
+                                                        .setMostExpensiveCommodity(
+                                                                        ((ProvisionBySupply)provisionBySupply)
+                                                                                        .getReason()
+                                                                                        .getBaseType())
                                         .build()).setImportance((float)(
                                         (ActionImpl)provisionBySupply).getImportance())
                         .setIsNotExecutable(false)
@@ -381,7 +387,7 @@ public class AnalysisToProtobufTest {
         BiMap<Trader, Long> traderOids = (BiMap<Trader, Long>)traderOidField.get(topology);
         traderOids.put(pm1, 100l); // needed when construction the ActionTO
         // Provision
-        ProvisionBySupply prov = new ProvisionBySupply(e, pm1);
+        ProvisionBySupply prov = new ProvisionBySupply(e, pm1, TestUtils.CPU);
         prov.take();
         BiMap<ShoppingList, Long> shoppingListOids = topology.getShoppingListOids();
         assertTrue(shoppingListOids.isEmpty());

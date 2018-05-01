@@ -384,8 +384,13 @@ public final class ProtobufToAnalysis {
             case RECONFIGURE:
                 return new Reconfigure(economy, shoppingList.apply(input.getReconfigure().getShoppingListToReconfigure()));
             case ACTIVATE:
-                return new Activate(economy, trader.apply(input.getActivate().getTraderToActivate()),
-                                    economy.getMarket(basket(input.getActivate().getTriggeringBasketList())), trader.apply(input.getActivate().getModelSeller()));
+                Trader traderToActivate = trader.apply(input.getActivate().getTraderToActivate());
+                return new Activate(economy, traderToActivate,
+                                economy.getMarket(basket(
+                                                input.getActivate().getTriggeringBasketList())),
+                                trader.apply(input.getActivate().getModelSeller()),
+                                traderToActivate.getBasketSold().get(
+                                                input.getActivate().getMostExpensiveCommodity()));
             case DEACTIVATE:
                 return new Deactivate(economy, trader.apply(input.getDeactivate().getTraderToDeactivate()),
                                       economy.getMarket(basket(input.getDeactivate().getTriggeringBasketList())));
@@ -394,7 +399,9 @@ public final class ProtobufToAnalysis {
                                 shoppingList.apply(input.getProvisionByDemand().getModelBuyer()),
                                 trader.apply(input.getProvisionByDemand().getModelSeller()));
             case PROVISION_BY_SUPPLY:
-                return new ProvisionBySupply(economy, trader.apply(input.getProvisionBySupply().getModelSeller()));
+                Trader modelSeller = trader.apply(input.getProvisionBySupply().getModelSeller());
+                return new ProvisionBySupply(economy, modelSeller, modelSeller.getBasketSold()
+                                .get(input.getProvisionBySupply().getMostExpensiveCommodity()));
             case RESIZE:
                 return new Resize(economy,trader.apply(input.getResize().getSellingTrader()),
                     commoditySpecification(input.getResize().getSpecification()),

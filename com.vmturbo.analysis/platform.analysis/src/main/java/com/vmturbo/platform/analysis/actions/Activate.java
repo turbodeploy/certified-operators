@@ -6,11 +6,14 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import javax.annotation.Nullable;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -23,6 +26,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
 
     private final @NonNull Trader modelSeller_;
     private final @NonNull Economy economy_;
+    private @NonNull CommoditySpecification reasonCommodity;
     // Constructors
 
     /**
@@ -31,11 +35,15 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
      * @param target The trader that will be activated as a result of taking {@code this} action.
      * @param sourceMarket The market that benefits from activating target.
      * @param modelSeller the trader which will be used  the shopping
+     * @param commCausingProvision commodity that led to activation
      */
-    public Activate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket, @NonNull Trader modelSeller) {
-        super(target,sourceMarket);
+    public Activate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket,
+                    @NonNull Trader modelSeller,
+                    @Nullable CommoditySpecification commCausingActivation) {
+        super(target, sourceMarket);
         modelSeller_ = modelSeller;
         economy_ = economy;
+        reasonCommodity = commCausingActivation;
     }
 
     // Methods
@@ -54,6 +62,11 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
    @Pure
    public @NonNull Economy getEconomy(@ReadOnly Activate this) {
        return economy_;
+   }
+
+   @Override
+   public CommoditySpecification getReason() {
+       return reasonCommodity;
    }
 
     @Override

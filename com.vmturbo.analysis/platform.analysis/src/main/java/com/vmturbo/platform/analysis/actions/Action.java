@@ -9,6 +9,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -127,6 +128,17 @@ public interface Action {
     default @Nullable Action combine(@NonNull @ReadOnly Action action) {
         checkArgument(getCombineKey().equals(action.getCombineKey()));
         return action;
+    }
+
+    /**
+     * Reason commodity for this action.
+     * For example : commodity specification that led to activation/provision.
+     * TODO : Generalize this to return "Reason" for all actions.
+     * @return
+     */
+    @Pure
+    default @Nullable CommoditySpecification getReason() {
+        return null;
     }
 
 } // end Action interface
