@@ -675,6 +675,15 @@ public class ActionSpecMapperTest {
             containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES));
     }
 
+    // Similar fixes as in OM-24590: Do not show executed actions as pending,
+    // when "inputDto" is null, we should automatically insert the operational action states.
+    @Test
+    public void testCreateActionFilterWithNoStateFilterAndNoInputDTO() {
+        final ActionQueryFilter filter = mapper.createActionFilter(null, Optional.empty());
+        Assert.assertThat(filter.getStatesList(),
+                containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES));
+    }
+
     private ActionInfo getHostMoveActionInfo() {
         return getMoveActionInfo(UIEntityType.PHYSICAL_MACHINE.getValue(), true);
     }

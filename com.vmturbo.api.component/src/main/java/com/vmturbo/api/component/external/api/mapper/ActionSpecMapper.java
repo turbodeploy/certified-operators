@@ -850,6 +850,9 @@ public class ActionSpecMapper {
             if (inputDto.getEndTime() != null && !inputDto.getEndTime().isEmpty()) {
                 queryBuilder.setEndDate(Long.parseLong(inputDto.getEndTime()));
             }
+        } else {
+            // When "inputDto" is null, we should automatically insert the operational action states.
+            Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
         }
         involvedEntities.ifPresent(entities -> queryBuilder.setInvolvedEntities(
             ActionQueryFilter.InvolvedEntities.newBuilder()
