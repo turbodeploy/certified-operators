@@ -39,8 +39,6 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
-import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -487,20 +485,20 @@ public class Analysis {
     /**
      * Create a subset of the original topology representing the "scoped topology" given a topology
      * and a "seed scope" set of SE's.
-     * <p>
-     * Any unplaced service entities are automatically included in the "scoped topology"
-     * <p>
-     * Starting with the "seed", follow the "buys-from" relationships "going up" and elements to
+     *
+     * <p>Any unplaced service entities are automatically included in the "scoped topology"
+     *
+     * <p>Starting with the "seed", follow the "buys-from" relationships "going up" and elements to
      * the "scoped topology". Along the way construct a set of traders at the "top", i.e. that do
      * not buy from any other trader. Then, from the "top" elements, follow relationships "going down"
      * and add Traders that "may sell" to the given "top" elements based on the commodities each is
      * shopping for. Recursively follow the "may sell" relationships down to the bottom, adding those
      * elements to the "scoped topology" as well.
-     * <p>
-     * Setting up the initial market, specifically the populateMarketsWthSellers() call on T traders
+     *
+     * <p>Setting up the initial market, specifically the populateMarketsWthSellers() call on T traders
      * with M markets runs worst case O(M*T) - see the comments on that method for further details.
-     * <p>
-     * Once the market is set up, lookups for traders and markets are each in constant time,
+     *
+     * <p>Once the market is set up, lookups for traders and markets are each in constant time,
      * and each trader is examined at most once, adding at worst O(T).
      *
      * @param traderTOs the topology to be scoped
@@ -525,10 +523,6 @@ public class Analysis {
                 // include all "placed" traders in the market for calculating the scope
                 ProtobufToAnalysis.addTrader(topology, traderTO);
             }
-            // include the OIDs for the 'seed' service entities in the scanned list
-            if (seedOids.contains(traderTO.getOid())) {
-                scopedTopologyOIDs.add(traderTO.getOid());
-            }
         }
 
         // this call 'finalizes' the topology, calculating the inverted maps in the 'economy'
@@ -541,10 +535,10 @@ public class Analysis {
 
         // the queue of entities to expand "downwards"
         Queue<Long> buyersToSatisfy = Lists.newLinkedList();
-        Set<Long> hasVisited = new HashSet<Long>();
+        Set<Long> visited = new HashSet<>();
 
         // starting with the seed, expand "up"
-        while (suppliersToExpand.size() > 0) {
+        while (!suppliersToExpand.isEmpty()) {
             long traderOid = suppliersToExpand.remove();
 
             if (!topology.getTraderOids().containsValue(traderOid)) {
@@ -562,7 +556,7 @@ public class Analysis {
             Trader thisTrader = topology.getTraderOids().inverse().get(traderOid);
             // remember the trader for this OID in the scoped topology & continue expanding "up"
             scopedTopologyOIDs.add(traderOid);
-            // add OIDs from which buy from this entity and which we have not already added
+            // add OIDs of traders THAT buy from this entity which we have not already added
             final List<Long> customerOids = thisTrader.getUniqueCustomers().stream()
                     .map(trader -> topology.getTraderOids().get(trader))
                     .filter(customerOid -> !scopedTopologyOIDs.contains(customerOid) &&
@@ -570,9 +564,9 @@ public class Analysis {
                     .collect(Collectors.toList());
             if (customerOids.size() == 0) {
                 // if no customers, then "start downwards" from here
-                if (!hasVisited.contains(traderOid)) {
+                if (!visited.contains(traderOid)) {
                     buyersToSatisfy.add(traderOid);
-                    hasVisited.add(traderOid);
+                    visited.add(traderOid);
                 }
             } else {
                 // otherwise keep expanding upwards
@@ -588,31 +582,29 @@ public class Analysis {
         // record the 'providers' we've expanded on the way down so we don't re-expand unnecessarily
         Set<Long> providersExpanded = new HashSet<>();
         // starting with buyersToSatisfy, expand "downwards"
-        while (buyersToSatisfy.size() > 0) {
+        while (!buyersToSatisfy.isEmpty()) {
             long traderOid = buyersToSatisfy.remove();
             providersExpanded.add(traderOid);
             Trader thisTrader = topology.getTraderOids().inverse().get(traderOid);
-            final Map<ShoppingList, Market> marketsAsBuyer =
-                    topology.getEconomy().getMarketsAsBuyer(thisTrader);
             // build list of sellers of markets this Trader buys from; omit Traders already expanded
-            List<Long> buyerOids = marketsAsBuyer.values().stream()
-                    .flatMap(market -> market.getActiveSellers().stream())
-                    .map(trader -> topology.getTraderOids().get(trader))
-                    .filter(buyerOid -> !providersExpanded.contains(buyerOid))
-                    .collect(Collectors.toList());
-            scopedTopologyOIDs.addAll(buyerOids);
-            for (Long buyerOid : buyerOids) {
-                if (hasVisited.contains(buyerOid)) {
+            Set<Trader> potentialSellers = topology.getEconomy().getPotentialSellers(thisTrader);
+            List<Long> sellersOids = potentialSellers.stream()
+                            .map(trader -> topology.getTraderOids().get(trader))
+                            .filter(buyerOid -> !providersExpanded.contains(buyerOid))
+                            .collect(Collectors.toList());
+            scopedTopologyOIDs.addAll(sellersOids);
+            for (Long buyerOid : sellersOids) {
+                if (visited.contains(buyerOid)) {
                     continue;
                 }
-                hasVisited.add(buyerOid);
+                visited.add(buyerOid);
                 buyersToSatisfy.add(buyerOid);
             }
 
             if (logger.isTraceEnabled()) {
-                if (buyerOids.size() > 0) {
+                if (sellersOids.size() > 0) {
                     logger.trace("add buyer oids: ");
-                    buyerOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTraderOids()
+                    sellersOids.forEach(oid -> logger.trace("{}: {}", oid, topology.getTraderOids()
                             .inverse().get(oid).getDebugInfoNeverUseInCode()));
                 }
             }
