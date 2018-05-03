@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.economy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nullable;
 
@@ -238,4 +239,12 @@ public interface UnmodifiableEconomy {
     @ReadOnly
     public Topology getTopology();
 
+    /**
+     * Compute all sellers that this trader can buy from.
+     *
+     * @param trader the trader for which to compute the set.
+     * @return all the traders that the argument trader can buy from.
+     */
+    @NonNull
+    public Set<Trader> getPotentialSellers(Trader trader);
 } // end UnmodifiableEconomy interface

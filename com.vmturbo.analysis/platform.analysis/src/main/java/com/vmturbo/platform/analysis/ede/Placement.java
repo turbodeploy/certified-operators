@@ -1,23 +1,19 @@
 package com.vmturbo.platform.analysis.ede;
 
-
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import com.google.common.collect.Sets;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Move;
@@ -34,6 +30,8 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
  */
 public class Placement {
 
+    private Placement() {}
+
     static final Logger logger = LogManager.getLogger(Placement.class);
 
     public static int globalCounter = 0;
@@ -42,13 +40,13 @@ public class Placement {
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
      * With a preference given to the shoppingLists in the list "sls"
      *
-     * <p>
-     *  As a result of invoking this method, the economy may be changed.
+     * <p>As a result of invoking this method, the economy may be changed.
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
      * @param sls - list of shoppingLists that denotes buyers that are to shop before the others
      * @param preferentialPlacementOnly - boolean to run placements only on the buyers passed
+     * @return the placement decisions
      */
     public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
                     List<ShoppingList> sls, boolean preferentialPlacementOnly) {
@@ -71,14 +69,27 @@ public class Placement {
     }
 
     /**
+     * Returns a list of recommendations to optimize the placement of all traders in the economy.
+     *
+     * <p>As a result of invoking this method, the economy may be changed.
+     * </p>
+     *
+     * @param economy - the economy whose traders' placement we want to optimize
+     * @return placement decisions
+     */
+    public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy) {
+        return Placement.placementDecisions(economy, new ArrayList<>(), false);
+    }
+
+    /**
      * Returns a list of recommendations to optimize placement of a set of shopping lists
      *
-     * <p>
-     *  As a result of invoking this method, the economy may be changed.
+     * <p>As a result of invoking this method, the economy may be changed.
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
      * @param sls - list of shoppingLists that denotes buyers that are to shop before the others
+     * @return placement decisions due to performance
      */
     public static @NonNull List<@NonNull Action> prefPlacementDecisions(@NonNull Economy economy,
                                                                         List<ShoppingList> sls) {
@@ -86,19 +97,6 @@ public class Placement {
         // iterate over all buyers passed
         actions.addAll(generatePlacementDecisions(economy, sls));
         return actions;
-    }
-
-    /**
-     * Returns a list of recommendations to optimize the placement of all traders in the economy.
-     *
-     * <p>
-     *  As a result of invoking this method, the economy may be changed.
-     * </p>
-     *
-     * @param economy - the economy whose traders' placement we want to optimize
-     */
-    public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy) {
-        return Placement.placementDecisions(economy, new ArrayList<>(), false);
     }
 
     /**
@@ -130,8 +128,7 @@ public class Placement {
      * Returns a list of recommendations to optimize the placement of a trader with a
      * particular shoppingList
      *
-     * <p>
-     *  As a result of invoking this method, the economy may be changed.
+     * <p>As a result of invoking this method, the economy may be changed.
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
@@ -148,8 +145,9 @@ public class Placement {
         final @NonNull List<@NonNull Trader> sellers =
                         economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
         // sl can be immovable when the underlying provider is not availableForPlacement
-        if (!shoppingList.isMovable())
+        if (!shoppingList.isMovable()) {
             return actions;
+        }
         if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
             actions.add(new Reconfigure(economy, shoppingList).take()
                             .setImportance(Double.POSITIVE_INFINITY));
@@ -231,11 +229,11 @@ public class Placement {
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
      *
-     * <p>
-     *  As a result of invoking this method, the economy may be changed.
+     * <p>As a result of invoking this method, the economy may be changed.
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
+     * @return shop-together decisions
      */
     public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy) {
         return Placement.shopTogetherDecisions(economy, new ArrayList<>(), false);
@@ -246,14 +244,14 @@ public class Placement {
      * allowing shoppingLists in "shopFirstShoppingLists" to shop before the rest of the shoppingLists
      * in the economy
      *
-     * <p>
-     *  As a result of invoking this method, the economy may be changed.
+     * <p>As a result of invoking this method, the economy may be changed.
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
      * @param shopFirstShoppingLists - list of shoppingLists that denotes buyers that
      *                                 are to shop before the others
      * @param preferentialPlacementOnly - boolean to run placements only on the buyers passed
+     * @return shop-together decisions
      */
     public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy,
                                 List<ShoppingList> shopFirstShoppingLists, boolean preferentialPlacementOnly) {
@@ -278,56 +276,49 @@ public class Placement {
      * Returns a list of recommendations to optimize the placement of a trader buying
      * shoppingLists in specific markets
      *
-     * <p>
-     *  As a result of invoking this method, the economy may be changed.
+     * <p>As a result of invoking this method, the economy may be changed.
      * </p>
      *
      * @param economy - the economy whose traders' placement we want to optimize
      * @param traders - list of {@link Trader} that are to be placed before the rest present in the
      * {@link Economy}
+     * @return shop-together decisions
      */
     public static @NonNull List<@NonNull Action> generateShopTogetherDecisions(@NonNull Economy
                     economy, List<Trader> traders) {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
-        for (@NonNull @ReadOnly Trader buyingTrader : traders) {
+        for (Trader buyingTrader : traders) {
             if (economy.getForceStop()) {
                 return output;
             }
-            final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
-            slByMarket = economy.getMarketsAsBuyer(buyingTrader).entrySet();
-            final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>>
-            movableSlByMarket = slByMarket.stream()
-                                            .filter(entry -> entry.getKey().isMovable())
-                                            .collect(Collectors.toList());
-            if (!shouldConsiderTraderForShopTogether(buyingTrader, movableSlByMarket)) {
+            if (!shouldConsiderTraderForShopTogether(economy, buyingTrader)) {
                 continue;
             }
 
             // If there are no sellers in any market, the buyer is misconfigured
             boolean generatedReconfigure = false;
-            for (Entry<@NonNull ShoppingList, @NonNull Market> entry : movableSlByMarket) {
-                    ShoppingList sl = entry.getKey();
-                    if (sl.isMovable() && entry.getValue().getActiveSellers().isEmpty()) {
-                            generatedReconfigure = true;
-                            // Since the shopping list can be in multiple entries in this loop,
-                            // we need to check whether a Reconfigure was already generated for
-                            // this list.
-                            output.add(new Reconfigure(economy, sl).take()
-                                       .setImportance(Double.POSITIVE_INFINITY));
-                            // Set movable to false to prevent generating further reconfigures
-                            // for this shopping list
-                            sl.setMovable(false);
-                    }
+            for (Entry<@NonNull ShoppingList, @NonNull Market> entry : economy.moveableSlByMarket(buyingTrader)) {
+                ShoppingList sl = entry.getKey();
+                if (sl.isMovable() && entry.getValue().getActiveSellers().isEmpty()) {
+                    generatedReconfigure = true;
+                    // Since the shopping list can be in multiple entries in this loop,
+                    // we need to check whether a Reconfigure was already generated for
+                    // this list.
+                    output.add(new Reconfigure(economy, sl).take()
+                               .setImportance(Double.POSITIVE_INFINITY));
+                    // Set movable to false to prevent generating further reconfigures
+                    // for this shopping list
+                    sl.setMovable(false);
+                }
             }
             if (generatedReconfigure) {
                 continue;
             }
 
-            Set<Long> commonCliques = getCommonCliques(buyingTrader, slByMarket, movableSlByMarket);
-            CliqueMinimizer minimizer = computeBestQuote(economy, movableSlByMarket, commonCliques);
+            CliqueMinimizer minimizer = computeBestQuote(economy, buyingTrader);
             // If the best suppliers are not current ones, move shopping lists to best places
-            output.addAll(checkAndGenerateCompoundMoveActions(economy, movableSlByMarket, minimizer));
+            output.addAll(checkAndGenerateCompoundMoveActions(economy, buyingTrader, minimizer));
         }
         return output;
     }
@@ -337,16 +328,16 @@ public class Placement {
      * CompoundMove}.
      *
      * @param economy the economy
-     * @param movableSlByMarket the movable shopping lists from the buyer
+     * @param buyer the buyer for which to generate the actions
      * @param minimizer the {@link CliqueMinimizer}
      * @return a list of actions generated
      */
-    public static List<Action> checkAndGenerateCompoundMoveActions(Economy economy,
-                                                           List<Entry<@NonNull ShoppingList,
-                                                           @NonNull Market>>
-                                                           movableSlByMarket,
-                                                           @NonNull CliqueMinimizer minimizer) {
+    public static List<Action> checkAndGenerateCompoundMoveActions(
+                    Economy economy,
+                    Trader buyer,
+                   @NonNull CliqueMinimizer minimizer) {
         List<Action> actions = new ArrayList<>();
+        List<Entry<ShoppingList, Market>> movableSlByMarket = economy.moveableSlByMarket(buyer);
         List<ShoppingList> shoppingLists = movableSlByMarket.stream().map(Entry::getKey)
                         .collect(Collectors.toList());
         Set<Integer> currentSuppliersIds = traderIds(shoppingLists.stream()
@@ -387,59 +378,28 @@ public class Placement {
 
     }
 
-    /**
-     * Compute the best quote for a trader.
-     *
-     * @param economy the economy the trader associates with
-     * @param movableSlByMarket the movable shopping list of a buyer and its participating market
-     * @return the {@link CliqueMinimizer} which contains best sellers and best quote
-     */
-    public static @Nullable CliqueMinimizer computeBestQuote(Economy economy,
-                    List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket,
-                    Set<Long> commonCliques) {
+    public static @Nullable CliqueMinimizer computeBestQuote(Economy economy, Trader trader) {
+        Set<Long> commonCliques = economy.getCommonCliques(trader);
         if (commonCliques.isEmpty()) {
             return null;
         }
-        // Compute the best total quote.
-        return commonCliques.stream().collect(() -> new CliqueMinimizer(economy, movableSlByMarket),
-                        CliqueMinimizer::accept, CliqueMinimizer::combine);
+        List<Entry<ShoppingList, Market>> movableSlByMarket = economy.moveableSlByMarket(trader);
+        return commonCliques.stream().collect(
+            () -> new CliqueMinimizer(economy, movableSlByMarket),
+            CliqueMinimizer::accept,
+            CliqueMinimizer::combine);
     }
 
     /**
-     * Find the common cliques for a given trader.
-     *
-     * @param buyingTrader the trader whose quote needs to be computed
-     * @param slByMarket the shopping list of a buyer and its participating market
-     * @param movableSlByMarket the movable shopping list of a buyer and its participating market
-     * @return the set containing common clique numbers
+     * Return true if the trader is active and any of its shopping lists are movable.
+     * @param economy the economy that the trader belongs to
+     * @param trader the trader
+     * @return whether the trader is active and has any movable shopping list
      */
-    public static @NonNull Set<Long> getCommonCliques(Trader buyingTrader,
-                    Set<Entry<@NonNull ShoppingList, @NonNull Market>> slByMarket,
-                    List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket) {
-        // Find the set of k-partite cliques where the trader can potentially be placed.
-        return slByMarket.stream()
-                        .map(entry -> entry.getKey().isMovable() // if shopping list is movable
-                                        ? entry.getValue().getCliques().keySet() // use the cliques of the market
-                                        : (new TreeSet<>(entry.getKey().getSupplier() != null // else if shopping list is placed
-                                                        ? entry.getKey().getSupplier().getCliques() // use clique that contain supplier
-                                                        : Arrays.asList())) // else there is no valid placement.
-                        ).reduce(Sets::intersection).get();
-    }
-
-    /**
-     * Returns true if a trader is active and it has shopping lists that are movable.
-     *
-     * @param buyingTrader the trader to be considered
-     * @param movableSlByMarket a list of mapping of trader's shopping list and its buying market
-     * @return true if the given trader is active and it has at least one shopping list that is movable
-     */
-    public static boolean shouldConsiderTraderForShopTogether(@NonNull Trader buyingTrader,
-                    @NonNull List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket) {
-        if (!buyingTrader.getState().isActive() || movableSlByMarket.isEmpty()) {
-            return false;
-        } else {
-            return true;
-        }
+    public static boolean shouldConsiderTraderForShopTogether(Economy economy, Trader trader) {
+        return trader.getState().isActive()
+                && economy.getMarketsAsBuyer(trader).keySet().stream()
+                            .anyMatch(ShoppingList::isMovable);
     }
 
     /**
@@ -467,8 +427,8 @@ public class Placement {
      * Run placement algorithm until the convergence criteria are satisfied.
      * If the placement has been running for more than the maximum number of placements
      * allowed by the economy settings, force placement to stop.
-     * @param economy
-     * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
+     * @param economy the economy where all the traders for this calculation exist
+     * @param ledger the {@link Ledger} with the expenses and revenues of all the traders
      *        and commodities in the economy
      * @param callerPhase - tag to identify phase it is being called from
      * @return a list of recommendations about trader placement
@@ -483,9 +443,9 @@ public class Placement {
      * Run placement algorithm until the convergence criteria are satisfied.
      * If the placement has been running for more than the maximum number of placements
      * allowed by the economy settings, force placement to stop.
-     * @param economy
-     * @param shoppingLists - list of shoppingLists that denotes buyers that are to shop before the others
-     * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
+     * @param economy the economy where all the traders for this calculation exist
+     * @param shoppingLists list of shoppingLists that denotes buyers that are to shop before the others
+     * @param ledger the {@link Ledger} with the expenses and revenues of all the traders
      *        and commodities in the economy
      * @param preferentialPlacementOnly - run placements on just the {@link ShoppingList}s passed if
      *                                true and on all {@link ShoppingList}s if false
@@ -537,7 +497,7 @@ public class Placement {
     }
 
     /**
-     * Initialize the total expenses of buyers in the market
+     * Initialize the total expenses of buyers in the market.
      *
      * @param economy - the {@link Economy}
      * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
@@ -551,7 +511,7 @@ public class Placement {
     }
 
     /**
-     * Initialize the total expenses of buyers in the market
+     * Initialize the total expenses of buyers in the market.
      *
      * @param economy - the {@link Economy}
      * @param ledger - the {@link Ledger} with the expenses and revenues of all the traders
@@ -570,7 +530,7 @@ public class Placement {
     }
 
     /**
-     * Adjust the expenses of each Market for use in next iteration
+     * Adjust the expenses of each Market for use in next iteration.
      *
      * @param economy The {@link Economy}
      * @param ledger - the {@link Ledger} of the {@link Economy}
@@ -593,7 +553,7 @@ public class Placement {
     }
 
     /**
-     * Returns true if the expenses in any market have not changed by more than epsilon
+     * Returns true if the expenses in any market have not changed by more than epsilon.
      *
      * @param economy The {@link Economy}
      * @return true if the expenses are at minimum

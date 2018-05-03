@@ -18,8 +18,8 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -63,6 +63,8 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
  *
  */
 public class BootstrapSupply {
+
+    private BootstrapSupply() {}
 
     static final Logger logger = LogManager.getLogger(BootstrapSupply.class);
 
@@ -140,16 +142,7 @@ public class BootstrapSupply {
             // we first compute quote with current supply to check if the trader can be
             // placed, then we provision/activate seller one at a time to see if with
             // additional supply the trader can be placed
-            final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>>
-                slByMarket = economy.getMarketsAsBuyer(traderToBePlaced).entrySet();
-            final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>>
-                movableSlByMarket = slByMarket.stream().filter(e -> e.getKey().isMovable())
-                                            .collect(Collectors.toList());
-            Set<Long> cliques = Placement.getCommonCliques(traderToBePlaced, slByMarket,
-                                                          movableSlByMarket);
-            CliqueMinimizer minimizerWithoutSupply = Placement.computeBestQuote(economy,
-                                                                                movableSlByMarket,
-                                                                                cliques);
+            CliqueMinimizer minimizerWithoutSupply = Placement.computeBestQuote(economy, traderToBePlaced);
             List<Action> move = new ArrayList<>();
             if (minimizerWithoutSupply != null &&
                             Double.isInfinite(minimizerWithoutSupply.getBestTotalQuote())) {
@@ -164,7 +157,7 @@ public class BootstrapSupply {
                     CommoditySpecification commSpec = findCommSpecWithInfiniteQuote(sellerThatFits, sl, economy);
                     Trader newSeller = provisionOrActivateTrader(sellerThatFits, mkt, allActions, economy, commSpec);
                     CliqueMinimizer minimizerWithSupply = Placement
-                                    .computeBestQuote(economy, movableSlByMarket, cliques);
+                                    .computeBestQuote(economy, traderToBePlaced);
                     // if minimizerWithSupply is finite, we can place the current buyer with
                     // provision/activate a seller, otherwise, it indicates that more than one
                     // sl from the current buyer needs additional supply and we need to continue
@@ -172,7 +165,7 @@ public class BootstrapSupply {
                     // has finite quote
                     if (minimizerWithSupply != null &&
                                     Double.isFinite(minimizerWithSupply.getBestTotalQuote())) {
-                        move = Placement.checkAndGenerateCompoundMoveActions(economy, movableSlByMarket,
+                        move = Placement.checkAndGenerateCompoundMoveActions(economy, traderToBePlaced,
                                 minimizerWithSupply);
                     } else {
                         // One of the shopping list for the trader has an infinite quote.
@@ -181,11 +174,10 @@ public class BootstrapSupply {
                         // list because in the case of shop together we don't actually place the
                         // trader when creating the slsThatNeedProvBySupply list.
                         boolean hasSlWithInfiniteQuote = false;
-                        for (Entry<ShoppingList, Market> slEntry : movableSlByMarket) {
+                        for (Entry<ShoppingList, Market> slEntry :
+                                    economy.getMarketsAsBuyer(traderToBePlaced).entrySet()) {
                             ShoppingList shoppingList = slEntry.getKey();
-                            Market slMarket = slEntry.getValue();
-                            // Ignore the SL that we are currently processing.
-                            if (shoppingList.equals(sl)) {
+                            if (shoppingList.equals(sl) || !shoppingList.isMovable()) {
                                 continue;
                             }
                             // We add it to the front of the queue for efficiency reasons. For e.g.
@@ -200,10 +192,11 @@ public class BootstrapSupply {
                             // it at the front of the queue, the SL which was getting infinite quote
                             // will get provisioned and hence it would be able to satisfy
                             // the next set of VMs.
+                            Market slMarket = slEntry.getValue();
                             if (hasSlInfiniteQuote(economy,  shoppingList, slMarket, newSeller)) {
                                 hasSlWithInfiniteQuote = true;
                                 shoppingListsToProcess.addFirst(
-                                    new AbstractMap.SimpleImmutableEntry(shoppingList,
+                                    new AbstractMap.SimpleImmutableEntry<>(shoppingList,
                                         cliqueId));
                                 // We only add one of the SLs to prevent adding duplicate SLs
                                 // to the processing queue.
@@ -224,7 +217,7 @@ public class BootstrapSupply {
                             Double.isFinite(minimizerWithoutSupply.getBestTotalQuote())) {
                 // if minimizerWithoutSupply if finite, we may have provision actions from earlier
                 // iteration that adds enough supply to place the current buyer
-                move = Placement.checkAndGenerateCompoundMoveActions(economy, movableSlByMarket,
+                move = Placement.checkAndGenerateCompoundMoveActions(economy, traderToBePlaced,
                                                              minimizerWithoutSupply);
             }
             if (!move.isEmpty()) {
@@ -236,7 +229,7 @@ public class BootstrapSupply {
     }
 
     /**
-     *
+     * TODO(karthik): fix javadoc
      * Extract and return the first shopping list which has infinite best quote.
      *
      * @param economy The Economy.
@@ -289,17 +282,12 @@ public class BootstrapSupply {
                                                             Map<ShoppingList,
                                                                     Long> slsThatNeedProvBySupply) {
         List<Action> allActions = new ArrayList<>();
-        final @NonNull @ReadOnly Set<Entry<@NonNull ShoppingList, @NonNull Market>> slByMarket =
-                        economy.getMarketsAsBuyer(buyingTrader).entrySet();
-        final @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket =
-                        slByMarket.stream().filter(entry -> entry.getKey().isMovable())
-                                        .collect(Collectors.toList());
-        if (!Placement.shouldConsiderTraderForShopTogether(buyingTrader, movableSlByMarket)) {
+        if (!Placement.shouldConsiderTraderForShopTogether(economy, buyingTrader)) {
             return allActions;
         }
-        Set<Long> commonCliques = Placement.getCommonCliques(buyingTrader, slByMarket, movableSlByMarket);
+        Set<Long> commonCliques = economy.getCommonCliques(buyingTrader);
         CliqueMinimizer minimizer =
-                        Placement.computeBestQuote(economy, movableSlByMarket, commonCliques);
+                        Placement.computeBestQuote(economy, buyingTrader);
         if (minimizer == null) {
             return allActions;
         }
@@ -309,11 +297,11 @@ public class BootstrapSupply {
             // TODO: we now use the first clique in the commonCliques set, it may not be
             // the best decision
             List<Action> provisionAndSubsequentMove = checkAndApplyProvisionForShopTogether(economy,
-                                movableSlByMarket, commonCliques.iterator().next(),
+                buyingTrader, commonCliques.iterator().next(),
                                 slsThatNeedProvBySupply);
             allActions.addAll(provisionAndSubsequentMove);
         } else {
-            allActions.addAll(Placement.checkAndGenerateCompoundMoveActions(economy, movableSlByMarket,
+            allActions.addAll(Placement.checkAndGenerateCompoundMoveActions(economy, buyingTrader,
                                                                     minimizer));
         }
         return allActions;
@@ -326,17 +314,18 @@ public class BootstrapSupply {
      * {@link ProvisionByDemand} and make the buyer consume from the seller.
      *
      * @param economy economy the {@Link Economy} for which we want to guarantee enough supply.
-     * @param movableSlByMarket the list of movable shopping lists to market
+     * @param buyer the shop-together buyer
      * @param commonClique the clique which restrains the sellers that the buyer can buy from
      * @param slsThatNeedProvBySupply the list to hold shopping lists that may require provisions
      * @return a list of actions related to add supply
      */
-    public static @NonNull List<@NonNull Action> checkAndApplyProvisionForShopTogether (
+    public static @NonNull List<@NonNull Action> checkAndApplyProvisionForShopTogether(
                     Economy economy,
-                    @NonNull @ReadOnly List<Entry<@NonNull ShoppingList, @NonNull Market>>
-                        movableSlByMarket,
+                    Trader buyer,
                     long commonClique,
                     Map<ShoppingList, Long> slsThatNeedProvBySupply) {
+        List<Entry<ShoppingList, Market>> movableSlByMarket =
+                        economy.moveableSlByMarket(buyer);
         @NonNull List<Action> provisionedRelatedActions = new ArrayList<>();
         @NonNull Map<ShoppingList, Trader> newSuppliers = new HashMap<>();
         // The newSuppliersToIgnore set stores the traders from the newSuppliers
@@ -441,10 +430,9 @@ public class BootstrapSupply {
     }
 
     /**
-     * Generate a activate or provisionBySupply recommendation
+     * Generate a activate or provisionBySupply recommendation.
      *
-     * <p>
-     *  as a side-effect, the provision or activate action is added to the list of actions passed
+     * <p>as a side-effect, the provision or activate action is added to the list of actions passed
      *  as an argument
      * </p>
      *
@@ -455,8 +443,9 @@ public class BootstrapSupply {
      * @param commSpec commodity that led to provision or activation.
      * @return a {@link Trader} the activated/provisioned trader
      */
-    private static Trader provisionOrActivateTrader (Trader sellerThatFits,
-                        Market market, List<Action> actions, Economy economy, CommoditySpecification commSpec) {
+    private static Trader provisionOrActivateTrader(Trader sellerThatFits,
+                        Market market, List<Action> actions, Economy economy,
+                        CommoditySpecification commSpec) {
         Action action;
         Trader newSeller;
         // clone one of the sellers or reactivate an inactive seller that the VM can fit in
@@ -477,7 +466,7 @@ public class BootstrapSupply {
 
     /**
      * Guarantee enough supply to place all demand at utilization levels that comply to user-set
-     * upper limits, when shop-together is disabled
+     * upper limits, when shop-together is disabled.
      *
      * @param economy the {@Link Economy} for which we want to guarantee enough supply.
      * @return a list of actions that needed to generate supply
@@ -630,7 +619,7 @@ public class BootstrapSupply {
      */
      private static @Nullable CommoditySpecification findCommSpecWithInfiniteQuote(Trader sellerThatFits,
                     ShoppingList sl, Economy economy) {
-        Trader traderToInspect = sl.getSupplier() == null ? sellerThatFits : sl.getSupplier() ;
+        Trader traderToInspect = sl.getSupplier() == null ? sellerThatFits : sl.getSupplier();
         int boughtIndex = 0;
         CommoditySpecification commWithInfQuote = null;
         Basket basket = sl.getBasket();
@@ -655,7 +644,7 @@ public class BootstrapSupply {
      * If there is a trader that can be reactivated or cloned through ProvisionBySupply to fit buyer,
      * populate the slsThatNeedProvBySupply list with the buyer that will be processed later or Provision
      * {@link Trader} that can fit the buyer through {@link ProvisionBySupply} and make the buyer
-     * consume from the trader
+     * consume from the trader.
      *
      * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
      * @param shoppingList is the {@Link ShoppingList} of the unplaced trader
@@ -680,7 +669,7 @@ public class BootstrapSupply {
                         .filter(seller -> seller.getSettings().isCloneable()).count() == 0) {
             return actions;
         }
-        Trader sellerThatFits = findTraderThatFitsBuyer (shoppingList, activeSellers, market, economy);
+        Trader sellerThatFits = findTraderThatFitsBuyer(shoppingList, activeSellers, market, economy);
         if (sellerThatFits != null) {
             // log shoppingLists that need ProvisionBySupply in slsThatNeedProvBySupply
             slsThatNeedProvBySupply.put(shoppingList, new Long(0));
@@ -702,7 +691,7 @@ public class BootstrapSupply {
                         QuoteMinimizer minimizer =
                             (sellers.size() < economy.getSettings().getMinSellersForParallelism()
                                      ? sellers.stream() : sellers.parallelStream())
-                                         .collect(()->new QuoteMinimizer(economy,sl),
+                                         .collect(() -> new QuoteMinimizer(economy, sl),
                                             QuoteMinimizer::accept, QuoteMinimizer::combine);
                         // If quote is infinite, we create a new provider
                         if (Double.isInfinite(minimizer.getBestQuote())) {
@@ -736,11 +725,13 @@ public class BootstrapSupply {
     }
 
     /**
-     * Out of a list sellers, we check if, we can clone any seller in particular that can fit the buyer
+     * Out of a list sellers, we check if, we can clone any seller in particular
+     * that can fit the buyer.
      *
      * @param buyerShoppingList is the {@Link shoppingList} of the buyer
      * @param candidateSellers is the list of candidate {@link Trader sellers} to examine
-     * @param market is the {@link Market} in which we try finding the best provider to reactivate/clone
+     * @param market is the {@link Market} in which we try finding the best provider to
+     * reactivate/clone
      * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
      *
      * @return the any of the candidateSellers that can fit the buyer when cloned, or NULL if none
@@ -755,8 +746,8 @@ public class BootstrapSupply {
         }
         for (Trader seller : candidateSellers) {
             // pick the first candidate seller that can fit the demand
-            if (seller.getSettings().isCloneable() && canBuyerFitInSeller(buyerShoppingList
-                            , seller, economy)) {
+            if (seller.getSettings().isCloneable()
+                    && canBuyerFitInSeller(buyerShoppingList, seller, economy)) {
                 return seller;
             }
         }
@@ -764,7 +755,7 @@ public class BootstrapSupply {
     }
 
     /**
-     * check if the modelSeller has enough capacity for every commodity bought by a trader
+     * check if the modelSeller has enough capacity for every commodity bought by a trader.
      *
      * @param buyerShoppingList is the {@Link shoppingList} of the buyer
      * @param modelSeller is the {@Link Trader} that we will be checking to see if there is enough
@@ -773,12 +764,12 @@ public class BootstrapSupply {
      *
      * @return TRUE if the buyer fits in this modelSeller, FALSE otherwise
      */
-    public static boolean canBuyerFitInSeller (ShoppingList buyerShoppingList, Trader modelSeller,
-                    Economy economy){
+    public static boolean canBuyerFitInSeller(ShoppingList buyerShoppingList, Trader modelSeller,
+                    Economy economy) {
 
         Basket basket = buyerShoppingList.getBasket();
-        for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size()
-                        ; boughtIndex++, soldIndex++) {
+        for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size();
+                        boughtIndex++, soldIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
 
             // Find corresponding commodity sold. Commodities sold are ordered the same way as the

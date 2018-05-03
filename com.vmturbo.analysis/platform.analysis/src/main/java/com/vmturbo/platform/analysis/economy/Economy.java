@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -24,7 +25,9 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 import com.google.common.primitives.Longs;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -87,7 +90,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // The number is not scientifically chosen but works well in practice.
     private final @NonNull InvertedIndex sellersInvertedIndex_ = new InvertedIndex(this, 32);
 
-    private final @NonNull Set<@NonNull CommoditySpecification> commsToAdjustOverhead_ = new HashSet();
+    private final @NonNull Set<@NonNull CommoditySpecification> commsToAdjustOverhead_ = new HashSet<>();
 
     private boolean marketsPopulated = false;
 
@@ -789,4 +792,99 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         return commsToAdjustOverhead_;
     }
 
+    /**
+     * Find the common cliques for a given trader. Consider only markets
+     * with non-empty cliques maps.
+     *
+     * @param trader the trader for which we need the common cliques
+     * @return a set containing common clique numbers
+     */
+    @VisibleForTesting
+    Set<Long> getCommonCliquesNonEmpty(Trader trader) {
+        return getCommonCliques(trader, false);
+    }
+
+    /**
+     * Find the common cliques for a given trader. Consider all markets,
+     * regardless of whether their cliques map is empty or not.
+     *
+     * @param trader the trader for which we need the common cliques
+     * @return a set containing common clique numbers
+     */
+    public Set<Long> getCommonCliques(Trader trader) {
+        return getCommonCliques(trader, true);
+    }
+
+    /**
+     * Find the common cliques for a given trader.
+     *
+     * @param trader the trader for which we need the common cliques
+     * @param allMarkets whether to consider all markets in the construction ({@code true} value)
+     * or just markets with non-empty cliques maps ({@code false} value).
+     * @return a set containing common clique numbers
+     */
+    private Set<Long> getCommonCliques(Trader trader, boolean allMarkets) {
+        return getMarketsAsBuyer(trader).entrySet().stream()
+                // when allMarkets is true, the filter passes for all entries,
+                // otherwise the second term in the boolean expression is evaluated
+                .filter(entry -> allMarkets || !entry.getValue().getCliques().isEmpty())
+                 // if shopping list is movable
+                .map(entry -> entry.getKey().isMovable()
+                    // use the cliques of the market
+                    ? entry.getValue().getCliques().keySet()
+                     // else if shopping list is placed
+                    : (new TreeSet<>(entry.getKey().getSupplier() != null
+                             // use clique that contain supplier
+                            ? entry.getKey().getSupplier().getCliques()
+                             // else there is no valid placement.
+                            : Collections.emptyList())))
+                .reduce(Sets::intersection).orElse(Collections.emptySet());
+    }
+
+    /**
+     * A mapping (represented as list of entries) from shopping list to market,
+     * including only movable shopping lists.
+     *
+     * @param trader the trader for which to compute the mapping
+     * @return a list of entries of shopping list to market mappings
+     */
+    public List<Entry<ShoppingList, Market>> moveableSlByMarket(Trader trader) {
+        return getMarketsAsBuyer(trader).entrySet().stream()
+            .filter(e -> e.getKey().isMovable())
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Compute all the potential sellers of a trader.
+     * A trader can be a buyer in multiple markets. Some of these markets would have
+     * a non-empty cliques map and for some the map will be empty. If for a given market
+     * the cliques map is non-empty then potential sellers are those that are members of the
+     * cliques that repeat in all such markets. If for a given market the cliques map is empty
+     * then potential sellers are all the active sellers in this market.
+     *
+     * @param trader the trader for which to compute the sellers
+     * @return all the sellers that this trader is buying from
+     */
+    @Override
+    public Set<Trader> getPotentialSellers(Trader trader) {
+        Collection<Market> markets = getMarketsAsBuyer(trader).values();
+        Set<Trader> nonCliqueSellers = markets.stream()
+                        .filter(market -> market.getCliques().isEmpty())
+                        .map(Market::getActiveSellers) // TODO: include inactive sellers (OM-34866)
+                        .flatMap(List::stream)
+                        .collect(Collectors.toSet());
+        Set<Long> cliques = getCommonCliquesNonEmpty(trader);
+        if (cliques.isEmpty()) {
+            return nonCliqueSellers;
+        }
+        Set<Trader> cliqueSellers = markets.stream()
+            .map(Market::getCliques)
+            .map(Map::entrySet)
+            .flatMap(Set::stream)
+            .filter(entry -> cliques.contains(entry.getKey()))
+            .map(Entry::getValue)
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
+        return Sets.union(cliqueSellers, nonCliqueSellers);
+    }
 } // end class Economy
