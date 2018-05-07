@@ -54,7 +54,9 @@ public class EntitySettingsCollection {
         }
 
         // Return the user setting if it exists, and if not, look up the default setting if it exists.
-        return getEntityUserSetting(oid, settingName)
+        return settingsForEntity.getUserSettingsList().stream()
+            .filter(setting -> setting.getSettingSpecName().equals(settingName))
+            .findFirst()
             .map(Optional::of)
             .orElseGet(() -> associatedDefaultSetting(settingsForEntity, settingName));
     }

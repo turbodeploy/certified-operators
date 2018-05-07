@@ -42,6 +42,7 @@ import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -78,6 +79,8 @@ public class StitchingIntegrationTest {
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider,
         Clock.systemUTC());
+    private final DiskCapacityCalculator diskCapacityCalculator =
+        Mockito.mock(DiskCapacityCalculator.class);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
@@ -88,7 +91,8 @@ public class StitchingIntegrationTest {
         postStitchingOperationLibrary =
             new PostStitchingOperationLibrary(
                 new SetCommodityMaxQuantityPostStitchingOperationConfig(
-                    statsServiceClient, 30, 10)); //set some fake values.
+                    statsServiceClient, 30, 10),  //meaningless values
+                diskCapacityCalculator);
 
     }
 

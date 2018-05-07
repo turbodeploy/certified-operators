@@ -94,6 +94,16 @@ topology-processor:
   # the delay will be based on the maxValuesBackgroundLoadFrequencyMinutes
   # config value.
   maxValuesBackgroundLoadDelayOnInitFailureMinutes : 30
+  # IOPS capacities for each type of disk in Storage Controller, Logical Pool,
+  # and Disk Array entities.
+  diskIopsCapacitySsd: 5000
+  diskIopsCapacity7200Rpm: 800
+  diskIopsCapacity10kRpm: 1200
+  diskIopsCapacity15kRpm: 1600
+  diskIopsCapacityVseriesLun: 5000
+  # Factors by which to multiply IOPS Capacity if disk has certain properties
+  hybridDiskIopsFactor: 1.5
+  flashAvailableDiskIopsFactor: 1.3
 
 repository:
   <<: *baseVmtComponentSettings

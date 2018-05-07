@@ -189,36 +189,6 @@ public enum EntitySettingSpecs {
                 EntityType.DISK_ARRAY),
             numeric(1f, 2000f, 100f), true),
     /**
-     * IOPS capacity to be set to disk arrays with SSD disks.
-     */
-    DiskCapacitySsd("diskCapacitySsd", "SSD Disk IOPS Capacity", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
-            numeric(20f, 1_000_000f, 5000f), true),
-    /**
-     * IOPS capacity to be set to disk arrays with 7.2 RPM disks.
-     */
-    DiskCapacity7200("diskCapacity7200", "7.2k RPM Disk IOPS Capacity", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
-            numeric(20f, 100_000f, 800f), true),
-    /**
-     * IOPS capacity to be set to disk arrays with 10k RPM disks.
-     */
-    DiskCapacity10k("diskCapacity10k", "10k RPM Disk IOPS Capacity", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
-            numeric(20f, 100_000f, 1200f), true),
-    /**
-     * IOPS capacity to be set to disk arrays with 15k RPM disks.
-     */
-    DiskCapacity15k("diskCapacity15k", "15k RPM Disk IOPS Capacity", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
-            numeric(20f, 100_000f, 1600f), true),
-    /**
-     * IOPS capacity to be set to VSeries LUN.
-     */
-    DiskCapacityVSeries("diskCapacityVSeries", "VSeries LUN IOPS Capacity", Collections.emptyList(),
-            SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DISK_ARRAY),
-            numeric(20f, 1_000_000f, 5000f), true),
-    /**
      * Ignore High Availability(HA).
      */
     IgnoreHA("ignoreHa", "Ignore High Availability", Collections.emptyList(),
@@ -260,7 +230,7 @@ public enum EntitySettingSpecs {
     private final String name;
     private final String displayName;
     private final SettingTiebreaker tieBreaker;
-    private final Set<EntityType> entityTypeScop;
+    private final Set<EntityType> entityTypeScope;
     private final SettingDataStructure<?> dataStructure;
     private final List<String> categoryPath;
     private final boolean allowGlobalDefault;
@@ -276,13 +246,13 @@ public enum EntitySettingSpecs {
 
     EntitySettingSpecs(@Nonnull String name, @Nonnull String displayName,
             @Nonnull List<String> categoryPath, @Nonnull SettingTiebreaker tieBreaker,
-            @Nonnull Set<EntityType> entityTypeScop, @Nonnull SettingDataStructure dataStructure,
+            @Nonnull Set<EntityType> entityTypeScope, @Nonnull SettingDataStructure dataStructure,
             boolean allowGlobalDefault) {
         this.name = Objects.requireNonNull(name);
         this.displayName = Objects.requireNonNull(displayName);
         this.categoryPath = Objects.requireNonNull(categoryPath);
         this.tieBreaker = Objects.requireNonNull(tieBreaker);
-        this.entityTypeScop = Objects.requireNonNull(entityTypeScop);
+        this.entityTypeScope = Objects.requireNonNull(entityTypeScope);
         this.dataStructure = Objects.requireNonNull(dataStructure);
         this.allowGlobalDefault = allowGlobalDefault;
     }
@@ -318,11 +288,11 @@ public enum EntitySettingSpecs {
     @Nonnull
     public SettingSpec createSettingSpec() {
         final EntitySettingScope.Builder scopeBuilder = EntitySettingScope.newBuilder();
-        if (entityTypeScop.isEmpty()) {
+        if (entityTypeScope.isEmpty()) {
             scopeBuilder.setAllEntityType(AllEntityType.getDefaultInstance());
         } else {
             scopeBuilder.setEntityTypeSet(EntityTypeSet.newBuilder()
-                    .addAllEntityType(entityTypeScop.stream()
+                    .addAllEntityType(entityTypeScope.stream()
                             .map(EntityType::getNumber)
                             .collect(Collectors.toSet())));
         }

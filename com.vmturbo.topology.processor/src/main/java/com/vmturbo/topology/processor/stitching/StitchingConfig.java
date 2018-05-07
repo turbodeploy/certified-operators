@@ -10,6 +10,7 @@ import io.grpc.Channel;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.GrpcChannelFactory;
+import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
@@ -34,6 +35,27 @@ public class StitchingConfig {
 
     @Value("${maxValuesBackgroundLoadDelayOnInitFailureMinutes}")
     private long maxValuesBackgroundLoadDelayOnInitFailureMinutes;
+
+    @Value("${diskIopsCapacitySsd}")
+    private double diskIopsCapacitySsd;
+
+    @Value("${diskIopsCapacity7200Rpm}")
+    private double diskIopsCapacity7200Rpm;
+
+    @Value("${diskIopsCapacity10kRpm}")
+    private double diskIopsCapacity10kRpm;
+
+    @Value("${diskIopsCapacity15kRpm}")
+    private double diskIopsCapacity15kRpm;
+
+    @Value("${diskIopsCapacityVseriesLun}")
+    private double diskIopsCapacityVseriesLun;
+
+    @Value("${hybridDiskIopsFactor}")
+    private double hybridDiskIopsFactor;
+
+    @Value("${flashAvailableDiskIopsFactor}")
+    private double flashAvailableDiskIopsFactor;
 
     /**
      * No associated @Import because it adds a circular import dependency.
@@ -70,12 +92,19 @@ public class StitchingConfig {
     }
 
     @Bean
+    public DiskCapacityCalculator diskPropertyCalculator() {
+        return new DiskCapacityCalculator(diskIopsCapacitySsd, diskIopsCapacity7200Rpm,
+            diskIopsCapacity10kRpm, diskIopsCapacity15kRpm, diskIopsCapacityVseriesLun,
+            hybridDiskIopsFactor, flashAvailableDiskIopsFactor);
+    }
+
+    @Bean
     public PostStitchingOperationLibrary postStitchingOperationStore() {
         return new PostStitchingOperationLibrary(
             new SetCommodityMaxQuantityPostStitchingOperationConfig(
                 historyClient(),
                 maxValuesBackgroundLoadFrequencyMinutes,
-                maxValuesBackgroundLoadDelayOnInitFailureMinutes));
+                maxValuesBackgroundLoadDelayOnInitFailureMinutes), diskPropertyCalculator());
     }
 
     @Bean

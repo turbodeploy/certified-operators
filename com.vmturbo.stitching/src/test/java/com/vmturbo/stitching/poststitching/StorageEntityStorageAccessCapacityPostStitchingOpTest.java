@@ -5,6 +5,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.Stream;
 
 import org.junit.Before;
@@ -109,12 +110,16 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
 
     @Test
     public void testManyGoodProviders() {
+        //if there are several viable providers, one is selected arbitrarily.
+
+        final double arbitraryCapacity = 500;
+        final List<Double> acceptableCapacities = Arrays.asList(arbitraryCapacity, CAPACITY);
 
         final TopologyEntityBuilder provider2 = TopologyEntityBuilder.newBuilder()
             .withEntityType(EntityType.DISK_ARRAY_VALUE)
             .withCommoditiesSold(
                 CommoditySoldBuilder.newBuilder()
-                    .withType(CommodityType.STORAGE_ACCESS).withCapacity(500)
+                    .withType(CommodityType.STORAGE_ACCESS).withCapacity(arbitraryCapacity)
             );
 
         final TopologyEntity te1 = TopologyEntityBuilder.newBuilder()
@@ -127,10 +132,9 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
         resultBuilder.getChanges().forEach(TopologicalChange::applyChange);
 
         assertEquals(1, resultBuilder.getChanges().size());
-        final double capacity = te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity();
-        System.out.println(capacity);
-        assertTrue(Arrays.asList(CAPACITY, 500.0)
-            .contains(capacity));
+        final double resultCapacity =
+            te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity();
+        assertTrue(acceptableCapacities.contains(resultCapacity));
     }
 
     @Test

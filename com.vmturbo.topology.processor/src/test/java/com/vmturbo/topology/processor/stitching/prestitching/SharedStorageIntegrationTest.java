@@ -39,6 +39,7 @@ import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
@@ -81,6 +82,8 @@ public class SharedStorageIntegrationTest {
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityClock);
+    private final DiskCapacityCalculator diskCapacityCalculator =
+        Mockito.mock(DiskCapacityCalculator.class);
 
     private final Target targetA = Mockito.mock(Target.class);
     private final Target targetB = Mockito.mock(Target.class);
@@ -97,7 +100,8 @@ public class SharedStorageIntegrationTest {
         postStitchingOperationLibrary =
             new PostStitchingOperationLibrary(
                 new SetCommodityMaxQuantityPostStitchingOperationConfig(
-                    statsServiceClient, 30, 10)); //set some fake values.
+                    statsServiceClient, 30, 10), //meaningless values
+                diskCapacityCalculator);
         when(targetA.getId()).thenReturn(targetAId);
         when(targetB.getId()).thenReturn(targetBId);
     }

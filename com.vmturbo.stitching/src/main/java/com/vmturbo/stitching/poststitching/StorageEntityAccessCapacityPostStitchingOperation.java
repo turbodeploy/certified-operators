@@ -84,10 +84,11 @@ public class StorageEntityAccessCapacityPostStitchingOperation implements PostSt
     /**
      * Retrieve Storage Access capacity from a Storage's providers to be propagated to that Storage.
      * The Storage should have exactly one Disk Array or Logical Pool provider with a Storage Access
-     * commodity that has capacity greater than zero.
+     * commodity that has capacity greater than zero. If it has more than one, the first to be
+     * found is used.
      *
      * @param providers providers to search for Storage Access capacity
-     * @return an eligible provider's Storage Access capacity, if one can be found
+     * @return an eligible provider's Storage Access capacity or Optional.empty() if none is found
      */
     private Optional<Double> findProviderCapacity(@Nonnull final List<TopologyEntity> providers) {
         return providers.stream()

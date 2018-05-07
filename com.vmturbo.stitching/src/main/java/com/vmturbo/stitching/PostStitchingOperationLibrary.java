@@ -12,6 +12,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.StorageEntityAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
@@ -57,7 +58,8 @@ public class PostStitchingOperationLibrary {
      * @param setMaxValuesConfig Configuration parameters for SetCommodityMaxQuantityPostStitchingOperation
      */
     public PostStitchingOperationLibrary(
-        @Nonnull SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig) {
+        @Nonnull SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig,
+        @Nonnull final DiskCapacityCalculator diskCapacityCalculator) {
 
         postStitchingOperations = ImmutableList.of(
             new PropagateStorageAccessAndLatencyPostStitchingOperation(),
@@ -79,9 +81,9 @@ public class PostStitchingOperationLibrary {
             new LogicalPoolStorageProvisionedPostStitchingOperation(),
             new VmmPmMemoryAllocationPostStitchingOperation(),
             new PmMemoryAllocationPostStitchingOperation(),
-            new StorageAccessCapacityPostStitchingOperation(EntityType.DISK_ARRAY),
-            new StorageAccessCapacityPostStitchingOperation(EntityType.LOGICAL_POOL),
-            new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER),
+            new StorageAccessCapacityPostStitchingOperation(EntityType.DISK_ARRAY, diskCapacityCalculator),
+            new StorageAccessCapacityPostStitchingOperation(EntityType.LOGICAL_POOL, diskCapacityCalculator),
+            new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER, diskCapacityCalculator),
             new StorageEntityAccessCapacityPostStitchingOperation(),
             new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig),
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation()
