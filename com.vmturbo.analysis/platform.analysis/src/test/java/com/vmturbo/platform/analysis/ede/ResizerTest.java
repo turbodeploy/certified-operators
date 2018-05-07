@@ -359,6 +359,24 @@ public class ResizerTest {
     }
 
     /**
+     * We want to make sure that when rate of resize is set to the lowest setting (1) in UI which sets
+     * the value internally to (10^10) so only 1 increment will be done for an action, we still
+     * provide the actions during resize down.
+     */
+    @Test
+    public void testResizeDecisions_resizeLowRateOfResize() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+                        100, 100, 70, 70, 20, 20, 0.65, 0.8,
+                        RIHT_SIZE_LOWER, RIHT_SIZE_UPPER, true);
+        vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
+
+        economy.getSettings().setRateOfResize((float)Math.pow(10,10));
+        Ledger ledger = new Ledger(economy);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+        assertEquals(2, actions.size());
+    }
+
+    /**
      * Setup economy with one PM, one VM and one application,
      * and VM's commodities sold have high ROI.
      * But VM's commodities sold are not resizable.

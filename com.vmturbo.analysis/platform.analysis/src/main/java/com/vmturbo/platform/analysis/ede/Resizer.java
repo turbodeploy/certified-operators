@@ -182,6 +182,12 @@ public class Resizer {
             }
             double numDecrements = delta / capacityIncrement / rateOfRightSize;
             int floorNumDecrements = (int) Math.floor(numDecrements);
+            // if the rate_of_resize > 1, then the floorNumDecrements can be 0 even if
+            // delta > capacityIncrement. In this case we don't resize down
+            // which is undesirable (bug OM-34833). Set floorNumDecrements to 1 in this case.
+            if (delta >= capacityIncrement) {
+                floorNumDecrements = Math.max(1, floorNumDecrements);
+            }
             double proposedCapacityDecrement = capacityIncrement * floorNumDecrements;
             newCapacity -= proposedCapacityDecrement;
             // do not fall below 1 unit of capacity increment
