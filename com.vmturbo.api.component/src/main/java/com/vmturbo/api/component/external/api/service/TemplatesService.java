@@ -23,6 +23,7 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
+import com.vmturbo.api.dto.cloud.OSFilterDTO;
 import com.vmturbo.api.dto.template.CpuModelApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
@@ -218,13 +219,12 @@ public class TemplatesService implements ITemplatesService {
     /**
      * Validate input template information to make sure all the fields are allowed.
      *
-     * @param o contains all input template information.
+     * @param dto contains all input template information.
      * @param errors
      */
     @Override
-    public void validateInput(Object o, Errors errors) {
+    public void validateInput(final TemplateApiInputDTO dto, Errors errors) {
         final StringBuilder errorMsgBuilder = new StringBuilder();
-        final TemplateApiInputDTO dto = (TemplateApiInputDTO)o;
         if (dto.getClassName() == null) {
             errorMsgBuilder.append(". className is a required field");
         }
@@ -349,6 +349,14 @@ public class TemplatesService implements ITemplatesService {
             .setId(id)
             .build();
         return templateSpecService.getTemplateSpec(templateSpecRequest);
+    }
+
+    @Nonnull
+    @Override
+    public List<String> getCloudTemplatesOses(@Nonnull OSFilterDTO filter)
+            throws UnknownObjectException {
+        // TODO implement as soon as cloud templates are published in XL
+        throw new NotImplementedException("Not implemented in XL");
     }
 }
 

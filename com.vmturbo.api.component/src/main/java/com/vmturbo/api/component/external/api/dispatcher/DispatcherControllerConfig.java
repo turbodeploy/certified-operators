@@ -5,6 +5,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.bind.annotation.InitBinder;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
@@ -38,6 +40,7 @@ import com.vmturbo.api.controller.TemplatesController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
+import com.vmturbo.api.validators.TemplatesValidator;
 import com.vmturbo.api.xlcontroller.ClusterController;
 
 /**
@@ -167,7 +170,17 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public TemplatesController templatesController() {
-        return new TemplatesController();
+        return new TemplatesController(serviceConfig.templatesService());
+    }
+
+    @Bean
+    public TemplatesValidator templatesValidator() {
+        return new TemplatesValidator(serviceConfig.templatesService());
+    }
+
+    @InitBinder
+    protected void initBinder(WebDataBinder binder) {
+        binder.addValidators(templatesValidator());
     }
 
     @Bean
