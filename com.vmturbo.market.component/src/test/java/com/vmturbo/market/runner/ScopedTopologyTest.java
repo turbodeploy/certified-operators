@@ -83,6 +83,8 @@ public class ScopedTopologyTest {
                  spy(new SettingServiceMole());
     private SettingServiceBlockingStub settingServiceClient;
     private Optional<Integer> maxPlacementsOverride;
+    private final float rightsizeLowerWatermark = 0.1f;
+    private final float rightsizeUpperWatermark = 0.7f;
     Analysis testAnalysis;
 
     @Rule
@@ -235,7 +237,7 @@ public class ScopedTopologyTest {
         // Act
         Analysis analysis =
             runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
-                settingServiceClient, maxPlacementsOverride);
+                settingServiceClient, maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
             Thread.sleep(1000);

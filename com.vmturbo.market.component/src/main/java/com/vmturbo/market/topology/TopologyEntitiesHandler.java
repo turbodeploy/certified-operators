@@ -97,12 +97,18 @@ public class TopologyEntitiesHandler {
      * @param settingsMap A map of settings used to influence the behavior of the analysis.
      * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
      *                              by the market during analysis.
+     * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
+     *                                it, Market could generate resize down actions.
+     * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
+     *                                it, Market could generate resize up actions.
      * @return The list of actions for the TOs.
      */
     public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
-                    @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
-                    @Nonnull final Map<String, Setting> settingsMap,
-                    @Nonnull final Optional<Integer> maxPlacementsOverride) {
+                                                  @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
+                                                  @Nonnull final Map<String, Setting> settingsMap,
+                                                  @Nonnull final Optional<Integer> maxPlacementsOverride,
+                                                  final float rightsizeLowerWatermark,
+                                                  final float rightsizeUpperWatermark) {
         logger.info("Received TOs from marketComponent. Starting economy creation on {} traders",
                 traderTOs.size());
         final long start = System.nanoTime();
@@ -129,7 +135,8 @@ public class TopologyEntitiesHandler {
 
         final Economy economy = (Economy)topology.getEconomy();
         // enable estimates
-        setEconomySettings(economy.getSettings(), settingsMap, maxPlacementsOverride);
+        setEconomySettings(economy.getSettings(), settingsMap, maxPlacementsOverride,
+                rightsizeLowerWatermark, rightsizeUpperWatermark);
         // compute startPriceIndex
         final PriceStatement startPriceStatement = new PriceStatement();
         startPriceStatement.computePriceIndex(economy);
@@ -295,9 +302,13 @@ public class TopologyEntitiesHandler {
 
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,
                                            @Nonnull final Map<String, Setting> settingsMap,
-                                           @Nonnull final Optional<Integer> maxPlacementsOverride) {
+                                           @Nonnull final Optional<Integer> maxPlacementsOverride,
+                                           final float rightsizeLowerWatermark,
+                                           final float rightsizeUpperWatermark) {
 
         economySettings.setEstimatesEnabled(false);
+        economySettings.setRightSizeLower(rightsizeLowerWatermark);
+        economySettings.setRightSizeUpper(rightsizeUpperWatermark);
 
         String rateOfResize = GlobalSettingSpecs.RateOfResize.getSettingName();
         if (settingsMap.containsKey(rateOfResize) &&

@@ -93,6 +93,17 @@ public class AnalysisBuilderTest {
         assertEquals(Optional.of(55), analysis.getMaxPlacementsOverride());
     }
 
+    @Test
+    public void testRightsizeWatermark() {
+        Analysis analysis = testBuilder.setIncludeVDC(false)
+                .setRightsizeLowerWatermark(0.1f)
+                .setRightsizeUpperWatermark(0.7f)
+                .build();
+
+        assertEquals(0.1f, analysis.getRightsizeLowerWatermark(), 0.000001);
+        assertEquals(0.7f, analysis.getRightsizeUpperWatermark(), 0.000001);
+    }
+
     private TopologyDTO.TopologyEntityDTO topologyEntityDTO(long oid) {
         return  TopologyDTO.TopologyEntityDTO.newBuilder()
                 .setEntityType(TEST_ENTITY_TYPE)

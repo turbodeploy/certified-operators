@@ -63,6 +63,8 @@ public class MarketRunnerTest {
                  spy(new SettingServiceMole());
     private SettingServiceBlockingStub settingServiceClient;
     private Optional<Integer> maxPlacementsOverride = Optional.empty();
+    private final static float rightsizeLowerWatermark = 0.1f;
+    private final static float rightsizeUpperWatermark = 0.7f;
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
@@ -99,7 +101,7 @@ public class MarketRunnerTest {
     @Test
     public void testGetRuns() throws Exception {
         Analysis analysis = runner.scheduleAnalysis(topologyInfo, dtos(true), true,
-            settingServiceClient, maxPlacementsOverride);
+            settingServiceClient, maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
             Thread.sleep(100);
@@ -126,12 +128,15 @@ public class MarketRunnerTest {
     public void testContextIDs() {
         Set<TopologyEntityDTO> dtos = dtos(true);
         Analysis analysis1 =
-            runner.scheduleAnalysis(topologyInfo, dtos, true, settingServiceClient, maxPlacementsOverride);
+            runner.scheduleAnalysis(topologyInfo, dtos, true, settingServiceClient, maxPlacementsOverride,
+                    rightsizeLowerWatermark, rightsizeLowerWatermark);
         Analysis analysis2 =
-            runner.scheduleAnalysis(topologyInfo, dtos, true, settingServiceClient, maxPlacementsOverride);
+            runner.scheduleAnalysis(topologyInfo, dtos, true, settingServiceClient, maxPlacementsOverride,
+                    rightsizeLowerWatermark, rightsizeUpperWatermark);
         Analysis analysis3 = runner.scheduleAnalysis(topologyInfo.toBuilder()
                         .setTopologyContextId(topologyInfo.getTopologyContextId() + 1)
-                        .build(), dtos, true, settingServiceClient, maxPlacementsOverride);
+                        .build(), dtos, true, settingServiceClient, maxPlacementsOverride,
+                    rightsizeLowerWatermark, rightsizeUpperWatermark);
         assertSame(analysis1, analysis2);
         assertNotSame(analysis1, analysis3);
     }
@@ -145,7 +150,8 @@ public class MarketRunnerTest {
     public void testBadPlan() throws InterruptedException {
         Set<TopologyEntityDTO> badDtos = dtos(false);
         Analysis analysis =
-            runner.scheduleAnalysis(topologyInfo, badDtos, true, settingServiceClient, maxPlacementsOverride);
+            runner.scheduleAnalysis(topologyInfo, badDtos, true, settingServiceClient,
+                    maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
         while (!analysis.isDone()) {
             Thread.sleep(100);
         }

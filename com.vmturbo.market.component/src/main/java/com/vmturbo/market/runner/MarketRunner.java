@@ -62,6 +62,10 @@ public class MarketRunner {
      * @param settingServiceClient Client for getting the Settings from Setting Service
      * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
      *                              by the market during analysis.
+     * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
+     *                                it, Market could generate resize down actions.
+     * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
+     *                                it, Market could generate resize up actions.
      * @return the resulting Analysis object capturing the results
      */
     @Nonnull
@@ -69,7 +73,9 @@ public class MarketRunner {
                                      @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                                      final boolean includeVDC,
                                      @Nonnull SettingServiceBlockingStub settingServiceClient,
-                                     @Nonnull final Optional<Integer> maxPlacementsOverride) {
+                                     @Nonnull final Optional<Integer> maxPlacementsOverride,
+                                     final float rightsizeLowerWatermark,
+                                     final float rightsizeUpperWatermark) {
 
         INPUT_TOPOLOGY.observe((double)topologyDTOs.size());
         final Analysis analysis;
@@ -92,6 +98,8 @@ public class MarketRunner {
                     .setSettingsServiceClient(settingServiceClient)
                     .setClock(Clock.systemUTC())
                     .setMaxPlacementsOverride(maxPlacementsOverride)
+                    .setRightsizeLowerWatermark(rightsizeLowerWatermark)
+                    .setRightsizeUpperWatermark(rightsizeUpperWatermark)
                     .build();
             analysisMap.put(topologyContextId, analysis);
         }

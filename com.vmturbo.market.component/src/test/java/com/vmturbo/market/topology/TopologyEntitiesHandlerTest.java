@@ -74,6 +74,10 @@ public class TopologyEntitiesHandlerTest {
 
     private final Optional<Integer> maxPlacementIterations = Optional.empty();
 
+    private final static float rightsizeLowerWatermark = 0.1f;
+
+    private final static float rightsizeUpperWatermark = 0.7f;
+
     /**
      * Test loading a file that was generated using the hyper-v probe.
      * Move the DTOs through the whole pipe and verify we get actions.
@@ -346,7 +350,8 @@ public class TopologyEntitiesHandlerTest {
 
         AnalysisResults results =
             TopologyEntitiesHandler.performAnalysis(
-                economyDTOs, topologyInfo, Collections.emptyMap(), maxPlacementIterations);
+                economyDTOs, topologyInfo, Collections.emptyMap(), maxPlacementIterations,
+                    rightsizeLowerWatermark, rightsizeUpperWatermark);
         return results.getActionsList();
     }
 

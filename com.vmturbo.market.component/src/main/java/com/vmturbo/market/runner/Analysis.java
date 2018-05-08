@@ -118,6 +118,10 @@ public class Analysis {
 
     private final Optional<Integer> maxPlacementsOverride;
 
+    private final float rightsizeLowerWatermark;
+
+    private final float rightsizeUpperWatermark;
+
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
@@ -133,13 +137,19 @@ public class Analysis {
      * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
      *                              by the market during analysis.
      * @param clock The clock used to time market analysis.
+     * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
+     *                                it, Market could generate resize down actions.
+     * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
+     *                                it, Market could generate resize up actions.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                     final boolean includeVDC,
                     @Nonnull final SettingServiceBlockingStub settingsServiceClient,
                     @Nonnull final Optional<Integer> maxPlacementsOverride,
-                    @Nonnull final Clock clock) {
+                    @Nonnull final Clock clock,
+                    final float rightsizeLowerWatermark,
+                    final float rightsizeUpperWatermark) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs;
         this.includeVDC = includeVDC;
@@ -151,6 +161,8 @@ public class Analysis {
         this.settingsServiceClient = settingsServiceClient;
         this.clock = Objects.requireNonNull(clock);
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
+        this.rightsizeLowerWatermark = rightsizeLowerWatermark;
+        this.rightsizeUpperWatermark = rightsizeUpperWatermark;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -232,7 +244,8 @@ public class Analysis {
             Map<String, Setting> settingsMap = getSettingsMap();
 
             final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                topologyInfo, settingsMap, maxPlacementsOverride);
+                topologyInfo, settingsMap, maxPlacementsOverride, rightsizeLowerWatermark,
+                rightsizeUpperWatermark);
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
             converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
@@ -405,6 +418,24 @@ public class Analysis {
      */
     public Optional<Integer> getMaxPlacementsOverride() {
         return maxPlacementsOverride;
+    }
+
+    /**
+     * Get the minimum utilization threshold.
+     *
+     * @return the rightsizeLowerWatermark.
+     */
+    public float getRightsizeLowerWatermark() {
+        return rightsizeLowerWatermark;
+    }
+
+    /**
+     * Get the maximum utilization threshold.
+     *
+     * @return the rightsizeUpperWatermark.
+     */
+    public float getRightsizeUpperWatermark() {
+        return rightsizeUpperWatermark;
     }
 
     /**
@@ -648,6 +679,13 @@ public class Analysis {
         private Optional<Integer> maxPlacementsOverride = Optional.empty();
         private SettingServiceBlockingStub settingsServiceClient = null;
 
+        // The minimum utilization threshold, if entity's utilization is below threshold,
+        // Market could generate resize down action.
+        private float rightsizeLowerWatermark;
+        // The maximum utilization threshold, if entity's utilization is above threshold,
+        // Market could generate resize up action.
+        private float rightsizeUpperWatermark;
+
         /**
          * Capture the {@link TopologyInfo} describing this Analysis, including the IDs, type,
          * timestamp, etc.
@@ -706,6 +744,28 @@ public class Analysis {
         }
 
         /**
+         * Configure the minimum utilization threshold.
+         *
+         * @param rightsizeLowerWatermark minimum utilization threshold.
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setRightsizeLowerWatermark(@Nonnull final float rightsizeLowerWatermark) {
+            this.rightsizeLowerWatermark = rightsizeLowerWatermark;
+            return this;
+        }
+
+        /**
+         * Configure the maximum utilization threshold.
+         *
+         * @param rightsizeUpperWatermark maximum utilization threshold.
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setRightsizeUpperWatermark(@Nonnull final float rightsizeUpperWatermark) {
+            this.rightsizeUpperWatermark = rightsizeUpperWatermark;
+            return this;
+        }
+
+        /**
          * Set the clock used to time market analysis.
          * If not explicitly set, will use the System UTC clock.
          *
@@ -724,7 +784,7 @@ public class Analysis {
          */
         public Analysis build() {
             return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsServiceClient,
-                maxPlacementsOverride, clock);
+                maxPlacementsOverride, clock, rightsizeLowerWatermark, rightsizeUpperWatermark);
         }
     }
 

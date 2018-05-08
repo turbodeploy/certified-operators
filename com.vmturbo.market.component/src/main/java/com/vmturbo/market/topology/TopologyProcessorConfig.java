@@ -34,6 +34,12 @@ public class TopologyProcessorConfig {
     @Value("${maxPlacementIterations}")
     private int maxPlacementIterations;
 
+    @Value("${rightsizeLowerWatermark}")
+    private float rightsizeLowerWatermark;
+
+    @Value("${rightsizeUpperWatermark}")
+    private float rightsizeUpperWatermark;
+
     @Bean
     public Optional<Integer> maxPlacementsOverride() {
         return maxPlacementIterations > 0
@@ -44,7 +50,8 @@ public class TopologyProcessorConfig {
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
         return new TopologyEntitiesListener(marketRunnerConfig.marketRunner(),
-            marketRunnerConfig.settingServiceClient(), maxPlacementsOverride());
+            marketRunnerConfig.settingServiceClient(), maxPlacementsOverride(),
+            rightsizeLowerWatermark, rightsizeUpperWatermark);
     }
 
     @Bean
