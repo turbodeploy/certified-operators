@@ -1,14 +1,19 @@
 package com.vmturbo.api.component;
 
 import java.util.EnumSet;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.servlet.DispatcherType;
 import javax.servlet.Servlet;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -21,9 +26,11 @@ import com.vmturbo.api.component.controller.DBAdminController;
 import com.vmturbo.api.component.external.api.ExternalApiConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherControllerConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherValidatorConfig;
+import com.vmturbo.api.component.external.api.service.AdminService;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.swagger.SwaggerConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.components.common.BaseVmtComponent;
 
 /**
@@ -33,9 +40,22 @@ import com.vmturbo.components.common.BaseVmtComponent;
  * and then assemble the response - e.g. filtering, joining related information, etc.
  */
 @Configuration("theComponent")
-@Import({ApiComponentGlobalConfig.class, ApiWebsocketConfig.class, ExternalApiConfig.class,
-        SwaggerConfig.class, DBAdminController.class})
+@Import({
+    ApiComponentGlobalConfig.class,
+    ApiWebsocketConfig.class,
+    ExternalApiConfig.class,
+    SwaggerConfig.class,
+    DBAdminController.class,
+    ServiceConfig.class
+})
 public class ApiComponent extends BaseVmtComponent {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    public static final String VERSION_FILE_NAME = "turbonomic_cluster_version.txt";
+
+    @Autowired
+    private ServiceConfig serviceConfig;
 
     public static void main(String[] args) {
         startContext(ApiComponent::createContext);
@@ -88,5 +108,20 @@ public class ApiComponent extends BaseVmtComponent {
         final ContextLoaderListener springListener = new ContextLoaderListener(rootContext);
         contextServer.addEventListener(springListener);
         return restContext;
+    }
+
+    @Override
+    protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
+        try {
+            diagnosticZip.putNextEntry(new ZipEntry(VERSION_FILE_NAME));
+            final ProductVersionDTO versionDTO = serviceConfig.adminService().getVersionInfo(true);
+
+            diagnosticZip.write((versionDTO.getVersionInfo() + "\n\n").getBytes());
+            diagnosticZip.write(("Updates: " + versionDTO.getUpdates() + "\n").getBytes());
+            diagnosticZip.write(("Market version: " + versionDTO.getMarketVersion() + "\n").getBytes());
+            diagnosticZip.closeEntry();
+        } catch (Exception e) {
+            logger.error("Unable to capture diagnostics due to error: ", e);
+        }
     }
 }

@@ -65,8 +65,8 @@ public class ClusterMgrServiceTest {
             "vmturbo/components/c2/instances/c2_1/properties/", null,
             "vmturbo/components/c2/instances/c2_1/node", "node3",
             "vmturbo/components/c2/instances/c2_1/properties/prop3", "val3",
-            "c1/component.version", "1.0.0",
-            "c2/component.version", "1.1.0"
+            "c1_1/component.version", "1.0.0",
+            "c2_1/component.version", "1.1.0"
     );
 
     // parms: componentType, propertyName
@@ -88,8 +88,9 @@ public class ClusterMgrServiceTest {
         when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_1/node", "default")).thenReturn("node1");
         when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_2/node", "default")).thenReturn("node2");
         when(consulServiceMock.getValueAsString("vmturbo/components/c2/instances/c2_1/node", "default")).thenReturn("node3");
-        when(consulServiceMock.getValueAsString("c1/component.version")).thenReturn(Optional.of("1.0.0"));
-        when(consulServiceMock.getValueAsString("c2/component.version")).thenReturn(Optional.of("1.1.0"));
+        when(consulServiceMock.getValueAsString("c1_1/component.version")).thenReturn(Optional.of("1.0.0"));
+        when(consulServiceMock.getValueAsString("c1_2/component.version")).thenReturn(Optional.of("1.2.0"));
+        when(consulServiceMock.getValueAsString("c2_1/component.version")).thenReturn(Optional.of("1.1.0"));
     }
 
     @Test

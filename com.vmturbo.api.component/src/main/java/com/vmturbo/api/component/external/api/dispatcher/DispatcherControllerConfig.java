@@ -60,7 +60,7 @@ import com.vmturbo.api.xlcontroller.ClusterController;
 @Configuration
 @EnableWebMvc
 @EnableWebSecurity
-@Import({ApiSecurityConfig.class, ServiceConfig.class, SecurityChainProxyInvoker.class})
+@Import({ApiSecurityConfig.class, SecurityChainProxyInvoker.class})
 // DO NOT import configurations outside the external.api.dispatcher package here, because
 // that will re-create the configuration's beans in the child context for the dispatcher servlet.
 // You will end up with multiple instances of the same beans, which could lead to tricky bugs.

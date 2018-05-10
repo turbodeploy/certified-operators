@@ -840,11 +840,11 @@ public class ClusterMgrService {
             Set<String> instanceIds = getComponentInstanceIds(componentType);
             // Component version is stored in Consul by component.  Assume version of all instancese of a component is the same.
             // TODO If version is stored by instance in the future, change the logic below to fetch version by instance.
-            Optional<String> componentVersion = consulService.getValueAsString(componentType + "/component.version");
             for (String instanceId : instanceIds) {
                 String nodeId = getNodeForComponentInstance(componentType, instanceId);
                 String instancePropertiesKey = getComponentInstancePropertiesKey(componentType, instanceId);
-                String version = componentVersion.isPresent() ? componentVersion.get() : null;
+                Optional<String> componentVersion = consulService.getValueAsString(instanceId + "/component.version");
+                String version = componentVersion.isPresent() ? componentVersion.get() : "<unknown>";
                 ComponentProperties instanceProperties = getComponentPropertiesWithPrefix(instancePropertiesKey);
                 answer.addComponentInstance(instanceId, componentType, version, nodeId, instanceProperties);
             }
