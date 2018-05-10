@@ -56,15 +56,11 @@ public class HistoryStatsUtilsTest {
         assertThat(formattedName, is(mixedCaseDBType));
     }
 
-    /**
-     * In this case an SDK commodity, SLA_COMMODITY, is not available as a DB commodity.
-     * The name() of the original SDK Commodity is returned.
-     */
     @Test
     public void formatUnmappedSDKCommodity() {
         // Arrange
         int sdkType = CommodityType.SLA_COMMODITY.getNumber();
-        String mixedCaseDBType = CommodityType.SLA_COMMODITY.name();
+        String mixedCaseDBType = CommodityTypes.SLA_COMMODITY.getMixedCase();
 
         // Act
         String formattedName = HistoryStatsUtils.formatCommodityName(sdkType);
