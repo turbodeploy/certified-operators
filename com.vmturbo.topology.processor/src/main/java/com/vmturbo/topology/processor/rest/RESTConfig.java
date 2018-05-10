@@ -2,15 +2,18 @@ package com.vmturbo.topology.processor.rest;
 
 import java.util.List;
 
-import com.google.gson.Gson;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.HttpMessageConverter;
+import org.springframework.http.converter.ResourceHttpMessageConverter;
+import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
+
+import com.google.gson.Gson;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsConfig;
@@ -105,6 +108,13 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
         final Gson GSON = ComponentGsonFactory.createGson();
         GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
         msgConverter.setGson(GSON);
+
+        // Note that adding converters to the list, turns off default converter registration.
+        // When using extendMessageConverters instead, we get default converters that we don't want.
+        // So instead re-add many of the defaults manually.
         converters.add(msgConverter);
+        converters.add(new ByteArrayHttpMessageConverter());
+        converters.add(new StringHttpMessageConverter());
+        converters.add(new ResourceHttpMessageConverter());
     }
 }
