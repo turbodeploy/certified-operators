@@ -6,6 +6,7 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.stitching.prestitching.MergeSharedDatacentersPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
 
@@ -25,7 +26,9 @@ public class PreStitchingOperationLibrary {
     public PreStitchingOperationLibrary() {
         preStitchingOperations = ImmutableList.of(
                 new RemoveNonMarketEntitiesPreStitchingOperation(),
-                new SharedStoragePreStitchingOperation());
+                new SharedStoragePreStitchingOperation(),
+                new MergeSharedDatacentersPreStitchingOperation()
+        );
     }
 
     /**
