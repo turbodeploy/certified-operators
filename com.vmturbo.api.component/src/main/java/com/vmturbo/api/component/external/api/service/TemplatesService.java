@@ -10,26 +10,25 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang.NotImplementedException;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.validation.Errors;
-
 import com.google.common.collect.Lists;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.validation.Errors;
+
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
-import com.vmturbo.api.dto.cloud.OSFilterDTO;
+import com.vmturbo.api.dto.deploymentprofile.DeploymentProfileApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.CpuModelApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
-import com.vmturbo.api.dto.deploymentprofile.DeploymentProfileApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.utils.ParamStrings;
@@ -353,7 +352,7 @@ public class TemplatesService implements ITemplatesService {
 
     @Nonnull
     @Override
-    public List<String> getCloudTemplatesOses(@Nonnull OSFilterDTO filter)
+    public Set<String> getCloudTemplatesOses(@Nonnull String scopeUuid)
             throws UnknownObjectException {
         // TODO implement as soon as cloud templates are published in XL
         throw new NotImplementedException("Not implemented in XL");
