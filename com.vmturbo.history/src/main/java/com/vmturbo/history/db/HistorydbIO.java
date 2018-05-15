@@ -480,7 +480,7 @@ public class HistorydbIO extends BasedbIO {
      */
     public Optional<Timestamp> getMostRecentTimestamp() {
         PmStatsLatest statsLatestTable = PM_STATS_LATEST;
-        try (Connection conn = getAutoCommitConnection()) {
+        try (Connection conn = connection()) {
             final Field<?> snapshotTimeField = dField(statsLatestTable, SNAPSHOT_TIME);
             Record1<Timestamp> snapshotTimeRecord = using(conn)
                     .select(timestamp(snapshotTimeField))
@@ -514,7 +514,7 @@ public class HistorydbIO extends BasedbIO {
         logger.debug("get {} entities", entityIds.size());
         final Map<Long, EntitiesRecord> map = new HashMap<>();
         for (List<String> idsChunk : Lists.partition(entityIds, entitiesChunkSize)) {
-            try (Connection conn = getAutoCommitConnection()) {
+            try (Connection conn = connection()) {
                 final List<EntitiesRecord> listRecords = using(conn)
                         .fetch(Entities.ENTITIES, Entities.ENTITIES.UUID.in(idsChunk));
                 for (EntitiesRecord record : listRecords) {
@@ -611,7 +611,7 @@ public class HistorydbIO extends BasedbIO {
      */
     public String getEntityDisplayNameForId(long entityId) {
 
-        try (Connection conn = getAutoCommitConnection()) {
+        try (Connection conn = connection()) {
 
             Record1<String> entityTypeRecord = using(conn)
                     .select(Tables.ENTITIES.DISPLAY_NAME)
@@ -649,7 +649,7 @@ public class HistorydbIO extends BasedbIO {
      * @return An optional with the scenario information record or an empty optional if not found.
      */
     public Optional<ScenariosRecord> getScenariosRecord(long topologyContextId) {
-        try (Connection conn = getAutoCommitConnection()) {
+        try (Connection conn = connection()) {
             return getScenariosRecord(topologyContextId, conn);
         } catch (SQLException e) {
             return Optional.empty();
@@ -747,34 +747,6 @@ public class HistorydbIO extends BasedbIO {
                         + topologyOrganizer.getSnapshotTime())
                 .set(MKT_SNAPSHOTS.RUN_COMPLETE_TIME, snapshotTimestamp)
                 .onDuplicateKeyIgnore());
-    }
-
-    /**
-     * Get a connection to the database.
-     *
-     * The connection is guaranteed to have auto-commit enabled
-     * (see: {@link Connection#setAutoCommit}), so the user of the
-     * connection doesn't need to worry about commiting or rolling back manually.
-     *
-     * @return A {@link Connection} where {@link Connection#getAutoCommit()} will return true.
-     * @throws VmtDbException If unable to obtain a connection or set it's auto-commit status.
-     */
-    private Connection getAutoCommitConnection() throws VmtDbException {
-        try {
-            Connection connection = connection();
-            // Due to an existing bug, BaseDbIO::connection() may or may not return
-            // a connection with autoCommit set to true. Enforce autoCommit = true.
-            // TODO (roman, Jan 27 2017): This is a workaround. In the long term it makes
-            // more sense to fix the original bug. Also, it may make more sense to have autoCommit
-            // set to false in all cases, and for us to be thorough about commit() and
-            // rollback() calls.
-            if (!connection.getAutoCommit()) {
-                connection.setAutoCommit(true);
-            }
-            return connection;
-        } catch (SQLException  e) {
-            throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
-        }
     }
 
     /**

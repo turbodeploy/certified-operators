@@ -385,7 +385,9 @@ public abstract class BasedbIO {
     public Connection transConnection() throws VmtDbException {
         Connection conn = connection();
         try {
-            conn.setAutoCommit(false);
+            if (conn != null) {
+                conn.setAutoCommit(false);
+            }
         }
         catch (SQLException ex) {
             logger.error("Can't make DB connection transactional! " + ex);
@@ -1414,7 +1416,20 @@ public abstract class BasedbIO {
      */
     public Connection connection() throws VmtDbException {
         initPool();
-        return DBConnectionPool.instance.getConnection();
+        Connection conn = DBConnectionPool.instance.getConnection();
+        // As connections are reused, set autocommit to true every time
+        // as it could be set to false during previous calls by other
+        // callers(via transConnection() or by explicitly calling
+        // setAutoCommit()).
+        try {
+            if (conn != null) {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException ex) {
+            logger.error("Exception while setting autoCommit flag.", ex);
+            throw new RuntimeException(ex);
+        }
+        return conn;
     }
 
     /**
