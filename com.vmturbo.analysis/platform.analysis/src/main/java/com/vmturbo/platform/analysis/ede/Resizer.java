@@ -63,8 +63,20 @@ public class Resizer {
                 return actions;
             }
             Basket basketSold = seller.getBasketSold();
+            boolean isDebugTrader = seller.isDebugEnabled();
+            String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
             // do not resize if the basketSold is NULL or if the entity is INACTIVE
             if (basketSold == null || !seller.getState().isActive()) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    if (basketSold == null) {
+                        logger.info("{" + sellerDebugInfo
+                                    + "} will not be resized because basketSold is null.");
+                    } else {
+                        logger.info("{" + sellerDebugInfo
+                                    + "} will not be resized because its state is "
+                                    + seller.getState().toString() + ".");
+                    }
+                }
                 continue;
             }
             List<IncomeStatement> incomeStatements = ledger.getCommodityIncomeStatements(seller);
@@ -74,8 +86,7 @@ public class Resizer {
                     continue;
                 }
                 IncomeStatement incomeStatement = incomeStatements.get(soldIndex);
-                if (evaluateEngageCriteria(economy, commoditySold, incomeStatement,
-                                           seller.getSettings().isEligibleForResizeDown())) {
+                if (evaluateEngageCriteria(economy, seller, commoditySold, incomeStatement)) {
                     double expenses = incomeStatement.getExpenses();
                     if (expenses > 0) {
                         try {
@@ -96,6 +107,7 @@ public class Resizer {
                                                           rawMaterial, rateOfResize);
                             if (Double.compare(newEffectiveCapacity,
                                                commoditySold.getEffectiveCapacity()) != 0) {
+                                double oldCapacity = commoditySold.getCapacity();
                                 double newCapacity = newEffectiveCapacity /
                                            commoditySold.getSettings().getUtilizationUpperBound();
                                 Resize resizeAction = new Resize(economy, seller,
@@ -104,6 +116,20 @@ public class Resizer {
                                 resizeAction.take();
                                 resizeAction.setImportance(currentRevenue - newRevenue);
                                 actions.add(resizeAction);
+                                if (logger.isTraceEnabled() || isDebugTrader) {
+                                    logger.info("{" + sellerDebugInfo +
+                                            "} A resize action was generated for the commodity "
+                                            + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
+                                            + " from " + oldCapacity + " to " + newCapacity + ".");
+                                }
+                            } else {
+                                if (logger.isTraceEnabled() || isDebugTrader) {
+                                    logger.info("{" + sellerDebugInfo
+                                            + "} No resize for the commodity "
+                                            + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
+                                            + " because the calculated capacity is the same to the"
+                                            + " current one.");
+                                }
                             }
                         } catch (Exception bisectionException) {
                             logger.info(bisectionException.getMessage() + " : Capacity "
@@ -112,6 +138,19 @@ public class Resizer {
                                          + incomeStatement.getRevenues() + " Expenses "
                                          + incomeStatement.getExpenses());
                         }
+                    } else {
+                        if (logger.isTraceEnabled() || isDebugTrader) {
+                            logger.info("{" + sellerDebugInfo
+                                        + "} No resize for the commodity "
+                                        + basketSold.get(soldIndex).getDebugInfoNeverUseInCode()
+                                        + " because expenses are 0.");
+                        }
+                    }
+                } else {
+                    if (logger.isTraceEnabled() || isDebugTrader) {
+                        logger.info("{" + sellerDebugInfo
+                                    + "} Resize engagement criteria are false for commodity "
+                                    + basketSold.get(soldIndex).getDebugInfoNeverUseInCode() + ".");
                     }
                 }
             }
@@ -251,23 +290,76 @@ public class Resizer {
      * @param commodityIS The {@link IncomeStatement income statement} of the commodity sold.
      * @return Whether the commodity meets the resize engagement criterion.
      */
-    public static boolean evaluateEngageCriteria(Economy economy, CommoditySold resizeCommodity,
-                                                 IncomeStatement commodityIS, boolean eligibleForResizeDown) {
+    public static boolean evaluateEngageCriteria(Economy economy, Trader seller,
+                                                 CommoditySold resizeCommodity,
+                                                 IncomeStatement commodityIS) {
+        boolean eligibleForResizeDown = seller.getSettings().isEligibleForResizeDown();
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
         double currentQuantity = resizeCommodity.getQuantity();
         double currentUtilization = currentQuantity / currentCapacity;
         // do not resize if utilization is in acceptable range
         // or if resizeDown warm up interval not finish
         EconomySettings settings = economy.getSettings();
+
+        boolean isDebugTrader = seller.isDebugEnabled();
+        String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
+
         if (currentUtilization > settings.getRightSizeLower() &&
             currentUtilization < settings.getRightSizeUpper()) {
+            if (logger.isTraceEnabled() || isDebugTrader) {
+                logger.info("{" + sellerDebugInfo + "} will not be resized because the"
+                            + " current utilization (" + currentUtilization + ") is bigger than"
+                            + "the lower right size limit (" + settings.getRightSizeLower()
+                            + ") and lower than the upper right size limit ("
+                            + settings.getRightSizeUpper() + ").");
+            }
             return false;
         }
-        return (commodityIS.getROI() > commodityIS.getMaxDesiredROI() &&
+        if ((commodityIS.getROI() > commodityIS.getMaxDesiredROI() &&
                 currentUtilization > settings.getRightSizeUpper()) ||
                (commodityIS.getROI() < commodityIS.getMinDesiredROI() &&
                 currentUtilization < settings.getRightSizeLower() &&
-               eligibleForResizeDown);
+               eligibleForResizeDown)) {
+            return true;
+        } else {
+            if (logger.isTraceEnabled() || isDebugTrader) {
+                boolean foundReason = false;
+                StringBuilder message = new StringBuilder("{" + sellerDebugInfo + "} will not be"
+                                                        + " resized because");
+                if (commodityIS.getROI() <= commodityIS.getMaxDesiredROI()) {
+                    message.append(" current ROI (" + commodityIS.getROI() + ") is smaller than or"
+                                    + " equal to max desired ROI (" + commodityIS.getMaxDesiredROI()
+                                    + ")");
+                    foundReason = true;
+                }
+
+                if (currentUtilization <= settings.getRightSizeUpper()) {
+                    message.append((foundReason ? "," : "") + " current utilization ("
+                                    + currentUtilization + ") is smaller than or equal to right"
+                                    + " size upper limit (" + settings.getRightSizeUpper() + ")");
+                }
+
+                if (commodityIS.getROI() >= commodityIS.getMinDesiredROI()) {
+                    message.append(", current ROI (" + commodityIS.getROI() + ") is bigger than or"
+                                    + " equal to min desired ROI ("
+                                    + commodityIS.getMinDesiredROI() + ")");
+                }
+
+                if (currentUtilization >= settings.getRightSizeLower()) {
+                    message.append(", current utilization (" + currentUtilization + ") is bigger"
+                                    + " than or equal to right size lower limit ("
+                                    + settings.getRightSizeLower() + ")");
+                }
+
+                if (!eligibleForResizeDown) {
+                    message.append(", it is not eligible for resize down");
+                }
+
+                message.append(".");
+                logger.info(message);
+            }
+            return false;
+        }
     }
 
     /**

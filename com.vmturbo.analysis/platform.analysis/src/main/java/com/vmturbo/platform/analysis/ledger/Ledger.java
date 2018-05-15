@@ -400,6 +400,8 @@ public class Ledger {
         List<Trader> traders = economy.getTraders();
         (traders.size() < economy.getSettings().getMinSellersForParallelism()
             ? traders.stream() : traders.parallelStream()).forEach(buyer -> {
+            boolean isDebugTrader = buyer.isDebugEnabled();
+            String buyerDebugInfo = buyer.getDebugInfoNeverUseInCode();
             resetTraderIncomeStatement(buyer);
             List<CommoditySold> commSoldList = buyer.getCommoditiesSold();
             for (int commSoldIndex = 0; commSoldIndex < commSoldList.size(); commSoldIndex++) {
@@ -424,10 +426,27 @@ public class Ledger {
                     continue;
                 }
 
-                commSoldIS.setRevenues(pf.unitPrice(commSoldUtil, null, buyer, cs, economy)*commSoldUtil);
-                commSoldIS.setMaxDesiredRevenues(pf.unitPrice(maxDesUtil, null, buyer, cs, economy)*maxDesUtil);
-                commSoldIS.setMinDesiredRevenues(pf.unitPrice(minDesUtil, null, buyer, cs, economy)*minDesUtil);
-                commSoldIS.setDesiredRevenues(pf.unitPrice((minDesUtil + maxDesUtil) / 2, null, buyer, cs, economy) * (maxDesUtil + minDesUtil) / 2);
+                double revenues = pf.unitPrice(commSoldUtil, null, buyer, cs,
+                                                economy) * commSoldUtil;
+                double maxDesiredRevenues = pf.unitPrice(maxDesUtil, null,
+                                                            buyer, cs, economy) * maxDesUtil;
+                double minDesiredRevenues = pf.unitPrice(minDesUtil, null,
+                                                            buyer, cs, economy) * minDesUtil;
+                double desiredRevenues = pf.unitPrice((minDesUtil + maxDesUtil)
+                                                        / 2, null, buyer, cs, economy)
+                                                        * (maxDesUtil + minDesUtil) / 2;
+                commSoldIS.setRevenues(revenues);
+                commSoldIS.setMaxDesiredRevenues(maxDesiredRevenues);
+                commSoldIS.setMinDesiredRevenues(minDesiredRevenues);
+                commSoldIS.setDesiredRevenues(desiredRevenues);
+
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("For the trader " + buyerDebugInfo + " and the commodity"
+                                + " sold with index " + commSoldIndex + " the revenues are "
+                                + revenues + ", the max desired revenues are " + maxDesiredRevenues
+                                + ", the min desired revenues are " + minDesiredRevenues + " and"
+                                + " the desired revenues are " + desiredRevenues + ".");
+                }
 
                 List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
                                                              .get(commSoldIndex).getBaseType());
@@ -447,6 +466,7 @@ public class Ledger {
                     // All comm's btw these indices will be of this type
                     // (needed when we have 2 comms of same type bought)
                     for (Integer typeOfCommBought : typeOfCommsBought) {
+
                         int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.intValue());
 
                         // if the required commodity is not in the shoppingList, set small constant
@@ -455,6 +475,13 @@ public class Ledger {
                             commSoldIS.setExpenses(1.0);
                             commSoldIS.setMaxDesiredExpenses(1.0);
                             commSoldIS.setMinDesiredExpenses(1.0);
+                            if (logger.isTraceEnabled() || isDebugTrader) {
+                                logger.info("No raw material found for the trader "
+                                            + buyerDebugInfo + " and the commodity sold with index "
+                                            + commSoldIndex + ", thus the expenses, max desired"
+                                            + " expenses and min desired expenses are all set to"
+                                            + " 1.0.");
+                            }
                             continue;
                         }
 
@@ -468,16 +495,29 @@ public class Ledger {
                             PriceFunction priceFunction = commSoldBySeller.getSettings()
                                                                           .getPriceFunction();
 
-                            commSoldIS.setExpenses(commSoldIS.getExpenses()
-                                          + priceFunction.unitPrice(commSoldBySeller.getQuantity()
-                                                 /commSoldBySeller.getEffectiveCapacity(), shoppingList, supplier
-                                                 , commSoldBySeller, economy) *commBoughtUtil);
-                            commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses()
-                                          + priceFunction.unitPrice(maxDesUtil, shoppingList, supplier
-                                                 , commSoldBySeller, economy) * commBoughtUtil);
-                            commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses()
-                                          + priceFunction.unitPrice(minDesUtil, shoppingList, supplier
-                                                 , commSoldBySeller, economy) * commBoughtUtil);
+                            double expenses = commSoldIS.getExpenses() + priceFunction.unitPrice(
+                                    commSoldBySeller.getQuantity()
+                                            / commSoldBySeller.getEffectiveCapacity(), shoppingList,
+                                            supplier, commSoldBySeller, economy) * commBoughtUtil;
+                            double maxDesiredExpenses = commSoldIS.getMaxDesiredExpenses()
+                                            + priceFunction.unitPrice(maxDesUtil, shoppingList,
+                                            supplier, commSoldBySeller, economy) * commBoughtUtil;
+                            double minDesiredExpenses = commSoldIS.getMinDesiredExpenses()
+                                            + priceFunction.unitPrice(minDesUtil, shoppingList,
+                                            supplier, commSoldBySeller, economy) * commBoughtUtil;
+
+                            commSoldIS.setExpenses(expenses);
+                            commSoldIS.setMaxDesiredExpenses(maxDesiredExpenses);
+                            commSoldIS.setMinDesiredExpenses(minDesiredExpenses);
+
+                            if (logger.isTraceEnabled() || isDebugTrader) {
+                                logger.info("For the trader " + buyerDebugInfo + ", the"
+                                            + " commodity sold with index " + commSoldIndex + " and"
+                                            + " the raw material bought with index " + boughtIndex
+                                            + " the expenses are " + expenses + ", the max desired"
+                                            + " expenses are " + maxDesiredExpenses + " and the min"
+                                            + " desired expenses are " + minDesiredExpenses + ".");
+                            }
                         }
                     }
                 }
