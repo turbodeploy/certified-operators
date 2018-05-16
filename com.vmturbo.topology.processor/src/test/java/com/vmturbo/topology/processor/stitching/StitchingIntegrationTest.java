@@ -82,6 +82,8 @@ public class StitchingIntegrationTest {
     private final DiskCapacityCalculator diskCapacityCalculator =
         Mockito.mock(DiskCapacityCalculator.class);
 
+    private final Clock clock = Mockito.mock(Clock.class);
+
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
 
@@ -92,7 +94,7 @@ public class StitchingIntegrationTest {
             new PostStitchingOperationLibrary(
                 new SetCommodityMaxQuantityPostStitchingOperationConfig(
                     statsServiceClient, 30, 10),  //meaningless values
-                diskCapacityCalculator);
+                diskCapacityCalculator, clock, 0);
 
     }
 

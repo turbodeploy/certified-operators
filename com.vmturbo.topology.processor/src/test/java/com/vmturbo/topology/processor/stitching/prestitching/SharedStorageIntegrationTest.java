@@ -84,6 +84,7 @@ public class SharedStorageIntegrationTest {
     private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityClock);
     private final DiskCapacityCalculator diskCapacityCalculator =
         Mockito.mock(DiskCapacityCalculator.class);
+    private final Clock clock = Mockito.mock(Clock.class);
 
     private final Target targetA = Mockito.mock(Target.class);
     private final Target targetB = Mockito.mock(Target.class);
@@ -101,7 +102,7 @@ public class SharedStorageIntegrationTest {
             new PostStitchingOperationLibrary(
                 new SetCommodityMaxQuantityPostStitchingOperationConfig(
                     statsServiceClient, 30, 10), //meaningless values
-                diskCapacityCalculator);
+                diskCapacityCalculator, clock, 0);
         when(targetA.getId()).thenReturn(targetAId);
         when(targetB.getId()).thenReturn(targetBId);
     }

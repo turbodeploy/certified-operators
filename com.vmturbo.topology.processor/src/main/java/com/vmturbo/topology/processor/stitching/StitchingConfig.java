@@ -4,17 +4,19 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.api.GrpcChannelFactory;
-import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
+import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
@@ -22,6 +24,7 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
  * Configuration for stitching classes in the TopologyProcessor.
  */
 @Configuration
+@Import({ClockConfig.class})
 public class StitchingConfig {
 
     @Value("${historyHost}")
@@ -56,6 +59,12 @@ public class StitchingConfig {
 
     @Value("${flashAvailableDiskIopsFactor}")
     private double flashAvailableDiskIopsFactor;
+
+    @Value("${resizeDownWarmUpIntervalHours}")
+    private double resizeDownWarmUpIntervalHours;
+
+    @Autowired
+    private ClockConfig clockConfig;
 
     /**
      * No associated @Import because it adds a circular import dependency.
@@ -104,7 +113,10 @@ public class StitchingConfig {
             new SetCommodityMaxQuantityPostStitchingOperationConfig(
                 historyClient(),
                 maxValuesBackgroundLoadFrequencyMinutes,
-                maxValuesBackgroundLoadDelayOnInitFailureMinutes), diskPropertyCalculator());
+                maxValuesBackgroundLoadDelayOnInitFailureMinutes),
+                diskPropertyCalculator(),
+                clockConfig.clock(),
+                resizeDownWarmUpIntervalHours);
     }
 
     @Bean

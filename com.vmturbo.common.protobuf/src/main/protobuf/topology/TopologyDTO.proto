@@ -87,6 +87,10 @@ message TopologyEntityDTO {
 
         // The desired utilization target range
         optional float desired_utilization_range = 6 ;
+
+        // Whether the entity can be resized down by Market. If true, Market is able to generate resize
+        // down actions, if false, Market will not generate resize down actions.
+        optional bool is_eligible_for_resize_down = 7 [default = false];
     }
 
     optional Origin origin = 10;

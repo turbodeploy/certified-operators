@@ -1,5 +1,6 @@
 package com.vmturbo.stitching;
 
+import java.time.Clock;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -13,6 +14,7 @@ import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperati
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
+import com.vmturbo.stitching.poststitching.SetResizeDownAnalysisSettingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageEntityAccessCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.CpuProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.PmMemoryAllocationPostStitchingOperation;
@@ -59,7 +61,9 @@ public class PostStitchingOperationLibrary {
      */
     public PostStitchingOperationLibrary(
         @Nonnull SetCommodityMaxQuantityPostStitchingOperationConfig setMaxValuesConfig,
-        @Nonnull final DiskCapacityCalculator diskCapacityCalculator) {
+        @Nonnull final DiskCapacityCalculator diskCapacityCalculator,
+        @Nonnull final Clock clock,
+        final double resizeDownWarmUpIntervalHours) {
 
         postStitchingOperations = ImmutableList.of(
             new PropagateStorageAccessAndLatencyPostStitchingOperation(),
@@ -86,7 +90,8 @@ public class PostStitchingOperationLibrary {
             new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER, diskCapacityCalculator),
             new StorageEntityAccessCapacityPostStitchingOperation(),
             new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig),
-            new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation()
+            new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation(),
+            new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock)
         );
     }
 

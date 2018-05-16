@@ -108,6 +108,9 @@ topology-processor:
   # Factors by which to multiply IOPS Capacity if disk has certain properties
   hybridDiskIopsFactor: 1.5
   flashAvailableDiskIopsFactor: 1.3
+  # The interval hours that how long the new discovered entities can not be generated
+  # resize down actions by Market.
+  resizeDownWarmUpIntervalHours: 4
 
 repository:
   <<: *baseVmtComponentSettings

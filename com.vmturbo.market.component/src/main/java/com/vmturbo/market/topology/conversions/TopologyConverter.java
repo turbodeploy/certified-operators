@@ -534,7 +534,8 @@ public class TopologyConverter {
             .setGuaranteedBuyer(isGuranteedBuyer)
             .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider())
             .setIsShopTogether(shopTogether)
-            .setIsEligibleForResizeDown(isPlan())
+            .setIsEligibleForResizeDown(isPlan() ||
+                    topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
             .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                 .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
             .build();
