@@ -126,7 +126,7 @@ public class ScenariosServiceTest {
 
         ScenarioApiDTO result = scenariosService.configureScenario(
                 SCENARIO_RESPONSE.getId(), SCENARIO_RESPONSE.getScenarioInfo().getName(), null,
-                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
                 apiDTO);
 
         assertThat(result, is(apiDTO));
@@ -141,7 +141,7 @@ public class ScenariosServiceTest {
         expectedException.expect(UnknownObjectException.class);
         scenariosService.configureScenario(
                 0L, "newName", null,
-                null, null, null, null, null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
                 new ScenarioApiDTO());
     }
 
