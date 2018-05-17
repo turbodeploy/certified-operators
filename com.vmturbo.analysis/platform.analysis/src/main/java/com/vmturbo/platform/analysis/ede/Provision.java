@@ -125,6 +125,9 @@ public class Provision {
                 if (mostProfitableTrader == null) {
                     break;
                 }
+                boolean isDebugMostProfitableTrader = mostProfitableTrader.isDebugEnabled();
+                String mostProfitableTraderDebugInfo =
+                                                mostProfitableTrader.getDebugInfoNeverUseInCode();
                 Action provisionAction = null;
                 double origRoI = ledger.getTraderIncomeStatements().get(
                                 mostProfitableTrader.getEconomyIndex()).getROI();
@@ -132,6 +135,7 @@ public class Provision {
                                 mostProfitableTrader.getEconomyIndex()).getRevenues();
 
                 Trader provisionedTrader = null;
+                boolean isDebugProvisionedTrader = false;
                 boolean successfulEvaluation = false;
                 if (!market.getInactiveSellers().isEmpty()) {
                     // TODO: pick a trader that is closest to the mostProfitableTrader to activate
@@ -143,15 +147,28 @@ public class Provision {
                                         pb.getMostProfitableCommoditySpecification());
                         actions.add(provisionAction.take());
                         provisionedTrader = ((Activate)provisionAction).getTarget();
+                        isDebugProvisionedTrader = provisionedTrader.isDebugEnabled();
+                        String provisionedTraderDebugInfo =
+                                                    provisionedTrader.getDebugInfoNeverUseInCode();
+
+                        if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
+                            logger.info("Activate " + provisionedTraderDebugInfo
+                                    + " to reduce ROI of " + mostProfitableTraderDebugInfo
+                                    + ". Its original ROI is " + origRoI
+                                    + " and its max desired ROI is "
+                                    + ledger.getTraderIncomeStatements()
+                                    .get(mostProfitableTrader.getEconomyIndex())
+                                    .getMaxDesiredROI() + ".");
+                        }
 
                         actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
 
                         if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                         provisionedTrader, pb.getMostProfitableCommRev())) {
-                            if (logger.isTraceEnabled()) {
-                                logger.trace("rollback activation of "
-                                            + mostProfitableTrader.getDebugInfoNeverUseInCode()
-                                            + " as the RoI of the modelSeller does not go down");
+                            if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
+                                logger.info("Roll back activation of " + provisionedTraderDebugInfo
+                                        + ", because it does not reduce ROI of "
+                                        + mostProfitableTraderDebugInfo + ".");
                             }
                             // remove IncomeStatement from ledger and rollback actions
                             rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
@@ -168,6 +185,20 @@ public class Provision {
                                     mostProfitableTrader, pb.getMostProfitableCommoditySpecification());
                     actions.add(provisionAction.take());
                     provisionedTrader = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
+                    isDebugProvisionedTrader = provisionedTrader.isDebugEnabled();
+                    String provisionedTraderDebugInfo =
+                            provisionedTrader.getDebugInfoNeverUseInCode();
+
+                    if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
+                        logger.info("Provision " + provisionedTraderDebugInfo
+                                + " to reduce ROI of " + mostProfitableTraderDebugInfo
+                                + ". Its original ROI is " + origRoI
+                                + " and its max desired ROI is "
+                                + ledger.getTraderIncomeStatements()
+                                .get(mostProfitableTrader.getEconomyIndex())
+                                .getMaxDesiredROI() + ".");
+                    }
+
                     List<Action> subActions = ((ProvisionBySupply)provisionAction)
                                     .getSubsequentActions();
                     actions.addAll(subActions);
@@ -185,10 +216,10 @@ public class Provision {
                     actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
                     if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
                                     provisionedTrader, pb.getMostProfitableCommRev())) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("rollback cloning of "
-                                        + mostProfitableTrader.getDebugInfoNeverUseInCode()
-                                        + " as the RoI of the modelSeller does not go down");
+                        if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
+                            logger.info("Roll back provision of " + provisionedTraderDebugInfo
+                                    + ", because it does not reduce ROI of "
+                                    + mostProfitableTraderDebugInfo + ".");
                         }
                         // Because if we roll back original action, subsequent actions will roll back too.
                         actions.removeAll(subActions);
@@ -205,6 +236,14 @@ public class Provision {
                 ((ActionImpl)provisionAction).setImportance(oldRevenue - ledger
                                 .getTraderIncomeStatements().get(mostProfitableTrader
                                                 .getEconomyIndex()).getRevenues());
+
+                if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
+                    logger.info("New ROI of " + mostProfitableTraderDebugInfo + " is "
+                                + ledger.getTraderIncomeStatements()
+                                .get(mostProfitableTrader.getEconomyIndex()).getMaxDesiredROI()
+                                + ".");
+                }
+
                 allActions.addAll(actions);
             }
         }
@@ -286,12 +325,19 @@ public class Provision {
         // consider only sellers available for placements. Considering a seller with clonable false
         // is going to fail acceptanceCriteria since none its customers will move
         for (Trader seller : market.getActiveSellersAvailableForPlacement()) {
+            boolean isDebugTrader = seller.isDebugEnabled();
+            String traderDebugInfo = seller.getDebugInfoNeverUseInCode();
             MostExpensiveCommodityDetails mostExpensiveCommodity = ledger.calculateExpRevForTraderAndGetTopRevenue(economy, seller);
             if (seller.getSettings().isCloneable()) {
                 IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller
                                 .getEconomyIndex());
                 // return the most profitable trader
                 double roiOfTrader = traderIS.getROI();
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("{" + traderDebugInfo + "} trader ROI: " + roiOfTrader
+                            + ", max desired ROI: " + traderIS.getMaxDesiredROI() + ".");
+                }
+
                 // TODO: evaluate if checking for movable customers earlier is beneficial
                 // clone candidate should either have at least one customer is movable or
                 // all customers that are from guaranteed buyer
@@ -303,6 +349,36 @@ public class Provision {
                     roiOfRichestTrader = roiOfTrader;
                     mostProfitableCommRev = mostExpensiveCommodity.getRevenues();
                     commSpec = mostExpensiveCommodity.getCommoditySpecification();
+                } else {
+                    if (logger.isTraceEnabled() || isDebugTrader) {
+                        if (roiOfTrader <= traderIS.getMaxDesiredROI()) {
+                            logger.info("{" + traderDebugInfo + "} is not the best trader to"
+                                    + " engage because its ROI (" + roiOfTrader + ") is not"
+                                    + " bigger than its max desired ROI ("
+                                    + traderIS.getMaxDesiredROI() + ").");
+                        }
+                        if (roiOfTrader <= roiOfRichestTrader) {
+                            logger.info("{" + traderDebugInfo + "} is not the best trader to"
+                                    + " engage because its ROI (" + roiOfTrader + ") is not"
+                                    + " bigger than the ROI od the richest trader so far ("
+                                    + traderIS.getMaxDesiredROI() + ").");
+                        }
+                        if (seller.getCustomers().stream().allMatch(sl -> !sl.isMovable())) {
+                            logger.info("{" + traderDebugInfo + "} is not the best trader to"
+                                    + " engage because it has no movable customer.");
+                        }
+                        if (seller.getCustomers().stream().anyMatch(sl ->
+                                !sl.getBuyer().getSettings().isGuaranteedBuyer())) {
+                            logger.info("{" + traderDebugInfo + "} is not the best trader to"
+                                    + " engage because there is one customer which is not a"
+                                    + " guaranteed buyer.");
+                        }
+                    }
+                }
+            } else {
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("{" + traderDebugInfo + "} is not clonable.");
+
                 }
             }
         }
