@@ -170,7 +170,7 @@ public class Placement {
         boolean isDebugTrader = buyer.isDebugEnabled();
         boolean isSellersInfoPrinted = buyer.isSellersInfoPrinted();
         String buyerDebugInfo = shoppingList.getBuyer().getDebugInfoNeverUseInCode();
-        if (isDebugTrader) {
+        if (logger.isTraceEnabled() || isDebugTrader) {
             if (!isSellersInfoPrinted) {
                 logger.info("{" + buyerDebugInfo + "} Print debug info for all sellers in placement: ");
                 for (Trader trader : sellers) {
@@ -201,7 +201,7 @@ public class Placement {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = 0;
-                if (isDebugTrader) {
+                if (logger.isTraceEnabled() || isDebugTrader) {
                     if (shoppingList.getSupplier() != null) {
                         logger.info("{" + buyerDebugInfo + "} The infinite quote is from supplier: "
                                         + shoppingList.getSupplier().getDebugInfoNeverUseInCode());
