@@ -78,9 +78,11 @@ public class Suspension {
             if (seller.getSettings().isSuspendable() && seller.getState().isActive()
                 && seller.getCustomers().isEmpty()
                 && economy.getMarketsAsSeller(seller).isEmpty()) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Suspending " + seller.getDebugInfoNeverUseInCode()
-                        + " as it is not a seller in any market");
+                boolean isDebugTrader = seller.isDebugEnabled();
+                String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
+                if (logger.isTraceEnabled() || isDebugTrader) {
+                    logger.info("Suspending " + sellerDebugInfo
+                            + " as it is not a seller in any market.");
                 }
                 suspendTrader(economy, null, seller, allActions);
                 // Avoid further suspensions if setting is CLUSTER
@@ -118,10 +120,12 @@ public class Suspension {
                                             .filter(t -> t.getSettings().isSuspendable())
                                                 .collect(Collectors.toList()));
                 for (Trader seller : suspensionCandidates) {
+                    boolean isDebugTrader = seller.isDebugEnabled();
+                    String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
                     if (seller.getCustomers().isEmpty()) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Suspending " + seller.getDebugInfoNeverUseInCode()
-                                            + " as there are no customers");
+                        if (logger.isTraceEnabled() || isDebugTrader) {
+                            logger.info("Suspending " + sellerDebugInfo
+                                    + " as there are no customers.");
                         }
                         suspendTrader(economy, market, seller, allActions);
                         // Avoid further suspensions if setting is CLUSTER
@@ -138,6 +142,10 @@ public class Suspension {
                                                    incomeStmt.getMaxDesiredROI())
                                                   / 2)) {
                         suspensionCandidateHeap_.offer(seller);
+                        if (logger.isTraceEnabled() || isDebugTrader) {
+                            logger.info("Inserting " + sellerDebugInfo
+                                        + " in suspension candidates heap.");
+                        }
                     }
                 }
             }
@@ -170,17 +178,29 @@ public class Suspension {
      * @return action list related to suspension of trader.
      */
     public List<Action> deactivateTraderIfPossible(Trader trader, Economy economy, Ledger ledger) {
+        boolean isDebugTrader = trader.isDebugEnabled();
+        String traderDebugInfo = trader.getDebugInfoNeverUseInCode();
+        if (logger.isTraceEnabled() || isDebugTrader) {
+            logger.info("Trying to suspend trader " + traderDebugInfo + ".");
+        }
         List<Market> markets = economy.getMarketsAsSeller(trader);
         Market market = (markets == null || markets.isEmpty()) ? null : markets.get(0);
 
         List<@NonNull Action> suspendActions = new ArrayList<>();
         if (!trader.getSettings().isSuspendable()) {
+            if (logger.isTraceEnabled() || isDebugTrader) {
+                logger.info("{" + traderDebugInfo + "} is not suspendable.");
+            }
             return suspendActions;
         }
         List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
         customersOfSuspCandidate.addAll(trader.getCustomers());
 
         suspendTrader(economy, market, trader, suspendActions);
+        if (logger.isTraceEnabled() || isDebugTrader) {
+            logger.info("Suspending trader " + traderDebugInfo
+                        + " and trying to move its customers to other traders.");
+        }
 
         if (market != null) {
             // perform placement on just the customers on the suspensionCandidate
@@ -193,14 +213,14 @@ public class Suspension {
 
         // rollback actions if the trader still has customers
         if (!trader.getCustomers().isEmpty()) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(trader.getDebugInfoNeverUseInCode() + " does not suspend"
-                        + " because of " + trader.getCustomers().size() + " customers");
+            if (logger.isTraceEnabled() || isDebugTrader) {
+                logger.info("{" + traderDebugInfo + "} will not be suspended"
+                        + " because of " + trader.getCustomers().size() + " customer(s).");
             }
             Lists.reverse(suspendActions).forEach(axn -> axn.rollback());
             return new ArrayList<>();
         } else {
-            logger.info("Suspending " + trader.getDebugInfoNeverUseInCode());
+            logger.info("{" + traderDebugInfo + "} was suspended.");
             if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
                 makeCoSellersNonSuspendable(economy, trader);
             }
