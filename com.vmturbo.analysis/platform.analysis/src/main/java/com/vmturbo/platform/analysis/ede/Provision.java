@@ -266,7 +266,12 @@ public class Provision {
         List<@NonNull Action> actions = new ArrayList<>();
         actions.addAll(Placement.prefPlacementDecisions(economy,
                         new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers())));
-        actions.addAll(Placement.prefPlacementDecisions(economy, market.getBuyers()));
+        // Allow all buyers in markets where mostProfitableTrader is a seller place again so they
+        // can re-balance with the added resources in case these buyers are not part of the
+        // current market.
+        for (Market m : economy.getMarketsAsSeller(mostProfitableTrader)) {
+            actions.addAll(Placement.prefPlacementDecisions(economy, m.getBuyers()));
+        }
         return actions;
     }
 
