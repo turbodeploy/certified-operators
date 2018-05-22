@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import javax.annotation.Nonnull;
@@ -14,6 +15,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
+import com.vmturbo.api.dto.user.SAMLIdpApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
@@ -638,5 +640,10 @@ public class UsersService implements IUsersService {
     @Override
     public UserApiDTO resetAdministratorPassword(final ChangePasswordApiDTO changePasswordApiDTO) throws Exception {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Optional<SAMLIdpApiDTO> getSAMLIdp() {
+        return Optional.empty();
     }
 }
