@@ -26,10 +26,14 @@ import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
 
+import org.apache.http.HttpVersion;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.server.ServerConnector;
+import org.eclipse.jetty.server.SslConnectionFactory;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationListener;
@@ -90,6 +94,17 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     public static final String PROP_COMPNENT_TYPE = "component_type";
     public static final String PROP_INSTANCE_ID = "instance_id";
     public static final String PROP_SERVER_PORT = "server_port";
+    public static final String PROP_SECURE_PORT = "secure_server_port";
+    public static final String PROP_KEYSTORE_FILE = "keystore_file";
+    public static final String PROP_KEYSTORE_PASS = "keystore_pass";
+    public static final String PROP_SECURE_CIPHER_SUITES = "secure_cipher_suites";
+    public static final String PROP_KEYSTORE_TYPE = "keystore_type";
+    public static final String PROP_KEYSTORE_ALIAS = "keystore_alias";
+    public static final String DEFAULT_KEYSTORE_PASS = "jumpy-crazy-experience";
+    public static final String DEFAULT_CIPHER_SUITES = "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,"
+                                                    + "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,"
+                                                    + "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,"
+                                                    + "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384";
 
     /**
      * The URL at which to expose Prometheus metrics.
@@ -414,16 +429,31 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      *
      * @param propertyName environment variable name
      * @return evironment variable value
-     * @throws NullPointerException if there is not such environment property set
+     * @throws IllegalStateException if there is not such environment property set
      */
     @Nonnull
     protected static String requireEnvProperty(@Nonnull String propertyName) {
+        return getOptionalEnvProperty(propertyName)
+                .orElseThrow(() -> new IllegalStateException("System or environment property \"" + propertyName + "\" must be set"));
+    }
+
+    /**
+     * Return the value of a system property or environment value (in that order) with the specified
+     * name, if one is defined, otherwise empty.
+     *
+     * @param propertyName The name of the system or environment property to check.
+     * @return An Optional of the system property value or environment variable, if one was found.
+     */
+    protected static Optional<String> getOptionalEnvProperty(@Nonnull String propertyName) {
         final String sysPropValue = System.getProperty(propertyName);
         if (sysPropValue != null) {
-            return sysPropValue;
+            return Optional.of(sysPropValue);
         }
-        return Objects.requireNonNull(System.getenv(propertyName),
-                "System or environment property \"" + propertyName + "\" must be set");
+        final String envPropValue = System.getenv(propertyName);
+        if (envPropValue != null) {
+            return Optional.of(envPropValue);
+        }
+        return Optional.empty();
     }
 
     @Nonnull
@@ -472,6 +502,11 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
         final org.eclipse.jetty.server.Server server =
                 new org.eclipse.jetty.server.Server(Integer.valueOf(serverPort));
+
+        // check if we should open a secure port too.
+        getOptionalEnvProperty(PROP_SECURE_PORT).ifPresent(securePortProperty ->
+                addSecureConnector(server, securePortProperty));
+
         final ServletContextHandler contextServer =
                 new ServletContextHandler(ServletContextHandler.SESSIONS);
         final ConfigurableApplicationContext context;
@@ -490,6 +525,50 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
         // Could should never reach here
         return null;
+    }
+
+    /**
+     * Add a secure port listener to the jetty server.
+     *
+     * @param server The Jetty server to add the secure listener to.
+     * @param securePortProperty The port number to use.
+     */
+    static private void addSecureConnector(org.eclipse.jetty.server.Server server, String securePortProperty) {
+        // try to configure a secure listener
+        try {
+            logger.info("Secure port {} defined.", securePortProperty);
+            int securePort = Integer.parseInt(securePortProperty);
+            SslContextFactory sslContextFactory = new SslContextFactory();
+
+            // keystore file, pass and cipher suites have default values
+            final String keyStoreFile = getOptionalEnvProperty(PROP_KEYSTORE_FILE)
+                    .orElse("/home/turbonomic/data/keystore.p12");
+            logger.info("Keystore file {} will be used.", keyStoreFile);
+            sslContextFactory.setKeyStorePath(keyStoreFile);
+
+            sslContextFactory.setKeyStorePassword(getOptionalEnvProperty(PROP_KEYSTORE_PASS)
+                    .orElse(DEFAULT_KEYSTORE_PASS));
+            String[] cipherSuites = getOptionalEnvProperty(PROP_SECURE_CIPHER_SUITES)
+                    .orElse(DEFAULT_CIPHER_SUITES).split(",");
+            logger.info("Cipher suites({}): {}", cipherSuites.length, cipherSuites);
+            sslContextFactory.setIncludeCipherSuites(cipherSuites);
+            // exclude older SSL protocols
+            sslContextFactory.addExcludeProtocols("SSLv2Hello","SSLv3","TLSv1","TLSv1.1");
+
+            // cert alias and keystore type are optional
+            getOptionalEnvProperty(PROP_KEYSTORE_ALIAS).ifPresent(sslContextFactory::setCertAlias);
+            getOptionalEnvProperty(PROP_KEYSTORE_TYPE).ifPresent(sslContextFactory::setKeyStoreType);
+
+            // create the secured ServerConnector
+            ServerConnector httpsConnector = new ServerConnector(server, sslContextFactory);
+            httpsConnector.setPort(securePort);
+            server.addConnector(httpsConnector);
+            logger.debug("Secure connector created.");
+        } catch (NumberFormatException | NullPointerException e) {
+            // one of the required properties was not found -- log an error and exit.
+            logger.error("Error configuring secure port. Component will exit.", e);
+            System.exit(1);
+        }
     }
 
     /**

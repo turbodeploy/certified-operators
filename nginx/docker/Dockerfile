@@ -40,6 +40,7 @@ EXPOSE 8443
 USER nginx
 
 VOLUME /etc/nginx/certs
+VOLUME /etc/nginx/userconf
 
 STOPSIGNAL SIGTERM
 

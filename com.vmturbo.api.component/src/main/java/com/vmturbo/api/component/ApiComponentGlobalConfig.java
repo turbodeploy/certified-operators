@@ -27,18 +27,6 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
 
-    @Value("${keystoreFile}")
-    private String keystoreFile_;
-
-    @Value("${keystorePass:jumpy-crazy-experience}")
-    private String keystorePass_;
-
-    @Value("${keystoreType}")
-    private String keystoreType_;
-
-    @Value("${keystoreAlias}")
-    private String keystoreAlias_;
-
     /**
      * Add a new instance of the {@link GsonHttpMessageConverter} to the list of available {@link HttpMessageConverter}s in use.
      *

@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 
@@ -78,8 +79,13 @@ public class ApiWebsocketHandler extends TextWebSocketHandler implements UINotif
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception)
             throws Exception {
-        // TODO: Figure out the multiple sessions handling.
-        logger_.error("Transport error", exception);
+        // idle websocket timeout exceptions are expected, since we aren't doing keepalives
+        if (exception instanceof TimeoutException) {
+            logger_.debug(exception.getMessage());
+        } else {
+            // TODO: Figure out the multiple sessions handling.
+            logger_.error("Transport error", exception);
+        }
     }
 
     /**
