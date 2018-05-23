@@ -180,6 +180,7 @@ public class AnalysisServer implements AutoCloseable {
         settings.setRateOfResize(settingsTO.getRateOfResize());
         settings.setEstimatesEnabled(settingsTO.getEstimates());
         settings.setQuoteFactor(settingsTO.getQuoteFactor());
+        settings.setMaxPlacementIterations(settingsTO.getMaxPlacementIterations());
         return instInfo;
     }
 

@@ -46,8 +46,7 @@ public final class EconomySettings implements Serializable {
     private float rateOfResize_ = 1.0f;
     private boolean isEstimatesEnabled_ = true;
     private boolean isResizeDependentCommodities_ = true;
-
-    private int maxPlacementIterations = DEFAULT_MAX_PLACEMENT_ITERATIONS;
+    private int maxPlacementIterations_ = DEFAULT_MAX_PLACEMENT_ITERATIONS;
 
     // Constructors
 
@@ -216,7 +215,7 @@ public final class EconomySettings implements Serializable {
      */
     @Pure
     public int getMaxPlacementIterations(@ReadOnly EconomySettings this) {
-        return maxPlacementIterations;
+        return maxPlacementIterations_;
     }
 
     /**
@@ -227,7 +226,9 @@ public final class EconomySettings implements Serializable {
      */
     @Deterministic
     public EconomySettings setMaxPlacementIterations(final int maxPlacementIterations) {
-        this.maxPlacementIterations = maxPlacementIterations;
+        if (maxPlacementIterations > 0) {
+            maxPlacementIterations_ = maxPlacementIterations;
+        }
         return this;
     }
 
@@ -244,6 +245,6 @@ public final class EconomySettings implements Serializable {
     public void clear() {
         minSellersForParallelism_ = DEFAULT_MIN_SELLERS_FOR_PARALLELISM;
         quoteFactor_ = DEFAULT_QUOTE_FACTOR;
-        maxPlacementIterations = DEFAULT_MAX_PLACEMENT_ITERATIONS;
+        maxPlacementIterations_ = DEFAULT_MAX_PLACEMENT_ITERATIONS;
     }
 } // end EconomySettings class

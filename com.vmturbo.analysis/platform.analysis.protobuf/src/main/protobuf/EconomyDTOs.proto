@@ -31,6 +31,9 @@ message EconomySettingsTO {
     // only generated if best-quote < quote-factor * current-quote. That means that if we only want
     // Moves that result in at least 25% improvement we should use a quote-factor of 0.75.
     required float quote_factor = 7 [default = 0.75];
+
+    required int32 max_placement_iterations = 8;
+
 }
 
 // A list of commodities that must be bought from the same provider, with some additional information.

@@ -35,6 +35,7 @@ public class Placement {
     static final Logger logger = LogManager.getLogger(Placement.class);
 
     public static int globalCounter = 0;
+    private static boolean printMaxPlacementIterations = true;
 
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
@@ -466,6 +467,10 @@ public class Placement {
             initializeMarketExpenses(economy, ledger);
         }
         int counter = 0;
+        if (printMaxPlacementIterations) {
+            logger.info("The maximum placement iteration number has been set to: " + economy.getSettings().getMaxPlacementIterations());
+            printMaxPlacementIterations = false;
+        }
         while (keepRunning) {
             // in certain edge cases, we may have placement keep generating move actions
             // while they don't really improve the performance. We force the placement to
