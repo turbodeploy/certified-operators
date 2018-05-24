@@ -240,13 +240,21 @@ public class FunctionalOperatorUtil {
                         // if we take the move, we have already moved and we dont need to assume a new
                         // customer. If we are not taking the move, we want to update the used considering
                         // an incoming customer. In which case, we need to increase the custoemrCount by 1
-                        return new double[]{(commSold.getQuantity() * numCustomers +
+                        if (take) {
+                            return new double[]{(commSold.getQuantity() * numCustomers +
                                                 buyer.getQuantities()[boughtIndex])
-                                                    /(numCustomers + (take ? 0 : 1)),
-                                            (commSold.getPeakQuantity() * numCustomers +
+                                                /(numCustomers),
+                                                (commSold.getPeakQuantity() * numCustomers +
                                                 buyer.getPeakQuantities()[boughtIndex])
-                                                    /(numCustomers + (take ? 0 : 1))
-                                            };
+                                                /(numCustomers)};
+                        } else {
+                            return new double[]{Math.max(commSold.getQuantity(),
+                                        (commSold.getQuantity() * numCustomers
+                                        + buyer.getQuantities()[boughtIndex])/(numCustomers + 1)),
+                                        Math.max(commSold.getPeakQuantity(),
+                                        (commSold.getPeakQuantity() * numCustomers
+                                        + buyer.getPeakQuantities()[boughtIndex])/(numCustomers + 1))};
+                        }
                     };
 
     public static FunctionalOperator MAX_COMM = (buyer, boughtIndex, commSold, seller, economy, take, overhead)

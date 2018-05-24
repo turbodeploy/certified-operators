@@ -305,6 +305,15 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 }
             }
             double[] combinedQuantity = new double[]{commoditySold.getQuantity(), commoditySold.getPeakQuantity()};
+            if (explicitCombinator == FunctionalOperatorUtil.AVG_COMMS) {
+                if (incomingSl) {
+                    combinedQuantity[0] = Math.max(combinedQuantity[0], sellerOrigUsed);
+                    combinedQuantity[1] = Math.max(combinedQuantity[1], sellerOrigPeak);
+                } else {
+                    combinedQuantity[0] = Math.min(combinedQuantity[0], sellerOrigUsed);
+                    combinedQuantity[1] = Math.min(combinedQuantity[1], sellerOrigPeak);
+                }
+            }
             commoditySold.setQuantity(sellerOrigUsed).setPeakQuantity(sellerOrigPeak);
             return new double[]{combinedQuantity[0],combinedQuantity[1]};
         }

@@ -122,8 +122,9 @@ public class FunctionalOperatorUtilTest {
      * res1[0] = (60 * 2 + 30)/(2 + 0) = 75.
      * res1[1] = (90 * 2 + 60)/(2 + 0) = 120.
      *
-     * res2[0] = (60 * 2 + 30)/(2 + 1) = 50.
-     * res2[1] = (90 * 2 + 60)/(2 + 1) = 80.
+     * res2[0] = (60 * 2 + 30)/(2 + 1) = 50. Take Max(60, 50).
+     * res2[1] = (90 * 2 + 60)/(2 + 1) = 80. Take Max(90, 80).
+     * Provider usage should not decrease when a VM is moving into it.
      */
     @Test
     public void testAvgComms() {
@@ -139,8 +140,8 @@ public class FunctionalOperatorUtilTest {
 
         double[] res2 = FunctionalOperatorUtil.AVG_COMMS.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), pm, null, false, 0);
-        Assert.assertEquals(50, res2[0], epsilon);
-        Assert.assertEquals(80, res2[1], epsilon);
+        Assert.assertEquals(60, res2[0], epsilon);
+        Assert.assertEquals(90, res2[1], epsilon);
     }
 
     /**
