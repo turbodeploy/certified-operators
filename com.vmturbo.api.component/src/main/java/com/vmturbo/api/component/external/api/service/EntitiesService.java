@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -278,6 +279,16 @@ public class EntitiesService implements IEntitiesService {
 
     @Override
     public void deleteTagsByEntityUuid(final String s) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public boolean loggingEntities(final ArrayList<String> arrayList) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public boolean loggingEntities() {
         throw ApiUtils.notImplementedInXL();
     }
 
