@@ -24,7 +24,7 @@ public class GroupClientConfig {
      *
      * In the long term, we should reduce the size of that message (OM-32762).
      */
-    public static final int MAX_MSG_SIZE_BYTES = 20 * 1024 * 1024;
+    public static final int MAX_MSG_SIZE_BYTES = 40 * 1024 * 1024;
 
     @Value("${groupHost}")
     private String groupHost;
