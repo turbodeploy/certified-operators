@@ -23,8 +23,8 @@ message MoveTO {
     // the explanation for move action
     required MoveExplanation move_explanation = 4;
 
-    // The cost on supplier  
-    optional double cost = 5 [default = 0];
+    // The cost on supplier
+    optional double cost = 5;
 }
 
 // a move explanation suggesting unavailability of commodities

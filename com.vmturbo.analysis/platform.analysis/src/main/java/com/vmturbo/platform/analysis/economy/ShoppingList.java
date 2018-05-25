@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
+import java.util.Optional;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -40,7 +41,10 @@ public final class ShoppingList implements Serializable {
                                      // another supplier.
     private float moveCost_ = 0; // Cost to move this shopping list to another supplier
     private final @NonNull Basket basket_; // The basket for this shopping list
-    private double cost_ = 0; // The cost on the supplier
+    /**
+     * The cost on the supplier.
+     */
+    private Double cost_ = null;
 
     // Constructors
     /**
@@ -288,8 +292,8 @@ public final class ShoppingList implements Serializable {
      *
      * @return the cost on the supplier
      */
-    public double getCost() {
-        return cost_;
+    public Optional<Double> getCost() {
+        return Optional.ofNullable(cost_);
     }
 
     /**

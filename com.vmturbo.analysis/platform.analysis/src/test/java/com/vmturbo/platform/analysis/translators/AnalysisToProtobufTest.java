@@ -225,7 +225,7 @@ public class AnalysisToProtobufTest {
 
         Action move = new Move(e, shop2, pm1);
         ActionTO moveTO = ActionTO.newBuilder().setMove(
-                        MoveTO.newBuilder().setShoppingListToMove(20l).setDestination(2l).setCost(0)
+                        MoveTO.newBuilder().setShoppingListToMove(20l).setDestination(2l)
                                         .setSource(3l).setMoveExplanation(MoveExplanation.newBuilder()
                                                         .setPerformance(Performance.newBuilder()
                                                                         .build()).build()).build())
@@ -322,7 +322,6 @@ public class AnalysisToProtobufTest {
                                                                                         .newBuilder()
                                                                                         .build())
                                                                         .build())
-                                                        .setCost(0)
                                                       .build())
                                         .addMoves(MoveTO.newBuilder().setShoppingListToMove(40l)
                                                         .setDestination(5l).setSource(4l)
@@ -332,7 +331,6 @@ public class AnalysisToProtobufTest {
                                                                                         .newBuilder()
                                                                                         .build())
                                                                         .build())
-                                                        .setCost(0)
                                                         .build())
                                         .build()).setImportance((float)(
                                                         (ActionImpl)compoundMove).getImportance())

@@ -351,7 +351,7 @@ public final class AnalysisToProtobuf {
                         newSupplier = supplier;
                     }
                 }
-                moveTO.setCost(move.getTarget().getCost());
+                move.getTarget().getCost().ifPresent(moveTO::setCost);
                 moveTO.setDestination(traderOid.get(newSupplier));
             } catch (Exception e) {
                 logger.error("Exception when replacing supplier: original supplier="
