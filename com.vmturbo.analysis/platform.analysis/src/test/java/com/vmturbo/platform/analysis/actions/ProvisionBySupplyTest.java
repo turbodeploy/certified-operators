@@ -340,7 +340,7 @@ public class ProvisionBySupplyTest {
        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
                   .count() == 2);
        assertTrue(e.getMarketsAsBuyer(vapp).keySet().stream()
-                  .allMatch(sl -> sl.getQuantities()[0] == 150));
+                  .allMatch(sl -> sl.getQuantities()[0] == 100));
     }
 
     /**
