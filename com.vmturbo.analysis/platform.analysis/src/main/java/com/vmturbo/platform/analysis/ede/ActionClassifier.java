@@ -272,7 +272,7 @@ public class ActionClassifier {
         }
         Set<ShoppingList> shoppingLists = simulationEconomy_.getMarketsAsBuyer(buyerCopy).keySet();
         for (ShoppingList shoppingList: shoppingLists) {
-            if (shoppingList.equals(target)) {
+            if (shoppingList.getBasket().equals(basket)) {
                 return shoppingList;
             }
         }

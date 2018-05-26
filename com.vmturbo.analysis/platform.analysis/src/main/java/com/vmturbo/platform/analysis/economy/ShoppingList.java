@@ -300,36 +300,4 @@ public final class ShoppingList implements Serializable {
     public void setCost(double cost_) {
         this.cost_ = cost_;
     }
-
-    /**
-     * Tests whether the two shopping lists are equal.
-     *
-     * @param otherShoppingList ShoppingList Object to test against
-     * @return True if the this object is equal to otherShoppingList, false otherwise
-     */
-    public boolean equals(ShoppingList otherShoppingList) {
-        if (otherShoppingList == null) {
-            return false;
-        } else if (this == otherShoppingList) {
-            return true;
-        } else if (!getBasket().equals(otherShoppingList.getBasket())) {
-            /**
-             * If in here means that the two ShoppingList's baskets do not have the same set or same
-             * number of commodities.
-             */
-            return false;
-        } else {
-            /**
-             * We check for the avg and peak quantities for each commodity in the shopping list and
-             * if they don't match they are not equal.
-             */
-            for (int i = 0; i < getQuantities().length; i ++) {
-                if ((getQuantity(i) != otherShoppingList.getQuantity(i))
-                        || (getPeakQuantity(i) != otherShoppingList.getPeakQuantity(i))) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
 } // end ShoppingList class
