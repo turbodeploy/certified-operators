@@ -31,9 +31,16 @@ public class QuoteFunctionFactory {
             double[] quote = {0.0, 0.0, 0.0};
             // go over all commodities in basket
             int boughtIndex = 0;
-            for (int soldIndex = 0; boughtIndex < basket.size()
-                            && quote[0] < bestQuoteSoFar && Double.isFinite(quote[0]);
-                            boughtIndex++, soldIndex++) {
+
+            // We should only early-exit when computing the quote for suppliers other than the current one.
+            // We must compute the full quote for the current supplier because the value is saved and
+            // re-used elsewhere with the expectation that it is the full quote for the current supplier.
+            // Reference equality is sufficient for comparing traders because we have only one instance of each.
+            final boolean isCurrentSupplier = buyer.getSupplier() == seller;
+
+            for (int soldIndex = 0; boughtIndex < basket.size() &&
+                (quote[0] < bestQuoteSoFar || isCurrentSupplier) && Double.isFinite(quote[0]);
+                 boughtIndex++, soldIndex++) {
                 CommoditySpecification basketCommSpec = basket.get(boughtIndex);
                 // Find corresponding commodity sold. Commodities sold are ordered the same way as the
                 // basket commodities, so iterate once (O(N)) as opposed to searching each time (O(NLog(N))
