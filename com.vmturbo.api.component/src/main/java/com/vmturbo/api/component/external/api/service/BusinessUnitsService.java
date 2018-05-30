@@ -1,8 +1,14 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
+import javax.annotation.Nonnull;
+
 import org.springframework.validation.Errors;
+
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -48,4 +54,12 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     public void validateInput(final Object o, final Errors errors) {
         throw ApiUtils.notImplementedInXL();
     }
+
+    @Nonnull
+    @Override
+    public Collection<BusinessUnitApiDTO> getRelatedBusinessUnits(@Nonnull String uuid) {
+        // TODO OM-35804 implement required behavior
+        throw ApiUtils.notImplementedInXL();
+    }
+
 }
