@@ -404,6 +404,11 @@ public class MarketsServiceTest {
         }
 
         @Bean
+        public ScenariosService scenarioService() {
+            return Mockito.mock(ScenariosService.class);
+        }
+
+        @Bean
         public ITemplatesService templatesService() {
             return Mockito.mock(ITemplatesService.class);
         }

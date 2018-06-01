@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.validation.Errors;
 
 import io.grpc.Channel;
 import io.grpc.Status.Code;
@@ -235,5 +236,16 @@ public class ScenariosService implements IScenariosService {
     @Override
     public List<MarketApiDTO> getMarketsByScenario(Long id) throws Exception {
         throw ApiUtils.notImplementedInXL();
+    }
+
+    /**
+     * Validate ScenarioApiDTO
+     * @param obj
+     * @param e
+     */
+    @Override
+    public void validateInput(Object obj, Errors e) {
+        // The API will always validate any dto of type ScenarioApiDTO here
+        // We want to bypass this validation for XL and not throw any errors so this doesn't interfere with other scenarios
     }
 }
