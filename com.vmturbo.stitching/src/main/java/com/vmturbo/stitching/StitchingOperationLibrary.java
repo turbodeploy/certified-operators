@@ -7,7 +7,6 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.compute.VMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
@@ -33,7 +32,7 @@ public class StitchingOperationLibrary {
         switch (probeCategory) {
             case STORAGE:
                 return Collections.singletonList(new StorageStitchingOperation());
-            case FABRIC:
+            case FABRIC:                        // Fall through
                 return Arrays.asList(new FabricChassisStitchingOperation(),
                         new FabricPMStitchingOperation());
             case HYPERVISOR:                    // Fall through
@@ -43,7 +42,7 @@ public class StitchingOperationLibrary {
             case OPERATION_MANAGER_APPLIANCE:   // Fall through
             case APPLICATION_SERVER:            // Fall through
             case DATABASE_SERVER:               // Fall through
-            case CLOUD_NATIVE:
+            case FLOW:                          // Fall through
             case STORAGE_BROWSING:              // Fall through
             case ORCHESTRATOR:                  // Fall through
             case HYPERCONVERGED:                // Fall through
