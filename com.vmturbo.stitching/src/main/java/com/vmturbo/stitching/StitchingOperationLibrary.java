@@ -32,7 +32,7 @@ public class StitchingOperationLibrary {
         switch (probeCategory) {
             case STORAGE:
                 return Collections.singletonList(new StorageStitchingOperation());
-            case FABRIC:                        // Fall through
+            case FABRIC:
                 return Arrays.asList(new FabricChassisStitchingOperation(),
                         new FabricPMStitchingOperation());
             case HYPERVISOR:                    // Fall through
@@ -42,7 +42,7 @@ public class StitchingOperationLibrary {
             case OPERATION_MANAGER_APPLIANCE:   // Fall through
             case APPLICATION_SERVER:            // Fall through
             case DATABASE_SERVER:               // Fall through
-            case FLOW:                          // Fall through
+            case CLOUD_NATIVE:                  // Fall through
             case STORAGE_BROWSING:              // Fall through
             case ORCHESTRATOR:                  // Fall through
             case HYPERCONVERGED:                // Fall through
