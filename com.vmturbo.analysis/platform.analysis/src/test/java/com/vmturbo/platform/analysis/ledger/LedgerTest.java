@@ -318,7 +318,7 @@ public class LedgerTest {
         // The compareTo is a flag that decide how
         // we compare the result
         if (compareTo == 0) {
-            assertEquals(result, exp, 0d);
+            assertEquals(result, exp, 1e-15);
         } else if (compareTo < 0) {
             assertTrue(exp > result);
         } else {
