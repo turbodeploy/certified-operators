@@ -48,6 +48,9 @@ public class TestUtils {
     public static final int CONTAINER_TYPE = 6;
     public static final int VAPP_TYPE = 7;
 
+    public static final double FLOATING_POINT_DELTA = 1e-7;
+
+
     // CommoditySpecifications to use in tests
     public static final CommoditySpecification CPU = new CommoditySpecification(0);
     public static final CommoditySpecification MEM = new CommoditySpecification(1);

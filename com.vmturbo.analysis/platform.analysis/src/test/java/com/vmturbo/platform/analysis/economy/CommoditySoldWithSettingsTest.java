@@ -11,6 +11,7 @@ import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the combined CommoditySoldWithSettings class.
@@ -63,7 +64,7 @@ public final class CommoditySoldWithSettingsTest {
     public final void testGetUtilization(double quantity, double capacity) {
         fixture_.setCapacity(capacity);
         fixture_.setQuantity(quantity);
-        assertEquals(quantity/capacity, fixture_.getUtilization(), 0.0);
+        assertEquals(quantity/capacity, fixture_.getUtilization(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -74,7 +75,7 @@ public final class CommoditySoldWithSettingsTest {
     public final void testGetPeakUtilization(double peakQuantity, double capacity) {
         fixture_.setCapacity(capacity);
         fixture_.setPeakQuantity(peakQuantity);
-        assertEquals(peakQuantity/capacity, fixture_.getPeakUtilization(), 0.0);
+        assertEquals(peakQuantity/capacity, fixture_.getPeakUtilization(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -85,7 +86,7 @@ public final class CommoditySoldWithSettingsTest {
     public final void testGetSetQuantity_NormalInput(double quantity, double capacity) {
         fixture_.setCapacity(capacity);
         fixture_.setQuantity(quantity);
-        assertEquals(quantity, fixture_.getQuantity(), 0.0);
+        assertEquals(quantity, fixture_.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -106,7 +107,7 @@ public final class CommoditySoldWithSettingsTest {
     public final void testGetSetPeakQuantity_NormalInput(double peakQuantity, double capacity) {
         fixture_.setCapacity(capacity);
         fixture_.setPeakQuantity(peakQuantity);
-        assertEquals(peakQuantity, fixture_.getPeakQuantity(), 0.0);
+        assertEquals(peakQuantity, fixture_.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -124,7 +125,7 @@ public final class CommoditySoldWithSettingsTest {
     @TestCaseName("Test #{index}: (set|get)Capacity({0})")
     public final void testGetSetCapacity_NormalInput(double capacity) {
         fixture_.setCapacity(capacity);
-        assertEquals(capacity, fixture_.getCapacity(), 0.0);
+        assertEquals(capacity, fixture_.getCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -141,7 +142,7 @@ public final class CommoditySoldWithSettingsTest {
     public final void testGetEffectiveCapacity_NormalInput(double capacity, double utilizationUpperBound) {
         fixture_.setCapacity(capacity);
         fixture_.setUtilizationUpperBound(utilizationUpperBound);
-        assertEquals(capacity*utilizationUpperBound, fixture_.getEffectiveCapacity(), 0.0);
+        assertEquals(capacity*utilizationUpperBound, fixture_.getEffectiveCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -151,7 +152,7 @@ public final class CommoditySoldWithSettingsTest {
     public final void testGetEffectiveCapacity_InvalidInput(double capacity, double utilizationUpperBound) {
         fixture_.setCapacity(capacity);
         fixture_.setUtilizationUpperBound(utilizationUpperBound);
-        assertEquals(capacity*utilizationUpperBound, fixture_.getEffectiveCapacity(), 0.0);
+        assertEquals(capacity*utilizationUpperBound, fixture_.getEffectiveCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -180,7 +181,7 @@ public final class CommoditySoldWithSettingsTest {
     public final void testGetSetCapacityUpperBound_NomralInput(double capacityLowerBound, double capacityUpperBound) {
         fixture_.setCapacityLowerBound(capacityLowerBound);
         fixture_.setCapacityUpperBound(capacityUpperBound);
-        assertEquals(capacityUpperBound, fixture_.getCapacityUpperBound(), 0.0);
+        assertEquals(capacityUpperBound, fixture_.getCapacityUpperBound(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -201,7 +202,7 @@ public final class CommoditySoldWithSettingsTest {
     public final void testGetSetCapacityLowerBound_NormalInput(double capacityLowerBound, double capacityUpperBound) {
         fixture_.setCapacityUpperBound(capacityUpperBound);
         fixture_.setCapacityLowerBound(capacityLowerBound);
-        assertEquals(capacityLowerBound, fixture_.getCapacityLowerBound(), 0.0);
+        assertEquals(capacityLowerBound, fixture_.getCapacityLowerBound(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -219,7 +220,7 @@ public final class CommoditySoldWithSettingsTest {
     @TestCaseName("Test #{index}: (set|get)CapacityIncrement({0})")
     public final void testGetSetCapacityIncrement_NormalInput(double capacityIncrement) {
         fixture_.setCapacityIncrement(capacityIncrement);
-        assertEquals(capacityIncrement, fixture_.getCapacityIncrement(), 0.0);
+        assertEquals(capacityIncrement, fixture_.getCapacityIncrement(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -234,7 +235,7 @@ public final class CommoditySoldWithSettingsTest {
     @TestCaseName("Test #{index}: (set|get)UtilizationUpperBound({0})")
     public final void testGetSetUtilizationUpperBound_NormalInput(double utilizationUpperBound) {
         fixture_.setUtilizationUpperBound(utilizationUpperBound);
-        assertEquals(utilizationUpperBound, fixture_.getUtilizationUpperBound(), 0.0);
+        assertEquals(utilizationUpperBound, fixture_.getUtilizationUpperBound(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)

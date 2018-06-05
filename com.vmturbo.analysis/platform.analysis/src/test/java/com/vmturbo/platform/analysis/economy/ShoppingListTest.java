@@ -15,6 +15,7 @@ import org.junit.runner.RunWith;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the {@link ShoppingList} class.
@@ -92,13 +93,13 @@ public class ShoppingListTest {
     @Test
     public final void testGetQuantities() {
         double increased = ++fixture_.getQuantities()[2];
-        assertEquals(increased, fixture_.getQuantities()[2], 0.0);
+        assertEquals(increased, fixture_.getQuantities()[2], TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
     public final void testGetPeakQuantities() {
         double increased = ++fixture_.getPeakQuantities()[2];
-        assertEquals(increased, fixture_.getPeakQuantities()[2], 0.0);
+        assertEquals(increased, fixture_.getPeakQuantities()[2], TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -106,8 +107,8 @@ public class ShoppingListTest {
     @TestCaseName("Test #{index}: (set|get)Quantity({0},{1})")
     public final void testSetGetQuantity_NormalInput(int index, double quantity) {
         assertSame(fixture_, fixture_.setQuantity(index, quantity));
-        assertEquals(quantity, fixture_.getQuantity(index), 0.0);
-        assertEquals(quantity, fixture_.getQuantities()[index], 0.0);
+        assertEquals(quantity, fixture_.getQuantity(index), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(quantity, fixture_.getQuantities()[index], TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -129,8 +130,8 @@ public class ShoppingListTest {
     @TestCaseName("Test #{index}: (set|get)PeakQuantity({0},{1})")
     public final void testSetGetPeakQuantity_NormalInput(int index, double peakQuantity) {
         assertSame(fixture_, fixture_.setPeakQuantity(index, peakQuantity));
-        assertEquals(peakQuantity, fixture_.getPeakQuantity(index), 0.0);
-        assertEquals(peakQuantity, fixture_.getPeakQuantities()[index], 0.0);
+        assertEquals(peakQuantity, fixture_.getPeakQuantity(index), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(peakQuantity, fixture_.getPeakQuantities()[index], TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IndexOutOfBoundsException.class)

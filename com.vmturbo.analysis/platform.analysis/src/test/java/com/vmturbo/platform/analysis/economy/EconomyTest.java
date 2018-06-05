@@ -25,6 +25,7 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the {@link Economy} class.
@@ -369,11 +370,11 @@ public class EconomyTest {
 
                         // test quantity between commodities
                         double quantity = commodityBought1.getQuantity();
-                        assertEquals(quantity, commodityBought2.getQuantity(), 0);
+                        assertEquals(quantity, commodityBought2.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         commodityBought1.setQuantity(quantity += 1.5);
-                        assertEquals(quantity, commodityBought2.getQuantity(), 0);
+                        assertEquals(quantity, commodityBought2.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         commodityBought2.setQuantity(quantity += 1.5);
-                        assertEquals(quantity, commodityBought1.getQuantity(), 0);
+                        assertEquals(quantity, commodityBought1.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
 
                         // resetting quantity. If qnty > peakQnty, we reset peakQnty to qnty
                         quantity=0;
@@ -381,27 +382,27 @@ public class EconomyTest {
                         commodityBought2.setQuantity(quantity);
                         // test peak quantity between commodities
                         double peakQuantity = commodityBought1.getPeakQuantity();
-                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
+                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         commodityBought1.setPeakQuantity(peakQuantity += 1.5);
-                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), 0);
+                        assertEquals(peakQuantity, commodityBought2.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         commodityBought2.setPeakQuantity(peakQuantity += 1.5);
-                        assertEquals(peakQuantity, commodityBought1.getPeakQuantity(), 0);
+                        assertEquals(peakQuantity, commodityBought1.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
 
                         // test quantity between commodity and vector
                         quantity = commodityBought1.getQuantity();
-                        assertEquals(quantity, shoppingList.getQuantities()[i], 0);
+                        assertEquals(quantity, shoppingList.getQuantities()[i], TestUtils.FLOATING_POINT_DELTA);
                         commodityBought1.setQuantity(quantity += 1.5);
-                        assertEquals(quantity, shoppingList.getQuantities()[i], 0);
+                        assertEquals(quantity, shoppingList.getQuantities()[i], TestUtils.FLOATING_POINT_DELTA);
                         shoppingList.getQuantities()[i] = quantity += 1.5;
-                        assertEquals(quantity, commodityBought1.getQuantity(), 0);
+                        assertEquals(quantity, commodityBought1.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
 
                         // test peak quantity between commodity and vector
                         peakQuantity = commodityBought1.getPeakQuantity();
-                        assertEquals(peakQuantity, shoppingList.getPeakQuantities()[i], 0);
+                        assertEquals(peakQuantity, shoppingList.getPeakQuantities()[i], TestUtils.FLOATING_POINT_DELTA);
                         commodityBought1.setPeakQuantity(peakQuantity += 1.5);
-                        assertEquals(peakQuantity, shoppingList.getPeakQuantities()[i], 0);
+                        assertEquals(peakQuantity, shoppingList.getPeakQuantities()[i], TestUtils.FLOATING_POINT_DELTA);
                         shoppingList.getPeakQuantities()[i] = quantity += 1.5;
-                        assertEquals(quantity, commodityBought1.getPeakQuantity(), 0);
+                        assertEquals(quantity, commodityBought1.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                     }
                 }
             }
@@ -552,8 +553,8 @@ public class EconomyTest {
                         addedCommodity.setPeakQuantity(peakQuantity);
 
                         for (CommodityBought commodityBought : economy.getCommoditiesBought(newShoppingList)) {
-                            assertEquals(quantity, commodityBought.getQuantity(), 0);
-                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), 0);
+                            assertEquals(quantity, commodityBought.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         }
 
                         quantity += 1.1;
@@ -586,8 +587,8 @@ public class EconomyTest {
                         assertFalse(economy.getMarket(newShoppingList).getBasket().contains(specification));
 
                         for (CommodityBought commodityBought : economy.getCommoditiesBought(newShoppingList)) {
-                            assertEquals(quantity, commodityBought.getQuantity(), 0);
-                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), 0);
+                            assertEquals(quantity, commodityBought.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+                            assertEquals(peakQuantity, commodityBought.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
                         }
 
                         quantity += 1.1;

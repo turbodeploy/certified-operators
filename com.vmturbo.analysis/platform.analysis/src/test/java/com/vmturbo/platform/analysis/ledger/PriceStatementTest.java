@@ -16,7 +16,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
  */
 public class PriceStatementTest {
 
-    private static final double E = 0.0000000001;
     private static final double MAX_UNIT_PRICE = 1e22;
 
     /**
@@ -51,8 +50,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -76,8 +75,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -101,8 +100,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 4.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 4.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -126,8 +125,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 11.1111111111, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 11.1111111111, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -153,8 +152,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 4.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 4.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -180,8 +179,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 11.1111111111, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 11.1111111111, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -208,8 +207,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -236,8 +235,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 25.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 25.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -264,8 +263,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 100.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 100.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -296,8 +295,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 25.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 25.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -328,8 +327,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 100.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 100.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -353,8 +352,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -383,8 +382,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -413,8 +412,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 5.0625, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 5.0625, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -443,8 +442,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 20.25, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 20.25, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -475,8 +474,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 5.0625, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 5.0625, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -507,8 +506,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 64.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 64.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -540,8 +539,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -573,8 +572,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), MAX_UNIT_PRICE, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), MAX_UNIT_PRICE, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -606,8 +605,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), MAX_UNIT_PRICE, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), MAX_UNIT_PRICE, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 1.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -643,8 +642,8 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 64.0, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), 64.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -680,7 +679,7 @@ public class PriceStatementTest {
         PriceStatement priceStatement = new PriceStatement();
         priceStatement.computePriceIndex(economy);
 
-        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), MAX_UNIT_PRICE, E);
-        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, E);
+        assertEquals(priceStatement.getTraderPriceStatements().get(0).getPriceIndex(), MAX_UNIT_PRICE, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(priceStatement.getTraderPriceStatements().get(1).getPriceIndex(), 10000.0, TestUtils.FLOATING_POINT_DELTA);
     }
 }

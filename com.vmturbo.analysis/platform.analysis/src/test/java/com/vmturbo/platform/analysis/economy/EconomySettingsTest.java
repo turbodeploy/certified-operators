@@ -10,6 +10,7 @@ import org.junit.runner.RunWith;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the {@link EconomySettings} class.
@@ -31,7 +32,7 @@ public class EconomySettingsTest {
         @NonNull EconomySettings settings = new EconomySettings();
 
         assertEquals(EconomySettings.DEFAULT_MIN_SELLERS_FOR_PARALLELISM, settings.getMinSellersForParallelism());
-        assertEquals(EconomySettings.DEFAULT_QUOTE_FACTOR, settings.getQuoteFactor(), 0f);
+        assertEquals(EconomySettings.DEFAULT_QUOTE_FACTOR, settings.getQuoteFactor(), TestUtils.FLOATING_POINT_DELTA);
 
         // Sanity check: make sure initial values are valid.
         settings.setMinSellersForParallelism(settings.getMinSellersForParallelism());
@@ -58,7 +59,7 @@ public class EconomySettingsTest {
     @TestCaseName("Test #{index}: (set|get)QuoteFactor({0})")
     public final void testSetGetQuoteFactor_NormalInput(double quoteFactor) {
         fixture_.setQuoteFactor(quoteFactor);
-        assertEquals(quoteFactor, fixture_.getQuoteFactor(), 0f);
+        assertEquals(quoteFactor, fixture_.getQuoteFactor(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -75,7 +76,7 @@ public class EconomySettingsTest {
         fixture_.setMinSellersForParallelism(minSellers);
         fixture_.clear();
         assertEquals(EconomySettings.DEFAULT_MIN_SELLERS_FOR_PARALLELISM, fixture_.getMinSellersForParallelism());
-        assertEquals(EconomySettings.DEFAULT_QUOTE_FACTOR, fixture_.getQuoteFactor(), 0f);
+        assertEquals(EconomySettings.DEFAULT_QUOTE_FACTOR, fixture_.getQuoteFactor(), TestUtils.FLOATING_POINT_DELTA);
         // TODO: compare with newly constructed object when we implement equals.
     }
 

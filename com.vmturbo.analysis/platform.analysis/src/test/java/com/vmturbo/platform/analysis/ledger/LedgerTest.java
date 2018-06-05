@@ -24,6 +24,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.utility.ListTests;
 
@@ -318,7 +319,7 @@ public class LedgerTest {
         // The compareTo is a flag that decide how
         // we compare the result
         if (compareTo == 0) {
-            assertEquals(result, exp, 1e-15);
+            assertEquals(result, exp, TestUtils.FLOATING_POINT_DELTA);
         } else if (compareTo < 0) {
             assertTrue(exp > result);
         } else {
@@ -393,7 +394,7 @@ public class LedgerTest {
 
         // assert seller's revenue equals revenues from top 2 commodities
         double totalRev = revFromComm.get(0) + revFromComm.get(1);
-        assertEquals(sellerIncomeStmt.getRevenues(), totalRev, 0);
+        assertEquals(sellerIncomeStmt.getRevenues(), totalRev, TestUtils.FLOATING_POINT_DELTA);
 
         // change max, min desired util
         revFromComm.clear();
@@ -414,7 +415,7 @@ public class LedgerTest {
         }
 
         totalRev = revFromComm.get(0) + revFromComm.get(1);
-        assertEquals(sellerIncomeStmt.getRevenues(), totalRev, 0);
+        assertEquals(sellerIncomeStmt.getRevenues(), totalRev, TestUtils.FLOATING_POINT_DELTA);
 
 
         // apply a step price function
@@ -444,7 +445,7 @@ public class LedgerTest {
         }
 
         totalRev = revFromComm.get(0) + revFromComm.get(1);
-        assertEquals(sellerIncomeStmt.getRevenues(), totalRev, 0);
+        assertEquals(sellerIncomeStmt.getRevenues(), totalRev, TestUtils.FLOATING_POINT_DELTA);
 
     }
 
@@ -504,7 +505,7 @@ public class LedgerTest {
 
         // assert seller's revenue equals revenues from top 2 commodities
         double totalRev = revFromComm.get(0) + revFromComm.get(1);
-        assertEquals(sellerIncomeStmt.getRevenues(), totalRev, 0);
+        assertEquals(sellerIncomeStmt.getRevenues(), totalRev, TestUtils.FLOATING_POINT_DELTA);
 
         //2.  Test some commodities over max desired utilization
         commSpecSold.clear();
@@ -555,7 +556,7 @@ public class LedgerTest {
 
         // assert seller's revenue equals revenues from top 2 commodities
         totalRev = revFromComm.get(0) + revFromComm.get(1);
-        assertEquals(seller1IncomeStmt.getRevenues(), totalRev, 0);
+        assertEquals(seller1IncomeStmt.getRevenues(), totalRev, TestUtils.FLOATING_POINT_DELTA);
     }
 
 } // end LedgerTest class

@@ -19,6 +19,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 import junitparams.JUnitParamsRunner;
@@ -51,8 +52,8 @@ public class ResizeTest {
 
         assertSame(sellingTrader, resize.getSellingTrader());
         assertSame(resizedCommodity, resize.getResizedCommoditySpec());
-        assertEquals(oldCapacity, resize.getOldCapacity(), 0f);
-        assertEquals(newCapacity, resize.getNewCapacity(), 0f);
+        assertEquals(oldCapacity, resize.getOldCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(newCapacity, resize.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -67,8 +68,8 @@ public class ResizeTest {
 
         assertSame(sellingTrader, resize.getSellingTrader());
         assertSame(resizedCommodity, resize.getResizedCommoditySpec());
-        assertEquals(oldCapacity, resize.getOldCapacity(), 0f);
-        assertEquals(newCapacity, resize.getNewCapacity(), 0f);
+        assertEquals(oldCapacity, resize.getOldCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(newCapacity, resize.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -201,10 +202,10 @@ public class ResizeTest {
         @NonNull Resize resize = new Resize(economy, sellingTrader, resizedCommodity, oldCapacity, newCapacity);
 
         assertSame(resize, resize.take());
-        assertEquals(newCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), 0f);
+        assertEquals(newCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
 
         assertSame(resize, resize.rollback());
-        assertEquals(oldCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), 0f);
+        assertEquals(oldCapacity, sellingTrader.getCommoditySold(resizedCommodity).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
         // TODO: test that sellingTrader is otherwise left unchanged by both operations.
     }
 

@@ -41,7 +41,7 @@ public class CostFunctionTest {
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm3,
                         new double[] {10, 200}, null);
         assertEquals((10 * 0.125 + 200 * 0.065),
-                        io1Function.calculateCost(sl3, io1, true, economy), 0.0);
+                        io1Function.calculateCost(sl3, io1, true, economy), TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -64,7 +64,7 @@ public class CostFunctionTest {
         ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT), vm2, new double[] {64}, null);
         assertEquals(10.21, premiumManagedFunction.calculateCost(sl2, premiumManaged, true, economy),
-                        0.0);
+                        TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -85,7 +85,7 @@ public class CostFunctionTest {
                         Arrays.asList(TestUtils.ST_AMT), vm1, new double[] {2000}, null);
         assertEquals(0.05 * 1024 + 0.10 * (2000 - 1024),
                         standardUnManagedFunction.calculateCost(sl1,
-                        standardUnManaged, true, economy), 0);
+                        standardUnManaged, true, economy), TestUtils.FLOATING_POINT_DELTA);
 
     }
 }

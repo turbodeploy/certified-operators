@@ -328,9 +328,9 @@ public class ProvisionBySupplyTest {
        assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.APP_TYPE)
                   .count() == 3);
        assertTrue(provision1.getActionTarget().getCustomers().size() == 1);
-       assertEquals(100.0, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], 0);
-       assertEquals(100.0, sl3.getQuantities()[0], 0);
-       assertEquals(100.0, sl4.getQuantities()[0], 0);
+       assertEquals(100.0, provision1.getActionTarget().getCustomers().get(0).getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+       assertEquals(100.0, sl3.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+       assertEquals(100.0, sl4.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
 
        provision1.rollback();
        assertTrue(e.getTraders().size() == 5);

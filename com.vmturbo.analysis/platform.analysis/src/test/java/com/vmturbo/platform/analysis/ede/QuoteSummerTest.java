@@ -15,6 +15,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the {@link QuoteSummer} class.
@@ -33,7 +34,7 @@ public class QuoteSummerTest {
 
         assertSame(economy, summer.getEconomy());
         assertSame(clique, summer.getClique());
-        assertEquals(0.0, summer.getTotalQuote(), 0f);
+        assertEquals(0.0, summer.getTotalQuote(), TestUtils.FLOATING_POINT_DELTA);
         assertTrue(summer.getBestSellers().isEmpty());
     }
 

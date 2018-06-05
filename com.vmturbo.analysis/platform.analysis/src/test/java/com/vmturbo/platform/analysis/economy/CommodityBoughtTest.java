@@ -11,6 +11,7 @@ import org.junit.runner.RunWith;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the CommodityBought class.
@@ -64,7 +65,7 @@ public class CommodityBoughtTest {
     @TestCaseName("Test #{index}: (set|get)Quantity({0})")
     public final void testGetSetQuantity_NormalInput(double quantity) {
         fixture_.setQuantity(quantity);
-        assertEquals(quantity, fixture_.getQuantity(), 0.0);
+        assertEquals(quantity, fixture_.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -79,7 +80,7 @@ public class CommodityBoughtTest {
     @TestCaseName("Test #{index}: (set|get)PeakQuantity({0})")
     public final void testGetSetPeakQuantity_NormalInput(double peakQuantity) {
         fixture_.setPeakQuantity(peakQuantity);
-        assertEquals(peakQuantity, fixture_.getPeakQuantity(), 0.0);
+        assertEquals(peakQuantity, fixture_.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)

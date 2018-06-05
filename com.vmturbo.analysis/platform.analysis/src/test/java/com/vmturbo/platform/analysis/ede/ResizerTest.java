@@ -318,13 +318,13 @@ public class ResizerTest {
         assertEquals(resize1.getActionTarget(), vm);
         assertTrue(resize1.getOldCapacity() < resize1.getNewCapacity());
         double estimatedNewCapacity = resize1.getOldCapacity() + 20;
-        assertEquals(resize1.getNewCapacity(), estimatedNewCapacity, 0.001);
+        assertEquals(resize1.getNewCapacity(), estimatedNewCapacity, TestUtils.FLOATING_POINT_DELTA);
         assertEquals(ActionType.RESIZE, actions.get(1).getType());
         Resize resize2 = (Resize)actions.get(1);
         assertEquals(resize2.getActionTarget(), vm);
         assertTrue(resize2.getOldCapacity() < resize2.getNewCapacity());
         estimatedNewCapacity = resize2.getOldCapacity() + 20;
-        assertEquals(resize2.getNewCapacity(), estimatedNewCapacity, 0.001);
+        assertEquals(resize2.getNewCapacity(), estimatedNewCapacity, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -350,11 +350,11 @@ public class ResizerTest {
         assertEquals(ActionType.RESIZE, actions.get(0).getType());
         Resize resize1 = (Resize)actions.get(0);
         assertEquals(resize1.getActionTarget(), vm);
-        assertEquals(resize1.getNewCapacity(), resize1.getOldCapacity() - 10, 0.001);
+        assertEquals(resize1.getNewCapacity(), resize1.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
         assertEquals(ActionType.RESIZE, actions.get(1).getType());
         Resize resize2 = (Resize)actions.get(1);
         assertEquals(resize2.getActionTarget(), vm);
-        assertEquals(resize2.getNewCapacity(),  resize2.getOldCapacity() - 10, 0.001);
+        assertEquals(resize2.getNewCapacity(),  resize2.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
 
     }
 

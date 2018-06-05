@@ -9,6 +9,7 @@ import org.junit.runner.RunWith;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * A test case for the {@link Cache} class.
@@ -52,7 +53,7 @@ public class CacheTest {
     }
 
     private static final double ONE = 1.0;
-    private static final double delta = 1e-10; // used in assertEquals(double, double, delta)
+    private static final double delta = 1e-10;
 
     private static final double CONST = 40;
     private static final PriceFunction pfConst = Cache.createConstantPriceFunction(CONST);
@@ -64,7 +65,7 @@ public class CacheTest {
      * Test that the values returned by the constant price function are as expected
      */
     public void testValuesConst(double u, double ut, double p) {
-        assertEquals(CONST, pfConst.unitPrice(u/ut, null, null, null, null), delta);
+        assertEquals(CONST, pfConst.unitPrice(u/ut, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused")
@@ -88,7 +89,7 @@ public class CacheTest {
      * Test that the values returned by the step price function are as expected
      */
     public void testValuesStep(double u, double ut, double p) {
-        assertEquals(p, pfStep.unitPrice(u/ut, null, null, null, null), delta);
+        assertEquals(p, pfStep.unitPrice(u/ut, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused")
@@ -111,7 +112,7 @@ public class CacheTest {
      * Test that the values returned by the standard weighted price function are as expected
      */
     public void testValuesStandardWeighted(double u, double factor) {
-        assertEquals(factor * WEIGHT, pfStd.unitPrice(u, null, null, null, null), delta);
+        assertEquals(factor * WEIGHT, pfStd.unitPrice(u, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused")
@@ -133,7 +134,7 @@ public class CacheTest {
     @Parameters
     @TestCaseName("Test #{index}: Custom price function with value {0}")
     public void testCustom(double d) {
-        assertEquals(pfCustom.unitPrice(d, null, null, null, null), uod.unitPrice(d, null, null, null, null), delta);
+        assertEquals(pfCustom.unitPrice(d, null, null, null, null), uod.unitPrice(d, null, null, null, null), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @SuppressWarnings("unused") // it is used reflectively

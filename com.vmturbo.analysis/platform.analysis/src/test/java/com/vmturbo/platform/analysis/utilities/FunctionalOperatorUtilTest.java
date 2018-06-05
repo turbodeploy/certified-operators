@@ -16,7 +16,6 @@ public class FunctionalOperatorUtilTest {
     Trader vm;
     Trader pm;
     ShoppingList sl1, sl2;
-    double epsilon = 0.00001;
 
     /**
      * Set up before tests.
@@ -45,8 +44,8 @@ public class FunctionalOperatorUtilTest {
     public void testAddComm() {
         double[] res = FunctionalOperatorUtil.ADD_COMM.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
-        Assert.assertEquals(80, res[0], epsilon);
-        Assert.assertEquals(150, res[1], epsilon);
+        Assert.assertEquals(80, res[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(150, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -58,8 +57,8 @@ public class FunctionalOperatorUtilTest {
     public void testSubComm() {
         double[] res = FunctionalOperatorUtil.SUB_COMM.operate(sl1, 0,
                         pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
-        Assert.assertEquals(0, res[0], epsilon);
-        Assert.assertEquals(0, res[1], epsilon);
+        Assert.assertEquals(0, res[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(0, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -86,14 +85,14 @@ public class FunctionalOperatorUtilTest {
 
         double[] res1 = FunctionalOperatorUtil.UPDATE_EXPENSES.operate(sl3, 0,
                         pm1.getCommoditySold(TestUtils.COST_COMMODITY), pm1, economy, false, 0);
-        Assert.assertEquals(210, res1[0], epsilon);
-        Assert.assertEquals(0, res1[1], epsilon);
+        Assert.assertEquals(210, res1[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(0, res1[1], TestUtils.FLOATING_POINT_DELTA);
 
         double[] res2 = FunctionalOperatorUtil.UPDATE_EXPENSES.operate(sl3, 0,
                         pm1.getCommoditySold(TestUtils.COST_COMMODITY), pm1, economy, true, 0);
 
-        Assert.assertEquals(40, res2[0], epsilon);
-        Assert.assertEquals(60, res2[1], epsilon);
+        Assert.assertEquals(40, res2[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(60, res2[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -108,13 +107,13 @@ public class FunctionalOperatorUtilTest {
     public void testIgnoreConsumption() {
         double[] res1 = FunctionalOperatorUtil.IGNORE_CONSUMPTION.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), null, null, true, 0);
-        Assert.assertEquals(50, res1[0], epsilon);
-        Assert.assertEquals(90, res1[1], epsilon);
+        Assert.assertEquals(50, res1[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(90, res1[1], TestUtils.FLOATING_POINT_DELTA);
 
         double[] res2 = FunctionalOperatorUtil.IGNORE_CONSUMPTION.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
-        Assert.assertEquals(0, res2[0], epsilon);
-        Assert.assertEquals(0, res2[1], epsilon);
+        Assert.assertEquals(0, res2[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(0, res2[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -131,17 +130,17 @@ public class FunctionalOperatorUtilTest {
         // Add one more shopping list.
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
                         new double[] {10}, new double[] {10}, pm);
-        Assert.assertEquals(2, pm.getCustomers().size(), 0);
+        Assert.assertEquals(2, pm.getCustomers().size());
 
         double[] res1 = FunctionalOperatorUtil.AVG_COMMS.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), pm, null, true, 0);
-        Assert.assertEquals(75, res1[0], epsilon);
-        Assert.assertEquals(120, res1[1], epsilon);
+        Assert.assertEquals(75, res1[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(120, res1[1], TestUtils.FLOATING_POINT_DELTA);
 
         double[] res2 = FunctionalOperatorUtil.AVG_COMMS.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), pm, null, false, 0);
-        Assert.assertEquals(60, res2[0], epsilon);
-        Assert.assertEquals(90, res2[1], epsilon);
+        Assert.assertEquals(60, res2[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(90, res2[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -153,8 +152,8 @@ public class FunctionalOperatorUtilTest {
     public void testMaxComm() {
         double[] res = FunctionalOperatorUtil.MAX_COMM.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
-        Assert.assertEquals(50, res[0], epsilon);
-        Assert.assertEquals(90, res[1], epsilon);
+        Assert.assertEquals(50, res[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(90, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -166,8 +165,8 @@ public class FunctionalOperatorUtilTest {
     public void testMinComm() {
         double[] res = FunctionalOperatorUtil.MIN_COMM.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), null, null, false, 0);
-        Assert.assertEquals(30, res[0], epsilon);
-        Assert.assertEquals(60, res[1], epsilon);
+        Assert.assertEquals(30, res[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(60, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**
@@ -179,7 +178,7 @@ public class FunctionalOperatorUtilTest {
     public void testReturnBoughtComm() {
         double[] res = FunctionalOperatorUtil.RETURN_BOUGHT_COMM.operate(sl2, 0, null, null, null,
                         false, 0);
-        Assert.assertEquals(30, res[0], epsilon);
-        Assert.assertEquals(60, res[1], epsilon);
+        Assert.assertEquals(30, res[0], TestUtils.FLOATING_POINT_DELTA);
+        Assert.assertEquals(60, res[1], TestUtils.FLOATING_POINT_DELTA);
     }
 }

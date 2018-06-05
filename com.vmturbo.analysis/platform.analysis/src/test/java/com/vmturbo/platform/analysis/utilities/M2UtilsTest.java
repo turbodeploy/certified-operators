@@ -29,6 +29,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -222,18 +223,18 @@ public class M2UtilsTest {
         // StorageAmount
         CommoditySold storageAmount = ds.getCommoditySold(new CommoditySpecification(
              topology.getCommodityTypes().getId("Abstraction:StorageAmount")));
-        assertEquals(673442.4, storageAmount.getCapacity(), 1e-9);
-        assertEquals(96092.0, storageAmount.getQuantity(), 1e-9);
-        assertEquals(0.0, storageAmount.getPeakQuantity(), 1e-9);
-        assertEquals(0.14268778, storageAmount.getUtilization(), 1e-5);
+        assertEquals(673442.4, storageAmount.getCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(96092.0, storageAmount.getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(0.0, storageAmount.getPeakQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(0.14268778, storageAmount.getUtilization(), TestUtils.FLOATING_POINT_DELTA);
 
         CommoditySoldSettings storageAmountSettings = storageAmount.getSettings();
-        assertEquals(0.9, storageAmountSettings.getUtilizationUpperBound(), 1e-9);
+        assertEquals(0.9, storageAmountSettings.getUtilizationUpperBound(), TestUtils.FLOATING_POINT_DELTA);
         // StorageAccess
         CommoditySold storageAccess = ds.getCommoditiesSold().get(1);
         CommoditySoldSettings storageAccessSettings = storageAccess.getSettings();
         // When unset, utilThreshold should be 1.0
-        assertEquals(1.0, storageAccessSettings.getUtilizationUpperBound(), 1e-9);
+        assertEquals(1.0, storageAccessSettings.getUtilizationUpperBound(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test

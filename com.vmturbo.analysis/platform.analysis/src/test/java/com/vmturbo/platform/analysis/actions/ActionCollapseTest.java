@@ -149,8 +149,8 @@ public class ActionCollapseTest {
         List<Action> collapsed = ActionCollapse.collapsed(actions);
         assertEquals(1, collapsed.size());
         Resize collapsedResize = (Resize)collapsed.get(0);
-        assertEquals(cap3, collapsedResize.getNewCapacity(), 1e-5);
-        assertEquals(cap0, collapsedResize.getOldCapacity(), 1e-5);
+        assertEquals(cap3, collapsedResize.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(cap0, collapsedResize.getOldCapacity(), TestUtils.FLOATING_POINT_DELTA);
         // Add another Resize so that the actions get cancelled
         Resize r4 = new Resize(economy, t, new CommoditySpecification(0), cap0);
         actions.add(r4);
@@ -218,17 +218,17 @@ public class ActionCollapseTest {
         Resize collapsed1 = (Resize) collapsedActions.get(0);
         assertEquals(t1, collapsed1.getSellingTrader());
         assertEquals(C0, collapsed1.getResizedCommoditySpec());
-        assertEquals(20, collapsed1.getNewCapacity(), 1e-5);
+        assertEquals(20, collapsed1.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
 
         Resize collapsed2 = (Resize) collapsedActions.get(1);
         assertEquals(t2, collapsed2.getSellingTrader());
         assertEquals(C0, collapsed2.getResizedCommoditySpec());
-        assertEquals(60, collapsed2.getNewCapacity(), 1e-5);
+        assertEquals(60, collapsed2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
 
         Resize collapsed3 = (Resize) collapsedActions.get(2);
         assertEquals(t1, collapsed3.getSellingTrader());
         assertEquals(C1, collapsed3.getResizedCommoditySpec());
-        assertEquals(40, collapsed3.getNewCapacity(), 1e-5);
+        assertEquals(40, collapsed3.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     /*

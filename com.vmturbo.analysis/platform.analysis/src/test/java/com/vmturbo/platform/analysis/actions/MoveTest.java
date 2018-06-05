@@ -18,6 +18,7 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
@@ -154,10 +155,10 @@ public final class MoveTest {
 
         new Move(economy,shoppingList,pm1).take();
 
-        assertEquals(10, shoppingList.getQuantities()[0], 0f);
-        assertEquals(20, shoppingList.getQuantities()[1], 0f);
-        assertEquals(13, pm1.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals(26, pm1.getCommoditySold(MEM).getQuantity(), 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(20, shoppingList.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(13, pm1.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(26, pm1.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test // Case where the supplier sells the exact basket requested
@@ -179,12 +180,12 @@ public final class MoveTest {
 
         new Move(economy,shoppingList,pm2).take();
 
-        assertEquals(10, shoppingList.getQuantities()[0], 0f);
-        assertEquals(20, shoppingList.getQuantities()[1], 0f);
-        assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals(5, pm1.getCommoditySold(MEM).getQuantity(), 0f);
-        assertEquals(13, pm2.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals(26, pm2.getCommoditySold(MEM).getQuantity(), 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(20, shoppingList.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(5, pm1.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(13, pm2.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(26, pm2.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test // Case where the current supplier sells a subset or requested basket
@@ -208,14 +209,14 @@ public final class MoveTest {
 
         new Move(economy,shoppingList,pm2).take();
 
-        assertEquals(10, shoppingList.getQuantities()[0], 0f);
-        assertEquals(20, shoppingList.getQuantities()[1], 0f);
-        assertEquals(30, shoppingList.getQuantities()[2], 0f);
-        assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals(7, pm1.getCommoditySold(MEM).getQuantity(), 0f);
-        assertEquals(13, pm2.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals(26, pm2.getCommoditySold(DRS).getQuantity(), 0f);
-        assertEquals(39, pm2.getCommoditySold(MEM).getQuantity(), 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(20, shoppingList.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(30, shoppingList.getQuantities()[2], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(7, pm1.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(13, pm2.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(26, pm2.getCommoditySold(DRS).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(39, pm2.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test // Case where the current supplier sells a superset of requested basket
@@ -239,14 +240,14 @@ public final class MoveTest {
 
         new Move(economy,shoppingList,pm2).take();
 
-        assertEquals(10, shoppingList.getQuantities()[0], 0f);
-        assertEquals(30, shoppingList.getQuantities()[1], 0f);
-        assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals(25, pm1.getCommoditySold(DRS).getQuantity(), 0f);
-        assertEquals(7, pm1.getCommoditySold(MEM).getQuantity(), 0f);
-        assertEquals(13, pm2.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals(6, pm2.getCommoditySold(DRS).getQuantity(), 0f);
-        assertEquals(39, pm2.getCommoditySold(MEM).getQuantity(), 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(30, shoppingList.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(2, pm1.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(25, pm1.getCommoditySold(DRS).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(7, pm1.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(13, pm2.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(6, pm2.getCommoditySold(DRS).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(39, pm2.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test // That if the old and new supplier are the same, the move will have no effect.
@@ -265,17 +266,17 @@ public final class MoveTest {
 
         Move move = new Move(economy,shoppingList,pm).take();
 
-        assertEquals(10, shoppingList.getQuantities()[0], 0f);
-        assertEquals(20, shoppingList.getQuantities()[1], 0f);
-        assertEquals(15, pm.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals( 6, pm.getCommoditySold(MEM).getQuantity(), 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(20, shoppingList.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(15, pm.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals( 6, pm.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
 
         move.rollback();
 
-        assertEquals(10, shoppingList.getQuantities()[0], 0f);
-        assertEquals(20, shoppingList.getQuantities()[1], 0f);
-        assertEquals(15, pm.getCommoditySold(CPU).getQuantity(), 0f);
-        assertEquals( 6, pm.getCommoditySold(MEM).getQuantity(), 0f);
+        assertEquals(10, shoppingList.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(20, shoppingList.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(15, pm.getCommoditySold(CPU).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals( 6, pm.getCommoditySold(MEM).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test // non-additive commodities
@@ -325,16 +326,16 @@ public final class MoveTest {
         Action moveToPm2 = new Move(economy, part2, pm2);
 
         assertSame(moveToPm2, moveToPm2.take());
-        assertEquals(20, pm1.getCommoditySold(LAT1).getQuantity(), 0f);
-        assertEquals(30, pm2.getCommoditySold(LAT1).getQuantity(), 0f);
-        assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), 0f);
-        assertEquals(100, pm2.getCommoditySold(LAT2).getQuantity(), 0f);
+        assertEquals(20, pm1.getCommoditySold(LAT1).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(30, pm2.getCommoditySold(LAT1).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(100, pm2.getCommoditySold(LAT2).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
 
         assertSame(moveToPm2, moveToPm2.rollback());
-        assertEquals(30, pm1.getCommoditySold(LAT1).getQuantity(), 0f);
-        assertEquals(15, pm2.getCommoditySold(LAT1).getQuantity(), 0f);
-        assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), 0f);
-        assertEquals(0, pm2.getCommoditySold(LAT2).getQuantity(), 0f);
+        assertEquals(30, pm1.getCommoditySold(LAT1).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(15, pm2.getCommoditySold(LAT1).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(150, pm1.getCommoditySold(LAT2).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(0, pm2.getCommoditySold(LAT2).getQuantity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test

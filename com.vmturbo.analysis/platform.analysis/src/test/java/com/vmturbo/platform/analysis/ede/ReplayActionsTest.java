@@ -31,6 +31,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 public class ReplayActionsTest {
 
@@ -169,7 +170,7 @@ public class ReplayActionsTest {
                                CPU,
                                pm1.getCommoditySold(CPU),
                                second, second.getTopology());
-        assertEquals(100, newCommSold.getCapacity(), .01);
+        assertEquals(100, newCommSold.getCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test

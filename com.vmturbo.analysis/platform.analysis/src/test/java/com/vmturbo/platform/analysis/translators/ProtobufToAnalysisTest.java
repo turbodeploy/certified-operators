@@ -32,6 +32,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Constant;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.Step;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 /**
  * A test case for the {@link ProtobufToAnalysis} class.
  */
@@ -149,10 +150,10 @@ public class ProtobufToAnalysisTest {
         ShoppingListTO shopTO = ShoppingListTO.newBuilder().setOid(0).addCommoditiesBought(commBoughtTO1).addCommoditiesBought(commBoughtTO2).build();
         ShoppingList shopList = ProtobufToAnalysis.addShoppingList(topo, buyer, shopTO);
         assertEquals(buyer, shopList.getBuyer());
-        assertEquals(50, shopList.getPeakQuantities()[0], 0);
-        assertEquals(100, shopList.getPeakQuantities()[1], 0);
-        assertEquals(50, shopList.getQuantities()[0], 0);
-        assertEquals(100, shopList.getQuantities()[1], 0);
+        assertEquals(50, shopList.getPeakQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(100, shopList.getPeakQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(50, shopList.getQuantities()[0], TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(100, shopList.getQuantities()[1], TestUtils.FLOATING_POINT_DELTA);
 
     }
 

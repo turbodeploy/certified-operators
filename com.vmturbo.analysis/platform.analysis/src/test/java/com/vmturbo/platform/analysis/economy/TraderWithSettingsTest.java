@@ -15,6 +15,7 @@ import org.junit.runner.RunWith;
 import com.vmturbo.platform.analysis.utility.CollectionTests;
 import com.vmturbo.platform.analysis.utility.ListTests;
 import com.vmturbo.platform.analysis.utility.MapTests;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
@@ -344,7 +345,7 @@ public final class TraderWithSettingsTest {
     public final void testGetSetMaxDesiredUtil_NormalInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture_.setMinDesiredUtil(minDesiredUtilization);
         fixture_.setMaxDesiredUtil(maxDesiredUtilization);
-        assertEquals(maxDesiredUtilization, fixture_.getMaxDesiredUtil(), 0.0);
+        assertEquals(maxDesiredUtilization, fixture_.getMaxDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -365,7 +366,7 @@ public final class TraderWithSettingsTest {
     public final void testGetSetMinDesiredUtil_NormalInput(double minDesiredUtilization, double maxDesiredUtilization) {
         fixture_.setMaxDesiredUtil(maxDesiredUtilization);
         fixture_.setMinDesiredUtil(minDesiredUtilization);
-        assertEquals(minDesiredUtilization, fixture_.getMinDesiredUtil(), 0.0);
+        assertEquals(minDesiredUtilization, fixture_.getMinDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)

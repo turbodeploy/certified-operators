@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 public class EconomyCloneTest {
 
@@ -64,7 +65,7 @@ public class EconomyCloneTest {
         ShoppingList cloneShoppingList = cloneSeller.getCustomers().get(0);
         double cloneQuote = EdeCommon.quote(clone, cloneShoppingList, cloneSeller, Double.POSITIVE_INFINITY, false)[0];
         assertTrue(quote > 0); // Just to be sure
-        assertEquals(quote, cloneQuote, 1e-8);
+        assertEquals(quote, cloneQuote, TestUtils.FLOATING_POINT_DELTA);
     }
 
     /**

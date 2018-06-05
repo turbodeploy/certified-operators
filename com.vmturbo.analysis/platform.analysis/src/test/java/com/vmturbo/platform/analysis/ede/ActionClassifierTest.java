@@ -27,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -216,7 +217,7 @@ public class ActionClassifierTest {
         CommoditySold newCommSold = replayActions
                         .translateCommoditySold(newPm1, CPU, pm1.getCommoditySold(CPU), second,
                                                 second.getTopology());
-        assertEquals(100, newCommSold.getCapacity(), .01);
+        assertEquals(100, newCommSold.getCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
 }

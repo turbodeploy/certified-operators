@@ -26,6 +26,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 
 import junitparams.JUnitParamsRunner;
@@ -63,8 +64,8 @@ public class ProvisionByDemandTest {
 
 
         // verify that the settings are updated correctly on the provisionedTrader
-        assertEquals(modelSellerSettings.getMaxDesiredUtil(), provisionedTraderSettings.getMaxDesiredUtil(), 0);
-        assertEquals(modelSellerSettings.getMinDesiredUtil(), provisionedTraderSettings.getMinDesiredUtil(), 0);
+        assertEquals(modelSellerSettings.getMaxDesiredUtil(), provisionedTraderSettings.getMaxDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(modelSellerSettings.getMinDesiredUtil(), provisionedTraderSettings.getMinDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(modelSellerSettings.isSuspendable(), provisionedTraderSettings.isSuspendable());
         assertEquals(modelSellerSettings.isGuaranteedBuyer(), provisionedTraderSettings.isGuaranteedBuyer());
         assertFalse(provisionedTraderSettings.isCloneable());
@@ -307,8 +308,8 @@ public class ProvisionByDemandTest {
         assertEquals(true,provSeller.getCommoditiesSold().get(0).getCapacity() >
                 modelSeller.getCommoditiesSold().get(0).getCapacity());
         assertEquals(modelSeller.getCommoditiesSold().get(1).getCapacity(),
-                provSeller.getCommoditiesSold().get(1).getCapacity(), 0.0);
+                provSeller.getCommoditiesSold().get(1).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(modelSeller.getCommoditiesSold().get(2).getCapacity(),
-                provSeller.getCommoditiesSold().get(2).getCapacity(), 0.0);
+                provSeller.getCommoditiesSold().get(2).getCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 } // end ProvisionByDemandTest class

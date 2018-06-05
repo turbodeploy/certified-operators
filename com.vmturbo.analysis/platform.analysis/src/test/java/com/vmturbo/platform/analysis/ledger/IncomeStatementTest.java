@@ -9,6 +9,7 @@ import org.junit.runner.RunWith;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
  * Tests for the {@link IncomeStatement} class.
@@ -31,7 +32,7 @@ public class IncomeStatementTest {
     @TestCaseName("Test #{index}: (set|get)Revenues({0})")
     public final void testSetGetRevenues_NormalInput(int revenues) {
         fixture_.setRevenues(revenues);
-        assertEquals(revenues, fixture_.getRevenues(), 0);
+        assertEquals(revenues, fixture_.getRevenues(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -39,7 +40,7 @@ public class IncomeStatementTest {
     @TestCaseName("Test #{index}: (set|get)Expenses({0})")
     public final void testSetGetExpenses_NormalInput(int expenses) {
         fixture_.setExpenses(expenses);
-        assertEquals(expenses, fixture_.getExpenses(), 0);
+        assertEquals(expenses, fixture_.getExpenses(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -47,7 +48,7 @@ public class IncomeStatementTest {
     @TestCaseName("Test #{index}: (set|get)MinDesiredExpenses({0})")
     public final void testSetGetMinDesiredExpenses_NormalInput(int minDesiredExpenses) {
         fixture_.setMinDesiredExpenses(minDesiredExpenses);
-        assertEquals(minDesiredExpenses, fixture_.getMinDesiredExpenses(), 0);
+        assertEquals(minDesiredExpenses, fixture_.getMinDesiredExpenses(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -55,7 +56,7 @@ public class IncomeStatementTest {
     @TestCaseName("Test #{index}: (set|get)MaxDesiredExpenses({0})")
     public final void testSetGetMaxDesiredExpenses_NormalInput(int maxDesiredExpenses) {
         fixture_.setMaxDesiredExpenses(maxDesiredExpenses);
-        assertEquals(maxDesiredExpenses, fixture_.getMaxDesiredExpenses(), 0);
+        assertEquals(maxDesiredExpenses, fixture_.getMaxDesiredExpenses(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -63,7 +64,7 @@ public class IncomeStatementTest {
     @TestCaseName("Test #{index}: (set|get)MinDesiredRevenues({0})")
     public final void testSetGetMinDesiredRevenues_NormalInput(int minDesiredRevenues) {
         fixture_.setMinDesiredRevenues(minDesiredRevenues);
-        assertEquals(minDesiredRevenues, fixture_.getMinDesiredRevenues(), 0);
+        assertEquals(minDesiredRevenues, fixture_.getMinDesiredRevenues(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -71,7 +72,7 @@ public class IncomeStatementTest {
     @TestCaseName("Test #{index}: (set|get)MaxDesiredRevenues({0})")
     public final void testSetGetMaxDesiredRevenues_NormalInput(int maxDesiredRevenues) {
         fixture_.setMaxDesiredRevenues(maxDesiredRevenues);
-        assertEquals(maxDesiredRevenues, fixture_.getMaxDesiredRevenues(), 0);
+        assertEquals(maxDesiredRevenues, fixture_.getMaxDesiredRevenues(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -122,9 +123,9 @@ public class IncomeStatementTest {
     public final void testGetROI_NormalInput(int revenues) {
         fixture_.setRevenues(revenues);
         fixture_.setExpenses(0);
-        assertEquals(fixture_.getROI(), fixture_.getRevenues(), 0);
+        assertEquals(fixture_.getROI(), fixture_.getRevenues(), TestUtils.FLOATING_POINT_DELTA);
         fixture_.setExpenses(100);
-        assertEquals(fixture_.getROI(), fixture_.getRevenues()/fixture_.getExpenses(), 0);
+        assertEquals(fixture_.getROI(), fixture_.getRevenues()/fixture_.getExpenses(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -133,9 +134,9 @@ public class IncomeStatementTest {
     public final void testGetMinDesiredROI_NormalInput(int minDesiredRevenues) {
         fixture_.setMinDesiredRevenues(minDesiredRevenues);
         fixture_.setMaxDesiredExpenses(0);
-        assertEquals(fixture_.getMinDesiredROI(), fixture_.getMinDesiredRevenues(), 0);
+        assertEquals(fixture_.getMinDesiredROI(), fixture_.getMinDesiredRevenues(), TestUtils.FLOATING_POINT_DELTA);
         fixture_.setMaxDesiredExpenses(100);
-        assertEquals(fixture_.getMinDesiredROI(), fixture_.getMinDesiredRevenues()/fixture_.getMaxDesiredExpenses(), 0);
+        assertEquals(fixture_.getMinDesiredROI(), fixture_.getMinDesiredRevenues()/fixture_.getMaxDesiredExpenses(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
@@ -144,9 +145,9 @@ public class IncomeStatementTest {
     public final void testGetMaxDesiredROI_NormalInput(int maxDesiredRevenues) {
         fixture_.setMaxDesiredRevenues(maxDesiredRevenues);
         fixture_.setMinDesiredExpenses(0);
-        assertEquals(fixture_.getMaxDesiredROI(), fixture_.getMaxDesiredRevenues(), 0);
+        assertEquals(fixture_.getMaxDesiredROI(), fixture_.getMaxDesiredRevenues(), TestUtils.FLOATING_POINT_DELTA);
         fixture_.setMinDesiredExpenses(100);
-        assertEquals(fixture_.getMaxDesiredROI(), fixture_.getMaxDesiredRevenues()/fixture_.getMinDesiredExpenses(), 0);
+        assertEquals(fixture_.getMaxDesiredROI(), fixture_.getMaxDesiredRevenues()/fixture_.getMinDesiredExpenses(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test
