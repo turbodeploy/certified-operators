@@ -18,6 +18,7 @@ import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
+import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
@@ -29,6 +30,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 @Import({
     TopologyProcessorApiConfig.class,
     EntityConfig.class,
+    SupplyChainValidationConfig.class,
     IdentityProviderConfig.class,
     GroupConfig.class,
     StitchingConfig.class,
@@ -78,8 +80,16 @@ public class TopologyConfig {
     @Autowired
     private TargetConfig targetConfig;
 
+    @Autowired
+    private SupplyChainValidationConfig supplyChainValidationConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
+
+    @Bean
+    public SupplyChainValidationConfig supplyChainValidationConfig() {
+        return new SupplyChainValidationConfig();
+    }
 
     @Bean
     public TopologyHandler topologyHandler() {
@@ -126,6 +136,7 @@ public class TopologyConfig {
                 discoveredSettingPolicyScanner(),
                 stitchingGroupFixer(),
                 entityConfig.entityValidator(),
+                supplyChainValidationConfig.supplyChainValidator(),
                 groupConfig.discoveredClusterConstraintCache());
     }
 

@@ -41,6 +41,7 @@ import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.rest.RESTConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
+import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
@@ -69,6 +70,7 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
     RepositoryConfig.class,
     RESTConfig.class,
     TopologyProcessorRpcConfig.class,
+    SupplyChainValidationConfig.class,
     SchedulerConfig.class,
     TargetConfig.class,
     TemplateConfig.class,

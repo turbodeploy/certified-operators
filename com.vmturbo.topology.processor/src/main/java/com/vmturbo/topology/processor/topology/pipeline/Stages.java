@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -59,6 +58,7 @@ import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
+import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -660,6 +660,29 @@ public class Stages {
                 throw new PipelineStageException(e);
             }
 
+        }
+
+        @Override
+        protected boolean required() {
+            return true;
+        }
+    }
+
+    /**
+     * This stage validates all entities within a graph according to the supply chain definitions
+     * provided by the probes.
+     */
+    public static class SupplyChainValidationStage extends PassthroughStage<GraphWithSettings> {
+        private final SupplyChainValidator supplyChainValidator;
+
+        public SupplyChainValidationStage(
+              @Nonnull final SupplyChainValidator supplyChainValidator) {
+            this.supplyChainValidator = supplyChainValidator;
+        }
+
+        @Override
+        public void passthrough(final GraphWithSettings input) throws PipelineStageException {
+            supplyChainValidator.validateTopologyEntities(input.getTopologyGraph().entities());
         }
 
         @Override

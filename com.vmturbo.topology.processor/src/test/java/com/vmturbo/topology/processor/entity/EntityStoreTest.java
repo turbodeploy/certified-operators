@@ -64,7 +64,7 @@ public class EntityStoreTest {
      */
     @Test
     public void testEntitiesDiscovered() throws Exception {
-        final String id1 = "en-target1";
+        final String id1 = "en-hypervisorTarget";
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId(id1).build();
         Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(1L, entity1);
@@ -92,7 +92,7 @@ public class EntityStoreTest {
      */
     @Test
     public void testTargetRemoval() throws Exception {
-        final String id1 = "en-target1";
+        final String id1 = "en-hypervisorTarget";
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
                 .setId(id1).build();
         addEntities(ImmutableMap.of(1L, entity1));
@@ -195,7 +195,7 @@ public class EntityStoreTest {
 
     @Test
     public void testEntitiesRestored() {
-        final String id1 = "en-target1";
+        final String id1 = "en-hypervisorTarget";
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
             .setId(id1).build();
         Map<Long, EntityDTO> entitiesMap = ImmutableMap.of(1L, entity1);
@@ -208,7 +208,7 @@ public class EntityStoreTest {
 
     @Test
     public void testRestoreMultipleEntitiesSameOidDifferentTargets() {
-        final String sharedId = "en-target1";
+        final String sharedId = "en-hypervisorTarget";
         final long sharedOid = 1L;
 
         final EntityDTO entity1 = EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_MACHINE)
