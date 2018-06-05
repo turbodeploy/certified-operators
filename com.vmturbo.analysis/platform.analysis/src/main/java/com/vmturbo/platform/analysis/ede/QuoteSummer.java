@@ -13,6 +13,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -24,18 +25,22 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
  * {@link ShoppingList}s assuming the best supplier for each one.
  *
  * <p>
- *  This is intended to be used with {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}.
+ *  This is intended to be used with {@link Stream#collect(Trader, BiConsumer, BiConsumer)}.
  * </p>
  */
 final class QuoteSummer {
     // Auxiliary Fields
-    private final @NonNull UnmodifiableEconomy economy_; // should contain all the shopping lists
+    private final @NonNull Economy economy_; // should contain all the shopping lists
                                                         // and markets that are passed to #accept.
     private final long clique_; // the k-partite clique for which to compute the total quote.
 
     // Accumulator Fields
     private final @NonNull List<@Nullable Trader> bestSellers_ = new ArrayList<>(); // will contain
                                 // one seller for each (shopping list, market) pair passed to #accept.
+
+    // List of simulatedActions constituent Move actions of a CompoundMove
+    private final @NonNull List<@Nullable Move> simulatedMoveActions_ = new ArrayList<>();
+
     private double totalQuote_ = 0.0; // will accumulate the sum of all best quotes.
 
     // Cached data
@@ -50,7 +55,7 @@ final class QuoteSummer {
      * @param economy See {@link #getEconomy()}.
      * @param quality See {@link #getClique()}.
      */
-    public QuoteSummer(@NonNull UnmodifiableEconomy economy, long quality) {
+    public QuoteSummer(@NonNull Economy economy, long quality) {
         economy_ = economy;
         clique_ = quality;
     }
@@ -102,6 +107,16 @@ final class QuoteSummer {
         return unmodifiableBestSellers_;
     }
 
+    /**
+     * Returns an list of the Move actions to the sellers that offered the minimum quote per
+     * (shopping list, market) pair seen by {@code this} summer.
+     *
+     */
+    @Pure
+    public @NonNull List<@NonNull Move> getSimulatedActions(@ReadOnly QuoteSummer this) {
+        return simulatedMoveActions_;
+    }
+
     // Reduction Methods
 
     /**
@@ -126,6 +141,12 @@ final class QuoteSummer {
 
         totalQuote_ += minimizer.getBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
+        if (minimizer.getBestSeller() != null 
+                        && (entry.getKey().getSupplier() != minimizer.getBestSeller())) {
+            // when we have a best seller for a shoppingList, we simulate the move to this seller
+            // not doing so can lead to ping-pongs as observed in OM-34056
+            simulatedMoveActions_.add((new Move(economy_, entry.getKey(), minimizer.getBestSeller())).take());
+        }
     }
 
     /**
