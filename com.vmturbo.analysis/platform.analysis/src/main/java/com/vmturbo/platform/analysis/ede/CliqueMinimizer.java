@@ -14,6 +14,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.collect.Lists;
+import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -26,7 +28,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  * {@link ShoppingList}s and the best total quote offered in this clique.
  *
  * <p>
- *  This is intended to be used with {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}.
+ *  This is intended to be used with {@link Stream#collect(Trader, BiConsumer, BiConsumer)}.
  * </p>
  */
 final class CliqueMinimizer {
@@ -34,7 +36,7 @@ final class CliqueMinimizer {
     private static final Logger logger = LogManager.getLogger();
 
     // Auxiliary Fields
-    private final @NonNull UnmodifiableEconomy economy_; // should contain all the shopping lists
+    private final @NonNull Economy economy_; // should contain all the shopping lists
                                                         // and cliques passed to #accept.
     // The collection of (shopping list, market) pairs for which to find the best k-partite clique
     private final @NonNull @ReadOnly Collection<@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries_;
@@ -55,7 +57,7 @@ final class CliqueMinimizer {
      * @param economy See {@link #getEconomy()}.
      * @param entries See {@link #getEntries()}.
      */
-    public CliqueMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull @ReadOnly Collection
+    public CliqueMinimizer(@NonNull Economy economy, @NonNull @ReadOnly Collection
                            <@NonNull Entry<@NonNull ShoppingList, @NonNull Market>> entries) {
         economy_ = economy;
         entries_ = entries;
@@ -141,6 +143,7 @@ final class CliqueMinimizer {
             bestTotalQuote_ = quoteSummer.getTotalQuote();
             bestSellers_ = quoteSummer.getBestSellers();
         }
+        Lists.reverse(quoteSummer.getSimulatedActions()).forEach(Action::rollback);
     }
 
     /**

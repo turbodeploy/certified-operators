@@ -19,7 +19,7 @@ import com.vmturbo.platform.analysis.utilities.M2Utils;
  * A mutable collector class used to find the best quote and corresponding seller.
  *
  * <p>
- *  This is intended to be used with {@link Stream#collect(Supplier, BiConsumer, BiConsumer)}.
+ *  This is intended to be used with {@link Stream#collect(Trader, BiConsumer, BiConsumer)}.
  * </p>
  */
 public final class QuoteMinimizer {

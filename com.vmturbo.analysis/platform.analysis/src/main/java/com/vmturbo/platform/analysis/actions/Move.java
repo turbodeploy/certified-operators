@@ -314,7 +314,6 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                     combinedQuantity[1] = Math.min(combinedQuantity[1], sellerOrigPeak);
                 }
             }
-            commoditySold.setQuantity(sellerOrigUsed).setPeakQuantity(sellerOrigPeak);
             return new double[]{combinedQuantity[0],combinedQuantity[1]};
         }
     }
