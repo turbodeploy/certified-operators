@@ -1,9 +1,12 @@
 package com.vmturbo.auth.component;
 
+import java.util.EnumSet;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
+import javax.servlet.DispatcherType;
+import javax.servlet.Servlet;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
@@ -13,13 +16,22 @@ import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jetty.servlet.FilterHolder;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.web.context.ContextLoaderListener;
+import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
+import org.springframework.web.filter.DelegatingFilterProxy;
+import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
+import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -31,6 +43,7 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 @Import({AuthRESTSecurityConfig.class, AuthDBConfig.class, SpringSecurityConfig.class,
         WidgetsetConfig.class})
 public class AuthComponent extends BaseVmtComponent {
+    public static final String PATH_SPEC = "/*";
     /**
      * The logger.
      */
@@ -68,7 +81,7 @@ public class AuthComponent extends BaseVmtComponent {
      * @param args The mandatory arguments.
      */
     public static void main(String[] args) {
-        startContext(AuthComponent.class);
+        startContext(AuthComponent::createContext);
     }
 
     @Override
@@ -85,6 +98,42 @@ public class AuthComponent extends BaseVmtComponent {
                 .addService(ServerInterceptors.intercept(widgetsetConfig.widgetsetRpcService(
                         authRESTSecurityConfig.targetStore()), jwtInterceptor, monitoringInterceptor))
                 .build());
+    }
+
+    /**
+     * Register child Spring context for REST API in order to enforce authentication and authorization
+     * (springSecurityFilterChain). Special DispatcherServlet instance is created upon REST Spring
+     * context.
+     *
+     * Spring security filters, which includes custom {@link SpringAuthFilter}, are added to
+     * REST DispatcherServlet.
+     *
+     * @param contextServer Jetty context handler to register with
+     * @return rest application context
+     */
+    private static ConfigurableApplicationContext createContext(
+            @Nonnull ServletContextHandler contextServer) {
+        final AnnotationConfigWebApplicationContext rootContext =
+                new AnnotationConfigWebApplicationContext();
+        rootContext.register(AuthComponent.class);
+
+        final AnnotationConfigWebApplicationContext restContext =
+                new AnnotationConfigWebApplicationContext();
+        restContext.setParent(rootContext);
+        final Servlet restDispatcherServlet = new DispatcherServlet(restContext);
+        final ServletHolder restServletHolder = new ServletHolder(restDispatcherServlet);
+
+        // Explicitly add Spring security to the following servlets: REST API
+        final FilterHolder filterHolder = new FilterHolder();
+        filterHolder.setFilter(new DelegatingFilterProxy());
+        filterHolder.setName("springSecurityFilterChain");
+        contextServer.addServlet(restServletHolder, PATH_SPEC);
+        contextServer.addFilter(filterHolder, PATH_SPEC, EnumSet.of(DispatcherType.REQUEST));
+
+        // Setup Spring context
+        final ContextLoaderListener springListener = new ContextLoaderListener(rootContext);
+        contextServer.addEventListener(springListener);
+        return restContext;
     }
 
 }
