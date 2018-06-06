@@ -8,21 +8,27 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory.DefaultRecursiveZipReaderFactory;
-import com.vmturbo.group.ArangoDBConfig;
-import com.vmturbo.group.SettingConfig;
+import com.vmturbo.group.group.GroupConfig;
+import com.vmturbo.group.policy.PolicyConfig;
+import com.vmturbo.group.setting.SettingConfig;
 
 /**
  * Configuration for group component diagnostics.
  */
 @Configuration
-@Import({ArangoDBConfig.class, SettingConfig.class})
+@Import({GroupConfig.class,
+        PolicyConfig.class,
+        SettingConfig.class})
 public class GroupDiagnosticsConfig {
 
     @Autowired
-    private ArangoDBConfig arangoDBConfig;
+    private SettingConfig settingConfig;
 
     @Autowired
-    private SettingConfig settingConfig;
+    private GroupConfig groupConfig;
+
+    @Autowired
+    private PolicyConfig policyConfig;
 
     @Bean
     public DiagnosticsWriter diagnosticsWriter() {
@@ -36,7 +42,7 @@ public class GroupDiagnosticsConfig {
 
     @Bean
     public GroupDiagnosticsHandler diagsHandler() {
-        return new GroupDiagnosticsHandler(arangoDBConfig.groupStore(), arangoDBConfig.policyStore(),
+        return new GroupDiagnosticsHandler(groupConfig.groupStore(), policyConfig.policyStore(),
             settingConfig.settingStore(), recursiveZipReaderFactory(), diagnosticsWriter());
     }
 

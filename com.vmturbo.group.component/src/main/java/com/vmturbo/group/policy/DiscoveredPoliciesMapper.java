@@ -1,26 +1,27 @@
 package com.vmturbo.group.policy;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToComplementaryGroupPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.BindToGroupPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.MustNotRunTogetherPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.InputPolicy.MustRunTogetherPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MustNotRunTogetherPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MustRunTogetherPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
 
 /**
- * Map discovered policies (like DRS rules) to instances of {@link InputPolicy}.
+ * Map discovered policies (like DRS rules) to instances of {@link PolicyInfo}.
  */
 public class DiscoveredPoliciesMapper {
+
     private final Logger logger = LogManager.getLogger();
-    private static final String DRS_SEGMENTATION_COMMODITY = "DrsSegmentationCommodity";
 
     /**
      * Discovered policies reference groups by their IDs (usually the name). We need to map
@@ -42,25 +43,28 @@ public class DiscoveredPoliciesMapper {
 
     /**
      * Convert a discovered policy spec (representing e.g. a DRS rules)
-     * to an {@link InputPolicy}.
+     * to an {@link PolicyInfo}.
      *
      * @param spec the discovered policy
      * @return a representation of the policy that can be saved in the DB
      */
-    public Optional<InputPolicy> inputPolicy(DiscoveredPolicyInfo spec) {
+    public Optional<PolicyInfo> inputPolicy(DiscoveredPolicyInfo spec) {
 
         final int constraintType = spec.getConstraintType();
-        boolean isBuyerBuyerPolicy = (
+        boolean isBuyerBuyerPolicy =
                 constraintType == ConstraintType.BUYER_BUYER_AFFINITY_VALUE ||
-                constraintType == ConstraintType.BUYER_BUYER_ANTI_AFFINITY_VALUE);
+                constraintType == ConstraintType.BUYER_BUYER_ANTI_AFFINITY_VALUE;
 
-        Long buyersId = groupOids.get(spec.getBuyersGroupStringId());
+        final Long buyersId = groupOids.get(spec.getBuyersGroupStringId());
 
         // the seller might not be present in the spec
         Long sellersId = null;
         if (spec.hasSellersGroupStringId()) {
             sellersId = groupOids.get(spec.getSellersGroupStringId());
         }
+
+        // TODO - This error handling is very suspicious - static analysis says
+        // a null sellersId may make it through. But not sure what the right solution is.
 
         // check all expected groups are found
         if ((sellersId == null || buyersId == null) && !isBuyerBuyerPolicy) {
@@ -74,7 +78,7 @@ public class DiscoveredPoliciesMapper {
                     spec.getBuyersGroupStringId(), buyersId);
             return Optional.empty();
         }
-        if (sellersId ==  buyersId) {
+        if (Objects.equals(sellersId, buyersId)) {
             logger.warn(MESSAGE, SAME_GROUPS,
                 spec.getBuyersGroupStringId(), buyersId,
                 spec.getSellersGroupStringId(), sellersId);
@@ -82,30 +86,29 @@ public class DiscoveredPoliciesMapper {
         }
 
         // create the policy
-        InputPolicy.Builder builder = InputPolicy.newBuilder()
-                        .setName(spec.getPolicyName())
-                        .setCommodityType(DRS_SEGMENTATION_COMMODITY);
+        final PolicyInfo.Builder builder = PolicyInfo.newBuilder()
+                        .setName(spec.getPolicyName());
         switch (spec.getConstraintType()) {
             case ConstraintType.BUYER_SELLER_AFFINITY_VALUE:
                 return Optional.of(builder.setBindToGroup(BindToGroupPolicy.newBuilder()
-                    .setConsumerGroup(buyersId)
-                    .setProviderGroup(sellersId)
+                    .setConsumerGroupId(buyersId)
+                    .setProviderGroupId(sellersId)
                     .build()).build());
             case ConstraintType.BUYER_SELLER_ANTI_AFFINITY_VALUE:
                 return Optional.of(builder.setBindToComplementaryGroup(
                     BindToComplementaryGroupPolicy.newBuilder()
-                        .setConsumerGroup(buyersId)
-                        .setProviderGroup(sellersId)
+                        .setConsumerGroupId(buyersId)
+                        .setProviderGroupId(sellersId)
                         .build()).build());
             case ConstraintType.BUYER_BUYER_AFFINITY_VALUE:
                 return Optional.of(builder.setMustRunTogether(MustRunTogetherPolicy.newBuilder()
-                    .setGroup(buyersId)
+                    .setGroupId(buyersId)
                     // for now we are assuming that every buyer_buyer affinity is on hosts
                     .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .build()).build());
             case ConstraintType.BUYER_BUYER_ANTI_AFFINITY_VALUE:
                 return Optional.of(builder.setMustNotRunTogether(MustNotRunTogetherPolicy.newBuilder()
-                    .setGroup(buyersId)
+                    .setGroupId(buyersId)
                     // for now we are assuming that every buyer_buyer anti-affinity is on hosts
                     .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
                     .build()).build());

@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection.ReservationTemplate;
@@ -256,10 +257,11 @@ public class ReservationPolicyFactory {
                                              @Nonnull final Group consumerGroup) {
         final Policy bindToGroupPolicy = Policy.newBuilder()
                 .setId(IdentityGenerator.next())
-                .setEnabled(true)
-                .setBindToGroup(Policy.BindToGroupPolicy.newBuilder()
-                        .setConsumerGroupId(consumerGroup.getId())
-                        .setProviderGroupId(providerGroup.getId()))
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setEnabled(true)
+                    .setBindToGroup(PolicyInfo.BindToGroupPolicy.newBuilder()
+                            .setConsumerGroupId(consumerGroup.getId())
+                            .setProviderGroupId(providerGroup.getId())))
                 .build();
         return bindToGroupPolicy;
     }

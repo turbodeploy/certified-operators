@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import sun.reflect.generics.reflectiveObjects.NotImplementedException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 
 /**
@@ -38,39 +39,40 @@ public class PolicyFactory {
                                      @Nonnull final Map<Long, Group> groups,
                                      @Nonnull final Set<Long> additionalConsumers,
                                      @Nonnull final Set<Long> additionalProviders) {
-        switch (policyDefinition.getPolicyDetailCase()) {
+        final PolicyDTO.PolicyInfo policyInfo = policyDefinition.getPolicyInfo();
+        switch (policyInfo.getPolicyDetailCase()) {
             case BIND_TO_GROUP:
                 return new BindToGroupPolicy(policyDefinition,
-                        new PolicyEntities(groups.get(policyDefinition.getBindToGroup().getConsumerGroupId()),
-                                additionalConsumers),
-                        new PolicyEntities(groups.get(policyDefinition.getBindToGroup().getProviderGroupId()),
-                                additionalProviders));
+                    new PolicyEntities(groups.get(policyInfo.getBindToGroup().getConsumerGroupId()),
+                            additionalConsumers),
+                    new PolicyEntities(groups.get(policyInfo.getBindToGroup().getProviderGroupId()),
+                            additionalProviders));
             case BIND_TO_COMPLEMENTARY_GROUP:
                 return new BindToComplementaryGroupPolicy(policyDefinition,
-                        new PolicyEntities(groups.get(policyDefinition.getBindToComplementaryGroup().getConsumerGroupId()),
-                                additionalConsumers),
-                        new PolicyEntities(groups.get(policyDefinition
-                                .getBindToComplementaryGroup().getProviderGroupId())));
+                    new PolicyEntities(groups.get(policyInfo.getBindToComplementaryGroup().getConsumerGroupId()),
+                            additionalConsumers),
+                    new PolicyEntities(groups.get(policyInfo
+                            .getBindToComplementaryGroup().getProviderGroupId())));
             case AT_MOST_N:
                 return new AtMostNPolicy(policyDefinition,
-                        new PolicyEntities(groups.get(policyDefinition.getAtMostN().getConsumerGroupId()),
-                                additionalConsumers),
-                        new PolicyEntities(groups.get(policyDefinition.getAtMostN().getProviderGroupId()),
-                                additionalProviders));
+                    new PolicyEntities(groups.get(policyInfo.getAtMostN().getConsumerGroupId()),
+                            additionalConsumers),
+                    new PolicyEntities(groups.get(policyInfo.getAtMostN().getProviderGroupId()),
+                            additionalProviders));
             case AT_MOST_NBOUND:
                 return new AtMostNBoundPolicy(policyDefinition,
-                        new PolicyEntities(groups.get(policyDefinition.getAtMostNbound().getConsumerGroupId()),
-                                additionalConsumers),
-                        new PolicyEntities(groups.get(policyDefinition.getAtMostNbound().getProviderGroupId()),
-                                additionalProviders));
+                    new PolicyEntities(groups.get(policyInfo.getAtMostNbound().getConsumerGroupId()),
+                            additionalConsumers),
+                    new PolicyEntities(groups.get(policyInfo.getAtMostNbound().getProviderGroupId()),
+                            additionalProviders));
             case MUST_RUN_TOGETHER:
                 return new MustRunTogetherPolicy(policyDefinition,
-                        new PolicyEntities(groups.get(policyDefinition.getMustRunTogether().getGroupId()),
-                                additionalConsumers));
+                    new PolicyEntities(groups.get(policyInfo.getMustRunTogether().getGroupId()),
+                            additionalConsumers));
             case MUST_NOT_RUN_TOGETHER:
                 return new MustNotRunTogetherPolicy(policyDefinition,
-                        new PolicyEntities(groups.get(policyDefinition.getMustNotRunTogether().getGroupId()),
-                                additionalConsumers));
+                    new PolicyEntities(groups.get(policyInfo.getMustNotRunTogether().getGroupId()),
+                            additionalConsumers));
             case MERGE:
                 //TODO: support additionalConsumers and additionalProviders
                 return buildMergePolicy(policyDefinition, groups);
@@ -91,8 +93,9 @@ public class PolicyFactory {
      */
     private PlacementPolicy buildMergePolicy(@Nonnull final Policy policyDefinition,
                                              @Nonnull final Map<Long, Group> groups) {
-        List<Long> mergeGroupIdList = policyDefinition.getMerge().getMergeGroupIdsList();
-        List<PolicyEntities> policyEntitiesList = mergeGroupIdList.stream()
+        final List<Long> mergeGroupIdList =
+                policyDefinition.getPolicyInfo().getMerge().getMergeGroupIdsList();
+        final List<PolicyEntities> policyEntitiesList = mergeGroupIdList.stream()
                 .map(id -> new PolicyEntities(groups.get(id)))
                 .collect(Collectors.toList());
         return new MergePolicy(policyDefinition, policyEntitiesList);

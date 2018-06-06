@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
@@ -23,7 +24,8 @@ public class PolicyTest {
     public void testAppliesEnabled() throws Exception {
         final PolicyDTO.Policy policyDefinition = PolicyDTO.Policy.newBuilder()
             .setId(1234)
-            .setEnabled(true)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setEnabled(true))
             .build();
 
         final PlacementPolicy placementPolicy = spy(new PlacementPolicy(policyDefinition) {
@@ -42,7 +44,8 @@ public class PolicyTest {
     public void testDoesNotApplyDisabled() throws Exception {
         final PolicyDTO.Policy policyDefinition = PolicyDTO.Policy.newBuilder()
             .setId(1234)
-            .setEnabled(false)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setEnabled(false))
             .build();
 
         final PlacementPolicy placementPolicy = spy(new PlacementPolicy(policyDefinition) {

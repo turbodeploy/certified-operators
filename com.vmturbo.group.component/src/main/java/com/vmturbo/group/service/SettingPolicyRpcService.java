@@ -8,11 +8,11 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
@@ -34,14 +34,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
-import com.vmturbo.group.persistent.DuplicateNameException;
-import com.vmturbo.group.persistent.EntitySettingStore;
-import com.vmturbo.group.persistent.EntitySettingStore.NoSettingsForTopologyException;
-import com.vmturbo.group.persistent.InvalidSettingPolicyException;
-import com.vmturbo.group.persistent.SettingPolicyFilter;
-import com.vmturbo.group.persistent.SettingPolicyNotFoundException;
-import com.vmturbo.group.persistent.SettingSpecStore;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
+import com.vmturbo.group.common.InvalidItemException;
+import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
+import com.vmturbo.group.setting.EntitySettingStore;
+import com.vmturbo.group.setting.EntitySettingStore.NoSettingsForTopologyException;
+import com.vmturbo.group.setting.SettingPolicyFilter;
+import com.vmturbo.group.setting.SettingSpecStore;
+import com.vmturbo.group.setting.SettingStore;
 
 /**
  * The SettingPolicyService provides RPC's for CRUD-type operations
@@ -84,7 +85,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     .setSettingPolicy(policy)
                     .build());
             responseObserver.onCompleted();
-        } catch (InvalidSettingPolicyException e) {
+        } catch (InvalidItemException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                 .withDescription(e.getMessage()).asException());
         } catch (DuplicateNameException e) {
@@ -116,7 +117,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         } catch (DuplicateNameException e) {
             responseObserver.onError(Status.ALREADY_EXISTS
                     .withDescription(e.getMessage()).asException());
-        } catch (InvalidSettingPolicyException e) {
+        } catch (InvalidItemException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage()).asException());
         } catch (SettingPolicyNotFoundException e) {
@@ -166,14 +167,14 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         try {
             logger.info("Attempting to delete setting policy {}...", request.getId());
-            settingStore.deleteSettingPolicy(request.getId(), true);
+            settingStore.deleteUserSettingPolicy(request.getId());
             logger.info("Deleted setting policy: {}", request.getId());
             responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (SettingPolicyNotFoundException e) {
             responseObserver.onError(Status.NOT_FOUND
                     .withDescription(e.getMessage()).asException());
-        } catch (InvalidSettingPolicyException e) {
+        } catch (ImmutableSettingPolicyUpdateException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage()).asException());
         }

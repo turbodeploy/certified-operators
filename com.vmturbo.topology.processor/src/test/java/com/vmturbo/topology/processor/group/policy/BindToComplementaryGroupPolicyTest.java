@@ -21,10 +21,11 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
@@ -51,16 +52,17 @@ public class BindToComplementaryGroupPolicyTest {
     final long consumerID = 1234L;
     final long providerID = 5678L;
 
-    final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementarytGroup = PolicyDTO.Policy
-            .BindToComplementaryGroupPolicy.newBuilder()
-            .setConsumerGroupId(consumerID)
-            .setProviderGroupId(providerID)
+    final PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy bindToComplementarytGroup =
+            PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy.newBuilder()
+                .setConsumerGroupId(consumerID)
+                .setProviderGroupId(providerID)
             .build();
 
     private static final long POLICY_ID = 9999L;
     final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setBindToComplementaryGroup(bindToComplementarytGroup)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setBindToComplementaryGroup(bindToComplementarytGroup))
             .build();
 
     TopologyGraph topologyGraph;
@@ -175,15 +177,16 @@ public class BindToComplementaryGroupPolicyTest {
         final Group providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
-        final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementaryGroup = PolicyDTO.Policy
-                .BindToComplementaryGroupPolicy.newBuilder()
-                .setConsumerGroupId(consumerID)
-                .setProviderGroupId(providerID)
-                .build();
+        final PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy bindToComplementaryGroup =
+                PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy.newBuilder()
+                    .setConsumerGroupId(consumerID)
+                    .setProviderGroupId(providerID)
+                    .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
                 .setId(POLICY_ID)
-                .setBindToComplementaryGroup(bindToComplementaryGroup)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setBindToComplementaryGroup(bindToComplementaryGroup))
                 .build();
 
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))

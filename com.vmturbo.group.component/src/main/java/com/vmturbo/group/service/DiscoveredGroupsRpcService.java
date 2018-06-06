@@ -7,6 +7,9 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -14,15 +17,15 @@ import io.grpc.stub.StreamObserver;
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceImplBase;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsResponse;
-import com.vmturbo.components.common.health.HealthStatusProvider;
-import com.vmturbo.group.persistent.DatabaseException;
-import com.vmturbo.group.persistent.GroupStore;
-import com.vmturbo.group.persistent.PolicyStore;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.policy.PolicyStore;
+import com.vmturbo.group.setting.SettingStore;
 
 public class DiscoveredGroupsRpcService extends DiscoveredGroupServiceImplBase {
 
     private final Logger logger = LogManager.getLogger();
+
+    private final DSLContext dslContext;
 
     private final GroupStore groupStore;
 
@@ -30,16 +33,14 @@ public class DiscoveredGroupsRpcService extends DiscoveredGroupServiceImplBase {
 
     private final SettingStore settingStore;
 
-    private final HealthStatusProvider healthMonitor;
-
-    public DiscoveredGroupsRpcService(@Nonnull final GroupStore groupStore,
+    public DiscoveredGroupsRpcService(@Nonnull final DSLContext dslContext,
+                                      @Nonnull final GroupStore groupStore,
                                       @Nonnull final PolicyStore policyStore,
-                                      @Nonnull final SettingStore settingStore,
-                                      @Nonnull final HealthStatusProvider healthMonitor) {
+                                      @Nonnull final SettingStore settingStore) {
+        this.dslContext = Objects.requireNonNull(dslContext);
         this.groupStore = Objects.requireNonNull(groupStore);
         this.policyStore = Objects.requireNonNull(policyStore);
         this.settingStore = Objects.requireNonNull(settingStore);
-        this.healthMonitor = healthMonitor;
     }
 
     @Override
@@ -51,25 +52,23 @@ public class DiscoveredGroupsRpcService extends DiscoveredGroupServiceImplBase {
             return;
         }
 
-        if (!healthMonitor.getHealthStatus().isHealthy()) {
-            responseObserver.onError(Status.UNAVAILABLE
-                .withDescription("Group component not healthy.").asException());
-            return;
-        }
-
         try {
-            final Map<String, Long> groupsMap = groupStore.updateTargetGroups(request.getTargetId(),
-                    request.getDiscoveredGroupList(),
-                    request.getDiscoveredClusterList());
+            dslContext.transaction(configuration -> {
+                final DSLContext transactionContext = DSL.using(configuration);
+                final Map<String, Long> groupsMap = groupStore.updateTargetGroups(transactionContext,
+                        request.getTargetId(),
+                        request.getDiscoveredGroupList(),
+                        request.getDiscoveredClusterList());
 
-            policyStore.updateTargetPolicies(request.getTargetId(),
-                request.getDiscoveredPolicyInfosList(), groupsMap);
-            settingStore.updateTargetSettingPolicies(request.getTargetId(),
-                request.getDiscoveredSettingPoliciesList(), groupsMap);
+                policyStore.updateTargetPolicies(transactionContext, request.getTargetId(),
+                        request.getDiscoveredPolicyInfosList(), groupsMap);
+                settingStore.updateTargetSettingPolicies(transactionContext, request.getTargetId(),
+                        request.getDiscoveredSettingPoliciesList(), groupsMap);
+            });
 
             responseObserver.onNext(StoreDiscoveredGroupsResponse.getDefaultInstance());
             responseObserver.onCompleted();
-        } catch (DatabaseException e) {
+        } catch (DataAccessException e) {
             logger.error("Failed to store discovered collections due to a database query error.", e);
             responseObserver.onError(Status.INTERNAL
                 .withDescription(e.getLocalizedMessage()).asException());

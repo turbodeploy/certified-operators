@@ -40,7 +40,8 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
@@ -165,9 +166,10 @@ public class ReservationMapperTest {
                 .thenReturn(PolicyResponse.newBuilder()
                         .setPolicy(Policy.newBuilder()
                                 .setId(456)
-                                .setBindToGroup(BindToGroupPolicy.newBuilder()
-                                        .setConsumerGroupId(8)
-                                        .setProviderGroupId(9)))
+                                .setPolicyInfo(PolicyInfo.newBuilder()
+                                    .setBindToGroup(BindToGroupPolicy.newBuilder()
+                                            .setConsumerGroupId(8)
+                                            .setProviderGroupId(9))))
                         .build());
         final List<ScenarioChange> scenarioChangeList =
                 reservationMapper.placementToScenarioChange(Lists.newArrayList(demandParameters));

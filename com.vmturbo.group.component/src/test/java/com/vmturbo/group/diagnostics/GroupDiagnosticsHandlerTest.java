@@ -24,6 +24,8 @@ import java.util.zip.ZipOutputStream;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import io.prometheus.client.CollectorRegistry;
@@ -33,9 +35,9 @@ import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsExceptio
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
-import com.vmturbo.group.persistent.GroupStore;
-import com.vmturbo.group.persistent.PolicyStore;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.policy.PolicyStore;
+import com.vmturbo.group.setting.SettingStore;
 
 /**
  * Tests for {@link GroupDiagnosticsHandler}.
@@ -132,7 +134,8 @@ public class GroupDiagnosticsHandlerTest {
         when(settingDiags.getName()).thenReturn(GroupDiagnosticsHandler.SETTINGS_DUMP_FILE);
         when(settingDiags.getLines()).thenReturn(settingLines);
 
-        setupRestore(groupDiags, policyDiags, settingDiags);
+        // Send policies before group
+        setupRestore(policyDiags, groupDiags, settingDiags);
 
         final GroupDiagnosticsHandler handler =
             new GroupDiagnosticsHandler(groupStore, policyStore, settingStore,
@@ -140,9 +143,14 @@ public class GroupDiagnosticsHandlerTest {
         List<String> errors = handler.restore(mock(ZipInputStream.class));
         assertTrue(errors.isEmpty());
 
-        verify(groupStore).restoreDiags(eq(groupLines));
-        verify(policyStore).restoreDiags(eq(policyLines));
-        verify(settingStore).restoreDiags(eq(settingLines));
+        // Groups need to be restored before policies, because policies reference groups.
+        final InOrder policySettingOrder = Mockito.inOrder(groupStore, policyStore);
+        policySettingOrder.verify(groupStore).restoreDiags(eq(groupLines));
+        policySettingOrder.verify(policyStore).restoreDiags(eq(policyLines));
+
+        final InOrder groupSettingOrder = Mockito.inOrder(groupStore, settingStore);
+        groupSettingOrder.verify(groupStore).restoreDiags(eq(groupLines));
+        groupSettingOrder.verify(settingStore).restoreDiags(eq(settingLines));
     }
 
     /**

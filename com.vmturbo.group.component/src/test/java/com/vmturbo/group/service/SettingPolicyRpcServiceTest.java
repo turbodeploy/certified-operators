@@ -56,14 +56,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyRespo
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
-import com.vmturbo.group.persistent.DuplicateNameException;
-import com.vmturbo.group.persistent.EntitySettingStore;
-import com.vmturbo.group.persistent.EntitySettingStore.NoSettingsForTopologyException;
-import com.vmturbo.group.persistent.InvalidSettingPolicyException;
-import com.vmturbo.group.persistent.SettingPolicyFilter;
-import com.vmturbo.group.persistent.SettingPolicyNotFoundException;
-import com.vmturbo.group.persistent.SettingSpecStore;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
+import com.vmturbo.group.common.InvalidItemException;
+import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
+import com.vmturbo.group.setting.EntitySettingStore;
+import com.vmturbo.group.setting.EntitySettingStore.NoSettingsForTopologyException;
+import com.vmturbo.group.setting.SettingPolicyFilter;
+import com.vmturbo.group.setting.SettingSpecStore;
+import com.vmturbo.group.setting.SettingStore;
 
 public class SettingPolicyRpcServiceTest {
 
@@ -139,7 +140,7 @@ public class SettingPolicyRpcServiceTest {
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
         when(settingStore.createUserSettingPolicy(eq(settingPolicyInfo)))
-                .thenThrow(new InvalidSettingPolicyException(errorMsg));
+                .thenThrow(new InvalidItemException(errorMsg));
 
         service.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
                 .setSettingPolicyInfo(settingPolicyInfo)
@@ -297,7 +298,7 @@ public class SettingPolicyRpcServiceTest {
         final StreamObserver<UpdateSettingPolicyResponse> responseObserver =
                 (StreamObserver<UpdateSettingPolicyResponse>)mock(StreamObserver.class);
         when(settingStore.updateSettingPolicy(eq(7L), eq(settingPolicyInfo)))
-                .thenThrow(new InvalidSettingPolicyException(msg));
+                .thenThrow(new InvalidItemException(msg));
 
         service.updateSettingPolicy(UpdateSettingPolicyRequest.newBuilder()
                 .setId(7L)
@@ -373,7 +374,7 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onCompleted();
 
         assertEquals(DeleteSettingPolicyResponse.getDefaultInstance(), responseCaptor.getValue());
-        verify(settingStore).deleteSettingPolicy(eq(id), eq(true));
+        verify(settingStore).deleteUserSettingPolicy(eq(id));
     }
 
     @Test
@@ -381,7 +382,7 @@ public class SettingPolicyRpcServiceTest {
         final long id = 7;
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.deleteSettingPolicy(eq(id), eq(true)))
+        when(settingStore.deleteUserSettingPolicy(eq(id)))
             .thenThrow(new SettingPolicyNotFoundException(id));
         service.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
                 .setId(id)
@@ -397,13 +398,13 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testDeletePolicyInvalid() throws Exception {
+    public void testDeletePolicyImmutable() throws Exception {
         final long id = 7;
         final String error = "ERRORMSG";
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.deleteSettingPolicy(eq(id), eq(true)))
-                .thenThrow(new InvalidSettingPolicyException(error));
+        when(settingStore.deleteUserSettingPolicy(eq(id)))
+                .thenThrow(new ImmutableSettingPolicyUpdateException(error));
         service.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
                 .setId(id)
                 .build(), responseObserver);

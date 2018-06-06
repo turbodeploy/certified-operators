@@ -23,6 +23,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -50,14 +51,15 @@ public class MergePolicyTestBase {
     protected List<PolicyEntities> mergePolicyEntities;
     protected TopologyGraph topologyGraph;
     protected PolicyMatcher policyMatcher;
-    protected PolicyDTO.Policy.MergePolicy mergePolicy;
+    protected PolicyDTO.PolicyInfo.MergePolicy mergePolicy;
 
     @Test
     public void testMergeClusterPolicy() throws GroupResolutionException, PolicyApplicationException {
         // assign merge policy to Policy
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
                 .setId(POLICY_ID)
-                .setMerge(mergePolicy)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setMerge(mergePolicy))
                 .build();
 
         // setup mocks
@@ -261,14 +263,16 @@ public class MergePolicyTestBase {
 
     @Test
     public void testPolicyIsNotMergePolicy() throws GroupResolutionException, PolicyApplicationException {
-        final PolicyDTO.Policy.BindToGroupPolicy bindToGroup = PolicyDTO.Policy.BindToGroupPolicy.newBuilder()
-                .setConsumerGroupId(consumerID)
-                .setProviderGroupId(providerID)
+        final PolicyDTO.PolicyInfo.BindToGroupPolicy bindToGroup =
+                PolicyDTO.PolicyInfo.BindToGroupPolicy.newBuilder()
+                    .setConsumerGroupId(consumerID)
+                    .setProviderGroupId(providerID)
                 .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
                 .setId(POLICY_ID)
-                .setBindToGroup(bindToGroup) // set BindToGroup policy (not merge policy).
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setBindToGroup(bindToGroup)) // set BindToGroup policy (not merge policy).
                 .build();
 
         // invoke Merge Policy should failed with IllegalArgumentException.
@@ -283,7 +287,8 @@ public class MergePolicyTestBase {
         // assign merge policy to Policy
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
                 .setId(POLICY_ID)
-                .setMerge(mergePolicy)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setMerge(mergePolicy))
                 .build();
 
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
@@ -312,7 +317,8 @@ public class MergePolicyTestBase {
         // assign merge policy to Policy
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
                 .setId(POLICY_ID)
-                .setMerge(mergePolicy)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setMerge(mergePolicy))
                 .build();
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
                 .thenReturn(Collections.<Long>emptySet());
@@ -340,7 +346,8 @@ public class MergePolicyTestBase {
         // assign merge policy to Policy
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
                 .setId(POLICY_ID)
-                .setMerge(mergePolicy)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setMerge(mergePolicy))
                 .build();
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
                 .thenReturn(Sets.newHashSet(1L, 2L));
@@ -371,7 +378,8 @@ public class MergePolicyTestBase {
             // assign merge policy to Policy
             final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
                     .setId(POLICY_ID)
-                    .setMerge(mergePolicy)
+                    .setPolicyInfo(PolicyInfo.newBuilder()
+                        .setMerge(mergePolicy))
                     .build();
 
             // setup mocks

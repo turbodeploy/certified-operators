@@ -6,12 +6,11 @@ import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchPa
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.common.collect.Lists;
-
 import org.junit.Before;
 
-import com.vmturbo.common.protobuf.group.PolicyDTO;
-import com.vmturbo.common.protobuf.group.PolicyDTO.MergeType;
+import com.google.common.collect.Lists;
+
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.policy.PolicyFactory.PolicyEntities;
@@ -30,9 +29,9 @@ public class MergePolicyComputationClusterTest extends MergePolicyTestBase {
 
     @Before
     public void setup() {
-        super.mergePolicy = PolicyDTO.Policy.MergePolicy.newBuilder()
+        super.mergePolicy = PolicyInfo.MergePolicy.newBuilder()
                 .addAllMergeGroupIds(mergeGropuIds)
-                .setMergeType(MergeType.CLUSTER)
+                .setMergeType(PolicyInfo.MergePolicy.MergeType.CLUSTER)
                 .build();
         super.group1 = PolicyGroupingHelper.policyGrouping(
                 searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);

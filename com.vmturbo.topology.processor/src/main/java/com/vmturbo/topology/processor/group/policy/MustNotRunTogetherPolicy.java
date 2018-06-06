@@ -36,13 +36,13 @@ public class MustNotRunTogetherPolicy extends PlacementPolicy {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final PolicyDTO.Policy.MustNotRunTogetherPolicy mustNotRunTogetherPolicy;
+    private final PolicyDTO.PolicyInfo.MustNotRunTogetherPolicy mustNotRunTogetherPolicy;
 
     private final PolicyEntities policyEntities;
 
     /**
      * Create a new {@link MustNotRunTogetherPolicy}, the policy should be of type
-     * {@link PolicyDTO.Policy.MustNotRunTogetherPolicy}.
+     * {@link PolicyDTO.PolicyInfo.MustNotRunTogetherPolicy}.
      *
      * @param policyDefinition The policy definition describing the details of the policy to be applied.
      * @param policyEntities consumer entities of current policy.
@@ -50,8 +50,8 @@ public class MustNotRunTogetherPolicy extends PlacementPolicy {
     public MustNotRunTogetherPolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
                                  @Nonnull final PolicyEntities policyEntities) {
         super(policyDefinition);
-        Preconditions.checkArgument(policyDefinition.hasMustNotRunTogether());
-        this.mustNotRunTogetherPolicy = Objects.requireNonNull(policyDefinition.getMustNotRunTogether());
+        Preconditions.checkArgument(policyDefinition.getPolicyInfo().hasMustNotRunTogether());
+        this.mustNotRunTogetherPolicy = Objects.requireNonNull(policyDefinition.getPolicyInfo().getMustNotRunTogether());
         this.policyEntities = Objects.requireNonNull(policyEntities);
     }
 

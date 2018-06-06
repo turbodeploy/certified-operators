@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.group.policy;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -83,7 +84,7 @@ public abstract class PlacementPolicy {
      */
     protected PlacementPolicy(@Nonnull final PolicyDTO.Policy policyDefinition) {
         Preconditions.checkArgument(policyDefinition.hasId());
-        this.policyDefinition = policyDefinition;
+        this.policyDefinition = Objects.requireNonNull(policyDefinition);
     }
 
     /**
@@ -101,7 +102,7 @@ public abstract class PlacementPolicy {
         throws GroupResolutionException, PolicyApplicationException {
 
         if (!isEnabled()) {
-            logger.debug("Skipping application of disabled {} policy.", policyDefinition.getPolicyDetailCase());
+            logger.debug("Skipping application of disabled {} policy.", policyDefinition.getPolicyInfo().getPolicyDetailCase());
             return; // Do not apply disabled policies.
         }
 
@@ -136,7 +137,7 @@ public abstract class PlacementPolicy {
      * @return Whether the policy is currently enabled.
      */
     public boolean isEnabled() {
-        return policyDefinition.getEnabled();
+        return policyDefinition.getPolicyInfo().getEnabled();
     }
 
 

@@ -3,8 +3,11 @@ package com.vmturbo.group.diagnostics;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -22,9 +25,9 @@ import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsExceptio
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
-import com.vmturbo.group.persistent.GroupStore;
-import com.vmturbo.group.persistent.PolicyStore;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.group.GroupStore;
+import com.vmturbo.group.policy.PolicyStore;
+import com.vmturbo.group.setting.SettingStore;
 
 public class GroupDiagnosticsHandler {
 
@@ -121,16 +124,18 @@ public class GroupDiagnosticsHandler {
     public List<String> restore(@Nonnull final InputStream inputStream) {
         final List<String> errors = new ArrayList<>();
 
-        for (Diags diags : zipReaderFactory.createReader(inputStream)) {
+        final Map<String, RestoreFn> restoreFnsByName = new HashMap<>();
+
+        for (final Diags diags : zipReaderFactory.createReader(inputStream)) {
             switch (diags.getName()) {
                 case GROUPS_DUMP_FILE:
-                    errors.addAll(performRestore(diags, groupStore));
+                    restoreFnsByName.put(GROUPS_DUMP_FILE, () -> performRestore(diags, groupStore));
                     break;
                 case POLICIES_DUMP_FILE:
-                    errors.addAll(performRestore(diags, policyStore));
+                    restoreFnsByName.put(POLICIES_DUMP_FILE, () -> performRestore(diags, policyStore));
                     break;
                 case SETTINGS_DUMP_FILE:
-                    errors.addAll(performRestore(diags, settingStore));
+                    restoreFnsByName.put(SETTINGS_DUMP_FILE, () -> performRestore(diags, settingStore));
                     break;
                 default:
                     logger.warn("Skipping file: {}", diags.getName());
@@ -138,15 +143,38 @@ public class GroupDiagnosticsHandler {
             }
         }
 
+        final RestoreFn groupRestoreFn = restoreFnsByName.get(GROUPS_DUMP_FILE);
+        if (groupRestoreFn == null) {
+            String errorMsgs = "Groups dump " + GROUPS_DUMP_FILE + " not found in diags." +
+                " Not restoring anything, because setting policies and policies reference groups.";
+            logger.error(errorMsgs);
+            errors.add(errorMsgs);
+        } else {
+            errors.addAll(groupRestoreFn.restore());
+            Optional.ofNullable(restoreFnsByName.get(POLICIES_DUMP_FILE))
+                .ifPresent(policiesRestoreFn -> errors.addAll(policiesRestoreFn.restore()));
+            Optional.ofNullable(restoreFnsByName.get(SETTINGS_DUMP_FILE))
+                    .ifPresent(settingsRestoreFn -> errors.addAll(settingsRestoreFn.restore()));
+        }
+
         return errors;
     }
 
+    /**
+     * A function to restore diagnostics to a class in the group component.
+     * We use it to order the restoration of related classes.
+     */
+    @FunctionalInterface
+    private interface RestoreFn {
+        List<String> restore();
+    }
+
     @Nonnull
-    public List<String> performRestore(@Nonnull final Diags diags,
-                                       @Nonnull final Diagnosable diagnosable) {
+    private List<String> performRestore(@Nonnull final Diags diags,
+                                        @Nonnull final Diagnosable diagnosable) {
         if (diags.getLines() == null) {
             return Collections.singletonList("The file " + diags.getName() + " was not saved as lines " +
-                "of strings with the appropriate suffix!");
+                    "of strings with the appropriate suffix!");
         } else {
             try {
                 diagnosable.restoreDiags(diags.getLines());

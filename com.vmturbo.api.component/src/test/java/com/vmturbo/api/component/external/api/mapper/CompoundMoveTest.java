@@ -42,6 +42,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -76,9 +79,12 @@ public class CompoundMoveTest {
     @Before
     public void setup() throws IOException {
         policyMole = Mockito.spy(PolicyDTOMoles.PolicyServiceMole.class);
-        final List<PolicyDTO.PolicyResponse> policyResponses = ImmutableList.of(
-                        PolicyDTO.PolicyResponse.newBuilder().setPolicy(
-                                        PolicyDTO.Policy.newBuilder().setId(1).setName("policy")).build());
+        final List<PolicyResponse> policyResponses = ImmutableList.of(
+            PolicyResponse.newBuilder().setPolicy(Policy.newBuilder()
+                .setId(1)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setName("policy")))
+                .build());
         Mockito.when(policyMole.getAllPolicies(Mockito.any())).thenReturn(policyResponses);
         grpcServer = GrpcTestServer.newServer(policyMole);
         grpcServer.start();

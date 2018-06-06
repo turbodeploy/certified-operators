@@ -255,7 +255,11 @@
                             <customTypes>
                                 <customType>
                                     <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
-                                    <converter>com.vmturbo.group.persistent.SettingPolicyInfoConverter</converter>
+                                    <converter>com.vmturbo.group.setting.SettingPolicyInfoConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo</name>
+                                    <converter>com.vmturbo.group.policy.PolicyInfoConverter</converter>
                                 </customType>
                             </customTypes>
 
@@ -264,6 +268,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
                                     <expression>.*\.setting_policy\.setting_policy_data</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo</name>
+                                    <expression>.*\.policy\.policy_data</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

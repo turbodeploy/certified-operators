@@ -10,6 +10,7 @@ import org.hamcrest.Matcher;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -311,7 +312,9 @@ public class PolicyMatcher {
      * @return
      */
     public static int getCommodityType(MergePolicy policy) {
-        switch (policy.getPolicyDefinition().getMerge().getMergeType()) {
+        final PolicyInfo.MergePolicy mergePolicy =
+                policy.getPolicyDefinition().getPolicyInfo().getMerge();
+        switch (mergePolicy.getMergeType()) {
             case CLUSTER:
                 return CommodityType.CLUSTER_VALUE;
             case STORAGE_CLUSTER:
@@ -320,9 +323,8 @@ public class PolicyMatcher {
                 return CommodityType.DATACENTER_VALUE;
             default:
                 throw new InvalidMergePolicyTypeException("Invalid merge policy type: "
-                        + policy.getPolicyDefinition().getMerge().getMergeType());
+                        + mergePolicy.getMergeType());
         }
-
     }
 
 }

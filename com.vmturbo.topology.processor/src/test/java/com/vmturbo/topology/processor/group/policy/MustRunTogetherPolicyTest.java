@@ -21,6 +21,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -45,29 +46,31 @@ public class MustRunTogetherPolicyTest {
     private final long groupID = group.getId();
 
     // must run together on host policy
-    private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy = PolicyDTO.Policy
-        .MustRunTogetherPolicy.newBuilder()
-        .setGroupId(groupID)
-        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-        .build();
+    private final PolicyInfo.MustRunTogetherPolicy mustRunTogetherPolicy =
+        PolicyInfo.MustRunTogetherPolicy.newBuilder()
+            .setGroupId(groupID)
+            .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+            .build();
 
     private static final long POLICY_ID = 9999L;
     final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
         .setId(POLICY_ID)
-        .setMustRunTogether(mustRunTogetherPolicy)
+        .setPolicyInfo(PolicyInfo.newBuilder()
+            .setMustRunTogether(mustRunTogetherPolicy))
         .build();
 
     // must run together on storage policy
-    private final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherOnStoragePolicy = PolicyDTO.Policy
-            .MustRunTogetherPolicy.newBuilder()
-            .setGroupId(groupID)
-            .setProviderEntityType(EntityType.STORAGE_VALUE)
-            .build();
+    private final PolicyInfo.MustRunTogetherPolicy mustRunTogetherOnStoragePolicy =
+            PolicyInfo.MustRunTogetherPolicy.newBuilder()
+                .setGroupId(groupID)
+                .setProviderEntityType(EntityType.STORAGE_VALUE)
+                .build();
 
     private static final long POLICY_ST_ID = 9998L;
     final PolicyDTO.Policy policyStorage = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ST_ID)
-            .setMustRunTogether(mustRunTogetherOnStoragePolicy)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setMustRunTogether(mustRunTogetherOnStoragePolicy))
             .build();
 
     private TopologyGraph topologyGraph;

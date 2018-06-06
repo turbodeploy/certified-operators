@@ -22,6 +22,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -51,16 +52,18 @@ public class AtMostNBoundPolicyTest {
         staticGroupMembers(1L), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);
     final long providerGroupID = 5678L;
 
-    final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBound = PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
-        .setConsumerGroupId(consumerGroupID)
-        .setProviderGroupId(providerGroupID)
-        .setCapacity(1.0f)
-        .build();
+    final PolicyDTO.PolicyInfo.AtMostNBoundPolicy atMostNBound =
+        PolicyDTO.PolicyInfo.AtMostNBoundPolicy.newBuilder()
+            .setConsumerGroupId(consumerGroupID)
+            .setProviderGroupId(providerGroupID)
+            .setCapacity(1.0f)
+            .build();
 
     private static final long POLICY_ID = 9999L;
     final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
         .setId(POLICY_ID)
-        .setAtMostNbound(atMostNBound)
+        .setPolicyInfo(PolicyInfo.newBuilder()
+            .setAtMostNbound(atMostNBound))
         .build();
 
     TopologyGraph topologyGraph;
@@ -160,15 +163,17 @@ public class AtMostNBoundPolicyTest {
         final Group providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
-        final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBoundPolicy = PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
-            .setConsumerGroupId(consumerGroupID)
-            .setProviderGroupId(providerGroupID)
-            .setCapacity(1.0f)
-            .build();
+        final PolicyDTO.PolicyInfo.AtMostNBoundPolicy atMostNBoundPolicy =
+            PolicyDTO.PolicyInfo.AtMostNBoundPolicy.newBuilder()
+                .setConsumerGroupId(consumerGroupID)
+                .setProviderGroupId(providerGroupID)
+                .setCapacity(1.0f)
+                .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setAtMostNbound(atMostNBoundPolicy)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setAtMostNbound(atMostNBoundPolicy))
             .build();
 
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))

@@ -22,6 +22,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -51,7 +52,7 @@ public class AtMostNPolicyTest {
     private final long consumerID = 1234L;
     private final long providerID = 5678L;
 
-    private final PolicyDTO.Policy.AtMostNPolicy atMostN = PolicyDTO.Policy.AtMostNPolicy.newBuilder()
+    private final PolicyDTO.PolicyInfo.AtMostNPolicy atMostN = PolicyDTO.PolicyInfo.AtMostNPolicy.newBuilder()
         .setConsumerGroupId(consumerID)
         .setProviderGroupId(providerID)
         .setCapacity(1.0f)
@@ -60,7 +61,8 @@ public class AtMostNPolicyTest {
     private static final long POLICY_ID = 9999L;
     final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
         .setId(POLICY_ID)
-        .setAtMostN(atMostN)
+        .setPolicyInfo(PolicyInfo.newBuilder()
+            .setAtMostN(atMostN))
         .build();
 
     private TopologyGraph topologyGraph;
@@ -158,16 +160,18 @@ public class AtMostNPolicyTest {
         final Group providerGroup = PolicyGroupingHelper.policyGrouping(
             searchParametersCollection(), EntityType.STORAGE_VALUE, 5678L);
 
-        final PolicyDTO.Policy.AtMostNPolicy atMostNPolicy = PolicyDTO.Policy.AtMostNPolicy.newBuilder()
-            .setConsumerGroupId(consumerID)
-            .setProviderGroupId(providerID)
-            .setCapacity(1.0f)
-            .build();
+        final PolicyDTO.PolicyInfo.AtMostNPolicy atMostNPolicy =
+            PolicyDTO.PolicyInfo.AtMostNPolicy.newBuilder()
+                .setConsumerGroupId(consumerID)
+                .setProviderGroupId(providerID)
+                .setCapacity(1.0f)
+                .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
-            .setId(POLICY_ID)
-            .setAtMostN(atMostNPolicy)
-            .build();
+                .setId(POLICY_ID)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setAtMostN(atMostNPolicy))
+                .build();
 
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
             .thenReturn(Sets.newHashSet(4L, 5L));

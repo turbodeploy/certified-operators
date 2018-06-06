@@ -26,7 +26,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.PolicyDetailCase;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.PolicyDetailCase;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
@@ -300,18 +301,19 @@ public class PolicyManager {
             PlacementPolicy policy = policyFactory.newPolicy(response.getPolicy(), groupsById,
                     policyConstraintMap.getOrDefault(response.getPolicy().getId(),
                             Collections.emptySet()), Collections.emptySet());
-            long policyId = policy.getPolicyDefinition().getId();
-            Boolean enabledOverride = policyOverrides.get(policyId);
+            final Policy policyDef = policy.getPolicyDefinition();
+            final long policyId = policyDef.getId();
+            final Boolean enabledOverride = policyOverrides.get(policyId);
             if (enabledOverride != null) {
-                Boolean enabled = policy.getPolicyDefinition().getEnabled();
+                final Boolean enabled = policyDef.getPolicyInfo().getEnabled();
                 if (enabled != enabledOverride) {
                     // Create a copy of the policy with the 'enable' field taken from the plan
-                    Policy altPolicyDefinition =
-                            Policy.newBuilder(policy.getPolicyDefinition())
-                                .setEnabled(enabledOverride)
-                                .build();
-                    policy = policyFactory.newPolicy(altPolicyDefinition, groupsById,
-                            policyConstraintMap.getOrDefault(altPolicyDefinition.getId(),
+                    final Policy altPolicyDef = policyDef.toBuilder()
+                            .setPolicyInfo(policyDef.getPolicyInfo().toBuilder()
+                                .setEnabled(enabledOverride))
+                            .build();
+                    policy = policyFactory.newPolicy(altPolicyDef, groupsById,
+                            policyConstraintMap.getOrDefault(altPolicyDef.getId(),
                                     Collections.emptySet()), Collections.emptySet());
                 }
             }
@@ -416,7 +418,7 @@ public class PolicyManager {
                              @Nonnull Map<PolicyDetailCase, Integer> policyTypeCounts) {
         try {
             policy.apply(groupResolver, topologyGraph);
-            final PolicyDetailCase policyType = policy.getPolicyDefinition().getPolicyDetailCase();
+            final PolicyDetailCase policyType = policy.getPolicyDefinition().getPolicyInfo().getPolicyDetailCase();
             int curCountOfType = policyTypeCounts.getOrDefault(policyType, 0);
             policyTypeCounts.put(policyType, curCountOfType + 1);
         } catch (GroupResolutionException e) {

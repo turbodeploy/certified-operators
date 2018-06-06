@@ -16,10 +16,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
-import com.vmturbo.common.protobuf.group.PolicyDTO.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.AtMostNPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.MergePolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -67,14 +68,13 @@ public class GroupProtoUtilTest {
                 Arrays.asList(1L, 2L,
                         3L, 4L);
         Policy policy = Policy.newBuilder()
-                .setMerge(
-                        MergePolicy.newBuilder().setMergeType(MergeType.DATACENTER)
-                                .addAllMergeGroupIds(expected)
-                                .build())
-                .setName("policy")
                 .setId(7L)
-                .setEnabled(false)
-                .setCommodityType("commodityType")
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setEnabled(false)
+                    .setMerge(MergePolicy.newBuilder().setMergeType(MergeType.DATACENTER)
+                        .addAllMergeGroupIds(expected)
+                        .build())
+                    .setName("policy"))
                 .build();
 
         Set<Long> result = GroupProtoUtil.getPolicyGroupIds(policy);
@@ -85,15 +85,16 @@ public class GroupProtoUtilTest {
     @Test
     public void testGetGroupIdsFromNonMergePolicy() {
 
-        Policy policy = Policy.newBuilder().setEnabled(false)
-                .setCommodityType("commodityType")
+        Policy policy = Policy.newBuilder()
                 .setId(1L)
-                .setName("policy")
-                .setAtMostN(AtMostNPolicy.newBuilder()
-                        .setCapacity(35)
-                        .setConsumerGroupId(7L)
-                        .setProviderGroupId(8L)
-                        .build())
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setEnabled(false)
+                    .setName("policy")
+                    .setAtMostN(AtMostNPolicy.newBuilder()
+                            .setCapacity(35)
+                            .setConsumerGroupId(7L)
+                            .setProviderGroupId(8L)
+                            .build()))
                 .build();
 
         final List<Long> expected = Arrays.asList(7L, 8L);

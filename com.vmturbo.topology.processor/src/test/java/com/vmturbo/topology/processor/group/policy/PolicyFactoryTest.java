@@ -12,6 +12,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class PolicyFactoryTest {
@@ -38,14 +39,15 @@ public class PolicyFactoryTest {
 
     @Test
     public void testBindToGroupPolicy() {
-        final PolicyDTO.Policy.BindToGroupPolicy bindToGroup = PolicyDTO.Policy.BindToGroupPolicy.newBuilder()
+        final PolicyInfo.BindToGroupPolicy bindToGroup = PolicyInfo.BindToGroupPolicy.newBuilder()
             .setConsumerGroupId(groupIdA)
             .setProviderGroupId(groupIdB)
             .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setBindToGroup(bindToGroup)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setBindToGroup(bindToGroup))
             .build();
 
         assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
@@ -54,15 +56,16 @@ public class PolicyFactoryTest {
 
     @Test
     public void testBindToComplementaryGroupPolicy() {
-        final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementaryGroup =
-            PolicyDTO.Policy.BindToComplementaryGroupPolicy.newBuilder()
+        final PolicyInfo.BindToComplementaryGroupPolicy bindToComplementaryGroup =
+            PolicyInfo.BindToComplementaryGroupPolicy.newBuilder()
                 .setConsumerGroupId(groupIdA)
                 .setProviderGroupId(groupIdB)
                 .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setBindToComplementaryGroup(bindToComplementaryGroup)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setBindToComplementaryGroup(bindToComplementaryGroup))
             .build();
 
         assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
@@ -71,7 +74,7 @@ public class PolicyFactoryTest {
 
     @Test
     public void testAtMostNPolicy() {
-        final PolicyDTO.Policy.AtMostNPolicy atMostNPolicy = PolicyDTO.Policy.AtMostNPolicy.newBuilder()
+        final PolicyInfo.AtMostNPolicy atMostNPolicy = PolicyInfo.AtMostNPolicy.newBuilder()
             .setConsumerGroupId(groupIdA)
             .setProviderGroupId(groupIdB)
             .setCapacity(3.0f)
@@ -79,7 +82,8 @@ public class PolicyFactoryTest {
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setAtMostN(atMostNPolicy)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setAtMostN(atMostNPolicy))
             .build();
 
         assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
@@ -88,8 +92,8 @@ public class PolicyFactoryTest {
 
     @Test
     public void testAtMostNBoundPolicy() {
-        final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBoundPolicy =
-                PolicyDTO.Policy.AtMostNBoundPolicy.newBuilder()
+        final PolicyInfo.AtMostNBoundPolicy atMostNBoundPolicy =
+                PolicyInfo.AtMostNBoundPolicy.newBuilder()
                         .setConsumerGroupId(groupIdA)
                         .setProviderGroupId(groupIdB)
                         .setCapacity(3.0f)
@@ -97,7 +101,8 @@ public class PolicyFactoryTest {
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setAtMostNbound(atMostNBoundPolicy)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setAtMostNbound(atMostNBoundPolicy))
             .build();
 
         assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
@@ -106,14 +111,15 @@ public class PolicyFactoryTest {
 
     @Test
     public void testMustRunTogetherPolicy() {
-        final PolicyDTO.Policy.MustRunTogetherPolicy mustRunTogetherPolicy =
-            PolicyDTO.Policy.MustRunTogetherPolicy.newBuilder()
+        final PolicyInfo.MustRunTogetherPolicy mustRunTogetherPolicy =
+            PolicyInfo.MustRunTogetherPolicy.newBuilder()
                 .setGroupId(groupIdA)
                 .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
             .setId(POLICY_ID)
-            .setMustRunTogether(mustRunTogetherPolicy)
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setMustRunTogether(mustRunTogetherPolicy))
             .build();
 
         assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),
@@ -122,14 +128,15 @@ public class PolicyFactoryTest {
 
     @Test
     public void testMustNotRunTogetherPolicy() {
-        final PolicyDTO.Policy.MustNotRunTogetherPolicy mustNotRunTogetherPolicy =
-                PolicyDTO.Policy.MustNotRunTogetherPolicy.newBuilder()
+        final PolicyInfo.MustNotRunTogetherPolicy mustNotRunTogetherPolicy =
+                PolicyInfo.MustNotRunTogetherPolicy.newBuilder()
                         .setGroupId(groupIdA)
                         .build();
 
         final PolicyDTO.Policy policy = PolicyDTO.Policy.newBuilder()
                 .setId(POLICY_ID)
-                .setMustNotRunTogether(mustNotRunTogetherPolicy)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setMustNotRunTogether(mustNotRunTogetherPolicy))
                 .build();
 
         assertThat(policyFactory.newPolicy(policy, groupingMap, Collections.emptySet(),

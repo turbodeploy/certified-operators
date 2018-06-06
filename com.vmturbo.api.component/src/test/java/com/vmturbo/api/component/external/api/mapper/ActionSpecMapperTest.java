@@ -12,14 +12,12 @@ import static org.mockito.Matchers.any;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
@@ -28,17 +26,11 @@ import org.hamcrest.collection.IsArrayContainingInAnyOrder;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
@@ -75,7 +67,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -112,9 +106,12 @@ public class ActionSpecMapperTest {
     @Before
     public void setup() throws IOException {
         policyMole = Mockito.spy(PolicyDTOMoles.PolicyServiceMole.class);
-        final List<PolicyDTO.PolicyResponse> policyResponses = ImmutableList.of(
-                        PolicyDTO.PolicyResponse.newBuilder().setPolicy(
-                        PolicyDTO.Policy.newBuilder().setId(POLICY_ID).setName(POLICY_NAME)).build());
+        final List<PolicyResponse> policyResponses = ImmutableList.of(
+            PolicyResponse.newBuilder().setPolicy(Policy.newBuilder()
+                .setId(POLICY_ID)
+                .setPolicyInfo(PolicyInfo.newBuilder()
+                    .setName(POLICY_NAME)))
+                .build());
         Mockito.when(policyMole.getAllPolicies(Mockito.any())).thenReturn(policyResponses);
         grpcServer = GrpcTestServer.newServer(policyMole);
         grpcServer.start();

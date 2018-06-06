@@ -320,12 +320,12 @@ public class MarketsService implements IMarketsService {
                 }
             }
 
-            final PolicyDTO.InputPolicy inputPolicy = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
+            final PolicyDTO.PolicyInfo policyInfo = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
             final PolicyDTO.PolicyCreateRequest createRequest = PolicyDTO.PolicyCreateRequest.newBuilder()
-                    .setInputPolicy(inputPolicy)
+                    .setPolicyInfo(policyInfo)
                     .build();
             final PolicyDTO.PolicyCreateResponse policyCreateResp = policyRpcService.createPolicy(createRequest);
-            final long createdPolicyID = policyCreateResp.getPolicyId();
+            final long createdPolicyID = policyCreateResp.getPolicy().getId();
 
             // Confirmed with the UI team that the UI doesn't really use the return value.
             // In the future, if they need to use it, we can change the `createPolicy` to return the policy.
@@ -368,10 +368,10 @@ public class MarketsService implements IMarketsService {
                 }
             }
 
-            final PolicyDTO.InputPolicy inputPolicy = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
+            final PolicyDTO.PolicyInfo policyInfo = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
             final PolicyDTO.PolicyEditRequest policyEditRequest = PolicyDTO.PolicyEditRequest.newBuilder()
-                    .setInputPolicy(inputPolicy)
                     .setPolicyId(Long.valueOf(policyUuid))
+                    .setNewPolicyInfo(policyInfo)
                     .build();
             policyRpcService.editPolicy(policyEditRequest);
 

@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -198,50 +199,41 @@ public class GroupProtoUtil {
      */
     @Nonnull
     public static Set<Long> getPolicyGroupIds(@Nonnull final Policy policy) {
-        Set<Long> result = new HashSet<>();
-        switch (policy.getPolicyDetailCase()) {
+        final Set<Long> result = new HashSet<>();
+        final PolicyInfo policyInfo = policy.getPolicyInfo();
+        switch (policyInfo.getPolicyDetailCase()) {
             case MERGE:
-                result.addAll(policy.getMerge().getMergeGroupIdsList());
+                result.addAll(policyInfo.getMerge().getMergeGroupIdsList());
                 break;
             case AT_MOST_N:
-                Policy.AtMostNPolicy atMostN = policy.getAtMostN();
-                result.add(atMostN.getConsumerGroupId());
-                result.add(atMostN.getProviderGroupId());
+                result.add(policyInfo.getAtMostN().getConsumerGroupId());
+                result.add(policyInfo.getAtMostN().getProviderGroupId());
                 break;
             case BIND_TO_GROUP:
-                Policy.BindToGroupPolicy bindToGroup = policy.getBindToGroup();
-                result.add(bindToGroup.getConsumerGroupId());
-                result.add(bindToGroup.getProviderGroupId());
+                result.add(policyInfo.getBindToGroup().getConsumerGroupId());
+                result.add(policyInfo.getBindToGroup().getProviderGroupId());
                 break;
             case AT_MOST_NBOUND:
-                Policy.AtMostNBoundPolicy atMostNBound = policy.getAtMostNbound();
-                result.add(atMostNBound.getConsumerGroupId());
-                result.add(atMostNBound.getProviderGroupId());
+                result.add(policyInfo.getAtMostNbound().getConsumerGroupId());
+                result.add(policyInfo.getAtMostNbound().getProviderGroupId());
                 break;
             case BIND_TO_GROUP_AND_LICENSE:
-                Policy.BindToGroupAndLicencePolicy bindToGroupAndLicense = policy.getBindToGroupAndLicense();
-                result.add(bindToGroupAndLicense.getConsumerGroupId());
-                result.add(bindToGroupAndLicense.getProviderGroupId());
+                result.add(policyInfo.getBindToGroupAndLicense().getConsumerGroupId());
+                result.add(policyInfo.getBindToGroupAndLicense().getProviderGroupId());
                 break;
             case BIND_TO_GROUP_AND_GEO_REDUNDANCY:
-                Policy.BindToGroupAndGeoRedundancyPolicy bindToGroupAndGeoRedundancy =
-                        policy.getBindToGroupAndGeoRedundancy();
-                result.add(bindToGroupAndGeoRedundancy.getConsumerGroupId());
-                result.add(bindToGroupAndGeoRedundancy.getProviderGroupId());
+                result.add(policyInfo.getBindToGroupAndGeoRedundancy().getConsumerGroupId());
+                result.add(policyInfo.getBindToGroupAndGeoRedundancy().getProviderGroupId());
                 break;
             case BIND_TO_COMPLEMENTARY_GROUP:
-                Policy.BindToComplementaryGroupPolicy bindToComplementaryGroup =
-                        policy.getBindToComplementaryGroup();
-                result.add(bindToComplementaryGroup.getConsumerGroupId());
-                result.add(bindToComplementaryGroup.getProviderGroupId());
+                result.add(policyInfo.getBindToComplementaryGroup().getConsumerGroupId());
+                result.add(policyInfo.getBindToComplementaryGroup().getProviderGroupId());
                 break;
             case MUST_RUN_TOGETHER:
-                Policy.MustRunTogetherPolicy mustRunTogether = policy.getMustRunTogether();
-                result.add(mustRunTogether.getGroupId());
+                result.add(policyInfo.getMustRunTogether().getGroupId());
                 break;
             case MUST_NOT_RUN_TOGETHER:
-                Policy.MustNotRunTogetherPolicy mustNotRunTogether = policy.getMustNotRunTogether();
-                result.add(mustNotRunTogether.getGroupId());
+                result.add(policyInfo.getMustNotRunTogether().getGroupId());
                 break;
         }
         return result;

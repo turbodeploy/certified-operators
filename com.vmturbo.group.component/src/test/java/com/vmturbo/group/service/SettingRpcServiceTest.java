@@ -20,13 +20,14 @@ import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.ImmutableSet;
+
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest;
-import com.vmturbo.group.persistent.SettingSpecStore;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.setting.SettingSpecStore;
+import com.vmturbo.group.setting.SettingStore;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SettingRpcServiceTest {

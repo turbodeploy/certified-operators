@@ -89,8 +89,8 @@ public class ReservationPolicyFactoryTest {
                         Lists.newArrayList(clusterConstraint), Sets.newHashSet(5L));
         final Policy policy = placementPolicy.getPolicyDefinition();
         Mockito.verify(groupServiceMole, Mockito.times(1)).getMembers(request);
-        Assert.assertTrue(policy.getEnabled());
-        Assert.assertTrue(policy.hasBindToGroup());
+        Assert.assertTrue(policy.getPolicyInfo().getEnabled());
+        Assert.assertTrue(policy.getPolicyInfo().hasBindToGroup());
     }
 
     @Test

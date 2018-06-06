@@ -13,6 +13,7 @@ import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
@@ -26,8 +27,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SingleSettingSpecRequest
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceImplBase;
-import com.vmturbo.group.persistent.SettingSpecStore;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.setting.SettingSpecStore;
+import com.vmturbo.group.setting.SettingStore;
 
 public class SettingRpcService extends SettingServiceImplBase {
 

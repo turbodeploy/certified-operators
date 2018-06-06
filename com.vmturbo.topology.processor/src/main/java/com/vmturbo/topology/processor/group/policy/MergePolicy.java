@@ -38,9 +38,10 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 public class MergePolicy extends PlacementPolicy {
 
     private static final Logger logger = LogManager.getLogger();
-    private final PolicyDTO.Policy.MergePolicy mergePolicy;
+
     // list of PolicyEntities which is wrapper for Group and additional entities
     private final List<PolicyEntities> mergePolicyEntitiesList;
+
     private final PolicyDTO.Policy policyDefinition;
 
     /**
@@ -53,9 +54,8 @@ public class MergePolicy extends PlacementPolicy {
     public MergePolicy(@Nonnull final PolicyDTO.Policy policyDefinition,
                        @Nonnull final List<PolicyEntities> mergePolicyEntitiesList) {
         super(policyDefinition);
-        Preconditions.checkArgument(policyDefinition.hasMerge(), "Must be MergePolicy");
+        Preconditions.checkArgument(policyDefinition.getPolicyInfo().hasMerge(), "Must be MergePolicy");
         this.policyDefinition = Objects.requireNonNull(policyDefinition);
-        this.mergePolicy = Objects.requireNonNull(policyDefinition.getMerge());
         this.mergePolicyEntitiesList = Objects.requireNonNull(mergePolicyEntitiesList);
         mergePolicyEntitiesList
                 .forEach(mergePolicyEntities -> GroupProtoUtil.checkEntityType(mergePolicyEntities.getGroup()));
@@ -79,7 +79,7 @@ public class MergePolicy extends PlacementPolicy {
         List<Long> oidList = getListOfOids(groupResolver, topologyGraph, groups);
 
         // get the policy OID
-        long policyOid = policyDefinition.getId();
+        final long policyOid = policyDefinition.getId();
         applyClusterPolicy(oidList, policyOid, groupResolver, topologyGraph);
     }
 
@@ -241,7 +241,8 @@ public class MergePolicy extends PlacementPolicy {
      * @return entity type
      */
     private int getCurrentEntityType() {
-        switch (this.mergePolicy.getMergeType()) {
+        final PolicyDTO.PolicyInfo.MergePolicy mergePolicy = policyDefinition.getPolicyInfo().getMerge();
+        switch (mergePolicy.getMergeType()) {
             case CLUSTER:
                 return EntityType.PHYSICAL_MACHINE_VALUE;
             case STORAGE_CLUSTER:
@@ -250,7 +251,7 @@ public class MergePolicy extends PlacementPolicy {
                 return EntityType.PHYSICAL_MACHINE_VALUE;
             default:
                 throw new InvalidMergePolicyTypeException("Invalid merge policy type: "
-                        + this.mergePolicy.getMergeType());
+                        + mergePolicy.getMergeType());
         }
     }
 
@@ -260,7 +261,8 @@ public class MergePolicy extends PlacementPolicy {
      * @return
      */
     private int getCommodityType() {
-        switch (this.mergePolicy.getMergeType()) {
+        final PolicyDTO.PolicyInfo.MergePolicy mergePolicy = policyDefinition.getPolicyInfo().getMerge();
+        switch (mergePolicy.getMergeType()) {
             case CLUSTER:
                 return CommodityType.CLUSTER_VALUE;
             case STORAGE_CLUSTER:
@@ -269,7 +271,7 @@ public class MergePolicy extends PlacementPolicy {
                 return CommodityType.DATACENTER_VALUE;
             default:
                 throw new InvalidMergePolicyTypeException("Invalid merge policy type: "
-                        + this.mergePolicy.getMergeType());
+                        + mergePolicy.getMergeType());
         }
 
     }

@@ -29,7 +29,7 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final PolicyDTO.Policy.AtMostNBoundPolicy atMostNBound;
+    private final PolicyDTO.PolicyInfo.AtMostNBoundPolicy atMostNBound;
 
     private final PolicyEntities providerPolicyEntities;
 
@@ -47,11 +47,13 @@ public class AtMostNBoundPolicy extends PlacementPolicy {
                               @Nonnull final PolicyEntities consumerPolicyEntities,
                               @Nonnull final PolicyEntities providerPolicyEntities) {
         super(policyDefinition);
-        Preconditions.checkArgument(policyDefinition.hasAtMostNbound(), "Must be AtMostNBoundPolicy");
+
+        Objects.requireNonNull(policyDefinition);
+        Preconditions.checkArgument(policyDefinition.getPolicyInfo().hasAtMostNbound(), "Must be AtMostNBoundPolicy");
 
         this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
         this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
-        this.atMostNBound = Objects.requireNonNull(policyDefinition.getAtMostNbound());
+        this.atMostNBound = policyDefinition.getPolicyInfo().getAtMostNbound();
         GroupProtoUtil.checkEntityType(providerPolicyEntities.getGroup());
         Preconditions.checkArgument(this.atMostNBound.hasCapacity(),
             "Capacity required");

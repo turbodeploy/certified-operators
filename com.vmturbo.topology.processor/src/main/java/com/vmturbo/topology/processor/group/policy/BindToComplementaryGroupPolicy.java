@@ -27,7 +27,7 @@ public class BindToComplementaryGroupPolicy extends PlacementPolicy {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private final PolicyDTO.Policy.BindToComplementaryGroupPolicy bindToComplementaryGroup;
+    private final PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy bindToComplementaryGroup;
     private final PolicyEntities providerPolicyEntities;
     private final PolicyEntities consumerPolicyEntities;
 
@@ -42,8 +42,9 @@ public class BindToComplementaryGroupPolicy extends PlacementPolicy {
                                           @Nonnull final PolicyEntities consumerPolicyEntities,
                                           @Nonnull final PolicyEntities providerPolicyEntities) {
         super(policyDefinition);
-        Preconditions.checkArgument(policyDefinition.hasBindToComplementaryGroup());
-        this.bindToComplementaryGroup = Objects.requireNonNull(policyDefinition.getBindToComplementaryGroup());
+        Objects.requireNonNull(policyDefinition);
+        Preconditions.checkArgument(policyDefinition.getPolicyInfo().hasBindToComplementaryGroup());
+        this.bindToComplementaryGroup = policyDefinition.getPolicyInfo().getBindToComplementaryGroup();
         this.consumerPolicyEntities = Objects.requireNonNull(consumerPolicyEntities);
         this.providerPolicyEntities = Objects.requireNonNull(providerPolicyEntities);
     }

@@ -30,7 +30,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
@@ -388,11 +389,12 @@ public class TopologyProcessorPerformanceTest {
 
     private static Policy bindToGroup(@Nonnull final Group consumerGroup,
                                       @Nonnull final Group providerGroup) {
-        return Policy.newBuilder().setBindToGroup(
-            BindToGroupPolicy.newBuilder()
-                .setConsumerGroupId(consumerGroup.getId())
-                .setProviderGroupId(providerGroup.getId())
-        ).build();
+        return Policy.newBuilder()
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setBindToGroup(BindToGroupPolicy.newBuilder()
+                    .setConsumerGroupId(consumerGroup.getId())
+                    .setProviderGroupId(providerGroup.getId())))
+            .build();
     }
 
     public class PolicyServiceStub extends PolicyServiceImplBase {

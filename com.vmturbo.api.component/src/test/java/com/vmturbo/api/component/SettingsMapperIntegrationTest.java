@@ -26,9 +26,9 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.group.persistent.EnumBasedSettingSpecStore;
-import com.vmturbo.group.persistent.SettingSpecStore;
-import com.vmturbo.group.persistent.SettingStore;
+import com.vmturbo.group.setting.EnumBasedSettingSpecStore;
+import com.vmturbo.group.setting.SettingSpecStore;
+import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.group.service.SettingRpcService;
 
 /**

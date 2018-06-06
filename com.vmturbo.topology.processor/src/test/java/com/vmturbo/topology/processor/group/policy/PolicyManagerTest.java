@@ -39,7 +39,8 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles.PolicyServiceMole;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -247,10 +248,10 @@ public class PolicyManagerTest {
                                       final long id) {
         return Policy.newBuilder()
             .setId(id)
-            .setBindToGroup(BindToGroupPolicy.newBuilder()
-                .setConsumerGroupId(consumerId)
-                .setProviderGroupId(providerId)
-                .build())
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setBindToGroup(BindToGroupPolicy.newBuilder()
+                    .setConsumerGroupId(consumerId)
+                    .setProviderGroupId(providerId)))
             .build();
     }
 }

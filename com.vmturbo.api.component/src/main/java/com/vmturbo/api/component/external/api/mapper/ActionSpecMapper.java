@@ -377,7 +377,8 @@ public class ActionSpecMapper {
                     return actionSpec.getExplanation();
                 }
                 return String.format("%s doesn't comply to %s",
-                                context.getEntity(entityOid).getDisplayName(), policy.get().getName());
+                                context.getEntity(entityOid).getDisplayName(),
+                        policy.get().getPolicyInfo().getName());
             } catch (UnknownObjectException ex) {
                 logger.error(String.format("Cannot resolve VM with oid %s from context", entityOid), ex);
             } catch (ExecutionException | InterruptedException ex) {

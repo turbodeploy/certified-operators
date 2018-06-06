@@ -63,17 +63,13 @@ import org.springframework.web.util.UriComponentsBuilder;
  *
  *     @Before
  *     public void setup() {
- *         ...
- *         Flyway flyway = dbConfig.flyway();
- *         flyway.clean();
- *         flyway.migrate();
- *         DSLContext dsl = dbConfig.dsl(); // Use this to interact with the database.
+ *         dbConfig.prepareDatabase();
  *         ...
  *     }
  *
  *     @After
  *     public void teardown() {
- *         dbConfig.flyway().teardown();
+ *         dbConfig.clean();
  *     }
  * </code>
  */
@@ -83,6 +79,27 @@ public class TestSQLDatabaseConfig {
 
     @Value("${originalSchemaName}")
     private String originalSchemaName;
+
+    /**
+     * Call this method in a @Before method to prepare the database.
+     *
+     * @return The {@link DSLContext} to use for jOOQ operations.
+     */
+    @Nonnull
+    public DSLContext prepareDatabase() {
+        // Clean the database and bring it up to the production configuration before running test
+        clean();
+        flyway().migrate();
+
+        return dsl();
+    }
+
+    /**
+     * Call this method in a @After method to clean the database after the test runs.
+     */
+    public void clean() {
+        flyway().clean();
+    }
 
     @Bean
     @Primary

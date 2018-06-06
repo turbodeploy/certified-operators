@@ -70,10 +70,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.AtMostNBoundPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.AtMostNPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToComplementaryGroupPolicy;
-import com.vmturbo.common.protobuf.group.PolicyDTO.Policy.BindToGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNBoundPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
@@ -682,54 +683,52 @@ public class PlacementPolicySysTest {
     private static Policy bindToGroup() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
-            .setBindToGroup(
-                BindToGroupPolicy.newBuilder()
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setBindToGroup(BindToGroupPolicy.newBuilder()
                     .setConsumerGroupId(policyGroupingID())
-                    .setProviderGroupId(policyGroupingID())
-                    .build())
+                    .setProviderGroupId(policyGroupingID())))
             .build();
     }
 
     private static Policy atMostN() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
-            .setAtMostN(
-                AtMostNPolicy.newBuilder()
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setAtMostN(AtMostNPolicy.newBuilder()
                     .setCapacity(1.0f)
                     .setConsumerGroupId(policyGroupingID())
-                    .setProviderGroupId(policyGroupingID())
-                    .build())
+                    .setProviderGroupId(policyGroupingID())))
             .build();
     }
 
     private static Policy atMostNBound() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
-            .setAtMostNbound(
-                AtMostNBoundPolicy.newBuilder()
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setAtMostNbound(AtMostNBoundPolicy.newBuilder()
                     .setCapacity(2.0f)
                     .setConsumerGroupId(policyGroupingID())
-                    .setProviderGroupId(policyGroupingID())
-                    .build())
+                    .setProviderGroupId(policyGroupingID())))
             .build();
     }
 
     private static Policy bindToComplementaryGroup() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
-            .setBindToComplementaryGroup(BindToComplementaryGroupPolicy.newBuilder()
-                .setConsumerGroupId(policyGroupingID())
-                .setProviderGroupId(policyGroupingID())
-                .build())
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setBindToComplementaryGroup(BindToComplementaryGroupPolicy.newBuilder()
+                    .setConsumerGroupId(policyGroupingID())
+                    .setProviderGroupId(policyGroupingID())))
             .build();
     }
 
     private static Policy mustRunTogether() {
         return Policy.newBuilder()
             .setId(IdentityGenerator.next())
-            .setMustRunTogether(Policy.MustRunTogetherPolicy.newBuilder()
-                .setGroupId(policyGroupingID())
-                .build())
+            .setPolicyInfo(PolicyInfo.newBuilder()
+                .setMustRunTogether(PolicyInfo.MustRunTogetherPolicy.newBuilder()
+                    .setGroupId(policyGroupingID())
+                    .build()))
             .build();
     }
 
