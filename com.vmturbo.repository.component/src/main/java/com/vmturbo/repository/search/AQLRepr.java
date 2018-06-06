@@ -4,10 +4,14 @@ import com.github.jknack.handlebars.Template;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.AQLs;
 import javaslang.collection.List;
 import javaslang.control.Option;
+
+import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,9 +21,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
+
+import javax.annotation.Nonnull;
 
 /**
  * A Java representation of AQL.
@@ -33,10 +40,21 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
 
     private final List<Filter<? extends AnyFilterType>> filters;
 
-    public AQLRepr(final List<Filter<? extends AnyFilterType>> filtersArg) {
+    private final Optional<AQLPagination> pagination;
+
+    public AQLRepr(@Nonnull final List<Filter<? extends AnyFilterType>> filtersArg) {
         checkArgument(filtersArg.tail().forAll(f -> PROPERTY_FILTER_TYPE.contains(f.getType())),
                 "Only the first filter can contain a traversal filter");
-        filters = Objects.requireNonNull(filtersArg);
+        this.filters = Objects.requireNonNull(filtersArg);
+        this.pagination = Optional.empty();
+    }
+
+    public AQLRepr(@Nonnull final List<Filter<? extends AnyFilterType>> filtersArg,
+                   @Nonnull final AQLPagination pagination) {
+        checkArgument(filtersArg.tail().forAll(f -> PROPERTY_FILTER_TYPE.contains(f.getType())),
+                "Only the first filter can contain a traversal filter");
+        this.filters = Objects.requireNonNull(filtersArg);
+        this.pagination = Optional.of(pagination);
     }
 
     public List<Filter<? extends AnyFilterType>> getFilters() {
@@ -76,7 +94,8 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
         final Collection<String> bindVars = AQLTemplate.bindVarsMapper.get(firstFilter.getType());
 
         final Map<String, Object> ctx = ImmutableMap.of(
-                "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())));
+                "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())),
+                "pagination", pagination.map(AQLPagination::toAQLString).orElse(""));
 
         return AQLs.of(applyTemplate(template, ctx).getOrElse(""), bindVars);
     }
@@ -94,7 +113,8 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
         final Map<String, Object> ctx = ImmutableMap.of(
                 "direction", direction.toAQLString(),
                 "hops", hops,
-                "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())));
+                "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())),
+                "pagination", pagination.map(AQLPagination::toAQLString).orElse(""));
 
         return AQLs.of(applyTemplate(template, ctx).getOrElse(""), bindVars);
     }
@@ -113,7 +133,8 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
         final Map<String, Object> ctx = ImmutableMap.of(
                 "direction", direction.toAQLString(),
                 "condition", condition.toAQLString(),
-                "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())));
+                "filters", filters.map(f -> ImmutableMap.of("filter", f.toAQLString())),
+                "pagination", pagination.map(AQLPagination::toAQLString).orElse(""));
         return AQLs.of(applyTemplate(template, ctx).getOrElse(""), bindVars);
     }
 
@@ -163,5 +184,60 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
         return MoreObjects.toStringHelper(this)
                 .add("filters", filters)
                 .toString();
+    }
+
+    /**
+     * A helper class to define AQL pagination parameters. And it will be converted to LIMIT and
+     * SORT query.
+     */
+    public static class AQLPagination implements AQLConverter {
+        private static final Logger logger = LoggerFactory.getLogger(AQLPagination.class);
+
+        private final String ASC = "ASC";
+
+        private final String DESC = "DESC";
+
+        private final String DISPLAY_NAME = "displayName";
+
+        private final SearchOrderBy searchOrderby;
+
+        private final boolean isAscending;
+
+        private final long skipNum;
+
+        private final Optional<Long >limitNum;
+
+        public AQLPagination (final SearchOrderBy searchOrderby,
+                           final boolean isAscending,
+                           final long skipNum,
+                           final Optional<Long> limitNum) {
+            this.searchOrderby = searchOrderby;
+            this.isAscending = isAscending;
+            this.skipNum = skipNum;
+            this.limitNum = limitNum;
+        }
+
+        @Override
+        public String toAQLString() {
+            final String sortOrder = this.isAscending ? ASC : DESC;
+            final String orderByFieldName = getOrderByFieldName(searchOrderby);
+            final String sortStr = String.format("SORT service_entity.%s %s\n", orderByFieldName, sortOrder);
+            final String limitStr = limitNum.isPresent()
+                    ? String.format("LIMIT %d,%d", skipNum, limitNum.get())
+                    : "";
+            return sortStr + limitStr;
+        }
+
+        private String getOrderByFieldName(@Nonnull final SearchOrderBy searchOrderBy) {
+            if (searchOrderBy.equals(SearchOrderBy.ENTITY_NAME)) {
+                return DISPLAY_NAME;
+            } else {
+                // search order by utilization and cost are not implemented yet, for now it will be also
+                // set to entity name.
+                // TODO: Implement search order by utilization and cost.
+                logger.warn("Search query sort by {} is not implemented yet.", searchOrderBy);
+                return DISPLAY_NAME;
+            }
+        }
     }
 }

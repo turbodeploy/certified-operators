@@ -352,7 +352,8 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public SearchHandler searchHandler() {
         return new SearchHandler(graphDefinition(),
-                                 arangoDatabaseFactory());
+                                 arangoDatabaseFactory(),
+                                 arangoDBExecutor());
     }
 
     // The controller generated with gRPC service

@@ -1,25 +1,31 @@
 package com.vmturbo.action.orchestrator.rpc;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCount;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceImplBase;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 
 /**
  * Implements the RPC calls supported by the action orchestrator for retrieving and executing actions.
@@ -44,35 +50,41 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
      */
     @Override
     public void getEntitySeverities(MultiEntityRequest request,
-                                    StreamObserver<EntitySeverity> responseObserver) {
+                                    StreamObserver<EntitySeveritiesResponse> responseObserver) {
         final Optional<EntitySeverityCache> optionalCache =
             actionStorehouse.getSeverityCache(request.getTopologyContextId());
-        if (!optionalCache.isPresent()) {
-            // The contract is that every requested entity must be included in the response.
+        if (!request.hasPaginationParams()) {
+            EntitySeveritiesResponse.Builder responseBuilder = EntitySeveritiesResponse.newBuilder();
             request.getEntityIdsList().stream()
-                .map(oid -> EntitySeverity.newBuilder()
-                    .setEntityId(oid)
-                    .build())
-                .forEach(responseObserver::onNext);
-
-
+                    .map(oid -> generateEntitySeverity(oid, optionalCache))
+                    .forEach(responseBuilder::addEntitySeverity);
+            responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
             return;
-        } else {
-            final EntitySeverityCache cache = optionalCache.get();
-
-            request.getEntityIdsList().stream()
-                .map(oid -> {
-                    EntitySeverity.Builder builder = EntitySeverity.newBuilder()
-                        .setEntityId(oid);
-
-                    cache.getSeverity(oid)
-                        .ifPresent(builder::setSeverity);
-
-                    return builder.build();
-                }).forEach(responseObserver::onNext);
         }
-
+        final PaginationParameters paginationParameters = request.getPaginationParams();
+        if (paginationParameters.getLimit() <= 0) {
+            throw new IllegalArgumentException("Illegal pagination limit: " +
+                    paginationParameters.getLimit() + ". Must be be a positive integer");
+        }
+        final long skipCount = paginationParameters.hasCursor() ? Long.valueOf(paginationParameters.getCursor()) : 0;
+        final Comparator<Long> comparator = getComparator(optionalCache);
+        final List<EntitySeverity> results = request.getEntityIdsList().stream()
+                .sorted(paginationParameters.getAscending() ? comparator : comparator.reversed())
+                .skip(skipCount)
+                .limit(paginationParameters.getLimit())
+                .map(oid -> generateEntitySeverity(oid, optionalCache))
+                .collect(Collectors.toList());
+        EntitySeveritiesResponse.Builder responseBuilder =
+                EntitySeveritiesResponse.newBuilder()
+                        .addAllEntitySeverity(results)
+                        .setPaginationResponse(PaginationResponse.newBuilder());
+        if ((skipCount + results.size()) < request.getEntityIdsCount()) {
+            // if there are more results left.
+            responseBuilder.getPaginationResponseBuilder()
+                    .setNextCursor(String.valueOf(skipCount + paginationParameters.getLimit()));
+        }
+        responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
 
@@ -107,5 +119,42 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
         }
 
         responseObserver.onCompleted();
+    }
+
+    /**
+     * Create a comparator to sort entity oid, if there is related entity severity cached, use its
+     * entity severity as comparator, otherwise, use the entity oid as the default comparator.
+     *
+     * @param optionalCache {@link EntitySeverityCache}
+     * @return a comparator to sort entity oids.
+     */
+    private Comparator<Long> getComparator(@Nonnull final Optional<EntitySeverityCache> optionalCache) {
+        if (!optionalCache.isPresent()) {
+            // if there is no severity cache, use the oid order as default comparator.
+            return Comparator.comparingLong(Long::valueOf);
+        }
+        final EntitySeverityCache severityCache = optionalCache.get();
+        return Comparator.comparing(entity ->
+                severityCache.getSeverity(entity).orElse(Severity.NORMAL));
+    }
+
+    /**
+     * Generate a {@link EntitySeverity} based on entity oid and related entity severity information.
+     *
+     * @param oid oid of entity.
+     * @param optionalCache {@link EntitySeverityCache}.
+     * @return a {@link EntitySeverity}.
+     */
+    private EntitySeverity generateEntitySeverity(
+            @Nonnull final long oid,
+            @Nonnull final Optional<EntitySeverityCache> optionalCache) {
+        final EntitySeverity.Builder entitySeverityBuilder = EntitySeverity.newBuilder()
+                .setEntityId(oid);
+        final Optional<Severity> severityOptional =
+                optionalCache.isPresent() && optionalCache.get().getSeverity(oid).isPresent()
+                ? Optional.of(optionalCache.get().getSeverity(oid).get())
+                : Optional.empty();
+        severityOptional.ifPresent(entitySeverityBuilder::setSeverity);
+        return entitySeverityBuilder.build();
     }
 }

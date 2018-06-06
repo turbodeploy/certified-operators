@@ -4,6 +4,7 @@ package action;
 option java_package = "com.vmturbo.common.protobuf.action";
 
 import "action/ActionDTO.proto";
+import "common/Pagination.proto";
 
 // A description of the severity for an entity.
 // Entity Severity is calculated by finding the most severe action among
@@ -33,6 +34,16 @@ message MultiEntityRequest {
 
     // The IDs of the entities being addressed.
     repeated int64 entity_ids = 2;
+
+    // If not provder pagination parameters, the response will contains all request entity oids.
+    // And pagination parameter order by type can only be search order by severity.
+    optional common.PaginationParameters pagination_params = 3;
+}
+
+message EntitySeveritiesResponse {
+    repeated EntitySeverity entity_severity = 1;
+
+    optional common.PaginationResponse pagination_response = 2;
 }
 
 message SeverityCountsResponse {
@@ -47,7 +58,7 @@ message SeverityCountsResponse {
 // A service responsible for retrieving entity severities.
 service EntitySeverityService {
     // Get severity information for service entities by the service entity ids
-    rpc GetEntitySeverities(MultiEntityRequest) returns (stream EntitySeverity);
+    rpc GetEntitySeverities(MultiEntityRequest) returns (EntitySeveritiesResponse);
 
     // Get the counts of how many severities in the request map to corresponding severities.
     //

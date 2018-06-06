@@ -1,33 +1,50 @@
 package com.vmturbo.repository.search;
 
-import com.arangodb.ArangoCursor;
-import com.arangodb.ArangoDB;
-import com.arangodb.ArangoDatabase;
-import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.graph.GraphDefinition;
-import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
-import com.vmturbo.repository.graph.operator.GraphCreatorFixture;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.atLeast;
+import static org.mockito.Mockito.verify;
 
-import javaslang.collection.List;
-import javaslang.control.Either;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
+import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
-import java.util.Arrays;
-import java.util.Collection;
+import com.arangodb.ArangoCursor;
+import com.arangodb.ArangoDB;
+import com.arangodb.ArangoDatabase;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
-import javax.annotation.Nonnull;
+import javaslang.collection.List;
+import javaslang.control.Either;
+import javaslang.control.Try;
 
-import static org.junit.Assert.assertTrue;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.atLeast;
+import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.graph.GraphDefinition;
+import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
+import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.graph.operator.GraphCreatorFixture;
+import com.vmturbo.repository.graph.parameter.GraphCmd.ServiceEntityMultiGet;
+import com.vmturbo.repository.topology.TopologyDatabase;
+import com.vmturbo.repository.topology.TopologyID;
+import com.vmturbo.repository.topology.TopologyID.TopologyType;
 
 @RunWith(MockitoJUnitRunner.class)
 public class SearchHandlerTest {
@@ -52,6 +69,8 @@ public class SearchHandlerTest {
 
     private final String db = "db-1";
 
+    private final GraphDBExecutor graphDBExecutor = Mockito.mock(GraphDBExecutor.class);
+
     @Mock
     private ArangoDatabaseFactory arangoDatabaseFactory;
 
@@ -67,7 +86,8 @@ public class SearchHandlerTest {
     @Before
     public void setUp() {
         searchHandler = new SearchHandler(graphDefinition,
-                                          arangoDatabaseFactory);
+                                          arangoDatabaseFactory,
+                                          graphDBExecutor);
 
         given(arangoDatabaseFactory.getArangoDriver()).willReturn(arangoDB);
         given(arangoDB.db(db)).willReturn(arangoDatabase);
@@ -80,21 +100,28 @@ public class SearchHandlerTest {
         given(arangoDB.db(any())).willThrow(new RuntimeException());
 
         final Either<Throwable, Collection<String>> result =
-                        searchHandler.searchEntityOids(reprs, db);
+                        searchHandler.searchEntityOids(reprs, db, Optional.empty(), Collections.emptyList());
 
         assertTrue("The result should be an exception", result.isLeft());
     }
 
     @Test
     public void testSearchEntityOids() {
-        searchHandler.searchEntityOids(reprs, db);
+        searchHandler.searchEntityOids(reprs, db, Optional.empty(), Lists.newArrayList("1", "2", "3"));
 
         verify(arangoDB, atLeast(1)).db(db);
 
         ArgumentCaptor<String> queriesArg = ArgumentCaptor.forClass(String.class);
-        verify(arangoDatabase, atLeast(1)).query(queriesArg.capture(), any(), any(), any());
+        ArgumentCaptor<Map> bindVarsArg = ArgumentCaptor.forClass(Map.class);
+        verify(arangoDatabase, atLeast(1)).query(queriesArg.capture(),
+                bindVarsArg.capture(), any(), any());
         final String queriesToArangoDB = queriesArg.getAllValues().toString();
-
+        final Object bindVarsObj = bindVarsArg.getAllValues().get(0).get("inputs");
+        final ArrayList<String> bindVars = (ArrayList)(bindVarsObj);
+        assertEquals(3L, bindVars.size());
+        assertTrue(bindVars.stream().anyMatch(oid -> oid.equals("seVertexCollection/1")));
+        assertTrue(bindVars.stream().anyMatch(oid -> oid.equals("seVertexCollection/2")));
+        assertTrue(bindVars.stream().anyMatch(oid -> oid.equals("seVertexCollection/3")));
         // The queries should contain the strings for the property names and values
         // in the PropertyFilter instances
         shouldContain(queriesToArangoDB, "entityType");
@@ -112,20 +139,28 @@ public class SearchHandlerTest {
         given(arangoDB.db(any())).willThrow(new RuntimeException());
 
         final Either<Throwable, Collection<ServiceEntityRepoDTO>> result =
-                        searchHandler.searchEntities(reprs, db);
+                        searchHandler.searchEntities(reprs, db, Optional.empty(), Collections.emptyList());
 
         assertTrue("The result should be an exception", result.isLeft());
     }
 
     @Test
     public void testSearchEntities() {
-        searchHandler.searchEntities(reprs, db);
+        searchHandler.searchEntities(reprs, db, Optional.empty(), Lists.newArrayList("1", "2", "3"));
 
         verify(arangoDB, atLeast(1)).db(db);
 
         ArgumentCaptor<String> queriesArg = ArgumentCaptor.forClass(String.class);
-        verify(arangoDatabase, atLeast(1)).query(queriesArg.capture(), any(), any(), any());
+        ArgumentCaptor<Map> bindVarsArg = ArgumentCaptor.forClass(Map.class);
+        verify(arangoDatabase, atLeast(1)).query(queriesArg.capture(),
+                bindVarsArg.capture(), any(), any());
         final String queriesToArangoDB = queriesArg.getAllValues().toString();
+        final Object bindVarsObj = bindVarsArg.getAllValues().get(0).get("inputs");
+        final ArrayList<String> bindVars = (ArrayList)(bindVarsObj);
+        assertEquals(3L, bindVars.size());
+        assertTrue(bindVars.stream().anyMatch(oid -> oid.equals("seVertexCollection/1")));
+        assertTrue(bindVars.stream().anyMatch(oid -> oid.equals("seVertexCollection/2")));
+        assertTrue(bindVars.stream().anyMatch(oid -> oid.equals("seVertexCollection/3")));
 
         // The queries should contain the strings for the property names and values
         // in the PropertyFilter instances
@@ -143,6 +178,33 @@ public class SearchHandlerTest {
         shouldContain(queriesToArangoDB, "state");
         shouldContain(queriesToArangoDB, "severity");
         shouldContain(queriesToArangoDB, "entityType");
+    }
+
+    @Test
+    public void testGetEntitiesByOids() {
+        final Optional<TopologyID> topologyID =
+                Optional.of(new TopologyID(123L, 456L, TopologyType.SOURCE));
+        final Set<Long> entityOids = Sets.newHashSet(1L, 2L);
+        final GraphDefinition graphDefinition = Mockito.mock(GraphDefinition.class);
+        final String serviceEntityVertex = "serviceEntityVertex";
+        Mockito.when(graphDefinition.getServiceEntityVertex()).thenReturn(serviceEntityVertex);
+        final ServiceEntityRepoDTO serviceEntityOne = new ServiceEntityRepoDTO();
+        serviceEntityOne.setUuid("1");
+        final ServiceEntityRepoDTO serviceEntityTwo = new ServiceEntityRepoDTO();
+        serviceEntityTwo.setUuid("2");
+        final ArrayList<ServiceEntityRepoDTO> serviceEntityRepoDTOs =
+                Lists.newArrayList(serviceEntityOne, serviceEntityTwo);
+        Mockito.when(graphDBExecutor.executeServiceEntityMultiGetCmd(any(ServiceEntityMultiGet.class)))
+                .thenReturn(Try.success(serviceEntityRepoDTOs));
+        Either<Throwable, Collection<ServiceEntityRepoDTO>> results =
+                searchHandler.getEntitiesByOids(entityOids, topologyID);
+        assertTrue(results.isRight());
+        Collection<ServiceEntityRepoDTO> serviceEntityRepoDTOCollection = results.get();
+        assertTrue(serviceEntityRepoDTOCollection.size() == 2);
+        assertTrue(serviceEntityRepoDTOCollection.stream()
+                .anyMatch(serviceEntityRepoDTO -> serviceEntityRepoDTO.getUuid().equals("1")));
+        assertTrue(serviceEntityRepoDTOCollection.stream()
+                .anyMatch(serviceEntityRepoDTO -> serviceEntityRepoDTO.getUuid().equals("2")));
     }
 
     private void shouldContain(@Nonnull final String content,

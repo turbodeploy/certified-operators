@@ -26,7 +26,8 @@ public class AQLTemplate {
             "{{#filters}}\n" +
             "{{{filter}}}\n" +
             "{{/filters}}\n" +
-            "RETURN DISTINCT(service_entity._id)";
+            "{{pagination}}\n" +
+            "RETURN service_entity._id";
 
     /**
      * The bind vars for {@link #PROPERTY_SEARCH_TEMPLATE}.
@@ -45,7 +46,8 @@ public class AQLTemplate {
             "{{#filters}}\n" +
             "{{{filter}}}\n" +
             "{{/filters}}\n" +
-            "RETURN DISTINCT(service_entity._id)";
+            "{{pagination}}\n" +
+            "RETURN service_entity._id";
 
     /**
      * The bind vars for {@link #TRAVERSAL_HOP_TEMPLATE}.
@@ -64,7 +66,8 @@ public class AQLTemplate {
             "{{#filters}}\n" +
             "{{{filter}}}\n" +
             "{{/filters}}\n" +
-            "RETURN DISTINCT(service_entity._id)";
+            "{{pagination}}\n" +
+            "RETURN service_entity._id";
 
     /**
      * The bind vars for  {@link #TRAVERSAL_SEARCH_TEMPLATE}.

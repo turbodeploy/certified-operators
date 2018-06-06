@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -146,13 +147,14 @@ public class SeverityPopulator {
                                                                @Nonnull final Collection<Long> entityIds,
                                                                final long topologyContextId)
     {
-        Iterable<EntitySeverity> severitiesIterable = () -> entitySeverityRpc.getEntitySeverities(
-            MultiEntityRequest.newBuilder()
-                .setTopologyContextId(topologyContextId)
-                .addAllEntityIds(entityIds)
-                .build());
+        List<EntitySeverity> severitiesList = entitySeverityRpc.getEntitySeverities(
+                MultiEntityRequest.newBuilder()
+                        .setTopologyContextId(topologyContextId)
+                        .addAllEntityIds(entityIds)
+                        .build())
+                .getEntitySeverityList();
 
-        return StreamSupport.stream(severitiesIterable.spliterator(), false)
+        return StreamSupport.stream(severitiesList.spliterator(), false)
             .collect(Collectors.toMap(
                 EntitySeverity::getEntityId,
                 entitySeverity -> entitySeverity.hasSeverity() ? Optional.of(entitySeverity.getSeverity()) : Optional.empty()

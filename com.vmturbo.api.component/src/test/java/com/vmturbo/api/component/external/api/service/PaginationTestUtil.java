@@ -57,8 +57,8 @@ public class PaginationTestUtil {
 
     @Nonnull
     public static List<BaseApiDTO> getMembersBasedOnFilter(ISearchService searchService,
-                                                         String query,
-                                                         GroupApiDTO inputDto) throws Exception {
+                                                           String query,
+                                                           GroupApiDTO inputDto) throws Exception {
         final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
                 ArgumentCaptor.forClass((Class)List.class);
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
@@ -68,7 +68,6 @@ public class PaginationTestUtil {
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }
-
 
     @Nonnull
     public static List<ActionApiDTO> getActionsByGroupUuid(IGroupsService groupService,

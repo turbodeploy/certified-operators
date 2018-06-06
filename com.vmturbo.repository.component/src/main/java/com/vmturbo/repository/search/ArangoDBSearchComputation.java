@@ -1,13 +1,17 @@
 package com.vmturbo.repository.search;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -75,8 +79,21 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
             final ArangoCursor<String> cursor = context.arangoDB().db(context.databaseName())
                     .query(queryString, bindVars, null, String.class);
             final List<String> results = cursor.asListRemaining();
-            return (results == null) ? Collections.emptyList() : results;
+            return (results == null) ? Collections.emptyList() : deduplicateWithOrder(results);
         });
+    }
+
+    /**
+     * Deduplicate the input list and also preserve the original order.
+     *
+     * @param input a list of string
+     * @return a list of string after deduplicate and keep original order.
+     */
+    private List<String> deduplicateWithOrder(@Nonnull List<String> input) {
+        final List<String> results = new ArrayList<>();
+        final Set<String> distinctResults = new LinkedHashSet<>(input);
+        results.addAll(distinctResults);
+        return results;
     }
 
     @Override

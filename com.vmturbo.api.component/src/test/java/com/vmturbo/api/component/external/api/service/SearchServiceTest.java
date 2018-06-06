@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getMembersBasedOnFilter;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getSearchResults;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -16,19 +15,22 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
-import org.junit.Before;
-import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
@@ -43,17 +45,24 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.pagination.SearchOrderBy;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchResponse;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -229,36 +238,57 @@ public class SearchServiceTest {
     @Test
     public void testGetMembersBasedOnFilterSeverity() throws Exception {
         GroupApiDTO request = new GroupApiDTO();
-
-        when(searchServiceSpy.searchEntities(any())).thenReturn(Arrays.asList(
-                Entity.newBuilder().setOid(1).setType(0).build(),
-                Entity.newBuilder().setOid(2).setType(0).build()
-                ));
-
+        request.setCriteriaList(Collections.emptyList());
+        Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap = ImmutableMap.of(1L,
+                Optional.of(supplyChainTestUtils.createServiceEntityApiDTO(1L)));
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
+        when(searchServiceSpy.searchEntityOids(any())).thenReturn(SearchResponse.newBuilder()
+                .addEntities(1L)
+                .addEntities(2L)
+                .addEntities(3L)
+                .addEntities(4L)
+                .build());
         when(entitySeverityServiceSpy.getEntitySeverities(any())).thenReturn(
-                Arrays.asList(EntitySeverity.newBuilder().setEntityId(3).setSeverity(Severity.MAJOR).build(),
-                EntitySeverity.newBuilder().setEntityId(1).setSeverity(Severity.MINOR).build(),
-                EntitySeverity.newBuilder().setEntityId(2).setSeverity(Severity.CRITICAL).build()));
-        List<BaseApiDTO> results = getMembersBasedOnFilter(searchService, "", request);
-        assertEquals(2, results.size());
+                EntitySeveritiesResponse.newBuilder().addEntitySeverity(EntitySeverity.newBuilder()
+                        .setEntityId(1L)
+                        .setSeverity(Severity.CRITICAL))
+                    .setPaginationResponse(PaginationResponse.newBuilder()).build());
+
+        when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest);
+        List<BaseApiDTO> results = response.getRawResults();
+
+        assertEquals(1, results.size());
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
         assertEquals("1", results.get(0).getUuid());
-        assertEquals("Minor", ((ServiceEntityApiDTO) results.get(0)).getSeverity());
-        assertEquals("Critical", ((ServiceEntityApiDTO) results.get(1)).getSeverity());
+        assertEquals("Critical", ((ServiceEntityApiDTO) results.get(0)).getSeverity());
     }
 
     @Test
     public void testGetMembersBasedOnFilterQuery() throws Exception {
         GroupApiDTO request = new GroupApiDTO();
-
-        when(searchServiceSpy.searchEntities(any())).thenReturn(Arrays.asList(
+        final List<Entity> entities = Arrays.asList(
                 Entity.newBuilder().setOid(1).setDisplayName("afoobar").setType(0).build(),
-                Entity.newBuilder().setOid(2).setDisplayName("bar").setType(0).build(),
-                Entity.newBuilder().setOid(3).setType(0).build(),
                 Entity.newBuilder().setOid(4).setDisplayName("Foo").setType(0).build()
-        ));
+        );
+        when(searchServiceSpy.searchEntities(any())).thenReturn(SearchEntitiesResponse.newBuilder()
+            .addAllEntities(entities)
+            .setPaginationResponse(PaginationResponse.newBuilder())
+            .build());
 
-        final List<Long> resultIds = getMembersBasedOnFilter(searchService, "foo", request)
+        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
+                ArgumentCaptor.forClass((Class)List.class);
+        final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
+        Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
+        Mockito.when(paginationRequest.allResultsResponse(any()))
+                .thenReturn(Mockito.mock(SearchPaginationResponse.class));
+        Mockito.when(paginationRequest.getOrderBy())
+                .thenReturn(SearchOrderBy.NAME);
+        searchService.getMembersBasedOnFilter("foo", request, paginationRequest);
+        Mockito.verify(paginationRequest).finalPageResponse(resultCaptor.capture());
+
+        final List<Long> resultIds = resultCaptor.getValue()
                 .stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::parseLong)

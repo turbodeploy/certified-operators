@@ -6,11 +6,12 @@ import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STORAGE_
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.ExecutorService;
@@ -32,9 +33,11 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -51,17 +54,25 @@ import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
+import com.vmturbo.api.pagination.SearchOrderBy;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
 import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.ISearchService;
+import com.vmturbo.common.protobuf.ActionDTOUtil;
+import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.search.Search;
-import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -268,25 +279,13 @@ public class SearchService implements ISearchService {
             // this is a search for a Cluster
             result = groupsService.getStorageClusters(inputDTO.getCriteriaList());
         } else {
-            // this is a search for a ServiceEntity
-            // Right now when UI send search requests, it use class name field to store entity type
-            // when UI send group service requests, it use groupType fields to store entity type.
-            List<ServiceEntityApiDTO> entities = searchEntitiesByParameters(inputDTO);
-            // populate the severities for the entities. Currently we're only getting these at the
-            // entity level. We'll probably want these at the cluster / group level too but will
-            // want to fetch them in a way that is efficient.
-            SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
-            result = entities;
+            return searchEntitiesByParameters(inputDTO, query, paginationRequest);
         }
-        if (StringUtils.isEmpty(query)) {
-            // Ideally, the API should require a List<? extends BaseApiDTO> response instead of a
-            // List<BaseApiDTO> response, but for now we do this totally safe cast.
-            return paginationRequest.allResultsResponse((List<BaseApiDTO>) result);
-        } else {
-            return paginationRequest.allResultsResponse(result.stream()
-                    .filter(dto -> StringUtils.containsIgnoreCase(dto.getDisplayName(), query))
-                    .collect(Collectors.toList()));
-        }
+        return paginationRequest.allResultsResponse(result.stream()
+                .filter(dto -> !StringUtils.isEmpty(query)
+                        ? StringUtils.containsIgnoreCase(dto.getDisplayName(), query)
+                        : true)
+                .collect(Collectors.toList()));
     }
 
     /**
@@ -296,49 +295,146 @@ public class SearchService implements ISearchService {
      * objects to list of {@link BaseApiDTO}.
      *
      * @param inputDTO a Description of what search to conduct
+     * @param nameQuery user specified search query for entity name.
      * @return A list of {@link BaseApiDTO} will be sent back to client
      */
-    private List<ServiceEntityApiDTO> searchEntitiesByParameters(GroupApiDTO inputDTO) {
+    private SearchPaginationResponse searchEntitiesByParameters(@Nonnull GroupApiDTO inputDTO,
+                                                                @Nullable String nameQuery,
+                                                                @Nonnull SearchPaginationRequest paginationRequest) {
         List<SearchParameters> searchParameters =
-            groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+            groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), nameQuery);
 
         // Convert any ClusterMemberFilters to static member filters
         Search.SearchRequest.Builder searchRequestBuilder = Search.SearchRequest.newBuilder();
         for (SearchParameters params : searchParameters) {
             searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
         }
-        final Search.SearchRequest searchRequest = searchRequestBuilder.build();
         // match only the entity uuids which are part of the group or cluster
         // defined in the scope
-        if ((inputDTO.getScope() != null) && (!inputDTO.getScope().isEmpty())) {
-            String entityIdsToMatch =
-                    groupExpander.expandUuids(ImmutableSet.copyOf(inputDTO.getScope()))
-                            .stream()
-                            .map(uuid -> Long.toString(uuid))
-                            // OR operation
-                            .collect(Collectors.joining( "|" ) );
-            if (!entityIdsToMatch.isEmpty()) {
-                // This is clunky. We are setting a filter on an index in
-                // repository(arangodb) which is not exposed anywhere.
-                // The other option is to filter for the entities here on the api
-                // client side. But doing the filter on the repository(server) side may
-                // be more efficient.
-                searchRequestBuilder.addSearchParameters(
-                        SearchParameters.newBuilder()
-                                .setStartingFilter(
-                                        SearchMapper.stringFilter(REPO_OID_KEY_NAME, entityIdsToMatch))
-                                .build());
-            }
+        final Set<String> scopeList = Optional.ofNullable(inputDTO.getScope())
+                .map(ImmutableSet::copyOf)
+                .orElse(ImmutableSet.of());
+        final boolean isGlobalScope = containsGlobalScope(scopeList);
+        final Set<Long> expandedIds = groupExpander.expandUuids(scopeList);
+        if (!expandedIds.isEmpty() && !isGlobalScope) {
+            searchRequestBuilder.addAllEntityOid(expandedIds);
         }
+        if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
+            // if pagination request is order by severity, it needs to query action orchestrator
+            // to paginate by severity.
+            final Search.SearchRequest searchRequest = searchRequestBuilder.build();
+            return getServiceEntityPaginatedWithSeverity(inputDTO, nameQuery, paginationRequest,
+                    expandedIds, searchRequest);
+        } else {
+            // TODO: Implement search entities order by utilization and cost.
+            searchRequestBuilder.setPaginationParams(PaginationMapper.toProtoParams(paginationRequest));
+            final Search.SearchRequest searchRequest = searchRequestBuilder.build();
+            final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchRequest);
+            List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
+                    .map(SearchMapper::seDTO)
+                    .collect(Collectors.toList());
+            SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
+            final List<? extends BaseApiDTO> results = entities;
+            return PaginationProtoUtil.getNextCursor(
+                    response.getPaginationResponse())
+                    .map(nexCursor -> paginationRequest.nextPageResponse((List<BaseApiDTO>) results, nexCursor))
+                    .orElseGet(() -> paginationRequest.finalPageResponse((List<BaseApiDTO>) results));
+        }
+    }
 
-        Iterator<Entity> iterator = searchServiceRpc.searchEntities(searchRequestBuilder.build());
-        List<ServiceEntityApiDTO> list = Lists.newLinkedList();
-        while (iterator.hasNext()) {
-            Entity entity = iterator.next();
-            ServiceEntityApiDTO seDTO = SearchMapper.seDTO(entity);
-            list.add(seDTO);
+    /**
+     * Implement search pagination with order by severity.  The query workflow will be: 1: The
+     * query will first go to repository (if need) to get all candidates oids. 2: All candidates
+     * oids will passed to Action Orchestrator and perform pagination based on entity severity,
+     * and only return Top X candidates. 3: Query repository to get entity information only for
+     * top X entities.
+     * <p>
+     * Because action severity data is already stored at Action Orchestrator, and it can be changed
+     * when some action is executed. In this way, we can avoid store duplicate severity data and inconsistent
+     * update operation.
+     *
+     * @param inputDTO a Description of what search to conduct.
+     * @param nameQuery user specified search query for entity name.
+     * @param paginationRequest {@link SearchPaginationRequest}
+     * @param expandedIds a list of entity oids after expanded.
+     * @param searchRequest {@link Search.SearchRequest}.
+     * @return {@link SearchPaginationResponse}.
+     */
+    private SearchPaginationResponse getServiceEntityPaginatedWithSeverity(
+            @Nonnull final GroupApiDTO inputDTO,
+            @Nullable final String nameQuery,
+            @Nonnull final SearchPaginationRequest paginationRequest,
+            @Nonnull final Set<Long> expandedIds,
+            @Nonnull final Search.SearchRequest searchRequest) {
+        final Set<Long> candidates;
+        // if query request doesn't contains any filter criteria, it can directly use expanded ids
+        // as results. Otherwise, it needs to query repository to get matched entity oids.
+        if (inputDTO.getCriteriaList().isEmpty() && StringUtils.isEmpty(nameQuery) && !expandedIds.isEmpty()) {
+            candidates = expandedIds;
+        } else {
+            candidates = searchServiceRpc.searchEntityOids(searchRequest).getEntitiesList().stream()
+                    .collect(Collectors.toSet());
         }
-        return list;
+        /*
+         The search query with order by severity workflow will be: 1: The query will first go to
+         repository (if need) to get all candidates oids. 2: All candidates oids will passed to Action
+         Orchestrator and perform pagination based on entity severity, and only return Top X candidates.
+         3: Query repository to get entity information only for top X entities.
+         */
+        MultiEntityRequest multiEntityRequest =
+                MultiEntityRequest.newBuilder()
+                        .addAllEntityIds(candidates)
+                        .setTopologyContextId(realtimeContextId)
+                        .setPaginationParams(PaginationMapper.toProtoParams(paginationRequest))
+                        .build();
+        EntitySeveritiesResponse entitySeveritiesResponse =
+                entitySeverityRpc.getEntitySeverities(multiEntityRequest);
+        final Map<Long, String> paginatedEntitySeverities =
+                entitySeveritiesResponse.getEntitySeverityList().stream()
+                        .collect(Collectors.toMap(EntitySeverity::getEntityId,
+                                entitySeverity -> ActionDTOUtil.getSeverityName(entitySeverity.getSeverity())));
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
+                repositoryApi.getServiceEntitiesById(
+                        ServiceEntitiesRequest.newBuilder(paginatedEntitySeverities.keySet()).build())
+                        .entrySet().stream()
+                        .filter(entry -> entry.getValue().isPresent())
+                        .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
+        // Should use entitySeveritiesResponse.getEntitySeverityList() here, because it has already contains
+        // paginated entities with correct order.
+        final List<ServiceEntityApiDTO> entities =
+                entitySeveritiesResponse.getEntitySeverityList().stream()
+                        .map(EntitySeverity::getEntityId)
+                        .filter(serviceEntityMap::containsKey)
+                        .map(serviceEntityMap::get)
+                        .collect(Collectors.toList());
+        entities.forEach(entity -> entity.setSeverity(paginatedEntitySeverities.get(Long.valueOf(entity.getUuid()))));
+
+        final List<? extends BaseApiDTO> results = entities;
+        return PaginationProtoUtil.getNextCursor(
+                entitySeveritiesResponse.getPaginationResponse())
+                .map(nexCursor -> paginationRequest.nextPageResponse((List<BaseApiDTO>) results, nexCursor))
+                .orElseGet(() -> paginationRequest.finalPageResponse((List<BaseApiDTO>) results));
+    }
+
+    /**
+     * Check if input scopes contains global scope or not.
+     *
+     * @param scopes a set of scopes ids.
+     * @return true if input parameter contains global scope.
+     */
+    private boolean containsGlobalScope(@Nonnull final Set<String> scopes) {
+        // if the scope list size is larger than default scope size, it will log a warn message.
+        final int DEFAULT_MAX_SCOPE_SIZE = 50;
+        if (scopes.size() >= DEFAULT_MAX_SCOPE_SIZE) {
+            logger.warn("Search scope list size is too large: {}" + scopes.size());
+        }
+        return scopes.stream()
+                .anyMatch(scope -> {
+                    final boolean isMarket = UuidMapper.isRealtimeMarket(scope);
+                    final Optional<Group> group = groupExpander.getGroup(scope);
+                    return isMarket || (group.isPresent() && group.get().hasTempGroup()
+                            && group.get().getTempGroup().getIsGlobalScopeGroup());
+                });
     }
 
     /**

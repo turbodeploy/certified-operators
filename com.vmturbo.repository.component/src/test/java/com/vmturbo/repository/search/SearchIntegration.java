@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -26,6 +27,7 @@ import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.executor.AQL;
+import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.operator.GraphCreatorFixture;
 
 /**
@@ -44,6 +46,8 @@ public class SearchIntegration {
         .build()
         .register();
 
+    private final String SERVICE_ENTITY_VERTEX = "seVertexCollection";
+
     @Test
     public void overallFlow() {
         final AQLRepr repr1 = new AQLRepr(List.of(
@@ -61,7 +65,8 @@ public class SearchIntegration {
                 () -> new ArangoDBSearchComputation(repr3.toAQL());
 
         final SearchStage<SearchComputationContext, Collection<String>, Collection<String>> combined = s1.andThen(s2).andThen(s3);
-        final SearchPipeline<SearchComputationContext> pipeline = new SearchPipeline<>(Arrays.asList(s1, s2, s3));
+        final SearchPipeline<SearchComputationContext> pipeline =
+                new SearchPipeline<>(Arrays.asList(s1, s2, s3), SERVICE_ENTITY_VERTEX);
 
         final SearchComputationContext context = ImmutableSearchComputationContext.builder()
                 .summary(SEARCH_INTEGRATION_SUMMARY)
@@ -83,12 +88,13 @@ public class SearchIntegration {
         System.out.println("====> Results: " + results);
 
         // Run via Pipeline
-        final Either<Throwable, Collection<String>> pipelineResults = pipeline.run(context);
+        final Either<Throwable, Collection<String>> pipelineResults =
+                pipeline.run(context, Collections.emptyList());
         System.out.println("====> Pipeline Results: " + pipelineResults);
 
         // Run via Pipeline with a function.
         final Either<Throwable, ArangoCursor<ServiceEntityRepoDTO>> pipelineWithEntities =
-                pipeline.run(context, ArangoDBSearchComputation.toEntities);
+                pipeline.run(context, ArangoDBSearchComputation.toEntities, Collections.emptyList());
         System.out.println("====> Pipeline with entities: " + pipelineWithEntities.map(ArangoCursor::asListRemaining));
     }
 
@@ -107,7 +113,7 @@ public class SearchIntegration {
         final java.util.List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameters);
 
         // Fuser
-        final java.util.List<AQLRepr> fusedAQLReprs = AQLReprFuser.fuse(aqlReprs);
+        final java.util.List<AQLRepr> fusedAQLReprs = AQLReprFuser.fuse(aqlReprs, Optional.empty());
 
         // AQLs
         final Stream<AQL> aqlStream = fusedAQLReprs.stream().map(AQLRepr::toAQL);
@@ -116,7 +122,8 @@ public class SearchIntegration {
         final Stream<SearchStage<SearchComputationContext, Collection<String>, Collection<String>>> stages =
                 aqlStream.map(aql -> () -> new ArangoDBSearchComputation(aql));
 
-        final SearchPipeline<SearchComputationContext> pipeline = new SearchPipeline<>(stages.collect(Collectors.toList()));
+        final SearchPipeline<SearchComputationContext> pipeline =
+                new SearchPipeline<>(stages.collect(Collectors.toList()), SERVICE_ENTITY_VERTEX);
 
         final SearchComputationContext context = ImmutableSearchComputationContext.builder()
                 .summary(SEARCH_INTEGRATION_SUMMARY)
@@ -132,11 +139,8 @@ public class SearchIntegration {
                 .executorService(executorService)
                 .build();
 
-//        final Either<Throwable, Collection<String>> resultsOIDs = pipeline.run(context);
-//        System.out.println(resultsOIDs);
-
         final Either<Throwable, ArangoCursor<ServiceEntityRepoDTO>> resultsEntities =
-                pipeline.run(context, ArangoDBSearchComputation.toEntities);
+                pipeline.run(context, ArangoDBSearchComputation.toEntities, Collections.emptyList());
         System.out.println(resultsEntities.map(cursor -> {
             final java.util.List<ServiceEntityRepoDTO> entities = cursor.asListRemaining();
             System.out.println("Entities: " + entities.size());
@@ -185,6 +189,8 @@ public class SearchIntegration {
                                     .build();
                 };
 
+        final ArangoDBExecutor arangoDBExecutor = new ArangoDBExecutor(arangoDatabaseFactory);
+
         final AQLRepr repr1 = new AQLRepr(List.of(
                 Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "PhysicalMachine")));
         final AQLRepr repr2 = new AQLRepr(List.of(
@@ -193,14 +199,15 @@ public class SearchIntegration {
                 Filter.stringPropertyFilter("displayName", Filter.StringOperator.REGEX, "#")));
 
         SearchHandler searchHandler = new SearchHandler(graphDefinition,
-                                                        arangoDatabaseFactory);
+                                                        arangoDatabaseFactory,
+                                                        arangoDBExecutor);
 
         Either<Throwable, Collection<String>> result = searchHandler.searchEntityOids(
-                                      Arrays.asList(repr1, repr2, repr3), db);
+                Arrays.asList(repr1, repr2, repr3), db, Optional.empty(), Collections.emptyList());
         System.out.println("====> Search OID Results: " + result);
 
         Either<Throwable, Collection<ServiceEntityRepoDTO>> result2 = searchHandler.searchEntities(
-                                      Arrays.asList(repr1, repr2, repr3), db);
+                Arrays.asList(repr1, repr2, repr3), db, Optional.empty(), Collections.emptyList());
         System.out.println("====> Search entity Results: " + result2);
     }
 

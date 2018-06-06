@@ -643,8 +643,8 @@ public class SupplyChainFetcherFactory {
                                            @Nonnull final Map<Severity, Long> severities) {
             Objects.requireNonNull(entityDetailType);
 
-            severityRpcService.getEntitySeverities(entitySeverityRequest)
-                .forEachRemaining(entitySeverity -> {
+            severityRpcService.getEntitySeverities(entitySeverityRequest).getEntitySeverityList()
+                .forEach(entitySeverity -> {
                     // If no severity is provided by the AO, default to normal
                     Severity effectiveSeverity = entitySeverity.hasSeverity()
                         ? entitySeverity.getSeverity()

@@ -24,6 +24,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
@@ -129,13 +130,14 @@ public class SeverityPopulatorTest {
 
         @Override
         public void getEntitySeverities(MultiEntityRequest request,
-                                        StreamObserver<EntitySeverity> responseObserver) {
+                                        StreamObserver<EntitySeveritiesResponse> responseObserver) {
             // If this check is triggered, your test did not define the required supplier method
             // that this class uses. It's a bit dirty but provides nice ergonomics for mocking
             // out the response from the AO RPC calls.
             Objects.requireNonNull(severitySupplier);
-
-            severitySupplier.get().forEach(responseObserver::onNext);
+            EntitySeveritiesResponse.Builder responseBuilder = EntitySeveritiesResponse.newBuilder();
+            severitySupplier.get().forEach(responseBuilder::addEntitySeverity);
+            responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
         }
 

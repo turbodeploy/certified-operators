@@ -40,6 +40,7 @@ import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCount;
@@ -200,13 +201,18 @@ public class SupplyChainFetcherFactoryTest {
                 .addEntityIds(1L)
                 .addEntityIds(2L)
                 .build()))
-            .thenReturn(Arrays.asList(newSeverity(1L, Severity.CRITICAL),
-                    newSeverity(2L, null)));
+            .thenReturn(EntitySeveritiesResponse.newBuilder()
+                    .addAllEntitySeverity(
+                            Arrays.asList(newSeverity(1L, Severity.CRITICAL),
+                                    newSeverity(2L, null)))
+                    .build());
         when(severityServiceBackend.getEntitySeverities(MultiEntityRequest.newBuilder()
                 .setTopologyContextId(LIVE_TOPOLOGY_ID)
                 .addEntityIds(5L)
                 .build()))
-            .thenReturn(Collections.singletonList(newSeverity(5L, Severity.MAJOR)));
+            .thenReturn(EntitySeveritiesResponse.newBuilder()
+                    .addAllEntitySeverity(Collections.singletonList(newSeverity(5L, Severity.MAJOR)))
+                    .build());
 
         repositoryApiBackend.putServiceEnity(1L, VM, Severity.CRITICAL);
         repositoryApiBackend.putServiceEnity(2L, VM, null);

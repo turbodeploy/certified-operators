@@ -1,11 +1,17 @@
 package com.vmturbo.repository.search;
 
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.AQLs;
+import com.vmturbo.repository.search.AQLRepr.AQLPagination;
+
 import javaslang.collection.List;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.registerCustomDateFormat;
+
+import java.util.Optional;
 
 public class AQLReprTest {
     @Test
@@ -102,5 +108,23 @@ public class AQLReprTest {
                 Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "VirtualMachine");
 
         new AQLRepr(List.of(typeFilter, hopTraversal));
+    }
+
+    @Test
+    public void testAQLPagination() {
+        final Filter<PropertyFilterType> typeFilter =
+                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "VirtualMachine");
+        final Filter<PropertyFilterType> nameFilter =
+                Filter.stringPropertyFilter("displayName", Filter.StringOperator.REGEX, ".*foo");
+        final AQLPagination aqlPagination =
+                new AQLPagination(SearchOrderBy.ENTITY_NAME, true, 20, Optional.of(20L));
+        final AQLRepr aqlRepr = new AQLRepr(List.of(typeFilter, nameFilter), aqlPagination);
+        final AQL aql = aqlRepr.toAQL();
+
+        assertThat(AQLs.getQuery(aql)).isNotEmpty()
+                .contains("entityType =~ \"VirtualMachine\"",
+                         "displayName =~ \".*foo\"",
+                         "SORT service_entity.displayName ASC",
+                         "LIMIT 20,20");
     }
 }

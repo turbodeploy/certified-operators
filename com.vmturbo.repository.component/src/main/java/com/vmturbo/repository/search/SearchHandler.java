@@ -1,9 +1,17 @@
 package com.vmturbo.repository.search;
 
-import java.io.IOException;
+import static javaslang.API.$;
+import static javaslang.API.Case;
+import static javaslang.API.Match;
+import static javaslang.Patterns.Failure;
+import static javaslang.Patterns.Success;
+
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
@@ -20,13 +28,19 @@ import com.arangodb.ArangoDB;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import javaslang.control.Either;
+import javaslang.control.Try;
 
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.executor.AQL;
+import com.vmturbo.repository.graph.executor.GraphDBExecutor;
+import com.vmturbo.repository.graph.parameter.GraphCmd;
+import com.vmturbo.repository.topology.TopologyDatabase;
+import com.vmturbo.repository.topology.TopologyID;
 
 /**
  * Handler for the search requests.
@@ -40,6 +54,8 @@ public class SearchHandler {
     private final GraphDefinition graphDefinition;
 
     private final ArangoDatabaseFactory arangoDatabaseFactory;
+
+    private final GraphDBExecutor executor;
 
     private static final DataMetricSummary SEARCH_STAGE_DURATION_SUMMARY = DataMetricSummary.builder()
         .withName("repo_search_stage_duration_seconds")
@@ -60,9 +76,11 @@ public class SearchHandler {
     private final ExecutorService executorService;
 
     public SearchHandler(@Nonnull final GraphDefinition graphDefinition,
-                         @Nonnull final ArangoDatabaseFactory arangoDatabaseFactory) {
+                         @Nonnull final ArangoDatabaseFactory arangoDatabaseFactory,
+                         @Nonnull final GraphDBExecutor graphDBExecutor) {
         this.graphDefinition = Objects.requireNonNull(graphDefinition);
         this.arangoDatabaseFactory = Objects.requireNonNull(arangoDatabaseFactory);
+        this.executor = Objects.requireNonNull(graphDBExecutor);
 
         executorService = Executors.newCachedThreadPool(
                 new ThreadFactoryBuilder().setNameFormat("search-handler-%d").build());
@@ -77,13 +95,16 @@ public class SearchHandler {
      */
     public Either<Throwable, Collection<String>> searchEntityOids(
                           @Nonnull final List<AQLRepr> aqlReprs,
-                          @Nonnull final String database) {
-        final List<AQLRepr> fusedAQLReprs = AQLReprFuser.fuse(aqlReprs);
+                          @Nonnull final String database,
+                          @Nonnull final Optional<PaginationParameters> paginationParams,
+                          @Nonnull final List<String> oids) {
+        final List<AQLRepr> fusedAQLReprs = AQLReprFuser.fuse(aqlReprs, paginationParams);
 
         final ArangoDB arangoDB = arangoDatabaseFactory.getArangoDriver();
+        final List<String> oidsWithPrefix = generateOidsWithPrefix(oids);
 
         try (DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()){
-            return pipeline(fusedAQLReprs).run(context(arangoDB, database));
+            return pipeline(fusedAQLReprs).run(context(arangoDB, database), oidsWithPrefix);
         }
     }
 
@@ -95,21 +116,51 @@ public class SearchHandler {
      * @return The result of {@link ServiceEntityRepoDTO} list from database or an exception.
      */
     public Either<Throwable, Collection<ServiceEntityRepoDTO>> searchEntities(
-                          @Nonnull final List<AQLRepr> aqlReprs,
-                          @Nonnull final String database) {
-        final List<AQLRepr> fusedAQLReprs = AQLReprFuser.fuse(aqlReprs);
+            @Nonnull final List<AQLRepr> aqlReprs,
+            @Nonnull final String database,
+            @Nonnull final Optional<PaginationParameters> paginationParams,
+            @Nonnull final List<String> oids) {
+        final List<AQLRepr> fusedAQLReprs = AQLReprFuser.fuse(aqlReprs, paginationParams);
 
         final ArangoDB arangoDB = arangoDatabaseFactory.getArangoDriver();
+        final List<String> oidsWithPrefix = generateOidsWithPrefix(oids);
 
         try(DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()) {
             final Either<Throwable, ArangoCursor<ServiceEntityRepoDTO>> cursorResult =
                             pipeline(fusedAQLReprs).run(context(arangoDB, database),
-                                                   ArangoDBSearchComputation.toEntities);
+                                                   ArangoDBSearchComputation.toEntities, oidsWithPrefix);
             // TODO: We may want to reify the ArangoCursor later to reduce memory pressure.
             // We don't close the cursor explicitly because it gets destroyed on the server
             // after iterating over the results.
             return cursorResult.map(ArangoCursor::asListRemaining);
         }
+    }
+
+    /**
+     * Get a list of {@link ServiceEntityRepoDTO} based on input a list of entity oids.
+     *
+     * @param entityOids a list of entity oids.
+     * @param topologyID {@link TopologyID} contains which database to query.
+     * @return Either of a list of {@link ServiceEntityRepoDTO} or {@link Throwable}.
+     */
+    public Either<Throwable, Collection<ServiceEntityRepoDTO>> getEntitiesByOids(
+            @Nonnull final Set<Long> entityOids,
+            @Nonnull final Optional<TopologyID> topologyID) {
+        final Optional<TopologyDatabase> databaseToUse = topologyID.map(TopologyID::database);
+        if (!databaseToUse.isPresent()) {
+            logger.warn("No topology database is available now");
+            return Either.right(Collections.emptyList());
+        }
+        final TopologyDatabase database = databaseToUse.get();
+        final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
+                graphDefinition.getServiceEntityVertex(),
+                entityOids,
+                database);
+        final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
+
+        return Match(seResults).of(
+                Case(Success($()), Either::right),
+                Case(Failure($()), Either::left));
     }
 
     @PreDestroy
@@ -127,7 +178,7 @@ public class SearchHandler {
         final Stream<SearchStage<SearchComputationContext, Collection<String>, Collection<String>>>
                 stages = aqlStream.map(aql -> () -> new ArangoDBSearchComputation(aql));
 
-        return new SearchPipeline<>(stages.collect(Collectors.toList()));
+        return new SearchPipeline<>(stages.collect(Collectors.toList()), graphDefinition.getServiceEntityVertex());
     }
 
     private SearchComputationContext context(final ArangoDB arangoDB, final String db) {
@@ -142,5 +193,11 @@ public class SearchHandler {
                 .build();
 
         return context;
+    }
+
+    private List<String> generateOidsWithPrefix(@Nonnull final List<String> oids) {
+        return oids.stream()
+                .map(id -> graphDefinition.getServiceEntityVertex() + "/" + id)
+                .collect(Collectors.toList());
     }
 }

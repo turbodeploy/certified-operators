@@ -9,6 +9,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -342,7 +343,7 @@ public class GroupMapperTest {
     @Test
     public void testByNameSearch() {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL, FOO, "vmsByName"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -360,7 +361,7 @@ public class GroupMapperTest {
                         "notExistingFilter"));
         thrown.expect(IllegalArgumentException.class);
         thrown.expectMessage("Not existing filter type provided: notExistingFilter");
-        groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
     }
 
     /**
@@ -369,7 +370,7 @@ public class GroupMapperTest {
     @Test
     public void testByNameSearchNotEqual() {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.NOT_EQUAL, FOO, "vmsByName"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -383,7 +384,7 @@ public class GroupMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL,
                         "IDLE", "vmsByState"));
         final List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO,
-                        inputDTO.getClassName());
+                        inputDTO.getClassName(), null);
         final PropertyFilter propertyFilter = parameters.get(0).getSearchFilter(0).getPropertyFilter();
         Assert.assertEquals(1, parameters.size());
         Assert.assertEquals(TYPE_IS_VM, parameters.get(0).getStartingFilter());
@@ -396,7 +397,7 @@ public class GroupMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, PM_TYPE, filterDTO(GroupMapper.NOT_EQUAL,
                         "ACTIVE", "pmsByState"));
         final List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO,
-                        inputDTO.getClassName());
+                        inputDTO.getClassName(), null);
         final PropertyFilter propertyFilter = parameters.get(0).getSearchFilter(0).getPropertyFilter();
         Assert.assertEquals(1, parameters.size());
         Assert.assertEquals(TYPE_IS_PM, parameters.get(0).getStartingFilter());
@@ -412,7 +413,7 @@ public class GroupMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
             filterDTO(GroupMapper.NOT_EQUAL, FOO, "vmsByName"),
             filterDTO(GroupMapper.NOT_EQUAL, BAR, "vmsByPMName"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(2, parameters.size());
         SearchParameters firstByName = parameters.get(0);
         assertEquals(TYPE_IS_VM, firstByName.getStartingFilter());
@@ -433,7 +434,7 @@ public class GroupMapperTest {
     @Test
     public void testByNameAndTraversalHopSearch() {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL, FOO, "vmsByName"), filterDTO(GroupMapper.EQUAL, BAR, "vmsByPMName"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(2, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -451,22 +452,23 @@ public class GroupMapperTest {
     public void testVmsByDiskArrayNameSearch() {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                 filterDTO(GroupMapper.EQUAL, FOO, "vmsByDiskArrayName"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), BAR);
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_DISK_ARRAY, byName.getStartingFilter());
-        assertEquals(4, byName.getSearchFilterCount());
+        assertEquals(5, byName.getSearchFilterCount());
         assertEquals(DISPLAYNAME_IS_FOO, byName.getSearchFilter(0));
         assertEquals(PRODUCES_ST, byName.getSearchFilter(1));
         assertEquals(PRODUCES_ONE_HOP, byName.getSearchFilter(2));
         assertEquals(SearchMapper.searchFilterProperty(TYPE_IS_VM), byName.getSearchFilter(3));
+        assertEquals(DISPLAYNAME_IS_BAR, byName.getSearchFilter(4));
     }
 
     @Test
     public void testVmsByVdcNameSearch() {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                 filterDTO(GroupMapper.EQUAL, FOO, "vmsByVDC"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VDC, byName.getStartingFilter());
@@ -480,7 +482,7 @@ public class GroupMapperTest {
     public void testVmsByVdcNestedNameSearch() {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                 filterDTO(GroupMapper.EQUAL, FOO, "vmsByDCnested"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(1, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VDC, byName.getStartingFilter());
@@ -495,7 +497,7 @@ public class GroupMapperTest {
     @Test
     public void testTraversalSearch() {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL, BAR, "vmsByPMName"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(1, parameters.size());
         SearchParameters byPMName = parameters.get(0);
         assertEquals(TYPE_IS_PM, byPMName.getStartingFilter());
@@ -514,7 +516,7 @@ public class GroupMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                 filterDTO(GroupMapper.EQUAL, FOO, "vmsByName"),
                 filterDTO(GroupMapper.EQUAL, BAR, "vmsByStorage"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(2, parameters.size());
         SearchParameters byName = parameters.get(0);
         assertEquals(TYPE_IS_VM, byName.getStartingFilter());
@@ -535,14 +537,14 @@ public class GroupMapperTest {
         GroupApiDTO inputDTO = groupApiDTO(AND, VM_TYPE,
                 filterDTO(GroupMapper.EQUAL, BAR, "vmsByPMName"),
                 filterDTO(GroupMapper.EQUAL, FOO, "vmsByStorage"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), null);
         assertEquals(2, parameters.size());
     }
 
     @Test
     public void testVmsByClusterNameToSearchParameters() {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE, filterDTO(GroupMapper.EQUAL, FOO, "vmsByClusterName"));
-        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(groupDto, groupDto.getClassName());
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(groupDto, groupDto.getClassName(), null);
         assertEquals(1, parameters.size());
         SearchParameters param = parameters.get(0);
         // verify that the Cluster Membership Filter was created
@@ -565,6 +567,17 @@ public class GroupMapperTest {
         assertEquals("EQ", vmsByClusterNameFilter.getExpType());
         assertEquals(FOO, vmsByClusterNameFilter.getExpVal());
 
+    }
+
+    @Test
+    public void testVmsWithNameQuery() {
+        GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE);
+        List<SearchParameters> parameters = groupMapper.convertToSearchParameters(groupDto, groupDto.getClassName(), FOO);
+        assertEquals(1, parameters.size());
+        SearchParameters param = parameters.get(0);
+        assertEquals(TYPE_IS_VM, param.getStartingFilter());
+        assertEquals(1, param.getSearchFilterCount());
+        assertEquals(DISPLAYNAME_IS_FOO, param.getSearchFilter(0));
     }
 
     /**

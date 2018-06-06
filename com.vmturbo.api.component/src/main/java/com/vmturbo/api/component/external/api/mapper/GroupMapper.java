@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -12,15 +11,16 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
+import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
@@ -179,7 +179,7 @@ public class GroupMapper {
         } else {
             requestBuilder
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                            .addAllSearchParameters(convertToSearchParameters(groupDto, groupDto.getGroupType())))
+                            .addAllSearchParameters(convertToSearchParameters(groupDto, groupDto.getGroupType(), null)))
                     .build();
         }
 
@@ -294,9 +294,13 @@ public class GroupMapper {
      *
      * @param inputDTO received from the UI
      * @param entityType the name of entity type, such as VirtualMachine
+     * @param nameQuery user specified search query for entity name. If it is not null, it will be
+     *                  converted to a entity name filter.
      * @return list of search parameters to use for querying the repository
      */
-    public List<SearchParameters> convertToSearchParameters(GroupApiDTO inputDTO, String entityType) {
+    public List<SearchParameters> convertToSearchParameters(@Nonnull GroupApiDTO inputDTO,
+                                                            @Nonnull String entityType,
+                                                            @Nullable String nameQuery) {
         final List<FilterApiDTO> criteriaList = inputDTO.getCriteriaList();
         Optional<List<FilterApiDTO>> filterApiDTOList =
                 (criteriaList != null && !criteriaList.isEmpty())
@@ -304,9 +308,9 @@ public class GroupMapper {
                         : Optional.empty();
         return filterApiDTOList
                 .map(filterApiDTOs -> filterApiDTOs.stream()
-                        .map(filterApiDTO -> filter2parameters(filterApiDTO, entityType))
+                        .map(filterApiDTO -> filter2parameters(filterApiDTO, entityType, nameQuery))
                         .collect(Collectors.toList()))
-                .orElse(ImmutableList.of(searchParametersForEmptyCriteria(entityType)));
+                .orElse(ImmutableList.of(searchParametersForEmptyCriteria(entityType, nameQuery)));
     }
 
     /**
@@ -317,8 +321,6 @@ public class GroupMapper {
      * @return a list of FilterApiDTO which contains different filter rules for dynamic group
      */
     public List<FilterApiDTO> convertToFilterApis(GroupInfo groupInfo) {
-        final String entityType = ServiceEntityMapper.toUIEntityType(groupInfo.getEntityType());
-
         return groupInfo.getSearchParametersCollection()
                 .getSearchParametersList().stream()
                 .map(searchParameters -> toFilterApiDTO(searchParameters))
@@ -331,11 +333,18 @@ public class GroupMapper {
      * contains all entities under selected type.
      *
      * @param entityType entity type from UI
+     * @param nameQuery user specified search query for entity name. If it is not null, it will be
+     *                  converted to a entity name filter.
      * @return a search parameters object only contains starting filter with entity type
      */
-    private SearchParameters searchParametersForEmptyCriteria(String entityType) {
+    private SearchParameters searchParametersForEmptyCriteria(@Nonnull final String entityType,
+                                                              @Nullable final String nameQuery) {
         PropertyFilter byType = SearchMapper.entityTypeFilter(entityType);
-        return SearchParameters.newBuilder().setStartingFilter(byType).build();
+        final SearchParameters.Builder searchParameters = SearchParameters.newBuilder().setStartingFilter(byType);
+        if (!StringUtils.isEmpty(nameQuery)) {
+            searchParameters.addSearchFilter(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(nameQuery)));
+        }
+        return searchParameters.build();
     }
 
     /**
@@ -356,10 +365,13 @@ public class GroupMapper {
      *
      * @param filter a filter
      * @param entityType class name of the byName filter
+     * @param nameQuery user specified search query for entity name. If it is not null, it will be
+     *                  converted to a entity name filter.
      * @return parameters full search parameters
      */
-    private SearchParameters filter2parameters(FilterApiDTO filter,
-                                               String entityType) {
+    private SearchParameters filter2parameters(@Nonnull FilterApiDTO filter,
+                                               @Nonnull String entityType,
+                                               @Nullable String nameQuery) {
         GroupUseCaseCriteria useCase = groupUseCaseParser.getUseCasesByFilterType().get(filter.getFilterType());
 
         if (useCase == null) {
@@ -383,6 +395,9 @@ public class GroupMapper {
         while (iterator.hasNext()) {
             searchFilters.addAll(processToken(filter, entityType, iterator));
         }
+        if (!StringUtils.isEmpty(nameQuery)) {
+            searchFilters.add(SearchMapper.searchFilterProperty(SearchMapper.nameFilter(nameQuery)));
+        }
         parametersBuilder.addAllSearchFilter(searchFilters.build());
         parametersBuilder.setSourceFilterSpecs(toFilterSpecs(filter));
         return parametersBuilder.build();
@@ -391,7 +406,7 @@ public class GroupMapper {
     private List<SearchFilter> processToken(@Nonnull FilterApiDTO filter,
                     @Nonnull String entityType, @Nonnull Iterator<String> iterator) {
         final String currentToken = iterator.next();
-        final SearchFilterContext filterContext = new SearchFilterContext(filter, iterator, entityType);
+        final SearchFilterContext filterContext = new SearchFilterContext(filter, iterator, entityType, currentToken);
 
         final Function<SearchFilterContext, List<SearchFilter>> filterApiDtoProcessor =
                         FILTER_TYPES_TO_PROCESSORS.get(currentToken);
@@ -439,11 +454,14 @@ public class GroupMapper {
 
         private final String entityType;
 
+        private final String currentToken;
+
         public SearchFilterContext(@Nonnull FilterApiDTO filter, @Nonnull Iterator<String> iterator,
-                        @Nonnull String entityType) {
+                        @Nonnull String entityType, @Nonnull String currentToken) {
             this.filter = Objects.requireNonNull(filter);
             this.iterator = Objects.requireNonNull(iterator);
             this.entityType = Objects.requireNonNull(entityType);
+            this.currentToken = Objects.requireNonNull(currentToken);
         }
 
         @Nonnull
@@ -461,6 +479,11 @@ public class GroupMapper {
             return entityType;
         }
 
+        @Nonnull
+        public String getCurrentToken() {
+            return currentToken;
+        }
+
         public boolean isHopCountBasedTraverse(@Nonnull StoppingCondition stopper) {
             return !iterator.hasNext() && stopper.hasNumberHops();
         }
@@ -476,7 +499,7 @@ public class GroupMapper {
         @Override
         public List<SearchFilter> apply(SearchFilterContext context) {
             // add a traversal filter
-            TraversalDirection direction = TraversalDirection.valueOf(PRODUCES);
+            TraversalDirection direction = TraversalDirection.valueOf(context.getCurrentToken());
             final StoppingCondition stopper;
             final Iterator<String> iterator = context.getIterator();
             final String entityType = context.getEntityType();
