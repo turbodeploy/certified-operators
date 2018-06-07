@@ -1,5 +1,6 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -12,7 +13,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.StitchingScope;
@@ -34,14 +34,17 @@ import com.vmturbo.stitching.TopologyEntity;
  */
 public class SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation implements PostStitchingOperation {
 
+    private final String HYPERV_PROBE_TYPE_NAME = "Hyper-V";
+    private final String VMM_PROBE_TYPE_NAME = "VMM";
+
     @Nonnull
     @Override
     public StitchingScope<TopologyEntity> getScope(@Nonnull final StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
 
         // this operations applies to HyperV and VMM probes only
         final Set<String> probeTypes = ImmutableSet.of(
-            SDKProbeType.HYPERV.getProbeType(),
-            SDKProbeType.VMM.getProbeType());
+                HYPERV_PROBE_TYPE_NAME,
+                VMM_PROBE_TYPE_NAME);
 
         return stitchingScopeFactory.multiProbeEntityTypeScope(probeTypes, EntityType.VIRTUAL_MACHINE);
     }
