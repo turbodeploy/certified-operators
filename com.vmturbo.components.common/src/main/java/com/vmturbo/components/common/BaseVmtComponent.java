@@ -456,6 +456,26 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         return Optional.empty();
     }
 
+    /**
+     * Get an optional environment property as an int value, returning the default value if the
+     * property is not found or not parseable.
+     *
+     * @param propertyName the property name to look for
+     * @param defaultValue the default value to use for the property
+     * @return the found value, if there is one, otherwise the default value.
+     */
+    protected static int getOptionalIntEnvProperty(String propertyName, int defaultValue) {
+        try {
+            return getOptionalEnvProperty(propertyName)
+                    .map(Integer::parseInt)
+                    .orElse(defaultValue);
+        } catch (NumberFormatException nfe) {
+            logger.error("NumberFormatException parsing property {}, will use default value of {}",
+                    propertyName, defaultValue);
+            return defaultValue;
+        }
+    }
+
     @Nonnull
     protected static ConfigurableApplicationContext attachSpringContext(
             @Nonnull ServletContextHandler contextServer, @Nonnull Class<?> configurationClass) {

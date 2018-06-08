@@ -2,19 +2,12 @@ package com.vmturbo.auth.component.services;
 
 import javax.annotation.Nonnull;
 
-import org.springframework.http.MediaType;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
 
-import com.vmturbo.auth.api.licensemgmt.LicenseApiInputDTO;
-import com.vmturbo.auth.component.store.ILicenseStore;
+import com.vmturbo.auth.component.licensing.store.ILicenseStore;
 
 /**
  * The LicenseController implements the license REST controller.
@@ -49,6 +42,7 @@ public class LicenseController {
      * @param dto The request DTO.
      * @throws Exception In case of an error populating license.
      */
+    /*
     @ApiOperation(value = "Create or update the license.")
     @RequestMapping(path = "",
             method = RequestMethod.POST,
@@ -62,6 +56,7 @@ public class LicenseController {
             throw new SecurityException("Unable to populate license " + e.getMessage());
         }
     }
+    */
 
 
     /**
@@ -70,6 +65,7 @@ public class LicenseController {
      * @return The license in plain text  if successful.
      * @throws Exception In case of an error getting license.
      */
+    /**
     @ApiOperation(value = "Get the current license in plain text.")
     @RequestMapping(path = "",
             method = RequestMethod.GET,
@@ -78,5 +74,5 @@ public class LicenseController {
     public @Nonnull String getLicense() throws Exception {
         return licenseStore.getLicense().orElse("");
     }
-
+*/
 }

@@ -1,11 +1,13 @@
 package com.vmturbo.api.component;
 
 import java.util.EnumSet;
+import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.servlet.DispatcherType;
+import javax.servlet.MultipartConfigElement;
 import javax.servlet.Servlet;
 
 import org.apache.logging.log4j.LogManager;
@@ -14,6 +16,7 @@ import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -57,6 +60,14 @@ public class ApiComponent extends BaseVmtComponent {
     @Autowired
     private ServiceConfig serviceConfig;
 
+    // env vars
+    static private String ENV_UPLOAD_MAX_FILE_SIZE_KB = "multipartConfigMaxFileSizeKb";
+    static private int DEFAULT_UPLOAD_MAX_FILE_SIZE_KB = 50;
+
+    static private String ENV_UPLOAD_MAX_REQUEST_SIZE_KB = "multipartConfigMaxRequestSizeKb";
+    static private int DEFAULT_UPLOAD_MAX_REQUEST_SIZE_KB = 200;
+
+
     public static void main(String[] args) {
         startContext(ApiComponent::createContext);
     }
@@ -90,6 +101,24 @@ public class ApiComponent extends BaseVmtComponent {
         restContext.setParent(rootContext);
         final Servlet restDispatcherServlet = new DispatcherServlet(restContext);
         final ServletHolder restServletHolder = new ServletHolder(restDispatcherServlet);
+
+        // add a multipart config for handling license file uploads
+        // Since these are going on a memory-backed file location, we will set size
+        // restrictions to prevent using up too much memory.
+        int multipartConfigMaxFileSizeKb = 1024 * getOptionalIntEnvProperty(ENV_UPLOAD_MAX_FILE_SIZE_KB,
+                                                                DEFAULT_UPLOAD_MAX_FILE_SIZE_KB);
+        int multipartConfigMaxRequestSizeKb = 1024 * getOptionalIntEnvProperty(ENV_UPLOAD_MAX_REQUEST_SIZE_KB,
+                                                            DEFAULT_UPLOAD_MAX_REQUEST_SIZE_KB);
+        // file size threshold (the size at which incoming files are spooled to disk) is set to the
+        // max request size to avoid the spooling behavior. Our /tmp folder is backed by RAM anyways
+        // so it won't make a diff.
+        logger.info("Creating multipart config w/max file size {}kb and max request size {}kb",
+                multipartConfigMaxFileSizeKb, multipartConfigMaxRequestSizeKb);
+        restServletHolder.getRegistration()
+                .setMultipartConfig(new MultipartConfigElement("/tmp/uploads",
+                                        multipartConfigMaxFileSizeKb,
+                                        multipartConfigMaxRequestSizeKb,
+                                        multipartConfigMaxRequestSizeKb));
 
         // Explicitly add Spring security to the following servlets: report, REST API, WebSocket messages
         final FilterHolder filterHolder = new FilterHolder();

@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.HashSet;
@@ -9,6 +10,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.mockito.Mockito;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -21,8 +23,17 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.client.RestTemplate;
 
+import io.grpc.Channel;
+
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
+import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
+import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
+import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
+import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
+import com.vmturbo.common.protobuf.licensing.LicensingMoles.LicenseCheckServiceMole;
+import com.vmturbo.common.protobuf.licensing.LicensingMoles.LicenseManagerServiceMole;
+import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
  * Test the LicenseService.
@@ -75,7 +86,12 @@ public class LicenseServiceTest {
 
     @Before
     public void init() throws Exception {
-        licenseService = new LicenseService("auth", 9400, restTemplate);
+        Channel channelMock = Mockito.mock(Channel.class);
+        LicenseManagerServiceBlockingStub licenseManagerService = LicenseManagerServiceGrpc.newBlockingStub(channelMock);
+        LicenseCheckServiceBlockingStub licenseCheckService = LicenseCheckServiceGrpc.newBlockingStub(channelMock);
+
+        licenseService = new LicenseService("auth", 9400, restTemplate,
+                licenseManagerService, licenseCheckService);
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(ImmutableList.of(MediaType.APPLICATION_JSON));
         when(result.getBody()).thenReturn(licenseString);

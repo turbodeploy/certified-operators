@@ -161,6 +161,7 @@ services:
     environment:
       component_type: auth
       instance_id: auth-1
+      kafkaServers: ${KAFKA_SERVERS}
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${AUTH_XMX_MB}M ${AUTH_SYSTEM_PROPERTIES}"
     volumes:
       - auth:/home/turbonomic/data

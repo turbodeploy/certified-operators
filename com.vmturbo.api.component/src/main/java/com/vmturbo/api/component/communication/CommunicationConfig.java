@@ -33,6 +33,10 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
+import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
+import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc;
+import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceFutureStub;
@@ -265,6 +269,17 @@ public class CommunicationConfig {
         // Intercept client call and add JWT token to the metadata
                 .withInterceptors(new JwtClientInterceptor());
 
+    }
+
+    @Bean
+    public LicenseManagerServiceBlockingStub licenseManagerStub() {
+        return LicenseManagerServiceGrpc.newBlockingStub(authClientConfig.authClientChannel())
+                .withInterceptors(new JwtClientInterceptor());
+    }
+
+    @Bean
+    public LicenseCheckServiceBlockingStub licenseCheckServiceStub() {
+        return LicenseCheckServiceGrpc.newBlockingStub(authClientConfig.authClientChannel());
     }
 
     @Bean

@@ -178,6 +178,27 @@ public class DataMetricCounter extends DataMetricBase<DataMetricCounter,
             return metric.counter.labels(getLabels()).get();
         }
 
+        /**
+         * Observes the value.
+         *
+         * @param value The value.
+         */
+        public synchronized void observe(final @Nonnull Double value) {
+            metric.counter.labels(getLabels()).inc(value);
+            // notify observers of this new observation
+            metric.getListeners().forEach(observer -> observer.counterIncremented(this, value ));
+        }
+
+        /**
+         * Start a timer that will record an observation on this metric when it stops.
+         *
+         * @return a new Timer instance associated with this metric.
+         */
+        public DataMetricTimer startTimer() {
+            return new DataMetricTimer(this::observe);
+        }
+
+
     }
 
     /**
