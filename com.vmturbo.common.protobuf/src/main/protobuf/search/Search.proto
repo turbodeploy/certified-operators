@@ -203,6 +203,10 @@ message SearchEntitiesResponse {
     optional common.PaginationResponse pagination_response = 2;
 }
 
+message EntityCountResponse {
+    optional int32 entityCount = 1;
+}
+
 // A service responsible for search operations.
 service SearchService {
     // Search for entities based on the search parameters and return entity OID
@@ -210,4 +214,6 @@ service SearchService {
 
     // Search for entities based on the search parameters and return entity objects
     rpc SearchEntities(SearchRequest) returns (SearchEntitiesResponse);
+
+    rpc CountEntities(SearchRequest) returns (EntityCountResponse);
 }

@@ -186,6 +186,8 @@ api:
   keystoreFile: '/home/turbonomic/data/keystore.p12'
   keystoreType: 'PKCS12'
   keystoreAlias: 'vmt'
+  multipartConfigMaxFileSizeKb: 50
+  multipartConfigMaxRequestSizeKb: 200
   grpcPingIntervalSeconds: 300
   targetValidationTimeoutSeconds: 120
   targetValidationPollIntervalSeconds: 2
@@ -207,6 +209,8 @@ auth:
   mariadbHealthCheckIntervalSeconds: 60
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 7
+  <<: *repository_conn_info
+
 
 mediation-vcenter:
   <<: *baseVmtComponentSettings
