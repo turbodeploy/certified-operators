@@ -1,4 +1,4 @@
-package com.vmturbo.auth.component.licensing;
+package com.vmturbo.auth.component;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -10,7 +10,6 @@ import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -28,13 +27,12 @@ import org.springframework.web.context.WebApplicationContext;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import com.vmturbo.auth.api.licensing.LicenseApiInputDTO;
+import com.vmturbo.auth.api.licensemgmt.LicenseApiInputDTO;
 import com.vmturbo.auth.component.store.LicenseLocalStoreTest;
 
 /**
  * Base class for testing {@link com.vmturbo.auth.component.services.LicenseController}
  */
-@Ignore // will revisit while fixing licensing authorization in OM-35910
 public class LicenseRestBase {
     /**
      * The JSON builder.

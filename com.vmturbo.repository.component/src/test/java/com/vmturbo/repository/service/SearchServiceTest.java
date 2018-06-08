@@ -31,7 +31,6 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
-import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchResponse;
@@ -221,19 +220,6 @@ public class SearchServiceTest {
         searchService.searchEntityOids(requestWithEntityOids, mockObserver);
 
         verify(mockObserver).onNext(SearchResponse.newBuilder().addAllEntities(oids).build());
-        verify(mockObserver).onCompleted();
-    }
-
-    public void testCountEntities() {
-        final StreamObserver<EntityCountResponse> mockObserver = Mockito.mock(StreamObserver.class);
-
-//        final List<Long> oids = Arrays.asList(1L, 2L);
-        given(searchHandler.searchEntityOids(singleReprs.get(0), db, Optional.empty(), Collections.emptyList()))
-                .willReturn(Either.right(Arrays.asList("1", "2")));
-
-        searchService.countEntities(simpleRequest, mockObserver);
-
-        verify(mockObserver).onNext(EntityCountResponse.newBuilder().setEntityCount(2).build());
         verify(mockObserver).onCompleted();
     }
 

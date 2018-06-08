@@ -101,7 +101,6 @@ services:
     environment:
       component_type: auth
       instance_id: auth-1
-      kafkaServers: kafka1:9092
       consul_host: consul
       JAVA_OPTS: "-Xmx512M -verbose:gc -XX:+PrintGCDateStamps"
     volumes:

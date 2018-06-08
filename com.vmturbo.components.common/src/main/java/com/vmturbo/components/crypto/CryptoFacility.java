@@ -128,17 +128,6 @@ public class CryptoFacility {
     }
 
     /**
-     * Decrypts the given byte array using AES algorithm with authenticated block cipher method.
-     * @param cipherBytes The bytes to decrypt
-     * @return The decrypted bytes
-     * @throws SecurityException if there is a decryption error
-     */
-    public static @Nonnull byte[] decrypt(final @Nonnull byte[] cipherBytes)
-            throws SecurityException {
-        return decrypt(null, cipherBytes);
-    }
-
-    /**
      * Decrypts the given string using AES algorithm with authenticated block cipher method.
      *
      * @param keySplitValue The user-specified portion of the PBKDF2 salt used to derive a
@@ -157,34 +146,9 @@ public class CryptoFacility {
             throw new SecurityException("Null ciphertext.");
         }
         try {
-            byte[] cipherData = Base64.decode(ciphertext.getBytes(CHARSET_CRYPTO));
-            return new String(decrypt(keySplitValue, cipherData), CHARSET_CRYPTO);
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException("Unable to decode.", e);
-        }
-    }
-
-    /**
-     * Decrypts the given string using AES algorithm with authenticated block cipher method.
-     *
-     * @param keySplitValue The user-specified portion of the PBKDF2 salt used to derive a
-     *                      split key from the site secret. The value provided
-     *                      constitutes the part of the salt utilized by the PBKDF2 algorithm,
-     *                      but isn't stored stored with the encrypted data.
-     * @param cipherdata    The ciphered bytes to decrypt.
-     * @return The decrypted bytes.
-     * @throws SecurityException In the case of any error decrypting the cipher data.
-     */
-    public static @Nonnull byte[] decrypt(final @Nullable String keySplitValue,
-                                          final @Nonnull byte[] cipherdata)
-            throws SecurityException {
-        // Be a little defensive here.
-        if (cipherdata == null) {
-            throw new SecurityException("Null cipher data.");
-        }
-        try {
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
-            ByteBuffer buff = ByteBuffer.wrap(cipherdata);
+            byte[] array = Base64.decode(ciphertext.getBytes(CHARSET_CRYPTO));
+            ByteBuffer buff = ByteBuffer.wrap(array);
             int version = buff.getInt();
             if (version != VERSION) {
                 throw new IllegalArgumentException("The version is unsupported");
@@ -192,14 +156,14 @@ public class CryptoFacility {
 
             int length = buff.getInt();
             if (length != PKCS5_SALT_LENGTH) {
-                throw new SecurityException("Corrupted cipher data.");
+                throw new SecurityException("Corrupted ciphertext.");
             }
             byte[] salt = new byte[length];
             buff.get(salt);
 
             length = buff.getInt();
             if (length != cipher.getBlockSize()) {
-                throw new SecurityException("Corrupted cipher data.");
+                throw new SecurityException("Corrupted ciphertext.");
             }
             byte[] nonce = new byte[length];
             buff.get(nonce);
@@ -211,13 +175,12 @@ public class CryptoFacility {
             SecretKey key = getDerivedKey(keySplitValue, salt);
             GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, nonce);
             cipher.init(Cipher.DECRYPT_MODE, key, spec);
-            byte[] decryptedData = cipher.doFinal(cipherBytes);
-            return decryptedData;
+            byte[] plaintext = cipher.doFinal(cipherBytes);
+            return new String(plaintext, CHARSET_CRYPTO);
         } catch (Exception e) {
             throw new SecurityException("Unable to decrypt.", e);
         }
     }
-
 
     /**
      * Use secure (and slow) algorithm for one-way password hashing.
@@ -307,17 +270,6 @@ public class CryptoFacility {
     }
 
     /**
-     * Encrypts the given bytearray using authenticated block cipher method.
-     *
-     * @param bytes - The bytearray to encrypt
-     * @return The encrypted bytearray or null if an error occurred
-     * @throws SecurityException In the case of any error decrypting the ciphertext.
-     */
-    public static byte[] encrypt(final @Nonnull byte[] bytes) throws SecurityException {
-        return encrypt(null, bytes);
-    }
-
-    /**
      * Encrypts the given string using authenticated block cipher method.
      *
      * @param keySplitValue The user-specified portion of the PBKDF2 salt used to derive a
@@ -332,28 +284,6 @@ public class CryptoFacility {
                                  final @Nonnull String plaintext)
             throws SecurityException {
         try {
-            byte[] encryptedBytes = encrypt(keySplitValue, plaintext.getBytes(CHARSET_CRYPTO));
-            return new String(Base64.encode(encryptedBytes), CHARSET_CRYPTO);
-        } catch (UnsupportedEncodingException e) {
-            throw new RuntimeException("Unable to decode.", e);
-        }
-    }
-
-    /**
-     * Encrypts the given bytearray using authenticated block cipher method.
-     *
-     * @param keySplitValue The user-specified portion of the PBKDF2 salt used to derive a
-     *                      split key from the site secret. The value provided
-     *                      constitutes the part of the salt utilized by the PBKDF2 algorithm,
-     *                      but isn't stored stored with the encrypted data.
-     * @param bytes     The bytearray to encrypt.
-     * @return The encrypted string or null if an error occurred
-     * @throws SecurityException In the case of any error decrypting the ciphertext.
-     */
-    public static byte[] encrypt(final @Nullable String keySplitValue,
-                                 final @Nonnull byte[] bytes)
-            throws SecurityException {
-        try {
             byte[] salt = getRandomBytes(PKCS5_SALT_LENGTH);
             SecretKey key = getDerivedKey(keySplitValue, salt);
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
@@ -362,7 +292,7 @@ public class CryptoFacility {
             GCMParameterSpec spec = new GCMParameterSpec(GCM_TAG_LENGTH, nonce);
             cipher.init(Cipher.ENCRYPT_MODE, key, spec);
 
-            byte[] cipherText = cipher.doFinal(bytes);
+            byte[] cipherText = cipher.doFinal(plaintext.getBytes(CHARSET_CRYPTO));
 
             // Compose the string
             // 1 int for version, 3 for length.
@@ -372,7 +302,7 @@ public class CryptoFacility {
             buff.putInt(salt.length).put(salt);
             buff.putInt(nonce.length).put(nonce);
             buff.putInt(cipherText.length).put(cipherText);
-            return array;
+            return new String(Base64.encode(array), CHARSET_CRYPTO);
         } catch (Exception e) {
             throw new SecurityException(e);
         }

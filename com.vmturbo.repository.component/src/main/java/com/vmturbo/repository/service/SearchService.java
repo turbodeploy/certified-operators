@@ -32,7 +32,6 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
-import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchResponse;
@@ -61,54 +60,6 @@ public class SearchService extends SearchServiceImplBase {
         this.supplyChainService = checkNotNull(supplyChainService);
         this.lifecycleManager = checkNotNull(lifecycleManager);
         this.searchHandler = checkNotNull(searchHandler);
-    }
-
-    @Override
-    public void countEntities(final SearchRequest request, final StreamObserver<EntityCountResponse> responseObserver) {
-        logger.debug("Counting entity OIDs with search request: {}", request);
-
-        // Return empty result if current topology doesn't exist.
-        Optional<TopologyDatabase> realtimeDb = lifecycleManager.getRealtimeDatabase();
-        if (!realtimeDb.isPresent()) {
-            logger.warn("No real-time topology exists for searching request");
-            responseObserver.onNext(
-                    EntityCountResponse.getDefaultInstance().newBuilder()
-                            .setEntityCount(0)
-                            .build());
-            responseObserver.onCompleted();
-            return;
-        }
-
-        final String db = TopologyDatabases.getDbName(realtimeDb.get());
-        try {
-            int entityCount = 0;
-            List<SearchParameters> searchParametersList = request.getSearchParametersList();
-            for (SearchParameters searchParameters : searchParametersList) {
-                final List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameters);
-                final Either<Throwable, Collection<String>> result =
-                        searchHandler.searchEntityOids(aqlReprs, db, Optional.empty(), Collections.emptyList());
-
-                if (result.isLeft()) {
-                    Throwable error = result.getLeft();
-                    logger.error("The search failed", error);
-                    final Status aborted = Status.ABORTED.withCause(error)
-                            .withDescription(error.getMessage());
-                    responseObserver.onError(aborted.asRuntimeException());
-                    return;
-                }
-
-                // count up the # of entities in the response.
-                entityCount += result.get().size();
-            }
-            logger.info("countEntities found {} entities.", entityCount);
-            responseObserver.onNext(EntityCountResponse.newBuilder()
-                    .setEntityCount(entityCount)
-                    .build());
-            responseObserver.onCompleted();
-        } catch (Throwable e) {
-            logger.error("countEntities failed for request {} with exception", request, e);
-            responseObserver.onError(e);
-        }
     }
 
     @Override

@@ -1,11 +1,19 @@
 package com.vmturbo.auth.component;
 
+import java.util.concurrent.TimeUnit;
+
 import com.vmturbo.auth.api.SpringSecurityConfig;
+import com.vmturbo.auth.api.authorization.kvstore.AuthApiKVConfig;
 import com.vmturbo.auth.component.services.AuthUsersController;
+import com.vmturbo.auth.component.services.LicenseController;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
 import com.vmturbo.auth.component.store.AuthProvider;
-
+import com.vmturbo.auth.component.store.ILicenseStore;
+import com.vmturbo.auth.component.store.LicenseKVStore;
+import com.vmturbo.kvstore.ConsulKeyValueStore;
+import com.vmturbo.kvstore.KeyValueStore;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -23,17 +31,22 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  */
 @Configuration
 @EnableWebSecurity
-@Import({SpringSecurityConfig.class, AuthKVConfig.class})
+@Import(SpringSecurityConfig.class)
 public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
+    @Value("${consul_host:localhost}")
+    private String consulHost;
+
+    @Value("${consul_port:8500}")
+    private String consulPort;
+
+    @Value("${kvStoreRetryIntervalMillis}")
+    private long kvStoreRetryIntervalMillis;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
     @Autowired
     private SpringSecurityConfig securityConfig;
-
-    @Autowired
-    private AuthKVConfig authKVConfig;
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
@@ -95,8 +108,23 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
     }
 
     @Bean
+    public KeyValueStore authKeyValueStore() {
+        return new ConsulKeyValueStore(AuthApiKVConfig.AUTH_NAMESPACE,
+                consulHost,
+                consulPort,
+                kvStoreRetryIntervalMillis,
+                TimeUnit.MILLISECONDS
+        );
+    }
+
+    @Bean
     public AuthProvider targetStore() {
-        return new AuthProvider(authKVConfig.authKeyValueStore());
+        return new AuthProvider(authKeyValueStore());
+    }
+
+    @Bean
+    public ILicenseStore licenseStore() {
+        return new LicenseKVStore(authKeyValueStore());
     }
 
     @Bean
@@ -104,5 +132,9 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
         return new AuthUsersController(targetStore());
     }
 
+    @Bean
+    public LicenseController licenseController() {
+        return new LicenseController(licenseStore());
+    }
 }
 

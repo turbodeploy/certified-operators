@@ -1,4 +1,4 @@
-package com.vmturbo.auth.api.licensing;
+package com.vmturbo.auth.api.licensemgmt;
 
 /**
  * Model to describe an inputDTO for populating new license

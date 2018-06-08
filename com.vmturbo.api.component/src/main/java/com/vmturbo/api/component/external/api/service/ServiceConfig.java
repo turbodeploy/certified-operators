@@ -141,9 +141,7 @@ public class ServiceConfig {
     public LicenseService licenseService() {
         return new LicenseService(authConfig.getAuthHost(),
                 authConfig.getAuthPort(),
-                communicationConfig.serviceRestTemplate(),
-                communicationConfig.licenseManagerStub(),
-                communicationConfig.licenseCheckServiceStub());
+                communicationConfig.serviceRestTemplate());
     }
 
     @Bean

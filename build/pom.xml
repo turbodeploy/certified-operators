@@ -106,9 +106,6 @@
         <!-- This allows nested modules to override the path to the root checkstyle.xml -->
         <checkstyle.path>${project.basedir}/../build/checkstyle.xml</checkstyle.path>
         <jetty.version>9.4.9.v20180320</jetty.version>
-
-        <!-- FlexLM, for use with Cisco licenses -->
-        <flex.lm.version>11.14.1.1</flex.lm.version>
     </properties>
 
     <prerequisites>
@@ -1218,16 +1215,6 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.commons</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.licensing</artifactId>
-                <version>${vmturbo.mt.branch.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.macrovision</groupId>
-                <artifactId>flexlm</artifactId>
-                <version>${flex.lm.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>

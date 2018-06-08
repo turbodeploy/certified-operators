@@ -7,13 +7,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
-import com.vmturbo.api.dto.license.LicenseApiDTO;
-import com.vmturbo.auth.component.licensing.LicenseDTOUtils;
-import com.vmturbo.auth.component.licensing.store.ILicenseStore;
-import com.vmturbo.auth.component.licensing.store.LicenseLocalStore;
-import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
-import com.vmturbo.licensing.utils.LicenseDeserializer;
-
 /**
  * The LicenseStoreTest tests the LicenseStore.
  * {@link LicenseLocalStore}
@@ -90,25 +83,14 @@ public class LicenseLocalStoreTest {
         ILicenseStore licenseStore = new LicenseLocalStore();
 
         // ensuring we don't have license before initialization.
-        Assert.assertTrue(licenseStore.getLicenses().isEmpty());
+        Assert.assertTrue(!licenseStore.getLicense().isPresent());
 
         // C1 license.
-        LicenseApiDTO C1LicenseApiDTO = LicenseDeserializer.deserialize(C1_LICENSE,null);
-        C1LicenseApiDTO.setUuid("C1");
-        LicenseDTO C1LicenseDTO = LicenseDTOUtils.iLicenseToLicenseDTO(C1LicenseApiDTO);
-        licenseStore.storeLicense(C1LicenseDTO);
-        LicenseDTO first = licenseStore.getLicenses().stream().findFirst().get();
-        Assert.assertEquals(C1LicenseDTO, licenseStore.getLicenses().stream().findFirst().get());
-
-        // Remove the C1 license
-        licenseStore.removeLicense("C1");
-        Assert.assertEquals(0, licenseStore.getLicenses().size());
+        licenseStore.populateLicense(C1_LICENSE);
+        Assert.assertEquals(licenseStore.getLicense().get(), C1_LICENSE);
 
         // workload license.
-        LicenseApiDTO workloadLicenseApiDTO = LicenseDeserializer.deserialize(WORKLOAD_LICENSE,null);
-        workloadLicenseApiDTO.setUuid("Workload");
-        LicenseDTO workloadLicenseDTO = LicenseDTOUtils.iLicenseToLicenseDTO(workloadLicenseApiDTO);
-        licenseStore.storeLicense(workloadLicenseDTO);
-        Assert.assertEquals(workloadLicenseDTO, licenseStore.getLicenses().stream().findFirst().get());
+        licenseStore.populateLicense(WORKLOAD_LICENSE);
+        Assert.assertEquals(licenseStore.getLicense().get(), WORKLOAD_LICENSE);
     }
 }

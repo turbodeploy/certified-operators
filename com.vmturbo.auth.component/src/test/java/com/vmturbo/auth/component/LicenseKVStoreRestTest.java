@@ -1,9 +1,11 @@
-package com.vmturbo.auth.component.licensing;
+package com.vmturbo.auth.component;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.Ignore;
 import org.junit.runner.RunWith;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,22 +25,24 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.auth.api.authorization.spring.SpringMethodSecurityExpressionHandler;
-import com.vmturbo.auth.component.licensing.store.ILicenseStore;
-import com.vmturbo.auth.component.licensing.store.LicenseLocalStore;
+import com.vmturbo.auth.component.RestTest.TestExceptionHandler;
 import com.vmturbo.auth.component.services.LicenseController;
+import com.vmturbo.auth.component.store.ILicenseStore;
+import com.vmturbo.auth.component.store.LicenseKVStore;
+import com.vmturbo.auth.component.store.LicenseLocalStore;
+import com.vmturbo.kvstore.MapKeyValueStore;
 
 /**
- * License REST test when using {@link LicenseLocalStore}.
- * <p>
+ *  License REST tests when using {@link LicenseKVStore}.
+ *
  * {@link LicenseController}
  * <p>
  * Note: if you want to debug Spring response, set "org.springframework.web" logger to debug in log4j2.xml file
  * </p>
  */
-@Ignore // will revisit while fixing licensing authorization in OM-35910
 @RunWith(SpringJUnit4ClassRunner.class)
 @WebAppConfiguration
-public class LicenseLocalStoreRestTest extends LicenseRestBase {
+public class LicenseKVStoreRestTest extends LicenseRestBase {
 
     @Configuration
     @EnableGlobalMethodSecurity(prePostEnabled = true)
@@ -80,20 +84,21 @@ public class LicenseLocalStoreRestTest extends LicenseRestBase {
             return new LicenseController(licenseStore());
         }
 
+        // Using LicenseKVStore
         @Bean
         public ILicenseStore licenseStore() {
-            return new LicenseLocalStore();
+            return new LicenseKVStore(new MapKeyValueStore());
         }
 
         @Bean
         public GlobalMethodSecurityConfiguration securityConfiguration() {
             return new SecurityConfig();
         }
-/*
+
         @Bean
         public TestExceptionHandler exceptionHandler() {
             return new TestExceptionHandler();
         }
-*/
+
     }
 }

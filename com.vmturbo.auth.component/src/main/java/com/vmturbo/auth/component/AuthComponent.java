@@ -32,7 +32,6 @@ import org.springframework.web.servlet.DispatcherServlet;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.component.spring.SpringAuthFilter;
-import com.vmturbo.auth.component.licensing.LicensingConfig;
 import com.vmturbo.auth.component.widgetset.WidgetsetConfig;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
@@ -42,7 +41,7 @@ import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
  */
 @Configuration("theComponent")
 @Import({AuthRESTSecurityConfig.class, AuthDBConfig.class, SpringSecurityConfig.class,
-        WidgetsetConfig.class, LicensingConfig.class})
+        WidgetsetConfig.class})
 public class AuthComponent extends BaseVmtComponent {
     public static final String PATH_SPEC = "/*";
     /**
@@ -61,9 +60,6 @@ public class AuthComponent extends BaseVmtComponent {
 
     @Autowired
     private WidgetsetConfig widgetsetConfig;
-
-    @Autowired
-    private LicensingConfig licensingConfig;
 
     /**
      * JWT token verification and decoding.
@@ -101,8 +97,6 @@ public class AuthComponent extends BaseVmtComponent {
         return Optional.of(builder
                 .addService(ServerInterceptors.intercept(widgetsetConfig.widgetsetRpcService(
                         authRESTSecurityConfig.targetStore()), jwtInterceptor, monitoringInterceptor))
-                .addService(ServerInterceptors.intercept(licensingConfig.licenseManager(), jwtInterceptor))
-                .addService(ServerInterceptors.intercept(licensingConfig.licenseCheckService(), jwtInterceptor))
                 .build());
     }
 
