@@ -91,7 +91,6 @@
                                     <!-- note: dependency satisfied from MT -->
                                     <version>${vmturbo.api-ux.version}</version>
                                     <type>zip</type>
-                                    <classifier>bin</classifier>
                                     <destFileName>com.vmturbo.UX.zip</destFileName>
                                 </artifactItem>
                             </artifactItems>
