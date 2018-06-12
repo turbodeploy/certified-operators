@@ -104,34 +104,34 @@ public class ScenariosService implements IScenariosService {
         return scenarioMapper.toScenarioApiDTO(scenario);
     }
 
-    /**
-     * This method is unused by the UI at the moment.
-     *
-     * @param id id
-     * @param name name
-     * @param scopeList scopeList
-     * @param periods periods
-     * @param addHist addHist
-     * @param includeRes includeRes
-     * @param time time
-     * @param center center
-     * @param diameter diameter
-     * @param hostProvision hostProvision
-     * @param hostSuspension hostSuspension
-     * @param dsProvision dsProvision
-     * @param dsSuspension dsSuspension
-     * @param resize resize
-     * @param input input
-     * @return ScenarioApiDTO
-     * @throws Exception
-     */
+   /**
+    * This method is unused by the UI at the moment.
+    *
+    * @param id id
+    * @param name name
+    * @param scopeList scopeList
+    * @param periods periods
+    * @param addHist addHist
+    * @param includeRes includeRes
+    * @param time time
+    * @param center center
+    * @param diameter diameter
+    * @param hostProvision hostProvision
+    * @param hostSuspension hostSuspension
+    * @param dsProvision dsProvision
+    * @param dsSuspension dsSuspension
+    * @param resize resize
+    * @param input input
+    * @return ScenarioApiDTO
+    * @throws Exception
+    */
     @Override
     public ScenarioApiDTO configureScenario(Long id, String name, List<String> scopeList,
                                             List<Integer> periods, Boolean addHist,
                                             Boolean includeRes, String time, Float center,
                                             Float diameter, Boolean hostProvision,
                                             Boolean hostSuspension, Boolean dsProvision,
-                                            Boolean dsSuspension, Boolean resize, OSType osType,
+                                            Boolean dsSuspension, Boolean resize,
                                             ScenarioApiDTO input) throws Exception {
         try {
             final UpdateScenarioResponse scenarioResponse = scenarioService.updateScenario(
@@ -248,4 +248,5 @@ public class ScenariosService implements IScenariosService {
         // The API will always validate any dto of type ScenarioApiDTO here
         // We want to bypass this validation for XL and not throw any errors so this doesn't interfere with other scenarios
     }
+
 }
