@@ -20,7 +20,6 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.enums.MergePolicyType;
-import com.vmturbo.api.enums.OSType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IScenariosService;
