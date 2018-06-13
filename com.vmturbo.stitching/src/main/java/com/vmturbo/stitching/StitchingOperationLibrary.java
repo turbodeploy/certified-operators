@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.stitching.compute.VMStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
@@ -41,19 +42,32 @@ public class StitchingOperationLibrary {
             case FABRIC:
                 return Arrays.asList(new FabricChassisStitchingOperation(),
                         new FabricPMStitchingOperation());
-            case HYPERVISOR:                    // Fall through
-            case CLOUD_MANAGEMENT:              // Fall through
-            case LOAD_BALANCER:                 // Fall through
-            case NETWORK:                       // Fall through
-            case OPERATION_MANAGER_APPLIANCE:   // Fall through
-            case APPLICATION_SERVER:            // Fall through
-            case DATABASE_SERVER:               // Fall through
-            case CLOUD_NATIVE:                  // Fall through
-            case STORAGE_BROWSING:              // Fall through
-            case ORCHESTRATOR:                  // Fall through
-            case HYPERCONVERGED:                // Fall through
-            case PAAS:                          // Fall through
-            case GUEST_OS_PROCESSES:            // Fall through
+            case HYPERVISOR:
+                return Collections.emptyList();
+            case CLOUD_MANAGEMENT:
+                return Collections.emptyList();
+            case LOAD_BALANCER:
+                return Collections.emptyList();
+            case NETWORK:
+                return Collections.emptyList();
+            case OPERATION_MANAGER_APPLIANCE:
+                return Collections.emptyList();
+            case APPLICATION_SERVER:
+                return Collections.emptyList();
+            case DATABASE_SERVER:
+                return Collections.emptyList();
+            case CLOUD_NATIVE:
+                return Collections.singletonList(new VMStitchingOperation());
+            case STORAGE_BROWSING:
+                return Collections.emptyList();
+            case ORCHESTRATOR:
+                return Collections.emptyList();
+            case HYPERCONVERGED:
+                return Collections.emptyList();
+            case PAAS:
+                return Collections.singletonList(new VMStitchingOperation());
+            case GUEST_OS_PROCESSES:
+                return Collections.emptyList();
             case CUSTOM:
                 return Collections.emptyList();
             default:
