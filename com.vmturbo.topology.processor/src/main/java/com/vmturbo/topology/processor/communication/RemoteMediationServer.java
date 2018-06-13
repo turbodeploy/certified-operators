@@ -109,8 +109,11 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
 
     @Override
     public InitializationContent getInitializationContent() {
+        /**
+         * Send the property that disables the VC probe listener which is unsupported by XL.
+         */
         return InitializationContent.newBuilder()
-            .setProbeProperties(SetProperties.getDefaultInstance())
+            .setProbeProperties(SetProperties.newBuilder().putProperties("probe.vCenter.listener.enabled", "false"))
             .build();
     }
 
