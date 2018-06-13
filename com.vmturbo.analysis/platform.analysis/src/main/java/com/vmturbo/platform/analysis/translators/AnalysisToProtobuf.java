@@ -7,7 +7,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -336,12 +335,6 @@ public final class AnalysisToProtobuf {
 
             MoveTO.Builder moveTO = MoveTO.newBuilder();
             moveTO.setShoppingListToMove(shoppingListOid.get(move.getTarget()));
-            moveTO.setCouponId(traderOid.get(newSupplier));
-            final Optional<Double> moveTargetCost = move.getTarget().getCost();
-            if(moveTargetCost.isPresent()){
-                moveTO.setCouponDiscount(moveTargetCost.get());
-            }
-
             // the provision by demand action may not have been handled
             if (traderOid.get(newSupplier) == null) {
                 topology.addProvisionedTrader(newSupplier);
@@ -358,6 +351,7 @@ public final class AnalysisToProtobuf {
                         newSupplier = supplier;
                     }
                 }
+                move.getTarget().getCost().ifPresent(moveTO::setCost);
                 moveTO.setDestination(traderOid.get(newSupplier));
             } catch (Exception e) {
                 logger.error("Exception when replacing supplier: original supplier="
