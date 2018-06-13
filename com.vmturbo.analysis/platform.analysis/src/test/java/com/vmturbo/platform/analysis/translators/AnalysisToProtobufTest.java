@@ -48,7 +48,6 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificati
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
-import javafx.scene.shape.MoveTo;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -227,7 +226,6 @@ public class AnalysisToProtobufTest {
         Action move = new Move(e, shop2, pm1);
         ActionTO moveTO = ActionTO.newBuilder().setMove(
                         MoveTO.newBuilder().setShoppingListToMove(20l).setDestination(2l)
-                                .setCouponId(2l).setCouponDiscount(0.0)
                                         .setSource(3l).setMoveExplanation(MoveExplanation.newBuilder()
                                                         .setPerformance(Performance.newBuilder()
                                                                         .build()).build()).build())
@@ -317,8 +315,7 @@ public class AnalysisToProtobufTest {
         ActionTO compoundMoveActionTO = ActionTO.newBuilder()
                         .setCompoundMove(compoundMoveTO
                                         .addMoves(MoveTO.newBuilder().setShoppingListToMove(30l)
-                                                        .setDestination(3l).setCouponId(3l)
-                                                .setCouponDiscount(0.0).setSource(2l)
+                                                        .setDestination(3l).setSource(2l)
                                                         .setMoveExplanation(MoveExplanation
                                                                         .newBuilder()
                                                                         .setPerformance(Performance
@@ -327,8 +324,7 @@ public class AnalysisToProtobufTest {
                                                                         .build())
                                                       .build())
                                         .addMoves(MoveTO.newBuilder().setShoppingListToMove(40l)
-                                                        .setDestination(5l).setCouponId(5l)
-                                                .setCouponDiscount(0.0).setSource(4l)
+                                                        .setDestination(5l).setSource(4l)
                                                         .setMoveExplanation(MoveExplanation
                                                                         .newBuilder()
                                                                         .setPerformance(Performance
@@ -374,22 +370,6 @@ public class AnalysisToProtobufTest {
             assertEquals(output.getModelSeller(), actionTO.getProvisionBySupply().getModelSeller());
             assertEquals(output.getMostExpensiveCommodity(),
                             actionTO.getProvisionBySupply().getMostExpensiveCommodity());
-        } else if (input instanceof Move) {
-            final MoveTO output = expect.getMove();
-            final MoveTO actionTOMove = actionTO.getMove();
-            assertEquals(output.getCouponId(), actionTOMove.getCouponId());
-            assertEquals(output.getCouponDiscount(), actionTOMove.getCouponDiscount(), 0.001);
-        } else if (input instanceof CompoundMove) {
-            final CompoundMoveTO output = expect.getCompoundMove();
-            final CompoundMoveTO actionTOMove = actionTO.getCompoundMove();
-            final MoveTO firstActionTOMove = actionTOMove.getMoves(0);
-            final MoveTO firstMove = output.getMoves(0);
-            assertEquals(firstMove.getCouponId(), firstActionTOMove.getCouponId());
-            assertEquals(firstMove.getCouponDiscount(), firstActionTOMove.getCouponDiscount(), 0.001);
-            final MoveTO secondActionTOMove = actionTOMove.getMoves(1);
-            final MoveTO secondMove = output.getMoves(1);
-            assertEquals(secondMove.getCouponId(), secondActionTOMove.getCouponId());
-            assertEquals(secondMove.getCouponDiscount(), secondActionTOMove.getCouponDiscount(), 0.001);
         } else {
             assertEquals(expect, actionTO);
         }
