@@ -39,6 +39,7 @@ volumes:
   mediation-ucs: *localdriver
   mediation-vmax: *localdriver
   mediation-vmm: *localdriver
+  mediation-hpe3par: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
