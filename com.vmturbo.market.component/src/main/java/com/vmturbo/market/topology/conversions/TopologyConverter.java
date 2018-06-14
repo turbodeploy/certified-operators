@@ -494,76 +494,82 @@ public class TopologyConverter {
 
     private EconomyDTOs.TraderTO topologyDTOtoTraderTO(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
-        final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
-        final EconomyDTOs.TraderStateTO state = traderState(topologyDTO);
-        final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
-        final boolean bottomOfSupplyChain = topologyDTO.getCommoditiesBoughtFromProvidersList().isEmpty();
-        final boolean topOfSupplyChain = topologyDTO.getCommoditySoldListList().isEmpty();
-        final int entityType = topologyDTO.getEntityType();
-        boolean clonable = EntitySettings.BooleanKey.ENABLE_PROVISION.value(topologyDTO);
-        boolean suspendable = EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
-        if (bottomOfSupplyChain && active) {
-            suspendable = false;
-        }
-        if (isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
-            suspendable = false;
-        }
-        // Checking isPlan here is redundant, but since Set.contains(.) might be expensive,
-        // (even for an empty Set) it is worth checking again. Also improves readability.
-        if (isPlan() && providersOfContainers.contains(topologyDTO.getOid())) {
-            clonable = true;
-            suspendable = true;
-        }
-        if (topOfSupplyChain) { // Workaround for OM-25254. Should be set by mediation.
-            suspendable = false;
-        }
-        // If topologyEntity set clonable value, we should directly use it.
-        clonable = topologyDTO.getAnalysisSettings().hasCloneable()
-            ? topologyDTO.getAnalysisSettings().getCloneable()
-            : clonable;
-        // If topologyEntity set suspendable value, we should directly use it.
-        suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
-            ? topologyDTO.getAnalysisSettings().getSuspendable()
-            : suspendable;
-        final boolean isGuranteedBuyer = guaranteedBuyer(topologyDTO);
-        final EconomyDTOs.TraderSettingsTO settings = EconomyDTOs.TraderSettingsTO.newBuilder()
-            .setClonable(clonable)
-            .setSuspendable(suspendable)
-            .setMinDesiredUtilization(getMinDesiredUtilization(topologyDTO))
-            .setMaxDesiredUtilization(getMaxDesiredUtilization(topologyDTO))
-            .setGuaranteedBuyer(isGuranteedBuyer)
-            .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider())
-            .setIsShopTogether(shopTogether)
-            .setIsEligibleForResizeDown(isPlan() ||
-                    topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
-            .setQuoteFunction(QuoteFunctionDTO.newBuilder()
-                .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
-            .build();
+        EconomyDTOs.TraderTO traderDTO = null;
+        try {
+            final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
+            final EconomyDTOs.TraderStateTO state = traderState(topologyDTO);
+            final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
+            final boolean bottomOfSupplyChain = topologyDTO.getCommoditiesBoughtFromProvidersList().isEmpty();
+            final boolean topOfSupplyChain = topologyDTO.getCommoditySoldListList().isEmpty();
+            final int entityType = topologyDTO.getEntityType();
+            boolean clonable = EntitySettings.BooleanKey.ENABLE_PROVISION.value(topologyDTO);
+            boolean suspendable = EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
+            if (bottomOfSupplyChain && active) {
+                suspendable = false;
+            }
+            if (isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+                suspendable = false;
+            }
+            // Checking isPlan here is redundant, but since Set.contains(.) might be expensive,
+            // (even for an empty Set) it is worth checking again. Also improves readability.
+            if (isPlan() && providersOfContainers.contains(topologyDTO.getOid())) {
+                clonable = true;
+                suspendable = true;
+            }
+            if (topOfSupplyChain) { // Workaround for OM-25254. Should be set by mediation.
+                suspendable = false;
+            }
+            // If topologyEntity set clonable value, we should directly use it.
+            clonable = topologyDTO.getAnalysisSettings().hasCloneable()
+                            ? topologyDTO.getAnalysisSettings().getCloneable()
+                                            : clonable;
+            // If topologyEntity set suspendable value, we should directly use it.
+            suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
+                            ? topologyDTO.getAnalysisSettings().getSuspendable()
+                                            : suspendable;
+            final boolean isGuranteedBuyer = guaranteedBuyer(topologyDTO);
+            final EconomyDTOs.TraderSettingsTO settings = EconomyDTOs.TraderSettingsTO.newBuilder()
+                    .setClonable(clonable)
+                    .setSuspendable(suspendable)
+                    .setMinDesiredUtilization(getMinDesiredUtilization(topologyDTO))
+                    .setMaxDesiredUtilization(getMaxDesiredUtilization(topologyDTO))
+                    .setGuaranteedBuyer(isGuranteedBuyer)
+                    .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider())
+                    .setIsShopTogether(shopTogether)
+                    .setIsEligibleForResizeDown(isPlan() ||
+                            topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
+                    .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                            .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
+                    .build();
 
-        // compute biclique IDs for this entity
-        Set<Long> allCliques = bicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()));
+            // compute biclique IDs for this entity
+            Set<Long> allCliques = bicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()));
 
-        // In a headroom plan, the only modifications to the topology are additions of clones.
-        // Clones are always unplaced when they are first created.
-        // We assume that the "default" topology has no unplaced entities. Therefore, any
-        // unplaced entities are going to be the clones created for headroom calculation
-        // purposes.
-        final boolean isTemplateForHeadroom =
-                TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo) &&
-                !TopologyDTOUtil.isPlaced(topologyDTO);
+            // In a headroom plan, the only modifications to the topology are additions of clones.
+            // Clones are always unplaced when they are first created.
+            // We assume that the "default" topology has no unplaced entities. Therefore, any
+            // unplaced entities are going to be the clones created for headroom calculation
+            // purposes.
+            final boolean isTemplateForHeadroom =
+                    TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo) &&
+                    !TopologyDTOUtil.isPlaced(topologyDTO);
 
-        return EconomyDTOs.TraderTO.newBuilder()
-            // Type and Oid are the same in the topology DTOs and economy DTOs
-            .setOid(topologyDTO.getOid())
-            .setType(entityType)
-            .setState(state)
-            .setSettings(settings)
-            .setTemplateForHeadroom(isTemplateForHeadroom)
-            .setDebugInfoNeverUseInCode(entityDebugInfo(topologyDTO))
-            .addAllCommoditiesSold(commoditiesSoldList(topologyDTO))
-            .addAllShoppingLists(createAllShoppingLists(topologyDTO))
-            .addAllCliques(allCliques)
-            .build();
+            traderDTO = EconomyDTOs.TraderTO.newBuilder()
+                    // Type and Oid are the same in the topology DTOs and economy DTOs
+                    .setOid(topologyDTO.getOid())
+                    .setType(entityType)
+                    .setState(state)
+                    .setSettings(settings)
+                    .setTemplateForHeadroom(isTemplateForHeadroom)
+                    .setDebugInfoNeverUseInCode(entityDebugInfo(topologyDTO))
+                    .addAllCommoditiesSold(commoditiesSoldList(topologyDTO))
+                    .addAllShoppingLists(createAllShoppingLists(topologyDTO))
+                    .addAllCliques(allCliques)
+                    .build();
+        } catch (Exception e) {
+            logger.error(entityDebugInfo(topologyDTO) + " could not be converted to traderTO:", e);
+        }
+        return traderDTO;
     }
 
     @VisibleForTesting
@@ -943,17 +949,25 @@ public class TopologyConverter {
     }
 
     @Nonnull
-    private CommodityDTOs.CommoditySoldTO commoditySold(
+    protected CommodityDTOs.CommoditySoldTO commoditySold(
                     @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
-        final float capacity = (float)topologyCommSold.getCapacity();
+        float capacity = (float)topologyCommSold.getCapacity();
         float used = (float)topologyCommSold.getUsed();
         final int type = commodityType.getType();
+        boolean resizable = topologyCommSold.getIsResizeable();
+        boolean capacityNaN = Double.isNaN(topologyCommSold.getCapacity());
+        boolean usedNaN = Double.isNaN(topologyCommSold.getUsed());
+        if (capacityNaN && usedNaN) {
+            resizable = true;
+            logger.warn("Setting resizable for "
+                            + commodityType + " to false");
+        }
         if (used < 0) {
             if (logger.isDebugEnabled() || used != -1) {
                 // We don't want to log every time we get used = -1 because mediation
                 // sets some values to -1 as default.
-                logger.info("Setting negative used value for "
+                logger.warn("Setting negative used value for "
                                 + commodityType + " to 0.");
             }
             used = 0;
@@ -961,19 +975,19 @@ public class TopologyConverter {
             if (AnalysisUtil.COMMODITIES_TO_CAP.contains(type)) {
                 float cappedUsed = capacity * CAPACITY_FACTOR;
                 logger.error("Used > Capacity for " + commodityType
-                                + ". Used : " + used + ", Capacity : " + capacity
-                                + ", Capped used : " + cappedUsed
-                                + ". This is a mediation error and should be looked at.");
+                             + ". Used : " + used + ", Capacity : " + capacity
+                             + ", Capped used : " + cappedUsed
+                             + ". This is a mediation error and should be looked at.");
                 used = cappedUsed;
             } else if (!(AnalysisUtil.COMMODITIES_TO_SKIP.contains(type) ||
                             AnalysisUtil.ACCESS_COMMODITY_TYPES.contains(type))) {
                 logger.error("Used > Capacity for " + commodityType
-                                + ". Used : " + used + " and Capacity : " + capacity);
+                             + ". Used : " + used + " and Capacity : " + capacity);
             }
         }
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                         CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
-                        .setResizable(topologyCommSold.getIsResizeable())
+                        .setResizable(resizable)
                         .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(

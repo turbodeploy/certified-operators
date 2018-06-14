@@ -92,6 +92,25 @@ public class EntityValidatorTest {
     }
 
     @Test
+    public void testReplaceNaNSoldCapacity() {
+        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+            .addCommoditySoldList(naNCommoditySoldCapacity());
+        entityValidator
+            .replaceIllegalCommodityValues(teBuilder);
+        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getCapacity() == 2);
+    }
+
+    @Test
+    public void testReplaceNaNSoldCapacityAndNanUsed() {
+        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+            .addCommoditySoldList(naNCommoditySoldCapacityAndUsed());
+        entityValidator
+            .replaceIllegalCommodityValues(teBuilder);
+        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getCapacity() == 1);
+        Assert.assertTrue(teBuilder.getCommoditySoldList(0).getUsed() == 0);
+    }
+
+    @Test
     public void testReplaceSoldZeroCapacity() {
         final TopologyEntityDTO.Builder teBuilder = entityBuilder()
             .addCommoditySoldList(zeroCapacityCommoditySold());
@@ -119,6 +138,18 @@ public class EntityValidatorTest {
             teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed() >= 0);
         Assert.assertTrue(
             teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getPeak() >= 0);
+    }
+
+    @Test
+    public void testReplaceNaNBoughtUsed() {
+        final TopologyEntityDTO.Builder teBuilder = entityBuilder()
+            .addCommoditiesBoughtFromProviders(boughtFromProvider(naNCommodityBought()));
+        entityValidator
+            .replaceIllegalCommodityValues(teBuilder);
+        Assert.assertTrue(
+            teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getUsed() == 0);
+        Assert.assertTrue(
+            teBuilder.getCommoditiesBoughtFromProviders(0).getCommodityBought(0).getPeak() == 0);
     }
 
     @Test
@@ -183,6 +214,12 @@ public class EntityValidatorTest {
             TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(-1).setUsed(-1).build();
     }
 
+    private CommodityBoughtDTO naNCommodityBought() {
+        return CommodityBoughtDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setPeak(Double.NaN)
+                        .setUsed(Double.NaN).build();
+    }
+
     private CommoditySoldDTO goodCommoditySold() {
         return CommoditySoldDTO.newBuilder().setCommodityType(
             TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(4).setPeak(4).setUsed(4)
@@ -193,6 +230,18 @@ public class EntityValidatorTest {
         return CommoditySoldDTO.newBuilder().setCommodityType(
             TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(-4).setPeak(-4)
             .setUsed(-4).build();
+    }
+
+    private CommoditySoldDTO naNCommoditySoldCapacity() {
+        return CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(Double.NaN)
+            .setUsed(1).build();
+    }
+
+    private CommoditySoldDTO naNCommoditySoldCapacityAndUsed() {
+        return CommoditySoldDTO.newBuilder().setCommodityType(
+            TopologyDTO.CommodityType.newBuilder().setType(1)).setCapacity(Double.NaN)
+            .setUsed(Double.NaN).build();
     }
 
     private CommoditySoldDTO zeroCapacityCommoditySold() {

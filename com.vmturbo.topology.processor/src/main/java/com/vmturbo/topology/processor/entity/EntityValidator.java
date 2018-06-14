@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -90,14 +89,14 @@ public class EntityValidator {
                     .forEach(commodityBought -> {
                         final int providerType = fromProvider.getProviderEntityType();
                         final long providerId = fromProvider.getProviderId();
-                        if (commodityBought.getPeak() < 0) {
+                        if (commodityBought.getPeak() < 0 || Double.isNaN(commodityBought.getPeak())) {
                             // Negative peak values are illegal, but we sometimes get them.
                             // Replace them with 0.
                             logCommodityBoughtReplacement(id, name, type, commodityBought, "peak",
                                 commodityBought.getPeak(), providerId, providerType);
                             commodityBought.setPeak(0);
                         }
-                        if (commodityBought.getUsed() < 0.0) {
+                        if (commodityBought.getUsed() < 0.0 || Double.isNaN(commodityBought.getUsed())) {
                             // Negative used values are illegal, but we sometimes get them.
                             // Replace them with 0.
                             logCommodityBoughtReplacement(id, name, type, commodityBought, "used",
@@ -108,6 +107,10 @@ public class EntityValidator {
         );
 
         entity.getCommoditySoldListBuilderList().forEach(commoditySold -> {
+            double used = commoditySold.getUsed();
+            double capacity = commoditySold.getCapacity();
+            boolean capacityNaN = Double.isNaN(capacity);
+            boolean usedNaN = Double.isNaN(used);
             if (!commoditySold.hasCapacity() || commoditySold.getCapacity() == 0) {
                 // capacity of 0 is illegal - replace it with a usable value
                 logCommoditySoldReplacement(id, name, type, commoditySold, "capacity", 0);
@@ -121,6 +124,23 @@ public class EntityValidator {
                 logCommoditySoldReplacement(id, name, type, commoditySold, "capacity",
                     commoditySold.getCapacity());
                 commoditySold.setCapacity(HACKED_INFINITE_CAPACITY);
+            } else if (capacityNaN && usedNaN) {
+                commoditySold.setUsed(0);
+                commoditySold.setCapacity(1);
+                logger.warn("Setting used and capacity value for " + EntityType.forNumber(type)
+                                + CommodityType.forNumber(commoditySold.getCommodityType().getType())
+                                + " from NaN to 0 and 1 respectively.");
+            } else if (capacityNaN) {
+                // making sure the capacity is more than the used, we pick 2 for empirical reasons
+                commoditySold.setCapacity(used == 0 ? 1 : 2 * used);
+                logger.warn("Setting capacity value for " + EntityType.forNumber(type)
+                                + CommodityType.forNumber(commoditySold.getCommodityType().getType())
+                                + " from NaN to " + commoditySold.getCapacity());
+            } else if (usedNaN) {
+                commoditySold.setUsed(0);
+                logger.warn("Setting used value for " + EntityType.forNumber(type)
+                                + CommodityType.forNumber(commoditySold.getCommodityType().getType())
+                                + " from NaN to 0");
             }
             if (commoditySold.getPeak() < 0) {
                 // Negative peak values are illegal, but we sometimes get them.
