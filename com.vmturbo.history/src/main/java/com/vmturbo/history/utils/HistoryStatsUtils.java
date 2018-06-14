@@ -152,6 +152,7 @@ public class HistoryStatsUtils {
                     .put(CommonDTO.EntityDTO.EntityType.SWITCH, SWITCH)
                     .put(CommonDTO.EntityDTO.EntityType.VIRTUAL_DATACENTER, VDC)
                     .put(CommonDTO.EntityDTO.EntityType.CONTAINER, EntityType.CONTAINER)
+                    .put(CommonDTO.EntityDTO.EntityType.LOGICAL_POOL, EntityType.LOGICAL_POOL)
                     .build();
 
     /**
