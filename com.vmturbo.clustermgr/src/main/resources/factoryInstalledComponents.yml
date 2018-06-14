@@ -245,6 +245,10 @@ mediation-vmm:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
+mediation-hpe3par:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

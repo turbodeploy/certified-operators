@@ -277,3 +277,12 @@ services:
       JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
     depends_on: *clustermgrdep
+
+  mediation-hpe3par:
+    extends:
+      file: prod-services.yml
+      service: mediation-hpe3par-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
+    mem_limit: 4096M
+    depends_on: *clustermgrdep

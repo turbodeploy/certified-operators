@@ -40,6 +40,7 @@ volumes:
   mediation-ucs: *localdriver
   mediation-vmax: *localdriver
   mediation-vmm: *localdriver
+  mediation-hpe3par: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -274,6 +275,15 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-vmm-prod
+    environment:
+      JAVA_OPTS: "-Xmx1536M"
+    mem_limit: 2048M
+    depends_on: *clustermgrdep
+
+  mediation-hpe3par:
+    extends:
+      file: prod-services.yml
+      service: mediation-hpe3par-prod
     environment:
       JAVA_OPTS: "-Xmx1536M"
     mem_limit: 2048M

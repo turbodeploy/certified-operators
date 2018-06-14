@@ -355,3 +355,16 @@ services:
     volumes:
       - mediation-vmm:/home/turbonomic/data
     restart: always
+
+  mediation-hpe3par-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.hpe3par.component
+    environment:
+      consul_host: consul
+      component_type: mediation-hpe3par
+      instance_id: mediation-hpe3par-1
+    volumes:
+      - mediation-hpe3par:/home/turbonomic/data
+    restart: always

@@ -48,6 +48,7 @@ volumes:
   mediation-ucs: *localdriver
   mediation-vmax: *localdriver
   mediation-vmm: *localdriver
+  mediation-hpe3par: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -629,6 +630,22 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMM_XMX_MB}M ${MEDIATION_VMM_SYSTEM_PROPERTIES}"
     volumes:
       - mediation-vmm:/home/turbonomic/data
+
+  mediation-hpe3par:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.hpe3par.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_HPE3PAR_PORT}"
+      - "${MEDIATION_HPE3PAR_DEBUG_PORT}"
+    environment:
+      component_type: mediation-hpe3par
+      instance_id: mediation-hpe3par-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HPE3PAR_XMX_MB}M ${MEDIATION_HPE3PAR_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-hpe3par:/home/turbonomic/data
 
 #  mediation-openstack:
 #    extends:
