@@ -132,8 +132,10 @@ public class TopologyConverter {
     // a map to keep the oid to traderTO mapping, it also includes newly cloned traderTO
     private Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap = Maps.newHashMap();
 
-    // Biclique stuff
-    private final BiCliquer bicliquer = new BiCliquer();
+    // Bicliquer created based on datastore
+    private final BiCliquer dsBasedBicliquer = new BiCliquer();
+    // Bicliquer created based on pm
+    private final BiCliquer pmBasedBicliquer = new BiCliquer();
 
     // Map from bcKey to commodity bought
     private Map<String, CommodityDTOs.CommodityBoughtTO> bcCommodityBoughtMap = Maps.newHashMap();
@@ -220,7 +222,8 @@ public class TopologyConverter {
                 .forEach(comm -> edge(dto, comm));
             oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
         }
-        bicliquer.compute(oidToUuidMap);
+        dsBasedBicliquer.compute(oidToUuidMap);
+        pmBasedBicliquer.compute(oidToUuidMap);
         logger.debug("Done creating bicliques");
         final ImmutableSet.Builder<EconomyDTOs.TraderTO> returnBuilder = ImmutableSet.builder();
         entityOidToDto.values().stream()
@@ -236,7 +239,12 @@ public class TopologyConverter {
         if (commSold.getCommodityType().getType() == CommodityDTO.CommodityType.DSPM_ACCESS_VALUE) {
             // Storage id first, PM id second.
             // This way each storage is a member of exactly one biclique.
-            bicliquer.edge(String.valueOf(dto.getOid()), String.valueOf(commSold.getAccesses()));
+            String dsOid = String.valueOf(dto.getOid());
+            String pmOid = String.valueOf(commSold.getAccesses());
+            dsBasedBicliquer.edge(dsOid, pmOid);
+            // PM id first, storage id second.
+            // This way each pm is a member of exactly one biclique.
+            pmBasedBicliquer.edge(pmOid, dsOid);
         }
     }
 
@@ -542,8 +550,9 @@ public class TopologyConverter {
                             .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
                     .build();
 
-            // compute biclique IDs for this entity
-            Set<Long> allCliques = bicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()));
+            //compute biclique IDs for this entity, the clique list will be used only for
+            // shop together placement, so pmBasedBicliquer is called
+            Set<Long> allCliques = pmBasedBicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()));
 
             // In a headroom plan, the only modifications to the topology are additions of clones.
             // Clones are always unplaced when they are first created.
@@ -894,6 +903,8 @@ public class TopologyConverter {
             logger.error("Biclique commodity bought type {} doesn't have provider id");
             return null;
         }
+        // Get the biclique ID and use it to create biclique commodity bought for shop alone
+        // entities
         final Optional<String> bcKey = getBcKeyWithProvider(providerOid, type);
         if (!bcKey.isPresent()) {
             return null;
@@ -901,9 +912,13 @@ public class TopologyConverter {
         return bcCommodityBought(bcKey.get());
     }
 
+    /**
+     * Obtain the biclique ID from bicliquer that is created based on storage.
+     * @return a list of Strings that will be used as biclique commodity keys.
+     */
     @Nonnull
     private Optional<String> getBcKeyWithProvider(Long providerOid, CommodityType type) {
-        return Optional.ofNullable(bicliquer.getBcKey(
+        return Optional.ofNullable(dsBasedBicliquer.getBcKey(
                 String.valueOf(providerOid),
                 String.valueOf(accessesByKey.get(type.getKey()))));
     }
@@ -937,10 +952,17 @@ public class TopologyConverter {
         return list;
     }
 
+    /**
+     * Create biclique commodity sold for entities. The commodity sold will play a role
+     * in shop alone placement.
+     *
+     * @param topologyDTO the topologyDTO who should sell a biclique commodities
+     * @return a set of biclique commodity sold DTOs
+     */
     @Nonnull
     private Set<CommodityDTOs.CommoditySoldTO> bcCommoditiesSold(
                     @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
-        Set<String> bcKeys = bicliquer.getBcKeys(String.valueOf(topologyDTO.getOid()));
+        Set<String> bcKeys = dsBasedBicliquer.getBcKeys(String.valueOf(topologyDTO.getOid()));
         return bcKeys != null
                     ? bcKeys.stream()
                         .map(this::newBiCliqueCommoditySoldDTO)
