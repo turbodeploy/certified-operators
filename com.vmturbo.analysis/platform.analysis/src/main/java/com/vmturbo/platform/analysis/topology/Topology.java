@@ -204,6 +204,14 @@ public final class Topology implements Serializable {
     }
 
     /**
+     * Returns a view of the managed {@link Economy} that is used only for testing.
+     * This is used for JUnit tests, use getEconomy for all other purposes.
+     */
+    public @NonNull Economy getEconomyForTesting() {
+        return economy_;
+    }
+
+    /**
      * Returns an unmodifiable BiMap mapping {@link Trader}s to their OIDs.
      */
     public @ReadOnly @NonNull BiMap<@NonNull Trader, @NonNull Long> getTraderOids(@ReadOnly Topology this) {
