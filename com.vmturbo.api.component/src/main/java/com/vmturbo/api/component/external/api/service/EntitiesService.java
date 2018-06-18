@@ -283,7 +283,7 @@ public class EntitiesService implements IEntitiesService {
     }
 
     @Override
-    public boolean loggingEntities(final ArrayList<String> arrayList) throws Exception {
+    public boolean loggingEntities(final List<String> arrayList) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
