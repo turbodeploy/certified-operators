@@ -7,10 +7,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +38,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      * The AUTH HTTP header
      */
     public static final String AUTH_HEADER_NAME = "x-auth-token";
+    public static final String USERS_AUTHORIZE = "/users/authorize/";
 
     /**
      * The logger.
@@ -164,16 +165,23 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
             username = authentication.getName();
         }
 
-        // Initialize authorities
-        final Set<GrantedAuthority> grantedAuths = new HashSet<>();
         //First try to authenticate AD users using Spring
         JWTAuthorizationToken token = getAuthData(username, password, remoteIpAddress);
+        return getAuthentication(password, username, token);
+    }
+
+    @Nonnull
+    private Authentication getAuthentication(final String password,
+                                             final String username,
+                                             final JWTAuthorizationToken token) {
         AuthUserDTO dto;
         try {
             dto = verifier_.verify(token, Collections.emptyList());
         } catch (AuthorizationException e) {
             throw new BadCredentialsException(e.getMessage(), e);
         }
+        // Initialize authorities
+        final Set<GrantedAuthority> grantedAuths = new HashSet<>();
         // Process the data.
         List<String> roles = new ArrayList<String>();
         for (String role : dto.getRoles()) {
@@ -183,6 +191,51 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         AuthUserDTO user = new AuthUserDTO(PROVIDER.LOCAL, username, null, dto.getUuid(),
                                            token.getCompactRepresentation(), roles);
         return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
+    }
+
+    /**
+     * Retrieve SAML user role from AUTH component.
+     * Todo: attached unique JWT token signed by API component private key
+     * @param username  SAML user name
+     * @param groupName SAML user group
+     * @param remoteIpAddress SAML user requested IP address
+     * @return
+     * @throws AuthenticationException
+     */
+    @Nonnull
+    public Authentication authorize(@Nonnull String username,
+                                    @Nonnull Optional<String> groupName,
+                                    @Nonnull String remoteIpAddress)
+            throws AuthenticationException {
+        // Initialize authorities
+        final Set<GrantedAuthority> grantedAuths = new HashSet<>();
+        //First try to authenticate AD users using Spring
+        UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
+                .scheme("http")
+                .host(authHost_)
+                .port(authPort_)
+                .path(USERS_AUTHORIZE);
+
+        final String authRequest = groupName.map(group ->
+                builder
+                .pathSegment(
+                        encodeValue(username),
+                        encodeValue(group),
+                        remoteIpAddress)
+                .build()
+                .toUriString()).orElse(
+                builder
+                        .pathSegment(
+                                encodeValue(username),
+                                remoteIpAddress)
+                        .build()
+                        .toUriString()
+        );
+
+        ResponseEntity<String> result;
+        result = restTemplate_.getForEntity(authRequest, String.class);
+        JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
+        return getAuthentication("SAML_DUMMY_PASS", username, token);
     }
 
     @Override

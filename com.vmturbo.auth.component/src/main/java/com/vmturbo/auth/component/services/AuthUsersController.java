@@ -141,6 +141,61 @@ public class AuthUsersController {
                 URLDecoder.decode(password, "UTF-8"), ipAddress).getCompactRepresentation();
     }
 
+
+    /**
+     * Authorize the SAML user with IP address.
+     * Due to bug in Spring boot, we have to use "{ipaddress:.+}", instead of "{ipaddress}"
+     * {@see <a href="https://jira.springsource.org/browse/SPR-6164"/>}
+     *
+     * @param userName The user name.
+     * @param groupName The user group.
+     * @param ipAddress The user IP address.
+     * @return The compact representation of the Authorization Token if successful.
+     * @throws Exception In case of an error adding user.
+     */
+    @ApiOperation(value = "Authorize user")
+    @RequestMapping(value = "/authorize/{userName}/{groupName}/{ipaddress:.+}",
+            method = RequestMethod.GET,
+            produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull String authorize(
+            @ApiParam(value = "The user name", required = true)
+            @PathVariable("userName") String userName,
+            @ApiParam(value = "The user group",
+                    required = true)
+            @PathVariable("groupName") String groupName,
+            @ApiParam(value = "The user ip address",
+                    required = true)
+            @PathVariable("ipaddress") String ipAddress)
+            throws Exception {
+        return targetStore_.authorize(URLDecoder.decode(userName, "UTF-8"),
+                URLDecoder.decode(groupName, "UTF-8"), ipAddress).getCompactRepresentation();
+    }
+
+    /**
+     * Authorize the SAML the user with IP address.
+     * Due to bug in Spring boot, we have to use "{ipaddress:.+}", instead of "{ipaddress}"
+     * {@see <a href="https://jira.springsource.org/browse/SPR-6164"/>}
+     *
+     * @param userName The user name.
+     * @param ipAddress The user IP address.
+     * @return The compact representation of the Authorization Token if successful.
+     * @throws Exception In case of an error adding user.
+     */
+    @ApiOperation(value = "Authenticate user")
+    @RequestMapping(value = "/authorize/{userName}/{ipaddress:.+}",
+            method = RequestMethod.GET,
+            produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull String authorize(
+            @ApiParam(value = "The user name", required = true)
+            @PathVariable("userName") String userName,
+            @PathVariable("ipaddress") String ipAddress)
+            throws Exception {
+        return targetStore_.authorize(URLDecoder.decode(userName, "UTF-8"),
+                 ipAddress).getCompactRepresentation();
+    }
+
     /**
      * Lists all defined users.
      *

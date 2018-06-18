@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -194,6 +196,25 @@ public class AuthenticationService implements IAuthenticationService {
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);
         }
     }
+
+    /**
+     * Authorize SAML user.
+     *
+     * @param username user name
+     * @param groupName group name
+     * @param ipAddress user IP address
+     * @return {@link AuthUserDTO}
+     */
+    public Optional<AuthUserDTO> authorize(String username, Optional<String> groupName, String ipAddress) {
+        RestAuthenticationProvider authProvider = new RestAuthenticationProvider(
+                authHost_,
+                authPort_,
+                restTemplate_,
+                verifier_);
+        Authentication result = authProvider.authorize(username, groupName, ipAddress);
+        return Optional.ofNullable((AuthUserDTO) result.getPrincipal());
+    }
+
 
     @Override
     public BaseApiDTO logout() {

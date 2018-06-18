@@ -59,6 +59,10 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
             .permitAll()
             .and()
             .authorizeRequests()
+            .antMatchers("/users/authorize/**") //TODO remove it when OM-36103 is implemented
+            .permitAll()
+            .and()
+            .authorizeRequests()
             .antMatchers("/users/checkAdminInit/**")
             .permitAll()
             .and()

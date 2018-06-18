@@ -10,11 +10,15 @@ import javax.servlet.ServletRegistration;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.security.saml.userdetails.SAMLUserDetailsService;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
+import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
+import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -96,6 +100,12 @@ public class ServiceConfig {
     public AuthenticationService authenticationService() {
         return new AuthenticationService(authConfig.getAuthHost(), authConfig.getAuthPort(),
                 securityConfig.verifier(), communicationConfig.serviceRestTemplate());
+    }
+
+    //TODO, conditional load it, but need to enable conditional Autowire in {@link ApiSecurityConfig}.
+    @Bean
+    public SAMLUserDetailsService samlUserDetailsService() {
+        return new SAMLUserDetailsServiceImpl();
     }
 
     @Bean

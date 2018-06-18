@@ -29,6 +29,7 @@ import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,6 +37,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 import com.vmturbo.api.enums.UserRole;
 import com.vmturbo.auth.api.JWTKeyCodec;
+import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
@@ -44,7 +46,7 @@ import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
-import com.vmturbo.auth.component.store.ad.ADUtil;
+import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -142,12 +144,12 @@ public class AuthProvider {
     /**
      * The AD provider.
      */
-    private final @Nonnull ADUtil adUtil_;
+    private final @Nonnull SsoUtil ssoUtil;
 
     /**
      * The transient AD group-based users.
      */
-    private final Map<String, String> adUsersToUuid_ =
+    private final Map<String, String> ssoUsersToUuid_ =
             Collections.synchronizedMap(new HashMap<>());
 
     /**
@@ -163,7 +165,7 @@ public class AuthProvider {
      */
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore) {
         keyValueStore_ = Objects.requireNonNull(keyValueStore);
-        adUtil_ = new ADUtil();
+        ssoUtil = new SsoUtil();
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
     }
 
@@ -404,14 +406,29 @@ public class AuthProvider {
     private @Nonnull JWTAuthorizationToken authenticateADUser(final @Nonnull UserInfo info,
                                                               final @Nonnull String password)
             throws AuthenticationException {
-        reloadAD();
+        reloadSSOConfiguration();
         try {
-            adUtil_.authenticateADUser(info.userName, password);
+            ssoUtil.authenticateADUser(info.userName, password);
         } catch (SecurityException e) {
             throw new AuthenticationException(e);
         }
         logger_.info("AUDIT::SUCCESS: Success authenticating user: " + info.userName);
         return generateToken(info.userName, info.uuid, info.roles);
+    }
+
+
+    /**
+     * Authorize an SAML user.
+     *
+     * @param info     The user info.
+     * @param ipaddress The user request IP address.
+     * @return The JWTAuthorizationToken if successful.
+     * @throws AuthenticationException In case of error authenticating AD user.
+     */
+    private @Nonnull JWTAuthorizationToken authorizeSAMLUser(final @Nonnull UserInfo info,
+                                                             final @Nonnull String ipaddress) {
+        logger_.info("AUDIT::SUCCESS: Success authorizing user: " + info.userName);
+        return generateToken(info.userName, info.uuid, info.roles, ipaddress);
     }
 
     /**
@@ -427,15 +444,15 @@ public class AuthProvider {
             throws AuthenticationException {
         // Get the LDAP servers we can query.  If there are none, there's no point in going on.
         try {
-            reloadAD();
-            @Nonnull Collection<String> ldapServers = adUtil_.findLDAPServersInWindowsDomain();
-            String role = adUtil_.authenticateUserInGroup(userName, password, ldapServers);
+            reloadSSOConfiguration();
+            @Nonnull Collection<String> ldapServers = ssoUtil.findLDAPServersInWindowsDomain();
+            String role = ssoUtil.authenticateUserInGroup(userName, password, ldapServers);
             if (role != null) {
                 logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                String uuid = adUsersToUuid_.get(userName);
+                String uuid = ssoUsersToUuid_.get(userName);
                 if (uuid == null) {
                     uuid = String.valueOf(IdentityGenerator.next());
-                    adUsersToUuid_.put(userName, uuid);
+                    ssoUsersToUuid_.put(userName, uuid);
                 }
                 return generateToken(userName, uuid, ImmutableList.of(role));
             }
@@ -443,6 +460,32 @@ public class AuthProvider {
         } catch (SecurityException e) {
             throw new AuthenticationException("Unable to authenticate the user " + userName, e);
         }
+    }
+
+
+    /**
+     * Authorize the SAML user by group membership.
+     *
+     * @param userName The user name.
+     * @param groupName The group name.
+     * @return The JWTAuthorizationToken if successful.
+     * @throws AuthenticationException In case we failed to authenticate user against AD group.
+     */
+    private @Nonnull JWTAuthorizationToken authorizeSAMLGroup(final @Nonnull String userName,
+                                                               final @Nonnull String groupName,
+                                                               final @Nonnull String ipAddress     )
+            throws AuthorizationException {
+            reloadSSOConfiguration();
+            return ssoUtil.authorizeSAMLUserInGroup(userName, groupName).map(role -> {
+                        logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
+                        String uuid = ssoUsersToUuid_.get(userName);
+                        if (uuid == null) {
+                            uuid = String.valueOf(IdentityGenerator.next());
+                            ssoUsersToUuid_.put(userName, uuid);
+                        }
+                        return generateToken(userName, uuid, ImmutableList.of(role),ipAddress);
+                    }
+            ).orElseThrow(() -> new AuthorizationException("Unable to authorize the user " + userName));
     }
 
     /**
@@ -543,6 +586,58 @@ public class AuthProvider {
             }
         }
         return authenticateADGroup(userName, password);
+    }
+
+
+    /**
+     * Authenticates the user when IP address is available.
+     *
+     * @param userName The user name.
+     * @param groupName The password.
+     * @param ipAddress The user's IP address.
+     * @return The JWTAuthorizationToken if successful.
+     * @throws AuthenticationException In case of error authenticating the user. We can get
+     *                                 {@link SecurityException} in case of
+     * @throws SecurityException       In case of an internal error while authenticating an user.
+     */
+    public @Nonnull JWTAuthorizationToken authorize(final @Nonnull String userName,
+                                                       final @Nonnull String groupName,
+                                                       final @Nonnull String ipAddress)
+            throws SecurityException, AuthorizationException {
+        return authorizeSAMLGroup(userName, groupName, ipAddress);
+    }
+
+
+    /**
+     * Authorize SAML user.
+     *
+     * @param userName user name
+     * @param ipAddress user IP address
+     * @return user JWT token
+     * @throws SecurityException if SAML user doesn't exist
+     */
+    public @Nonnull JWTAuthorizationToken authorize(final @Nonnull String userName,
+                                                    final @Nonnull String ipAddress)
+            throws SecurityException {
+        // Try local users first.
+        Optional<String> json = getKVValue(composeUserInfoKey(PROVIDER.LDAP, userName));
+
+        if (json.isPresent()) {
+            try {
+                String jsonData = json.get();
+                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
+                // Check the authentication.
+                if (!info.unlocked) {
+                    throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
+                }
+                return authorizeSAMLUser(info, ipAddress);
+
+            } catch (Exception e) {
+                logger_.error("AUDIT::FAILURE:AUTH: Error authorizing user: " + userName);
+                throw new SecurityException("Authorization failed", e);
+            }
+        }
+        throw new SecurityException("Authorization failed: " + userName);
     }
 
     /**
@@ -850,19 +945,19 @@ public class AuthProvider {
      *
      * @throws SecurityException In case of an error loading the AD info.
      */
-    private void reloadAD() throws SecurityException {
+    private void reloadSSOConfiguration() throws SecurityException {
         Optional<String> json = getKVValue(PREFIX_AD);
         if (!json.isPresent()) {
             return;
         }
 
         ActiveDirectoryDTO result = GSON.fromJson(json.get(), ActiveDirectoryDTO.class);
-        adUtil_.reset();
-        adUtil_.setDomainName(result.getDomainName());
-        adUtil_.setSecureLoginProvider(result.isSecure());
-        adUtil_.setLoginProviderURI(result.getLoginProviderURI());
+        ssoUtil.reset();
+        ssoUtil.setDomainName(result.getDomainName());
+        ssoUtil.setSecureLoginProvider(result.isSecure());
+        ssoUtil.setLoginProviderURI(result.getLoginProviderURI());
         for (ActiveDirectoryGroupDTO group : result.getGroups()) {
-            adUtil_.putGroup(group.getDisplayName(), group.getRoleName());
+            ssoUtil.putGroup(group.getDisplayName(), group.getRoleName());
         }
     }
 
@@ -914,9 +1009,9 @@ public class AuthProvider {
         ActiveDirectoryDTO result = new ActiveDirectoryDTO(domain, url, inputDTO.isSecure(),
                                                            new ArrayList<>());
         putKVValue(PREFIX_AD, GSON.toJson(result));
-        adUtil_.setDomainName(domain);
-        adUtil_.setSecureLoginProvider(inputDTO.isSecure());
-        adUtil_.setLoginProviderURI(url);
+        ssoUtil.setDomainName(domain);
+        ssoUtil.setSecureLoginProvider(inputDTO.isSecure());
+        ssoUtil.setLoginProviderURI(url);
 
         // We enforce the original semantics of ActiveDirectoryDTO having groups == null to
         // designate the empty list.
@@ -970,7 +1065,7 @@ public class AuthProvider {
             }
             // We haven't found the group, need to create new one
             if (existing == null) {
-                adUtil_.putGroup(adGroupInputDto.getDisplayName(),
+                ssoUtil.putGroup(adGroupInputDto.getDisplayName(),
                                  adGroupInputDto.getRoleName());
                 ActiveDirectoryGroupDTO g =
                         new ActiveDirectoryGroupDTO(adGroupInputDto.getDisplayName(),
@@ -1030,7 +1125,7 @@ public class AuthProvider {
             // We need to add one.
             ad.setGroups(newGroups);
             putKVValue(PREFIX_AD, GSON.toJson(ad));
-            adUtil_.deleteGroup(groupName);
+            ssoUtil.deleteGroup(groupName);
             return groups.size() != newGroups.size();
         } catch (Exception e) {
             throw new SecurityException("Error retrieving active directories");

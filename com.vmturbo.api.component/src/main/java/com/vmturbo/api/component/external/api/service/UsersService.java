@@ -17,6 +17,7 @@ import com.google.gson.GsonBuilder;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.dto.user.SAMLIdpApiDTO;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
 import org.apache.logging.log4j.LogManager;
@@ -26,8 +27,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.Errors;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -131,7 +130,9 @@ public class UsersService implements IUsersService {
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME, getLoggedInPrincipal().getToken());
+        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
+                geJwtTokenFromSpringSecurityContext().orElseThrow(() ->
+                        new SecurityException("Invalid JWT token")));
         return headers;
     }
 
@@ -173,17 +174,14 @@ public class UsersService implements IUsersService {
     }
 
     /**
-     * Returns the logged in principal.
+     * Get JWT token from Spring context
      *
-     * @return The logged in user.
+     * @return JWT token
      */
-    private @Nonnull AuthUserDTO getLoggedInPrincipal() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth.getPrincipal() instanceof AuthUserDTO) {
-            return (AuthUserDTO)auth.getPrincipal();
-        } else {
-            throw new IllegalStateException("No user logged in!");
-        }
+    private static Optional<String> geJwtTokenFromSpringSecurityContext() {
+        return SAMLUserUtils
+                .getAuthUserDTO()
+                .map(AuthUserDTO::getToken);
     }
 
     /**
@@ -194,13 +192,9 @@ public class UsersService implements IUsersService {
      */
     @Override
     public @Nonnull UserApiDTO getLoggedInUser() throws Exception {
-        try {
-            return generateUserApiDTO(getLoggedInPrincipal());
-        } catch (IllegalStateException e) {
-            // (roman, June 2 2017) This is the specific type of exception the UI expects in
-            // this case at the time of this writing.
-            throw new UnauthorizedObjectException("No user logged in!");
-        }
+        return SAMLUserUtils.getAuthUserDTO()
+                .map(authUserDTO -> generateUserApiDTO(authUserDTO))
+                .orElseThrow(() -> new IllegalStateException("No user logged in!"));
     }
 
     /**

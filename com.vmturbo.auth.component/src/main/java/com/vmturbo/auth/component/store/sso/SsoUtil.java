@@ -1,4 +1,4 @@
-package com.vmturbo.auth.component.store.ad;
+package com.vmturbo.auth.component.store.sso;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -28,13 +29,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * The ADUtil is a Active Directory helper utility class.
+ * The {@link SsoUtil} is a SSO helper utility class.
  */
-public class ADUtil {
+public class SsoUtil {
     /**
      * The logger.
      */
-    private final Logger logger = LogManager.getLogger(ADUtil.class);
+    private final Logger logger = LogManager.getLogger(SsoUtil.class);
 
     /**
      * The domain name.
@@ -56,14 +57,14 @@ public class ADUtil {
     private String adSearchBase_;
 
     /**
-     * The AD groups. The {@code <Group name, Roles>} mapping.
+     * The AD or SAML groups. The {@code <Group name, Roles>} mapping.
      */
-    private final Map<String, String> adGroups_ = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, String> ssoGroups_ = Collections.synchronizedMap(new HashMap<>());
 
     /**
-     * The AD users that were derived from groups.
+     * The AD or SAML users that were derived from groups.
      */
-    private final Set<String> adGroupUsers_ = Collections.synchronizedSet(new HashSet<>());
+    private final Set<String> ssoGroupUsers_ = Collections.synchronizedSet(new HashSet<>());
 
     /**
      * Sets the domain name as well as the AD search base.
@@ -109,8 +110,8 @@ public class ADUtil {
     public synchronized void reset() {
         domainName_ = null;
         loginProviderURI_ = null;
-        adGroups_.clear();
-        adGroupUsers_.clear();
+        ssoGroups_.clear();
+        ssoGroupUsers_.clear();
     }
 
     /**
@@ -237,14 +238,14 @@ public class ADUtil {
     }
 
     /**
-     * Adds or replaces the AD group.
+     * Adds or replaces the AD or SAML group.
      *
      * @param groupName The group name.
      * @param roleName  The role name.
      * @return {@code true} iff the new group was added.
      */
     public boolean putGroup(final @Nonnull String groupName, final @Nonnull String roleName) {
-        return null != adGroups_.put(groupName, roleName);
+        return null != ssoGroups_.put(groupName, roleName);
     }
 
     /**
@@ -254,7 +255,7 @@ public class ADUtil {
      * @return {@code true} iff the group existed before this call.
      */
     public boolean deleteGroup(final @Nonnull String groupName) {
-        return null != adGroups_.remove(groupName);
+        return null != ssoGroups_.remove(groupName);
     }
 
     /**
@@ -273,7 +274,30 @@ public class ADUtil {
     }
 
     /**
-     * Try to authenticate the user as a member of the group.
+     * Authorize user in SAML group. Internally we are reusing {@link SsoUtil#ssoGroups_} to hold group.
+     *
+     * @param userName  user name
+     * @param groupName claimed group name
+     * @return user role if found
+     */
+    public @Nonnull Optional<String> authorizeSAMLUserInGroup(final @Nonnull String userName,
+                                                              final @Nonnull String groupName) {
+        boolean foundGroup = ssoGroups_
+                .keySet()
+                .stream()
+                .anyMatch(name -> name.equals(groupName.toLowerCase()));
+        if (foundGroup) {
+            if (!ssoGroupUsers_.contains(userName)) {
+                ssoGroupUsers_.add(userName);
+            }
+            return Optional.ofNullable(ssoGroups_.get(groupName));
+         }
+         return Optional.empty();
+    }
+
+
+    /**
+     * Try to authenticate the user as a member of the AD group.
      *
      * @param userName     Name of the user.
      * @param userPassword Password user presented.
@@ -322,7 +346,7 @@ public class ADUtil {
                         continue;
                     }
                     String memberOfAttrValue = memberOf.toString().toLowerCase();
-                    for (String groupName : adGroups_.keySet().toArray(new String[0])) {
+                    for (String groupName : ssoGroups_.keySet().toArray(new String[0])) {
                         String adGroupNotChanged = groupName;
                         // Prepend CN= to the groupName if the user only specified the name of
                         // the group
@@ -330,9 +354,9 @@ public class ADUtil {
                             groupName = "CN=" + groupName;
                         }
                         if (memberOfAttrValue.contains(groupName.toLowerCase())) {
-                            if (!adGroupUsers_.contains(userName)) {
-                                adGroupUsers_.add(userName);
-                                return adGroups_.get(adGroupNotChanged);
+                            if (!ssoGroupUsers_.contains(userName)) {
+                                ssoGroupUsers_.add(userName);
+                                return ssoGroups_.get(adGroupNotChanged);
                             }
                         }
                     }

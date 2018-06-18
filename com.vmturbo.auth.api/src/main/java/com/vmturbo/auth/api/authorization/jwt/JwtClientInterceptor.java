@@ -5,9 +5,6 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
-
 import io.grpc.CallOptions;
 import io.grpc.Channel;
 import io.grpc.ClientCall;
@@ -16,6 +13,7 @@ import io.grpc.ForwardingClientCall;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 /**
@@ -24,12 +22,23 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 public class JwtClientInterceptor implements ClientInterceptor {
 
     /**
+     * Retrieve JWT token from current Spring security context
+     *
+     * @return JWT token if it exists in the current Spring security context
+     */
+    private static Optional<String> geJwtTokenFromSpringSecurityContext() {
+        return SAMLUserUtils
+                .getAuthUserDTO()
+                .map(AuthUserDTO::getToken);
+    }
+
+    /**
      * Intercept {@link ClientCall} creation by the {@code next} {@link Channel},
      * and add JWT token to the metadata.
      *
-     * @param method the remote method to be called.
+     * @param method      the remote method to be called.
      * @param callOptions the runtime options to be applied to this call.
-     * @param next the channel which is being intercepted.
+     * @param next        the channel which is being intercepted.
      * @return the call object for the remote operation, never {@code null}.
      */
     @Override
@@ -45,21 +54,5 @@ public class JwtClientInterceptor implements ClientInterceptor {
                 super.start(responseListener, metadata);
             }
         };
-    }
-
-    /**
-     * Retrieve JWT token from current Spring security context
-     *
-     * @return JWT token if it exists in the current Spring security context
-     */
-    private static Optional<String> geJwtTokenFromSpringSecurityContext() {
-        SecurityContext securityContext = SecurityContextHolder.getContext();
-        if (securityContext != null
-                && securityContext.getAuthentication() != null
-                && securityContext.getAuthentication().getPrincipal() != null) {
-            AuthUserDTO authUserDTO = (AuthUserDTO) securityContext.getAuthentication().getPrincipal();
-            return Optional.of(authUserDTO.getToken());
-        }
-        return Optional.empty();
     }
 }
