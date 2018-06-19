@@ -263,7 +263,6 @@ public class ActionClassifier {
      * @return The corresponding ShoppingList in the cloned Economy.
      */
     private @Nullable ShoppingList findTargetInEconomyCopy(ShoppingList target) {
-        Basket basket = target.getBasket();
         Trader buyer = target.getBuyer();
         Trader buyerCopy = lookupTraderInSimulationEconomy(buyer);
         // When classifying a move for a cloned entity, we wont find it in the simulationEconomy
@@ -272,7 +271,7 @@ public class ActionClassifier {
         }
         Set<ShoppingList> shoppingLists = simulationEconomy_.getMarketsAsBuyer(buyerCopy).keySet();
         for (ShoppingList shoppingList: shoppingLists) {
-            if (shoppingList.equals(target)) {
+            if (shoppingList.getShoppingListId().equals(target.getShoppingListId())) {
                 return shoppingList;
             }
         }

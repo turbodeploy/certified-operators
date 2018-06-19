@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
 import java.util.Optional;
+import java.util.UUID;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -41,6 +42,7 @@ public final class ShoppingList implements Serializable {
                                      // another supplier.
     private float moveCost_ = 0; // Cost to move this shopping list to another supplier
     private final @NonNull Basket basket_; // The basket for this shopping list
+    private UUID shoppingListId = UUID.randomUUID(); // unique identifier for this shopping list.
     /**
      * The cost on the supplier.
      */
@@ -306,34 +308,20 @@ public final class ShoppingList implements Serializable {
     }
 
     /**
-     * Tests whether the two shopping lists are equal.
-     *
-     * @param otherShoppingList ShoppingList Object to test against
-     * @return True if the this object is equal to otherShoppingList, false otherwise
+     * Get unique identifier for this shopping list.
+     * @return shopping list's UUID.
      */
-    public boolean equals(ShoppingList otherShoppingList) {
-        if (otherShoppingList == null) {
-            return false;
-        } else if (this == otherShoppingList) {
-            return true;
-        } else if (!getBasket().equals(otherShoppingList.getBasket())) {
-            /**
-             * If in here means that the two ShoppingList's baskets do not have the same set or same
-             * number of commodities.
-             */
-            return false;
-        } else {
-            /**
-             * We check for the avg and peak quantities for each commodity in the shopping list and
-             * if they don't match they are not equal.
-             */
-            for (int i = 0; i < getQuantities().length; i ++) {
-                if ((getQuantity(i) != otherShoppingList.getQuantity(i))
-                        || (getPeakQuantity(i) != otherShoppingList.getPeakQuantity(i))) {
-                    return false;
-                }
-            }
-        }
-        return true;
+    public UUID getShoppingListId() {
+        return shoppingListId;
+    }
+
+    /**
+     * Sets unique UUID for this shopping list.
+     * UUID is automatically assigned to every shopping list during its creation.
+     * It is used in clones to establish relation with its source.
+     * @param shoppingListId
+     */
+    public void setShoppingListId(UUID shoppingListId) {
+        this.shoppingListId = shoppingListId;
     }
 } // end ShoppingList class

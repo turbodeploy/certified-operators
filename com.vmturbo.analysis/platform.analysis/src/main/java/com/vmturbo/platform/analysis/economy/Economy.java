@@ -743,11 +743,17 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             Trader cloneBuyer = this.getTraders().get(j);
             Basket cloneBasketBought = sl.getBasket(); // reuse baskets in original and clone
             ShoppingList cloneShoppingList = this.addBasketBought(cloneBuyer, cloneBasketBought);
+            cloneShoppingList.setShoppingListId(sl.getShoppingListId());
             double[] quantities = sl.getQuantities();
             double[] peakQuantities = sl.getPeakQuantities();
+            double[] cloneQuantities = cloneShoppingList.getQuantities();
+            double[] clonePeakQuantities = cloneShoppingList.getPeakQuantities();
             for (int q = 0; q < quantities.length; q++) {
-                cloneShoppingList.setQuantity(q, quantities[q]);
-                cloneShoppingList.setPeakQuantity(q, peakQuantities[q]);
+                // Setters contain extra logic that that may prevent setting of exact values.
+                // Hence, copy values directly in clone arrays for quantities and peakQuantities.
+                // s.t clone has exactly same values.
+                cloneQuantities[q] = quantities[q];
+                clonePeakQuantities[q] = peakQuantities[q];
             }
             cloneShoppingList.move(cloneTrader);
         }
