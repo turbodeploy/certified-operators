@@ -212,6 +212,9 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
      * {@link com.vmturbo.stitching.TopologicalChangelog.TopologicalChange} on one or more entities
      * in the topology.
      *
+     * Note that implementations of this method MUST apply changes by passing a changeset to the consumer
+     * in order for stitching to be correctly applied.
+     *
      * @param changesetPreamble A preamble describing at a high level the set of changes to follow.
      * @param changesetConsumer A consumer of the changeset. This consumer should add {@link JournalableEntity}
      *                          entries to the changeset prior to mutating the {@link JournalableEntity}.

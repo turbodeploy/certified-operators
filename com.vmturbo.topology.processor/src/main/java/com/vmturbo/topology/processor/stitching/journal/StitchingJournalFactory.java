@@ -25,7 +25,6 @@ import com.google.common.util.concurrent.AtomicDouble;
 
 import com.vmturbo.common.protobuf.topology.Stitching.EntityFilter;
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
-import com.vmturbo.common.protobuf.topology.Stitching.TopologyDumpOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;

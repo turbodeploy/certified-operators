@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.stitching;
 
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.matchesEntityIgnoringOrigin;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.sdkDtosFromFile;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -19,6 +20,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -47,9 +49,9 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
+import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
-import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -148,7 +150,32 @@ public class StitchingIntegrationTest {
     }
 
     @Test
-    public void testNetappStitching() throws Exception {
+    public void testNetappStitchingWithEmptyJournal() throws Exception {
+        testNetappStitching(StitchingJournalFactory.emptyStitchingJournalFactory());
+    }
+
+    @Test
+    public void testNetappStitchingWithRecordingJournal() throws Exception {
+        final StringBuilder journalStringBuilder = new StringBuilder(2048);
+        final ConfigurableStitchingJournalFactory journalFactory = StitchingJournalFactory
+            .configurableStitchingJournalFactory(Clock.systemUTC())
+            .addRecorder(new StringBuilderRecorder(journalStringBuilder));
+        journalFactory.setJournalOptions(JournalOptions.newBuilder()
+            .setVerbosity(Verbosity.LOCAL_CONTEXT_VERBOSITY)
+            .build());
+
+        testNetappStitching(journalFactory);
+
+        final String journalOutput = journalStringBuilder.toString();
+        assertThat(journalOutput, containsString("Merging from STORAGE-31-svm1.test.com:ONTAP_SIM9_LUN1_vol onto"));
+        assertThat(journalOutput, containsString("STORAGE-70-NetApp90:ISCSI-SVM1"));
+        assertThat(journalOutput, containsString("Merging from DISK_ARRAY-78-DiskArray-NetApp90:ISCSI-SVM1 onto"));
+        assertThat(journalOutput, containsString("DISK_ARRAY-34-dataontap-vsim-cm3:aggr2"));
+    }
+
+    private void testNetappStitching(@Nonnull final StitchingJournalFactory journalFactory) throws Exception {
+        Objects.requireNonNull(journalFactory);
+
         final Map<Long, EntityDTO> storageEntities =
             sdkDtosFromFile(getClass(), "protobuf/messages/netapp_data.json.zip", 1L);
         final Map<Long, EntityDTO> hypervisorEntities =
@@ -169,15 +196,7 @@ public class StitchingIntegrationTest {
         when(targetStore.getProbeTargets(netAppProbeId))
             .thenReturn(Collections.singletonList(netAppTarget));
 
-        final StringBuilder journalStringBuilder = new StringBuilder(2048);
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
-        final ConfigurableStitchingJournalFactory journalFactory = StitchingJournalFactory
-            .configurableStitchingJournalFactory(Clock.systemUTC())
-            .addRecorder(new StringBuilderRecorder(journalStringBuilder));
-        journalFactory.setJournalOptions(JournalOptions.newBuilder()
-            .setVerbosity(Verbosity.LOCAL_CONTEXT_VERBOSITY)
-            .build());
-
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
         stitchingManager.stitch(stitchingContext, journal);
         final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
@@ -224,8 +243,6 @@ public class StitchingIntegrationTest {
             new TopologyEntitySemanticDiffer(journal.getJournalOptions().getVerbosity()));
         stitchingManager.postStitch(new GraphWithSettings(TopologyGraph.newGraph(topology),
             Collections.emptyMap(), Collections.emptyMap()), postStitchingJournal);
-
-        System.out.println(journalStringBuilder);
     }
 
     List<Long> oidsFor(@Nonnull final Stream<String> displayNames,
