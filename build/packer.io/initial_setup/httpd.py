@@ -8,6 +8,22 @@ import socket
 import BaseHTTPServer
 import SimpleHTTPServer
 import ssl
+import thread
+import time
+
+class HTTP80RequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
+    # Request handler for http requests on port 80
+    # Extracts the Host: from the headers and redirects the user to the
+    # same host but on https port 443
+    def do_GET(self):
+        rbufsize = 0
+        self.send_response(302)
+        headers=str(self.headers)
+        hostStr='Host:'
+        connectionStr='Connection:'
+        hostName=headers.split(hostStr)[-1].split(connectionStr)[0]
+        self.send_header('Location',"https://"+hostName.strip())
+        self.end_headers()
 
 class CGIHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     # Make rfile unbuffered -- we need to read one line and then pass
@@ -99,7 +115,6 @@ def executable(path):
         return 0
     return st[0] & 0111 != 0
 
-
 def run(HandlerClass = CGIHTTPRequestHandler,
          ServerClass = BaseHTTPServer.HTTPServer):
 	httpd = BaseHTTPServer.HTTPServer(('',443), CGIHTTPRequestHandler)
@@ -110,7 +125,23 @@ def run(HandlerClass = CGIHTTPRequestHandler,
 					server_side=True)
 	httpd.serve_forever()
 
+# Server listening on port 80 for http requests which will ultimately be redirected to https
 
+def run80(HandlerClass = HTTP80RequestHandler,
+         ServerClass = BaseHTTPServer.HTTPServer):
+    httpd = BaseHTTPServer.HTTPServer(('',80), HTTP80RequestHandler)
+    httpd.serve_forever()
+
+# Starting two http server instances on different threads
+# One instance listens on port 80 for http requests and redirects to https
 if __name__ == '__main__':
-    run()
+    try:
+        thread.start_new_thread(run,());
+        thread.start_new_thread(run80,());
+    except (KeyboardInterrupt, SystemExit):
+        cleanup_stop_thread();
+        sys.exit()
 
+# Loop to ensure threas remain running
+while 1:
+    time.sleep(10)
