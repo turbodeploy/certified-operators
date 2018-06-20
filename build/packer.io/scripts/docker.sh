@@ -172,7 +172,7 @@ function start_xl() {
     # instead, we rely on the docker-compose dependencies to start both zookeeper and kafka
 #	start_xl_component zoo1 "binding to port"
 #	start_xl_component kafka1 "Startup complete."
-    start_and_verify_xl_component clustermgr "Started ClusterMgrMain"
+    start_and_verify_xl_component clustermgr "Server.*: Started"
     start_and_verify_xl_component db "port: 3306"
     start_and_verify_xl_component arangodb "ready for business"
 
