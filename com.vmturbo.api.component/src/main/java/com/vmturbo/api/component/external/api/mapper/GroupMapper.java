@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -21,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
@@ -132,33 +134,67 @@ public class GroupMapper {
                     "non-temp group request.");
         } else if (apiDTO.getDisplayName() == null) {
             throw new InvalidOperationException("No name for temp group!");
-        } else if (CollectionUtils.isEmpty(apiDTO.getScope())) {
-            // At the time of this writing temporary groups are always created from some scope.
-            throw new InvalidOperationException("No scope for temp group " + apiDTO.getDisplayName());
         }
 
-        // Derive the members from the scope
-        final Map<String, SupplyChainNode> supplyChainForScope =
-                supplyChainFetcherFactory.newNodeFetcher()
-                        .addSeedUuids(apiDTO.getScope())
-                        .entityTypes(Collections.singletonList(apiDTO.getGroupType()))
-                        .fetch();
-        final SupplyChainNode node = supplyChainForScope.get(apiDTO.getGroupType());
-        if (node == null) {
-            throw new InvalidOperationException("Group type: " + apiDTO.getGroupType() +
-                " not found in supply chain for scopes: " + apiDTO.getScope());
+        // Save the list of explicitly-requested member OIDs.
+        final Set<Long> explicitMemberIds =
+            CollectionUtils.emptyIfNull(apiDTO.getMemberUuidList()).stream()
+                .map(uuid -> {
+                    try {
+                        // We expect the memberUuid list to be composed of entity IDs, so
+                        // we don't expand them.
+                        return Optional.of(Long.parseLong(uuid));
+                    } catch (NumberFormatException e) {
+                        logger.error("Invalid group member uuid: {}. Expecting numeric members only.", uuid);
+                        return Optional.<Long>empty();
+                    }
+                })
+                .filter(Optional::isPresent).map(Optional::get)
+                .collect(Collectors.toSet());
+
+
+        final Set<Long> groupMembers;
+        final boolean isGlobalScopeGroup;
+        if (!CollectionUtils.isEmpty(apiDTO.getScope())) {
+            // Derive the members from the scope
+            final Map<String, SupplyChainNode> supplyChainForScope =
+                    supplyChainFetcherFactory.newNodeFetcher()
+                            .addSeedUuids(apiDTO.getScope())
+                            .entityTypes(Collections.singletonList(apiDTO.getGroupType()))
+                            .fetch();
+            final SupplyChainNode node = supplyChainForScope.get(apiDTO.getGroupType());
+            if (node == null) {
+                throw new InvalidOperationException("Group type: " + apiDTO.getGroupType() +
+                        " not found in supply chain for scopes: " + apiDTO.getScope());
+            }
+            final Set<Long> entitiesInScope = RepositoryDTOUtil.getAllMemberOids(node);
+            // Check if the user only wants a specific set of entities within the scope.
+            if (!explicitMemberIds.isEmpty()) {
+                groupMembers = Sets.intersection(entitiesInScope, explicitMemberIds);
+            } else {
+                groupMembers = entitiesInScope;
+            }
+            // check if the temp group's scope is Market or not.
+            // TODO (roman, June 19 2018): We shouldn't need to retrieve members if it's a global
+            // scope group. We should just set this flag.
+            isGlobalScopeGroup = apiDTO.getScope().size() == 1 &&
+                    apiDTO.getScope().get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR);
+        } else if (!CollectionUtils.isEmpty(apiDTO.getMemberUuidList())) {
+            groupMembers = explicitMemberIds;
+            isGlobalScopeGroup = false;
+        } else {
+            // At the time of this writing temporary groups are always created from some scope or
+            // an explicit list of members, so we can't handle the case where neither is provided.
+            throw new InvalidOperationException("No scope/member list for temp group " + apiDTO.getDisplayName());
         }
 
-        TempGroupInfo.Builder tempGroupInfoBuilder = TempGroupInfo.newBuilder()
+        return TempGroupInfo.newBuilder()
                 .setEntityType(ServiceEntityMapper.fromUIEntityType(apiDTO.getGroupType()))
                 .setMembers(StaticGroupMembers.newBuilder()
-                        .addAllStaticMemberOids(RepositoryDTOUtil.getAllMemberOids(node)))
-                .setName(apiDTO.getDisplayName());
-        // check if the temp group's scope is Market or not.
-        final boolean isGlobalScopeGroup = apiDTO.getScope().size() == 1 &&
-                apiDTO.getScope().get(0).equals(UuidMapper.UI_REAL_TIME_MARKET_STR);
-        tempGroupInfoBuilder.setIsGlobalScopeGroup(isGlobalScopeGroup);
-        return tempGroupInfoBuilder.build();
+                        .addAllStaticMemberOids(groupMembers))
+                .setName(apiDTO.getDisplayName())
+                .setIsGlobalScopeGroup(isGlobalScopeGroup)
+                .build();
     }
 
     /**

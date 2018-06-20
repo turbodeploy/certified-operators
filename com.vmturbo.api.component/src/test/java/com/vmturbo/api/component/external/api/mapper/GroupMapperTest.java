@@ -664,7 +664,7 @@ public class GroupMapperTest {
     }
 
     @Test
-    public void testToTempGroupProto() throws OperationFailedException, InvalidOperationException {
+    public void testToTempGroupProtoGlobalScope() throws OperationFailedException, InvalidOperationException {
         final GroupApiDTO apiDTO = new GroupApiDTO();
         apiDTO.setTemporary(true);
         apiDTO.setDisplayName("foo");
@@ -687,6 +687,78 @@ public class GroupMapperTest {
         assertTrue(groupInfo.getIsGlobalScopeGroup());
 
         verify(fetcherBuilder).addSeedUuids(Collections.singletonList(UuidMapper.UI_REAL_TIME_MARKET_STR));
+        verify(fetcherBuilder).entityTypes(Collections.singletonList(VM_TYPE));
+    }
+
+    @Test
+    public void testToTempGroupProtoNotGlobalScope() throws OperationFailedException, InvalidOperationException {
+        final GroupApiDTO apiDTO = new GroupApiDTO();
+        apiDTO.setTemporary(true);
+        apiDTO.setDisplayName("foo");
+        apiDTO.setGroupType(VM_TYPE);
+        apiDTO.setScope(Lists.newArrayList("1"));
+
+        final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
+        when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(7L).build())
+                .build()));
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+
+        TempGroupInfo groupInfo = groupMapper.toTempGroupProto(apiDTO);
+        assertThat(groupInfo.getEntityType(), is(ServiceEntityMapper.fromUIEntityType(VM_TYPE)));
+        assertThat(groupInfo.getMembers().getStaticMemberOidsList(), containsInAnyOrder(7L));
+        assertThat(groupInfo.getName(), is("foo"));
+        assertFalse(groupInfo.getIsGlobalScopeGroup());
+
+        verify(fetcherBuilder).addSeedUuids(Collections.singletonList("1"));
+        verify(fetcherBuilder).entityTypes(Collections.singletonList(VM_TYPE));
+    }
+
+    @Test
+    public void testToTempGroupProtoUuidList() throws InvalidOperationException, OperationFailedException {
+        final GroupApiDTO apiDTO = new GroupApiDTO();
+        apiDTO.setTemporary(true);
+        apiDTO.setDisplayName("foo");
+        apiDTO.setGroupType(VM_TYPE);
+        // One valid, one invalid.
+        apiDTO.setMemberUuidList(Lists.newArrayList("1", "foo"));
+
+        final TempGroupInfo groupInfo = groupMapper.toTempGroupProto(apiDTO);
+        assertThat(groupInfo.getEntityType(), is(ServiceEntityMapper.fromUIEntityType(VM_TYPE)));
+        assertThat(groupInfo.getMembers().getStaticMemberOidsList(), containsInAnyOrder(1L));
+        assertThat(groupInfo.getName(), is("foo"));
+        assertFalse(groupInfo.getIsGlobalScopeGroup());
+    }
+
+    @Test
+    public void testToTempGroupProtoUuidListInsideScope() throws OperationFailedException, InvalidOperationException {
+        final GroupApiDTO apiDTO = new GroupApiDTO();
+        apiDTO.setTemporary(true);
+        apiDTO.setDisplayName("foo");
+        apiDTO.setGroupType(VM_TYPE);
+        apiDTO.setScope(Lists.newArrayList("1"));
+        // 7 should be in the scope, 6 is not in the scope, and foo is an illegal value.
+        apiDTO.setMemberUuidList(Lists.newArrayList("7", "6", "foo"));
+
+        final SupplyChainNodeFetcherBuilder fetcherBuilder = mock(SupplyChainNodeFetcherBuilder.class);
+        when(fetcherBuilder.addSeedUuids(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.entityTypes(any())).thenReturn(fetcherBuilder);
+        when(fetcherBuilder.fetch()).thenReturn(ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
+                .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
+                        .addMemberOids(7L).build())
+                .build()));
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
+
+        TempGroupInfo groupInfo = groupMapper.toTempGroupProto(apiDTO);
+        assertThat(groupInfo.getEntityType(), is(ServiceEntityMapper.fromUIEntityType(VM_TYPE)));
+        assertThat(groupInfo.getMembers().getStaticMemberOidsList(), containsInAnyOrder(7L));
+        assertThat(groupInfo.getName(), is("foo"));
+        assertFalse(groupInfo.getIsGlobalScopeGroup());
+
+        verify(fetcherBuilder).addSeedUuids(Collections.singletonList("1"));
         verify(fetcherBuilder).entityTypes(Collections.singletonList(VM_TYPE));
     }
 
