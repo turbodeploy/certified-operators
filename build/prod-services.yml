@@ -368,3 +368,81 @@ services:
     volumes:
       - mediation-hpe3par:/home/turbonomic/data
     restart: always
+
+ mediation-pure-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.pure.component
+    environment:
+      consul_host: consul
+      component_type: mediation-pure
+      instance_id: mediation-pure-1
+    volumes:
+      - mediation-pure:/home/turbonomic/data
+    restart: always
+
+  mediation-scaleio-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.scaleio.component
+    environment:
+      consul_host: consul
+      component_type: mediation-scaleio
+      instance_id: mediation-scaleio-1
+    volumes:
+      - mediation-scaleio:/home/turbonomic/data
+    restart: always
+
+  mediation-hds-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.hds.component
+    environment:
+      consul_host: consul
+      component_type: mediation-hds
+      instance_id: mediation-hds-1
+    volumes:
+      - mediation-hds:/home/turbonomic/data
+    restart: always
+
+  mediation-compellent-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.compellent.component
+    environment:
+      consul_host: consul
+      component_type: mediation-compellent
+      instance_id: mediation-compellent-1
+    volumes:
+      - mediation-compellent:/home/turbonomic/data
+    restart: always
+
+  mediation-xtremio-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.xtremio.component
+    environment:
+      consul_host: consul
+      component_type: mediation-xtremio
+      instance_id: mediation-xtremio-1
+    volumes:
+      - mediation-xtremio:/home/turbonomic/data
+    restart: always
+
+  mediation-vplex-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.vplex.component
+    environment:
+      consul_host: consul
+      component_type: mediation-vplex
+      instance_id: mediation-vplex-1
+    volumes:
+      - mediation-vplex:/home/turbonomic/data
+    restart: always
