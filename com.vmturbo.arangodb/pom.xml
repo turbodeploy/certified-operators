@@ -25,7 +25,7 @@
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
                             <imageName>turbonomic/arangodb</imageName>
                             <imageTags>
-                                <imageTag>${arangodb.version}</imageTag>
+                                <imageTag>${project.version}</imageTag>
                                 <imageTag>latest</imageTag>
                             </imageTags>
                             <labels>
