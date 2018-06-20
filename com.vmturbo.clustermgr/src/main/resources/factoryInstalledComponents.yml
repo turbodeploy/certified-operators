@@ -250,30 +250,6 @@ mediation-hpe3par:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
-mediation-pure:
-  <<: *baseVmtComponentSettings
-  <<: *commonMediationComponentSettings
-
-mediation-scaleio:
-  <<: *baseVmtComponentSettings
-  <<: *commonMediationComponentSettings
-
-mediation-hds:
-  <<: *baseVmtComponentSettings
-  <<: *commonMediationComponentSettings
-
-mediation-compellent:
-  <<: *baseVmtComponentSettings
-  <<: *commonMediationComponentSettings
-
-mediation-xtremio:
-  <<: *baseVmtComponentSettings
-  <<: *commonMediationComponentSettings
-
-mediation-vplex:
-  <<: *baseVmtComponentSettings
-  <<: *commonMediationComponentSettings
-
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

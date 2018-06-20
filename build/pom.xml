@@ -253,12 +253,7 @@
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
-                <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.hds.component</module>
-                <module>../com.vmturbo.mediation.xtremio.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
-                <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
@@ -354,48 +349,6 @@
         </profile>
 
         <profile>
-            <id>mediation-pure</id>
-            <modules>
-                <module>../com.vmturbo.mediation.pure.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-scaleio</id>
-            <modules>
-                <module>../com.vmturbo.mediation.scaleio.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-hds</id>
-            <modules>
-                <module>../com.vmturbo.mediation.hds.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-compellent</id>
-            <modules>
-                <module>../com.vmturbo.mediation.compellent.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-xtremio</id>
-            <modules>
-                <module>../com.vmturbo.mediation.xtremio.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-vplex</id>
-            <modules>
-                <module>../com.vmturbo.mediation.vplex.component</module>
-            </modules>
-        </profile>
-
-        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -466,12 +419,6 @@
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
-                <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.hds.component</module>
-                <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../com.vmturbo.mediation.compellent.component</module>
-                <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -563,17 +510,12 @@
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
+                <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
-                <module>../com.vmturbo.mediation.pure.component</module>
-                <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.hds.component</module>
-                <module>../com.vmturbo.mediation.xtremio.component</module>
-                <module>../com.vmturbo.mediation.compellent.component</module>
-                <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>

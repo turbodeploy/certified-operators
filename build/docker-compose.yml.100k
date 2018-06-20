@@ -41,12 +41,6 @@ volumes:
   mediation-vmax: *localdriver
   mediation-vmm: *localdriver
   mediation-hpe3par: *localdriver
-  mediation-pure: *localdriver
-  mediation-scaleio: *localdriver
-  mediation-hds: *localdriver
-  mediation-compellent: *localdriver
-  mediation-xtremio: *localdriver
-  mediation-vplex: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -290,60 +284,6 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-hpe3par-prod
-    environment:
-      JAVA_OPTS: "-Xmx3072M"
-    mem_limit: 4096M
-    depends_on: *clustermgrdep
-
-  mediation-pure:
-    extends:
-      file: prod-services.yml
-      service: mediation-pure-prod
-    environment:
-      JAVA_OPTS: "-Xmx3072M"
-    mem_limit: 4096M
-    depends_on: *clustermgrdep
-
-  mediation-scaleio:
-    extends:
-      file: prod-services.yml
-      service: mediation-scaleio-prod
-    environment:
-      JAVA_OPTS: "-Xmx3072M"
-    mem_limit: 4096M
-    depends_on: *clustermgrdep
-
-  mediation-hds:
-    extends:
-      file: prod-services.yml
-      service: mediation-hds-prod
-    environment:
-      JAVA_OPTS: "-Xmx3072M"
-    mem_limit: 4096M
-    depends_on: *clustermgrdep
-
-  mediation-compellent:
-    extends:
-      file: prod-services.yml
-      service: mediation-compellent-prod
-    environment:
-      JAVA_OPTS: "-Xmx3072M"
-    mem_limit: 4096M
-    depends_on: *clustermgrdep
-
-  mediation-xtremio:
-    extends:
-      file: prod-services.yml
-      service: mediation-xtremio-prod
-    environment:
-      JAVA_OPTS: "-Xmx3072M"
-    mem_limit: 4096M
-    depends_on: *clustermgrdep
-
-  mediation-vplex:
-    extends:
-      file: prod-services.yml
-      service: mediation-vplex-prod
     environment:
       JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M

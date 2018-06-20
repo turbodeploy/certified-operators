@@ -49,12 +49,6 @@ volumes:
   mediation-vmax: *localdriver
   mediation-vmm: *localdriver
   mediation-hpe3par: *localdriver
-  mediation-pure: *localdriver
-  mediation-scaleio: *localdriver
-  mediation-hds: *localdriver
-  mediation-compellent: *localdriver
-  mediation-xtremio: *localdriver
-  mediation-vplex: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -620,7 +614,6 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMAX_XMX_MB}M ${MEDIATION_VMAX_SYSTEM_PROPERTIES}"
     volumes:
       - mediation-vmax:/home/turbonomic/data
-    mem_limit: ${MEDIATION_VMAX_MEM_LIMIT_MB}M
 
   mediation-vmm:
     extends:
@@ -637,7 +630,6 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VMM_XMX_MB}M ${MEDIATION_VMM_SYSTEM_PROPERTIES}"
     volumes:
       - mediation-vmm:/home/turbonomic/data
-    mem_limit: ${MEDIATION_VMM_MEM_LIMIT_MB}M
 
   mediation-hpe3par:
     extends:
@@ -654,109 +646,6 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HPE3PAR_XMX_MB}M ${MEDIATION_HPE3PAR_SYSTEM_PROPERTIES}"
     volumes:
       - mediation-hpe3par:/home/turbonomic/data
-    mem_limit: ${MEDIATION_HPE3PAR_MEM_LIMIT_MB}M
-
-  mediation-pure:
-    extends:
-      file: common-services.yml
-      service: dev-component
-    image: turbonomic/com.vmturbo.mediation.pure.component
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_PURE_PORT}"
-      - "${MEDIATION_PURE_DEBUG_PORT}"
-    environment:
-      component_type: mediation-pure
-      instance_id: mediation-pure-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_PURE_XMX_MB}M ${MEDIATION_PURE_SYSTEM_PROPERTIES}"
-    volumes:
-      - mediation-pure:/home/turbonomic/data
-    mem_limit: ${MEDIATION_PURE_MEM_LIMIT_MB}M
-
-  mediation-scaleio:
-    extends:
-      file: common-services.yml
-      service: dev-component
-    image: turbonomic/com.vmturbo.mediation.scaleio.component
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_SCALEIO_PORT}"
-      - "${MEDIATION_SCALEIO_DEBUG_PORT}"
-    environment:
-      component_type: mediation-scaleio
-      instance_id: mediation-scaleio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_SCALEIO_XMX_MB}M ${MEDIATION_SCALEIO_SYSTEM_PROPERTIES}"
-    volumes:
-      - mediation-scaleio:/home/turbonomic/data
-    mem_limit: ${MEDIATION_SCALEIO_MEM_LIMIT_MB}M
-
-  mediation-hds:
-    extends:
-      file: common-services.yml
-      service: dev-component
-    image: turbonomic/com.vmturbo.mediation.hds.component
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_HDS_PORT}"
-      - "${MEDIATION_HDS_DEBUG_PORT}"
-    environment:
-      component_type: mediation-hds
-      instance_id: mediation-hds-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_HDS_XMX_MB}M ${MEDIATION_HDS_SYSTEM_PROPERTIES}"
-    volumes:
-      - mediation-hds:/home/turbonomic/data
-    mem_limit: ${MEDIATION_HDS_MEM_LIMIT_MB}M
-
-  mediation-compellent:
-    extends:
-      file: common-services.yml
-      service: dev-component
-    image: turbonomic/com.vmturbo.mediation.compellent.component
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_COMPELLENT_PORT}"
-      - "${MEDIATION_COMPELLENT_DEBUG_PORT}"
-    environment:
-      component_type: mediation-compellent
-      instance_id: mediation-compellent-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_COMPELLENT_XMX_MB}M ${MEDIATION_COMPELLENT_SYSTEM_PROPERTIES}"
-    volumes:
-      - mediation-compellent:/home/turbonomic/data
-    mem_limit: ${MEDIATION_COMPELLENT_MEM_LIMIT_MB}M
-
-  mediation-xtremio:
-    extends:
-      file: common-services.yml
-      service: dev-component
-    image: turbonomic/com.vmturbo.mediation.xtremio.component
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_XTREMIO_PORT}"
-      - "${MEDIATION_XTREMIO_DEBUG_PORT}"
-    environment:
-      component_type: mediation-xtremio
-      instance_id: mediation-xtremio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_XTREMIO_XMX_MB}M ${MEDIATION_XTREMIO_SYSTEM_PROPERTIES}"
-    volumes:
-      - mediation-xtremio:/home/turbonomic/data
-    mem_limit: ${MEDIATION_XTREMIO_MEM_LIMIT_MB}M
-
-  mediation-vplex:
-    extends:
-      file: common-services.yml
-      service: dev-component
-    image: turbonomic/com.vmturbo.mediation.vplex.component
-    depends_on: *clustermgrdep
-    ports:
-      - "${MEDIATION_VPLEX_PORT}"
-      - "${MEDIATION_VPLEX_DEBUG_PORT}"
-    environment:
-      component_type: mediation-vplex
-      instance_id: mediation-vplex-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VPLEX_XMX_MB}M ${MEDIATION_VPLEX_SYSTEM_PROPERTIES}"
-    volumes:
-      - mediation-vplex:/home/turbonomic/data
-    mem_limit: ${MEDIATION_VPLEX_MEM_LIMIT_MB}M
 
 #  mediation-openstack:
 #    extends:
@@ -772,3 +661,17 @@ services:
 #      JAVA_OPTS: "${DEV_JAVA_OPTS}"
 #    volumes:
 #      - mediation-openstack:/home/turbonomic/data
+#  mediation-compellent:
+#    extends:
+#      file: common-services.yml
+#      service: dev-component
+#    image: turbonomic/com.vmturbo.mediation.compellent.component
+#    ports:
+#      - "${MEDIATION_COMPELLENT_DEBUG_PORT}"
+#    depends_on: *clustermgrdep
+#    environment:
+#      component_type: mediation-compellent
+#      instance_id: mediation-compellent-1
+#      JAVA_OPTS: "${DEV_JAVA_OPTS}"
+#    volumes:
+#      - mediation-compellent:/home/turbonomic/data
