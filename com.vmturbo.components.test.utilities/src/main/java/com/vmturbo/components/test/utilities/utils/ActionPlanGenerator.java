@@ -214,7 +214,6 @@ public class ActionPlanGenerator {
             EntityType.DISK_ARRAY,
             EntityType.STORAGE_CONTROLLER,
             EntityType.LOGICAL_POOL,
-
             EntityType.DATACENTER,
             EntityType.PHYSICAL_MACHINE,
             EntityType.VIRTUAL_MACHINE,
@@ -222,7 +221,8 @@ public class ActionPlanGenerator {
             EntityType.APPLICATION,
             EntityType.VIRTUAL_APPLICATION,
             EntityType.CHASSIS,
-            EntityType.CONTAINER
+            EntityType.CONTAINER,
+            EntityType.CONTAINER_POD
         );
 
         public GeneratedEntity(final long oid, @Nonnull final EntityType entityType) {

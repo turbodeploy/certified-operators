@@ -25,6 +25,7 @@ public class ServiceEntityMapper {
         APPLICATION("Application"),
         VIRTUAL_APPLICATION("VirtualApplication"),
         CONTAINER("Container"),
+        CONTAINER_POD("ContainerPod"),
         VPOD("VPod"),
         DPOD("DPod"),
         STORAGECONTROLLER("StorageController"),
@@ -80,6 +81,7 @@ public class ServiceEntityMapper {
             .put(EntityType.APPLICATION.getNumber(),            UIEntityType.APPLICATION)
             .put(EntityType.VIRTUAL_APPLICATION.getNumber(),    UIEntityType.VIRTUAL_APPLICATION)
             .put(EntityType.CONTAINER.getNumber(),              UIEntityType.CONTAINER)
+            .put(EntityType.CONTAINER_POD.getNumber(),          UIEntityType.CONTAINER_POD)
             .put(EntityType.STORAGE_CONTROLLER.getNumber(),     UIEntityType.STORAGECONTROLLER)
             .put(EntityType.IO_MODULE.getNumber(),              UIEntityType.IOMODULE)
             .put(EntityType.INTERNET.getNumber(),               UIEntityType.INTERNET)

@@ -31,6 +31,7 @@ public class RepoObjectType {
         APPLICATION("Application"),
         VIRTUAL_APPLICATION("VirtualApplication"),
         CONTAINER("Container"),
+        CONTAINER_POD("ContainerPod"),
         VPOD("VPod"),
         DPOD("DPod"),
         STORAGECONTROLLER("StorageController"),
@@ -87,6 +88,7 @@ public class RepoObjectType {
             .put(EntityType.APPLICATION,            RepoEntityType.APPLICATION)
             .put(EntityType.VIRTUAL_APPLICATION,    RepoEntityType.VIRTUAL_APPLICATION)
             .put(EntityType.CONTAINER,              RepoEntityType.CONTAINER)
+            .put(EntityType.CONTAINER_POD,          RepoEntityType.CONTAINER_POD)
             .put(EntityType.STORAGE_CONTROLLER,     RepoEntityType.STORAGECONTROLLER)
             .put(EntityType.IO_MODULE,              RepoEntityType.IOMODULE)
             .put(EntityType.INTERNET,               RepoEntityType.INTERNET)
