@@ -69,4 +69,9 @@ public class RepositoryClient {
             return responseBuilder.build();
         }
     }
+
+    @Nonnull
+    public Iterator<PlanEntityStats> getPlanStats(@Nonnull PlanTopologyStatsRequest request) {
+        return repositoryService.getPlanTopologyStats(request);
+    }
 }

@@ -45,8 +45,8 @@ public class StatsConfig {
     private long realtimeTopologyContextId;
 
     @Bean
-    public StatsHistoryRpcService statsRpcService() {
-        return new StatsHistoryRpcService(realtimeTopologyContextId, liveStatsReader(),
+    public StatsHistoryService statsRpcService() {
+        return new StatsHistoryService(realtimeTopologyContextId, liveStatsReader(),
                 planStatsReader(), clusterStatsReader(), clusterStatsWriter(),
                 historyDbConfig.historyDbIO(),
                 projectedStatsStore());

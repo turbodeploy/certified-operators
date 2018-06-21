@@ -17,7 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 
-import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -174,7 +174,7 @@ public abstract class HistoryPerformanceTest {
 
     protected void fetchStats(final long topologyContextId){
         Iterable<StatSnapshot> fetchedStats = () -> statsService.getAveragedEntityStats(
-            GetAveragedEntityStatsRequest.newBuilder()
+            EntityStatsRequest.newBuilder()
                 .addEntities(topologyContextId)
                 .setFilter(StatsFilter.newBuilder()
                         .setStartDate(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1))

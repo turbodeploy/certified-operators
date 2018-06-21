@@ -16,13 +16,11 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 
 public class PaginationMapperTest {
 
-    private PaginationMapper paginationMapper = new PaginationMapper();
-
     @Test
     public void testCursor() throws InvalidOperationException {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest("foo", null, true, null);
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getCursor(), is("foo"));
     }
 
@@ -30,7 +28,7 @@ public class PaginationMapperTest {
     public void testLimit() throws InvalidOperationException {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest(null, 10, true, null);
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getLimit(), is(10));
     }
 
@@ -38,7 +36,7 @@ public class PaginationMapperTest {
     public void testAscending() throws InvalidOperationException {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest(null, null, true, null);
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getAscending(), is(true));
     }
 
@@ -46,7 +44,7 @@ public class PaginationMapperTest {
     public void testActionOrderBySeverity() throws InvalidOperationException {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest(null, null, true, ActionOrderBy.SEVERITY.name());
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_SEVERITY));
     }
 
@@ -54,7 +52,7 @@ public class PaginationMapperTest {
     public void testActionOrderByName() throws InvalidOperationException {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest(null, null, true, ActionOrderBy.NAME.name());
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_TYPE));
     }
 
@@ -62,7 +60,7 @@ public class PaginationMapperTest {
     public void testActionOrderByRiskCategory() throws InvalidOperationException {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest(null, null, true, ActionOrderBy.RISK_CATEGORY.name());
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_RISK_CATEGORY));
     }
 
@@ -70,7 +68,7 @@ public class PaginationMapperTest {
     public void testActionOrderBySavings() throws InvalidOperationException {
         final ActionPaginationRequest paginationRequest =
                 new ActionPaginationRequest(null, null, true, ActionOrderBy.SAVINGS.name());
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getAction(), is(OrderBy.ActionOrderBy.ACTION_SAVINGS));
     }
 
@@ -78,7 +76,7 @@ public class PaginationMapperTest {
     public void testSearchOrderByName() throws InvalidOperationException {
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest(null, null, true, SearchOrderBy.NAME.name());
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getSearch(), is(OrderBy.SearchOrderBy.ENTITY_NAME));
     }
 
@@ -86,7 +84,7 @@ public class PaginationMapperTest {
     public void testSearchOrderByUtilization() throws InvalidOperationException {
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest(null, null, true, SearchOrderBy.UTILIZATION.name());
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getSearch(), is(OrderBy.SearchOrderBy.ENTITY_UTILIZATION));
     }
 
@@ -94,7 +92,7 @@ public class PaginationMapperTest {
     public void testSearchOrderBySeverity() throws InvalidOperationException {
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest(null, null, true, SearchOrderBy.SEVERITY.name());
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getSearch(), is(OrderBy.SearchOrderBy.ENTITY_SEVERITY));
     }
 
@@ -102,7 +100,7 @@ public class PaginationMapperTest {
     public void testSearchOrderByCost() throws InvalidOperationException {
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest(null, null, true, SearchOrderBy.COST.name());
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getSearch(), is(OrderBy.SearchOrderBy.ENTITY_COST));
     }
 
@@ -110,7 +108,7 @@ public class PaginationMapperTest {
     public void testEntityStatOrderByStatName() throws InvalidOperationException {
         final EntityStatsPaginationRequest paginationRequest =
                 new EntityStatsPaginationRequest(null, null, true, "someStat");
-        final PaginationParameters params = paginationMapper.toProtoParams(paginationRequest);
+        final PaginationParameters params = PaginationMapper.toProtoParams(paginationRequest);
         assertThat(params.getOrderBy().getEntityStats().getStatName(), is("someStat"));
     }
 }

@@ -56,15 +56,11 @@ import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
-import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SetAuditLogDataRetentionSettingRequest;
@@ -93,7 +89,7 @@ import com.vmturbo.history.stats.projected.ProjectedStatsStore;
  * Calls a {@link LiveStatsReader} to fetch the desired data, and then converts the resulting
  * DB {@link Record}s into a protobuf response value.
  **/
-public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistoryServiceImplBase {
+public class StatsHistoryService extends StatsHistoryServiceGrpc.StatsHistoryServiceImplBase {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -117,13 +113,13 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         .labelNames("context_type")
         .register();
 
-    StatsHistoryRpcService(final long realtimeContextId,
-                           @Nonnull final LiveStatsReader liveStatsReader,
-                           @Nonnull final PlanStatsReader planStatsReader,
-                           @Nonnull final ClusterStatsReader clusterStatsReader,
-                           @Nonnull final ClusterStatsWriter clusterStatsWriter,
-                           @Nonnull final HistorydbIO historydbIO,
-                           @Nonnull final ProjectedStatsStore projectedStatsStore) {
+    StatsHistoryService(final long realtimeContextId,
+                        @Nonnull final LiveStatsReader liveStatsReader,
+                        @Nonnull final PlanStatsReader planStatsReader,
+                        @Nonnull final ClusterStatsReader clusterStatsReader,
+                        @Nonnull final ClusterStatsWriter clusterStatsWriter,
+                        @Nonnull final HistorydbIO historydbIO,
+                        @Nonnull final ProjectedStatsStore projectedStatsStore) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
@@ -140,9 +136,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param request gives the entities and stats to search for
      * @param responseObserver the sync for the result value {@link ProjectedStatsResponse}
      */
-    @Override
-    public void getProjectedStats(@Nonnull final ProjectedStatsRequest request,
-                @Nonnull final StreamObserver<ProjectedStatsResponse> responseObserver) {
+    public void getProjectedStats(ProjectedStatsRequest request,
+                                  StreamObserver<ProjectedStatsResponse> responseObserver) {
         final ProjectedStatsResponse.Builder builder = ProjectedStatsResponse.newBuilder();
         projectedStatsStore.getStatSnapshot(request).ifPresent(builder::setSnapshot);
         responseObserver.onNext(builder.build());
@@ -157,21 +152,17 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param request gives entities and stats to search for
      * @param responseObserver the sync for {@link EntityStats}, one for each entity in the request
      */
-    @Override
-    public void getProjectedEntityStats(@Nonnull final ProjectedEntityStatsRequest request,
-                @Nonnull final StreamObserver<ProjectedEntityStatsResponse> responseObserver) {
+    public void getProjectedEntityStats(@Nonnull ProjectedStatsRequest request,
+                                        @Nonnull StreamObserver<EntityStats> responseObserver) {
         final Set<String> commodityNames = new HashSet<>(request.getCommodityNameList());
         final Set<Long> targetEntities = new HashSet<>(request.getEntitiesList());
-        final ProjectedEntityStatsResponse.Builder respBuilder =
-                ProjectedEntityStatsResponse.newBuilder();
         targetEntities.forEach(entityOid -> {
             final EntityStats.Builder entityStatsBuilder = EntityStats.newBuilder()
                     .setOid(entityOid);
             projectedStatsStore.getStatSnapshotForEntities(Collections.singleton(entityOid),
                     commodityNames).ifPresent(entityStatsBuilder::addStatSnapshots);
-            respBuilder.addEntityStats(entityStatsBuilder);
+            responseObserver.onNext(entityStatsBuilder.build());
         });
-        responseObserver.onNext(respBuilder.build());
         responseObserver.onCompleted();
     }
 
@@ -185,7 +176,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * which doesn't distinguish between stats requests for groups vs. individual SEs, live
      * vs. plan topologies, etc.
      * <p>
-     * The 'entitiesList' in the {@link GetAveragedEntityStatsRequest} may be:
+     * The 'entitiesList' in the {@link EntityStatsRequest} may be:
      * <ul>
      * <li>a single-element list containing the distinguished ID for the Real-Time Topology = "Market"
      * <li>a single-element list containing the OID of a plan topology - a numeric (long)
@@ -197,7 +188,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param responseObserver the sync for each result value {@link StatSnapshot}
      */
     @Override
-    public void getAveragedEntityStats(GetAveragedEntityStatsRequest request,
+    public void getAveragedEntityStats(EntityStatsRequest request,
                                StreamObserver<StatSnapshot> responseObserver) {
         try {
             final List<Long> entitiesList = request.getEntitiesList();
@@ -249,8 +240,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     }
 
     @Override
-    public void getEntityStats(@Nonnull GetEntityStatsRequest request,
-                                 @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver) {
+    public void getEntityStats(@Nonnull Stats.EntityStatsRequest request,
+                                 @Nonnull StreamObserver<EntityStats> responseObserver) {
         // unfortunately we need to translate the OID Long values into Strings to call HistorydbIO
         List <String> oidStrings = request.getEntitiesList().stream()
                 .map(l -> Long.toString (l))
@@ -258,11 +249,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
         // gather stats and return them for each entity one at a time
         try {
-            // TODO (roman, June 13 2018): OM-35976 - Stuffing all plan entity stats into a single
-            // protobuf message will fail on large enough topologies.
-            // This is a placeholder implementation. The next step is to use the pagination parameters
-            // in the request, and set the next cursor in the response.
-            final GetEntityStatsResponse.Builder responseBuilder = GetEntityStatsResponse.newBuilder();
             for (long entityOid : request.getEntitiesList()) {
 
                 logger.debug("getEntityStats: {}", entityOid);
@@ -279,9 +265,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                         statsForEntity.addStatSnapshots(statSnapshotBuilder.build()));
 
                 // done with this entity
-                responseBuilder.addEntityStats(statsForEntity);
+                responseObserver.onNext(statsForEntity.build());
+
             }
-            responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
         } catch (VmtDbException e) {
             responseObserver.onError(Status.INTERNAL

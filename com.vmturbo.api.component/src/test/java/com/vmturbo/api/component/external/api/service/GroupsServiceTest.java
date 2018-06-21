@@ -16,6 +16,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -25,15 +27,12 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.Lists;
-
 import io.grpc.Channel;
 import io.grpc.Status;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
@@ -82,9 +81,6 @@ public class GroupsServiceTest {
     private GroupMapper groupMapper;
 
     @Mock
-    private PaginationMapper paginationMapper;
-
-    @Mock
     private RepositoryApi repositoryApi;
 
     @Mock
@@ -116,7 +112,6 @@ public class GroupsServiceTest {
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 actionSpecMapper,
                 groupMapper,
-                paginationMapper,
                 repositoryApi,
                 realtimeTopologyContextId,
                 mock(SettingsManagerMapping.class),

@@ -6,6 +6,7 @@ import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STORAGE_
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -59,6 +60,7 @@ import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationRespon
 import com.vmturbo.api.serviceinterfaces.ISearchService;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResponse;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
@@ -96,8 +98,6 @@ public class SearchService implements ISearchService {
 
     private final GroupMapper groupMapper;
 
-    private final PaginationMapper paginationMapper;
-
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private final GroupUseCaseParser groupUseCaseParser;
@@ -117,7 +117,6 @@ public class SearchService implements ISearchService {
                   @Nonnull GroupExpander groupExpander,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                   @Nonnull final GroupMapper groupMapper,
-                  @Nonnull final PaginationMapper paginationMapper,
                   @Nonnull final GroupUseCaseParser groupUseCaseParser,
                   @Nonnull UuidMapper uuidMapper,
                   final long realtimeTopologyContextId) {
@@ -129,7 +128,6 @@ public class SearchService implements ISearchService {
         this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpcService);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.groupMapper = Objects.requireNonNull(groupMapper);
-        this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.groupUseCaseParser = groupUseCaseParser;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.uuidMapper = uuidMapper;
@@ -329,7 +327,7 @@ public class SearchService implements ISearchService {
                     expandedIds, searchRequest);
         } else {
             // TODO: Implement search entities order by utilization and cost.
-            searchRequestBuilder.setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+            searchRequestBuilder.setPaginationParams(PaginationMapper.toProtoParams(paginationRequest));
             final Search.SearchRequest searchRequest = searchRequestBuilder.build();
             final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchRequest);
             List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
@@ -387,7 +385,7 @@ public class SearchService implements ISearchService {
                 MultiEntityRequest.newBuilder()
                         .addAllEntityIds(candidates)
                         .setTopologyContextId(realtimeContextId)
-                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                        .setPaginationParams(PaginationMapper.toProtoParams(paginationRequest))
                         .build();
         EntitySeveritiesResponse entitySeveritiesResponse =
                 entitySeverityRpc.getEntitySeverities(multiEntityRequest);
