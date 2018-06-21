@@ -311,25 +311,6 @@ public class RepositoryApi {
             return searchProjectedTopology;
         }
 
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            } else if (!(other instanceof ServiceEntitiesRequest)) {
-                return false;
-            } else {
-                final ServiceEntitiesRequest otherReq = (ServiceEntitiesRequest)other;
-                return Objects.equals(entityIds, otherReq.entityIds) &&
-                    Objects.equals(topologyContextId, otherReq.topologyContextId) &&
-                    searchProjectedTopology == otherReq.searchProjectedTopology;
-            }
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(entityIds, topologyContextId, searchProjectedTopology);
-        }
-
         public static Builder newBuilder(@Nonnull final Set<Long> entityIds) {
             return new Builder(entityIds);
         }

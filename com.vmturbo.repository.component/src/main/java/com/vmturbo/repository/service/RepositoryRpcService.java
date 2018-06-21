@@ -36,12 +36,10 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.DeleteTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryDTOREST;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -210,7 +208,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
      */
     @Override
     public void getPlanTopologyStats(@Nonnull final PlanTopologyStatsRequest request,
-                      @Nonnull final StreamObserver<PlanTopologyStatsResponse> responseObserver) {
+                                      @Nonnull final StreamObserver<PlanEntityStats> responseObserver) {
         // what is the timeframe for this stats request?
         if (request.hasFilter() &&
                 request.getFilter().hasStartDate() &&
@@ -221,7 +219,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
             // either no timeframe or timeframe is in the past - fetch from plan input topology
             // NOT IMPLEMENTED, and not required by the UI at the present; return empty result
             logger.warn("Plan stats request for 'now' = plan source topology; not implemented");
-            responseObserver.onNext(PlanTopologyStatsResponse.getDefaultInstance());
+            responseObserver.onNext(PlanEntityStats.getDefaultInstance());
             responseObserver.onCompleted();
         }
     }
@@ -234,8 +232,9 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
      * @param responseObserver the sync for entity stats constructed here and returned to caller
      */
     private void returnProjectedPlanStats(@Nonnull PlanTopologyStatsRequest request,
-                          long projectedTopologyid,
-                          @Nonnull StreamObserver<PlanTopologyStatsResponse> responseObserver) {
+                                          long projectedTopologyid,
+                                          @Nonnull StreamObserver<PlanEntityStats> responseObserver) {
+
         // create a filter on relatedEntityType
         final Stats.StatsFilter requestFilter = request.getFilter();
         logger.debug("fetch projected plan stats, entity filter {}, commodities {}",
@@ -244,12 +243,6 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         final TopologyProtobufReader reader = topologyProtobufsManager.createTopologyProtobufReader(
                         projectedTopologyid, Optional.empty());
         // process the chunks of TopologyEntityDTO protobufs as received
-
-        // TODO (roman, June 13 2018): OM-35979 - Stuffing all plan entity stats into a single
-        // protobuf message will fail on large enough topologies.
-        // This is a placeholder implementation. The next step is to use the pagination parameters
-        // in the request, and set the next cursor in the response.
-        final PlanTopologyStatsResponse.Builder responseBuilder = PlanTopologyStatsResponse.newBuilder();
         while (reader.hasNext()) {
             try {
                 List<TopologyEntityDTO> chunk = reader.nextChunk();
@@ -267,7 +260,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                             .setPlanEntity(entityDTO)
                             .setPlanEntityStats(stats)
                             .build();
-                    responseBuilder.addEntityStats(entityStats);
+                    responseObserver.onNext(entityStats);
                 }
             } catch (NoSuchElementException e) {
                 logger.error("Topology with ID: " + projectedTopologyid + "not found.",
@@ -278,7 +271,6 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                 return;
             }
         }
-        responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
 

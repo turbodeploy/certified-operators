@@ -3,10 +3,14 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.DATACENTER;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.toServiceEntityApiDTO;
+import static com.vmturbo.api.component.external.api.mapper.StatsMapper.toStatSnapshotApiDTO;
+import static com.vmturbo.api.component.external.api.mapper.StatsMapper.toStatsSnapshotApiDtoList;
 
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -19,11 +23,6 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.lang.StringUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Preconditions;
@@ -31,6 +30,10 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -49,6 +52,7 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
@@ -56,9 +60,7 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
-import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.common.Pagination;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -68,21 +70,19 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.reports.db.StringConstants;
+import com.vmturbo.repository.api.RepositoryClient;
 
 
 /**
@@ -102,13 +102,11 @@ public class StatsService implements IStatsService {
 
     private final RepositoryApi repositoryApi;
 
-    private final RepositoryServiceBlockingStub repositoryRpcService;
+    private final RepositoryClient repositoryClient;
 
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
 
     private final GroupExpander groupExpander;
-
-    private final StatsMapper statsMapper;
 
     private final GroupServiceBlockingStub groupServiceRpc;
 
@@ -146,9 +144,8 @@ public class StatsService implements IStatsService {
     StatsService(@Nonnull final StatsHistoryServiceBlockingStub statsServiceRpc,
                  @Nonnull final PlanServiceBlockingStub planRpcService,
                  @Nonnull final RepositoryApi repositoryApi,
-                 @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
+                 @Nonnull final RepositoryClient repositoryClient,
                  @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
-                 @Nonnull final StatsMapper statsMapper,
                  @Nonnull final GroupExpander groupExpander,
                  @Nonnull final Clock clock,
                  @Nonnull final TargetsService targetsService,
@@ -156,13 +153,12 @@ public class StatsService implements IStatsService {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
-        this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
+        this.repositoryClient = repositoryClient;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.clock = Objects.requireNonNull(clock);
         this.groupExpander = groupExpander;
         this.targetsService = Objects.requireNonNull(targetsService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
-        this.statsMapper = Objects.requireNonNull(statsMapper);
     }
 
     /**
@@ -249,13 +245,15 @@ public class StatsService implements IStatsService {
         // Currently, it is the only use case that reads stats data from the cluster table
         // and it is handled as a special case.  If more use cases need to get cluster level
         // statistics in the future, the conditions for calling getClusterStats will need to change.
-        final List<StatApiInputDTO> statsFilters = inputDto.getStatistics();
+        List<StatApiInputDTO> statsFilters = inputDto.getStatistics();
+        List<String> inputQueryFilters = statsFilters == null ? Lists.newArrayList() :
+                inputDto.getStatistics().stream().map(StatApiInputDTO::getName).collect(Collectors.toList());
         if (isClusterUuid(uuid) && containsAnyClusterStats(statsFilters)) {
             // uuid belongs to a cluster. Call Stats service to retrieve cluster related stats.
-            ClusterStatsRequest clusterStatsRequest = statsMapper.toClusterStatsRequest(uuid, inputDto);
+            ClusterStatsRequest clusterStatsRequest = StatsMapper.toClusterStatsRequest(uuid, inputDto);
             Iterator<StatSnapshot> statSnapshotIterator = statsServiceRpc.getClusterStats(clusterStatsRequest);
             while (statSnapshotIterator.hasNext()) {
-                stats.add(statsMapper.toStatSnapshotApiDTO(statSnapshotIterator.next()));
+                stats.add(StatsMapper.toStatSnapshotApiDTO(statSnapshotIterator.next()));
             }
         } else {
             final boolean fullMarketRequest = UuidMapper.isRealtimeMarket(uuid);
@@ -284,14 +282,13 @@ public class StatsService implements IStatsService {
             if (inputDto.getEndDate() != null
                     && DateTimeUtil.parseTime(inputDto.getEndDate()) > clockTimeNow) {
                 ProjectedStatsResponse response =
-                        statsServiceRpc.getProjectedStats(statsMapper.toProjectedStatsRequest(entityStatOids,
+                        statsServiceRpc.getProjectedStats(StatsMapper.toProjectedStatsRequest(entityStatOids,
                                 inputDto));
                 // create a StatSnapshotApiDTO from the ProjectedStatsResponse
-                final StatSnapshotApiDTO projectedStatSnapshot = statsMapper.toStatSnapshotApiDTO(
+                final StatSnapshotApiDTO projectedStatSnapshot = toStatSnapshotApiDTO(
                         response.getSnapshot());
                 // set the time of the snapshot to "future" using the "endDate" of the request
-                projectedStatSnapshot.setDate(
-                    DateTimeUtil.toString(DateTimeUtil.parseTime(inputDto.getEndDate())));
+                projectedStatSnapshot.setDate(DateTimeUtil.toString(Long.valueOf(inputDto.getEndDate())));
                 // add to the list of stats to return
                 stats.add(projectedStatSnapshot);
             }
@@ -314,14 +311,14 @@ public class StatsService implements IStatsService {
                     statsFilters.addAll(currentStatFilters);
                 }
                 final Optional<Integer> tempGroupEntityType = getGlobalTempGroupEntityType(groupOptional);
-                final GetAveragedEntityStatsRequest request =
-                        statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto, tempGroupEntityType);
+                final EntityStatsRequest request = StatsMapper.toEntityStatsRequest(entityStatOids,
+                        inputDto, tempGroupEntityType);
                 final Iterable<StatSnapshot> statsIterator = () ->
                         statsServiceRpc.getAveragedEntityStats(request);
 
                 // convert the stats snapshots to the desired ApiDTO and return them.
                 stats.addAll(StreamSupport.stream(statsIterator.spliterator(), false)
-                        .map(statsMapper::toStatSnapshotApiDTO)
+                        .map(StatsMapper::toStatSnapshotApiDTO)
                         .collect(Collectors.toList()));
             }
         }
@@ -363,279 +360,6 @@ public class StatsService implements IStatsService {
         return false;
     }
 
-    private Optional<PlanInstance> getRequestedPlanInstance(@Nonnull final StatScopesApiInputDTO inputDto) {
-        // plan stats request must be the only uuid in the scopes list
-        if (inputDto.getScopes().size() != 1) {
-            return Optional.empty();
-        }
-        // check for a plan uuid
-        String scopeUuid = inputDto.getScopes().iterator().next();
-        long scopeOid;
-        try {
-            scopeOid = Long.valueOf(scopeUuid);
-        } catch (NumberFormatException e) {
-            // not a number, so cannot be a plan UUID
-            return Optional.empty();
-        }
-
-        // fetch plan from plan orchestrator
-        PlanDTO.OptionalPlanInstance planInstanceOptional =
-                planRpcService.getPlan(PlanDTO.PlanId.newBuilder()
-                        .setPlanId(scopeOid)
-                        .build());
-        if (!planInstanceOptional.hasPlanInstance()) {
-            return Optional.empty();
-        }
-
-        return Optional.of(planInstanceOptional.getPlanInstance());
-    }
-
-    /**
-     * Return per-entity stats from a plan topology.
-     * This is a helper method for
-     * {@link StatsService#getStatsByUuidsQuery(StatScopesApiInputDTO, EntityStatsPaginationRequest)}.
-     *
-     * If the 'inputDto.period.startDate is before "now", then the stats returned will include stats
-     * for the Plan Source Topology. If the 'inputDto.period.startDate is after "now", then  the
-     * stats returned will include stats for the Plan Projected Topology.
-     */
-    @Nonnull
-    private EntityStatsPaginationResponse getPlanEntityStats(
-                @Nonnull final PlanInstance planInstance,
-                @Nonnull final StatScopesApiInputDTO inputDto,
-                @Nonnull final EntityStatsPaginationRequest paginationRequest) {
-        // Clear the plan ID from the scope, so we treat it as an entity in the plan
-        // topology stats request.
-        inputDto.getScopes().clear();
-
-        // definitely a plan instance; fetch the plan stats from the Repository client.
-        final PlanTopologyStatsRequest planStatsRequest = statsMapper.toPlanTopologyStatsRequest(
-                planInstance, inputDto, paginationRequest);
-        final PlanTopologyStatsResponse response =
-                repositoryRpcService.getPlanTopologyStats(planStatsRequest);
-
-        // It's important to respect the order of entities in the returned stats, because
-        // they're arranged according to the pagination request.
-        final List<EntityStatsApiDTO> entityStatsList = response.getEntityStatsList().stream()
-            .map(entityStats -> {
-                final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-                final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
-                final ServiceEntityApiDTO serviceEntityApiDTO = toServiceEntityApiDTO(planEntity);
-                entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
-                entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
-                entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
-                        planEntity.getEntityType()));
-                entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
-                final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
-                        .getStatSnapshotsList()
-                        .stream()
-                        .map(statsMapper::toStatSnapshotApiDTO)
-                        .collect(Collectors.toList());
-                entityStatsApiDTO.setStats(statSnapshotsList);
-                return entityStatsApiDTO;
-            })
-            .collect(Collectors.toList());
-
-        if (response.hasPaginationResponse()) {
-            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                    .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor))
-                    .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList));
-        } else {
-            return paginationRequest.allResultsResponse(entityStatsList);
-        }
-    }
-
-    /**
-     * Get per-cluster stats, modelled as per-entity stats (where each cluster is an entity).
-     * This is a helper method to
-     * {@link StatsService#getStatsByUuidsQuery(StatScopesApiInputDTO, EntityStatsPaginationRequest)}.
-     */
-    @Nonnull
-    private EntityStatsPaginationResponse getClusterEntityStats(
-                @Nonnull final StatScopesApiInputDTO inputDto,
-                @Nonnull final EntityStatsPaginationRequest paginationRequest) {
-        // we are being asked for headroom stats -- we'll retrieve these from getClusterStats()
-        // without expanding the scopes.
-        logger.debug("Request is for headroom stats -- will not expand clusters");
-        // NOTE: if headroom stats are being requested, we expect that all uuids are clusters,
-        // since these stats are only relevant for clusters. If any non-clusters are detected,
-        // a warning will be logged and that entry will not be included in the results.
-
-        final Iterator<Group> groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
-                .addAllId(inputDto.getScopes().stream()
-                        .map(Long::valueOf)
-                        .collect(Collectors.toList()))
-                .build());
-
-        // request the cluster stats for each group
-        // TODO: We are fetching the cluster stats one-at-a-time here. We should consider
-        // batching the requests for better performance. See OM-33182.
-        final List<EntityStatsApiDTO> results = new ArrayList<>();
-        groups.forEachRemaining(group -> {
-            if (group.hasCluster()) {
-                final EntityStatsApiDTO statsDTO = new EntityStatsApiDTO();
-                final String uuid = String.valueOf(group.getId());
-                statsDTO.setUuid(String.valueOf(uuid));
-                statsDTO.setClassName(GroupMapper.CLUSTER);
-                statsDTO.setDisplayName(group.getCluster().getName());
-                statsDTO.setStats(new ArrayList<>());
-
-                // Call Stats service to retrieve cluster related stats.
-                final ClusterStatsRequest clusterStatsRequest =
-                        statsMapper.toClusterStatsRequest(uuid, inputDto.getPeriod());
-                final Iterator<StatSnapshot> statSnapshotIterator =
-                        statsServiceRpc.getClusterStats(clusterStatsRequest);
-                while (statSnapshotIterator.hasNext()) {
-                    statsDTO.getStats().add(statsMapper.toStatSnapshotApiDTO(statSnapshotIterator.next()));
-                }
-
-                results.add(statsDTO);
-            }
-        });
-        // did we get all the groups we expected?
-        if (results.size() != inputDto.getScopes().size()) {
-            logger.warn("Not all headroom stats were retrieved. {} scopes requested, {} stats recieved.",
-                    inputDto.getScopes().size(), results.size());
-        }
-
-        // The history component does not do pagination for per-cluster stats, because the number
-        // of clusters is usually very small compared to the number of entities. We rely on
-        // the default pagination mechanism.
-        return paginationRequest.allResultsResponse(results);
-    }
-
-    /**
-     * Get the scope that a {@link StatScopesApiInputDTO} is trying to select. This includes,
-     * for example, expanding groups, or getting the IDs of related entities. Calling this method
-     * may result in one or more remote calls to other components.
-     * m
-     * @param inputDto The {@link StatScopesApiInputDTO}.
-     * @return A set of entity OIDs of entities in the scope.
-     * @throws OperationFailedException If any part of the operation failed.
-     */
-    @Nonnull
-    private Set<Long> getExpandedScope(@Nonnull final StatScopesApiInputDTO inputDto)
-                throws OperationFailedException {
-        final Set<Long> expandedUuids;
-
-        // Market stats request must be the only uuid in the scopes list
-        if (inputDto.getScopes().size() == 1 &&
-                inputDto.getScopes().iterator().next().equals(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
-            // 'relatedType' is required for full market entity stats
-            if (StringUtils.isEmpty(inputDto.getRelatedType())) {
-                throw new IllegalArgumentException("Cannot request individual stats for full " +
-                        "Market without specifying 'relatedType'");
-            }
-
-            // DATACENTERs are represented by the PHYSICAL_MACHINES
-            final String relatedType = statsMapper.normalizeRelatedType(inputDto.getRelatedType());
-
-            final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
-                    .entityTypes(Collections.singletonList(relatedType))
-                    .fetch();
-            final SupplyChainNode relatedTypeNode = result.get(inputDto.getRelatedType());
-            expandedUuids = relatedTypeNode == null ?
-                Collections.emptySet() : RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
-        } else {
-            // Expand scopes list to determine the list of entity OIDs to query for this operation
-            final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
-
-            // This shouldn't happen, because we handle the full market case earlier on.
-            Preconditions.checkArgument(UuidMapper.hasLimitedScope(seedUuids));
-
-            if (inputDto.getRelatedType() != null) {
-                // If the UI sets a related type, we need to do a supply chain query to get
-                // the entities of that type related to the seed uuids.
-                final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
-                        .addSeedUuids(seedUuids)
-                        .entityTypes(Collections.singletonList(inputDto.getRelatedType()))
-                        .fetch();
-                final SupplyChainNode relatedTypeNode = result.get(inputDto.getRelatedType());
-                expandedUuids = relatedTypeNode == null ?
-                        Collections.emptySet() : RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
-            } else {
-                expandedUuids = groupExpander.expandUuids(seedUuids);
-            }
-        }
-        return expandedUuids;
-    }
-
-    /**
-     * Get per-entity stats of live entities (i.e. entities in the real topology, as opposed
-     * to plan entities).
-     */
-    @Nonnull
-    private EntityStatsPaginationResponse getLiveEntityStats(
-                    @Nonnull final StatScopesApiInputDTO inputDto,
-                    @Nonnull final EntityStatsPaginationRequest paginationRequest)
-                throws OperationFailedException {
-
-        // 1. Get the expanded scope (i.e. the set of actual entities the request applies to)
-        final Set<Long> expandedUuids = getExpandedScope(inputDto);
-
-        // 2. Request the next page of entity stats from the proper service.
-
-        // This variable will be set to the next page of per-entity stats.
-        final List<EntityStats> nextStatsPage;
-        // This variable will be set to the pagination response.
-        final Optional<Pagination.PaginationResponse> paginationResponseOpt;
-
-        final long clockTimeNow = clock.millis();
-        // is the startDate in the past?
-        final boolean historicalStatsRequest = inputDto.getPeriod().getStartDate() == null ||
-                DateTimeUtil.parseTime(inputDto.getPeriod().getStartDate()) < clockTimeNow;
-        // is the endDate in the future?
-        final boolean projectedStatsRequest = inputDto.getPeriod().getEndDate() != null &&
-                DateTimeUtil.parseTime(inputDto.getPeriod().getEndDate()) > clockTimeNow;
-
-        if (historicalStatsRequest) {
-            // fetch the historical stats for the given entities using the given search spec
-            final GetEntityStatsResponse statsResponse = statsServiceRpc.getEntityStats(
-                    statsMapper.toEntityStatsRequest(expandedUuids, inputDto.getPeriod(),
-                            paginationRequest));
-            nextStatsPage = statsResponse.getEntityStatsList();
-            paginationResponseOpt = statsResponse.hasPaginationResponse() ?
-                    Optional.of(statsResponse.getPaginationResponse()) : Optional.empty();
-        } else if (projectedStatsRequest) {
-            final ProjectedEntityStatsResponse projectedStatsResponse = statsServiceRpc.getProjectedEntityStats(
-                    statsMapper.toProjectedEntityStatsRequest(
-                            expandedUuids, inputDto.getPeriod(), paginationRequest));
-
-            nextStatsPage = projectedStatsResponse.getEntityStatsList();
-            paginationResponseOpt = projectedStatsResponse.hasPaginationResponse() ?
-                    Optional.of(projectedStatsResponse.getPaginationResponse()) : Optional.empty();
-        } else {
-            throw new OperationFailedException("Invalid start and end date combination.");
-        }
-
-        // 3. Get additional display info for all entities in the page from the repository.
-        final Set<Long> entitiesWithStats = nextStatsPage.stream()
-                .map(EntityStats::getOid)
-                .collect(Collectors.toSet());
-
-        final Map<Long, Optional<ServiceEntityApiDTO>> entities =
-            repositoryApi.getServiceEntitiesById(
-                ServiceEntitiesRequest.newBuilder(entitiesWithStats).build());
-
-        // 4. Combine the results of 2. and 3. and return.
-        final List<EntityStatsApiDTO> dto = nextStatsPage.stream()
-            .map(entityStats -> {
-                final Optional<ServiceEntityApiDTO> apiDto = entities.get(entityStats.getOid());
-                return apiDto.map(seApiDto -> constructEntityStatsDto(seApiDto,
-                        projectedStatsRequest, entityStats, inputDto));
-            })
-            .filter(Optional::isPresent)
-            .map(Optional::get)
-            .collect(Collectors.toList());
-
-        return paginationResponseOpt
-            .map(paginationResponse ->
-                PaginationProtoUtil.getNextCursor(paginationResponse)
-                    .map(nextCursor -> paginationRequest.nextPageResponse(dto, nextCursor))
-                    .orElseGet(() -> paginationRequest.finalPageResponse(dto)))
-            .orElseGet(() -> paginationRequest.allResultsResponse(dto));
-    }
-
     /**
      * Return stats for multiple entities by expanding the scopes field
      * of the {@link StatScopesApiInputDTO}.
@@ -668,14 +392,165 @@ public class StatsService implements IStatsService {
     public EntityStatsPaginationResponse getStatsByUuidsQuery(StatScopesApiInputDTO inputDto,
                                                   EntityStatsPaginationRequest paginationRequest)
             throws Exception {
-        final Optional<PlanInstance> planInstance = getRequestedPlanInstance(inputDto);
-        if (planInstance.isPresent()) {
-            return getPlanEntityStats(planInstance.get(), inputDto, paginationRequest);
-        } else if (containsAnyClusterStats(inputDto.getPeriod().getStatistics())) {
-            return getClusterEntityStats(inputDto, paginationRequest);
-        } else {
-            return getLiveEntityStats(inputDto, paginationRequest);
+
+        // check to see if this is a plan stats request
+        Optional<List<EntityStatsApiDTO>> planUuidStats = getPlanUuidStats(inputDto);
+        if (planUuidStats.isPresent()) {
+            return paginationRequest.allResultsResponse(planUuidStats.get());
         }
+
+        final Set<Long> expandedUuids;
+        final Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
+
+        // check to see if this a full-market request (must be for a subset of entity types)
+        Optional<List<ServiceEntityApiDTO>> fullMarketEntities = getFullMarketEntitiesSubset(inputDto);
+        if (fullMarketEntities.isPresent()) {
+            // subset of the full market entities that match a 'relatedType' returned
+            fullMarketEntities.get().forEach(serviceEntity-> {
+                final EntityStatsApiDTO entityStatsApiDTO = populateEntityStatsApiDTO(serviceEntity);
+                entityStatsMap.put(Long.valueOf(serviceEntity.getUuid()), entityStatsApiDTO);
+            });
+            expandedUuids = entityStatsMap.keySet();
+        } else if (containsAnyClusterStats(inputDto.getPeriod().getStatistics())) {
+            // we are being asked for headroom stats -- we'll retrieve these from getClusterStats()
+            // without expanding the scopes.
+            logger.debug("Request is for headroom stats -- will not expand clusters");
+            // NOTE: if headroom stats are being requested, we expect that all uuids are clusters,
+            // since these stats are only relevant for clusters. If any non-clusters are detected,
+            // a warning will be logged and that entry will not be included in the results.
+
+            Iterator<Group> groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
+                            .addAllId(inputDto.getScopes().stream()
+                                .map(Long::valueOf)
+                                .collect(Collectors.toList()))
+                            .build());
+
+            // request the cluster stats for each group
+            // TODO: We are fetching the cluster stats one-at-a-time here. We should consider
+            // batching the requests for better performance. See OM-33182.
+            List<EntityStatsApiDTO> results = new ArrayList<>();
+            groups.forEachRemaining(group -> {
+                if (group.hasCluster()) {
+                    EntityStatsApiDTO statsDTO = new EntityStatsApiDTO();
+                    String uuid = String.valueOf(group.getId());
+                    statsDTO.setUuid(String.valueOf(uuid));
+                    statsDTO.setClassName(GroupMapper.GROUP);
+                    statsDTO.setDisplayName(group.getCluster().getName());
+                    statsDTO.setStats(new ArrayList<>());
+
+                    // Call Stats service to retrieve cluster related stats.
+                    ClusterStatsRequest clusterStatsRequest = StatsMapper.toClusterStatsRequest(uuid, inputDto.getPeriod());
+                    Iterator<StatSnapshot> statSnapshotIterator = statsServiceRpc.getClusterStats(clusterStatsRequest);
+                    while (statSnapshotIterator.hasNext()) {
+                        statsDTO.getStats().add(StatsMapper.toStatSnapshotApiDTO(statSnapshotIterator.next()));
+                    }
+
+                    results.add(statsDTO);
+                }
+            });
+            // did we get all the groups we expected?
+            if (results.size() != inputDto.getScopes().size()) {
+                logger.warn("Not all headroom stats were retrieved. {} scopes requested, {} stats recieved.",
+                        inputDto.getScopes().size(), results.size());
+            }
+
+            return paginationRequest.allResultsResponse(results);
+        } else {
+            // Expand scopes list to determine the list of entity OIDs to query for this operation
+            final Set<String> seedUuids = Sets.newHashSet(inputDto.getScopes());
+
+            // This shouldn't happen, because we handle the full market case earlier on.
+            Preconditions.checkArgument(UuidMapper.hasLimitedScope(seedUuids));
+
+            if (inputDto.getRelatedType() != null) {
+                // If the UI sets a related type, we need to do a supply chain query to get
+                // the entities of that type related to the seed uuids.
+                final Map<String, SupplyChainNode> result = supplyChainFetcherFactory.newNodeFetcher()
+                        .addSeedUuids(seedUuids)
+                        .entityTypes(Collections.singletonList(inputDto.getRelatedType()))
+                        .fetch();
+                final SupplyChainNode relatedTypeNode = result.get(inputDto.getRelatedType());
+                if (relatedTypeNode == null) {
+                    return paginationRequest.allResultsResponse(Collections.emptyList());
+                }
+                expandedUuids = RepositoryDTOUtil.getAllMemberOids(relatedTypeNode);
+            } else {
+                expandedUuids = groupExpander.expandUuids(seedUuids);
+            }
+
+            // if not a global scope, then expanded OIDs are expected
+            if (expandedUuids.isEmpty()) {
+                // empty expanded list; return an empty stats list
+                return paginationRequest.allResultsResponse(Collections.emptyList());
+            }
+
+            // create a map of OID -> empty EntityStatsApiDTO for the Service Entity OIDs given;
+            // evaluate the Optional for each ServiceEntityApiDTO returned, and throw an exception if
+            // the corresponding oid is not found
+            for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
+                    repositoryApi.getServiceEntitiesById(
+                            ServiceEntitiesRequest.newBuilder(expandedUuids).build()).entrySet()) {
+                ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
+                        -> new UnknownObjectException(
+                        "ServiceEntity Not Found for oid: " + entry.getKey()));
+                final EntityStatsApiDTO entityStatsApiDTO = populateEntityStatsApiDTO(serviceEntity);
+                entityStatsMap.put(entry.getKey(), entityStatsApiDTO);
+            }
+        }
+
+        // is the startDate in the past?
+        final long clockTimeNow = clock.millis();
+        if (inputDto.getPeriod().getStartDate() == null
+                || DateTimeUtil.parseTime(inputDto.getPeriod().getStartDate()) < clockTimeNow) {
+            // fetch the historical stats for the given entities using the given search spec
+            Iterator<EntityStats> historicalStatsIterator = statsServiceRpc.getEntityStats(
+                    StatsMapper.toEntityStatsRequest(entityStatsMap.keySet(), inputDto.getPeriod(),
+                            Optional.empty()));
+            while (historicalStatsIterator.hasNext()) {
+                EntityStats entityStats = historicalStatsIterator.next();
+                final long entityOid = entityStats.getOid();
+                if (!entityStatsMap.containsKey(entityOid)) {
+                    throw new UnknownObjectException("Cannot find entity definition for:  "
+                            + entityOid);
+                }
+                entityStatsMap.get(entityOid).getStats()
+                        .addAll(toStatsSnapshotApiDtoList(entityStats));
+
+            }
+        }
+        // is the endDate in the future?
+        final String endDateParam = inputDto.getPeriod().getEndDate();
+        if (endDateParam != null
+                && DateTimeUtil.parseTime(endDateParam) > clockTimeNow) {
+            // fetch the projected stats for each of the given entities
+            Iterator<EntityStats> projectedStatsIterator = statsServiceRpc.getProjectedEntityStats(
+                    StatsMapper.toProjectedStatsRequest(expandedUuids, inputDto.getPeriod()));
+
+            while (projectedStatsIterator.hasNext()) {
+                EntityStats projectedEntityStats = projectedStatsIterator.next();
+                // if any snapshots were returned, then accumulate the stats index by entity Oid
+                if (projectedEntityStats.getStatSnapshotsCount() > 0) {
+                    // we expect either zero or one snapshot for each entity
+                    if (projectedEntityStats.getStatSnapshotsCount() > 1) {
+                        // this indicates a bug in History Component
+                        logger.error("Too many entity stats ({}) for: {} -> {}; taking the first.",
+                                projectedEntityStats.getStatSnapshotsCount(),
+                                expandedUuids,
+                                projectedEntityStats.getStatSnapshotsList());
+                    }
+                    long entityOid = projectedEntityStats.getOid();
+
+                    // create a StatSnapshotApiDTO from the ProjectedStatsResponse
+                    final StatSnapshotApiDTO projectedSnapshotDTO = toStatSnapshotApiDTO(
+                            projectedEntityStats.getStatSnapshotsList().iterator().next());
+                    // set the time of the snapshot to "future" using the "endDate" of the request
+                    projectedSnapshotDTO.setDate(DateTimeUtil.toString(Long.valueOf(endDateParam)));
+                    // add the projected stats for this entity to any historical stats fetched above
+                    entityStatsMap.get(entityOid).getStats().add(projectedSnapshotDTO);
+                }
+            }
+        }
+        return paginationRequest.allResultsResponse(Lists.newArrayList(entityStatsMap.values()));
     }
 
     /**
@@ -684,56 +559,137 @@ public class StatsService implements IStatsService {
      * @return true if any of the input stats are headroom stats, false otherwise.
      */
     private boolean containsAnyClusterStats(List<StatApiInputDTO> statsRequested) {
-        return CollectionUtils.isNotEmpty(statsRequested) && statsRequested.stream()
+        return statsRequested.stream()
                 .map(StatApiInputDTO::getName)
                 .anyMatch(CLUSTER_STATS::contains);
     }
 
     /**
-     * Create a {@link EntityStatsApiDTO} that can be returned to the client, given all the
-     * necessary information retrieved from history/repository.
+     * Given a {@link ServiceEntityApiDTO} populate the entity-based fields
+     * of an {@link EntityStatsApiDTO}.
      *
-     * @param serviceEntity The {@link ServiceEntityApiDTO} from which to get the entity-based fields.
-     * @param projectedStatsRequest Whether or not the request was for projected stats. Note - we
-     *                              pass this in instead of re-determining it from the inputDto
-     *                              because time will have passed from the start of the API call
-     *                              to the point at which we construct {@link EntityStatsApiDTO}s.
-     * @param entityStats The {@link EntityStats} from which to get stats values.
-     * @param inputDto The {@link StatScopesApiInputDTO} for the stats query.
-     * @return A fully configured {@link EntityStatsApiDTO}.
+     * @param serviceEntity The {@link ServiceEntityApiDTO} from which to get the entity-based fields
+     * @return a new {@link EntityStatsApiDTO} with the entity-based fields populated from the given
+     * {@link ServiceEntityApiDTO}
      */
-    @Nonnull
-    private EntityStatsApiDTO constructEntityStatsDto(ServiceEntityApiDTO serviceEntity,
-                                                      final boolean projectedStatsRequest,
-                                                      final EntityStats entityStats,
-                                                      final StatScopesApiInputDTO inputDto) {
+    private EntityStatsApiDTO populateEntityStatsApiDTO(ServiceEntityApiDTO serviceEntity) {
         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         entityStatsApiDTO.setUuid(serviceEntity.getUuid());
         entityStatsApiDTO.setClassName(serviceEntity.getClassName());
         entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
         entityStatsApiDTO.setStats(new ArrayList<>());
-        if (projectedStatsRequest && entityStats.getStatSnapshotsCount() > 0) {
-            // we expect either zero or one snapshot for each entity
-            if (entityStats.getStatSnapshotsCount() > 1) {
-                // this indicates a bug in History Component
-                logger.error("Too many entity stats ({}) for: {} -> {}; taking the first.",
-                        entityStats.getStatSnapshotsCount(),
-                        entityStats.getOid(),
-                        entityStats.getStatSnapshotsList());
-            }
-            entityStats.getStatSnapshotsList().stream()
-                    .findFirst()
-                    .map(statsMapper::toStatSnapshotApiDTO)
-                    .map(statApiDto -> {
-                        // set the time of the snapshot to "future" using the "endDate" of the request
-                        statApiDto.setDate(inputDto.getPeriod().getEndDate());
-                        return statApiDto;
-                    })
-                    .ifPresent(statApiDto -> entityStatsApiDTO.getStats().add(statApiDto));
-        } else {
-            entityStatsApiDTO.getStats().addAll(statsMapper.toStatsSnapshotApiDtoList(entityStats));
-        }
         return entityStatsApiDTO;
+    }
+
+    /**
+     * If the uuid given in the 'scopes' value of the StatScopesApiInputDTO refers to a plan,
+     * then return an Optional containing the list of EntityStatsApiDTO for the plan.
+     *
+     * If the 'inputDto.period.startDate is before "now", then the stats returned will include stats
+     * for the Plan Source Topology. If the 'inputDto.period.startDate is after "now", then  the
+     * stats returned will include stats for the Plan Projected Topology.
+     *
+     * Return Optional.empty() if this request is not for a plan.
+     *
+     * @param inputDto the filter for the stats to return, including time range, stat names, etc
+     * @return A List of {@link EntityStatsApiDTO}, one for each plan entity, containing the
+     * stats snapshots for that entity, if the request parameters can be satisfied, or
+     * Optional.empty() if the scope ID list is emtpy or the scope cannot be found.
+     */
+    private Optional<List<EntityStatsApiDTO>> getPlanUuidStats(StatScopesApiInputDTO inputDto) {
+        // plan stats request must be the only uuid in the scopes list
+        if (inputDto.getScopes().size() != 1) {
+            return Optional.empty();
+        }
+        // check for a plan uuid
+        String scopeUuid = inputDto.getScopes().iterator().next();
+        long scopeOid;
+        try {
+            scopeOid = Long.valueOf(scopeUuid);
+        } catch (NumberFormatException e) {
+            // not a number, so cannot be a plan UUID
+            return Optional.empty();
+        }
+
+        // fetch plan from plan orchestrator
+        PlanDTO.OptionalPlanInstance planInstanceOptional =
+                planRpcService.getPlan(PlanDTO.PlanId.newBuilder()
+                        .setPlanId(scopeOid)
+                        .build());
+        if (!planInstanceOptional.hasPlanInstance()) {
+            return Optional.empty();
+        }
+
+        // Clear the plan ID from the scope, so we treat it as an entity in the plan
+        // topology stats request.
+        inputDto.getScopes().clear();
+
+        // definitely a plan instance; fetch the plan stats from the Repository client.
+        PlanInstance planInstance = planInstanceOptional.getPlanInstance();
+        final PlanTopologyStatsRequest planStatsRequest = StatsMapper.toPlanTopologyStatsRequest(
+                planInstance, inputDto);
+        final Iterable<RepositoryDTO.PlanEntityStats> planStatsIterable =
+                () -> repositoryClient.getPlanStats(planStatsRequest);
+
+        // return the stats for each entity in the response
+        List<EntityStatsApiDTO> entityStatsList = Lists.newLinkedList();
+        for (RepositoryDTO.PlanEntityStats entityStats : planStatsIterable) {
+            EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+            final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
+            ServiceEntityApiDTO serviceEntityApiDTO = toServiceEntityApiDTO(planEntity);
+            entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
+            entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
+            entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
+                    planEntity.getEntityType()));
+            entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
+            final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
+                    .getStatSnapshotsList()
+                    .stream()
+                    .map(StatsMapper::toStatSnapshotApiDTO)
+                    .collect(Collectors.toList());
+            entityStatsApiDTO.setStats(statSnapshotsList);
+            entityStatsList.add(entityStatsApiDTO);
+        }
+        return Optional.of(entityStatsList);
+    }
+    /**
+     * Fetch the subset of the full market where the entity matches the given 'relatedType'.
+     * Uses the Search service of the Repository API.
+     *
+     * If this is not a full market search, return Optional.empty().
+     *
+     * If this is a full market search and 'relatedType' is not specified throw an
+     * {@link IllegalArgumentException}.
+     *
+     * @param inputDto the specification of the search to perform, specifically the 'scopes' list and
+     *                 the 'relatedType'
+     * @return an Optional List of ServiceEntityApiDTO's if this is a full market search; otherwise
+     * return Optional.empty()
+     * @throws Exception if there is an error fetching results from Repository
+     */
+    private @Nonnull Optional<List<ServiceEntityApiDTO>> getFullMarketEntitiesSubset(
+            @Nonnull StatScopesApiInputDTO inputDto) throws Exception {
+        // Market stats request must be the only uuid in the scopes list
+        if (inputDto.getScopes().size() != 1 ||
+                !inputDto.getScopes().iterator().next().equals(UuidMapper.UI_REAL_TIME_MARKET_STR)) {
+            return Optional.empty();
+        }
+        String relatedType = inputDto.getRelatedType();
+        // 'relatedType' is required for full market entity stats
+        if (StringUtils.isEmpty(relatedType)) {
+            throw new IllegalArgumentException("Cannot request individual stats for full " +
+                    "Market without specifying 'relatedType'");
+        }
+
+        // DATACENTERs are represented by the PHYSICAL_MACHINES
+        relatedType = StatsMapper.normalizeRelatedType(relatedType);
+
+        // Fetch the SE's of this type
+        List<ServiceEntityApiDTO> matchingServiceEntities = Lists.newArrayList(
+                repositoryApi.getSearchResults(null, Collections.singletonList(relatedType),
+                        UuidMapper.UI_REAL_TIME_MARKET_STR, null, null));
+
+        return Optional.of(matchingServiceEntities);
     }
 
     /**

@@ -93,16 +93,6 @@ public class MapperConfig {
     }
 
     @Bean
-    public PaginationMapper paginationMapper() {
-        return new PaginationMapper();
-    }
-
-    @Bean
-    public StatsMapper statsMapper() {
-        return new StatsMapper(paginationMapper());
-    }
-
-    @Bean
     public UuidMapper uuidMapper() {
         return new UuidMapper(communicationConfig.getRealtimeTopologyContextId());
     }

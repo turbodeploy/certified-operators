@@ -4,7 +4,6 @@ package repository;
 
 option java_package = "com.vmturbo.common.protobuf.repository";
 
-import "common/Pagination.proto";
 import "topology/TopologyDTO.proto";
 import "stats/Stats.proto";
 
@@ -80,7 +79,7 @@ message EntityFilter {
     repeated int64 entity_ids = 1;
 }
 
-// A request to return per-entity stats from a plan topology - projected or plan source
+// A request to return stats from a plan topology - projected or plan source
 message PlanTopologyStatsRequest {
     // the ID of the plan topology to fetch stats from
     optional int64 topology_id = 1;
@@ -93,21 +92,6 @@ message PlanTopologyStatsRequest {
 
     // If present, limit the ServiceEntities processed to the given type.
     optional string related_entity_type = 4;
-
-    // The pagination parameters outlying the sort order, and previous cursor (if any).
-    // If not set, use the default instance of PaginationParameters. The backend
-    // will enforce a default ordering and limit, and retrieve the first page.
-    optional common.PaginationParameters pagination_params = 10;
-}
-
-message PlanTopologyStatsResponse {
-    // Stats for the retrieved entities.
-    // The stats are arranged in the order requested in the pagination parameters in
-    // the request.
-    repeated PlanEntityStats entity_stats = 1;
-
-    // The response containing the cursor to retrieve the next page of results.
-    optional common.PaginationResponse paginationResponse = 10;
 }
 
 // Return the plan stats for an entity. Includes the {@link TopologyEntityDTO} if requested.
@@ -150,7 +134,7 @@ service RepositoryService {
     //
     // @param PlanStatsRequest the specification of the plan ID and StatsFilter for this query
     // @returns a sequence of StatSnapshot, including the Plan Topology
-    rpc GetPlanTopologyStats(PlanTopologyStatsRequest) returns (PlanTopologyStatsResponse);
+    rpc GetPlanTopologyStats (PlanTopologyStatsRequest) returns (stream PlanEntityStats);
 }
 
 

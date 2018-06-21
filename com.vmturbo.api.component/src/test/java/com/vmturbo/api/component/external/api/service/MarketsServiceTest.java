@@ -55,12 +55,10 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
-import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
-import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
@@ -282,23 +280,12 @@ public class MarketsServiceTest {
         public MarketsService marketsService() {
             return new MarketsService(actionSpecMapper(), uuidMapper(), actionRpcService(),
                     policyCpcService(), planRpcService(), policyMapper(), marketMapper(),
-                    statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), uiNotificationChannel());
         }
 
         @Bean
         public UINotificationChannel uiNotificationChannel() {
             return Mockito.mock(UINotificationChannel.class);
-        }
-
-        @Bean
-        public StatsMapper statsMapper() {
-            return Mockito.mock(StatsMapper.class);
-        }
-
-        @Bean
-        public PaginationMapper paginationMapper() {
-            return Mockito.mock(PaginationMapper.class);
         }
 
         @Bean
