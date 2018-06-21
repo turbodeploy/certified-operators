@@ -4,8 +4,8 @@ import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getStatsByUuidsQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -26,31 +26,28 @@ import java.io.IOException;
 import java.rmi.activation.UnknownObjectException;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
+import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
+import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -58,38 +55,50 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
+import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.reports.db.RelationType;
-import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.reports.db.StringConstants;
 
 @RunWith(MockitoJUnitRunner.class)
 public class StatsServiceTest {
@@ -108,16 +117,18 @@ public class StatsServiceTest {
 
     private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
 
-    private RepositoryClient repositoryClient = Mockito.mock(RepositoryClient.class);
+    private RepositoryServiceMole repositoryServiceSpy = spy(new RepositoryServiceMole());
+
     private SupplyChainFetcherFactory supplyChainFetcherFactory =
             Mockito.mock(SupplyChainFetcherFactory.class);
 
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
+    private StatsMapper statsMapper = Mockito.mock(StatsMapper.class);
+
     private TargetsService targetsService = Mockito.mock(TargetsService.class);
 
     private Clock mockClock = Mockito.mock(Clock.class);
-
 
     private final String oid1 = "1";
     private final ApiId apiId1 = mock(ApiId.class);
@@ -127,49 +138,41 @@ public class StatsServiceTest {
     private final ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
     private final ServiceEntityApiDTO se2 = new ServiceEntityApiDTO();
 
-    final private static ImmutableList<String> commodityList1 = ImmutableList.of(
-                                    "CPU",
-                                    "StorageLatency",
-                                    "nextStepRoi",
-                                    "ApplicationCommodity");
+    private static final StatSnapshot STAT_SNAPSHOT = StatSnapshot.newBuilder()
+            .setSnapshotDate("foo")
+            .build();
 
-    final private static ImmutableList<String> commodityList2 = ImmutableList.of(
-                                    "nextStepRoi",
-                                    "currentProfitMargin",
-                                    "currentExpenses",
-                                    "nextStepExpenses",
-                                    "ActionPermit",
-                                    "Space",
-                                    "Extent",
-                                    "ApplicationCommodity",
-                                    "ClusterCommodity",
-                                    "DataCenterCommodity",
-                                    "DatastoreCommodity",
-                                    "DSPMAccessCommodity",
-                                    "NetworkCommodity",
-                                    "SegmentationCommodity",
-                                    "DrsSegmentationCommodity",
-                                    "StorageClusterCommodity",
-                                    "VAppAccessCommodity",
-                                    "VDCCommodity",
-                                    "VMPMAccessCommodity");
+    private static final EntityStats ENTITY_STATS = EntityStats.newBuilder()
+            .setOid(1L)
+            .addStatSnapshots(STAT_SNAPSHOT)
+            .build();
+
+    private static final ServiceEntityApiDTO ENTITY_DESCRIPTOR = new ServiceEntityApiDTO();
+
+    static {
+        ENTITY_DESCRIPTOR.setUuid("1");
+        ENTITY_DESCRIPTOR.setDisplayName("hello japan");
+        ENTITY_DESCRIPTOR.setClassName(PHYSICAL_MACHINE_TYPE);
+    }
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy,
-            groupServiceSpy, planServiceSpy);
+            groupServiceSpy, planServiceSpy, repositoryServiceSpy);
 
     @Before
     public void setUp() throws IOException {
-        StatsHistoryServiceBlockingStub statsServiceRpc =
+        final StatsHistoryServiceBlockingStub statsServiceRpc =
                 StatsHistoryServiceGrpc.newBlockingStub(testServer.getChannel());
-        PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
+        final PlanServiceGrpc.PlanServiceBlockingStub planRpcService =
                 PlanServiceGrpc.newBlockingStub(testServer.getChannel());
+        final RepositoryServiceGrpc.RepositoryServiceBlockingStub repositoryRpcService =
+                RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
 
         groupExpander = Mockito.mock(GroupExpander.class);
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
 
         statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
-                repositoryClient, supplyChainFetcherFactory, groupExpander, mockClock,
+                repositoryRpcService, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
                 targetsService, groupService);
 
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
@@ -189,30 +192,29 @@ public class StatsServiceTest {
     public void testGetStatsByEntityQueryWithFiltering() throws Exception {
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
-        when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(ImmutableMap.of(1L, Optional.of(se1)));
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
         when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
-        when(statsHistoryServiceSpy.getAveragedEntityStats(EntityStatsRequest.newBuilder()
-                .addEntities(Long.parseLong(oid1))
-                .setFilter(StatsFilter.getDefaultInstance())
-                .build()))
-            .thenReturn(Collections.singletonList(StatSnapshot.newBuilder().addAllStatRecords(
-                records(commodityList1))
-                .build()));
 
-        List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
+                .thenReturn(request);
 
+        when(statsHistoryServiceSpy.getAveragedEntityStats(request))
+            .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
+        apiDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(apiDto);
+
+        final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
+
+        verify(statsMapper).toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
+        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
         // Should have called targets service to get a list of targets.
         verify(targetsService).getTargets(null);
 
-        // The returned stats contain cpu, latency, roi, and app.
-        // Should only keep cpu and latency and filter out roi and app.
-        assertEquals(1, resp.size());
-        List<StatApiDTO> stats = resp.get(0).getStatistics();
-        assertEquals(2, stats.size());
-        assertEquals(Sets.newHashSet("CPU", "StorageLatency"),
-                            Sets.newHashSet(stats.get(0).getName(), stats.get(1).getName()));
+        assertThat(resp, containsInAnyOrder(apiDto));
     }
 
     /**
@@ -224,19 +226,28 @@ public class StatsServiceTest {
     public void testGetStatsForFullMarket() throws Exception {
         StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
-        when(statsHistoryServiceSpy.getAveragedEntityStats(EntityStatsRequest.newBuilder()
-                .addAllEntities(Collections.emptySet()).setFilter(StatsFilter.getDefaultInstance()).build()))
-                .thenReturn(Collections.singletonList(StatSnapshot.newBuilder().addAllStatRecords(
-                        records(commodityList1))
-                        .build()));
 
+        GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toAveragedEntityStatsRequest(Collections.emptySet(), inputDto, Optional.empty()))
+                .thenReturn(request);
 
-        List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(
+        when(statsHistoryServiceSpy.getAveragedEntityStats(request))
+                .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
+        dto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(dto);
+
+        final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(
                 UuidMapper.UI_REAL_TIME_MARKET_STR, inputDto);
-        assertEquals(1, resp.size());
-        List<StatApiDTO> stats = resp.get(0).getStatistics();
-        assertEquals(2, stats.size());
 
+        verify(groupExpander).getGroup(UuidMapper.UI_REAL_TIME_MARKET_STR);
+        verify(statsMapper).toAveragedEntityStatsRequest(Collections.emptySet(), inputDto, Optional.empty());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
+        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+
+        assertEquals(1, resp.size());
+        assertThat(resp, containsInAnyOrder(dto));
     }
 
     @Test
@@ -250,26 +261,6 @@ public class StatsServiceTest {
     }
 
     @Test
-    public void testGetClusterStats() throws Exception {
-        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
-
-        final Set<Long> listOfOidsInGroup = Sets.newHashSet(apiId2.oid());
-        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
-        when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
-        when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(ImmutableMap.of(2L, Optional.of(se2)));
-
-        statsService.getStatsByEntityQuery(oid1, inputDto);
-
-        ArgumentCaptor<EntityStatsRequest> requestCaptor =
-                ArgumentCaptor.forClass(EntityStatsRequest.class);
-
-        verify(statsHistoryServiceSpy).getAveragedEntityStats(requestCaptor.capture(), any());
-        assertEquals(apiId1.oid(), requestCaptor.getValue().getEntitiesList().size());
-        assertEquals(apiId2.oid(), (long)requestCaptor.getValue().getEntitiesList().get(0));
-    }
-
-    @Test
     public void testGetGroupStats() throws Exception {
         // arrange
         final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
@@ -278,23 +269,24 @@ public class StatsServiceTest {
         final Set<Long> listOfOidsInGroup = Sets.newHashSet(7L, 8L);
         when(groupExpander.expandUuid(anyObject())).thenReturn(listOfOidsInGroup);
 
-        ServiceEntityApiDTO se7 = new ServiceEntityApiDTO();
-        se7.setUuid("7");
-        se7.setClassName("classname-7");
-        ServiceEntityApiDTO se8 = new ServiceEntityApiDTO();
-        se8.setUuid("8");
-        se8.setClassName("classname-8");
-        when(repositoryApi.getServiceEntitiesById(Mockito.any()))
-                .thenReturn(ImmutableMap.of(7L, Optional.of(se7), 8L, Optional.of(se8)));
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toAveragedEntityStatsRequest(listOfOidsInGroup, inputDto, Optional.empty()))
+                .thenReturn(request);
+        when(statsHistoryServiceSpy.getAveragedEntityStats(any()))
+            .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
+        dto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(dto);
 
         // act
-        statsService.getStatsByEntityQuery(oid1, inputDto);
+        final List<StatSnapshotApiDTO> retDtos = statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // assert
-        ArgumentCaptor<EntityStatsRequest> requestCaptor =
-                ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(statsHistoryServiceSpy).getAveragedEntityStats(requestCaptor.capture(), any());
-        assertThat(requestCaptor.getValue().getEntitiesList(), containsInAnyOrder(7L, 8L));
+        verify(statsMapper).toAveragedEntityStatsRequest(listOfOidsInGroup, inputDto, Optional.empty());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
+
+        assertThat(retDtos, containsInAnyOrder(dto));
     }
 
     /**
@@ -316,9 +308,11 @@ public class StatsServiceTest {
         ServiceEntityApiDTO se7 = new ServiceEntityApiDTO();
         se7.setUuid("7");
         se7.setClassName(DATACENTER.getValue());
-        when(repositoryApi.getSearchResults(any(), any(),  eq(UuidMapper.UI_REAL_TIME_MARKET_STR),
+        when(repositoryApi.getSearchResults(any(), any(), eq(UuidMapper.UI_REAL_TIME_MARKET_STR),
                 any(), any()))
                 .thenReturn(Lists.newArrayList(se7));
+
+        final Set<Long> oids = Sets.newHashSet(101L, 102L);
 
         // set up the supplychainfetcherfactory for DC 7
         SupplyChainNodeFetcherBuilder fetcherBuilder = Mockito.mock(SupplyChainNodeFetcherBuilder.class);
@@ -329,21 +323,25 @@ public class StatsServiceTest {
         Map<String, SupplyChain.SupplyChainNode> supplyChainNodeMap1 = ImmutableMap.of(
                 PHYSICAL_MACHINE.getValue(), SupplyChain.SupplyChainNode.newBuilder()
                         .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
-                            .addMemberOids(101L)
-                            .addMemberOids(102L)
+                            .addAllMemberOids(oids)
                             .build())
                         .build());
         when(fetcherBuilder.fetch()).thenReturn(supplyChainNodeMap1);
 
+        final GetAveragedEntityStatsRequest request =
+                GetAveragedEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toAveragedEntityStatsRequest(oids, inputDto, Optional.empty()))
+                .thenReturn(request);
+
+        // We don't really care about what happens after the RPC call, because the thing
+        // we're testing is that the datacenter gets expanded into the right IDs before
+        // the call to statsHistoryService.
+
         // act
         statsService.getStatsByEntityQuery("7", inputDto);
 
-        // assert
-        ArgumentCaptor<EntityStatsRequest> requestCaptor =
-                ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(statsHistoryServiceSpy).getAveragedEntityStats(requestCaptor.capture(), any());
-        System.out.println(requestCaptor.getValue().getEntitiesList());
-        assertThat(requestCaptor.getValue().getEntitiesList(), containsInAnyOrder(101L, 102L));
+        verify(statsMapper).toAveragedEntityStatsRequest(oids, inputDto, Optional.empty());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
     }
 
     /**
@@ -398,15 +396,17 @@ public class StatsServiceTest {
         when(fetcherBuilder.fetch()).thenReturn(supplyChainNodeMap1)
                 .thenReturn(supplyChainNodeMap2);
 
+        final Set<Long> expandedOids = Sets.newHashSet(101L, 102L, 103L, 104L);
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toAveragedEntityStatsRequest(expandedOids, inputDto, Optional.empty()))
+                .thenReturn(request);
+
         // act
         statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // assert
-        ArgumentCaptor<EntityStatsRequest> requestCaptor =
-                ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(statsHistoryServiceSpy).getAveragedEntityStats(requestCaptor.capture(), any());
-        System.out.println(requestCaptor.getValue().getEntitiesList());
-        assertThat(requestCaptor.getValue().getEntitiesList(), containsInAnyOrder(101L, 102L, 103L, 104L));
+        verify(statsMapper).toAveragedEntityStatsRequest(expandedOids, inputDto, Optional.empty());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
     }
 
     @Test
@@ -417,22 +417,31 @@ public class StatsServiceTest {
 
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
         // just a simple SE, not group or cluster; expanded list is just the input OID
-        when(groupExpander.expandUuid(oid1)).thenReturn(Sets.newHashSet(1L));
+        final Set<Long> expandedOid = Collections.singleton(1L);
+        when(groupExpander.expandUuid(oid1)).thenReturn(expandedOid);
         when(repositoryApi.getServiceEntitiesById(Mockito.any()))
                 .thenReturn(ImmutableMap.of(1L, Optional.of(se1)));
 
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toAveragedEntityStatsRequest(expandedOid, inputDto, Optional.empty()))
+                .thenReturn(request);
+
+        when(statsHistoryServiceSpy.getAveragedEntityStats(request))
+            .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
+        retDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(retDto);
+
         // act
-        statsService.getStatsByEntityQuery(oid1, inputDto);
+        final List<StatSnapshotApiDTO> results = statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // assert
-        ArgumentCaptor<EntityStatsRequest> entityRequestCaptor =
-                ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(statsHistoryServiceSpy).getAveragedEntityStats(entityRequestCaptor.capture(),
-                anyObject());
-        assertThat(entityRequestCaptor.getAllValues().size(), equalTo(1));
-        EntityStatsRequest entityStatsRequest = entityRequestCaptor.getAllValues().iterator().next();
-        assertThat(entityStatsRequest.getEntitiesList().size(), equalTo(1));
-        assertThat(entityStatsRequest.getEntitiesList().iterator().next(), equalTo(1L));
+        verify(statsMapper).toAveragedEntityStatsRequest(expandedOid, inputDto, Optional.empty());
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
+        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+
+        assertThat(results, containsInAnyOrder(retDto));
 
         verify(statsHistoryServiceSpy, times(0)).getProjectedStats(anyObject(), anyObject());
     }
@@ -454,60 +463,96 @@ public class StatsServiceTest {
     public void testGetProjectedStatsByEntityQuery() throws Exception {
         // arrange
         // request is in the future
-        StatPeriodApiInputDTO inputDto = buildStatPeriodApiInputDTO(2000L, "2500",
+        final StatPeriodApiInputDTO inputDto = buildStatPeriodApiInputDTO(2000L, "2500",
                 "2500", "a");
 
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
         // just a simple SE, not group or cluster; expanded list is just the input OID
-        when(groupExpander.expandUuid(oid1)).thenReturn(Sets.newHashSet(1L));
-        when(repositoryApi.getServiceEntitiesById(Mockito.any()))
-                .thenReturn(ImmutableMap.of(1L, Optional.of(se1)));
+        final Set<Long> expandedUuids = Collections.singleton(1L);
+        when(groupExpander.expandUuid(oid1)).thenReturn(expandedUuids);
+
+        final ProjectedStatsRequest request = ProjectedStatsRequest.getDefaultInstance();
+        when(statsMapper.toProjectedStatsRequest(expandedUuids, inputDto)).thenReturn(request);
+
+        final ProjectedStatsResponse response = ProjectedStatsResponse.newBuilder()
+                .setSnapshot(STAT_SNAPSHOT)
+                .build();
+        when(statsHistoryServiceSpy.getProjectedStats(request)).thenReturn(response);
+
+        final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
+        dto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(response.getSnapshot())).thenReturn(dto);
 
         // act
-        statsService.getStatsByEntityQuery(oid1, inputDto);
+        final List<StatSnapshotApiDTO> retDto = statsService.getStatsByEntityQuery(oid1, inputDto);
 
         // assert
         verify(statsHistoryServiceSpy, times(0)).getAveragedEntityStats(anyObject(),
                 anyObject());
+        verify(statsHistoryServiceSpy, times(1)).getProjectedStats(request);
 
-        ArgumentCaptor<ProjectedStatsRequest> entityRequestCaptor =
-                ArgumentCaptor.forClass(ProjectedStatsRequest.class);
-
-        verify(statsHistoryServiceSpy, times(1)).getProjectedStats(entityRequestCaptor.capture(),
-                anyObject());
+        assertThat(retDto, containsInAnyOrder(dto));
+        // Make sure that the date in the returned DTO is set properly.
+        assertThat(retDto.get(0).getDate(), is(DateTimeUtil.toString(DateTimeUtil.parseTime(inputDto.getEndDate()))));
     }
 
     @Test
     public void testGetStatsByUuidsQueryHistorical() throws Exception {
 
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        inputDto.setScopes(Lists.newArrayList("1", "2"));
+        inputDto.setScopes(Lists.newArrayList("1"));
         StatPeriodApiInputDTO period = buildStatPeriodApiInputDTO(2000L, "1000",
                 "1000", "a");
         inputDto.setPeriod(period);
-        when(groupExpander.expandUuids(anySetOf(String.class))).thenReturn(Sets.newHashSet(1L, 2L));
 
-        Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap = ImmutableMap.of(
-                1L, Optional.of(new ServiceEntityApiDTO()),
-                2L, Optional.of(new ServiceEntityApiDTO()));
-        when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
+        final Set<Long> expandedUids = Sets.newHashSet(1L);
+        when(groupExpander.expandUuids(anySetOf(String.class))).thenReturn(Sets.newHashSet(1L));
+
+        final EntityStatsPaginationRequest paginationRequest =
+                spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
+
+        when(repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids)
+                .build())).thenReturn(ImmutableMap.of(1L, Optional.of(ENTITY_DESCRIPTOR)));
+
+        final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toEntityStatsRequest(expandedUids, period, paginationRequest))
+            .thenReturn(request);
+
+        final String nextCursor = "you're next!";
+        when(statsHistoryServiceSpy.getEntityStats(request)).thenReturn(
+            GetEntityStatsResponse.newBuilder()
+                .addEntityStats(ENTITY_STATS)
+                .setPaginationResponse(PaginationResponse.newBuilder()
+                        .setNextCursor(nextCursor))
+                .build());
+
+        final List<StatSnapshotApiDTO> statDtos = Collections.singletonList(new StatSnapshotApiDTO());
+        when(statsMapper.toStatsSnapshotApiDtoList(ENTITY_STATS)).thenReturn(statDtos);
 
         // act
-        List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // Assert
-        assertThat(result.size(), equalTo(2));
-        ArgumentCaptor<EntityStatsRequest> entityRequestCaptor =
-                ArgumentCaptor.forClass(EntityStatsRequest.class);
-        verify(statsHistoryServiceSpy, times(1)).getEntityStats(entityRequestCaptor.capture(),
-                anyObject());
-        EntityStatsRequest entityStatsRequest = entityRequestCaptor.getValue();
-        assertThat(entityStatsRequest.getEntitiesList().size(), equalTo(2));
-        assertThat(entityStatsRequest.getEntitiesList(), contains(1L, 2L));
-
-
         verify(statsHistoryServiceSpy, times(0)).getProjectedStats(anyObject(),
                 anyObject());
+
+        verify(groupExpander).expandUuids(Collections.singleton("1"));
+        verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids).build());
+        verify(statsMapper).toEntityStatsRequest(expandedUids, period, paginationRequest);
+        verify(statsHistoryServiceSpy).getEntityStats(request);
+        verify(statsMapper).toStatsSnapshotApiDtoList(ENTITY_STATS);
+
+        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
+
+
+        assertThat(response.getRawResults().size(), equalTo(1));
+
+        final EntityStatsApiDTO entityStatDto = response.getRawResults().get(0);
+        assertThat(entityStatDto.getStats(), is(statDtos));
+        assertThat(entityStatDto.getUuid(), is(ENTITY_DESCRIPTOR.getUuid()));
+        assertThat(entityStatDto.getDisplayName(), is(ENTITY_DESCRIPTOR.getDisplayName()));
+        assertThat(entityStatDto.getClassName(), is(ENTITY_DESCRIPTOR.getClassName()));
 
     }
 
@@ -516,39 +561,118 @@ public class StatsServiceTest {
 
         // Arrange
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        inputDto.setScopes(Lists.newArrayList("1", "2"));
+        inputDto.setScopes(Lists.newArrayList("1"));
         StatPeriodApiInputDTO period = buildStatPeriodApiInputDTO(2000L, "2500",
                 "2500", "a");
         inputDto.setPeriod(period);
-        when(groupExpander.expandUuids(anySetOf(String.class))).thenReturn(Sets.newHashSet(1L, 2L));
 
-        Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap = ImmutableMap.of(
-                1L, Optional.of(new ServiceEntityApiDTO()),
-                2L, Optional.of(new ServiceEntityApiDTO()));
-        when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
+        final Set<Long> expandedUids = Sets.newHashSet(1L);
+        when(groupExpander.expandUuids(anySetOf(String.class))).thenReturn(expandedUids);
+
+        final EntityStatsPaginationRequest paginationRequest =
+                spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
+
+        when(repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids)
+                .build())).thenReturn(ImmutableMap.of(1L, Optional.of(ENTITY_DESCRIPTOR)));
+
+        final ProjectedEntityStatsRequest request = ProjectedEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toProjectedEntityStatsRequest(expandedUids, period, paginationRequest))
+            .thenReturn(request);
+
+        final String nextCursor = "you're next!";
+
+        when(statsHistoryServiceSpy.getProjectedEntityStats(request))
+            .thenReturn(ProjectedEntityStatsResponse.newBuilder()
+                    .addEntityStats(ENTITY_STATS)
+                    .setPaginationResponse(PaginationResponse.newBuilder()
+                            .setNextCursor(nextCursor))
+                    .build());
+
+        final StatSnapshotApiDTO statDto = new StatSnapshotApiDTO();
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(statDto);
 
         // Act
-        List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // Assert
-        assertThat(result.size(), equalTo(2));
-        ArgumentCaptor<ProjectedStatsRequest> entityRequestCaptor =
-                ArgumentCaptor.forClass(ProjectedStatsRequest.class);
-        verify(statsHistoryServiceSpy, times(1)).getProjectedEntityStats(entityRequestCaptor.capture(),
-                anyObject());
-        ProjectedStatsRequest projectedStatsRequest = entityRequestCaptor.getValue();
-        assertThat(projectedStatsRequest.getEntitiesList().size(), equalTo(2));
-        assertThat(projectedStatsRequest.getEntitiesList(), contains(1L, 2L));
-
         verify(statsHistoryServiceSpy, times(0)).getEntityStats(anyObject(),
                 anyObject());
+        verify(groupExpander).expandUuids(Collections.singleton("1"));
+        verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids).build());
+        verify(statsMapper).toProjectedEntityStatsRequest(expandedUids, period, paginationRequest);
+        verify(statsHistoryServiceSpy).getProjectedEntityStats(request);
+        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
 
+        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
+
+
+        assertThat(response.getRawResults().size(), equalTo(1));
+
+        final EntityStatsApiDTO entityStatDto = response.getRawResults().get(0);
+        assertThat(entityStatDto.getStats(), containsInAnyOrder(statDto));
+        assertThat(entityStatDto.getUuid(), is(ENTITY_DESCRIPTOR.getUuid()));
+        assertThat(entityStatDto.getDisplayName(), is(ENTITY_DESCRIPTOR.getDisplayName()));
+        assertThat(entityStatDto.getClassName(), is(ENTITY_DESCRIPTOR.getClassName()));
+    }
+
+    @Test
+    public void testGetStatsByUuidsClusterStats() throws Exception {
+        final EntityStatsPaginationRequest paginationRequest =
+                spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+
+        // Add a cluster stat request.
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
+        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Collections.singletonList("7"));
+        inputDto.setPeriod(periodApiInputDTO);
+
+        final ClusterInfo clusterInfo = ClusterInfo.newBuilder()
+                .setName("Winter woede")
+                .build();
+        when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder().addId(7).build()))
+                .thenReturn(Collections.singletonList(Group.newBuilder()
+                        .setId(7)
+                        .setCluster(clusterInfo)
+                        .build()));
+
+        final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.getDefaultInstance();
+        when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO))
+            .thenReturn(clusterStatsRequest);
+
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest))
+                .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
+        final StatSnapshotApiDTO apiSnapshot = new StatSnapshotApiDTO();
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(apiSnapshot);
+
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+
+        verify(groupServiceSpy).getGroups(GetGroupsRequest.newBuilder().addId(7).build());
+        verify(statsMapper).toClusterStatsRequest("7", periodApiInputDTO);
+        verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
+        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+
+        verify(paginationRequest).allResultsResponse(any());
+
+        assertThat(response.getRawResults().size(), is(1));
+        final EntityStatsApiDTO clusterStats = response.getRawResults().get(0);
+        assertThat(clusterStats.getUuid(), is("7"));
+        assertThat(clusterStats.getDisplayName(), is(clusterInfo.getName()));
+        assertThat(clusterStats.getStats(), containsInAnyOrder(apiSnapshot));
+        assertThat(clusterStats.getClassName(), is(GroupMapper.CLUSTER));
     }
 
     @Test
     public void testGetStatsByUuidsRelatedType() throws Exception {
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest("foo", 1, true, "order");
         final long vmId = 7;
-        final long pmId = 9;
+        final long pmId = 1;
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
         period.setStatistics(Collections.emptyList());
 
@@ -571,18 +695,22 @@ public class StatsServiceTest {
         when(nodeFetcherBuilder.fetch()).thenReturn(supplyChainQueryResult);
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
 
+
+        final Set<Long> pmIds = Collections.singleton(pmId);
+
+        final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toEntityStatsRequest(pmIds, period, paginationRequest)).thenReturn(request);
+
         // We don't care about the result - for this test we just want to make sure
         // that the vm ID gets expanded into the PM id.
         try {
-            getStatsByUuidsQuery(statsService, inputDto);
+            statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
         } catch (UnknownObjectException e) {
             // This is expected, since we didn't mock out the call to the repository API.
         }
 
-        final ArgumentCaptor<ServiceEntitiesRequest> requestCaptor =
-                ArgumentCaptor.forClass(ServiceEntitiesRequest.class);
-        verify(repositoryApi).getServiceEntitiesById(requestCaptor.capture());
-        assertThat(requestCaptor.getValue().getEntityIds(), contains(pmId));
+        // Make sure that the stats mapper got called with the right IDs.
+        verify(statsMapper).toEntityStatsRequest(pmIds, period, paginationRequest);
     }
 
     @Test
@@ -637,125 +765,131 @@ public class StatsServiceTest {
     @Test
     public void testGetPlanStats() throws Exception {
         // Arrange
-        Long planOid = 999L;
-        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        final Long planOid = 999L;
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Lists.newArrayList(Long.toString(planOid)));
 
         final PlanId planIdProto = PlanId.newBuilder().setPlanId(planOid).build();
+        final PlanInstance planInstance = PlanInstance.newBuilder()
+                .setPlanId(planOid)
+                .setStatus(PlanInstance.PlanStatus.SUCCEEDED)
+                .build();
+
         when(planServiceSpy.getPlan(planIdProto))
                 .thenReturn(PlanDTO.OptionalPlanInstance.newBuilder()
-                        .setPlanInstance(PlanDTO.PlanInstance.newBuilder()
-                                .setPlanId(planOid)
-                                .setStatus(PlanDTO.PlanInstance.PlanStatus.SUCCEEDED)
-                                .build())
+                        .setPlanInstance(planInstance)
                         .build());
-        final long oid1 = 1;
-        final String entityName1 = "entity-1";
-        int entityType1 = CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
-        final String date1 = "snapshot-1-date";
 
-        long oid2 = 2;
-        int entityType2 = CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE_VALUE;
-        String entityName2 = "entity-2";
-        final String date2 = "snapshot-2-date";
+        final PlanTopologyStatsRequest request = PlanTopologyStatsRequest.getDefaultInstance();
+        when(statsMapper.toPlanTopologyStatsRequest(eq(planInstance), eq(inputDto), any()))
+                .thenReturn(request);
 
+        final PlanEntityStats retStats = PlanEntityStats.newBuilder()
+                .setPlanEntity(TopologyEntityDTO.newBuilder()
+                        .setEntityType(10)
+                        .setDisplayName("foo")
+                        .setOid(7L))
+                .setPlanEntityStats(EntityStats.newBuilder()
+                    .addStatSnapshots(STAT_SNAPSHOT))
+                .build();
 
-        final PlanEntityStats entity1Stats = buildPlanEntityStats(oid1, entityName1,
-                entityType1, date1, commodityList1);
-        final PlanEntityStats entity2Stats = buildPlanEntityStats(oid2, entityName2,
-                entityType2, date2, commodityList2);
-        List<PlanEntityStats> entitStatsToReturn = Lists.newArrayList(
-                entity1Stats,
-                entity2Stats
-        );
-        when(repositoryClient.getPlanStats(any())).thenReturn(entitStatsToReturn.iterator());
+        when(repositoryServiceSpy.getPlanTopologyStats(any()))
+                .thenReturn(PlanTopologyStatsResponse.newBuilder()
+                        .addEntityStats(retStats)
+                        .build());
+
+        final StatSnapshotApiDTO retDto = new StatSnapshotApiDTO();
+        retDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(retDto);
 
         // Act
-        List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
+        final List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
 
         // Assert
         verify(planServiceSpy).getPlan(planIdProto);
-        verify(repositoryClient).getPlanStats(any());
+        verify(repositoryServiceSpy).getPlanTopologyStats(request);
+        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
 
-        assertThat(result.size(), equalTo(2));
-        final EntityStatsApiDTO resultForEntity1;
-        final EntityStatsApiDTO resultForEntity2;
-        if (result.get(0).getDisplayName().equals(entityName1)) {
-            resultForEntity1 = result.get(0);
-            resultForEntity2 = result.get(1);
-        } else {
-            resultForEntity1 = result.get(1);
-            resultForEntity2 = result.get(0);
-        }
-        testEntityStats(resultForEntity1, oid1, entityName1, commodityList1.size());
-        testEntityStats(resultForEntity2, oid2, entityName2, commodityList2.size());
-    }
-
-    /**
-     * Build a {@link PlanEntityStats} for this test.
-     *
-     * @param uid the uid for the entity
-     * @param entityName a string name for the entity
-     * @param entityType the int entity type
-     * @param date a string representing the date (not interpreted as a date)
-     * @param commodityList a list of commodity names to return; values are not set
-     * @return
-     */
-    private PlanEntityStats buildPlanEntityStats(long uid, String entityName, int entityType, String date, List<String> commodityList) {
-        return PlanEntityStats.newBuilder()
-                    .setPlanEntity(TopologyDTO.TopologyEntityDTO.newBuilder()
-                            .setOid(uid)
-                            .setEntityType(entityType)
-                            .setDisplayName(entityName)
-                            .build())
-                    .setPlanEntityStats(EntityStats.newBuilder()
-                            .addStatSnapshots(StatSnapshot.newBuilder()
-                                    .setSnapshotDate(date)
-                                    .addAllStatRecords(records(commodityList))
-                                    .build())
-                            .build())
-                    .build();
-    }
-
-    /**
-     * Check that the EntityStatsApiDTO has the correct values.
-     *
-     * @param resultForEntity the EntityStatsApiDTO to check
-     * @param uid the id to expect
-     * @param entityName the entity name to expect
-     * @param numStats the number of stats to expect
-     */
-    private void testEntityStats(EntityStatsApiDTO resultForEntity, long uid, String entityName, int numStats) {
-        assertThat(resultForEntity.getDisplayName(), equalTo(entityName));
-        assertThat(resultForEntity.getUuid(), equalTo(Long.toString(uid)));
-        assertThat(resultForEntity.getStats().size(), equalTo(1));
-        assertThat(resultForEntity.getStats().get(0).getStatistics().size(), equalTo(numStats));
+        assertThat(result.size(), equalTo(1));
+        final EntityStatsApiDTO resultForEntity = result.get(0);
+        assertThat(resultForEntity.getDisplayName(), is("foo"));
+        assertThat(resultForEntity.getStats(), containsInAnyOrder(retDto));
     }
 
     @Test
-    public void testFullMarketStats() throws Exception {
+    public void testGetStatsByUuidsFullMarket() throws Exception {
         // Arrange
-        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
         inputDto.setRelatedType(PHYSICAL_MACHINE_TYPE);
-        inputDto.setPeriod(new StatPeriodApiInputDTO());
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        inputDto.setPeriod(period);
 
-        // two PMs in the search results
-        final ServiceEntityApiDTO pm1 = new ServiceEntityApiDTO();
-        pm1.setUuid("1");
-        final ServiceEntityApiDTO pm2 = new ServiceEntityApiDTO();
-        pm2.setUuid("2");
-        Collection<ServiceEntityApiDTO> searchResults = Lists.newArrayList(pm1, pm2);
-        List<String> expectedTypes = Lists.newArrayList(PHYSICAL_MACHINE_TYPE);
-        when(repositoryApi.getSearchResults(null, expectedTypes,
-                UuidMapper.UI_REAL_TIME_MARKET_STR, null, null)).thenReturn(searchResults);
+        final EntityStatsPaginationRequest paginationRequest =
+                spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
+
+        when(statsMapper.normalizeRelatedType(PHYSICAL_MACHINE_TYPE)).thenReturn(PHYSICAL_MACHINE_TYPE);
+
+        final Set<Long> expandedIds = Sets.newHashSet(1L);
+        final Map<String, SupplyChainNode> supplyChainResult =
+                ImmutableMap.of(PHYSICAL_MACHINE_TYPE, SupplyChainNode.newBuilder()
+                        .putMembersByState(0, MemberList.newBuilder()
+                                .addMemberOids(1L)
+                                .build())
+                        .build());
+        final SupplyChainNodeFetcherBuilder builder = mock(SupplyChainNodeFetcherBuilder.class);
+        when(builder.entityTypes(any())).thenReturn(builder);
+        when(builder.fetch()).thenReturn(supplyChainResult);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(builder);
+
+        final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toEntityStatsRequest(expandedIds, period, paginationRequest))
+            .thenReturn(request);
+
+        final EntityStats entityStats = EntityStats.newBuilder()
+                .setOid(1L)
+                .addStatSnapshots(STAT_SNAPSHOT)
+                .build();
+
+        final String nextCursor = "you're next!";
+        when(statsHistoryServiceSpy.getEntityStats(request))
+            .thenReturn(GetEntityStatsResponse.newBuilder()
+                    .addEntityStats(entityStats)
+                    .setPaginationResponse(PaginationResponse.newBuilder()
+                            .setNextCursor(nextCursor))
+                    .build());
+
+        final ServiceEntityApiDTO entityDescriptor = new ServiceEntityApiDTO();
+        entityDescriptor.setUuid("1");
+        entityDescriptor.setDisplayName("hello japan");
+        entityDescriptor.setClassName(PHYSICAL_MACHINE_TYPE);
+
+        when(repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedIds)
+                .build())).thenReturn(ImmutableMap.of(1L, Optional.of(entityDescriptor)));
+
+        final List<StatSnapshotApiDTO> statsList =
+                Collections.singletonList(new StatSnapshotApiDTO());
+        when(statsMapper.toStatsSnapshotApiDtoList(entityStats)).thenReturn(statsList);
 
         // Act
-        List<EntityStatsApiDTO> result = getStatsByUuidsQuery(statsService, inputDto);
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // Assert
-        // expect stats for two PMs in the search response
-        assertThat(result.size(), equalTo(2));
+        verify(statsMapper).normalizeRelatedType(PHYSICAL_MACHINE_TYPE);
+        verify(supplyChainFetcherFactory).newNodeFetcher();
+        verify(statsMapper).toEntityStatsRequest(expandedIds, period, paginationRequest);
+        verify(statsHistoryServiceSpy).getEntityStats(request);
+        verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedIds).build());
+        verify(statsMapper).toStatsSnapshotApiDtoList(entityStats);
+        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
+
+        assertThat(response.getRawResults().size(), equalTo(1));
+        final EntityStatsApiDTO resultEntity = response.getRawResults().get(0);
+        assertThat(resultEntity.getDisplayName(), is(entityDescriptor.getDisplayName()));
+        assertThat(resultEntity.getUuid(), is(entityDescriptor.getUuid()));
+        assertThat(resultEntity.getClassName(), is(entityDescriptor.getClassName()));
+        assertThat(resultEntity.getStats(), is(statsList));
     }
 
     /**
@@ -767,20 +901,10 @@ public class StatsServiceTest {
     public void testFullMarketStatsNoRelatedType() throws Exception {
         // Arrange
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setPeriod(new StatPeriodApiInputDTO());
         inputDto.setScopes(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
 
         // Act
         getStatsByUuidsQuery(statsService, inputDto);
-
-        // Assert
-        Assert.fail("Should never get here");
-
-    }
-
-    private List<StatRecord> records(final List<String> recordlist) {
-        return recordlist.stream()
-                         .map(name -> StatRecord.newBuilder().setName(name)
-                              .setRelation(RelationType.COMMODITIES.getLiteral()).build())
-                         .collect(Collectors.toList());
     }
 }

@@ -11,6 +11,8 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
@@ -35,6 +37,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
+import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
@@ -75,15 +78,16 @@ public class SearchServiceTest {
 
     private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
     private SearchService searchService;
-    private MarketsService marketsService = Mockito.mock(MarketsService.class);
-    private GroupsService groupsService = Mockito.mock(GroupsService.class);
-    private TargetsService targetsService = Mockito.mock(TargetsService.class);
-    private RepositoryApi repositoryApi = Mockito.mock(RepositoryApi.class);
-    private final GroupMapper groupMapper = Mockito.mock(GroupMapper.class);
-    private final GroupUseCaseParser groupUseCaseParser = Mockito.mock(GroupUseCaseParser.class);
-    private final SupplyChainFetcherFactory supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
+    private MarketsService marketsService = mock(MarketsService.class);
+    private GroupsService groupsService = mock(GroupsService.class);
+    private TargetsService targetsService = mock(TargetsService.class);
+    private RepositoryApi repositoryApi = mock(RepositoryApi.class);
+    private final GroupMapper groupMapper = mock(GroupMapper.class);
+    private final GroupUseCaseParser groupUseCaseParser = mock(GroupUseCaseParser.class);
+    private final SupplyChainFetcherFactory supplyChainFetcherFactory = mock(SupplyChainFetcherFactory.class);
     private final UuidMapper uuidMapper = new UuidMapper(7777777L);
-    private final GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
+    private final GroupExpander groupExpander = mock(GroupExpander.class);
+    private final PaginationMapper paginationMapperSpy = spy(new PaginationMapper());
 
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
@@ -108,6 +112,7 @@ public class SearchServiceTest {
                 groupExpander,
                 supplyChainFetcherFactory,
                 groupMapper,
+                paginationMapperSpy,
                 groupUseCaseParser,
                 uuidMapper,
                 777777
@@ -182,7 +187,7 @@ public class SearchServiceTest {
 
          */
         SupplychainApiDTOFetcherBuilder mockOperationBuilder =
-                Mockito.mock(SupplychainApiDTOFetcherBuilder.class);
+                mock(SupplychainApiDTOFetcherBuilder.class);
         when(supplyChainFetcherFactory.newApiDtoFetcher()).thenReturn(mockOperationBuilder);
 
         // we need to set up these mocks to support the builder pattern
@@ -279,10 +284,10 @@ public class SearchServiceTest {
 
         final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
                 ArgumentCaptor.forClass((Class)List.class);
-        final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
+        final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
         Mockito.when(paginationRequest.getCursor()).thenReturn(Optional.empty());
         Mockito.when(paginationRequest.allResultsResponse(any()))
-                .thenReturn(Mockito.mock(SearchPaginationResponse.class));
+                .thenReturn(mock(SearchPaginationResponse.class));
         Mockito.when(paginationRequest.getOrderBy())
                 .thenReturn(SearchOrderBy.NAME);
         searchService.getMembersBasedOnFilter("foo", request, paginationRequest);

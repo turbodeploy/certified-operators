@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.mapper;
+package com.vmturbo.api.component.external.api.mapper;
 
 import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.MatcherAssert.assertThat;

@@ -120,6 +120,8 @@ public class GroupsService implements IGroupsService {
 
     private final GroupMapper groupMapper;
 
+    private final PaginationMapper paginationMapper;
+
     private final SettingsManagerMapping settingsManagerMapping;
 
     private final TemplateServiceBlockingStub templateService;
@@ -134,6 +136,7 @@ public class GroupsService implements IGroupsService {
                          @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                          @Nonnull final ActionSpecMapper actionSpecMapper,
                          @Nonnull final GroupMapper groupMapper,
+                         @Nonnull final PaginationMapper paginationMapper,
                          @Nonnull final RepositoryApi repositoryApi,
                          final long realtimeTopologyContextId,
                          @Nonnull final SettingsManagerMapping settingsManagerMapping,
@@ -142,6 +145,7 @@ public class GroupsService implements IGroupsService {
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.groupMapper = Objects.requireNonNull(groupMapper);
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
@@ -246,7 +250,7 @@ public class GroupsService implements IGroupsService {
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(realtimeTopologyContextId)
                         .setFilter(filter)
-                        .setPaginationParams(PaginationMapper.toProtoParams(paginationRequest))
+                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                         .build());
         final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
             response.getActionsList().stream()

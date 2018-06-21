@@ -1,4 +1,4 @@
-package com.vmturbo.api.component.mapper;
+package com.vmturbo.api.component.external.api.mapper;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -9,30 +9,46 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.junit.Before;
+import org.junit.Test;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import org.junit.Test;
-
-import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.reports.db.RelationType;
 
 /**
@@ -42,6 +58,10 @@ public class StatsMapperTest {
 
     public static final long START_DATE = 1234L;
     public static final long END_DATE = 5678L;
+
+    private PaginationMapper paginationMapper = mock(PaginationMapper.class);
+
+    private StatsMapper statsMapper = spy(new StatsMapper(paginationMapper));
 
     /**
      * Test Conversion of gRPC stats call result to the ApiDTO to return for the REST API caller.
@@ -62,7 +82,7 @@ public class StatsMapperTest {
                 .build();
 
         // Act
-        StatSnapshotApiDTO mapped = StatsMapper.toStatSnapshotApiDTO(testSnapshot);
+        StatSnapshotApiDTO mapped = statsMapper.toStatSnapshotApiDTO(testSnapshot);
         // Assert
         assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
         assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
@@ -89,7 +109,7 @@ public class StatsMapperTest {
                 .build();
 
         // Act
-        StatsMapper.toStatSnapshotApiDTO(testSnapshot);
+        statsMapper.toStatSnapshotApiDTO(testSnapshot);
     }
     @Test
     public void toStatApiDTOStatKeyFilter() throws Exception {
@@ -99,7 +119,7 @@ public class StatsMapperTest {
                         .setStatKey(statKey))
                 .build();
 
-        final StatSnapshotApiDTO dto = StatsMapper.toStatSnapshotApiDTO(snapshot);
+        final StatSnapshotApiDTO dto = statsMapper.toStatSnapshotApiDTO(snapshot);
         assertThat(dto.getStatistics().size(), is(1));
         assertThat(dto.getStatistics().get(0).getFilters().size(), is(1));
         StatFilterApiDTO filter = dto.getStatistics().get(0).getFilters().get(0);
@@ -116,7 +136,7 @@ public class StatsMapperTest {
                         .setName(statMetricName))
                 .build();
 
-        final StatApiDTO dto = StatsMapper.toStatSnapshotApiDTO(snapshot).getStatistics().get(0);
+        final StatApiDTO dto = statsMapper.toStatSnapshotApiDTO(snapshot).getStatistics().get(0);
         assertNull(dto.getCapacity());
         assertNull(dto.getReserved());
     }
@@ -150,8 +170,12 @@ public class StatsMapperTest {
         apiRequestInput.setStatistics(Lists.newArrayList(statApiInputDTO, statApiInputDTO2));
 
         // Act
-        EntityStatsRequest requestProtobuf = StatsMapper.toEntityStatsRequest(entityOids,
-                apiRequestInput, Optional.empty());
+        final EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
+        when(paginationMapper.toProtoParams(paginationRequest))
+            .thenReturn(PaginationParameters.getDefaultInstance());
+
+        final GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(entityOids,
+                apiRequestInput, paginationRequest);
 
         // Assert
         assertThat(requestProtobuf.getEntitiesCount(), equalTo(entityOids.size()));
@@ -185,9 +209,13 @@ public class StatsMapperTest {
         Set<Long> entityOids = Sets.newHashSet(1L, 2L);
         StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
 
+        final EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
+        when(paginationMapper.toProtoParams(paginationRequest))
+                .thenReturn(PaginationParameters.getDefaultInstance());
+
         // Act
-        EntityStatsRequest requestProtobuf = StatsMapper.toEntityStatsRequest(entityOids,
-                apiRequestInput, Optional.empty());
+        GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(entityOids,
+                apiRequestInput, paginationRequest);
 
         // Assert
         assertThat(requestProtobuf.getEntitiesCount(), equalTo(entityOids.size()));
@@ -198,6 +226,187 @@ public class StatsMapperTest {
         assertThat(filter.getCommodityRequestsCount(), equalTo(0));
         assertThat(filter.getCommodityRequestsCount(), equalTo(0));
         assertThat(filter.getCommodityAttributesCount(), equalTo(0));
+    }
+
+    private static final PlanInstance PLAN_INSTANCE = PlanInstance.newBuilder()
+            .setPlanId(7L)
+            .setProjectedTopologyId(77L)
+            .setStatus(PlanStatus.SUCCEEDED)
+            .build();
+
+    private static final EntityStatsPaginationRequest ENTITY_PAGINATION_REQUEST =
+            new EntityStatsPaginationRequest("foo", 1, true, "orderBy");
+
+    private static final PaginationParameters MAPPED_PAGINATION_PARAMS = PaginationParameters.newBuilder()
+                .setCursor("this is fake")
+                .build();
+
+    @Before
+    public void setup() {
+        when(paginationMapper.toProtoParams(ENTITY_PAGINATION_REQUEST))
+                .thenReturn(MAPPED_PAGINATION_PARAMS);
+    }
+
+    @Test
+    public void testToPlanTopologyStatsRequestTopologyIdSet() {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+
+        final PlanTopologyStatsRequest request =
+                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getTopologyId(), is(PLAN_INSTANCE.getProjectedTopologyId()));
+    }
+
+    @Test
+    public void testToPlanTopologyStatsRequestPeriodStartDate() {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        period.setStartDate("7");
+        inputDto.setPeriod(period);
+
+        final PlanTopologyStatsRequest request =
+                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getFilter().getStartDate(), is(7L));
+    }
+
+    @Test
+    public void testToPlanTopologyStatsRequestPeriodEndDate() {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        period.setEndDate("7");
+        inputDto.setPeriod(period);
+
+        final PlanTopologyStatsRequest request =
+                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getFilter().getEndDate(), is(7L));
+    }
+
+    @Test
+    public void testToPlanTopologyStatsRequestPeriodStats() {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statDto = new StatApiInputDTO();
+        statDto.setName("Wolf");
+        period.setStatistics(Collections.singletonList(statDto));
+        inputDto.setPeriod(period);
+
+        final PlanTopologyStatsRequest request =
+                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getFilter().getCommodityRequestsList(), containsInAnyOrder(
+            CommodityRequest.newBuilder()
+                .setCommodityName(statDto.getName())
+                .build()));
+    }
+
+    @Test
+    public void testToPlanTopologyStatsRequestRelatedType() {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setRelatedType("Cousin");
+
+        final PlanTopologyStatsRequest request =
+                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getRelatedEntityType(), is(inputDto.getRelatedType()));
+    }
+
+    @Test
+    public void testToPlanTopologyStatsRequestPaginationParams() {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+
+        final PlanTopologyStatsRequest request =
+                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
+    }
+
+    @Test
+    public void testToPlanTopologyStatsRequestScopes() {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Lists.newArrayList("1", "2"));
+
+        final PlanTopologyStatsRequest request =
+                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getEntityFilter().getEntityIdsList(), containsInAnyOrder(1L, 2L));
+    }
+
+    @Test
+    public void testToPlanTopologyStatsRequestEmptyScopes() {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Collections.emptyList());
+
+        final PlanTopologyStatsRequest request =
+                statsMapper.toPlanTopologyStatsRequest(PLAN_INSTANCE, inputDto, ENTITY_PAGINATION_REQUEST);
+        // Request shouldn't have an entity filter at all, instead of having an entity filter
+        // with no entity IDS.
+        assertFalse(request.hasEntityFilter());
+    }
+
+    private static final StatsFilter STATS_FILTER = StatsFilter.newBuilder()
+            .setStartDate(7777)
+            .build();
+
+    @Test
+    public void testClusterStatsRequest() {
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
+        final ClusterStatsRequest clusterStatsRequest =
+                statsMapper.toClusterStatsRequest("7", period);
+        assertThat(clusterStatsRequest.getClusterId(), is(7L));
+        assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
+    }
+
+    @Test
+    public void testAveragedEntityStatsRequestNoTempGroupType() {
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
+
+        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
+
+        final GetAveragedEntityStatsRequest request =
+                statsMapper.toAveragedEntityStatsRequest(uuids, period, Optional.empty());
+        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
+        assertThat(request.getFilter(), is(STATS_FILTER));
+    }
+
+    @Test
+    public void testAveragedEntityStatsRequestWithTempGroupType() {
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        final Optional<Integer> tempGroupType = Optional.of(1284);
+        when(statsMapper.newPeriodStatsFilter(period, tempGroupType)).thenReturn(STATS_FILTER);
+
+        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
+
+        final GetAveragedEntityStatsRequest request =
+                statsMapper.toAveragedEntityStatsRequest(uuids, period, tempGroupType);
+        assertTrue(request.getEntitiesList().isEmpty());
+        assertThat(request.getFilter(), is(STATS_FILTER));
+    }
+
+    @Test
+    public void testProjectedEntityStatsRequestIdsAndPaginationParams() {
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
+
+        final ProjectedEntityStatsRequest request =
+                statsMapper.toProjectedEntityStatsRequest(uuids, period, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
+        assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
+    }
+
+    @Test
+    public void testProjectedEntityStatsRequestStatistics() {
+        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+
+        final List<String> stats = Lists.newArrayList("peanut", "walnut");
+        period.setStatistics(stats.stream().map(name -> {
+            final StatApiInputDTO statDto = new StatApiInputDTO();
+            statDto.setName(name);
+            return statDto;
+        }).collect(Collectors.toList()));
+
+        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
+
+        final ProjectedEntityStatsRequest request =
+                statsMapper.toProjectedEntityStatsRequest(uuids, period, ENTITY_PAGINATION_REQUEST);
+
+        assertThat(request.getCommodityNameList(), containsInAnyOrder(stats.toArray()));
     }
 
     private void verifyMappedStatRecord(StatRecord test,
