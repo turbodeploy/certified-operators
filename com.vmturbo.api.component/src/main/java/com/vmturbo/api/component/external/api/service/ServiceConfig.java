@@ -130,7 +130,8 @@ public class ServiceConfig {
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.getRealtimeTopologyContextId(),
-                communicationConfig.supplyChainFetcher()
+                communicationConfig.supplyChainFetcher(),
+                mapperConfig.paginationMapper()
         );
     }
 
@@ -141,6 +142,7 @@ public class ServiceConfig {
                 communicationConfig.groupRpcService(),
                 mapperConfig.actionSpecMapper(),
                 mapperConfig.groupMapper(),
+                mapperConfig.paginationMapper(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
@@ -170,6 +172,8 @@ public class ServiceConfig {
                 communicationConfig.planRpcService(),
                 mapperConfig.policyMapper(),
                 mapperConfig.marketMapper(),
+                mapperConfig.statsMapper(),
+                mapperConfig.paginationMapper(),
                 communicationConfig.groupRpcService(),
                 communicationConfig.repositoryRpcService(),
                 websocketConfig.websocketHandler());
@@ -252,6 +256,7 @@ public class ServiceConfig {
                 communicationConfig.groupExpander(),
                 communicationConfig.supplyChainFetcher(),
                 mapperConfig.groupMapper(),
+                mapperConfig.paginationMapper(),
                 mapperConfig.groupUseCaseParser(),
                 mapperConfig.uuidMapper(),
                 communicationConfig.getRealtimeTopologyContextId());
@@ -276,8 +281,9 @@ public class ServiceConfig {
         return new StatsService(communicationConfig.historyRpcService(),
                 communicationConfig.planRpcService(),
                 communicationConfig.repositoryApi(),
-                repositoryClientConfig.repositoryClient(),
+                communicationConfig.repositoryRpcService(),
                 communicationConfig.supplyChainFetcher(),
+                mapperConfig.statsMapper(),
                 communicationConfig.groupExpander(),
                 Clock.systemUTC(),
                 targetService(),

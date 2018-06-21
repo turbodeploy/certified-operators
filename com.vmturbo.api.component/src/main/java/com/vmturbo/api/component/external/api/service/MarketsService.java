@@ -92,6 +92,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
@@ -127,6 +128,10 @@ public class MarketsService implements IMarketsService {
 
     private final MarketMapper marketMapper;
 
+    private final StatsMapper statsMapper;
+
+    private final PaginationMapper paginationMapper;
+
     private final UINotificationChannel uiNotificationChannel;
 
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
@@ -136,6 +141,8 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final PlanServiceBlockingStub planRpcService,
                           @Nonnull final PolicyMapper policyMapper,
                           @Nonnull final MarketMapper marketMapper,
+                          @Nonnull final StatsMapper statsMapper,
+                          @Nonnull final PaginationMapper paginationMapper,
                           @Nonnull final GroupServiceBlockingStub groupRpcService,
                           @Nonnull final RepositoryServiceBlockingStub repositoryRpcService,
                           @Nonnull final UINotificationChannel uiNotificationChannel) {
@@ -149,6 +156,8 @@ public class MarketsService implements IMarketsService {
         this.uiNotificationChannel = Objects.requireNonNull(uiNotificationChannel);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
         this.repositoryRpcService = Objects.requireNonNull(repositoryRpcService);
+        this.statsMapper = Objects.requireNonNull(statsMapper);
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
     }
 
     /**
@@ -240,7 +249,7 @@ public class MarketsService implements IMarketsService {
             FilteredActionRequest.newBuilder()
                 .setTopologyContextId(apiId.oid())
                 .setFilter(filter)
-                .setPaginationParams(PaginationMapper.toProtoParams(paginationRequest))
+                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                 .build());
         final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
             response.getActionsList().stream()
@@ -554,29 +563,38 @@ public class MarketsService implements IMarketsService {
         }
 
         final PlanInstance planInstance = planInstanceOptional.getPlanInstance() ;
-        final PlanTopologyStatsRequest planStatsRequest = StatsMapper.toPlanTopologyStatsRequest(
-                planInstance, statScopesApiInputDTO);
-        // return the stats for each entity in the response
-        final List<EntityStatsApiDTO> entityStatsList = new ArrayList<>();
-        repositoryRpcService.getPlanTopologyStats(planStatsRequest).forEachRemaining(entityStats -> {
-            EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
-            ServiceEntityApiDTO serviceEntityApiDTO = ServiceEntityMapper.toServiceEntityApiDTO(planEntity);
-            entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
-            entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
-            entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
-                    planEntity.getEntityType()));
-            entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
-            final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
-                    .getStatSnapshotsList()
-                    .stream()
-                    .map(StatsMapper::toStatSnapshotApiDTO)
-                    .collect(Collectors.toList());
-            entityStatsApiDTO.setStats(statSnapshotsList);
-            entityStatsList.add(entityStatsApiDTO);
-        });
+        final PlanTopologyStatsRequest planStatsRequest = statsMapper.toPlanTopologyStatsRequest(
+                planInstance, statScopesApiInputDTO, paginationRequest);
 
-        return paginationRequest.allResultsResponse(entityStatsList);
+        final PlanTopologyStatsResponse response = repositoryRpcService.getPlanTopologyStats(planStatsRequest);
+
+        final List<EntityStatsApiDTO> entityStatsList = response.getEntityStatsList().stream()
+                .map(entityStats -> {
+                    final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+                    final TopologyDTO.TopologyEntityDTO planEntity = entityStats.getPlanEntity();
+                    final ServiceEntityApiDTO serviceEntityApiDTO = ServiceEntityMapper.toServiceEntityApiDTO(planEntity);
+                    entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
+                    entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
+                    entityStatsApiDTO.setClassName(ServiceEntityMapper.toUIEntityType(
+                            planEntity.getEntityType()));
+                    entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
+                    final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
+                            .getStatSnapshotsList()
+                            .stream()
+                            .map(statsMapper::toStatSnapshotApiDTO)
+                            .collect(Collectors.toList());
+                    entityStatsApiDTO.setStats(statSnapshotsList);
+                    return entityStatsApiDTO;
+                })
+                .collect(Collectors.toList());
+
+        if (response.hasPaginationResponse()) {
+            return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
+                    .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor))
+                    .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList));
+        } else {
+            return paginationRequest.allResultsResponse(entityStatsList);
+        }
     }
 
     @Override
