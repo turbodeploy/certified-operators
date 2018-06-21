@@ -42,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
@@ -105,6 +106,38 @@ public class TopologyConverterTest {
                         .build();
     }
 
+    @Test
+    public void testConvertCommodityCloneWithNewType() {
+        TopologyDTO.TopologyEntityDTO topologyDTO = DTOWithProvisionedAndCloneWithNewTypeComm();
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+        TraderTO traderTO = converter.convertToMarket(Lists.newArrayList(topologyDTO)).iterator().next();
+        assertTrue(traderTO.getCommoditiesSold(1).getSpecification().getCloneWithNewType());
+    }
+
+    private TopologyDTO.TopologyEntityDTO DTOWithProvisionedAndCloneWithNewTypeComm() {
+        return TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setOid(100)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE)
+                                        .build())
+                        .build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.APPLICATION_VALUE)
+                                        .build())
+                        .build())
+                .build();
+    }
+
+    @Test
+    public void testProvisionedCommodityResizable() {
+        TopologyDTO.TopologyEntityDTO topologyDTO = DTOWithProvisionedAndCloneWithNewTypeComm();
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+        TraderTO traderTO = converter.convertToMarket(Lists.newArrayList(topologyDTO)).iterator().next();
+        assertFalse(traderTO.getCommoditiesSold(0).getSettings().getResizable());
+    }
     /**
      * Test loading one DTO. Verify the properties after the conversion match the file.
      * @throws IOException when the loaded file is missing
@@ -558,12 +591,12 @@ public class TopologyConverterTest {
         TopologyDTO.TopologyEntityDTO container = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setOid(1001L).setEntityType(40).build();
         TopologyDTO.TopologyEntityDTO virtualApp = TopologyDTO.TopologyEntityDTO.newBuilder()
-                        .setOid(1001L).setEntityType(26).build();
+                        .setOid(1002L).setEntityType(26).build();
         TopologyDTO.TopologyEntityDTO actionManager = TopologyDTO.TopologyEntityDTO.newBuilder()
-                        .setOid(1001L).setEntityType(22).build();
+                        .setOid(1003L).setEntityType(22).build();
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO);
         assertTrue(converter.convertToMarket(Arrays.asList(container, virtualApp, actionManager))
-                        .isEmpty());
+                        .size() == 2);
     }
 
     /**
@@ -599,6 +632,7 @@ public class TopologyConverterTest {
             is(((70.0f - (20.0f / 2.0f)) / 100.0f)));
         assertThat(trader.getSettings().getMaxDesiredUtilization(),
             is(((70.0f + (20.0f / 2.0f)) / 100.0f)));
+        assertTrue(trader.getSettings().getQuoteFactor() == AnalysisUtil.QUOTE_FACTOR);
 
         final TopologyEntityDTO oppositeEntityDTO = TopologyEntityDTO.newBuilder()
             .setEntityType(1)
@@ -620,6 +654,7 @@ public class TopologyConverterTest {
         assertTrue(traderTwo.getSettings().getIsShopTogether());
         assertTrue(traderTwo.getSettings().getClonable());
         assertTrue(traderTwo.getSettings().getSuspendable());
+        assertTrue(traderTwo.getSettings().getQuoteFactor() == AnalysisUtil.QUOTE_FACTOR);
     }
 
     @Test
