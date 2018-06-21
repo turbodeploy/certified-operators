@@ -548,7 +548,6 @@ public class TopologyConverter {
                             topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
-                    .setQuoteFactor(AnalysisUtil.QUOTE_FACTOR)
                     .build();
 
             //compute biclique IDs for this entity, the clique list will be used only for
@@ -1010,7 +1009,7 @@ public class TopologyConverter {
         }
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                         CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
-                        .setResizable(resizable && !AnalysisUtil.PROVISIONED_COMMODITIES.contains(type))
+                        .setResizable(resizable)
                         .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(
@@ -1110,8 +1109,6 @@ public class TopologyConverter {
             .setType(toMarketCommodityId(topologyCommodity))
             .setBaseType(topologyCommodity.getType())
             .setDebugInfoNeverUseInCode(commodityDebugInfo(topologyCommodity))
-            .setCloneWithNewType(AnalysisUtil.CLONE_COMMODITIES_WITH_NEW_TYPE
-                        .contains(topologyCommodity.getType()))
             .build();
         commoditySpecMap.put(new EconomyCommodityId(economyCommodity), topologyCommodity);
         return economyCommodity;
