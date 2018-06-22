@@ -32,7 +32,7 @@ public class PaginationMapper {
      *         the appropriate gRPC service.
      */
     @Nonnull
-    public static <T extends PaginationRequest<?, ?, ?>> PaginationParameters
+    public <T extends PaginationRequest<?, ?, ?>> PaginationParameters
             toProtoParams(@Nonnull final T request) {
         final PaginationParameters.Builder paramsBuilder = PaginationParameters.newBuilder()
                 .setLimit(request.getLimit())

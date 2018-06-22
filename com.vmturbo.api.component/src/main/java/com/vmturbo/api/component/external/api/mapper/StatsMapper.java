@@ -3,16 +3,16 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.kafka.common.metrics.Stat;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
@@ -29,13 +29,16 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -95,6 +98,12 @@ public class StatsMapper {
         StringConstants.RI_COUPON_UTILIZATION, StringConstants.RI_DISCOUNT
     );
 
+    private final PaginationMapper paginationMapper;
+
+    public StatsMapper(@Nonnull final PaginationMapper paginationMapper) {
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
+    }
+
     /**
      * Convert a protobuf Stats.StatSnapshot to an API DTO StatSnapshotApiDTO.
      *
@@ -109,13 +118,14 @@ public class StatsMapper {
      * @return a {@link StatSnapshotApiDTO} with fields initialized from the given StatSnapshot
      *
      **/
-    public static StatSnapshotApiDTO toStatSnapshotApiDTO(StatSnapshot statSnapshot) {
+    @Nonnull
+    public StatSnapshotApiDTO toStatSnapshotApiDTO(StatSnapshot statSnapshot) {
         final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
         if (statSnapshot.hasSnapshotDate()) {
             dto.setDate(statSnapshot.getSnapshotDate());
         }
         dto.setStatistics(statSnapshot.getStatRecordsList().stream()
-                .map(StatsMapper::toStatApiDto)
+                .map(this::toStatApiDto)
                 .collect(Collectors.toList()));
         return dto;
     }
@@ -129,9 +139,10 @@ public class StatsMapper {
      * @param entityStats the Stats.EntityStats to convert
      * @return a List of StatSnapshotApiDTO populated from the EntityStats
      */
-    public static List<StatSnapshotApiDTO> toStatsSnapshotApiDtoList(EntityStats entityStats) {
+    @Nonnull
+    public List<StatSnapshotApiDTO> toStatsSnapshotApiDtoList(EntityStats entityStats) {
         return entityStats.getStatSnapshotsList().stream()
-                .map(StatsMapper::toStatSnapshotApiDTO)
+                .map(this::toStatSnapshotApiDTO)
                 .collect(Collectors.toList());
     }
 
@@ -144,7 +155,8 @@ public class StatsMapper {
      *                   REST API caller.
      * @return a new instance of {@link StatApiDTO} initialized from given protobuf.
      */
-    private static StatApiDTO toStatApiDto(StatRecord statRecord) {
+    @Nonnull
+    private StatApiDTO toStatApiDto(StatRecord statRecord) {
         final StatApiDTO statApiDTO = new StatApiDTO();
         if (statRecord.getName().startsWith(STAT_RECORD_PREFIX_CURRENT)) {
             // The UI requires the name for both before and after plan values to be the same.
@@ -199,7 +211,7 @@ public class StatsMapper {
     }
 
     @Nonnull
-    private static Optional<StatFilterApiDTO> relationFilter(@Nonnull final String relation) {
+    private Optional<StatFilterApiDTO> relationFilter(@Nonnull final String relation) {
         return getUIValue(relation).map(uiRelation -> {
             final StatFilterApiDTO filter = new StatFilterApiDTO();
             filter.setType(RELATION_FILTER_TYPE);
@@ -215,8 +227,9 @@ public class StatsMapper {
      * @param statValue a {@link StatValue} protobuf to convert
      * @return a new instance of {@link StatValueApiDTO} initialized from the given protobuf
      */
-    private static StatValueApiDTO toStatValueApiDTO(StatValue statValue) {
-        StatValueApiDTO converted = new StatValueApiDTO();
+    @Nonnull
+    private StatValueApiDTO toStatValueApiDTO(@Nonnull final StatValue statValue) {
+        final StatValueApiDTO converted = new StatValueApiDTO();
         converted.setAvg(statValue.getAvg());
         converted.setMax(statValue.getMax());
         converted.setMin(statValue.getMin());
@@ -225,24 +238,80 @@ public class StatsMapper {
     }
 
     /**
-     * Create a {@link EntityStatsRequest} for a single UUID. Cascades into the List form.
-     * Note that if the stats query is for global temp group, we can speed up the query by set entity
-     * list as empty and set related entity type which will query pre-aggregated market stats table.
+     * Create a {@link GetAveragedEntityStatsRequest} for a group of UUIDs.
+     *
      *
      * @param entityIds gather stats for the entities with these IDs.
      * @param statApiInput a {@link StatApiInputDTO} specifying query options for this /stats query
      * @param tempGroupEntityType a optional entity type of temp group, if present, means it will query
      *                          stats from market stats table to speed up query.
-     * @return a new instance of {@link EntityStatsRequest} protobuf with fields set from the given statApiInput
+     * @return a new instance of {@link GetAveragedEntityStatsRequest} protobuf with fields set from the given statApiInput
      */
-    public static EntityStatsRequest toEntityStatsRequest(final Set<Long> entityIds,
-                                                          @Nonnull final StatPeriodApiInputDTO statApiInput,
-                                                          @Nonnull final Optional<Integer> tempGroupEntityType) {
-        final EntityStatsRequest.Builder entityStatsRequest = EntityStatsRequest.newBuilder()
+    @Nonnull
+    public GetAveragedEntityStatsRequest toAveragedEntityStatsRequest(
+                final Set<Long> entityIds,
+                @Nonnull final StatPeriodApiInputDTO statApiInput,
+                @Nonnull final Optional<Integer> tempGroupEntityType) {
+        final GetAveragedEntityStatsRequest.Builder entityStatsRequest =
+            GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(newPeriodStatsFilter(statApiInput, tempGroupEntityType));
-        final Set<Long> allEntityIds = tempGroupEntityType.isPresent() ? Collections.emptySet() : entityIds;
-        entityStatsRequest.addAllEntities(allEntityIds);
+
+        // If the stats query is for global temp group, we can speed up the query by setting entity
+        // list as empty and set the related entity type which will query the pre-aggregated
+        // market stats table. The related entity type should get set in the stats filter.
+        if (!tempGroupEntityType.isPresent()) {
+            entityStatsRequest.addAllEntities(entityIds);
+        }
         return entityStatsRequest.build();
+    }
+
+    /**
+     * Create a {@link GetEntityStatsRequest}.
+     *
+     * @param entityIds The IDs to get stats for.
+     * @param statApiInput A {@link StatApiInputDTO} specifying query options.
+     * @param paginationRequest A {@link EntityStatsPaginationRequest} specifying the pagination
+     *                          parameters.
+     * @return The {@link GetEntityStatsRequest} to use to call the history component.
+     */
+    @Nonnull
+    public GetEntityStatsRequest toEntityStatsRequest(
+            @Nonnull final Set<Long> entityIds,
+            @Nonnull final StatPeriodApiInputDTO statApiInput,
+            @Nonnull final EntityStatsPaginationRequest paginationRequest) {
+        return GetEntityStatsRequest.newBuilder()
+                .setFilter(newPeriodStatsFilter(statApiInput, Optional.empty()))
+                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                .addAllEntities(entityIds)
+                .build();
+    }
+
+    /**
+     * Create a {@link ProjectedEntityStatsRequest}.
+     *
+     * @param entityIds The IDs to get stats for.
+     * @param statApiInput A {@link StatApiInputDTO} specifying query options.
+     * @param paginationRequest A {@link EntityStatsPaginationRequest} specifying the pagination
+     *                          parameters.
+     * @return The {@link ProjectedEntityStatsRequest} to use to call the history component.
+     */
+    @Nonnull
+    public ProjectedEntityStatsRequest toProjectedEntityStatsRequest(
+            @Nonnull final Set<Long> entityIds,
+            @Nonnull final StatPeriodApiInputDTO statApiInput,
+            @Nonnull final EntityStatsPaginationRequest paginationRequest) {
+        // fetch the projected stats for each of the given entities
+        final ProjectedEntityStatsRequest.Builder requestBuilder =
+                ProjectedEntityStatsRequest.newBuilder()
+                        .addAllEntities(entityIds)
+                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+        if (CollectionUtils.isNotEmpty(statApiInput.getStatistics())) {
+            statApiInput.getStatistics().stream()
+                    .filter(statApiInputDto -> statApiInputDto.getName() != null)
+                    .map(StatApiInputDTO::getName)
+                    .forEach(requestBuilder::addCommodityName);
+        }
+        return requestBuilder.build();
     }
 
     /**
@@ -261,7 +330,7 @@ public class StatsMapper {
      *        given statApiInput
      */
     @Nonnull
-    private static StatsFilter newPeriodStatsFilter(
+    public StatsFilter newPeriodStatsFilter(
             @Nonnull final StatPeriodApiInputDTO statApiInput,
             @Nonnull final Optional<Integer> globalTempGroupEntityType) {
         final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder();
@@ -315,7 +384,7 @@ public class StatsMapper {
     }
 
     @Nonnull
-    private static StatValueApiDTO buildStatDTO(float value) {
+    private StatValueApiDTO buildStatDTO(float value) {
         // TODO: This conversion is a hack. Implement properly.
         final StatValueApiDTO stat = new StatValueApiDTO();
         stat.setAvg(value);
@@ -327,7 +396,7 @@ public class StatsMapper {
     }
 
     @Nonnull
-    private static Optional<String> getUIValue(@Nonnull final String dbValue) {
+    private Optional<String> getUIValue(@Nonnull final String dbValue) {
         final Optional<String> uiValue = dbToUiStatTypes.get(dbValue);
 
         if (uiValue == null) {
@@ -346,7 +415,7 @@ public class StatsMapper {
      * and stats names to be queried.
      */
     @Nonnull
-    public static ProjectedStatsRequest toProjectedStatsRequest(
+    public ProjectedStatsRequest toProjectedStatsRequest(
             @Nonnull final Set<Long> uuid,
             @Nonnull final StatPeriodApiInputDTO inputDto) {
         ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder().addAllEntities(uuid);
@@ -367,7 +436,8 @@ public class StatsMapper {
      * @param inputDto input DTO containing details of the request.
      * @return a ClusterStatsRequest object contain details from the input DTO.
      */
-    public static ClusterStatsRequest toClusterStatsRequest(
+    @Nonnull
+    public ClusterStatsRequest toClusterStatsRequest(
             @Nonnull final String uuid,
             @Nonnull final StatPeriodApiInputDTO inputDto) {
         return ClusterStatsRequest.newBuilder()
@@ -389,9 +459,10 @@ public class StatsMapper {
      * @return a request to fetch the plan stats from the Repository
      */
     @Nonnull
-    public static PlanTopologyStatsRequest toPlanTopologyStatsRequest(
+    public PlanTopologyStatsRequest toPlanTopologyStatsRequest(
             @Nonnull final PlanInstance planInstance,
-            @Nonnull final StatScopesApiInputDTO inputDto) {
+            @Nonnull final StatScopesApiInputDTO inputDto,
+            @Nonnull final EntityStatsPaginationRequest paginationRequest) {
 
         final Stats.StatsFilter.Builder planStatsFilter = Stats.StatsFilter.newBuilder();
         if (inputDto.getPeriod() != null) {
@@ -431,6 +502,8 @@ public class StatsMapper {
                 .addAllEntityIds(Collections2.transform(inputDto.getScopes(), Long::parseLong)));
         }
 
+        requestBuilder.setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
+
         return requestBuilder.build();
     }
 
@@ -440,7 +513,8 @@ public class StatsMapper {
      * @param relatedType the input type from the request.
      * @return the original 'relatedType' except that 'Cluster' is replaced by 'PhysicalMachine'
      */
-    public static String normalizeRelatedType(@Nonnull String relatedType) {
+    @Nonnull
+    public String normalizeRelatedType(@Nonnull String relatedType) {
         return relatedType.equals(EntityType.CLUSTER.getClsName()) ||
                 relatedType.equals(EntityType.DATA_CENTER.getClsName())?
                 EntityType.PHYSICAL_MACHINE.getClsName() : relatedType;

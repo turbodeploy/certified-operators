@@ -82,16 +82,20 @@ public class EntitiesService implements IEntitiesService {
 
     private final SupplyChainFetcherFactory supplyChainFetcher;
 
+    private final PaginationMapper paginationMapper;
+
     public EntitiesService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                            @Nonnull final ActionSpecMapper actionSpecMapper,
                            @Nonnull final RepositoryApi repositoryApi,
                            final long realtimeTopologyContextId,
-                           @Nonnull final SupplyChainFetcherFactory supplyChainFetcher) {
+                           @Nonnull final SupplyChainFetcherFactory supplyChainFetcher,
+                           @Nonnull final PaginationMapper paginationMapper) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.supplyChainFetcher = Objects.requireNonNull(supplyChainFetcher);
+        this.paginationMapper = Objects.requireNonNull(paginationMapper);
     }
 
     @Override
@@ -156,7 +160,7 @@ public class EntitiesService implements IEntitiesService {
                 FilteredActionRequest.newBuilder()
                         .setTopologyContextId(realtimeTopologyContextId)
                         .setFilter(filter)
-                        .setPaginationParams(PaginationMapper.toProtoParams(paginationRequest))
+                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                         .build());
 
         final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(

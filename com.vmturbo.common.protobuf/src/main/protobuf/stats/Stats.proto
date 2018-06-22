@@ -3,11 +3,12 @@ package stats;
 
 option java_package = "com.vmturbo.common.protobuf.stats";
 
+import "common/Pagination.proto";
 import "group/GroupDTO.proto";
 import "setting/Setting.proto";
 import "topology/TopologyDTO.proto";
 
-message EntityStatsRequest {
+message GetAveragedEntityStatsRequest {
     // The entities to gather stats for. These could be the IDs of individual entities, a plan,
     // or the global market.
     repeated int64 entities = 1;
@@ -17,6 +18,34 @@ message EntityStatsRequest {
 
     // The entity type to restrict stats to; if not set, include all entity types
     optional string relatedEntityType = 3;
+}
+
+message GetEntityStatsRequest {
+    // The entities to gather stats for. These could be the IDs of individual entities, a plan,
+    // or the global market.
+    repeated int64 entities = 1;
+
+    // The filter to apply to the stats. If not set, retrieve all stats.
+    optional StatsFilter filter = 2;
+
+    // The entity type to restrict stats to; if not set, include all entity types
+    optional string relatedEntityType = 3;
+
+    // The pagination parameters outlying the sort order, and previous cursor (if any).
+    // If not set, use the default instance of PaginationParameters. The backend
+    // will enforce a default ordering and limit, and retrieve the first page.
+    optional common.PaginationParameters pagination_params = 10;
+}
+
+// Response for per-entity stats from the database.
+message GetEntityStatsResponse {
+    // Stats for the retrieved entities.
+    // The stats are arranged in the order requested in the pagination parameters in
+    // the request.
+    repeated EntityStats entity_stats = 1;
+
+    // The response containing the cursor to retrieve the next page of results.
+    optional common.PaginationResponse pagination_response = 10;
 }
 
 message ClusterStatsRequest {
@@ -76,6 +105,31 @@ message ProjectedStatsRequest {
 
     // The commodities to retrieve.
     repeated string commodity_name = 2;
+}
+
+// Request for per-entity stats from the latest projected topology.
+message ProjectedEntityStatsRequest {
+    // The entities to gather stats for. If empty, get them for the whole topology!
+    repeated int64 entities = 1;
+
+    // The commodities to retrieve.
+    repeated string commodity_name = 2;
+
+    // The pagination parameters outlying the sort order, and previous cursor (if any).
+    // If not set, use the default instance of PaginationParameters. The backend
+    // will enforce a default ordering and limit, and retrieve the first page.
+    optional common.PaginationParameters pagination_params = 10;
+}
+
+// Response for per-entity stats from the latest projected topology.
+message ProjectedEntityStatsResponse {
+    // Stats for the retrieved entities.
+    // The stats are arranged in the order requested in the pagination parameters in
+    // the request.
+    repeated EntityStats entity_stats = 1;
+
+    // The response containing the cursor to retrieve the next page of results.
+    optional common.PaginationResponse pagination_response = 10;
 }
 
 // the top-level response for the snapshot - taken at a given time, for a time range, containing a set of records
@@ -250,10 +304,10 @@ message GetEntityCommoditiesMaxValuesRequest {
 service StatsHistoryService {
 
     //Get stats filtered by certain options and average over all entities listed in the request
-    rpc GetAveragedEntityStats(EntityStatsRequest) returns (stream StatSnapshot);
+    rpc GetAveragedEntityStats(GetAveragedEntityStatsRequest) returns (stream StatSnapshot);
 
     // Get stats separately for each entity listed in the request
-    rpc GetEntityStats(EntityStatsRequest) returns (stream EntityStats);
+    rpc GetEntityStats(GetEntityStatsRequest) returns (GetEntityStatsResponse);
 
     //Get stats filtered by certain options and average over all desired entities in the cluser.
     rpc GetClusterStats(ClusterStatsRequest) returns (stream StatSnapshot);
@@ -266,7 +320,7 @@ service StatsHistoryService {
      // Get per-entity stats from the latest projected topology.
     // Will return a response for each entity with no data if the stats service
     // doesn't have any projected stats.
-    rpc GetProjectedEntityStats(ProjectedStatsRequest) returns (stream EntityStats);
+    rpc GetProjectedEntityStats(ProjectedEntityStatsRequest) returns (ProjectedEntityStatsResponse);
 
     // Trigger a cluster-rollup computation for the given clusters.
     // Will return no significant data.

@@ -7,6 +7,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -30,11 +31,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Lists;
-
-import io.grpc.StatusRuntimeException;
-import io.grpc.stub.StreamObserver;
-
 import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,6 +39,11 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import com.google.common.collect.Lists;
+
+import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
@@ -50,10 +51,12 @@ import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
-import com.vmturbo.common.protobuf.stats.Stats.EntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
@@ -77,14 +80,14 @@ import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 /**
  * Test gRPC methods to handle snapshot requests.
  */
-public class StatsHistoryServiceTest {
+public class StatsHistoryRpcServiceTest {
 
     private static final long PLAN_UUID = 1L;
     private static final long ENTITY_UUID = 2L;
     private static final long PLAN_OID = PLAN_UUID;
     private static final Timestamp SNAPSHOT_TIME = new Timestamp(123L);
     private static final long REALTIME_CONTEXT_ID = 7L;
-    private StatsHistoryService statsHistoryService;
+    private StatsHistoryRpcService statsHistoryRpcService;
     private final long topologyContextId = 8L;
 
     @Mock
@@ -112,7 +115,7 @@ public class StatsHistoryServiceTest {
     private StreamObserver<ProjectedStatsResponse> mockProjectedStatsStreamObserver;
 
     @Mock
-    private StreamObserver<EntityStats> mockEntityStatsStreamObserver;
+    private StreamObserver<ProjectedEntityStatsResponse> mockProjectedEntityStatsObserver;
 
     @Mock
     private StreamObserver<SaveClusterHeadroomResponse> mockSaveClusterHeadroomStreamObserver;
@@ -139,7 +142,7 @@ public class StatsHistoryServiceTest {
     public void setUp() {
         MockitoAnnotations.initMocks(this);
 
-        statsHistoryService =  new StatsHistoryService(REALTIME_CONTEXT_ID,
+        statsHistoryRpcService =  new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
                 mockLivestatsreader, mockPlanStatsReader,
                 mockClusterStatsReader, mockClusterStatsWriter,
                 historyDbio, mockProjectedStatsStore);
@@ -172,11 +175,12 @@ public class StatsHistoryServiceTest {
 
         when(mockLivestatsreader.getStatsRecords(anyObject(), anyObject(), anyObject(), anyObject()))
                 .thenReturn(statsRecordsList);
-        Stats.EntityStatsRequest.Builder testStatsRequest = Stats.EntityStatsRequest.newBuilder();
+        Stats.GetAveragedEntityStatsRequest.Builder testStatsRequest =
+                Stats.GetAveragedEntityStatsRequest.newBuilder();
         testStatsRequest.addAllEntities(entities);
 
         // Act
-        statsHistoryService.getAveragedEntityStats(testStatsRequest.build(),
+        statsHistoryRpcService.getAveragedEntityStats(testStatsRequest.build(),
                 mockStatSnapshotStreamObserver);
 
         // Assert
@@ -237,7 +241,7 @@ public class StatsHistoryServiceTest {
                 .addAllCommodityRequests(commodityRequests);
 
         // full 'Market' stats request has no entities
-        Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
+        Stats.GetAveragedEntityStatsRequest testStatsRequest = Stats.GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(reqStatsBuilder)
                 .build();
 
@@ -250,7 +254,7 @@ public class StatsHistoryServiceTest {
                 .thenReturn(statsRecordsList);
 
         // act
-        statsHistoryService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
+        statsHistoryRpcService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
 
         // assert
         verify(mockLivestatsreader).getFullMarketStatsRecords(eq(startDate), eq(endDate),
@@ -291,7 +295,7 @@ public class StatsHistoryServiceTest {
                 .build();
 
         // act
-        statsHistoryService.getAveragedEntityStats(EntityStatsRequest.newBuilder()
+        statsHistoryRpcService.getAveragedEntityStats(GetAveragedEntityStatsRequest.newBuilder()
             .addEntities(PLAN_UUID)
             .setFilter(requestedStats)
             .build(), mockStatSnapshotStreamObserver);
@@ -334,12 +338,12 @@ public class StatsHistoryServiceTest {
         when(mockLivestatsreader.getStatsRecords(eq(entityUuidsStr), eq(startDate), eq(endDate),
                 eq(commodityRequests))).thenReturn(statsRecordsList);
 
-        Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
+        Stats.GetAveragedEntityStatsRequest testStatsRequest = Stats.GetAveragedEntityStatsRequest.newBuilder()
                 .addAllEntities(entityUuids)
                 .setFilter(reqStatsBuilder)
                 .build();
         // act
-        statsHistoryService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
+        statsHistoryRpcService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
 
         // assert
         verify(mockLivestatsreader).getStatsRecords(eq(entityUuidsStr), eq(startDate), eq(endDate),
@@ -375,7 +379,7 @@ public class StatsHistoryServiceTest {
                 .setEndDate(endDate);
         final List<CommodityRequest> commodityRequests = buildCommodityRequests("c1");
         reqStatsBuilder.addAllCommodityRequests(commodityRequests);
-        Stats.EntityStatsRequest testStatsRequest = Stats.EntityStatsRequest.newBuilder()
+        Stats.GetAveragedEntityStatsRequest testStatsRequest = Stats.GetAveragedEntityStatsRequest.newBuilder()
                 .addAllEntities(queryEntityUuids)
                 .setFilter(reqStatsBuilder)
                 .build();
@@ -390,7 +394,7 @@ public class StatsHistoryServiceTest {
                 eq(commodityRequests))).thenReturn(statsRecordsList);
 
         // act
-        statsHistoryService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
+        statsHistoryRpcService.getAveragedEntityStats(testStatsRequest, mockStatSnapshotStreamObserver);
 
         // assert
         ArgumentCaptor<StatSnapshot> statSnapshotCaptor = ArgumentCaptor.forClass(StatSnapshot.class);
@@ -447,7 +451,7 @@ public class StatsHistoryServiceTest {
 
     @Test
     public void testDeletePlanStats() {
-        statsHistoryService.deletePlanStats(
+        statsHistoryRpcService.deletePlanStats(
                 createDeletePlanStatsRequest(topologyContextId),
                 mockDeletePlanStatsStreamObserver);
         verify(mockDeletePlanStatsStreamObserver).onNext(anyObject());
@@ -457,7 +461,7 @@ public class StatsHistoryServiceTest {
     @Test
     public void testDeletePlanStatsMissingParameter() {
 
-        statsHistoryService.deletePlanStats(
+        statsHistoryRpcService.deletePlanStats(
                 createDeletePlanStatsRequest(),
                 mockDeletePlanStatsStreamObserver);
 
@@ -473,7 +477,7 @@ public class StatsHistoryServiceTest {
         doThrow(dbException).when(historyDbio)
             .deletePlanStats(topologyContextId);
 
-        statsHistoryService.deletePlanStats(
+        statsHistoryRpcService.deletePlanStats(
             createDeletePlanStatsRequest(topologyContextId),
             mockDeletePlanStatsStreamObserver);
 
@@ -497,7 +501,7 @@ public class StatsHistoryServiceTest {
                 .thenReturn(Optional.of(statSnapshot));
 
         // act
-        statsHistoryService.getProjectedStats(request, mockProjectedStatsStreamObserver);
+        statsHistoryRpcService.getProjectedStats(request, mockProjectedStatsStreamObserver);
 
         // assert
         ArgumentCaptor<ProjectedStatsResponse> projecteStatsResponseCaptor =
@@ -520,7 +524,7 @@ public class StatsHistoryServiceTest {
         // arrange
         List<String> commodityNames = Lists.newArrayList("c1", "c2");
         final ArrayList<Long> entityOids = Lists.newArrayList(1L, 2L, 3L);
-        ProjectedStatsRequest request = ProjectedStatsRequest.newBuilder()
+        ProjectedEntityStatsRequest request = ProjectedEntityStatsRequest.newBuilder()
                 .addAllEntities(entityOids)
                 .addAllCommodityName(commodityNames)
                 .build();
@@ -549,28 +553,33 @@ public class StatsHistoryServiceTest {
                 commodityNamesSet)).thenReturn(Optional.of(statSnapshot3));
 
         // act
-        statsHistoryService.getProjectedEntityStats(request, mockEntityStatsStreamObserver);
+        statsHistoryRpcService.getProjectedEntityStats(request, mockProjectedEntityStatsObserver);
 
         // assert
-        ArgumentCaptor<EntityStats> entityStatsResponseCaptor =
-                ArgumentCaptor.forClass(EntityStats.class);
-        verify(mockEntityStatsStreamObserver, times(3)).onNext(entityStatsResponseCaptor.capture());
-        List<EntityStats> responseValues = entityStatsResponseCaptor.getAllValues();
-        assertThat(responseValues.size(), is(3));
-        assertThat(responseValues.get(0).getOid(), is(1L));
-        assertThat(responseValues.get(0).getStatSnapshotsCount(), is(1));
-        assertThat(responseValues.get(0).getStatSnapshotsList().get(0), is(statSnapshot1));
+        ArgumentCaptor<ProjectedEntityStatsResponse> entityStatsResponseCaptor =
+                ArgumentCaptor.forClass(ProjectedEntityStatsResponse.class);
+        verify(mockProjectedEntityStatsObserver)
+                .onNext(entityStatsResponseCaptor.capture());
+        final ProjectedEntityStatsResponse responseValues = entityStatsResponseCaptor.getValue();
+        // This is temporary, while pagination is not implemented.
+        assertFalse(responseValues.hasPaginationResponse());
 
-        assertThat(responseValues.get(1).getOid(), is(2L));
-        assertThat(responseValues.get(1).getStatSnapshotsCount(), is(1));
-        assertThat(responseValues.get(1).getStatSnapshotsList().get(0), is(statSnapshot2));
+        final List<EntityStats> statsList = responseValues.getEntityStatsList();
+        assertThat(statsList.size(), is(3));
+        assertThat(statsList.get(0).getOid(), is(1L));
+        assertThat(statsList.get(0).getStatSnapshotsCount(), is(1));
+        assertThat(statsList.get(0).getStatSnapshotsList().get(0), is(statSnapshot1));
 
-        assertThat(responseValues.get(2).getOid(), is(3L));
-        assertThat(responseValues.get(2).getStatSnapshotsCount(), is(1));
-        assertThat(responseValues.get(2).getStatSnapshotsList().get(0), is(statSnapshot3));
+        assertThat(statsList.get(1).getOid(), is(2L));
+        assertThat(statsList.get(1).getStatSnapshotsCount(), is(1));
+        assertThat(statsList.get(1).getStatSnapshotsList().get(0), is(statSnapshot2));
 
-        verify(mockEntityStatsStreamObserver).onCompleted();
-        verifyNoMoreInteractions(mockEntityStatsStreamObserver);
+        assertThat(statsList.get(2).getOid(), is(3L));
+        assertThat(statsList.get(2).getStatSnapshotsCount(), is(1));
+        assertThat(statsList.get(2).getStatSnapshotsList().get(0), is(statSnapshot3));
+
+        verify(mockProjectedEntityStatsObserver).onCompleted();
+        verifyNoMoreInteractions(mockProjectedEntityStatsObserver);
     }
 
 
@@ -599,7 +608,7 @@ public class StatsHistoryServiceTest {
                 .setNumVMs(numVMs)
                 .build();
 
-        statsHistoryService.saveClusterHeadroom(request, mockSaveClusterHeadroomStreamObserver);
+        statsHistoryRpcService.saveClusterHeadroom(request, mockSaveClusterHeadroomStreamObserver);
 
         verify(mockClusterStatsWriter).insertClusterStatsByDayRecord(clusterId,
                 "headroomVMs", "headroomVMs", BigDecimal.valueOf(headroom));
@@ -631,7 +640,7 @@ public class StatsHistoryServiceTest {
 
         when(mockClusterStatsReader.getStatsRecordsByDay(any(), any(), any(), any()))
                 .thenReturn(getMockStatRecords(clusterId, dates, commodityNames));
-        statsHistoryService.getClusterStats(request, mockStatSnapshotStreamObserver);
+        statsHistoryRpcService.getClusterStats(request, mockStatSnapshotStreamObserver);
 
         verify(mockStatSnapshotStreamObserver).onNext(captor.capture());
         final StatSnapshot capturedArgument = captor.getValue();
@@ -670,7 +679,7 @@ public class StatsHistoryServiceTest {
 
         when(mockClusterStatsReader.getStatsRecordsByDay(any(), any(), any(), any()))
                 .thenReturn(getMockStatRecords(clusterId, dates, commodityNames));
-        statsHistoryService.getClusterStats(request, mockStatSnapshotStreamObserver);
+        statsHistoryRpcService.getClusterStats(request, mockStatSnapshotStreamObserver);
 
         verify(mockStatSnapshotStreamObserver, times(3)).onNext(captor.capture());
         final List<StatSnapshot> capturedArgument = captor.getAllValues();
@@ -706,7 +715,7 @@ public class StatsHistoryServiceTest {
                         .addAllCommodityRequests(buildCommodityRequests(commodityNames))
                         .build())
                 .build();
-        statsHistoryService.getClusterStats(request, mockStatSnapshotStreamObserver);
+        statsHistoryRpcService.getClusterStats(request, mockStatSnapshotStreamObserver);
         verify(mockClusterStatsReader).getStatsRecordsByMonth(eq(Long.parseLong(clusterId)),
                 eq(startDate), eq(endDate), anyObject());
     }
@@ -752,7 +761,7 @@ public class StatsHistoryServiceTest {
                 .build();
         when(historyDbio.getStatsRetentionSettings())
                 .thenReturn(Collections.singletonList(expectedSetting));
-        statsHistoryService.getStatsDataRetentionSettings(
+        statsHistoryRpcService.getStatsDataRetentionSettings(
             GetStatsDataRetentionSettingsRequest.newBuilder().build(),
             mockGetStatsDataRetentionSettingsObserver);
 
@@ -779,7 +788,7 @@ public class StatsHistoryServiceTest {
             retentionPeriod)).thenReturn(Optional.of(expectedSetting));
 
         // Act
-        statsHistoryService.setStatsDataRetentionSetting(
+        statsHistoryRpcService.setStatsDataRetentionSetting(
             SetStatsDataRetentionSettingRequest.newBuilder()
                 .setRetentionSettingName(retentionSettingName)
                 .setRetentionSettingValue(retentionPeriod)
@@ -799,7 +808,7 @@ public class StatsHistoryServiceTest {
     @Test
     public void testSetStatsDataRetentionSettingMissingRequestParameters() {
 
-        statsHistoryService.setStatsDataRetentionSetting(
+        statsHistoryRpcService.setStatsDataRetentionSetting(
             SetStatsDataRetentionSettingRequest.newBuilder()
                 .setRetentionSettingName("numRetainedHours")
                 .build(),
@@ -819,7 +828,7 @@ public class StatsHistoryServiceTest {
         doThrow(dbException).when(historyDbio).setStatsDataRetentionSetting(
                 retentionSettingName, retentionPeriod);
 
-        statsHistoryService.setStatsDataRetentionSetting(
+        statsHistoryRpcService.setStatsDataRetentionSetting(
             SetStatsDataRetentionSettingRequest.newBuilder()
                 .setRetentionSettingName(retentionSettingName)
                 .setRetentionSettingValue(retentionPeriod)
@@ -843,7 +852,7 @@ public class StatsHistoryServiceTest {
                 .build();
         when(historyDbio.getAuditLogRetentionSetting())
                 .thenReturn(expectedSetting);
-        statsHistoryService.getAuditLogDataRetentionSetting(
+        statsHistoryRpcService.getAuditLogDataRetentionSetting(
             GetAuditLogDataRetentionSettingRequest.newBuilder().build(),
             mockGetAuditLogDataRetentionSettingObserver);
 
@@ -860,7 +869,7 @@ public class StatsHistoryServiceTest {
     @Test
     public void testSetAuditLogDataRetentionSettingMissingRequestParameters() {
 
-        statsHistoryService.setAuditLogDataRetentionSetting(
+        statsHistoryRpcService.setAuditLogDataRetentionSetting(
             SetAuditLogDataRetentionSettingRequest.newBuilder()
                 .build(),
             mockSetAuditLogDataRetentionSettingObserver);
@@ -878,7 +887,7 @@ public class StatsHistoryServiceTest {
         doThrow(dbException).when(historyDbio)
             .setAuditLogRetentionSetting(retentionPeriod);
 
-        statsHistoryService.setAuditLogDataRetentionSetting(
+        statsHistoryRpcService.setAuditLogDataRetentionSetting(
             SetAuditLogDataRetentionSettingRequest.newBuilder()
                 .setRetentionSettingValue(retentionPeriod)
                 .build(),
