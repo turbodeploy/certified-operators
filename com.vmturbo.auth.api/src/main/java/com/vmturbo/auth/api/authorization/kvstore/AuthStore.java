@@ -6,6 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.vmturbo.kvstore.IPublicKeyStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,12 +16,12 @@ import org.apache.logging.log4j.Logger;
  * backup for consistency across restarts.
  */
 @ThreadSafe
-public class ApiKVAuthStore implements IApiAuthStore {
+public class AuthStore implements IAuthStore {
 
     /**
      * The logger
      */
-    private final Logger logger = LogManager.getLogger(ApiKVAuthStore.class);
+    private final Logger logger = LogManager.getLogger(AuthStore.class);
 
     /**
      * The key/value store.
@@ -29,17 +30,27 @@ public class ApiKVAuthStore implements IApiAuthStore {
     private final KeyValueStore keyValueStore;
 
     /**
+     * The key/value store for other component's public key
+     */
+    @GuardedBy("storeLock")
+    private final IPublicKeyStore publicKeyStore;
+
+    /**
      * Locks for write operations on target storages.
      */
     private final Object storeLock = new Object();
+
 
     /**
      * Constructs the KV store.
      *
      * @param keyValueStore The underlying store backend.
+     * @param publicKeyStore The store to retrieve component's public key
      */
-    public ApiKVAuthStore(@Nonnull final KeyValueStore keyValueStore) {
+    public AuthStore(@Nonnull final KeyValueStore keyValueStore,
+                     @Nonnull final IPublicKeyStore publicKeyStore) {
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
+        this.publicKeyStore = Objects.requireNonNull(publicKeyStore);
     }
 
     /**
@@ -60,5 +71,13 @@ public class ApiKVAuthStore implements IApiAuthStore {
                 return null;
             }
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Optional<String> retrievePublicKey(final String namespace) {
+        return publicKeyStore.getPublicKey(namespace);
     }
 }

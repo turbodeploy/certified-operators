@@ -34,7 +34,10 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.api.serviceinterfaces.IAuthenticationService;
+import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
+import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
+import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 /**
@@ -69,8 +72,12 @@ public class AuthenticationService implements IAuthenticationService {
     /**
      * The verifier.
      */
-    @Autowired
     private final JWTAuthorizationVerifier verifier_;
+
+    /**
+     * To provide component based JWT token.
+     */
+    private final IComponentJwtStore componentJwtStore_;
 
     /**
      * The remote HTTP request.
@@ -85,22 +92,17 @@ public class AuthenticationService implements IAuthenticationService {
             "The Authorization Service is not responding";
 
     private final Logger logger = LogManager.getLogger(getClass());
-    /**
-     * Constructs the authentication service.
-     *
-     * @param authHost     The authentication host.
-     * @param authPort     The authentication port.
-     * @param verifier     The verifier.
-     * @param restTemplate The REST endpoint.
-     */
+
     public AuthenticationService(final @Nonnull String authHost,
                                  final int authPort,
                                  final @Nonnull JWTAuthorizationVerifier verifier,
-                                 final @Nonnull RestTemplate restTemplate) {
+                                 final @Nonnull RestTemplate restTemplate,
+                                 final @Nonnull IComponentJwtStore componentJwtStore) {
         authHost_ = authHost;
         authPort_ = authPort;
         verifier_ = verifier;
         restTemplate_ = restTemplate;
+        componentJwtStore_ = componentJwtStore;
     }
 
     /**
@@ -211,7 +213,7 @@ public class AuthenticationService implements IAuthenticationService {
                 authPort_,
                 restTemplate_,
                 verifier_);
-        Authentication result = authProvider.authorize(username, groupName, ipAddress);
+        Authentication result = authProvider.authorize(username, groupName, ipAddress, componentJwtStore_);
         return Optional.ofNullable((AuthUserDTO) result.getPrincipal());
     }
 

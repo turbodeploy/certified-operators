@@ -57,7 +57,7 @@ public class UsersService implements IUsersService {
     /**
      * The HTTP accept header.
      */
-    private static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
+    public static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
 
     /**
      * The logger.

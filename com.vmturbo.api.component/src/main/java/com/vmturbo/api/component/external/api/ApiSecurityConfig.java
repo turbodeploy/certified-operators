@@ -129,7 +129,7 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
             ImmutableList.copyOf(Iterables.transform(ExternalApiConfig.BASE_URL_MAPPINGS,
                     mappingsToBaseURI));
 
-    @Autowired
+    @Autowired(required = false)
     private SAMLUserDetailsService samlUserDetailsService;
 
     @Value("${samlEnabled:false}")

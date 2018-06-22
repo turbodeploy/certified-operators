@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -36,7 +37,7 @@ import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
-import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 
@@ -128,7 +129,7 @@ public class JwtContextUtil {
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         // mock providing public key to auth store
-        final IApiAuthStore apiAuthStore = new TestAuthStore(getPubKeyStr());
+        final IAuthStore apiAuthStore = new TestAuthStore(getPubKeyStr());
 
         // setup JWT ServerInterceptor
         final JwtServerInterceptor jwtInterceptor = new JwtServerInterceptor(apiAuthStore);
@@ -176,7 +177,7 @@ public class JwtContextUtil {
 
     }
 
-    private static class TestAuthStore implements IApiAuthStore {
+    private static class TestAuthStore implements IAuthStore {
 
         private final String pubKeyStr;
 
@@ -187,6 +188,11 @@ public class JwtContextUtil {
         @Override
         public String retrievePublicKey() {
             return pubKeyStr;
+        }
+
+        @Override
+        public Optional<String> retrievePublicKey(final String namespace) {
+            return Optional.empty();
         }
     }
 }
