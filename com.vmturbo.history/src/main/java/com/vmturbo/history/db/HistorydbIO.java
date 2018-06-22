@@ -11,6 +11,7 @@ import static com.vmturbo.history.schema.StringConstants.CAPACITY;
 import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
 import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
 import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
+import static com.vmturbo.history.schema.StringConstants.PRICE_INDEX;
 import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
 import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE;
 import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
@@ -29,6 +30,7 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +52,7 @@ import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Result;
 import org.jooq.Select;
+import org.jooq.SortField;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -63,6 +66,7 @@ import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
@@ -1029,5 +1033,107 @@ public class HistorydbIO extends BasedbIO {
         });
 
         return maxValues;
+    }
+
+    /**
+     * Given a list of entity oids, return paginated entity oids with order by corresponding price index.
+     * It will query related stats table based on input entity type. And at first, it tries to get
+     * max snapshot time for price index data, then perform sql pagination query on latest price index
+     * data. And there is one optimization that if the query is for global entities(all entities of input
+     * entity type), it will not generate "IN" condition.
+     *
+     * @param entityOids a list of entity oids candidates, the query results should be subset of them.
+     * @param entityType request entity type.
+     * @param paginationParameters {@link PaginationParameters}.
+     * @param isGlobal a boolean, it is true if candidates are all entities of input entity type.
+     * @return a list of entity oids after pagination.
+     * @throws VmtDbException if query failed.
+     */
+    public List<Long> paginateEntityByPriceIndex(@Nonnull final List<Long> entityOids,
+                                                 @Nonnull final int entityType,
+                                                 @Nonnull final PaginationParameters paginationParameters,
+                                                 final boolean isGlobal)
+            throws VmtDbException {
+        final Table dbTable = getLatestDbTableForEntityType(entityType);
+        final int skipCount = paginationParameters.hasCursor()
+                ? Integer.valueOf(paginationParameters.getCursor())
+                : 0;
+        try(Connection conn = transConnection()) {
+            Optional<Timestamp> maxTimestamp = queryPriceIndexMostRecentTimestamp(dbTable, conn);
+            if (!maxTimestamp.isPresent()) {
+                // if there is no price index data ready, use entity oid as the default sort order.
+                final Comparator<Long> comparator = Comparator.comparingLong(entityOid -> entityOid);
+                return entityOids.stream()
+                        .sorted(paginationParameters.getAscending() ? comparator : comparator.reversed())
+                        .skip(skipCount)
+                        .limit(paginationParameters.getLimit())
+                        .collect(Collectors.toList());
+            }
+            // first sort by price index average value.
+            final SortField<?> firstSortField = paginationParameters.getAscending()
+                    ? dField(dbTable, AVG_VALUE).asc()
+                    : dField(dbTable, AVG_VALUE).desc();
+            // second sort by entity uuid, because if there are multiple entities have same price index
+            // value, the order between them should be also stable.
+            final SortField<?> secondSortField = paginationParameters.getAscending()
+                    ? dField(dbTable, UUID).asc()
+                    : dField(dbTable, UUID).desc();
+
+            List<Long> results = using(conn)
+                    .select(dField(dbTable, UUID))
+                    .from(dbTable)
+                    .where(generateConditions(dbTable, maxTimestamp.get(), entityOids, isGlobal))
+                    .orderBy(firstSortField, secondSortField)
+                    .limit(skipCount, paginationParameters.getLimit())
+                    .fetch()
+                    .into(Long.class);
+            return results;
+        } catch (SQLException e) {
+            throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
+        }
+    }
+
+    /**
+     * Generate filter conditions, if input isGlobal is true, it will generate "IN" condition, because
+     * all entities in db table are possible candidates.
+     *
+     * @param dbTable database table to query.
+     * @param maxTimestamp the latest snapshot time for price index.
+     * @param entityOids a list of entity oids candidates.
+     * @param isGlobal a boolean, it is true if candidates are all entities of input entity type.
+     * @return a list of {@link Condition}.
+     */
+    private List<Condition> generateConditions(@Nonnull final Table dbTable,
+                                               @Nonnull final Timestamp maxTimestamp,
+                                               @Nonnull final List<Long> entityOids,
+                                               final boolean isGlobal) {
+        final List<Condition> conditions = Lists.newArrayList(
+                timestamp(dField(dbTable, SNAPSHOT_TIME)).eq(maxTimestamp),
+                str(dField(dbTable, PROPERTY_TYPE)).eq(PRICE_INDEX));
+        if (!isGlobal) {
+            conditions.add(((Field<Long>)(dField(dbTable, UUID))).in(entityOids));
+        }
+        return conditions;
+    }
+
+    /**
+     * Query db table to get latest snapshot time for price index data.
+     * @param dbTable database table to query.
+     * @param connection transactional connection.
+     * @return Optional of {@link Timestamp}.
+     */
+    private Optional<Timestamp> queryPriceIndexMostRecentTimestamp(@Nonnull final Table dbTable,
+                                                                   @Nonnull final Connection connection) {
+        final Field<?> snapshotTimeField = dField(dbTable, SNAPSHOT_TIME);
+        final Record1<Timestamp> snapshotTimeRecord = using(connection)
+                .select(timestamp(DSL.max(snapshotTimeField)))
+                .from(dbTable)
+                .where(str(dField(dbTable, PROPERTY_TYPE)).eq(PRICE_INDEX))
+                .fetchOne();
+        if (snapshotTimeRecord != null) {
+            Timestamp timestamp = snapshotTimeRecord.value1();
+            return Optional.of(timestamp);
+        }
+        return Optional.empty();
     }
 }

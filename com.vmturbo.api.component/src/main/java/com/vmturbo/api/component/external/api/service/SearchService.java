@@ -38,6 +38,7 @@ import com.vmturbo.api.component.external.api.mapper.GroupUseCaseParser;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.SearchMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -63,6 +64,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeveritiesResp
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.EntitySeverity;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTO.MultiEntityRequest;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -74,6 +76,9 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationResponse;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 
 /**
  * Service entry points to search the Repository.
@@ -93,6 +98,8 @@ public class SearchService implements ISearchService {
     private final SearchServiceBlockingStub searchServiceRpc;
 
     private final EntitySeverityServiceBlockingStub entitySeverityRpc;
+
+    private final StatsHistoryServiceBlockingStub statsHistoryServiceRpc;
 
     private final GroupMapper groupMapper;
 
@@ -114,6 +121,7 @@ public class SearchService implements ISearchService {
                   @Nonnull final TargetsService targetsService,
                   @Nonnull final SearchServiceBlockingStub searchServiceRpc,
                   @Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpcService,
+                  @Nonnull final StatsHistoryServiceBlockingStub statsHistoryServiceRpc,
                   @Nonnull GroupExpander groupExpander,
                   @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                   @Nonnull final GroupMapper groupMapper,
@@ -127,6 +135,7 @@ public class SearchService implements ISearchService {
         this.targetsService = Objects.requireNonNull(targetsService);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.entitySeverityRpc = Objects.requireNonNull(entitySeverityRpcService);
+        this.statsHistoryServiceRpc = Objects.requireNonNull(statsHistoryServiceRpc);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
@@ -327,6 +336,9 @@ public class SearchService implements ISearchService {
             final Search.SearchRequest searchRequest = searchRequestBuilder.build();
             return getServiceEntityPaginatedWithSeverity(inputDTO, nameQuery, paginationRequest,
                     expandedIds, searchRequest);
+        } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
+            return getServiceEntityPaginatedWithUtilization(inputDTO, nameQuery, paginationRequest,
+                    expandedIds, searchRequestBuilder.build(), isGlobalScope);
         } else {
             // TODO: Implement search entities order by utilization and cost.
             searchRequestBuilder.setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
@@ -336,11 +348,8 @@ public class SearchService implements ISearchService {
                     .map(SearchMapper::seDTO)
                     .collect(Collectors.toList());
             SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
-            final List<? extends BaseApiDTO> results = entities;
-            return PaginationProtoUtil.getNextCursor(
-                    response.getPaginationResponse())
-                    .map(nexCursor -> paginationRequest.nextPageResponse((List<BaseApiDTO>) results, nexCursor))
-                    .orElseGet(() -> paginationRequest.finalPageResponse((List<BaseApiDTO>) results));
+            return buildPaginationResponse(entities,
+                    response.getPaginationResponse(), paginationRequest);
         }
     }
 
@@ -368,15 +377,7 @@ public class SearchService implements ISearchService {
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
             @Nonnull final Search.SearchRequest searchRequest) {
-        final Set<Long> candidates;
-        // if query request doesn't contains any filter criteria, it can directly use expanded ids
-        // as results. Otherwise, it needs to query repository to get matched entity oids.
-        if (inputDTO.getCriteriaList().isEmpty() && StringUtils.isEmpty(nameQuery) && !expandedIds.isEmpty()) {
-            candidates = expandedIds;
-        } else {
-            candidates = searchServiceRpc.searchEntityOids(searchRequest).getEntitiesList().stream()
-                    .collect(Collectors.toSet());
-        }
+        final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds, searchRequest);
         /*
          The search query with order by severity workflow will be: 1: The query will first go to
          repository (if need) to get all candidates oids. 2: All candidates oids will passed to Action
@@ -411,9 +412,87 @@ public class SearchService implements ISearchService {
                         .collect(Collectors.toList());
         entities.forEach(entity -> entity.setSeverity(paginatedEntitySeverities.get(Long.valueOf(entity.getUuid()))));
 
+        return buildPaginationResponse(entities,
+                entitySeveritiesResponse.getPaginationResponse(), paginationRequest);
+    }
+
+    /**
+     * Search service entities with order by utilization. The query workflow will be: 1: query repository
+     * to get all matched candidates. 2: send all candidates to history component to get paginated
+     * entity oids with order by utilization. 3: query repository to get full entity information for
+     * those top x entity oids.
+     *
+     * @param inputDTO a Description of what search to conduct.
+     * @param nameQuery user specified search query for entity name.
+     * @param paginationRequest {@link SearchPaginationRequest}.
+     * @param expandedIds a list of entity oids after expanded.
+     * @param searchRequest {@link Search.SearchRequest}.
+     * @param isGlobalScope a boolean represents if search scope is global scope or not.
+     * @return
+     */
+    private SearchPaginationResponse getServiceEntityPaginatedWithUtilization(
+            @Nonnull final GroupApiDTO inputDTO,
+            @Nullable final String nameQuery,
+            @Nonnull final SearchPaginationRequest paginationRequest,
+            @Nonnull final Set<Long> expandedIds,
+            @Nonnull final Search.SearchRequest searchRequest,
+            @Nonnull final boolean isGlobalScope) {
+        // the search query with order by utilizaiton workflow will be: 1: query repository componnet
+        // to get all candidate entity oids. 2: query history component to get top X entity oids based
+        // on pagination parameters. 3: query repository to get full entity information only for top X entity oids.
+        final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds, searchRequest);
+        // if it is global scope and there is no other search criteria, it means all service entities
+        // of same entity type are search candidates.
+        final boolean isGlobalEntities =
+                isGlobalScope && inputDTO.getCriteriaList().isEmpty() && StringUtils.isEmpty(nameQuery);
+        final int entityType = ServiceEntityMapper.fromUIEntityType(inputDTO.getClassName());
+        GetPaginationEntityByUtilizationRequest request = GetPaginationEntityByUtilizationRequest.newBuilder()
+                .setEntityType(entityType)
+                .addAllEntityIds(candidates)
+                .setIsGlobal(isGlobalEntities)
+                .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                .build();
+        GetPaginationEntityByUtilizationResponse response =
+                statsHistoryServiceRpc.getPaginationEntityByUtilization(request);
+        final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
+                repositoryApi.getServiceEntitiesById(
+                        ServiceEntitiesRequest.newBuilder(Sets.newHashSet(response.getEntityIdsList())).build())
+                        .entrySet().stream()
+                        .filter(entry -> entry.getValue().isPresent())
+                        .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
+        // It is important to keep the order of entityIdsList, because they have already sorted by
+        // utilization.
+        final List<ServiceEntityApiDTO> entities = response.getEntityIdsList().stream()
+                .filter(serviceEntityMap::containsKey)
+                .map(serviceEntityMap::get)
+                .collect(Collectors.toList());
+        SeverityPopulator.populate(entitySeverityRpc, realtimeContextId, entities);
+        return buildPaginationResponse(entities, response.getPaginationResponse(), paginationRequest);
+    }
+
+    private Set<Long> getCandidateEntitiesForSearch(
+            @Nonnull final GroupApiDTO inputDTO,
+            @Nullable final String nameQuery,
+            @Nonnull final Set<Long> expandedIds,
+            @Nonnull final Search.SearchRequest searchRequest) {
+        final Set<Long> candidates;
+        // if query request doesn't contains any filter criteria, it can directly use expanded ids
+        // as results. Otherwise, it needs to query repository to get matched entity oids.
+        if (inputDTO.getCriteriaList().isEmpty() && StringUtils.isEmpty(nameQuery) && !expandedIds.isEmpty()) {
+            candidates = expandedIds;
+        } else {
+            candidates = searchServiceRpc.searchEntityOids(searchRequest).getEntitiesList().stream()
+                    .collect(Collectors.toSet());
+        }
+        return candidates;
+    }
+
+    private SearchPaginationResponse buildPaginationResponse(
+            @Nonnull List<ServiceEntityApiDTO> entities,
+            @Nonnull final PaginationResponse paginationResponse,
+            @Nonnull final SearchPaginationRequest paginationRequest) {
         final List<? extends BaseApiDTO> results = entities;
-        return PaginationProtoUtil.getNextCursor(
-                entitySeveritiesResponse.getPaginationResponse())
+        return PaginationProtoUtil.getNextCursor(paginationResponse)
                 .map(nexCursor -> paginationRequest.nextPageResponse((List<BaseApiDTO>) results, nexCursor))
                 .orElseGet(() -> paginationRequest.finalPageResponse((List<BaseApiDTO>) results));
     }
@@ -425,6 +504,10 @@ public class SearchService implements ISearchService {
      * @return true if input parameter contains global scope.
      */
     private boolean containsGlobalScope(@Nonnull final Set<String> scopes) {
+        if (scopes.isEmpty()) {
+            // if there is no specified scopes, it means it is a global scope.
+            return true;
+        }
         // if the scope list size is larger than default scope size, it will log a warn message.
         final int DEFAULT_MAX_SCOPE_SIZE = 50;
         if (scopes.size() >= DEFAULT_MAX_SCOPE_SIZE) {

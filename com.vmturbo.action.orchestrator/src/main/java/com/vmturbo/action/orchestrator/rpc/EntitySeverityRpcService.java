@@ -65,7 +65,7 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
         final PaginationParameters paginationParameters = request.getPaginationParams();
         if (paginationParameters.getLimit() <= 0) {
             throw new IllegalArgumentException("Illegal pagination limit: " +
-                    paginationParameters.getLimit() + ". Must be be a positive integer");
+                    paginationParameters.getLimit() + " must be a positive integer");
         }
         final long skipCount = paginationParameters.hasCursor() ? Long.valueOf(paginationParameters.getCursor()) : 0;
         final Comparator<Long> comparator = getComparator(optionalCache);

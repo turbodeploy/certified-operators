@@ -43,6 +43,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -75,6 +76,8 @@ public class Analysis {
     private final Logger logger = LogManager.getLogger();
 
     private final TopologyInfo topologyInfo;
+
+    private final double DEFAULT_PRICE_INDEX = 1.0;
 
     private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
         .withName("mkt_economy_scoping_duration_seconds")
@@ -276,8 +279,10 @@ public class Analysis {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(actionPlanBuilder::addAction);
-
-            priceIndexMessage = results.getPriceIndexMsg();
+            // Also add skipped service entities into price index messages.
+            priceIndexMessage = PriceIndexMessage.newBuilder(results.getPriceIndexMsg())
+                    .addAllPayload(generatePriceIndexForSkippedEntities(converter.getSkippedEntities()))
+                    .build();
             logger.info(logPrefix + "Completed successfully");
             processResultTime.observe();
             state = AnalysisState.SUCCEEDED;
@@ -309,6 +314,24 @@ public class Analysis {
         scopeEntities = traderTOs.stream()
                 .map(traderTO -> entityMap.get(traderTO.getOid()))
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Also add skipped service entities into price index messages. Otherwise, the price index message
+     * will miss those skipped service entities. And the default price index value is 1.0.
+     *
+     * @param skippedEntities a list of skipped service entities.
+     * @return a list of {@link PriceIndexMessagePayload}.
+     */
+    private List<PriceIndexMessagePayload> generatePriceIndexForSkippedEntities(
+            @Nonnull final List<TopologyEntityDTO> skippedEntities) {
+        return skippedEntities.stream()
+                .map(entity -> PriceIndexMessagePayload.newBuilder()
+                        .setOid(entity.getOid())
+                        .setPriceindexCurrent(DEFAULT_PRICE_INDEX)
+                        .setPriceindexProjected(DEFAULT_PRICE_INDEX)
+                        .build())
+                .collect(Collectors.toList());
     }
 
     /**

@@ -45,6 +45,7 @@ import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
@@ -54,6 +55,8 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
@@ -76,6 +79,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRe
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Test gRPC methods to handle snapshot requests.
@@ -134,6 +138,9 @@ public class StatsHistoryRpcServiceTest {
 
     @Mock
     private StreamObserver<SetAuditLogDataRetentionSettingResponse> mockSetAuditLogDataRetentionSettingObserver;
+
+    @Mock
+    private StreamObserver<GetPaginationEntityByUtilizationResponse> mockGetPaginationEntityByUtilizationObserver;
 
     @Captor
     ArgumentCaptor<StatSnapshot> captor;
@@ -895,5 +902,32 @@ public class StatsHistoryRpcServiceTest {
 
         verify(mockSetAuditLogDataRetentionSettingObserver).onError(
             any(VmtDbException.class));
+    }
+
+    @Test
+    public void testGetPaginationEntityByUtilization() throws Exception {
+        final GetPaginationEntityByUtilizationRequest request =
+                GetPaginationEntityByUtilizationRequest.newBuilder()
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .setIsGlobal(false)
+                        .addAllEntityIds(Lists.newArrayList(1L, 2L))
+                        .setPaginationParams(PaginationParameters.newBuilder()
+                                .setLimit(20))
+                .build();
+        when(historyDbio.paginateEntityByPriceIndex(request.getEntityIdsList(), request.getEntityType(),
+                PaginationParameters.newBuilder(request.getPaginationParams())
+                        .setLimit(request.getPaginationParams().getLimit() + 1)
+                        .build(),
+                request.getIsGlobal())).thenReturn(Lists.newArrayList(1L, 2L));
+        statsHistoryRpcService.getPaginationEntityByUtilization(request,
+                mockGetPaginationEntityByUtilizationObserver);
+        ArgumentCaptor<GetPaginationEntityByUtilizationResponse> responseCaptor =
+                ArgumentCaptor.forClass(GetPaginationEntityByUtilizationResponse.class);
+        verify(mockGetPaginationEntityByUtilizationObserver).onNext(responseCaptor.capture());
+        verify(mockGetPaginationEntityByUtilizationObserver).onCompleted();
+        final GetPaginationEntityByUtilizationResponse response = responseCaptor.getValue();
+        assertEquals(2L, response.getEntityIdsCount());
+        assertTrue(response.getEntityIdsList().containsAll(Lists.newArrayList(1L, 2L)));
+        assertFalse(response.getPaginationResponse().hasNextCursor());
     }
 }

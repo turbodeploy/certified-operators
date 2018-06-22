@@ -69,6 +69,10 @@ import com.vmturbo.common.protobuf.search.Search.SearchResponse;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationResponse;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
@@ -91,15 +95,19 @@ public class SearchServiceTest {
 
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
+    private StatsHistoryServiceMole historyServiceSpy = Mockito.spy(new StatsHistoryServiceMole());
 
     @Before
     public void setUp() throws Exception {
 
-        GrpcTestServer grpcTestServer = GrpcTestServer.newServer(searchServiceSpy, entitySeverityServiceSpy);
+        GrpcTestServer grpcTestServer = GrpcTestServer.newServer(searchServiceSpy, entitySeverityServiceSpy,
+                historyServiceSpy);
         grpcTestServer.start();
 
         SearchServiceBlockingStub searchGrpcStub =
                 SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
+        StatsHistoryServiceBlockingStub statsHistoryServiceStub =
+                StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         EntitySeverityServiceBlockingStub severityGrpcStub =
                 EntitySeverityServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         searchService = new SearchService(
@@ -109,6 +117,7 @@ public class SearchServiceTest {
                 targetsService,
                 searchGrpcStub,
                 severityGrpcStub,
+                statsHistoryServiceStub,
                 groupExpander,
                 supplyChainFetcherFactory,
                 groupMapper,
@@ -268,6 +277,27 @@ public class SearchServiceTest {
         assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
         assertEquals("1", results.get(0).getUuid());
         assertEquals("Critical", ((ServiceEntityApiDTO) results.get(0)).getSeverity());
+    }
+
+    @Test
+    public void testGetMembersBasedOnFilterUtilization() throws Exception {
+        GroupApiDTO request = new GroupApiDTO();
+        request.setClassName("PhysicalMachine");
+        request.setCriteriaList(Collections.emptyList());
+        Map<Long, Optional<ServiceEntityApiDTO>> serviceEntityMap = ImmutableMap.of(1L,
+                Optional.of(supplyChainTestUtils.createServiceEntityApiDTO(1L)));
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 10, true, SearchOrderBy.UTILIZATION.name());
+        when(historyServiceSpy.getPaginationEntityByUtilization(any())).thenReturn(
+                GetPaginationEntityByUtilizationResponse.newBuilder()
+                        .addAllEntityIds(Lists.newArrayList(1L))
+                        .build());
+        when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
+        SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest);
+        List<BaseApiDTO> results = response.getRawResults();
+        assertEquals(1, results.size());
+        assertTrue(results.get(0) instanceof ServiceEntityApiDTO);
+        assertEquals("1", results.get(0).getUuid());
     }
 
     @Test

@@ -23,6 +23,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -116,6 +117,10 @@ public class TopologyConverter {
      */
     private Map<Long, TopologyDTO.TopologyEntityDTO> entityOidToDto = Maps.newHashMap();
 
+    // Store skipped service entities which need to be added back to projected topology and price
+    // index messages.
+    private List<TopologyEntityDTO> skippedEntities = new ArrayList<>();
+
     // a map keeps shoppinglist oid to ShoppingListInfo which is a container for
     // shoppinglist oid, buyer oid, seller oid and commodity bought
     private final Map<Long, ShoppingListInfo> shoppingListOidToInfos = Maps.newHashMap();
@@ -150,6 +155,8 @@ public class TopologyConverter {
 
     public static final float MIN_DESIRED_UTILIZATION_VALUE = 0.0f;
     public static final float MAX_DESIRED_UTILIZATION_VALUE = 1.0f;
+
+
 
     /**
      * A non-shop-together TopologyConverter.
@@ -190,6 +197,7 @@ public class TopologyConverter {
             if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
                 || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())
                 || !includeByType(entityType)) {
+                skippedEntities.add(entity);
                 continue;
             } else {
                 entityOidToDto.put(entity.getOid(), entity);
@@ -204,6 +212,11 @@ public class TopologyConverter {
             }
         }
         return convertToMarket();
+    }
+
+    @Nonnull
+    public List<TopologyDTO.TopologyEntityDTO> getSkippedEntities() {
+        return Collections.unmodifiableList(skippedEntities);
     }
 
     /**

@@ -300,6 +300,23 @@ message GetEntityCommoditiesMaxValuesRequest {
     repeated int32 entityTypes = 1;
 }
 
+message GetPaginationEntityByUtilizationRequest {
+    repeated int64 entity_ids = 1;
+
+    optional int32 entity_type = 2;
+
+    // It is true, if all entities in request entity type are search candidates.
+    optional bool is_global = 3;
+
+    optional common.PaginationParameters pagination_params = 10;
+}
+
+message GetPaginationEntityByUtilizationResponse {
+    repeated int64 entity_ids = 1;
+
+    optional common.PaginationResponse pagination_response = 10;
+}
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -351,4 +368,6 @@ service StatsHistoryService {
     // Get the historic max values(within the stats retention period) for all the non-access commodities
     // for all entities of the given entity type.
     rpc GetEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest) returns (stream EntityCommoditiesMaxValues);
+
+    rpc GetPaginationEntityByUtilization(GetPaginationEntityByUtilizationRequest) returns (GetPaginationEntityByUtilizationResponse);
 }

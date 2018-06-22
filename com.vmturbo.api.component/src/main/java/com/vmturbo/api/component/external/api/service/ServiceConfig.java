@@ -258,6 +258,7 @@ public class ServiceConfig {
                 targetService(),
                 communicationConfig.searchServiceBlockingStub(),
                 communicationConfig.entitySeverityService(),
+                communicationConfig.historyRpcService(),
                 communicationConfig.groupExpander(),
                 communicationConfig.supplyChainFetcher(),
                 mapperConfig.groupMapper(),
