@@ -109,6 +109,9 @@
 
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
+
+        <!-- jackson version -->
+        <jackson.version>2.9.5</jackson.version>
     </properties>
 
     <prerequisites>
