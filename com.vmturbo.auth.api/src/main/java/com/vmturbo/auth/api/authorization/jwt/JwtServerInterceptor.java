@@ -22,7 +22,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 
 import com.vmturbo.auth.api.JWTKeyCodec;
-import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
 
 /**
  * Intercepting incoming calls before that are dispatched by {@link ServerCallHandler}.
@@ -38,7 +38,7 @@ public class JwtServerInterceptor implements ServerInterceptor {
     private static final ServerCall.Listener NOOP_LISTENER = new ServerCall.Listener() {
     };
     private static final Logger logger = LogManager.getLogger();
-    private final IAuthStore apiAuthStore;
+    private final IApiAuthStore apiAuthStore;
     /**
      * Locks for retrieving public key from Auth store.
      */
@@ -50,7 +50,7 @@ public class JwtServerInterceptor implements ServerInterceptor {
      *
      * @param apiAuthStore the API Auth store
      */
-    public JwtServerInterceptor(@Nonnull IAuthStore apiAuthStore) {
+    public JwtServerInterceptor(@Nonnull IApiAuthStore apiAuthStore) {
         Objects.requireNonNull(apiAuthStore);
         this.apiAuthStore = apiAuthStore;
     }

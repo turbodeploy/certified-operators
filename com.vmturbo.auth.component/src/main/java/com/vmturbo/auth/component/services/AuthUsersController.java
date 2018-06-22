@@ -182,7 +182,7 @@ public class AuthUsersController {
      * @return The compact representation of the Authorization Token if successful.
      * @throws Exception In case of an error adding user.
      */
-    @ApiOperation(value = "Authorize user")
+    @ApiOperation(value = "Authenticate user")
     @RequestMapping(value = "/authorize/{userName}/{ipaddress:.+}",
             method = RequestMethod.GET,
             produces = {MediaType.APPLICATION_JSON_VALUE})

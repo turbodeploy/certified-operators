@@ -16,7 +16,7 @@ import com.vmturbo.external.api.model.TargetApiDTO.CategoryEnum;
  **/
 public class StressProbeUtils {
 
-    private static final CategoryEnum STRESS_PROBE_CATEGORY = CategoryEnum.HYPERVISOR;
+    private static final String STRESS_PROBE_CATEGORY = "HYPERVISOR";
     private static final String STRESS_PROBE_TYPE = "Stress-SDK";
 
     /**
@@ -31,8 +31,8 @@ public class StressProbeUtils {
      */
     public static TargetApiDTO createTargetRequest(int topologySize) {
         final TargetApiDTO newTargetRequest = new TargetApiDTO();
-        newTargetRequest.setCategory(STRESS_PROBE_CATEGORY);
-        newTargetRequest.setType(STRESS_PROBE_TYPE);
+        newTargetRequest.setCategory(CategoryEnum.HYPERVISOR);
+//        newTargetRequest.setType(STRESS_PROBE_TYPE);
 
         Map<String, Object> accountFields = generateStressAccount(topologySize).getFieldMap();
         List<InputFieldApiDTO> inputFields = accountFields.entrySet().stream()

@@ -40,7 +40,7 @@ import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
-import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
@@ -103,10 +103,6 @@ public class AuthProvider {
      * The expiration time is 10 minutes.
      */
     private static final int TOKEN_EXPIRATION_MIN = 10;
-    public static final String UNABLE_TO_AUTHORIZE_THE_USER = "Unable to authorize the user: ";
-    public static final String WITH_GROUP = "with group: ";
-    public static final String AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER =
-            "AUDIT::SUCCESS: Success authenticating user: ";
 
     /**
      * The private key.
@@ -254,7 +250,7 @@ public class AuthProvider {
             // Persist
             Files.write(encryptionFile,
                         CryptoFacility.encrypt(privateKeyEncoded).getBytes(CHARSET_CRYPTO));
-            keyValueStore_.put(IAuthStore.KV_KEY, publicKeyEncoded);
+            keyValueStore_.put(IApiAuthStore.KV_KEY, publicKeyEncoded);
             privateKey_ = keyPair.getPrivate();
         } catch (IOException e) {
             throw new SecurityException(e);
@@ -330,7 +326,7 @@ public class AuthProvider {
                 byte[] keyBytes = Files.readAllBytes(encryptionFile);
                 String cipherText = new String(keyBytes, CHARSET_CRYPTO);
                 String token = CryptoFacility.decrypt(cipherText);
-                Optional<String> key = keyValueStore_.get(IAuthStore.KV_KEY);
+                Optional<String> key = keyValueStore_.get(IApiAuthStore.KV_KEY);
                 if (!key.isPresent()) {
                     throw new SecurityException("The public key is unavailable");
                 }
@@ -481,7 +477,7 @@ public class AuthProvider {
             throws AuthorizationException {
             reloadSSOConfiguration();
             return ssoUtil.authorizeSAMLUserInGroup(userName, groupName).map(role -> {
-                        logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
+                        logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
                         String uuid = ssoUsersToUuid_.get(userName);
                         if (uuid == null) {
                             uuid = String.valueOf(IdentityGenerator.next());
@@ -489,8 +485,7 @@ public class AuthProvider {
                         }
                         return generateToken(userName, uuid, ImmutableList.of(role),ipAddress);
                     }
-            ).orElseThrow(() -> new AuthorizationException(UNABLE_TO_AUTHORIZE_THE_USER
-                    + userName + WITH_GROUP + groupName));
+            ).orElseThrow(() -> new AuthorizationException("Unable to authorize the user " + userName));
     }
 
     /**
@@ -601,11 +596,10 @@ public class AuthProvider {
      * @param groupName The password.
      * @param ipAddress The user's IP address.
      * @return The JWTAuthorizationToken if successful.
-     * @throws AuthorizationException In case of error authenticating the user. We can get
+     * @throws AuthenticationException In case of error authenticating the user. We can get
      *                                 {@link SecurityException} in case of
-     * @throws SecurityException       In case of an internal error while authorizing an user.
+     * @throws SecurityException       In case of an internal error while authenticating an user.
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public @Nonnull JWTAuthorizationToken authorize(final @Nonnull String userName,
                                                        final @Nonnull String groupName,
                                                        final @Nonnull String ipAddress)
@@ -620,12 +614,11 @@ public class AuthProvider {
      * @param userName user name
      * @param ipAddress user IP address
      * @return user JWT token
-     * @throws AuthorizationException if SAML user doesn't exist
+     * @throws SecurityException if SAML user doesn't exist
      */
-    @PreAuthorize("hasRole('ADMINISTRATOR')")
     public @Nonnull JWTAuthorizationToken authorize(final @Nonnull String userName,
                                                     final @Nonnull String ipAddress)
-            throws AuthorizationException {
+            throws SecurityException {
         // Try local users first.
         Optional<String> json = getKVValue(composeUserInfoKey(PROVIDER.LDAP, userName));
 
@@ -635,16 +628,16 @@ public class AuthProvider {
                 UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
                 // Check the authentication.
                 if (!info.unlocked) {
-                    throw new AuthorizationException("AUDIT::NEGATIVE: Account is locked");
+                    throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
                 }
                 return authorizeSAMLUser(info, ipAddress);
 
             } catch (Exception e) {
                 logger_.error("AUDIT::FAILURE:AUTH: Error authorizing user: " + userName);
-                throw new AuthorizationException(e);
+                throw new SecurityException("Authorization failed", e);
             }
         }
-        throw new AuthorizationException("Authorization failed: " + userName);
+        throw new SecurityException("Authorization failed: " + userName);
     }
 
     /**

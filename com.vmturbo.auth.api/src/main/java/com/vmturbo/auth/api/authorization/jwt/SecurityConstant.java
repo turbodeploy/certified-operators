@@ -28,12 +28,4 @@ public class SecurityConstant {
      * key for JWT token
      */
     public static final Metadata.Key<String> JWT_METADATA_KEY = Metadata.Key.of("jwt", ASCII_STRING_MARSHALLER);
-
-    /**
-     * HTTP header attribute to identify component
-     */
-    public static final String COMPONENT_ATTRIBUTE = "x-turbo-component";
-
-    public static final String ROLE_STRING = "ROLE_";
-    public static final String ADMINISTRATOR = "administrator";
 }

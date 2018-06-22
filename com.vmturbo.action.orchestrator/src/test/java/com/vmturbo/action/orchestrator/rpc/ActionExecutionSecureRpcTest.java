@@ -47,8 +47,8 @@ import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
-import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
-import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.ApiKVAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
 import com.vmturbo.auth.test.JwtContextUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
@@ -267,7 +267,7 @@ public class ActionExecutionSecureRpcTest {
     @Test
     public void testAcceptActionWithoutPublicKey() throws Exception {
         // setup gRPC service with null public key server interceptor
-        final IAuthStore emptyApiAuthStore = mock(AuthStore.class);
+        final IApiAuthStore emptyApiAuthStore = mock(ApiKVAuthStore.class);
         when(emptyApiAuthStore.retrievePublicKey()).thenReturn(null); // Setting the public key to null
 
         // setup JWT ServerInterceptor with empty public key.

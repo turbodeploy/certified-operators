@@ -1,11 +1,5 @@
 package com.vmturbo.auth.component;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -14,6 +8,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.vmturbo.auth.api.authentication.AuthenticationException;
+import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
+import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
+import com.vmturbo.auth.api.authorization.kvstore.ApiKVAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
+import com.vmturbo.auth.api.authorization.spring.SpringMethodSecurityExpressionHandler;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.component.services.AuthUsersController;
+import com.vmturbo.auth.component.store.AuthProvider;
+import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.kvstore.MapKeyValueStore;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -21,7 +30,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
-import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,8 +47,7 @@ import org.springframework.security.access.vote.RoleVoter;
 import org.springframework.security.access.vote.UnanimousBased;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
-import org.springframework.security.config.annotation.method.configuration.GlobalMethodSecurityConfiguration;
+import org.springframework.security.config.annotation.method.configuration.*;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -58,29 +65,8 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
-import org.springframework.web.util.NestedServletException;
-
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import com.vmturbo.auth.api.authentication.AuthenticationException;
-import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
-import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
-import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
-import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
-import com.vmturbo.auth.api.authorization.spring.SpringMethodSecurityExpressionHandler;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
-import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
-import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
-import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
-import com.vmturbo.auth.component.services.AuthUsersController;
-import com.vmturbo.auth.component.store.AuthProvider;
-import com.vmturbo.kvstore.IPublicKeyStore;
-import com.vmturbo.kvstore.KeyValueStore;
-import com.vmturbo.kvstore.MapKeyValueStore;
-import com.vmturbo.kvstore.PublicKeyStore;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * The RestTest implements the REST component tests.
@@ -114,12 +100,10 @@ public class RestTest {
      */
     private static KeyValueStore kvStore = new MapKeyValueStore();
 
-    private static IPublicKeyStore publicKeyStore = Mockito.mock(PublicKeyStore.class);
-
     /**
      * The AUTH KV store
      */
-    private static IAuthStore apiKVStore = new AuthStore(kvStore, publicKeyStore);
+    private static IApiAuthStore apiKVStore = new ApiKVAuthStore(kvStore);
 
     /**
      * The K/V local auth store.
@@ -200,7 +184,7 @@ public class RestTest {
         }
 
         @Bean
-        public IAuthStore apiKVStore() {
+        public IApiAuthStore apiKVStore() {
             return apiKVStore;
         }
 
@@ -232,15 +216,6 @@ public class RestTest {
         return json;
     }
 
-    private String constructAddSSODTO(int suffix) {
-        AuthUserDTO dto = new AuthUserDTO(PROVIDER.LDAP, "user" + suffix,
-                constructPassword(suffix), null, null,
-                ImmutableList.of("ADMINISTRATOR", "USER"));
-        // For debigging purposes.
-        String json = GSON.toJson(dto, AuthUserDTO.class);
-        return json;
-    }
-
     private String constructLockDTO(int suffix) {
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, "user" + suffix, null,
                                           ImmutableList.of("ADMIN", "USER"));
@@ -251,40 +226,6 @@ public class RestTest {
     private MockHttpServletRequestBuilder postAdd(int suffix) {
         return post("/users/add")
                 .content(constructAddDTO(suffix))
-                .contentType(RET_TYPE)
-                .accept(RET_TYPE);
-    }
-
-    private MockHttpServletRequestBuilder postAddSSO(int suffix) {
-        return post("/users/add")
-                .content(constructAddSSODTO(suffix))
-                .contentType(RET_TYPE)
-                .accept(RET_TYPE);
-    }
-
-    private MockHttpServletRequestBuilder postAddSSO() {
-
-        ActiveDirectoryDTO activeDirectoryDTO = new ActiveDirectoryDTO("corp.vmturbo.com",
-                "dell1.corp.vmturbo.com",
-                false);
-        String json = GSON.toJson(activeDirectoryDTO, ActiveDirectoryDTO.class);
-        return post("/users/ad")
-                .content(json)
-                .contentType(RET_TYPE)
-                .accept(RET_TYPE);
-
-    }
-
-
-    private MockHttpServletRequestBuilder postAddSSOGroup() {
-
-        ActiveDirectoryGroupDTO activeDirectoryGroupDTO = new ActiveDirectoryGroupDTO("group",
-                "group",
-                "administrator");
-        String jsonGroup = GSON.toJson(activeDirectoryGroupDTO, ActiveDirectoryGroupDTO.class);
-
-        return post("/users/ad/groups")
-                .content(jsonGroup)
                 .contentType(RET_TYPE)
                 .accept(RET_TYPE);
     }
@@ -562,88 +503,6 @@ public class RestTest {
                .andExpect(status().isForbidden());
         Assert.assertTrue(checkAdminInit());
     }
-
-    // Happy path
-    @Test
-    public void testAuthorizeUser() throws Exception {
-        // The logon is here to work around the issue with the WebSecurity setup.
-        logon("ADMINISTRATOR");
-        String result = mockMvc.perform(postAddSSO(11))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user11", result);
-
-        // The authenticate call does not require any prior authentication.
-        //SecurityContextHolder.getContext().setAuthentication(null);
-
-        mockMvc.perform(get("/users/authorize/user11/10.10.10.1")
-                .accept(RET_TYPE))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        SecurityContextHolder.getContext().setAuthentication(null);
-    }
-
-    // Negative path
-    @Test
-    public void testAuthorizeInvalidUser() throws Exception {
-        // The logon is here to work around the issue with the WebSecurity setup.
-        logon("ADMINISTRATOR");
-        String result = mockMvc.perform(postAddSSO(1))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        Assert.assertEquals("users://user1", result);
-
-        // The authorization call require valid JWT token with administrator role
-        SecurityContextHolder.getContext().setAuthentication(null);
-        mockMvc.perform(get("/users/authorize/user1/10.10.10.1")
-                .accept(RET_TYPE))
-                .andExpect(status().is4xxClientError())
-                .andReturn().getResponse().getContentAsString();
-    }
-
-    // Happy path
-    @Test
-    public void testAuthorizeUserWithExternalGroup() throws Exception {
-        // The logon is here to work around the issue with the WebSecurity setup.
-        logon("ADMINISTRATOR");
-        String result = mockMvc.perform(postAddSSO())
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        result = mockMvc.perform(postAddSSOGroup())
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        mockMvc.perform(get("/users/authorize/user1/group/10.10.10.1")
-                .accept(RET_TYPE))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        SecurityContextHolder.getContext().setAuthentication(null);
-    }
-
-
-    // Negative path, note the Authorization exception is wrapped by NestedServletException
-    @Test(expected = NestedServletException.class)
-    public void testAuthorizeUserWithInvalidExternalGroup() throws Exception {
-        // The logon is here to work around the issue with the WebSecurity setup.
-        logon("ADMINISTRATOR");
-        String result = mockMvc.perform(postAddSSO())
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-
-        result = mockMvc.perform(postAddSSOGroup())
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        try {
-            // pass group1, wrong group
-            mockMvc.perform(get("/users/authorize/user1/group1/10.10.10.1")
-                    .accept(RET_TYPE))
-                    .andExpect(status().is4xxClientError())
-                    .andReturn().getResponse().getContentAsString();
-        } finally {
-            SecurityContextHolder.getContext().setAuthentication(null);
-        }
-    }
-
 
     @ControllerAdvice
     static class TestExceptionHandler {

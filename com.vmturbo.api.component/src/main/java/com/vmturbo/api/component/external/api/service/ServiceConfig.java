@@ -22,9 +22,7 @@ import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
-import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
-import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
@@ -38,7 +36,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
  */
 @Configuration
 @Import({SpringSecurityConfig.class, MapperConfig.class, CommunicationConfig.class,
-        RepositoryClientConfig.class, ReportingClientConfig.class,  PublicKeyStoreConfig.class})
+        RepositoryClientConfig.class, ReportingClientConfig.class})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
@@ -85,9 +83,6 @@ public class ServiceConfig {
     @Autowired
     private ServletContext servletContext;
 
-    @Autowired
-    private PublicKeyStoreConfig publicKeyStoreConfig;
-
     @Bean
     public ActionsService actionsService() {
         return new ActionsService(communicationConfig.actionsRpcService(),
@@ -104,11 +99,11 @@ public class ServiceConfig {
     @Bean
     public AuthenticationService authenticationService() {
         return new AuthenticationService(authConfig.getAuthHost(), authConfig.getAuthPort(),
-                securityConfig.verifier(), communicationConfig.serviceRestTemplate(), targetStore());
+                securityConfig.verifier(), communicationConfig.serviceRestTemplate());
     }
 
+    //TODO, conditional load it, but need to enable conditional Autowire in {@link ApiSecurityConfig}.
     @Bean
-    @Conditional(SAMLCondition.class)
     public SAMLUserDetailsService samlUserDetailsService() {
         return new SAMLUserDetailsServiceImpl();
     }
@@ -327,10 +322,5 @@ public class ServiceConfig {
     @Bean
     public WidgetSetsService widgetSetsService() {
         return new WidgetSetsService(communicationConfig.widgetsetsServiceBlockingStub());
-    }
-
-    @Bean
-    public ComponentJwtStore targetStore() {
-        return new ComponentJwtStore(publicKeyStoreConfig.publicKeyStore());
     }
 }
