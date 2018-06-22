@@ -18,6 +18,8 @@ import org.springframework.web.client.RestTemplate;
 import com.vmturbo.api.exceptions.InvalidCredentialsException;
 import com.vmturbo.api.exceptions.ServiceUnavailableException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
+import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
+import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 
 /**
  * Unit tests for when {@link AuthenticationService} dependencies, in particular REST
@@ -31,6 +33,7 @@ public class AuthenticationServiceDependencyTest {
     private AuthenticationService testAuthenticationService;
     private JWTAuthorizationVerifier mockVerifier;
     private RestTemplate mockRestTemplate;
+    private IComponentJwtStore componentJwtStore = Mockito.mock(ComponentJwtStore.class);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -43,7 +46,8 @@ public class AuthenticationServiceDependencyTest {
                 AUTH_HOST,
                 AUTH_PORT,
                 mockVerifier,
-                mockRestTemplate
+                mockRestTemplate,
+                componentJwtStore
         );
     }
 

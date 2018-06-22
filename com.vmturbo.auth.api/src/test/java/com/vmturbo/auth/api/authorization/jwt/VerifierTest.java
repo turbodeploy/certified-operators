@@ -9,15 +9,17 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
-import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
-import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
+
 import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authentication.ICredentials;
 import com.vmturbo.auth.api.authentication.credentials.CredentialsBuilder;
+import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 import io.jsonwebtoken.Claims;
@@ -28,6 +30,7 @@ import io.jsonwebtoken.SignatureException;
 import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 /**
  * Tests basic Verifier functions.
@@ -174,6 +177,98 @@ public class VerifierTest {
                 .getBody();
         Assert.assertEquals(IP_ADDRESS, claims.get(IP_ADDRESS_CLAIM,String.class));
     }
+
+    /**
+     * Happy test request with component JWT token.
+     */
+    @Test
+    public void tesAuthenticateWithComponentJWT() throws Exception {
+
+        Date dt = new Date();
+        Calendar c = Calendar.getInstance();
+        c.setTime(dt);
+        c.add(Calendar.DATE, 1);
+        dt = c.getTime();
+
+        KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
+        String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+        PrivateKey signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
+        PublicKey publicKey = keyPair.getPublic();
+
+        String compact = Jwts.builder().setSubject("subject")
+                .setExpiration(dt)
+                .claim(IAuthorizationVerifier.ROLE_CLAIM, ImmutableList.of("USER", "ADMINISTRATOR"))
+                .claim(IP_ADDRESS_CLAIM, IP_ADDRESS) // add IP address
+                .compressWith(CompressionCodecs.GZIP)
+                .signWith(SignatureAlgorithm.ES256, signingKey)
+                .compact();
+
+        // mock
+        IAuthStore authStore = Mockito.mock(AuthStore.class);
+
+        // Encode the public key.
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+
+        Mockito.when(authStore.retrievePublicKey(Mockito.anyString())).thenReturn(Optional.of(pubKeyStr));
+        JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
+        JWTAuthorizationVerifier verifier =
+                new JWTAuthorizationVerifier(authStore);
+        Collection<String> roles = new ArrayList<>();
+        roles.add("USER");
+        roles.add("ADMINISTRATOR");
+        AuthUserDTO authUserDTO = verifier.verifyComponent(token, "api-1");
+
+        Claims claims = Jwts.parser()
+                .setAllowedClockSkewSeconds(60)
+                .setSigningKey(publicKey)
+                .parseClaimsJws(compact)
+                .getBody();
+        Assert.assertEquals(IP_ADDRESS, claims.get(IP_ADDRESS_CLAIM,String.class));
+    }
+
+
+    /**
+     * Negative test request with component JWT token.
+     */
+    @Test(expected = io.jsonwebtoken.SignatureException.class)
+    public void tesAuthenticateWithInvalidComponentJWT() throws Exception {
+
+        Date dt = new Date();
+        Calendar c = Calendar.getInstance();
+        c.setTime(dt);
+        c.add(Calendar.DATE, 1);
+        dt = c.getTime();
+
+        KeyGenerator keyGenerator = new KeyGenerator().invoke();
+        KeyPair keyPair = keyGenerator.getKeyPair();
+        PublicKey publicKey = keyGenerator.getPublicKey();
+
+        KeyGenerator keyGenerator1 = new KeyGenerator().invoke();
+        PrivateKey signingKey1 = keyGenerator1.getSigningKey();
+        String compact = Jwts.builder().setSubject("subject")
+                .setExpiration(dt)
+                .claim(IAuthorizationVerifier.ROLE_CLAIM, ImmutableList.of("USER", "ADMINISTRATOR"))
+                .claim(IP_ADDRESS_CLAIM, IP_ADDRESS) // add IP address
+                .compressWith(CompressionCodecs.GZIP)
+                .signWith(SignatureAlgorithm.ES256, signingKey1) //sign private key 1
+                .compact();
+
+        // mock
+        IAuthStore authStore = Mockito.mock(AuthStore.class);
+
+        // Encode the public key.
+        String pubKeyStr = JWTKeyCodec.encodePublicKey(keyPair);
+
+        // try to verify original public key
+        Mockito.when(authStore.retrievePublicKey(Mockito.anyString())).thenReturn(Optional.of(pubKeyStr));
+        JWTAuthorizationToken token = new JWTAuthorizationToken(compact);
+        JWTAuthorizationVerifier verifier =
+                new JWTAuthorizationVerifier(authStore);
+        Collection<String> roles = new ArrayList<>();
+        roles.add("USER");
+        roles.add("ADMINISTRATOR");
+        AuthUserDTO authUserDTO = verifier.verifyComponent(token, "api-1");
+}
 
     /**
      * Happy test with roles match.
@@ -364,5 +459,31 @@ public class VerifierTest {
         } catch (AuthorizationException e) {
         }
         Assert.assertTrue(verifier.tokensCache_.isEmpty());
+    }
+
+    private class KeyGenerator {
+        private KeyPair keyPair;
+        private PrivateKey signingKey;
+        private PublicKey publicKey;
+
+        public KeyPair getKeyPair() {
+            return keyPair;
+        }
+
+        public PrivateKey getSigningKey() {
+            return signingKey;
+        }
+
+        public PublicKey getPublicKey() {
+            return publicKey;
+        }
+
+        public KeyGenerator invoke() {
+            keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
+            String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
+            signingKey = JWTKeyCodec.decodePrivateKey(privateKeyEncoded);
+            publicKey = keyPair.getPublic();
+            return this;
+        }
     }
 }

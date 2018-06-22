@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.communication;
 
+import static com.vmturbo.api.component.external.api.service.UsersService.HTTP_ACCEPT;
+
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +16,10 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -30,6 +36,9 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
+import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
+import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
+import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 
@@ -199,17 +208,16 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      * @param username  SAML user name
      * @param groupName SAML user group
      * @param remoteIpAddress SAML user requested IP address
-     * @return
-     * @throws AuthenticationException
+     * @param componentJwtStore API component JWT store
+     * @return authentication if valid
+     * @throws AuthenticationException when the roles are not found for the user
      */
     @Nonnull
-    public Authentication authorize(@Nonnull String username,
-                                    @Nonnull Optional<String> groupName,
-                                    @Nonnull String remoteIpAddress)
+    public Authentication authorize(@Nonnull final String username,
+                                    @Nonnull final Optional<String> groupName,
+                                    @Nonnull final String remoteIpAddress,
+                                    @Nonnull final IComponentJwtStore componentJwtStore)
             throws AuthenticationException {
-        // Initialize authorities
-        final Set<GrantedAuthority> grantedAuths = new HashSet<>();
-        //First try to authenticate AD users using Spring
         UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
                 .scheme("http")
                 .host(authHost_)
@@ -233,7 +241,14 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         );
 
         ResponseEntity<String> result;
-        result = restTemplate_.getForEntity(authRequest, String.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(HTTP_ACCEPT);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
+                componentJwtStore.generateToken().getCompactRepresentation());
+        headers.set(SecurityConstant.COMPONENT_ATTRIBUTE, componentJwtStore.getNamespace());
+        HttpEntity<List> entity = new HttpEntity<>(headers);
+        result = restTemplate_.exchange(authRequest, HttpMethod.GET, entity, String.class);
         JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
         return getAuthentication("SAML_DUMMY_PASS", username, token);
     }

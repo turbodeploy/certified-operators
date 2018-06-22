@@ -6,22 +6,25 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationToken;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
-import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 /**
@@ -29,6 +32,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
  */
 @ThreadSafe
 public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
+    public static final String AUTH_FAIL_AUTHENTICATION_HAS_FAILED = "::AUTH:FAIL: Authentication has failed";
     /**
      * The logger.
      */
@@ -61,7 +65,7 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
     /**
      * The KV store
      */
-    private final IApiAuthStore apiAuthKVStore_;
+    private final IAuthStore authStore;
 
     /**
      * The key used to sign a JWT token.
@@ -76,11 +80,12 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
     /**
      * For testing only.
      *
-     * @param publicKey The public key.
+     * @param publicKey The auth component public key.
      */
-    @VisibleForTesting JWTAuthorizationVerifier(final @Nonnull PublicKey publicKey) {
+    @VisibleForTesting
+    JWTAuthorizationVerifier(final @Nonnull PublicKey publicKey) {
         signatureVerificationKey_ = publicKey;
-        apiAuthKVStore_ = null;
+        this.authStore = null;
     }
 
     /**
@@ -88,14 +93,15 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
      * In case this bean is autowired, we want default constructor
      */
     private JWTAuthorizationVerifier() {
-        apiAuthKVStore_ = null;
+        authStore = null;
     }
 
     /**
      * Creates the verifier.
+     * @param authStore store to retrieve auth and other component's public key
      */
-    public JWTAuthorizationVerifier(final @Nonnull IApiAuthStore apiAuthKVStore) {
-        apiAuthKVStore_ = apiAuthKVStore;
+    public JWTAuthorizationVerifier(final @Nonnull IAuthStore authStore) {
+        this.authStore = authStore;
     }
 
     /**
@@ -138,7 +144,7 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
         // properly started when the verifier is being constructed.
         synchronized (this) {
             if (signatureVerificationKey_ == null && keyString == null) {
-                keyString = apiAuthKVStore_.retrievePublicKey();
+                keyString = authStore.retrievePublicKey();
                 if (keyString != null) {
                     signatureVerificationKey_ = JWTKeyCodec.decodePublicKey(keyString);
                 }
@@ -172,33 +178,54 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
             // We allow 60 seconds clock skew.
             final Jws<Claims> claims =
                     Jwts.parser().setAllowedClockSkewSeconds(CLOCK_SKEW_SEC)
-                        .setSigningKey(signatureVerificationKey_)
-                        .parseClaimsJws(token.getCompactRepresentation());
+                            .setSigningKey(signatureVerificationKey_)
+                            .parseClaimsJws(token.getCompactRepresentation());
             @SuppressWarnings("unchecked")
             final List<String> rolesPayload = (List<String>)claims.getBody().get(ROLE_CLAIM);
 
             // Check the role match if needed.
             rolesMatch(rolesPayload, expectedRoles);
-
-            // Add this to the cache.
-            logger.info("::AUTH:SUCCESS: Authentication successful for " +
-                        claims.getBody().getSubject());
-
-            // Add the new entry to the cache.
-            // Take into account the clock skew.
-            final long expirationTime_ms =
-                    (claims.getBody().getExpiration() == null) ? Long.MIN_VALUE :
-                    claims.getBody().getExpiration().getTime();
-            String subject = claims.getBody().getSubject();
-            String uuid = claims.getBody().get(UUID_CLAIM, String.class);
-            entry = new EntryStruct(expirationTime_ms + CLOCK_SKEW_SEC * 1000L,
-                                    rolesPayload, subject, uuid);
+            entry = getEntryStruct(rolesPayload, claims);
             tokensCache_.put(token, entry);
             return entry.asAuthUserDTO();
         } catch (Exception e) {
-            logger.error("::AUTH:FAIL: Authentication has failed");
+            logger.error(AUTH_FAIL_AUTHENTICATION_HAS_FAILED);
             throw new AuthorizationException(e);
         }
+    }
+
+    private EntryStruct getEntryStruct(final @Nonnull List<String> rolesPayload,  final Jws<Claims> claims) {
+        final EntryStruct entry;
+
+        // Add this to the cache.
+        logger.info("::AUTH:SUCCESS: Authentication successful for " +
+                claims.getBody().getSubject());
+
+        // Add the new entry to the cache.
+        // Take into account the clock skew.
+        final long expirationTime_ms =
+                (claims.getBody().getExpiration() == null) ? Long.MIN_VALUE :
+                        claims.getBody().getExpiration().getTime();
+        String subject = claims.getBody().getSubject();
+        String uuid = claims.getBody().get(UUID_CLAIM, String.class);
+        entry = new EntryStruct(expirationTime_ms + CLOCK_SKEW_SEC * 1000L,
+                rolesPayload, subject, uuid);
+        return entry;
+    }
+
+    @Override
+    public AuthUserDTO verifyComponent(final JWTAuthorizationToken token,
+                                       final String component) throws AuthorizationException {
+        return authStore.retrievePublicKey(component)
+                .map(JWTKeyCodec::decodePublicKey)
+                .map(publicKey ->
+                        Jwts.parser().setAllowedClockSkewSeconds(CLOCK_SKEW_SEC)
+                                .setSigningKey(publicKey)
+                                .parseClaimsJws(token.getCompactRepresentation())
+                ).map(claimsJws ->
+                                getEntryStruct((List<String>)claimsJws.getBody().get(ROLE_CLAIM), claimsJws)
+                ).map(EntryStruct::asAuthUserDTO)
+                .orElseThrow(() -> new AuthorizationException(AUTH_FAIL_AUTHENTICATION_HAS_FAILED));
     }
 
     /**
@@ -248,7 +275,7 @@ public class JWTAuthorizationVerifier implements IAuthorizationVerifier {
          */
         AuthUserDTO asAuthUserDTO() {
             return new AuthUserDTO(principal_, uuid_,
-                                   roles_ == null ? roles_ : ImmutableList.copyOf(roles_));
+                    roles_ == null ? roles_ : ImmutableList.copyOf(roles_));
         }
     }
 }

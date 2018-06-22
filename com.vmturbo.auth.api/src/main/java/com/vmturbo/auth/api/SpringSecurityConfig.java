@@ -4,10 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
-import com.vmturbo.auth.api.authorization.kvstore.ApiKVAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
 import com.vmturbo.auth.api.authorization.kvstore.AuthApiKVConfig;
-import com.vmturbo.auth.api.authorization.kvstore.IApiAuthStore;
+import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.authorization.spring.SpringMethodSecurityExpressionHandler;
+import com.vmturbo.kvstore.PublicKeyStoreConfig;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -28,14 +29,18 @@ import org.springframework.security.config.annotation.method.configuration.*;
  */
 @Configuration
 @EnableGlobalMethodSecurity(prePostEnabled = true)
-@Import(AuthApiKVConfig.class)
+@Import({AuthApiKVConfig.class, PublicKeyStoreConfig.class})
 public class SpringSecurityConfig extends GlobalMethodSecurityConfiguration {
     @Autowired
     private AuthApiKVConfig authApiKvConfig;
 
+    @Autowired
+    private PublicKeyStoreConfig publicKeyStoreConfig;
+
     @Bean
-    public IApiAuthStore apiAuthKVStore() {
-        return new ApiKVAuthStore(authApiKvConfig.authKeyValueStore());
+    public IAuthStore apiAuthKVStore() {
+        return new AuthStore(authApiKvConfig.authKeyValueStore(),
+                publicKeyStoreConfig.publicKeyStore());
     }
 
     /**

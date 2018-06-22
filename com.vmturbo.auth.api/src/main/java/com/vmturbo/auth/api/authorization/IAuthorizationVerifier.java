@@ -4,6 +4,7 @@ import java.util.Collection;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.Pair;
+import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 /**
@@ -27,4 +28,6 @@ public interface IAuthorizationVerifier {
     AuthUserDTO verify(final @Nonnull IAuthorizationToken token,
                        final @Nonnull Collection<String> expectedRoles)
             throws AuthorizationException;
+
+    AuthUserDTO verifyComponent(JWTAuthorizationToken token, String component) throws AuthorizationException;
 }

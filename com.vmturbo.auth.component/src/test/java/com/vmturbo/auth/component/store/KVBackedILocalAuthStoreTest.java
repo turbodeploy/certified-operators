@@ -15,7 +15,11 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
+import com.vmturbo.auth.api.authorization.AuthorizationException;
+import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
+import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
@@ -141,6 +145,82 @@ public class KVBackedILocalAuthStoreTest {
         Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
 
         Assert.assertNotNull(store.authenticate("user1", "password0", "10.10.10.1"));
+    }
+
+    // Happy path
+    @Test
+    public void testAuthorizationWithExternalUser() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+
+        boolean result = store.add(PROVIDER.LDAP, "user1", "password0",
+                ImmutableList.of("ADMIN", "USER"));
+        Assert.assertTrue(result);
+
+        Optional<String> jsonData = keyValueStore.get(PREFIX + PROVIDER.LDAP.name()
+                + "/USER1");
+        Assert.assertTrue(jsonData.isPresent());
+
+        AuthProvider.UserInfo
+                info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
+
+        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+
+        Assert.assertNotNull(store.authorize("user1", "10.10.10.1"));
+    }
+
+    @Test(expected = AuthorizationException.class)
+    public void testAuthorizationWithInvalidExternalUser() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+
+        boolean result = store.add(PROVIDER.LDAP, "user1", "password0",
+                ImmutableList.of("ADMIN", "USER"));
+        Assert.assertTrue(result);
+
+        Optional<String> jsonData = keyValueStore.get(PREFIX + PROVIDER.LDAP.name()
+                + "/USER1");
+        Assert.assertTrue(jsonData.isPresent());
+
+        AuthProvider.UserInfo
+                info = GSON.fromJson(jsonData.get(), AuthProvider.UserInfo.class);
+
+        Assert.assertEquals(ImmutableList.of("ADMIN", "USER"), info.roles);
+        // user2 is not the valid external user
+        Assert.assertNotNull(store.authorize("user2", "10.10.10.1"));
+    }
+
+
+    @Test
+    public void testAuthorizationWithExternalGroup() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+        ActiveDirectoryGroupDTO activeDirectoryGroupDTO = new ActiveDirectoryGroupDTO("group",
+                "group",
+                "administrator");
+        ActiveDirectoryDTO activeDirectoryDTO = new ActiveDirectoryDTO("corp.vmturbo.com",
+                "dell1.corp.vmturbo.com",
+                false);
+        store.createActiveDirectory(activeDirectoryDTO);
+        store.createActiveDirectoryGroup(activeDirectoryGroupDTO);
+
+        Assert.assertNotNull(store.authorize("user1", "group", "10.10.10.1"));
+    }
+
+    @Test(expected = AuthorizationException.class)
+    public void testAuthorizationWithInvalidExternalGroup() throws Exception {
+        KeyValueStore keyValueStore = new MapKeyValueStore();
+        AuthProvider store = new AuthProvider(keyValueStore);
+        ActiveDirectoryGroupDTO activeDirectoryGroupDTO = new ActiveDirectoryGroupDTO("group",
+                "group",
+                "administrator");
+        ActiveDirectoryDTO activeDirectoryDTO = new ActiveDirectoryDTO("corp.vmturbo.com",
+                "dell1.corp.vmturbo.com",
+                false);
+        store.createActiveDirectory(activeDirectoryDTO);
+        store.createActiveDirectoryGroup(activeDirectoryGroupDTO);
+        // group1 is not a valid group
+        Assert.assertNotNull(store.authorize("user1", "group1", "10.10.10.1"));
     }
 
     @Test
