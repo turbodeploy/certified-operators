@@ -369,7 +369,7 @@ services:
       - mediation-hpe3par:/home/turbonomic/data
     restart: always
 
- mediation-pure-prod:
+  mediation-pure-prod:
     extends:
       file: common-services.yml
       service: prod-component
