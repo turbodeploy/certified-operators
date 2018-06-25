@@ -51,7 +51,6 @@ public class EconomyScopedTopologyTest {
         final Trader t3 = addTrader(TRADER_TYPE_A, BASKET_1, CLIQUE_3);
         final Trader t4 = addTrader(TRADER_TYPE_B, BASKET_2, CLIQUE_1, CLIQUE_2);
         final Trader t5 = addTrader(TRADER_TYPE_C, BASKET_3);
-        @SuppressWarnings("unused")
         final Trader t6 = addTrader(TRADER_TYPE_C, BASKET_3).setState(TraderState.INACTIVE);
         buyer = addTrader(TRADER_TYPE_D, BASKET_4);
         topology.addBasketBought(3001, buyer, BASKET_1, oid(t1)).setMovable(true);
@@ -62,8 +61,8 @@ public class EconomyScopedTopologyTest {
         // The only common clique is #1, therefore sellers that are associated with clique #1
         // (t1, t2 and t4) are potential sellers, while trader t3 is not a potential seller.
         // Trader t5 is a potential seller because it is in a market with no cliques and it
-        // is active. Similarly, t6 is not because it is inactive.
-        expectedPotentialSellers = Sets.newHashSet(t1, t2, t4, t5);
+        // is active. Similarly, t6 is a potential seller because it is inactive.
+        expectedPotentialSellers = Sets.newHashSet(t1, t2, t4, t5, t6);
     }
 
     private static Trader addTrader(int sellerType, Basket basket, Long... cliques) {

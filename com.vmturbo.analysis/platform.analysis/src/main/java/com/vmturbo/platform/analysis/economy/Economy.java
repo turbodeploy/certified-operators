@@ -874,11 +874,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     @Override
     public Set<Trader> getPotentialSellers(Trader trader) {
         Collection<Market> markets = getMarketsAsBuyer(trader).values();
-        Set<Trader> nonCliqueSellers = markets.stream()
-                        .filter(market -> market.getCliques().isEmpty())
-                        .map(Market::getActiveSellers) // TODO: include inactive sellers (OM-34866)
-                        .flatMap(List::stream)
-                        .collect(Collectors.toSet());
+        Set<Trader> nonCliqueSellers = new HashSet<Trader>();
+        markets.stream()
+            .filter(market -> market.getCliques().isEmpty())
+            .forEach(m -> {
+                nonCliqueSellers.addAll(m.getActiveSellers());
+                nonCliqueSellers.addAll(m.getInactiveSellers());
+            });
         Set<Long> cliques = getCommonCliquesNonEmpty(trader);
         if (cliques.isEmpty()) {
             return nonCliqueSellers;
