@@ -25,7 +25,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -110,6 +109,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final ProjectedStatsStore projectedStatsStore;
 
+    private final EntityStatsPaginationParamsFactory paginationParamsFactory;
+
     private static final String CLUSTER_STATS_TYPE_HEADROOM_VMS = "headroomVMs";
     private static final String CLUSTER_STATS_TYPE_NUM_VMS = "numVMs";
 
@@ -131,7 +132,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                            @Nonnull final ClusterStatsReader clusterStatsReader,
                            @Nonnull final ClusterStatsWriter clusterStatsWriter,
                            @Nonnull final HistorydbIO historydbIO,
-                           @Nonnull final ProjectedStatsStore projectedStatsStore) {
+                           @Nonnull final ProjectedStatsStore projectedStatsStore,
+                           @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
@@ -139,6 +141,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.clusterStatsWriter = Objects.requireNonNull(clusterStatsWriter);
         this.historydbIO = Objects.requireNonNull(historydbIO);
         this.projectedStatsStore = Objects.requireNonNull(projectedStatsStore);
+        this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
     }
 
     /**
@@ -152,7 +155,10 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     public void getProjectedStats(@Nonnull final ProjectedStatsRequest request,
                 @Nonnull final StreamObserver<ProjectedStatsResponse> responseObserver) {
         final ProjectedStatsResponse.Builder builder = ProjectedStatsResponse.newBuilder();
-        projectedStatsStore.getStatSnapshot(request).ifPresent(builder::setSnapshot);
+        projectedStatsStore.getStatSnapshotForEntities(
+                new HashSet<>(request.getEntitiesList()),
+                new HashSet<>(request.getCommodityNameList()))
+            .ifPresent(builder::setSnapshot);
         responseObserver.onNext(builder.build());
         responseObserver.onCompleted();
     }
@@ -168,18 +174,10 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public void getProjectedEntityStats(@Nonnull final ProjectedEntityStatsRequest request,
                 @Nonnull final StreamObserver<ProjectedEntityStatsResponse> responseObserver) {
-        final Set<String> commodityNames = new HashSet<>(request.getCommodityNameList());
-        final Set<Long> targetEntities = new HashSet<>(request.getEntitiesList());
-        final ProjectedEntityStatsResponse.Builder respBuilder =
-                ProjectedEntityStatsResponse.newBuilder();
-        targetEntities.forEach(entityOid -> {
-            final EntityStats.Builder entityStatsBuilder = EntityStats.newBuilder()
-                    .setOid(entityOid);
-            projectedStatsStore.getStatSnapshotForEntities(Collections.singleton(entityOid),
-                    commodityNames).ifPresent(entityStatsBuilder::addStatSnapshots);
-            respBuilder.addEntityStats(entityStatsBuilder);
-        });
-        responseObserver.onNext(respBuilder.build());
+        responseObserver.onNext(projectedStatsStore.getEntityStats(
+                new HashSet<>(request.getEntitiesList()),
+                new HashSet<>(request.getCommodityNameList()),
+                paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
         responseObserver.onCompleted();
     }
 

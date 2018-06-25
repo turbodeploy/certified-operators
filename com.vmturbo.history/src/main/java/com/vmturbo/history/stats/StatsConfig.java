@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
 import com.vmturbo.history.db.HistoryDbConfig;
+import com.vmturbo.history.stats.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
 
@@ -44,12 +45,27 @@ public class StatsConfig {
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
+    @Value("${historyPaginationDefaultLimit}")
+    private int historyPaginationDefaultLimit;
+
+    @Value("${historyPaginationMaxLimit}")
+    private int historyPaginationMaxLimit;
+
+    @Value("${historyPaginationDefaultSortCommodity}")
+    private String historyPaginationDefaultSortCommodity;
+
     @Bean
     public StatsHistoryRpcService statsRpcService() {
         return new StatsHistoryRpcService(realtimeTopologyContextId, liveStatsReader(),
                 planStatsReader(), clusterStatsReader(), clusterStatsWriter(),
                 historyDbConfig.historyDbIO(),
-                projectedStatsStore());
+                projectedStatsStore(), paginationParamsFactory());
+    }
+
+    @Bean
+    public EntityStatsPaginationParamsFactory paginationParamsFactory() {
+        return new DefaultEntityStatsPaginationParamsFactory(historyPaginationDefaultLimit,
+                historyPaginationMaxLimit, historyPaginationDefaultSortCommodity);
     }
 
     @Bean

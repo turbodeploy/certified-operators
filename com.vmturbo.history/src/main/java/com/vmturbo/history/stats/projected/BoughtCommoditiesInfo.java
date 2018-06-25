@@ -71,6 +71,33 @@ class BoughtCommoditiesInfo {
     }
 
     /**
+     * Get the value of a particular commodity bought by a particular entity.
+     *
+     * @param entity The ID of the entity. It's a {@link Long} instead of a base type to avoid
+     *               autoboxing.
+     * @param commodityName The name of the commodity.
+     * @return The average used amount of all commodities matching the name bought by the entity.
+     *         This is the same formula we use to calculate "currentValue" for stat records.
+     *         Returns 0 if the entity does not buy the commodity.
+     */
+    double getValue(@Nonnull final Long entity,
+                    @Nonnull final String commodityName) {
+        final Map<Long, Multimap<Long, CommodityBoughtDTO>> boughtByEntityId =
+                boughtCommodities.get(commodityName);
+        double value = 0;
+        if (boughtByEntityId != null) {
+            final Multimap<Long, CommodityBoughtDTO> boughtByEntity = boughtByEntityId.get(entity);
+            if (boughtByEntity != null) {
+                for (final CommodityBoughtDTO dto : boughtByEntity.values()) {
+                    value += dto.getUsed();
+                }
+                value /= boughtByEntity.size();
+            }
+        }
+        return value;
+    }
+
+    /**
      * Get the accumulated information about a particular commodity bought by a set of entities.
      *
      * @param commodityName The name of the commodity. The names are derived from

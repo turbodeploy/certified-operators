@@ -3,6 +3,7 @@ package com.vmturbo.history.stats.projected;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -17,7 +18,16 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.history.stats.EntityStatsPaginationParams;
 
+/**
+ * The {@link TopologyCommoditiesSnapshot} contains information about bought and sold commodities
+ * in a topology, other than the price index (which arrives separately).
+ *
+ * It's constructed from the projected {@link TopologyEntityDTO}s broadcast by the market,
+ * and is immutable after construction.
+ */
 @Immutable
 class TopologyCommoditiesSnapshot {
 
@@ -88,8 +98,8 @@ class TopologyCommoditiesSnapshot {
      * in the topology.
      *
      * @param commodityNames The names of the commodities - must not be empty.
-     * @param targetEntities The OIDs of the target entities. If empty, return the records
-     *                       accumulated over all entities in the topology.
+     * @param targetEntities The entities to get the information from. If empty, accumulate
+     *                       information from the whole topology.
      * @return A stream of {@link StatRecord}s, with at most two {@link StatRecord}s for each
      *         commodity (bought, sold). Stream may be empty if no entities in the target set
      *         are buying or selling any of the commodities.
@@ -104,6 +114,50 @@ class TopologyCommoditiesSnapshot {
         return commodityNames.stream()
                 .flatMap(commodityName ->
                         getCommodityRecords(commodityName, targetEntities).stream());
+    }
+
+    /**
+     * Get a comparator that can be used to compare entity IDs according to the passed-in pagination
+     * parameters.
+     *
+     * @param paginationParams The {@link EntityStatsPaginationParams} used to order entities.
+     * @return A {@link Comparator} that can be used to compare entity IDs according to the
+     *         {@link EntityStatsPaginationParams}. If an entity ID is not in this snapshot, or
+     *         does not buy/sell the commodity, it will be considered smaller than any entity ID
+     *         that is in the snapshot and does buy/sell.
+     * @throws IllegalArgumentException If the sort commodity is invalid (e.g. price index, or
+     *         a global count statistic like numVMs).
+     */
+    @Nonnull
+    Comparator<Long> getEntityComparator(@Nonnull final EntityStatsPaginationParams paginationParams)
+            throws IllegalArgumentException {
+        final String sortCommodity = paginationParams.getSortCommodity();
+        if (entityCountInfo.isCountStat(sortCommodity)) {
+            throw new IllegalArgumentException("Can't order by count commodity: " +
+                    sortCommodity);
+        } else if (sortCommodity.equals(StringConstants.PRICE_INDEX)) {
+            throw new IllegalArgumentException("Can't order by price index in commodities snapshot.");
+        }
+
+        return (id1, id2) -> {
+            // For each entity, the commodity should either be sold or bought. An entity
+            // shouldn't buy and sell the same commodity.
+            final double id1StatValue = soldCommoditiesInfo.getValue(id1, sortCommodity) +
+                    boughtCommoditiesInfo.getValue(id1, sortCommodity);
+            final double id2StatValue = soldCommoditiesInfo.getValue(id2, sortCommodity) +
+                    boughtCommoditiesInfo.getValue(id2, sortCommodity);
+            final int valComparisonResult = paginationParams.isAscending() ?
+                    Double.compare(id1StatValue, id2StatValue) :
+                    Double.compare(id2StatValue, id1StatValue);
+            if (valComparisonResult == 0) {
+                // In order to have a stable sort, we use the entity ID as the secondary sorting
+                // parameter.
+                return paginationParams.isAscending() ?
+                        Long.compare(id1, id2) : Long.compare(id2, id1);
+            } else {
+                return valComparisonResult;
+            }
+        };
     }
 
     @Nonnull
@@ -130,5 +184,17 @@ class TopologyCommoditiesSnapshot {
 
             return retList;
         }
+    }
+
+    /**
+     * A factory for {@link TopologyCommoditiesSnapshot}, used for dependency
+     * injection for unit tests. We don't really need a factory otherwise, since
+     * all of these classes are private to the {@link ProjectedStatsStore} implementation.
+     */
+    interface TopologyCommoditiesSnapshotFactory {
+
+        @Nonnull
+        TopologyCommoditiesSnapshot createSnapshot(final @Nonnull RemoteIterator<TopologyEntityDTO> entities)
+                throws InterruptedException, TimeoutException, CommunicationException;
     }
 }

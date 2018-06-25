@@ -4,6 +4,8 @@ import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.CO
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_TYPE_WITH_KEY;
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_UNITS;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 
@@ -414,5 +416,61 @@ public class BoughtCommoditiesInfoTest {
 
         assertFalse(info.getAccumulatedRecord(COMMODITY,
                 Collections.singleton(VM_1.getOid())).isPresent());
+    }
+
+    @Test
+    public void testBoughtCommodityGetValue() {
+        final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
+        Mockito.when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+                .thenReturn(Optional.empty());
+
+        final TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .setOid(1)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(7)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(COMMODITY_TYPE)
+                                .setUsed(2)))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(8)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(COMMODITY_TYPE)
+                                .setUsed(8)))
+                .build();
+
+        final BoughtCommoditiesInfo info =
+                BoughtCommoditiesInfo.newBuilder()
+                        .addEntity(vm)
+                        .build(soldCommoditiesInfo);
+
+        // Should be the average of the two commodities bought.
+        assertThat(info.getValue(vm.getOid(), COMMODITY), is(5.0));
+    }
+
+    @Test
+    public void testBoughtCommodityGetValueMissingCommodity() {
+        final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
+        Mockito.when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+                .thenReturn(Optional.empty());
+
+        final BoughtCommoditiesInfo info =
+                BoughtCommoditiesInfo.newBuilder()
+                        .addEntity(VM_1)
+                        .build(soldCommoditiesInfo);
+        assertThat(info.getValue(VM_1.getOid(), "random commodity"), is(0.0));
+    }
+
+    @Test
+    public void testBoughtCommodityGetValueMissingEntity() {
+        final SoldCommoditiesInfo soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
+        Mockito.when(soldCommoditiesInfo.getCapacity(Mockito.anyString(), Mockito.anyLong()))
+                .thenReturn(Optional.empty());
+
+        final BoughtCommoditiesInfo info =
+                BoughtCommoditiesInfo.newBuilder()
+                        .addEntity(VM_1)
+                        .build(soldCommoditiesInfo);
+        assertThat(info.getValue(1234L, COMMODITY), is(0.0));
     }
 }

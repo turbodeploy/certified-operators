@@ -6,6 +6,9 @@ import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.CO
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY_UNITS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+
+import static org.hamcrest.Matchers.is;
 
 import java.util.Collections;
 
@@ -265,5 +268,44 @@ public class SoldCommoditiesInfoTest {
                 .build();
 
         assertFalse(info.getAccumulatedRecords("CPU", Sets.newHashSet(PM_1.getOid())).isPresent());
+    }
+
+    @Test
+    public void testSoldCommodityGetValue() {
+        final TopologyEntityDTO pm = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
+                .setOid(1)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(COMMODITY_TYPE)
+                        .setUsed(2))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(COMMODITY_TYPE_WITH_KEY)
+                        .setUsed(8))
+                .build();
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder()
+                .addEntity(pm)
+                .build();
+
+        // Because there are two commodities of the same type with different keys, we should
+        // get the average of the two used values.
+        assertThat(info.getValue(pm.getOid(), COMMODITY), is(5.0));
+    }
+
+    @Test
+    public void testSoldCommodityGetValueNoCommodity() {
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder()
+                .addEntity(PM_1)
+                .build();
+
+        assertThat(info.getValue(PM_1.getOid(), "beer"), is(0.0));
+    }
+
+    @Test
+    public void testSoldCommodityGetValueEntityNotFound() {
+        final SoldCommoditiesInfo info = SoldCommoditiesInfo.newBuilder()
+                .addEntity(PM_1)
+                .build();
+
+        assertThat(info.getValue(123L, COMMODITY), is(0.0));
     }
 }

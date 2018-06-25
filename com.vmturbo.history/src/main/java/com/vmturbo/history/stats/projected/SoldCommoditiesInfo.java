@@ -8,7 +8,9 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -52,6 +54,32 @@ class SoldCommoditiesInfo {
     @Nonnull
     static Builder newBuilder() {
         return new Builder();
+    }
+
+    /**
+     * Get the value of a particular commodity sold by a particular entity.
+     *
+     * @param entity The ID of the entity. It's a {@link Long} instead of a base type to avoid
+     *               autoboxing.
+     * @param commodityName The name of the commodity.
+     * @return The average used amount of all commodities matching the name sold by the entity.
+     *         This is the same formula we use to calculate "currentValue" for stat records.
+     *         Returns 0 if the entity does not sell the commodity.
+     */
+    double getValue(@Nonnull final Long entity,
+                    @Nonnull final String commodityName) {
+        final Multimap<Long, CommoditySoldDTO> soldByEntityId = soldCommodities.get(commodityName);
+        double value = 0;
+        if (soldByEntityId != null) {
+            final Collection<CommoditySoldDTO> soldByEntity = soldByEntityId.get(entity);
+            if (CollectionUtils.isNotEmpty(soldByEntity)) {
+                for (final CommoditySoldDTO soldCommodity : soldByEntity) {
+                    value += soldCommodity.getUsed();
+                }
+                value /= soldByEntity.size();
+            }
+        }
+        return value;
     }
 
     /**

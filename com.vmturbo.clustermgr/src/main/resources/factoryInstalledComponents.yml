@@ -323,6 +323,9 @@ history:
   latestTableTimeWindowMin: 15
   numRetainedHours: 72
   numRetainedDays: 60
+  historyPaginationDefaultLimit: 100
+  historyPaginationMaxLimit: 500
+  historyPaginationDefaultSortCommodity: "priceIndex"
   mariadbHealthCheckIntervalSeconds: 60
   # note: excluded commodities are case-insensitive, but in mixed case here for readability
   # and to match exactly the values from discovery

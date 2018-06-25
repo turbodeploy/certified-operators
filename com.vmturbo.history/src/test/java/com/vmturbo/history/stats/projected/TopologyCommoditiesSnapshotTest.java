@@ -2,12 +2,18 @@ package com.vmturbo.history.stats.projected;
 
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.junit.Before;
@@ -15,6 +21,14 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.history.stats.EntityStatsPaginationParams;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 public class TopologyCommoditiesSnapshotTest {
 
@@ -32,16 +46,42 @@ public class TopologyCommoditiesSnapshotTest {
 
     @Before
     public void setup() {
-        soldCommoditiesInfo = Mockito.mock(SoldCommoditiesInfo.class);
-        Mockito.when(soldCommoditiesInfo.getAccumulatedRecords(Mockito.any(), Mockito.any()))
+        soldCommoditiesInfo = mock(SoldCommoditiesInfo.class);
+        when(soldCommoditiesInfo.getAccumulatedRecords(any(), any()))
                .thenReturn(Optional.empty());
-        boughtCommoditiesInfo = Mockito.mock(BoughtCommoditiesInfo.class);
-        Mockito.when(boughtCommoditiesInfo.getAccumulatedRecord(Mockito.any(), Mockito.any()))
+        boughtCommoditiesInfo = mock(BoughtCommoditiesInfo.class);
+        when(boughtCommoditiesInfo.getAccumulatedRecord(any(), any()))
                 .thenReturn(Optional.empty());
-        entityCountInfo = Mockito.mock(EntityCountInfo.class);
-        Mockito.when(entityCountInfo.getCountRecord(Mockito.any()))
+        entityCountInfo = mock(EntityCountInfo.class);
+        when(entityCountInfo.getCountRecord(any()))
                 .thenReturn(Optional.empty());
-        Mockito.when(entityCountInfo.isCountStat(Mockito.any())).thenReturn(false);
+        when(entityCountInfo.isCountStat(any())).thenReturn(false);
+    }
+
+    @Test
+    public void testCreateSnapshot() throws InterruptedException, TimeoutException, CommunicationException {
+        RemoteIterator<TopologyEntityDTO> entities = mock(RemoteIterator.class);
+        when(entities.hasNext()).thenReturn(true).thenReturn(false);
+        final TopologyEntityDTO entity = TopologyEntityDTO.newBuilder()
+                .setEntityType(10)
+                .setDisplayName("foo")
+                .setOid(77L)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                            .setType(CommodityType.MEM_VALUE))
+                        .setUsed(10))
+                .build();
+
+        when(entities.nextChunk()).thenReturn(Collections.singletonList(entity));
+        TopologyCommoditiesSnapshot snapshot =
+                TopologyCommoditiesSnapshot.newFactory().createSnapshot(entities);
+
+        assertThat(snapshot.getTopologySize(), is(1L));
+        final List<StatRecord> records =
+                snapshot.getRecords(Collections.singleton("Mem"), Collections.singleton(77L))
+                        .collect(Collectors.toList());
+        assertThat(records.size(), is(1));
+        assertThat(records.get(0).getCurrentValue(), is(10.0f));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -57,8 +97,8 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityCountCommodities() {
         final String statName = "count1";
 
-        Mockito.when(entityCountInfo.isCountStat(statName)).thenReturn(true);
-        Mockito.when(entityCountInfo.getCountRecord(Mockito.eq(statName)))
+        when(entityCountInfo.isCountStat(statName)).thenReturn(true);
+        when(entityCountInfo.getCountRecord(Mockito.eq(statName)))
                .thenReturn(Optional.of(DUMMY_1));
 
         TopologyCommoditiesSnapshot snapshot =
@@ -76,8 +116,8 @@ public class TopologyCommoditiesSnapshotTest {
     public void testEntityCountCommoditiesEmpty() {
         final String statName = "count1";
 
-        Mockito.when(entityCountInfo.isCountStat(statName)).thenReturn(true);
-        Mockito.when(entityCountInfo.getCountRecord(Mockito.eq(statName)))
+        when(entityCountInfo.isCountStat(statName)).thenReturn(true);
+        when(entityCountInfo.getCountRecord(Mockito.eq(statName)))
                .thenReturn(Optional.empty());
 
         TopologyCommoditiesSnapshot snapshot =
@@ -104,7 +144,7 @@ public class TopologyCommoditiesSnapshotTest {
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
                         entityCountInfo, 1);
         List<StatRecord> records =
-                snapshot.getRecords(Collections.singleton(ProjectedStatsStore.PRICE_INDEX_NAME),
+                snapshot.getRecords(Collections.singleton(StringConstants.PRICE_INDEX),
                         Collections.emptySet())
                 .collect(Collectors.toList());
         assertEquals(0, records.size());
@@ -135,7 +175,7 @@ public class TopologyCommoditiesSnapshotTest {
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
                         entityCountInfo, 1);
 
-        Mockito.when(soldCommoditiesInfo.getAccumulatedRecords(
+        when(soldCommoditiesInfo.getAccumulatedRecords(
                     Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
                .thenReturn(Optional.of(DUMMY_1));
 
@@ -153,7 +193,7 @@ public class TopologyCommoditiesSnapshotTest {
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
                         entityCountInfo, 1);
 
-        Mockito.when(boughtCommoditiesInfo.getAccumulatedRecord(
+        when(boughtCommoditiesInfo.getAccumulatedRecord(
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
                 .thenReturn(Optional.of(DUMMY_1));
 
@@ -171,10 +211,10 @@ public class TopologyCommoditiesSnapshotTest {
                 new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
                         entityCountInfo, 1);
 
-        Mockito.when(soldCommoditiesInfo.getAccumulatedRecords(
+        when(soldCommoditiesInfo.getAccumulatedRecords(
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
                 .thenReturn(Optional.of(DUMMY_1));
-        Mockito.when(boughtCommoditiesInfo.getAccumulatedRecord(
+        when(boughtCommoditiesInfo.getAccumulatedRecord(
                 Mockito.eq(COMMODITY), Mockito.eq(Collections.emptySet())))
                 .thenReturn(Optional.of(DUMMY_2));
 
@@ -184,5 +224,104 @@ public class TopologyCommoditiesSnapshotTest {
                         .collect(Collectors.toList());
         assertEquals(2, records.size());
         assertThat(records, containsInAnyOrder(DUMMY_1, DUMMY_2));
+    }
+
+    @Test
+    public void testEntityComparatorAscending() {
+        TopologyCommoditiesSnapshot snapshot =
+                new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
+                        entityCountInfo, 1);
+        final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
+        when(params.getSortCommodity()).thenReturn(COMMODITY);
+        when(params.isAscending()).thenReturn(true);
+
+        final long smallerId = 7L;
+        final double smallerVal = 10.0;
+        final long largerId = 77L;
+        final double largerVal = 20.0;
+        when(soldCommoditiesInfo.getValue(smallerId, COMMODITY)).thenReturn(smallerVal);
+        when(soldCommoditiesInfo.getValue(largerId, COMMODITY)).thenReturn(largerVal);
+
+        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params);
+        final int result = entityComparator.compare(smallerId, largerId);
+        assertThat(result, is(-1));
+    }
+
+    @Test
+    public void testEntityComparatorDescending() {
+        TopologyCommoditiesSnapshot snapshot =
+                new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
+                        entityCountInfo, 1);
+        final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
+        when(params.getSortCommodity()).thenReturn(COMMODITY);
+        when(params.isAscending()).thenReturn(false);
+
+        final long smallerId = 7L;
+        final double smallerVal = 10.0;
+        final long largerId = 77L;
+        final double largerVal = 20.0;
+        when(soldCommoditiesInfo.getValue(smallerId, COMMODITY)).thenReturn(smallerVal);
+        when(soldCommoditiesInfo.getValue(largerId, COMMODITY)).thenReturn(largerVal);
+
+        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params);
+        final int result = entityComparator.compare(smallerId, largerId);
+        assertThat(result, is(1));
+    }
+
+    @Test
+    public void testEntityComparatorEqualStatValueAscending() {
+        TopologyCommoditiesSnapshot snapshot =
+                new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
+                        entityCountInfo, 1);
+        final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
+        when(params.getSortCommodity()).thenReturn(COMMODITY);
+        when(params.isAscending()).thenReturn(true);
+
+        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params);
+        final long smallerId = 7L;
+        final long largerId = 8L;
+        // The stat values are the same, so the order should be determined by the id.
+        final int result = entityComparator.compare(smallerId, largerId);
+        assertThat(result, is(-1));
+    }
+
+    @Test
+    public void testEntityComparatorEqualStatValueDescending() {
+        TopologyCommoditiesSnapshot snapshot =
+                new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
+                        entityCountInfo, 1);
+        final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
+        when(params.getSortCommodity()).thenReturn(COMMODITY);
+        when(params.isAscending()).thenReturn(false);
+
+        final Comparator<Long> entityComparator = snapshot.getEntityComparator(params);
+        final long smallerId = 7L;
+        final long largerId = 8L;
+        // The stat values are the same, so the order should be determined by the id.
+        final int result = entityComparator.compare(smallerId, largerId);
+        assertThat(result, is(1));
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testEntityComparatorCountStat() {
+        TopologyCommoditiesSnapshot snapshot =
+                new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
+                        entityCountInfo, 1);
+
+        final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
+        when(params.getSortCommodity()).thenReturn(COMMODITY);
+        when(entityCountInfo.isCountStat(COMMODITY)).thenReturn(true);
+        snapshot.getEntityComparator(params);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testEntityComparatorPriceIndex() {
+        TopologyCommoditiesSnapshot snapshot =
+                new TopologyCommoditiesSnapshot(soldCommoditiesInfo, boughtCommoditiesInfo,
+                        entityCountInfo, 1);
+
+        final EntityStatsPaginationParams params = mock(EntityStatsPaginationParams.class);
+        when(params.getSortCommodity()).thenReturn(StringConstants.PRICE_INDEX);
+        snapshot.getEntityComparator(params);
     }
 }
