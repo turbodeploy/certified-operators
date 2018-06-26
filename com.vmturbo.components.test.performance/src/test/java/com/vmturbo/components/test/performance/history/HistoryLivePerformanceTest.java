@@ -39,7 +39,7 @@ import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
     "history_update_topology_duration_seconds_sum{topology_type='projected',context_type='live'}/10minutes",
     "history_update_price_index_duration_seconds_sum{context_type='live'}",
     "history_get_stats_snapshot_duration_seconds_sum{context_type='live'}",
-
+    "history_get_entity_stats_duration_seconds_sum",
     "jvm_memory_bytes_used_max"})
 public class HistoryLivePerformanceTest extends HistoryPerformanceTest {
     private final CompletableFuture<Long> statsAvailableFuture = new CompletableFuture<>();

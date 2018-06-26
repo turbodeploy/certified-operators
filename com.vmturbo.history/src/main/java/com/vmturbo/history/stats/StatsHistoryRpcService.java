@@ -20,11 +20,13 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -41,10 +43,12 @@ import org.jooq.exception.DataAccessException;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
+import io.prometheus.client.Summary.Timer;
 
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -111,6 +115,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final EntityStatsPaginationParamsFactory paginationParamsFactory;
 
+    private final EntityStatsPaginator entityStatsPaginator;
+
     private static final String CLUSTER_STATS_TYPE_HEADROOM_VMS = "headroomVMs";
     private static final String CLUSTER_STATS_TYPE_NUM_VMS = "numVMs";
 
@@ -126,6 +132,11 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         .labelNames("context_type")
         .register();
 
+    private static final Summary GET_ENTITY_STATS_DURATION_SUMMARY = Summary.build()
+        .name("history_get_entity_stats_duration_seconds")
+        .help("Duration in seconds it takes the history component to retrieve per-entity stats.")
+        .register();
+
     StatsHistoryRpcService(final long realtimeContextId,
                            @Nonnull final LiveStatsReader liveStatsReader,
                            @Nonnull final PlanStatsReader planStatsReader,
@@ -133,7 +144,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                            @Nonnull final ClusterStatsWriter clusterStatsWriter,
                            @Nonnull final HistorydbIO historydbIO,
                            @Nonnull final ProjectedStatsStore projectedStatsStore,
-                           @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory) {
+                           @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
+                           @Nonnull final EntityStatsPaginator entityStatsPaginator) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
@@ -142,6 +154,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.historydbIO = Objects.requireNonNull(historydbIO);
         this.projectedStatsStore = Objects.requireNonNull(projectedStatsStore);
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
+        this.entityStatsPaginator = Objects.requireNonNull(entityStatsPaginator);
     }
 
     /**
@@ -256,28 +269,20 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     @Override
     public void getEntityStats(@Nonnull GetEntityStatsRequest request,
-                                 @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver) {
-        // unfortunately we need to translate the OID Long values into Strings to call HistorydbIO
-        List <String> oidStrings = request.getEntitiesList().stream()
-                .map(l -> Long.toString (l))
-                .collect (Collectors.toList());
-
-        // gather stats and return them for each entity one at a time
+                               @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver) {
+        final Set<Long> targetEntities = Sets.newHashSet(request.getEntitiesList());
         try {
-            // TODO (roman, June 13 2018): OM-35976 - Stuffing all plan entity stats into a single
-            // protobuf message will fail on large enough topologies.
-            // This is a placeholder implementation. The next step is to use the pagination parameters
-            // in the request, and set the next cursor in the response.
-            final GetEntityStatsResponse.Builder responseBuilder = GetEntityStatsResponse.newBuilder();
-            for (long entityOid : request.getEntitiesList()) {
-
+            final Timer timer = GET_ENTITY_STATS_DURATION_SUMMARY.startTimer();
+            // gather stats and return them for each entity one at a time
+            final List<EntityStats.Builder> entityStats = new ArrayList<>(targetEntities.size());
+            for (final long entityOid : targetEntities) {
                 logger.debug("getEntityStats: {}", entityOid);
                 final StatsFilter statsFilter = request.getFilter();
-                List<Record> statDBRecords = liveStatsReader.getStatsRecords(
+                final List<Record> statDBRecords = liveStatsReader.getStatsRecords(
                         Collections.singletonList(Long.toString(entityOid)),
                         statsFilter.getStartDate(), statsFilter.getEndDate(),
                         statsFilter.getCommodityRequestsList());
-                EntityStats.Builder statsForEntity = EntityStats.newBuilder()
+                final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
                         .setOid(entityOid);
 
                 // organize the stats DB records for this entity into StatSnapshots and add to response
@@ -285,19 +290,22 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                         statsForEntity.addStatSnapshots(statSnapshotBuilder.build()));
 
                 // done with this entity
-                responseBuilder.addEntityStats(statsForEntity);
+                entityStats.add(statsForEntity);
             }
-            responseObserver.onNext(responseBuilder.build());
+
+            responseObserver.onNext(entityStatsPaginator.paginate(entityStats,
+                    paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
             responseObserver.onCompleted();
+            timer.observeDuration();
         } catch (VmtDbException e) {
             responseObserver.onError(Status.INTERNAL
-                    .withDescription("DB Error fetching stats for: " + oidStrings)
+                    .withDescription("DB Error fetching stats for " + targetEntities.size() + " entities.")
                     .withCause(e)
                     .asException());
-        } catch (Exception e) {
-            logger.error("Internal exception fetching stats for: " + oidStrings, e);
+        } catch (RuntimeException e) {
+            logger.error("Internal exception fetching stats for " + targetEntities.size() + " entities.");
             responseObserver.onError(Status.INTERNAL
-                    .withDescription("Internal Error fetching stats for: " + oidStrings)
+                    .withDescription("Internal Error fetching stats for " + targetEntities.size() + " entities.")
                     .withCause(e)
                     .asException());
         }

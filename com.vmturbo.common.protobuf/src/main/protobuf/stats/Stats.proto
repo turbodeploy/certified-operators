@@ -21,15 +21,12 @@ message GetAveragedEntityStatsRequest {
 }
 
 message GetEntityStatsRequest {
-    // The entities to gather stats for. These could be the IDs of individual entities, a plan,
-    // or the global market.
+    // The entities to gather stats for. These should be the IDs of individual entities.
+    // If empty, return no results.
     repeated int64 entities = 1;
 
     // The filter to apply to the stats. If not set, retrieve all stats.
     optional StatsFilter filter = 2;
-
-    // The entity type to restrict stats to; if not set, include all entity types
-    optional string relatedEntityType = 3;
 
     // The pagination parameters outlying the sort order, and previous cursor (if any).
     // If not set, use the default instance of PaginationParameters. The backend

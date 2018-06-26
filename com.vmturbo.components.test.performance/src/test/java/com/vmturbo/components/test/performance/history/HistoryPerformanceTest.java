@@ -17,7 +17,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -36,6 +41,7 @@ import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 
@@ -123,6 +129,7 @@ public abstract class HistoryPerformanceTest {
         // Wait for stats to be available before fetching them.
         getStatsAvailableFuture().get(statsTimeoutMinutes, TimeUnit.MINUTES);
         fetchStats(topologyContextId);
+        fetchEntityStats(topoDTOs);
 
         final long executionTimeSeconds = TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - startTime);
         logger.info("Took {} seconds to execute {} history performance test for {} entities",
@@ -176,10 +183,7 @@ public abstract class HistoryPerformanceTest {
         Iterable<StatSnapshot> fetchedStats = () -> statsService.getAveragedEntityStats(
             GetAveragedEntityStatsRequest.newBuilder()
                 .addEntities(topologyContextId)
-                .setFilter(StatsFilter.newBuilder()
-                        .setStartDate(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1))
-                        .setEndDate(System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1))
-                        .addAllCommodityRequests(COMMODITY_REQUESTS))
+                .setFilter(makeStatsFilter())
                 .build()
         );
 
@@ -188,5 +192,36 @@ public abstract class HistoryPerformanceTest {
             .forEach(action -> counter.getAndIncrement());
 
         logger.info("Fetched {} {} stats", counter.get(), getTestContextType());
+    }
+
+    @Nonnull
+    private StatsFilter makeStatsFilter() {
+        return StatsFilter.newBuilder()
+            .setStartDate(System.currentTimeMillis() - TimeUnit.HOURS.toMillis(1))
+            .setEndDate(System.currentTimeMillis() + TimeUnit.HOURS.toMillis(1))
+            .addAllCommodityRequests(COMMODITY_REQUESTS)
+            .build();
+    }
+
+    protected void fetchEntityStats(@Nonnull final List<TopologyEntityDTO> topology) {
+        final PaginationParameters paginationParams = PaginationParameters.newBuilder()
+            .setLimit(50)
+            .setAscending(false)
+            .setOrderBy(OrderBy.newBuilder()
+                .setEntityStats(EntityStatsOrderBy.newBuilder()
+                    .setStatName("Mem")))
+            .build();
+        final GetEntityStatsRequest.Builder requestBuilder = GetEntityStatsRequest.newBuilder()
+            .setFilter(makeStatsFilter())
+            .setPaginationParams(paginationParams);
+
+        topology.stream()
+            .filter(entity -> entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+            .map(TopologyEntityDTO::getOid)
+            .forEach(requestBuilder::addEntities);
+
+        final GetEntityStatsResponse response = statsService.getEntityStats(requestBuilder.build());
+
+        logger.info("Fetched first page of stats, with {} results.", response.getEntityStatsCount());
     }
 }

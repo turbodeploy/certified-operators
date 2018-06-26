@@ -59,7 +59,12 @@ public class StatsConfig {
         return new StatsHistoryRpcService(realtimeTopologyContextId, liveStatsReader(),
                 planStatsReader(), clusterStatsReader(), clusterStatsWriter(),
                 historyDbConfig.historyDbIO(),
-                projectedStatsStore(), paginationParamsFactory());
+                projectedStatsStore(), paginationParamsFactory(), entityStatsPaginator());
+    }
+
+    @Bean
+    public EntityStatsPaginator entityStatsPaginator() {
+        return new EntityStatsPaginator();
     }
 
     @Bean

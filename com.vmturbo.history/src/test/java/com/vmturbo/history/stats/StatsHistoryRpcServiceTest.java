@@ -108,11 +108,14 @@ public class StatsHistoryRpcServiceTest {
     private EntityStatsPaginationParamsFactory paginationParamsFactory =
             mock(EntityStatsPaginationParamsFactory.class);
 
+    private EntityStatsPaginator entityStatsPaginator = mock(EntityStatsPaginator.class);
+
     private StatsHistoryRpcService statsHistoryRpcService =
             new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
                      mockLivestatsreader, mockPlanStatsReader,
                      mockClusterStatsReader, mockClusterStatsWriter,
-                     historyDbio, mockProjectedStatsStore, paginationParamsFactory);
+                     historyDbio, mockProjectedStatsStore,
+                    paginationParamsFactory, entityStatsPaginator);
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryRpcService);
