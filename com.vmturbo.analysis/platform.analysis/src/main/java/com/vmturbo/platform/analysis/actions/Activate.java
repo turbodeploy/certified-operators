@@ -1,6 +1,5 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
 import java.util.function.Function;
@@ -12,6 +11,7 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.google.common.base.Preconditions;
 import com.google.common.hash.Hashing;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -83,7 +83,8 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Override
     public @NonNull Activate take() {
         super.take();
-        checkArgument(!getTarget().getState().isActive());
+        Preconditions.checkState(!getTarget().getState().isActive(),
+            "Trying to activate %s which is already Active", getTarget());
         getTarget().changeState(TraderState.ACTIVE);
         return this;
     }
@@ -94,7 +95,8 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Override
     public @NonNull Activate rollback() {
         super.rollback();
-        checkArgument(getTarget().getState().isActive());
+        Preconditions.checkState(getTarget().getState().isActive(),
+            "Trying to deactivate %s which is already Inactive", getTarget());
         getTarget().changeState(TraderState.INACTIVE);
         return this;
     }

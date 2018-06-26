@@ -24,10 +24,15 @@ import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
+import com.vmturbo.platform.analysis.economy.TraderSettings;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 
+/**
+ * This class estimates the excess or lack of supply and optimizes
+ * provisions and suspensions.
+ */
 public class EstimateSupply {
     private Economy economy_;
     private Ledger ledger_;
@@ -41,7 +46,6 @@ public class EstimateSupply {
 
     private Map<Market, Set<Trader>> suspensionCandidatesMap_ = new HashMap<>();
 
-    // constructor
     public EstimateSupply(Economy economy, Ledger ledger, boolean isProvision) {
         logger.info("Plan started Estimate Supply");
         economy_ = economy;
@@ -65,7 +69,7 @@ public class EstimateSupply {
 
         if (!isProvision) {
             // rollback deactivate actions
-            deactActions_.forEach(deactAxn -> deactAxn.rollback());
+            deactActions_.forEach(Action::rollback);
         }
         // Revert the suspendable field to true for all traders added by adjustSupply
         suspendReverseList.stream().forEach(seller -> seller.getSettings().setSuspendable(true));
@@ -74,46 +78,49 @@ public class EstimateSupply {
     }
 
     /**
-     * Determine if we should estimate the supply in a market
+     * Determine if we should estimate the supply in a market.
+     * The market is <B>not</B> eligible if any of the following conditions is satisfied:
+     * (1) there are no sellers that are availableForPlacement in the market.
+     * (2) the market consists only of guaranteed buyers.
+     * (3) there are no cloneable or suspendable sellers in the market.
      *
-     * @market The market for which we are determining eligibility
-     * @return True if it is an eligible market, false otherwise
+     * @param market The market for which we are determining eligibility
+     * @return whether it is an eligible market
      */
     private boolean isEligibleMarket(Market market) {
-        // the market is not eligible if any of the following conditions is true
-        // 1. there are no sellers that are availableForPlacement in the market
-        // 2. the market consists only of guaranteed buyers
-        // 3. there are no cloneable or suspendable sellers in the market
-        if (market.getActiveSellersAvailableForPlacement().size() == 0
-            || market.getBuyers().stream()
-                            .allMatch(sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())
-            || market.getActiveSellersAvailableForPlacement().stream()
-                            .allMatch(seller -> !seller.getSettings().isCloneable()
-                                                && !seller.getSettings().isSuspendable())) {
-            return false;
-        }
-        return true;
+        return !(market.getActiveSellersAvailableForPlacement().isEmpty()
+                        || market.getBuyers().stream()
+                            .map(ShoppingList::getBuyer)
+                            .map(Trader::getSettings)
+                            .allMatch(TraderSettings::isGuaranteedBuyer)
+                        || market.getActiveSellersAvailableForPlacement().stream()
+                            .map(Trader::getSettings)
+                            .anyMatch(EstimateSupply::clonableOrSuspendable));
+    }
+
+    private static boolean clonableOrSuspendable(TraderSettings sellerSettings) {
+        return sellerSettings.isCloneable() || sellerSettings.isSuspendable();
     }
 
     /**
-     * Construct a super seller for the market
+     * Construct a super seller for the market.
      *
-     * @param market - The market for which we construct the super seller
+     * @param market the market for which we construct the super seller
      */
     private void constructSuperSeller(Market market) {
         // TODO: do we need the map, since we are always evaluating a single market?
         // Create super Seller and add to the marketSupperSellers map
         marketSuperSellers_.put(market, new SuperSeller(market, ledger_));
         // Set the usage and capacity of each commodity of the superSeller
-        // We dont care about setting priceFn for superSellers in markets with no activeSellers
-        // since we dont adjustSupply in these markets
+        // We don't care about setting priceFn for superSellers in markets with no activeSellers
+        // since we don't adjustSupply in these markets
         setSuperSellerUsageAndCapacity(market);
     }
 
     /**
-     * Set the usage and capacity for each commodity sold by the super seller
+     * Set the usage and capacity for each commodity sold by the super seller.
      *
-     * @param market - the market for whose superSeller we set the usage and capacity
+     * @param market the market for whose superSeller we set the usage and capacity
      */
     private void setSuperSellerUsageAndCapacity(Market market) {
         SuperSeller superSeller = marketSuperSellers_.get(market);
@@ -126,7 +133,7 @@ public class EstimateSupply {
             boolean isSuspendable = seller.getSettings().isSuspendable();
             List<CommodityResource> superCommSoldList = superSeller.getCommoditySoldList();
             for (int sellerIndex = 0, superIndex = 0; sellerIndex < sellerBasketSold.size()
-                    && superIndex < superCommSoldList.size(); sellerIndex++, superIndex++) {
+                            && superIndex < superCommSoldList.size(); sellerIndex++, superIndex++) {
                 while (!superCommSoldList.get(superIndex).getCommoditySpecification()
                                 .isSatisfiedBy(sellerBasketSold.get(sellerIndex))) {
                     sellerIndex++;
@@ -134,15 +141,15 @@ public class EstimateSupply {
                 CommodityResource commResourceSold = superCommSoldList.get(superIndex);
                 if (firstSeller) {
                     commResourceSold.setPriceFunction(seller.getCommoditiesSold().get(sellerIndex)
-                                    .getSettings().getPriceFunction());
+                        .getSettings().getPriceFunction());
                 }
                 CommoditySold commSoldSeller = seller.getCommoditiesSold().get(sellerIndex);
                 // Add seller capacity to superSeller
                 double sellerEffCapacity = commSoldSeller.getEffectiveCapacity();
-                commResourceSold.addCapacity(sellerEffCapacity);
+                commResourceSold.increaseCapacityBy(sellerEffCapacity);
                 // Add seller quantity and peak quantity to superSeller
-                commResourceSold.addQuantity(commSoldSeller.getQuantity());
-                commResourceSold.addPeakQuantity(commSoldSeller.getPeakQuantity());
+                commResourceSold.increaseQuantityBy(commSoldSeller.getQuantity());
+                commResourceSold.increasePeakQuantityBy(commSoldSeller.getPeakQuantity());
                 if (isCloneable) {
                     if (sellerEffCapacity > commResourceSold.getMaxCapacity()) {
                         commResourceSold.setMaxCapacity(sellerEffCapacity);
@@ -162,8 +169,8 @@ public class EstimateSupply {
             if (buyer.getSupplier() == null) {
                 for (int index = 0; index < market.getBasket().size(); index++) {
                     CommodityResource commResource = superSeller.getCommoditySoldList().get(index);
-                    commResource.addQuantity(buyer.getQuantity(index));
-                    commResource.addPeakQuantity(buyer.getPeakQuantity(index));
+                    commResource.increaseQuantityBy(buyer.getQuantity(index));
+                    commResource.increasePeakQuantityBy(buyer.getPeakQuantity(index));
                 }
             }
         }
@@ -173,7 +180,7 @@ public class EstimateSupply {
      * For every commodity sold by the superSeller, order the market sellers that can be suspended,
      * smallest first, and identify the market seller with the largest capacity.
      *
-     * @param market - the market whose sellers are considered
+     * @param market the market whose sellers are considered
      */
     private void orderInactiveCandidateHeapByComm(Market market) {
         // Get superSeller for current Market
@@ -188,7 +195,8 @@ public class EstimateSupply {
     /**
      * Clone/suspend sellers as required, until superSeller ROI is between min and max desired ROI.
      *
-     * market - The market for which we need to adjust supply
+     * @param market The market for which we need to adjust supply
+     * @param isProvision whether provision is enabled
      */
     private void adjustSupply(Market market, boolean isProvision) {
         // Get superSeller for current Market
@@ -201,27 +209,37 @@ public class EstimateSupply {
         if (curROI == -1) {
             return;
         }
-        double maxDesireROI = superSeller.getDesiredROI(true);
-        double minDesireROI = superSeller.getDesiredROI(false);
-        if (isProvision && (curROI > maxDesireROI && superSeller.isCloneable() && market.getBuyers().size() > market.getActiveSellers().size())) {
-            logger.info("***Market: " + market + " active sellers: " + market.getActiveSellers().size() +
-                    " seller type: " + market.getActiveSellers().get(0).getDebugInfoNeverUseInCode());
-            logger.info("        curROI: " + curROI + ", maxROI: " + maxDesireROI + ", minROI:" + minDesireROI);
+        double maxDesiredROI = superSeller.getDesiredROI(true);
+        double minDesiredROI = superSeller.getDesiredROI(false);
+        if (isProvision && (
+                        curROI > maxDesiredROI
+                        && superSeller.isCloneable()
+                        && market.getBuyers().size() > market.getActiveSellers().size())) {
+            logValues(market, curROI, maxDesiredROI, minDesiredROI);
             adjustClone(market);
-        } else if (!isProvision && (curROI < minDesireROI && superSeller.isSuspendable()
-                && market.getActiveSellers().size() > 1)) {
-            logger.info("***Market: " + market + " active sellers: " + market.getActiveSellers().size() +
-                    " seller type: " + market.getActiveSellers().get(0).getDebugInfoNeverUseInCode());
-            logger.info("        curROI: " + curROI + ", maxROI: " + maxDesireROI + ", minROI:" + minDesireROI);
+        } else if (!isProvision && (
+                        curROI < minDesiredROI
+                        && superSeller.isSuspendable()
+                        && market.getActiveSellers().size() > 1)) {
+            logValues(market, curROI, maxDesiredROI, minDesiredROI);
+            adjustSuspend(market);
             adjustSuspend(market);
         }
+    }
+
+    private void logValues(Market market, double curROI, double maxDesiredROI, double minDesiredROI) {
+        logger.debug("Market with {} active sellers such as {}",
+            () -> market.getActiveSellers().size(),
+            () -> market.getActiveSellers().get(0));
+        logger.debug("    current/min/max ROI : {} / {} / {}",
+            curROI, minDesiredROI, maxDesiredROI);
     }
 
     /**
      * Make Cloning decisions. Reactivate existing host, or clone biggest host for commodity of
      * superSeller that has the highest revenues. Continue cloning while ROI > maxDesiredROI.
      *
-     * @param market - The market that we need to adjust clone
+     * @param market The market that we need to adjust clone
      */
     private void adjustClone(Market market) {
         //get super seller first
@@ -237,28 +255,29 @@ public class EstimateSupply {
             if (!commResourceHighestRev.getInactiveCandidateHeap().isEmpty()) {
                 newSeller = commResourceHighestRev.getInactiveCandidateHeap().poll();
                 action = (new Activate(economy_, newSeller, market, newSeller,
-                                commResourceHighestRev.getCommoditySpecification())).take();
-                logger.info("CHURN : activating trader " + newSeller.getDebugInfoNeverUseInCode());
+                    commResourceHighestRev.getCommoditySpecification())).take();
+                logger.debug("Activating trader " + newSeller);
             } else { // clone existing
                 newSeller = commResourceHighestRev.getCandidateClone();
                 action = (new ProvisionBySupply(economy_, newSeller,
-                                commResourceHighestRev.getCommoditySpecification())).take();
-                logger.info("CHURN :" + " adding trader " + ((ProvisionBySupply)action).getProvisionedSeller().getDebugInfoNeverUseInCode()
-                            + " basedOn " + newSeller.getDebugInfoNeverUseInCode());
+                    commResourceHighestRev.getCommoditySpecification())).take();
+                logger.debug("Adding trader {} based on {}",
+                    () -> ((ProvisionBySupply)action).getProvisionedSeller(),
+                    () -> newSeller);
                 ledger_.addTraderIncomeStatement(((ProvisionBySupply)action)
-                                .getProvisionedSeller());
+                    .getProvisionedSeller());
             }
             action.getActionTarget().getSettings().setSuspendable(false);
             actions_.add(action);
             suspendReverseList.add(action.getActionTarget());
-            logger.info("        Added seller:" + action.getActionTarget().getDebugInfoNeverUseInCode());
+            logger.debug("Added seller: {}", action.getActionTarget());
             // Update capacity and revenues of superSeller
             superSeller.updateCapacityAndRevenues(newSeller, true);
             // Calculate expenses and revenues of the new seller
             ledger_.calculateExpRevForTraderAndGetTopRevenue(economy_, action.getActionTarget());
             // Decide to clone more or stop cloning
             canClone = superSeller.getCurrROI() > superSeller.getDesiredROI(true);
-            logger.info("        currROI: " + superSeller.getCurrROI());
+            logger.debug("        currROI: " + superSeller.getCurrROI());
         }
     }
 
@@ -267,7 +286,7 @@ public class EstimateSupply {
      * host to biggest host of a commodity with lowest revenue,
      * add all suspend result to list.
      *
-     * @param market - The market that we need to adjust suspend
+     * @param market The market that we need to adjust suspend
      */
     private void adjustSuspend(Market market) {
         // Use suspended set to avoid duplicate suspend
@@ -285,7 +304,6 @@ public class EstimateSupply {
             }
             // Get the suspension candidate
             suspendCandidate = commResourceLowestRev.getCandidateSuspendHeap().poll();
-            double oldROI = superSeller.getCurrROI();
             suspendedSet.add(suspendCandidate);
             // Suspend
             Deactivate deactivateAction = new Deactivate(economy_, suspendCandidate, market);
@@ -296,19 +314,20 @@ public class EstimateSupply {
             ledger_.calculateExpRevForTraderAndGetTopRevenue(economy_, suspendCandidate);
             // stop suspend if ROI value is too high after suspend
             double desiredROI = (superSeller.getDesiredROI(true) / 2
-                                 + superSeller.getDesiredROI(false) / 2);
+                            + superSeller.getDesiredROI(false) / 2);
+            double oldROI = superSeller.getCurrROI();
             if (Math.abs(superSeller.getCurrROI() - desiredROI) > Math.abs(oldROI - desiredROI)) {
                 deactivateAction.rollback();
                 suspendedSet.remove(suspendCandidate);
                 return;
             }
             deactActions_.add(deactivateAction);
-            logger.info("        Suspend Seller:" + suspendCandidate.getDebugInfoNeverUseInCode());
+            logger.debug("Suspend Seller: {}", suspendCandidate);
             // Calculate expenses and revenues of the suspended seller
             // Decide to clone more or stop cloning
             canSuspend = superSeller.getCurrROI() < superSeller.getDesiredROI(false)
-                    && !candidateHeap.isEmpty() && market.getActiveSellers().size() > 1;
-            logger.info("        currROI: " + superSeller.getCurrROI());
+                            && !candidateHeap.isEmpty() && market.getActiveSellers().size() > 1;
+                            logger.debug("        currROI: " + superSeller.getCurrROI());
         }
         suspensionCandidatesMap_.put(market, suspendedSet);
     }
@@ -317,350 +336,349 @@ public class EstimateSupply {
         return suspensionCandidatesMap_.get(market);
     }
 
-    /**
-     * Get the final suspension and cloning result for economy
-     *
-     * @return List<Action> - each EstimateResult contains a host,
-     *                               the market it belong to and suspend/clone/reactive action
-     */
     public List<Action> getActions() {
         return actions_;
     }
 
-    public void clear () {
-        marketSuperSellers_.clear();
-        actions_.clear();
-    }
-
-}
-
-class SuperSeller {
-    private List<CommodityResource> commSoldList_;
-    private Market market_;
-    private Ledger ledger_;
-    private boolean cloneable_;
-    private boolean suspendable_;
-    static final Logger logger = LogManager.getLogger(SuperSeller.class);
-
-    public SuperSeller(Market market, Ledger ledger) {
-        commSoldList_ = new ArrayList<>();
-        ledger_ = ledger;
-        market_ = market;
-        // create the list of commodities the superSeller is selling
-        for (int index = 0; index < market.getBasket().size(); index++) {
-            CommoditySpecification commSpec = market.getBasket().get(index);
-            commSoldList_.add(new CommodityResource(commSpec));
-        }
-        setCloneable(market.getActiveSellers().stream().anyMatch(s -> s.getSettings().isCloneable()));
-        setSuspendable(market.getActiveSellers().stream().anyMatch(s -> s.getSettings().isSuspendable()));
-    }
-
-    public Market getMarket() {
-        return market_;
-    }
-
-    public List<CommodityResource> getCommoditySoldList() {
-        return commSoldList_;
-    }
-
-    public void setCloneable(boolean cloneable) {
-        cloneable_ = cloneable;
-    }
-
-    public boolean isCloneable() {
-        return cloneable_;
-    }
-
-    public void setSuspendable(boolean suspendable) {
-        suspendable_ = suspendable;
-    }
-
-    public boolean isSuspendable() {
-        return suspendable_;
-    }
-
     /**
-     * Get the a commodity revenue for current super seller
+     * A seller that has the cumulative capacity of all sellers in a market.
      *
-     * @param index - The index in market basket
-     * @param util - Set to -1 means use current utilization, otherwise, use user setting utilization
-     *
-     * @return The revenue of a commodity in a market
      */
-    public double getRevenue(int index, double util) {
-        CommodityResource commResource = getCommoditySoldList().get(index);
-        if (commResource == null) {
-            logger.error("Cannot find Commodity Specification when estimator tried to get revenue.");
-            return -1;
-        }
-        // calculate utilization value
-        if (util == -1d) {
-            util = commResource.getQuantity() / commResource.getCapacity();
-        }
 
-        // TODO: handle what is being passed for priceComputation in the case of complex pf's
-        double rev = util * commResource.getPriceFunction().unitPrice(util, null, null, null, null);
-        return rev;
-    }
+    class SuperSeller {
+        private List<CommodityResource> commSoldList_;
+        private Market market_;
+        private Ledger ledger_;
+        private boolean cloneable_;
+        private boolean suspendable_;
 
-    /**
-     * get the a commodity revenue for a market base on current utilization
-     *
-     * @param SuperSeller - the seller for a market
-     * @param commSpec - the CommoditySpecification
-     *
-     * @return the revenue of a commodity in a market
-     */
-    public double getRevenue(int index) {
-        return getRevenue(index, -1d);
-    }
-
-    /**
-     * Calculate the revenues of the market superSeller
-     *
-     * @param market - The market for which to compute superSeller revenues
-     */
-    public void calcSuperSellerRevenues(Market market) {
-        // Calculate revenue for this market
-        for (int i = 0; i < market.getBasket().size(); i++) {
-            CommodityResource commResource = getCommoditySoldList().get(i);
-            // Put revenue into super Seller
-            commResource.setRevenue(getRevenue(i));
-        }
-    }
-
-    /**
-     * Get desire ROI for this super Seller
-     *
-     * @param max - true for max desire ROI, false for min desire ROI
-     * @return max or min desire ROI
-     */
-    public double getDesiredROI(boolean max) {
-        double desiredUtil;
-        double desiredRevenue = 0d;
-        // Get desired Utilization based on any seller in the market
-        Trader modelSeller = market_.getActiveSellers().get(0);
-        desiredUtil = max ? modelSeller.getSettings().getMaxDesiredUtil()
-                : modelSeller.getSettings().getMinDesiredUtil();
-        // Calculate desired revenues for super Seller
-        for (int i = 0; i < market_.getBasket().size(); i++) {
-                desiredRevenue += getRevenue(i, desiredUtil);
-        }
-        // Calculate desired expenses (min expenses if max=true, max expenses if max=false)
-        // provision/suspension must be driven by the sellersAvailableForPlacement
-        double expense = market_.getActiveSellersAvailableForPlacement().stream().map(s
-                -> { IncomeStatement IS = ledger_.getTraderIncomeStatements().get(s.getEconomyIndex());
-                return (max ? IS.getMinDesiredExpenses() : IS.getMaxDesiredExpenses());})
-                .reduce((x, y) -> x + y).get();
-        return expense == 0d ? -1 : desiredRevenue / expense;
-    }
-
-    /**
-     * Get current ROI of superSeller
-     *
-     * @return current ROI
-     */
-    public double getCurrROI() {
-        double totalMarketExp = getTotalMarketExpenses(market_);
-        return totalMarketExp == 0 ? -1 : getCommoditySoldList().stream()
-                .map(commRes -> commRes.getRevenue()).reduce((x, y) -> x + y).get() / totalMarketExp;
-    }
-
-    /**
-     * get the total Expenses of all sellers in the market.
-     *
-     * @param market The market for which total expenses are calculated
-     * @return Total expenses of all sellers in the market
-     */
-    public double getTotalMarketExpenses(Market market) {
-        double totalExp = 0;
-        for (Trader s: market.getActiveSellersAvailableForPlacement()) {
-            totalExp += ledger_.getTraderIncomeStatements().get(s.getEconomyIndex()).getExpenses();
-            if (Double.isInfinite(totalExp)) {
-                break;
+        SuperSeller(Market market, Ledger ledger) {
+            commSoldList_ = new ArrayList<>();
+            ledger_ = ledger;
+            market_ = market;
+            // create the list of commodities the superSeller is selling
+            for (int index = 0; index < market.getBasket().size(); index++) {
+                CommoditySpecification commSpec = market.getBasket().get(index);
+                commSoldList_.add(new CommodityResource(commSpec));
             }
+            setCloneable(market.getActiveSellers().stream().anyMatch(s -> s.getSettings().isCloneable()));
+            setSuspendable(market.getActiveSellers().stream().anyMatch(s -> s.getSettings().isSuspendable()));
         }
-        return totalExp;
-    }
 
-    /**
-     * Update capacity and revenues of superSeller when a seller is added removed from the market
-     *
-     * @param seller - seller added/removed
-     * @param add - true if seller is added, false if seller is removed
-     */
-    public void updateCapacityAndRevenues(Trader seller, boolean add) {
-        for (int index = 0; index < getCommoditySoldList().size(); index++) {
+        public Market getMarket() {
+            return market_;
+        }
+
+        public List<CommodityResource> getCommoditySoldList() {
+            return commSoldList_;
+        }
+
+        public void setCloneable(boolean cloneable) {
+            cloneable_ = cloneable;
+        }
+
+        public boolean isCloneable() {
+            return cloneable_;
+        }
+
+        public void setSuspendable(boolean suspendable) {
+            suspendable_ = suspendable;
+        }
+
+        public boolean isSuspendable() {
+            return suspendable_;
+        }
+
+        /**
+         * Get the commodity revenue for current super seller.
+         *
+         * @param index The index in market basket
+         * @param util Set to -1 means use current utilization, otherwise, use user setting utilization
+         *
+         * @return The revenue of a commodity in a market
+         */
+        public double getRevenue(int index, double util) {
             CommodityResource commResource = getCommoditySoldList().get(index);
-            double capacityDiff = seller.getCommoditySold(commResource.getCommoditySpecification())
-                    .getEffectiveCapacity();
-            if (add) {
-                commResource.addCapacity(capacityDiff);
-            } else {
-                commResource.removeCapacity(capacityDiff);
+            if (commResource == null) {
+                logger.error("Cannot find Commodity Specification when estimator tried to get revenue.");
+                return -1;
             }
-            commResource.setRevenue(getRevenue(index));
+            // calculate utilization value
+            if (util == -1d) {
+                util = commResource.getQuantity() / commResource.getCapacity();
+            }
+
+            // TODO: handle what is being passed for priceComputation in the case of complex pf's
+            return util * commResource.getPriceFunction().unitPrice(util, null, null, null, null);
+        }
+
+        /**
+         * get the a commodity revenue for a market base on current utilization.
+         *
+         * @param index the commodity index
+         *
+         * @return the revenue of a commodity in a market
+         */
+        public double getRevenue(int index) {
+            return getRevenue(index, -1d);
+        }
+
+        /**
+         * Calculate the revenues of the market superSeller.
+         *
+         * @param market The market for which to compute superSeller revenues
+         */
+        public void calcSuperSellerRevenues(Market market) {
+            // Calculate revenue for this market
+            for (int i = 0; i < market.getBasket().size(); i++) {
+                CommodityResource commResource = getCommoditySoldList().get(i);
+                // Put revenue into super Seller
+                commResource.setRevenue(getRevenue(i));
+            }
+        }
+
+        /**
+         * Get desire ROI for this super Seller.
+         *
+         * @param maxDesired when true use max desired ROI, otherwise use min desired ROI
+         * @return max or min desired ROI
+         */
+        public double getDesiredROI(boolean maxDesired) {
+            double desiredUtil;
+            double desiredRevenue = 0d;
+            // Get desired Utilization based on any seller in the market
+            Trader modelSeller = market_.getActiveSellers().get(0);
+            desiredUtil = maxDesired
+                    ? modelSeller.getSettings().getMaxDesiredUtil()
+                    : modelSeller.getSettings().getMinDesiredUtil();
+            // Calculate desired revenues for super Seller
+            for (int i = 0; i < market_.getBasket().size(); i++) {
+                desiredRevenue += getRevenue(i, desiredUtil);
+            }
+            // Calculate desired expenses (min expenses if max=true, max expenses if max=false)
+            // provision/suspension must be driven by the sellersAvailableForPlacement
+            double expense = market_.getActiveSellersAvailableForPlacement().stream()
+                    .map(s -> {
+                        IncomeStatement incomeStatement =
+                                ledger_.getTraderIncomeStatements().get(s.getEconomyIndex());
+                        return maxDesired
+                            ? incomeStatement.getMinDesiredExpenses()
+                            : incomeStatement.getMaxDesiredExpenses();
+                    })
+                    .reduce((x, y) -> x + y)
+                    .get();
+            return expense == 0d ? -1 : desiredRevenue / expense;
+        }
+
+        /**
+         * Get current ROI of superSeller.
+         *
+         * @return current ROI
+         */
+        public double getCurrROI() {
+            double totalMarketExp = getTotalMarketExpenses(market_);
+            return totalMarketExp == 0 ? -1 : getCommoditySoldList().stream()
+                .map(commRes -> commRes.getRevenue()).reduce((x, y) -> x + y).get() / totalMarketExp;
+        }
+
+        /**
+         * Get the total Expenses of all sellers in the market.
+         *
+         * @param market The market for which total expenses are calculated
+         * @return Total expenses of all sellers in the market
+         */
+        public double getTotalMarketExpenses(Market market) {
+            double totalExp = 0;
+            for (Trader s: market.getActiveSellersAvailableForPlacement()) {
+                totalExp += ledger_.getTraderIncomeStatements().get(s.getEconomyIndex()).getExpenses();
+                if (Double.isInfinite(totalExp)) {
+                    break;
+                }
+            }
+            return totalExp;
+        }
+
+        /**
+         * Update capacity and revenues of superSeller when a seller is added
+         * removed from the market.
+         *
+         * @param seller seller added/removed
+         * @param add true if seller is added, false if seller is removed
+         */
+        public void updateCapacityAndRevenues(Trader seller, boolean add) {
+            for (int index = 0; index < getCommoditySoldList().size(); index++) {
+                CommodityResource commResource = getCommoditySoldList().get(index);
+                double capacityDiff = seller.getCommoditySold(commResource.getCommoditySpecification())
+                                .getEffectiveCapacity();
+                if (add) {
+                    commResource.increaseCapacityBy(capacityDiff);
+                } else {
+                    commResource.decreaseCapacityBy(capacityDiff);
+                }
+                commResource.setRevenue(getRevenue(index));
+            }
         }
     }
-}
-
-
-class CommodityResource implements Comparable<CommodityResource> {
-    private CommoditySpecification commSpec_;
-    private PriceFunction priceFunc_;
-    private double quantity_ = 0;
-    private double peakQuantity_ = 0;
-    private double capacity_ = 0;
-    private double revenue_ = 0;
-    private double maxCapacity_ = 0;
-    private Trader candidateClone_ = null;
-    private boolean considerCommodity_ = true;
-
-    private PriorityQueue<Trader> inactiveCandidateHeap_ = new PriorityQueue<>((t1, t2) -> {
-        double c1 = t1.getCommoditiesSold().get(t1.getBasketSold().indexOf(commSpec_)).getCapacity();
-        double c2 = t2.getCommoditiesSold().get(t2.getBasketSold().indexOf(commSpec_)).getCapacity();
-        return c1 < c2 ? 1 : c1 == c2 ? 0 : -1;
-    });
-
-    private PriorityQueue<Trader> candidateSuspendHeap_ = new PriorityQueue<>((t1, t2) -> {
-        double c1 = t1.getCommoditiesSold().get(t1.getBasketSold().indexOf(commSpec_)).getCapacity();
-        double c2 = t2.getCommoditiesSold().get(t2.getBasketSold().indexOf(commSpec_)).getCapacity();
-        return c1 < c2 ? -1 : c1 == c2 ? 0 : 1;
-    });
-
-    public CommoditySpecification getCommoditySpecification() {
-        return commSpec_;
-    }
 
     /**
-     * If a commodity resource is not a consider commodity
-     * we don't consider this commodity resource any more
-     * in the clone and suspend decision.
-     * Default value is true
+     * A commodity of a {@link SuperSeller}.
      *
-     * @return this commodity should be consider(true) or
-     * should not be consider(false)
      */
-    public boolean isConsiderCommodity() {
-        return considerCommodity_;
-    }
+    class CommodityResource implements Comparable<CommodityResource> {
+        private CommoditySpecification commSpec_;
+        private PriceFunction priceFunc_;
+        private double quantity_ = 0;
+        private double peakQuantity_ = 0;
+        private double capacity_ = 0;
+        private double revenue_ = 0;
+        private double maxCapacity_ = 0;
+        private Trader candidateClone_ = null;
+        private boolean considerCommodity_ = true;
 
-    public void setIsConsiderCommodity(boolean isConsider) {
-        considerCommodity_ = isConsider;
-    }
+        private PriorityQueue<Trader> inactiveCandidateHeap_ = new PriorityQueue<>((t1, t2) -> {
+            double c1 = t1.getCommoditiesSold().get(t1.getBasketSold().indexOf(commSpec_)).getCapacity();
+            double c2 = t2.getCommoditiesSold().get(t2.getBasketSold().indexOf(commSpec_)).getCapacity();
+            return c1 < c2 ? 1 : c1 == c2 ? 0 : -1;
+        });
 
-    /**
-     * Get price function of this commodity
-     *
-     * @return PriceFuction
-     */
-    public PriceFunction getPriceFunction() {
-        return priceFunc_;
-    }
+        private PriorityQueue<Trader> candidateSuspendHeap_ = new PriorityQueue<>((t1, t2) -> {
+            double c1 = t1.getCommoditiesSold().get(t1.getBasketSold().indexOf(commSpec_)).getCapacity();
+            double c2 = t2.getCommoditiesSold().get(t2.getBasketSold().indexOf(commSpec_)).getCapacity();
+            return c1 < c2 ? -1 : c1 == c2 ? 0 : 1;
+        });
 
-    public void setPriceFunction(PriceFunction priceFunction) {
-        priceFunc_ = priceFunction;
-    }
+        public CommoditySpecification getCommoditySpecification() {
+            return commSpec_;
+        }
 
-    /**
-     * Get price function of this commodity
-     *
-     * @return PriceFuction
-     */
-    public double getQuantity() {
-        return quantity_;
-    }
+        /**
+         * If a commodity resource is not a consider commodity
+         * we don't consider this commodity resource any more
+         * in the clone and suspend decision.
+         * Default value is true.
+         *
+         * @return whether this commodity should be considered
+         */
+        public boolean isConsiderCommodity() {
+            return considerCommodity_;
+        }
 
-    public void addQuantity(double quantity) {
-        quantity_ += quantity;
-    }
+        public void setIsConsiderCommodity(boolean isConsider) {
+            considerCommodity_ = isConsider;
+        }
 
-    /**
-     * Get peak quantities of this commodity
-     *
-     * @return PeakQuantities
-     */
-    public double getPeakQuantity() {
-        return peakQuantity_;
-    }
+        /**
+         * Get price function of this commodity.
+         *
+         * @return PriceFuction
+         */
+        public PriceFunction getPriceFunction() {
+            return priceFunc_;
+        }
 
-    public void addPeakQuantity(double peakQuantity) {
-        peakQuantity_ += peakQuantity;
-    }
+        public void setPriceFunction(PriceFunction priceFunction) {
+            priceFunc_ = priceFunction;
+        }
 
-    /**
-     * Get capacity of this commodity
-     *
-     * @return Capacity
-     */
-    public double getCapacity() {
-        return capacity_;
-    }
+        /**
+         * Get price function of this commodity.
+         *
+         * @return PriceFuction
+         */
+        public double getQuantity() {
+            return quantity_;
+        }
 
-    public void addCapacity(double capacity) {
-        capacity_ += capacity;
-    }
+        public void increaseQuantityBy(double increase) {
+            quantity_ += increase;
+        }
 
-    public void removeCapacity(double capacity) {
-        capacity_ -= capacity;
-    }
+        /**
+         * Get peak quantities of this commodity.
+         *
+         * @return PeakQuantities
+         */
+        public double getPeakQuantity() {
+            return peakQuantity_;
+        }
 
-    /**
-     * Get revenue of this commodity
-     *
-     * @return Revenue
-     */
-    public double getRevenue() {
-        return revenue_;
-    }
+        public void increasePeakQuantityBy(double increase) {
+            peakQuantity_ += increase;
+        }
 
-    public void addRevenue(double revenue) {
-        revenue_ += revenue;
-    }
+        /**
+         * Get capacity of this commodity.
+         *
+         * @return Capacity
+         */
+        public double getCapacity() {
+            return capacity_;
+        }
 
-    public void removeRevenue(double revenue) {
-        revenue_ -= revenue;
-    }
+        public void increaseCapacityBy(double increase) {
+            capacity_ += increase;
+        }
 
-    public void setRevenue(double revenue) {
-        revenue_ = revenue;
-    }
+        public void decreaseCapacityBy(double decrease) {
+            capacity_ -= decrease;
+        }
 
-    public CommodityResource(CommoditySpecification commSpec) {
-        commSpec_ = commSpec;
-    }
+        /**
+         * Get revenue of this commodity.
+         *
+         * @return Revenue
+         */
+        public double getRevenue() {
+            return revenue_;
+        }
 
-    public PriorityQueue<Trader> getCandidateSuspendHeap() {
-        return candidateSuspendHeap_;
-    }
+        public void increaseRevenue(double increase) {
+            revenue_ += increase;
+        }
 
-    public PriorityQueue<Trader> getInactiveCandidateHeap() {
-        return inactiveCandidateHeap_;
-    }
+        public void decreaseRevenueBy(double decrease) {
+            revenue_ -= decrease;
+        }
 
-    public double getMaxCapacity() {
-        return maxCapacity_;
-    }
+        public void setRevenue(double revenue) {
+            revenue_ = revenue;
+        }
 
-    public void setMaxCapacity(double capacity) {
-        maxCapacity_ = capacity;
-    }
+        CommodityResource(CommoditySpecification commSpec) {
+            commSpec_ = commSpec;
+        }
 
-    public Trader getCandidateClone() {
-        return candidateClone_;
-    }
+        public PriorityQueue<Trader> getCandidateSuspendHeap() {
+            return candidateSuspendHeap_;
+        }
 
-    public void setCandidateClone(Trader candidateClone) {
-        candidateClone_ = candidateClone;
-    }
+        public PriorityQueue<Trader> getInactiveCandidateHeap() {
+            return inactiveCandidateHeap_;
+        }
 
-    @Override
-    public int compareTo(CommodityResource commResource) {
-        if (isConsiderCommodity() != commResource.isConsiderCommodity()) {
-            return !isConsiderCommodity() ? -1 : 1;
-        } else {
-            double value = getRevenue() - commResource.getRevenue();
-            return value > 0d ? 1 : value < 0d ? -1 : 0;
+        public double getMaxCapacity() {
+            return maxCapacity_;
+        }
+
+        public void setMaxCapacity(double capacity) {
+            maxCapacity_ = capacity;
+        }
+
+        public Trader getCandidateClone() {
+            return candidateClone_;
+        }
+
+        public void setCandidateClone(Trader candidateClone) {
+            candidateClone_ = candidateClone;
+        }
+
+        @Override
+        public int compareTo(CommodityResource commResource) {
+            if (isConsiderCommodity() != commResource.isConsiderCommodity()) {
+                return isConsiderCommodity() ? 1 : -1;
+            } else {
+                return (int)Math.signum(getRevenue() - commResource.getRevenue());
+            }
         }
     }
 }

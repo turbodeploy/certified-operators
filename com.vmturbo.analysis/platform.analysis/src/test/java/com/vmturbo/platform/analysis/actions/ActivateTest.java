@@ -117,7 +117,7 @@ public class ActivateTest {
         try {
             assertSame(activation, activation.take());
             assertTrue(valid);
-        } catch (IllegalArgumentException e){
+        } catch (IllegalStateException e){
             assertFalse(valid);
         }
         assertTrue(target.getState().isActive());
@@ -139,7 +139,7 @@ public class ActivateTest {
         try {
             assertSame(activation, activation.rollback());
             assertFalse(invalid);
-        } catch (IllegalArgumentException e){
+        } catch (IllegalStateException e){
             assertTrue(invalid);
         }
         assertFalse(target.getState().isActive());
