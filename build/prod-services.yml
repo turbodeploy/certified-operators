@@ -446,3 +446,16 @@ services:
     volumes:
       - mediation-vplex:/home/turbonomic/data
     restart: always
+
+  mediation-rhv-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.rhv.component
+    environment:
+      consul_host: consul
+      component_type: mediation-rhv
+      instance_id: mediation-rhv-1
+    volumes:
+      - mediation-rhv:/home/turbonomic/data
+    restart: always

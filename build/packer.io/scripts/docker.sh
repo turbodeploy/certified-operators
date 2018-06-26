@@ -36,7 +36,7 @@ export HOST_IP=$(/sbin/ip route get 1 | awk '{print $NF;exit}')
 XL_COMPONENTS="auth topology-processor market repository plan-orchestrator action-orchestrator group \
         history reporting mediation-hyperv mediation-vcenter mediation-netapp mediation-ucs \
         mediation-vmax mediation-vmm mediation-hpe3par mediation-pure mediation-scaleio \
-        mediation-hds mediation-compellent mediation-xtremio mediation-vplex \
+        mediation-hds mediation-compellent mediation-xtremio mediation-vplex mediation-rhv \
         api"
 # list of "support" containers to start
 BASE_IMAGES="nginx rsyslog consul clustermgr db arangodb"

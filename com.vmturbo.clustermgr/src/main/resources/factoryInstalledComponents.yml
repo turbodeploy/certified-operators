@@ -274,6 +274,10 @@ mediation-vplex:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
+mediation-rhv:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

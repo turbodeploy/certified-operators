@@ -55,6 +55,7 @@ volumes:
   mediation-compellent: *localdriver
   mediation-xtremio: *localdriver
   mediation-vplex: *localdriver
+  mediation-rhv: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -757,6 +758,23 @@ services:
     volumes:
       - mediation-vplex:/home/turbonomic/data
     mem_limit: ${MEDIATION_VPLEX_MEM_LIMIT_MB}M
+
+  mediation-rhv:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.rhv.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_RHV_PORT}"
+      - "${MEDIATION_RHV_DEBUG_PORT}"
+    environment:
+      component_type: mediation-rhv
+      instance_id: mediation-rhv-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_RHV_XMX_MB}M ${MEDIATION_RHV_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-rhv:/home/turbonomic/data
+    mem_limit: ${MEDIATION_RHV_MEM_LIMIT_MB}M
 
 #  mediation-openstack:
 #    extends:
