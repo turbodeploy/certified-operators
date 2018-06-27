@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -17,6 +19,7 @@ import org.checkerframework.dataflow.qual.Pure;
  * Allocates consecutive unique numerical IDs to string IDs starting from 0 and translates between
  * them.
  */
+@NotThreadSafe
 public final class NumericIDAllocator implements UnmodifiableNumericIDAllocator {
     // Fields
     private final @NonNull Map<@NonNull String, @NonNull Integer> ids_ = new LinkedHashMap<>();
