@@ -54,7 +54,7 @@ cp ${WORKSPACE}/build/common-services.yml ${WORKSPACE}/data/images/
 
 INFO="${WORKSPACE}/data/images/turbonomic_info.txt"
 echo "Built on: $(date)" > ${INFO}
-echo "Version: XL 2.0" >> ${INFO}
+echo "Version: XL ${VER_SHORT}" >> ${INFO}
 echo "Build #: ${RELEASE_REV}" >> ${INFO}
 
 # Cleanup and create the ISO
