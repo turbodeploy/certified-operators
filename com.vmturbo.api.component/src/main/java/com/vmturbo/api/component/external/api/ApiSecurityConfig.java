@@ -23,6 +23,7 @@ import org.springframework.beans.factory.config.MethodInvokingFactoryBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.core.io.Resource;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -65,7 +66,6 @@ import org.springframework.security.saml.websso.SingleLogoutProfileImpl;
 import org.springframework.security.saml.websso.WebSSOProfile;
 import org.springframework.security.saml.websso.WebSSOProfileConsumer;
 import org.springframework.security.saml.websso.WebSSOProfileConsumerHoKImpl;
-import org.springframework.security.saml.websso.WebSSOProfileConsumerImpl;
 import org.springframework.security.saml.websso.WebSSOProfileECPImpl;
 import org.springframework.security.saml.websso.WebSSOProfileImpl;
 import org.springframework.security.saml.websso.WebSSOProfileOptions;
@@ -91,6 +91,7 @@ import com.google.common.collect.Iterables;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
 import com.vmturbo.api.component.external.api.SAML.WebSSOProfileConsumerImplExt;
+import com.vmturbo.auth.api.Base64CodecUtils;
 
 /**
  * <p>Configure security for the REST API Dispatcher here.
@@ -122,6 +123,13 @@ import com.vmturbo.api.component.external.api.SAML.WebSSOProfileConsumerImplExt;
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
+    public static final String TURBO = "turbo";
+    public static final String HTTPS_SLASH = "https://";
+    public static final String VMTURBO = "/vmturbo";
+    public static final String DEV_ENTITY_BASE_URL = "https://localhost/vmturbo";
+    public static final String LOCALHOST = "localhost";
+    public static final int DEFAULT_PORT = 443;
+    public static final String HTTPS = "https";
     // map "/vmturbo/rest/*" to "/vmturbo/rest/",
     // and "/vmturbo/api/v2/*" to "/vmturbo/api/v2/"
     private static Function<String, String> mappingsToBaseURI = input -> input.substring(0, input.length() - 1);
@@ -134,6 +142,24 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Value("${samlEnabled:false}")
     private boolean samlEnabled;
+
+    @Value("${samlIdpMetadata:samlIdpMetadata}")
+    private String samlIdpMetadata;
+
+    @Value("${samlEntityId:turbo}")
+    private String samlEntityId;
+
+    @Value("${samlExternalIP:localhost}")
+    private String samlExternalIP;
+
+    @Value("${samlKeystore:samlKeystore}")
+    private String samlKeystore;
+
+    @Value("${samlKeystorePassword:nalle123}")
+    private String samlKeystorePassword;
+
+    @Value("${samlPrivateKeyAlias:apollo}")
+    private String samlPrivateKeyAlias;
 
     // Initialization of OpenSAML library
     @Bean
@@ -182,6 +208,7 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
                     .antMatchers(base_uri + "cluster/proactive/initialized").permitAll()
                     .antMatchers(base_uri + "cluster/proactive/enabled").permitAll()
                     .antMatchers(base_uri + "users/me").permitAll()
+                    .antMatchers(base_uri + "users/saml").permitAll()
                     .antMatchers(base_uri + "admin/versions").permitAll()
                     .antMatchers(base_uri + "license").permitAll()
                     .antMatchers(base_uri + "licenses/summary").permitAll()
@@ -226,9 +253,13 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     @Conditional(SAMLCondition.class)
     public SAMLContextProviderImpl contextProvider() {
         SAMLContextProviderLB samlContextProviderLB = new SAMLContextProviderLB();
-        samlContextProviderLB.setScheme("https");
-        samlContextProviderLB.setServerName("localhost");
-        samlContextProviderLB.setServerPort(443);
+        samlContextProviderLB.setScheme(HTTPS);
+        if (samlExternalIP != null) {
+            samlContextProviderLB.setServerName(samlExternalIP);
+        } else {
+            samlContextProviderLB.setServerName(LOCALHOST);
+        }
+        samlContextProviderLB.setServerPort(DEFAULT_PORT);
         samlContextProviderLB.setIncludeServerPortInRequestURL(false);
         samlContextProviderLB.setContextPath("/");
         return samlContextProviderLB;
@@ -287,13 +318,11 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     @Conditional(SAMLCondition.class)
     public KeyManager keyManager() {
         DefaultResourceLoader loader = new DefaultResourceLoader();
-        Resource storeFile = loader
-                .getResource("classpath:/saml/samlKeystore.jks");
-        String storePass = "nalle123";
+        byte [] byteArray = Base64CodecUtils.decode(samlKeystore);
+        Resource storeFile = new ByteArrayResource(byteArray);
         Map<String, String> passwords = new HashMap<String, String>();
-        passwords.put("apollo", "nalle123");
-        String defaultKey = "apollo";
-        return new JKSKeyManager(storeFile, storePass, passwords, defaultKey);
+        passwords.put(samlPrivateKeyAlias, samlKeystorePassword);
+        return new JKSKeyManager(storeFile, samlKeystorePassword, passwords, samlPrivateKeyAlias);
     }
 
     // Setup TLS Socket Factory
@@ -312,7 +341,7 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     @Conditional(SAMLCondition.class)
     public Protocol socketFactoryProtocol() {
-        return new Protocol("https", socketFactory(), 443);
+        return new Protocol(HTTPS, socketFactory(), DEFAULT_PORT);
     }
 
     @Bean
@@ -321,7 +350,7 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
         MethodInvokingFactoryBean methodInvokingFactoryBean = new MethodInvokingFactoryBean();
         methodInvokingFactoryBean.setTargetClass(Protocol.class);
         methodInvokingFactoryBean.setTargetMethod("registerProtocol");
-        Object[] args = {"https", socketFactoryProtocol()};
+        Object[] args = {HTTPS, socketFactoryProtocol()};
         methodInvokingFactoryBean.setArguments(args);
         return methodInvokingFactoryBean;
     }
@@ -373,17 +402,37 @@ public class ApiSecurityConfig extends WebSecurityConfigurerAdapter {
     @Qualifier("metadata")
     public CachingMetadataManager metadata() throws MetadataProviderException, IOException, SAXException, ParserConfigurationException {
         List<MetadataProvider> providers = new ArrayList<MetadataProvider>();
-        providers.add(oktaExtendedMetadataProvider());
+        if (samlIdpMetadata !=null ) {
+            DOMMetadataProvider provider = getDomMetadataProvider();
+            providers.add(new ExtendedMetadataDelegate(provider, new ExtendedMetadata()));
+        } else { //default provider for development
+            providers.add(oktaExtendedMetadataProvider());
+        }
         return new CachingMetadataManager(providers);
     }
 
-    // Filter automatically generates default SP metadata
+    private DOMMetadataProvider getDomMetadataProvider() throws IOException, SAXException, ParserConfigurationException {
+        byte[] byteArray = Base64CodecUtils.decode(samlIdpMetadata);
+        String idpMetadata = new String(byteArray);
+        Element element = SAMLUtils.loadXMLFromString(idpMetadata).getDocumentElement();
+        return new DOMMetadataProvider(element);
+    }
+
+    // Generates service provide metadata
     @Bean
     @Conditional(SAMLCondition.class)
     public MetadataGenerator metadataGenerator() {
         MetadataGenerator metadataGenerator = new MetadataGenerator();
-        metadataGenerator.setEntityId("turbo");
-        metadataGenerator.setEntityBaseURL("https://localhost/vmturbo");
+        if (samlEntityId != null) {
+            metadataGenerator.setEntityId(samlEntityId);
+        } else { // It's empty in Consul
+            metadataGenerator.setEntityId(TURBO);
+        }
+        if (samlExternalIP != null) {
+            metadataGenerator.setEntityBaseURL(HTTPS_SLASH + samlExternalIP+ VMTURBO);
+        } else { // It's empty in Consul
+            metadataGenerator.setEntityBaseURL(DEV_ENTITY_BASE_URL);
+        }
         metadataGenerator.setExtendedMetadata(extendedMetadata());
         metadataGenerator.setIncludeDiscoveryExtension(false);
         metadataGenerator.setKeyManager(keyManager());

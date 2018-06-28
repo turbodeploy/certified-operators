@@ -30,7 +30,6 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 /**
  * Implementation of SAMLUserDetailsService that creates users with mapping roles.
  */
-//@Service
 public class SAMLUserDetailsServiceImpl implements SAMLUserDetailsService {
 
 

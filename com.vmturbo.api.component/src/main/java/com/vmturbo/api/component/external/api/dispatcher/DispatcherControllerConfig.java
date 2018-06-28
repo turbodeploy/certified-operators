@@ -42,6 +42,7 @@ import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.validators.TemplatesValidator;
 import com.vmturbo.api.xlcontroller.ClusterController;
+import com.vmturbo.api.xlcontroller.SAMLController;
 
 /**
  * Configuration for the dispatcher servlet responsible for
@@ -222,4 +223,10 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     public GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
     }
+
+    @Bean
+    public SAMLController samlController() {
+        return new SAMLController();
+    }
+
 }

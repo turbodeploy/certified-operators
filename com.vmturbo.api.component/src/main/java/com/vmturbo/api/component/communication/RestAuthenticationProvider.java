@@ -48,6 +48,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      */
     public static final String AUTH_HEADER_NAME = "x-auth-token";
     public static final String USERS_AUTHORIZE = "/users/authorize/";
+    public static final String SAML_DUMMY_PASS = "SAML_DUMMY_PASS";
 
     /**
      * The logger.
@@ -224,21 +225,23 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
                 .port(authPort_)
                 .path(USERS_AUTHORIZE);
 
-        final String authRequest = groupName.map(group ->
-                builder
-                .pathSegment(
-                        encodeValue(username),
-                        encodeValue(group),
-                        remoteIpAddress)
-                .build()
-                .toUriString()).orElse(
-                builder
-                        .pathSegment(
-                                encodeValue(username),
-                                remoteIpAddress)
-                        .build()
-                        .toUriString()
-        );
+        final String authRequest = groupName.map(
+                group ->
+                        builder
+                                .pathSegment(
+                                        encodeValue(username),
+                                        encodeValue(group),
+                                        remoteIpAddress)
+                                .build()
+                                .toUriString())
+                .orElse(
+                        builder
+                                .pathSegment(
+                                        encodeValue(username),
+                                        remoteIpAddress)
+                                .build()
+                                .toUriString()
+                );
 
         ResponseEntity<String> result;
         HttpHeaders headers = new HttpHeaders();
@@ -250,7 +253,8 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         HttpEntity<List> entity = new HttpEntity<>(headers);
         result = restTemplate_.exchange(authRequest, HttpMethod.GET, entity, String.class);
         JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
-        return getAuthentication("SAML_DUMMY_PASS", username, token);
+        // add a dummy password.
+        return getAuthentication(SAML_DUMMY_PASS, username, token);
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -9,17 +10,8 @@ import java.util.UUID;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.xml.parsers.ParserConfigurationException;
 
-import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
-import com.vmturbo.api.dto.user.SAMLIdpApiDTO;
-import com.vmturbo.api.exceptions.UnauthorizedObjectException;
-import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpEntity;
@@ -30,14 +22,28 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.Errors;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import org.w3c.dom.Element;
+import org.xml.sax.SAXException;
+
+import com.google.common.collect.ImmutableList;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
+import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
+import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryApiDTO;
 import com.vmturbo.api.dto.user.ActiveDirectoryGroupApiDTO;
-import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.dto.user.ChangePasswordApiDTO;
+import com.vmturbo.api.dto.user.SAMLIdpApiDTO;
+import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
+import com.vmturbo.auth.api.Base64CodecUtils;
+import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
+import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
+import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
@@ -58,6 +64,8 @@ public class UsersService implements IUsersService {
      * The HTTP accept header.
      */
     public static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
+    public static final String ENTITY_ID = "entityID";
+    public static final String SAML_IDP_ENTITY_NAME = "SAML IDP entity name: ";
 
     /**
      * The logger.
@@ -83,23 +91,37 @@ public class UsersService implements IUsersService {
      * The GSON parser/builder.
      */
     private final Gson GSON_ = new GsonBuilder().create();
+    private final String idpURL;
+    private final boolean samlEnabled;
 
     /**
      * Constructs the users service.
-     *
      * @param authHost     The authentication host.
      * @param authPort     The authentication port.
      * @param restTemplate The synchronous client-side HTTP access.
+     * @param samlIdpMetadata The SAML IDP metadata
+     * @param samlEnabled  is SAML enabled
      */
     public UsersService(final @Nonnull String authHost,
                         final int authPort,
-                        final @Nonnull RestTemplate restTemplate) {
+                        final @Nonnull RestTemplate restTemplate,
+                        final @Nonnull String samlIdpMetadata,
+                        final boolean samlEnabled) {
         authHost_ = Objects.requireNonNull(authHost);
         authPort_ = authPort;
         if (authPort_ < 0 || authPort_ > 65535) {
             throw new IllegalArgumentException("Invalid AUTH port.");
         }
         restTemplate_ = Objects.requireNonNull(restTemplate);
+        if (samlEnabled && samlIdpMetadata != null) {
+            this.idpURL = getIdpEntityName(samlIdpMetadata).orElse("");
+            this.samlEnabled = true;
+        } else {
+            this.idpURL = "";
+            this.samlEnabled = false;
+        }
+
+
     }
 
     /**
@@ -194,7 +216,7 @@ public class UsersService implements IUsersService {
     public @Nonnull UserApiDTO getLoggedInUser() throws Exception {
         return SAMLUserUtils.getAuthUserDTO()
                 .map(authUserDTO -> generateUserApiDTO(authUserDTO))
-                .orElseThrow(() -> new IllegalStateException("No user logged in!"));
+                .orElseThrow(() -> new UnauthorizedObjectException("No user logged in!"));
     }
 
     /**
@@ -636,8 +658,38 @@ public class UsersService implements IUsersService {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * {@inheritDoc}
+     * @return
+     */
     @Override
     public Optional<SAMLIdpApiDTO> getSAMLIdp() {
+        if (samlEnabled) {
+                logger_.info(SAML_IDP_ENTITY_NAME + idpURL);
+                SAMLIdpApiDTO samlIdpApiDTO = new SAMLIdpApiDTO();
+                samlIdpApiDTO.setIdpURL(idpURL);
+                samlIdpApiDTO.setSAMLOnly(samlEnabled);
+                return Optional.of(samlIdpApiDTO);
+        }
+        return Optional.empty();
+    }
+
+    private Optional<String> getIdpEntityName(String samlIdpMetadata) {
+        try {
+            byte[] byteArray = Base64CodecUtils.decode(samlIdpMetadata);
+            String idpMetadata = new String(byteArray);
+            Element element = SAMLUtils.loadXMLFromString(idpMetadata).getDocumentElement();
+            return Optional.ofNullable(element.getAttribute(ENTITY_ID));
+        } catch (SAXException e) {
+            logger_.info(e);
+        } catch (ParserConfigurationException e) {
+            logger_.info(e);
+        } catch (IOException e) {
+            logger_.info(e);
+            // it's called from constructor, and we don't want it throw any RuntimeException.
+        } catch (RuntimeException e) {
+            logger_.info(e);
+        }
         return Optional.empty();
     }
 }

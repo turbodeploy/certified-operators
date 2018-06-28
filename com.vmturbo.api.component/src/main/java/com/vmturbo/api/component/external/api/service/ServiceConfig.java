@@ -21,10 +21,12 @@ import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
+import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
 import com.vmturbo.reporting.api.ReportingClientConfig;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc;
 import com.vmturbo.reporting.api.protobuf.ReportingServiceGrpc.ReportingServiceBlockingStub;
@@ -38,7 +40,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
  */
 @Configuration
 @Import({SpringSecurityConfig.class, MapperConfig.class, CommunicationConfig.class,
-        RepositoryClientConfig.class, ReportingClientConfig.class,  PublicKeyStoreConfig.class})
+        RepositoryClientConfig.class, ReportingClientConfig.class,
+        PublicKeyStoreConfig.class, SAMLConfigurationStoreConfig.class})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
@@ -60,6 +63,12 @@ public class ServiceConfig {
 
     @Value("${supplyChainFetcherTimeoutSeconds}")
     private Long supplyChainFetcherTimeoutSeconds;
+
+    @Value("${samlEnabled:false}")
+    private boolean samlEnabled;
+
+    @Value("${samlIdpMetadata:samlIdpMetadata}")
+    private String samlIdpMetadata;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -88,6 +97,9 @@ public class ServiceConfig {
     @Autowired
     private PublicKeyStoreConfig publicKeyStoreConfig;
 
+    @Autowired
+    private SAMLConfigurationStoreConfig samlConfigurationStoreConfig;
+
     @Bean
     public ActionsService actionsService() {
         return new ActionsService(communicationConfig.actionsRpcService(),
@@ -105,6 +117,11 @@ public class ServiceConfig {
     public AuthenticationService authenticationService() {
         return new AuthenticationService(authConfig.getAuthHost(), authConfig.getAuthPort(),
                 securityConfig.verifier(), communicationConfig.serviceRestTemplate(), targetStore());
+    }
+
+    @Bean
+    public ISAMLService samlService() {
+        return new SAMLService(samlConfigurationStoreConfig.samlConfigurationStore());
     }
 
     @Bean
@@ -322,7 +339,9 @@ public class ServiceConfig {
     public UsersService usersService() {
         return new UsersService(authConfig.getAuthHost(),
                                 authConfig.getAuthPort(),
-                                communicationConfig.serviceRestTemplate());
+                                communicationConfig.serviceRestTemplate(),
+                                samlIdpMetadata,
+                                samlEnabled);
     }
 
     @Bean

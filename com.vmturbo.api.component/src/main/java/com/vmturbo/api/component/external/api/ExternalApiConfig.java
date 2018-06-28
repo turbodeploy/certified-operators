@@ -52,6 +52,7 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
             "/vmturbo/rest/*",
             // This should be the future, to align with the V1 API which is at /api/
             "/vmturbo/api/v2/*",
+            // for SAML filters, see ApiSecurityConfig#samlFilter
             "/vmturbo/saml/*",
             // We are also supporting /api as of OM-32218
             "/api/*"
