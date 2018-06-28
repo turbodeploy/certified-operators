@@ -31,6 +31,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nullable;
+
+import com.google.common.collect.Lists;
+
 import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Rule;
@@ -75,6 +79,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
@@ -395,6 +400,53 @@ public class StatsHistoryRpcServiceTest {
         assertThat(statRecord.getCapacity().getTotal(), equalTo(18f));
     }
 
+    @Test
+    public void testGroupByKey() throws VmtDbException {
+        // arrange
+        when(historyDbio.entityIdIsPlan(ENTITY_UUID)).thenReturn(false);
+        ScenariosRecord scenariosRecord = new ScenariosRecord();
+        when(historyDbio.getScenariosRecord(PLAN_OID)).thenReturn(Optional.of(scenariosRecord));
+
+        long startDate = System.currentTimeMillis();
+        long endDate = startDate + Duration.ofSeconds(1).toMillis();
+        final List<Long> entityUuids = Lists.newArrayList(ENTITY_UUID);
+        final List<String> entityUuidsStr = Lists.newArrayList(Long.toString(ENTITY_UUID));
+
+        List<Record> statsRecordsList = Lists.newArrayList();
+        addStatsRecordWithKey(statsRecordsList, SNAPSHOT_TIME, 1, "c1", "c1-subtype", "key1");
+        addStatsRecordWithKey(statsRecordsList, SNAPSHOT_TIME, 2, "c1", "c1-subtype", "key2");
+        when(mockLivestatsreader.getStatsRecords(eq(entityUuidsStr), eq(startDate), eq(endDate), any()))
+                .thenReturn(statsRecordsList);
+
+        // test request without grouping by key
+        StatsFilter.Builder reqStatsBuilder = StatsFilter.newBuilder()
+                .setStartDate(startDate)
+                .setEndDate(endDate)
+                .addCommodityRequests(CommodityRequest.newBuilder()
+                    .setCommodityName("c1"));
+
+        Stats.GetAveragedEntityStatsRequest testStatsRequest = Stats.GetAveragedEntityStatsRequest.newBuilder()
+                .addAllEntities(entityUuids)
+                .setFilter(reqStatsBuilder)
+                .build();
+        final List<StatSnapshot> snapshots = new ArrayList<>();
+        clientStub.getAveragedEntityStats(testStatsRequest).forEachRemaining(snapshots::add);
+        assertEquals("The request without grouping by key should receive 1 record", 1,
+                snapshots.get(0).getStatRecordsCount());
+
+        // test with grouping by key
+        GetAveragedEntityStatsRequest.Builder testStatsRequestNoKey
+                = Stats.GetAveragedEntityStatsRequest.newBuilder(testStatsRequest);
+        testStatsRequestNoKey.getFilterBuilder()
+            .getCommodityRequestsBuilder(0)
+                .addGroupBy(StringConstants.KEY);
+
+        snapshots.clear();
+        clientStub.getAveragedEntityStats(testStatsRequestNoKey.build()).forEachRemaining(snapshots::add);
+        assertEquals("The request with grouping by key should receive 2 records", 2,
+                snapshots.get(0).getStatRecordsCount());
+    }
+
     /**
      * Create a Record to use in a response list. Use a PmStatsLatestRecord just as an example -
      * the type of the Record is not important. All of the different _stats_latest records have the
@@ -411,6 +463,27 @@ public class StatsHistoryRpcServiceTest {
                                 double testValue,
                                 String propType,
                                 String propSubType) {
+        addStatsRecordWithKey(statsRecordsList, snapshotTime, testValue, propType, propSubType, null);
+    }
+
+    /**
+     * Create a Record to use in a response list. Use a PmStatsLatestRecord just as an example -
+     * the type of the Record is not important. All of the different _stats_latest records have the
+     * same schema.
+     *
+     * @param statsRecordsList the list to add the new record to
+     * @param snapshotTime the time this stat was recorded
+     * @param testValue the value of the stat
+     * @param propType the property type for this stat
+     * @param propSubType the property subtype for this stat
+     * @param commodityKey the commodity key for this stat
+     */
+    private void addStatsRecordWithKey(List<Record> statsRecordsList,
+                                Timestamp snapshotTime,
+                                double testValue,
+                                String propType,
+                                String propSubType,
+                                @Nullable String commodityKey) {
         PmStatsLatestRecord statsRecord = new PmStatsLatestRecord();
         statsRecord.setSnapshotTime(snapshotTime);
         statsRecord.setPropertyType(propType);
@@ -419,6 +492,7 @@ public class StatsHistoryRpcServiceTest {
         statsRecord.setMinValue(testValue / 2);
         statsRecord.setMaxValue(testValue * 2);
         statsRecord.setCapacity(testValue * 3);
+        if (commodityKey != null) statsRecord.setCommodityKey(commodityKey);
         statsRecordsList.add(statsRecord);
     }
 

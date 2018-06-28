@@ -34,6 +34,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -278,16 +282,18 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             for (final long entityOid : targetEntities) {
                 logger.debug("getEntityStats: {}", entityOid);
                 final StatsFilter statsFilter = request.getFilter();
-                final List<Record> statDBRecords = liveStatsReader.getStatsRecords(
+                final List<CommodityRequest> commodityRequests = statsFilter.getCommodityRequestsList();
+                List<Record> statDBRecords = liveStatsReader.getStatsRecords(
                         Collections.singletonList(Long.toString(entityOid)),
                         statsFilter.getStartDate(), statsFilter.getEndDate(),
-                        statsFilter.getCommodityRequestsList());
-                final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
+                        commodityRequests);
+                EntityStats.Builder statsForEntity = EntityStats.newBuilder()
                         .setOid(entityOid);
 
                 // organize the stats DB records for this entity into StatSnapshots and add to response
                 createStatSnapshots(statDBRecords, false, statSnapshotBuilder ->
-                        statsForEntity.addStatSnapshots(statSnapshotBuilder.build()));
+                        statsForEntity.addStatSnapshots(statSnapshotBuilder.build()),
+                        commodityRequests);
 
                 // done with this entity
                 entityStats.add(statsForEntity);
@@ -612,7 +618,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
         // organize the stats DB records into StatSnapshots and return them to the caller
         createStatSnapshots(statDBRecords, fullMarket, statSnapshotBuilder ->
-                responseObserver.onNext(statSnapshotBuilder.build()));
+                responseObserver.onNext(statSnapshotBuilder.build()), commodityRequests);
 
         responseObserver.onCompleted();
     }
@@ -624,13 +630,15 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param statDBRecords the list of DB stats records to organize
      * @param fullMarket is this a query against the full market table vs. individual SE type
      * @param handleSnapshot a function ({@link Consumer}) to call for each new {@link StatSnapshot}
+     * @param commodityRequests a list of {@link CommodityRequest} being satifisfied in this query
      */
     private void createStatSnapshots(@Nonnull List<Record> statDBRecords,
                                      boolean fullMarket,
-                                     @Nonnull Consumer<StatSnapshot.Builder> handleSnapshot) {
+                                     @Nonnull Consumer<StatSnapshot.Builder> handleSnapshot,
+                                     List<CommodityRequest> commodityRequests) {
         // Process all the DB records grouped by, and ordered by, snapshot_time
         TreeMap<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity =
-                organizeStatsRecordsByTime(statDBRecords);
+                organizeStatsRecordsByTime(statDBRecords, commodityRequests);
 
         // For each snapshot_time, create a {@link StatSnapshot} and handle as it is constructed
         statRecordsByTimeByCommodity.forEach((timestamp, commodityMap) -> {
@@ -710,11 +718,25 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * those by appending PROPERTY_TYPE with PROPERTY_SUBTYPE for the key for the commodity map.
      *
      * @param statDBRecords the list of DB stats records to organize
+     * @param commodityRequests a list of {@link CommodityRequest} being satisfied in this query. We
+     *                          will check if there is a groupBy parameter in the request and
+     *                          implement it here, where we are aggregating results.
+     *                          <b>NOTE:</b> XL only supports grouping by <em>key</em> (i.e.
+     *                          commodity keys), but not <em>relatedEntity</em> or <em>virtualDisk</em>.
+     *                          TODO: those options will be covered in OM-36453.
      * @return a map from each unique Timestamp to the map of properties to DB stats records for
      * that property and timestamp
      */
     private TreeMap<Timestamp, Multimap<String, Record>> organizeStatsRecordsByTime(
-            @Nonnull List<Record> statDBRecords) {
+            @Nonnull List<Record> statDBRecords, List<CommodityRequest> commodityRequests) {
+        // Figure out which stats are getting grouped by "key". This will be the set of commodity names
+        // that have "key" in their groupBy field list.
+        Set<String> statsGroupedByKey = commodityRequests.stream()
+                .filter(CommodityRequest::hasCommodityName)
+                .filter(cr -> cr.getGroupByList().contains(StringConstants.KEY))
+                .map(CommodityRequest::getCommodityName)
+                .collect(Collectors.toSet());
+
         // organize the statRecords by SNAPSHOT_TIME and then by PROPERTY_TYPE + PROPERTY_SUBTYPE
         TreeMap<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity = new TreeMap<>();
         for (Record dbStatRecord : statDBRecords) {
@@ -722,9 +744,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             Multimap<String, Record> snapshotMap = statRecordsByTimeByCommodity.computeIfAbsent(
                     snapshotTime, k -> HashMultimap.create()
             );
+
             String commodityName = dbStatRecord.getValue(PROPERTY_TYPE, String.class);
-            String commodityKey = dbStatRecord.field(COMMODITY_KEY) != null ?
-                    dbStatRecord.getValue(COMMODITY_KEY, String.class) : "";
+            // if this commodity is grouped by key, and the commodity key field is set, use the key
+            // in the record key.
+            String commodityKey = ((statsGroupedByKey.contains(commodityName)
+                    && dbStatRecord.field(COMMODITY_KEY) != null ))
+                    ? dbStatRecord.getValue(COMMODITY_KEY, String.class)
+                    : "";
             String propertySubType = dbStatRecord.getValue(PROPERTY_SUBTYPE, String.class);
             // See the enum RelationType in com.vmturbo.history.db.
             // Commodities, CommoditiesBought, and CommoditiesFromAttributes
