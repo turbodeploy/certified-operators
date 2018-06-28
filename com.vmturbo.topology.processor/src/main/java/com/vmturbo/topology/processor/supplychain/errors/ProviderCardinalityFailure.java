@@ -7,7 +7,7 @@ import com.vmturbo.stitching.TopologyEntity;
 /**
  * Providers of a specific type do not respect the cardinality requirements.
  */
-public class ProviderCardinalityException extends EntitySpecificSupplyChainException {
+public class ProviderCardinalityFailure extends EntitySpecificSupplyChainFailure {
     /**
      * Provider cardinality error.
      *
@@ -17,9 +17,8 @@ public class ProviderCardinalityException extends EntitySpecificSupplyChainExcep
      * @param max maximum acceptable number of providers of this type.
      * @param actual actual number of providers of this type.
      */
-    public ProviderCardinalityException(
-        @Nonnull TopologyEntity entity, int providerType, int min, int max, int actual
-    ) {
+    public ProviderCardinalityFailure(
+            @Nonnull TopologyEntity entity, int providerType, int min, int max, int actual) {
         super(
              entity,
              "Provider cardinality constraints violated. An entity of type " + entity.getEntityType() +

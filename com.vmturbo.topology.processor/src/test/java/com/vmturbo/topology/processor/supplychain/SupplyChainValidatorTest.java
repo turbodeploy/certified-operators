@@ -1,12 +1,16 @@
 package com.vmturbo.topology.processor.supplychain;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -19,10 +23,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityBoughtNotFoundException;
-import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityNotFoundException;
-import com.vmturbo.topology.processor.supplychain.errors.ProviderCardinalityException;
-import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationException;
+import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityBoughtNotFoundFailure;
+import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityNotFoundFailure;
+import com.vmturbo.topology.processor.supplychain.errors.ProviderCardinalityFailure;
+import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 
 /**
  * The main class to test supply chain validation.  Tests are based on the two supply chains defined
@@ -31,8 +35,7 @@ import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationEx
  */
 public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
 
-    private final SupplyChainValidator supplychainValidator =
-           new SupplyChainValidator(getProbeStore(), getTargetStore());
+    private SupplyChainValidator supplychainValidator;
 
     private final long PEAK = 100L;
     private final long USED = 50L;
@@ -43,6 +46,7 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
     private final long dcOid = 8888L;
     private final long stOid = 12345654321L;
     private final long daOid = 437L;
+    private final long lpOid = 199437L;
 
     // sold commodities
     private final Collection<CommoditySoldDTO> vmSoldCommodities =
@@ -136,6 +140,13 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
             TopologyEntityDTO.newBuilder().setOid(daOid).setDisplayName("Diskarray entity").
             setEntityType(EntityType.DISK_ARRAY_VALUE);
 
+
+    @Before
+    public void init() {
+        super.init();
+        supplychainValidator = new SupplyChainValidator(getProbeStore(), getTargetStore());
+    }
+
     /**
      * This test checks a valid scenario in which VM buys from PM and ST, PM buys from DC and ST,
      * and ST buys from DA.
@@ -187,7 +198,7 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
         validDa.addConsumer(validSt);
 
         // validate the topology
-        final List<SupplyChainValidationException> errors =
+        final List<SupplyChainValidationFailure> errors =
             supplychainValidator.validateTopologyEntities(
                 Stream.of(
                     validVM.build(), validPM.build(), validDC.build(), validSt.build(), validDa.build()));
@@ -222,7 +233,7 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
                 Collections.singletonList(HYPERVISOR_TARGET_ID), missingSoldCommodity,
                 Collections.singletonList(vmBoughtCommoditiesFromPM.build()));
 
-        final List<SupplyChainValidationException> errors =
+        final List<SupplyChainValidationFailure> errors =
             supplychainValidator.validateTopologyEntities(
                 Stream.of(TopologyEntity.newBuilder(vm_missingSoldCommodity).build()));
 
@@ -230,15 +241,15 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
         Assert.assertEquals(3, errors.size());
 
         // first error: commodity VMEM is not sold by the VM
-        Assert.assertTrue(errors.get(0) instanceof MandatoryCommodityNotFoundException);
-        final MandatoryCommodityNotFoundException commodityNotFoundException =
-            (MandatoryCommodityNotFoundException)errors.get(0);
+        Assert.assertTrue(errors.get(0) instanceof MandatoryCommodityNotFoundFailure);
+        final MandatoryCommodityNotFoundFailure commodityNotFoundException =
+            (MandatoryCommodityNotFoundFailure)errors.get(0);
         Assert.assertEquals(
             CommodityType.VMEM, commodityNotFoundException.getCommodity().getCommodityType());
 
         // second and third error: VM is not hosted by any PM and is not layered over any storage
-        Assert.assertTrue(errors.get(1) instanceof ProviderCardinalityException);
-        Assert.assertTrue(errors.get(2) instanceof ProviderCardinalityException);
+        Assert.assertTrue(errors.get(1) instanceof ProviderCardinalityFailure);
+        Assert.assertTrue(errors.get(2) instanceof ProviderCardinalityFailure);
     }
 
     /**
@@ -298,7 +309,7 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
         validDa.addConsumer(validSt);
 
         // validate the topology
-        final List<SupplyChainValidationException> errors =
+        final List<SupplyChainValidationFailure> errors =
             supplychainValidator.validateTopologyEntities(
                 Stream.of(
                     vmMissingBoughtCommodity.build(),
@@ -320,13 +331,258 @@ public class SupplyChainValidatorTest extends AbstractSupplyChainTest {
         // the provider should be the storage, and their types should be those mentioned in the
         // expectedMissingTypes array
         for (int i = 0; i < 2; ++i) {
-            Assert.assertTrue(errors.get(i) instanceof MandatoryCommodityBoughtNotFoundException);
-            final MandatoryCommodityBoughtNotFoundException commodityNotFoundException =
-                (MandatoryCommodityBoughtNotFoundException)errors.get(i);
+            Assert.assertTrue(errors.get(i) instanceof MandatoryCommodityBoughtNotFoundFailure);
+            final MandatoryCommodityBoughtNotFoundFailure commodityNotFoundException =
+                (MandatoryCommodityBoughtNotFoundFailure)errors.get(i);
             Assert.assertEquals(
                 expectedMissingTypes[i], commodityNotFoundException.getCommodity().getCommodityType());
             Assert.assertEquals(validSt.getOid(), commodityNotFoundException.getProvider().getOid());
         }
+    }
+
+    // yet another prototype, for the disjunctive specification test
+    private final TopologyEntityDTO.Builder lpPrototype =
+        TopologyEntityDTO.newBuilder().setOid(lpOid).setDisplayName("Logical pool entity").
+        setEntityType(EntityType.LOGICAL_POOL_VALUE);
+
+    /**
+     * Helper method for disjunction specification tests.
+     *
+     * The disjunction specification used for these tests introduces three types of entities:
+     * storage (ST), diskarray (DA), and logical pool (LP).  The specification is as follows:
+     * - a ST must have exactly one DA provider and buy commodity STORAGE_ACCESS from it AND
+     * - At least one of the following is true:
+     *   - a ST has exactly one LP provider and buys commodity EXTENT from it OR
+     *   - a ST has exactly one DA provider and buys commodity EXTENT from it
+     * (see {@link SupplyChainTestUtils#supplyChainWithDisjunction})
+     *
+     * The testing topology has one ST, one DA, one LP.  The DA and the LP are providers for ST.
+     * Define the following conditions
+     * - storageAccessBought = (ST buys STORAGE_ACCESS from DA)
+     * - extentBoughtFromLP = (ST buys EXTENT from LP)
+     * - extentBoughtFromDA = (ST buys EXTENT from DA)
+     * Our specification can be written storageAccessBought && (extentBoughtFromLP || extentBoughtFromDA)
+     *
+     * This helper method takes values for storageAccessBought, extentBoughtFromLP, extentBoughtFromDA as
+     * parameters, constructs the topology, and adds the corresponding commodities.
+     *
+     * @param storageAccessBought true if and only if ST buys STORAGE_ACCESS from DA.
+     * @param extentBoughtFromLP true if and only if ST buys EXTENT from LP.
+     * @param extentBoughtFromDA true if and only if ST buys EXTENT from DA.
+     * @return list of errors produced by validation.
+     */
+    public List<SupplyChainValidationFailure> createAndValidateTopology(
+            boolean storageAccessBought, boolean extentBoughtFromLP, boolean extentBoughtFromDA) {
+        // sold commodities (by DA and LP)
+        final Collection<CommoditySoldDTO> commoditiesSoldByDA =
+            Arrays.asList(
+                createCommoditySoldDTO(CommodityType.STORAGE_ACCESS_VALUE, null),
+                createCommoditySoldDTO(CommodityType.EXTENT_VALUE, null));
+        final Collection<CommoditySoldDTO> commoditiesSoldByLP =
+            Collections.singleton(createCommoditySoldDTO(CommodityType.EXTENT_VALUE, null));
+
+        // bought commodities (by ST)
+        final Collection<CommodityBoughtDTO> commoditiesBoughtbySTfromDA = new ArrayList<>();
+        if (storageAccessBought) {
+            commoditiesBoughtbySTfromDA.add(
+                createCommodityBoughtDTO(CommodityType.STORAGE_ACCESS_VALUE, null));
+        }
+        if (extentBoughtFromDA) {
+            commoditiesBoughtbySTfromDA.add(
+                createCommodityBoughtDTO(CommodityType.EXTENT_VALUE, null));
+        }
+        final Collection<CommodityBoughtDTO> commoditiesBoughtbySTfromLP = new ArrayList<>();
+        if (extentBoughtFromLP) {
+            commoditiesBoughtbySTfromLP.add(
+                createCommodityBoughtDTO(CommodityType.EXTENT_VALUE, null));
+        }
+        final CommoditiesBoughtFromProvider stFromDA =
+            CommoditiesBoughtFromProvider.newBuilder().setProviderId(daOid).
+            setProviderEntityType(EntityType.DISK_ARRAY_VALUE).
+            addAllCommodityBought(commoditiesBoughtbySTfromDA).build();
+        final CommoditiesBoughtFromProvider lpFromDA =
+            CommoditiesBoughtFromProvider.newBuilder().setProviderId(lpOid).
+            setProviderEntityType(EntityType.LOGICAL_POOL_VALUE).
+            addAllCommodityBought(commoditiesBoughtbySTfromLP).build();
+
+        // entities
+        final TopologyEntity.Builder storage =
+            TopologyEntity.newBuilder(buildEntity(
+                stPrototype, Collections.singleton(DISJUNCTION_TARGET_ID),
+                Collections.emptyList(), Arrays.asList(stFromDA, lpFromDA)));
+        final TopologyEntity.Builder diskarray =
+            TopologyEntity.newBuilder(buildEntity(
+                daPrototype, Collections.singleton(DISJUNCTION_TARGET_ID),
+                commoditiesSoldByDA, Collections.emptyList()));
+        final TopologyEntity.Builder logicalPool =
+            TopologyEntity.newBuilder(buildEntity(
+                lpPrototype, Collections.singleton(DISJUNCTION_TARGET_ID),
+                commoditiesSoldByLP, Collections.emptyList()));
+
+        // ST consumes from DA
+        storage.addProvider(diskarray);
+        diskarray.addConsumer(storage);
+
+        // ST consumes from LP
+        storage.addProvider(logicalPool);
+        logicalPool.addConsumer(storage);
+
+        // validate the topology and return all errors
+        return
+            supplychainValidator.validateTopologyEntities(
+                Stream.of(storage.build(), diskarray.build(), logicalPool.build()));
+    }
+
+    /**
+     * This helper method takes a list of validation errors and looks for three specific
+     * "missing mandatory bought commodity" errors:
+     * - storage does not buy STORAGE_ACCESS from diskarray
+     * - storage does not buy EXTENT by logical pool
+     * - and storage does not buy EXTENT by diskarray
+     * The boolean parameters of this method inform it which of these error messages is expected.
+     *
+     * If the list contains any validation error other than the above, then the method fails.
+     *
+     * @param errors the list of validation errors.
+     * @param expectStorageAccessCommodityMissing true if and only if the list is expected to contain the
+     *                                            error "STORAGE_ACCESS bought commodity is missing".
+     * @param expectExtentByLPMissing true if and only if the list is expected to contain the error "EXTENT
+     *                                bought from logical pool is missing".
+     * @param expectExtentByDAMissing true if and only if the list is expected to contain the error "EXTENT
+     *                                bought from diskarray is missing".
+     */
+    public void checkExpectedErrors(
+            @Nonnull List<SupplyChainValidationFailure> errors,
+            boolean expectStorageAccessCommodityMissing,
+            boolean expectExtentByLPMissing,
+            boolean expectExtentByDAMissing) {
+        boolean foundStorageAccessCommodityMissingError = false;
+        boolean foundExtentCommodityFromLPMissingError = false;
+        boolean foundExtentCommodityFromDAMissingError = false;
+        for (int i = 0; i < errors.size(); i++) {
+            Assert.assertTrue(errors.get(i) instanceof MandatoryCommodityBoughtNotFoundFailure);
+            final MandatoryCommodityBoughtNotFoundFailure failure =
+                (MandatoryCommodityBoughtNotFoundFailure)errors.get(i);
+            switch (failure.getProvider().getEntityType()) {
+                case EntityType.DISK_ARRAY_VALUE:
+                    switch (failure.getCommodity().getCommodityType()) {
+                        case STORAGE_ACCESS:
+                            foundStorageAccessCommodityMissingError = true;
+                            break;
+                        case EXTENT:
+                            foundExtentCommodityFromDAMissingError = true;
+                            break;
+                        default:
+                            Assert.fail();
+                    }
+                    break;
+                case EntityType.LOGICAL_POOL_VALUE:
+                    Assert.assertEquals(CommodityType.EXTENT, failure.getCommodity().getCommodityType());
+                    foundExtentCommodityFromLPMissingError = true;
+                    break;
+                default:
+                    Assert.fail();
+            }
+        }
+        Assert.assertEquals(expectStorageAccessCommodityMissing, foundStorageAccessCommodityMissingError);
+        Assert.assertEquals(expectExtentByLPMissing, foundExtentCommodityFromLPMissingError);
+        Assert.assertEquals(expectExtentByDAMissing, foundExtentCommodityFromDAMissingError);
+    }
+
+    /**
+     * Test the case that all mandatory bought commodities are missing.
+     */
+    @Test
+    public void testDisjunctionNoCommodities() {
+        final List<SupplyChainValidationFailure> errors =
+            createAndValidateTopology(false, false, false);
+
+        // all mandatory commodities bought by storage are missing: we are expecting three errors
+        checkExpectedErrors(errors, true, true, true);
+    }
+
+    /**
+     * Test the case that storage buys EXTENT from diskarray, but nothing else.
+     */
+    @Test
+    public void testDisjunctionExtentBoughtFromDA() {
+        final List<SupplyChainValidationFailure> errors =
+            createAndValidateTopology(false, false, true);
+
+        // disjunctive specification is satisfied.  only "STORAGE_ACCESS is missing" error is expected
+        checkExpectedErrors(errors, true, false, false);
+    }
+
+    /**
+     * Test the case that storage buys EXTENT from logical pool, but nothing else.
+     */
+    @Test
+    public void testDisjunctionExtentBoughtFromLP() {
+        final List<SupplyChainValidationFailure> errors =
+            createAndValidateTopology(false, true, false);
+
+        // disjunctive specification is satisfied.  only "STORAGE_ACCESS is missing" error is expected
+        checkExpectedErrors(errors, true, false, false);
+    }
+
+    /**
+     * Test the case that storage buys STORAGE_ACCESS and EXTENT from diskarray, but nothing else.
+     */
+    @Test
+    public void testDisjunctionStorageAccessBoughtAndLPBoughtFromDA() {
+        final List<SupplyChainValidationFailure> errors =
+            createAndValidateTopology(false, true, true);
+
+        // disjunctive specification is satisfied.  only "STORAGE_ACCESS is missing" error is expected
+        checkExpectedErrors(errors, true, false, false);
+    }
+
+    /**
+     * Test the case that storage buys STORAGE_ACCESS, but nothing else.
+     */
+    @Test
+    public void testDisjunctionOnlyStorageAccessBought() {
+        final List<SupplyChainValidationFailure> errors =
+            createAndValidateTopology(true, false, false);
+
+        // disjunctive specification is not satisfied.  two errors should be returned, one per disjunct
+        checkExpectedErrors(errors, false, true, true);
+    }
+
+    /**
+     * Test the case that storage buys EXTENT and STORAGE_ACCESS from diskarray.
+     */
+    @Test
+    public void testDisjunctionStorageAccessBoughtAndExtentBoughtFromDA() {
+        final List<SupplyChainValidationFailure> errors =
+            createAndValidateTopology(true, false, true);
+
+        // all specifications are satisfied
+        checkExpectedErrors(errors, false, false, false);
+    }
+
+    /**
+     * Test the case that storage buys EXTENT from logical pool and STORAGE_ACCESS from diskarray.
+     */
+    @Test
+    public void testDisjunctionStorageAccessBoughtAndExtentBoughtFromLP() {
+        final List<SupplyChainValidationFailure> errors =
+            createAndValidateTopology(true, true, false);
+
+        // all specifications are satisfied
+        checkExpectedErrors(errors, false, false, false);
+    }
+
+    /**
+     * Test the case that storage buys all mandatory commodities
+     */
+    @Test
+    public void testDisjunctionLPBoughtFromDAandLP() {
+        final List<SupplyChainValidationFailure> errors =
+            createAndValidateTopology(true, true, true);
+
+        // all specifications are satisfied
+        checkExpectedErrors(errors, false, false, false);
     }
 
     private CommoditySoldDTO createCommoditySoldDTO(int commodityTypeValue, String key) {

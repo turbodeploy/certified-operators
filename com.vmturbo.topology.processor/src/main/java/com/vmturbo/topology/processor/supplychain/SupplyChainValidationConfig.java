@@ -12,6 +12,7 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
  * Configuration for supply validation.
  */
 @Configuration
+@Import({TargetConfig.class, ProbeConfig.class})
 public class SupplyChainValidationConfig {
     @Autowired
     private TargetConfig targetConfig;

@@ -87,11 +87,6 @@ public class TopologyConfig {
     private long realtimeTopologyContextId;
 
     @Bean
-    public SupplyChainValidationConfig supplyChainValidationConfig() {
-        return new SupplyChainValidationConfig();
-    }
-
-    @Bean
     public TopologyHandler topologyHandler() {
         return new TopologyHandler(realtimeTopologyContextId(),
                 topologyPipelineFactory(),

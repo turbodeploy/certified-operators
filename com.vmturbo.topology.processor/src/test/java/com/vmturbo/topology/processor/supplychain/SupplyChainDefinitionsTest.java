@@ -7,6 +7,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -16,21 +17,25 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationException;
 
-public class SupplyChainDefinitionsTest extends AbstractSupplyChainTest{
+public class SupplyChainDefinitionsTest extends AbstractSupplyChainTest {
 
-    private final SupplyChainDefinitions supplyChainDefinitions =
-        new SupplyChainDefinitions(getProbeStore(), getTargetStore());
+    private SupplyChainDefinitions supplyChainDefinitions;
+
+    @Before
+    public void init() {
+        super.init();
+        supplyChainDefinitions = new SupplyChainDefinitions(getProbeStore(), getTargetStore());
+    }
 
     /**
      * Tests an entity with a single supply chain validation base template and an entity with two.
      * In the second case, one template has priority.
      *
-     * @throws SupplyChainValidationException should not happen.
+     * @throws Exception should not happen.
      */
     @Test
-    public void testRetrieveSupplyChainTemplates() throws SupplyChainValidationException {
+    public void testRetrieveSupplyChainTemplates() throws Exception {
         final DiscoveryOrigin.Builder originWithOneTarget = DiscoveryOrigin.newBuilder()
                 .addDiscoveringTargetIds(HYPERVISOR_TARGET_ID);
         final DiscoveryOrigin.Builder originWithTwoTargets = DiscoveryOrigin.newBuilder()
@@ -77,14 +82,14 @@ public class SupplyChainDefinitionsTest extends AbstractSupplyChainTest{
      * Tests the case of two base templates with the same priority.  One of the templates should be chosen,
      * but the choice is arbitrary.
      *
-     * @throws SupplyChainValidationException should not happen.
+     * @throws Exception should not happen.
      */
     @Test
-    public void testTwoEqualPriorityBases() throws SupplyChainValidationException {
+    public void testTwoEqualPriorityBases() throws Exception {
         final TopologyEntity vm =
             makeTopologyEntity(EntityType.VIRTUAL_MACHINE, COMPETING_TARGET_ID, HYPERVISOR_TARGET_ID);
-        final Set<TemplateDTO>
-                templates = supplyChainDefinitions.retrieveSupplyChainTemplates(vm);
+        final Collection<TemplateDTO>
+            templates = supplyChainDefinitions.retrieveSupplyChainTemplates(vm);
 
         // a single template obtained
         Assert.assertEquals(1, templates.size());
@@ -104,14 +109,14 @@ public class SupplyChainDefinitionsTest extends AbstractSupplyChainTest{
      * Tests the case with three discovery targets: two bases with different priority and one extension.
      * We should get a collection of two templates, one base and one extension.  We should get no errors.
      *
-     * @throws SupplyChainValidationException should not happen.
+     * @throws Exception should not happen.
      */
     @Test
-    public void testThreeTemplates() throws SupplyChainValidationException {
+    public void testThreeTemplates() throws Exception {
         final TopologyEntity st =
             makeTopologyEntity(EntityType.STORAGE, BROKEN_TARGET_ID, HYPERVISOR_TARGET_ID, STORAGE_TARGET_ID);
 
-        final Set<TemplateDTO> templates = supplyChainDefinitions.retrieveSupplyChainTemplates(st);
+        final Collection<TemplateDTO> templates = supplyChainDefinitions.retrieveSupplyChainTemplates(st);
 
         // two templates found
         Assert.assertEquals(2, templates.size());
@@ -146,13 +151,13 @@ public class SupplyChainDefinitionsTest extends AbstractSupplyChainTest{
      * Tests the case of an entity that gets discovered by two targets of the same probe.
      * The supply chain definition should keep one template.  No errors should be thrown.
      *
-     * @throws SupplyChainValidationException should not happen.
+     * @throws Exception should not happen.
      */
     @Test
-    public void testTwoTargetsFromTheSameProbe() throws SupplyChainValidationException {
+    public void testTwoTargetsFromTheSameProbe() throws Exception {
         final TopologyEntity vm =
             makeTopologyEntity(EntityType.VIRTUAL_MACHINE, HYPERVISOR_TARGET_1_ID, HYPERVISOR_TARGET_ID);
-        final Set<TemplateDTO> templates = supplyChainDefinitions.retrieveSupplyChainTemplates(vm);
+        final Collection<TemplateDTO> templates = supplyChainDefinitions.retrieveSupplyChainTemplates(vm);
 
         // only one storage base template should be found
         Assert.assertEquals(1, templates.size());

@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.supplychain;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 
 import org.mockito.Matchers;
@@ -22,11 +24,13 @@ public class AbstractSupplyChainTest {
     public static final long STORAGE_TARGET_ID = 6666L;
     public static final long BROKEN_TARGET_ID = 129921L;
     public static final long COMPETING_TARGET_ID = 170002L;
+    public static final long DISJUNCTION_TARGET_ID = 170102L;
 
     public static final long HYPERVISOR_PROBE_ID = 12345L;
     public static final long STORAGE_PROBE_ID = 54321L;
     public static final long BROKEN_PROBE_ID = 99762L;
     public static final long COMPETING_PROBE_ID = 81900L;
+    public static final long DISJUNCTION_PROBE_ID = 171102L;
 
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
@@ -36,6 +40,7 @@ public class AbstractSupplyChainTest {
     private final Target brokenTarget = Mockito.mock(Target.class);
     private final Target competingTarget = Mockito.mock(Target.class);
     private final Target hypervisorTarget1 = Mockito.mock(Target.class);
+    private final Target disjunctionTarget = Mockito.mock(Target.class);
 
     private final ProbeInfo.Builder hypervisorProbeBuilder = ProbeInfo.newBuilder(Probes.emptyProbe)
             .addAllSupplyChainDefinitionSet(SupplyChainTestUtils.hypervisorSupplyChain());
@@ -45,6 +50,8 @@ public class AbstractSupplyChainTest {
             .addAllSupplyChainDefinitionSet(SupplyChainTestUtils.brokenSupplyChain());
     private final ProbeInfo.Builder competingProbeBuilder = ProbeInfo.newBuilder(Probes.emptyProbe)
             .addAllSupplyChainDefinitionSet(SupplyChainTestUtils.competingSupplyChain());
+    private final ProbeInfo.Builder disjunctionProbeBuilder = ProbeInfo.newBuilder(Probes.emptyProbe)
+            .addAllSupplyChainDefinitionSet(SupplyChainTestUtils.supplyChainWithDisjunction());
 
     public ProbeStore getProbeStore() {
         return probeStore;
@@ -61,6 +68,7 @@ public class AbstractSupplyChainTest {
         Mockito.when(brokenTarget.getProbeId()).thenReturn(BROKEN_PROBE_ID);
         Mockito.when(competingTarget.getProbeId()).thenReturn(COMPETING_PROBE_ID);
         Mockito.when(hypervisorTarget1.getProbeId()).thenReturn(HYPERVISOR_PROBE_ID);
+        Mockito.when(disjunctionTarget.getProbeId()).thenReturn(DISJUNCTION_PROBE_ID);
 
         Mockito.when(targetStore.getTarget(Matchers.eq(HYPERVISOR_TARGET_ID))).
             thenReturn(Optional.of(hypervisorTarget));
@@ -72,6 +80,8 @@ public class AbstractSupplyChainTest {
             thenReturn(Optional.of(competingTarget));
         Mockito.when(targetStore.getTarget(Matchers.eq(HYPERVISOR_TARGET_1_ID))).
             thenReturn(Optional.of(hypervisorTarget1));
+        Mockito.when(targetStore.getTarget(Matchers.eq(DISJUNCTION_TARGET_ID))).
+            thenReturn(Optional.of(disjunctionTarget));
 
         Mockito.when(probeStore.getProbe(Matchers.eq(HYPERVISOR_PROBE_ID))).
             thenReturn(Optional.of(hypervisorProbeBuilder.build()));
@@ -81,5 +91,16 @@ public class AbstractSupplyChainTest {
             thenReturn(Optional.of(brokenProbeBuilder.build()));
         Mockito.when(probeStore.getProbe(Matchers.eq(COMPETING_PROBE_ID))).
             thenReturn(Optional.of(competingProbeBuilder.build()));
+        Mockito.when(probeStore.getProbe(Matchers.eq(DISJUNCTION_PROBE_ID))).
+                thenReturn(Optional.of(disjunctionProbeBuilder.build()));
+
+        final Map<Long, ProbeInfo> mapOfProbes = new HashMap<>();
+        mapOfProbes.put(HYPERVISOR_PROBE_ID, hypervisorProbeBuilder.build());
+        mapOfProbes.put(STORAGE_PROBE_ID, storageProbeBuilder.build());
+        mapOfProbes.put(BROKEN_PROBE_ID, brokenProbeBuilder.build());
+        mapOfProbes.put(COMPETING_PROBE_ID, competingProbeBuilder.build());
+        mapOfProbes.put(DISJUNCTION_PROBE_ID, disjunctionProbeBuilder.build());
+
+        Mockito.when(probeStore.getProbes()).thenReturn(mapOfProbes);
     }
 }

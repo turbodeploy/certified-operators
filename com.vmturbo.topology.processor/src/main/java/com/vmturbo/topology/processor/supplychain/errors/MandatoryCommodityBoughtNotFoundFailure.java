@@ -8,7 +8,7 @@ import com.vmturbo.stitching.TopologyEntity;
 /**
  * Missing mandatory commodity bought.
  */
-public class MandatoryCommodityBoughtNotFoundException extends EntitySpecificSupplyChainException {
+public class MandatoryCommodityBoughtNotFoundFailure extends EntitySpecificSupplyChainFailure {
     final private TemplateCommodity commodity;
     final private TopologyEntity provider;
 
@@ -19,7 +19,7 @@ public class MandatoryCommodityBoughtNotFoundException extends EntitySpecificSup
      * @param commodity missing commodity.
      * @param provider the specific provider from which the entity does not buy.
      */
-    public MandatoryCommodityBoughtNotFoundException(
+    public MandatoryCommodityBoughtNotFoundFailure(
             @Nonnull TopologyEntity entity,
             @Nonnull TemplateCommodity commodity,
             @Nonnull TopologyEntity provider) {

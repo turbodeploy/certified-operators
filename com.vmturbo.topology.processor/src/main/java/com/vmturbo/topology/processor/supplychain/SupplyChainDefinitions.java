@@ -2,9 +2,12 @@ package com.vmturbo.topology.processor.supplychain;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -22,12 +25,12 @@ import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.supplychain.errors.AmbiguousBaseTemplateException;
-import com.vmturbo.topology.processor.supplychain.errors.NoDiscoveryOriginException;
-import com.vmturbo.topology.processor.supplychain.errors.NoProbeException;
-import com.vmturbo.topology.processor.supplychain.errors.NoSupplyChainDefinitionException;
-import com.vmturbo.topology.processor.supplychain.errors.NoTargetException;
-import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationException;
+import com.vmturbo.topology.processor.supplychain.errors.DuplicateTemplateFailure;
+import com.vmturbo.topology.processor.supplychain.errors.NoProbeFailure;
+import com.vmturbo.topology.processor.supplychain.errors.NoSupplyChainDefinitionFailure;
+import com.vmturbo.topology.processor.supplychain.errors.NoTargetFailure;
+import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -41,17 +44,13 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * we include a subset of these templates, in particular:
  * - the template of type {@link TemplateType#BASE} with highest priority.
  * - all templates of type {@link TemplateType#EXTENSION}.
- *
- * The class maintains an internal cache of templates and fetches these definitions lazily from a probe and
- * a target store.
  */
 @ThreadSafe
 public class SupplyChainDefinitions {
     private final Logger logger = LogManager.getLogger();
 
     /**
-     * Table to cache the supply chain relationship between probe, entity category, and supply chain
-     * template.
+     * In this table, we record all supply chain templates per probe id and entity category.
      * The row value is probe id, column is entity category id, and the value is the corresponding
      * {{@link TemplateDTO}} object.
      */
@@ -59,9 +58,11 @@ public class SupplyChainDefinitions {
 
     private final ProbeStore probeStore;
     private final TargetStore targetStore;
+    private final List<SupplyChainValidationFailure> validationErrors = new ArrayList<>();
 
     /**
-     * Create the object given a probe store and a target store to look for the definitions.
+     * Creates the object given a probe store and a target store to look for the definitions.
+     * Populates the internal template definitions table.
      *
      * @param probeStore the probe store.
      * @param targetStore the target store.
@@ -69,29 +70,26 @@ public class SupplyChainDefinitions {
     public SupplyChainDefinitions(@Nonnull ProbeStore probeStore, @Nonnull TargetStore targetStore) {
         this.probeStore = Objects.requireNonNull(probeStore);
         this.targetStore = Objects.requireNonNull(targetStore);
+
+        for (Map.Entry<Long, ProbeInfo> entry : probeStore.getProbes().entrySet()) {
+            final long probeId = entry.getKey();
+            for (TemplateDTO template : entry.getValue().getSupplyChainDefinitionSetList()) {
+                final int entryCategory = template.getTemplateClass().ordinal();
+                if (templateDefinitions.contains(probeId, entry)) {
+                    validationErrors.add(new DuplicateTemplateFailure(probeId, entryCategory));
+                }
+                templateDefinitions.put(probeId, entryCategory, template);
+            }
+        }
     }
 
-    @Nonnull
-    private TemplateDTO getTemplate(long probeId, @Nonnull TopologyEntity entity)
-          throws SupplyChainValidationException {
-        // look for the template in the cache
-        TemplateDTO template = templateDefinitions.get(probeId, entity.getEntityType());
-        if (template == null) {
-            // not found.  get it from the stores and put it in the cache
-            final ProbeInfo probeInfo = probeStore.getProbe(probeId)
-                    .orElseThrow(() -> new NoProbeException(entity, probeId));
-            template = probeInfo.getSupplyChainDefinitionSetList().stream()
-                    .filter(templateDTO ->
-                        templateDTO.getTemplateClass().getNumber() == entity.getEntityType())
-                    .findFirst()
-                    .orElseThrow(() -> new NoSupplyChainDefinitionException(entity, probeInfo));
-            templateDefinitions.put(probeId, entity.getEntityType(), template);
-        }
-        logger.trace(
-                "Obtained template from probe {} with id {} and entity type {}",
-                () -> probeStore.getProbe(probeId).map(ProbeInfo::getProbeType).orElse("null"),
-                () -> probeId, entity::getEntityType);
-        return template;
+    /**
+     * Return a list of errors that occurred during the population of the table of templates.
+     *
+     * @return list of errors.
+     */
+    public List<SupplyChainValidationFailure> getValidationErrors() {
+        return Collections.unmodifiableList(validationErrors);
     }
 
     /**
@@ -99,20 +97,12 @@ public class SupplyChainDefinitions {
      *
      * @param entity entity for which we want to retrieve the templates.
      * @return collection of templates against which the entity must be validated
-     * @throws SupplyChainValidationException retrieval failed: This is a fatal error.
-     *          The entity cannot be supply-chain validated.
      */
-    public Set<TemplateDTO> retrieveSupplyChainTemplates(
-          @Nonnull final TopologyEntity entity) throws SupplyChainValidationException {
-        final List<SupplyChainValidationException> errorList = new ArrayList<>();
+    public Collection<TemplateDTO> retrieveSupplyChainTemplates(@Nonnull final TopologyEntity entity) {
         final TopologyEntityDTOOrBuilder entityDTOOrBuilder =
             Objects.requireNonNull(entity).getTopologyEntityDtoBuilder();
         logger.trace("Retrieving supply chain templates for {}", entity::getDisplayName);
 
-        // ensure there are targets discovering this entity and fetch them
-        if (!entityDTOOrBuilder.hasOrigin() || !entityDTOOrBuilder.getOrigin().hasDiscoveryOrigin()) {
-            throw new NoDiscoveryOriginException(entity);
-        }
         final Collection<Long> discoveringTargetIds =
             entityDTOOrBuilder.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList();
         logger.trace(
@@ -125,7 +115,7 @@ public class SupplyChainDefinitions {
         int maxPriorityBaseTemplatesFound = 0;
 
         // the set of templates to return
-        final Set<TemplateDTO> templates = new HashSet<>();
+        final Collection<TemplateDTO> templates = new ArrayList<>();
 
         // this variable will hold the set of probe ids found
         // this will be used only to prevent adding a template twice
@@ -135,10 +125,13 @@ public class SupplyChainDefinitions {
         // Loop all targets which discovered the entity and find the max priority base template and all
         // extension templates
         for (final long targetId : discoveringTargetIds) {
-            // get probe id
-            final long probeId =
-                targetStore.getTarget(targetId).orElseThrow(() -> new NoTargetException(entity, targetId)).
-                getProbeId();
+            // get target and probe id
+            final Optional<Target> target = targetStore.getTarget(targetId);
+            if (!target.isPresent()) {
+                validationErrors.add(new NoTargetFailure(entity, targetId));
+                continue;
+            }
+            final long probeId = target.get().getProbeId();
             logger.trace(
                 "Entity {} is discovered by probe with id {}",
                 entity::getDisplayName, () -> probeId);
@@ -148,14 +141,25 @@ public class SupplyChainDefinitions {
             }
 
             // find the related template
-            final TemplateDTO template = getTemplate(probeId, entity);
+            final TemplateDTO template = templateDefinitions.get(probeId, entity.getEntityType());
+            if (template == null) {
+                // template not found: check if probe id is missing
+                final Optional<ProbeInfo> probeInfo = probeStore.getProbe(probeId);
+                if (probeInfo.isPresent()) {
+                    // probe exists, but has no template for this entity type
+                    validationErrors.add(new NoSupplyChainDefinitionFailure(entity, probeInfo.get()));
+                } else {
+                    validationErrors.add(new NoProbeFailure(entity, probeId));
+                }
+                continue;
+            }
 
             // examine the template type
             if (template.getTemplateType() == TemplateType.BASE) {
                 // base template
                 logger.trace("Base template with priority {}", template::getTemplatePriority);
                 if (maxPriorityBaseTemplate == null ||
-                        template.getTemplatePriority() > maxPriorityBaseTemplate.getTemplatePriority()) {
+                    template.getTemplatePriority() > maxPriorityBaseTemplate.getTemplatePriority()) {
                     // found a new max-priority
                     maxPriorityBaseTemplate = template;
                     maxPriorityBaseTemplatesFound = 1;
@@ -172,7 +176,8 @@ public class SupplyChainDefinitions {
         logger.trace("Number of max priority base templates is {}", maxPriorityBaseTemplatesFound);
         if (maxPriorityBaseTemplatesFound != 1) {
             logger.warn(
-                new AmbiguousBaseTemplateException(entity, maxPriorityBaseTemplatesFound).toString());
+                "The entity {} has {} max priority supply chain validation templates.  One is expected.",
+                entity.getDisplayName(), maxPriorityBaseTemplatesFound);
         }
 
         // add the base template with highest priority

@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.supplychain.errors;
 
-import java.util.Optional;
-
 import javax.annotation.Nonnull;
 
 import com.vmturbo.stitching.TopologyEntity;
@@ -9,7 +7,7 @@ import com.vmturbo.stitching.TopologyEntity;
 /**
  * Generic exception class for supply chain errors that have to do with a specific entity.
  */
-public class EntitySpecificSupplyChainException extends SupplyChainValidationException {
+public class EntitySpecificSupplyChainFailure extends SupplyChainValidationFailure {
     private final TopologyEntity entity;
 
     /**
@@ -18,7 +16,7 @@ public class EntitySpecificSupplyChainException extends SupplyChainValidationExc
      * @param entity the entity.
      * @param message description of the error.
      */
-    public EntitySpecificSupplyChainException(@Nonnull TopologyEntity entity, @Nonnull String message) {
+    public EntitySpecificSupplyChainFailure(@Nonnull TopologyEntity entity, @Nonnull String message) {
         super(null, null, entity.getDisplayName(), message);
         this.entity = entity;
     }

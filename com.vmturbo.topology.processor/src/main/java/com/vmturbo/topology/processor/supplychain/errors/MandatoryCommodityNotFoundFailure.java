@@ -8,7 +8,7 @@ import com.vmturbo.stitching.TopologyEntity;
 /**
  * Missing mandatory commodity sold.
  */
-public class MandatoryCommodityNotFoundException extends EntitySpecificSupplyChainException {
+public class MandatoryCommodityNotFoundFailure extends EntitySpecificSupplyChainFailure {
     final private TemplateCommodity commodity;
     final private boolean hasKey;
 
@@ -19,11 +19,10 @@ public class MandatoryCommodityNotFoundException extends EntitySpecificSupplyCha
      * @param commodity missing commodity.
      * @param hasKey true iff the commodity must have a key.
      */
-    public MandatoryCommodityNotFoundException(
-          @Nonnull TopologyEntity entity,
-          @Nonnull TemplateCommodity commodity,
-          boolean hasKey) {
-        // TODO: commodity must show as a string
+    public MandatoryCommodityNotFoundFailure(
+            @Nonnull TopologyEntity entity,
+            @Nonnull TemplateCommodity commodity,
+            boolean hasKey) {
         super(
             entity,
             "Mandatory commodity " + (hasKey ? " with key " : "") + commodity.getCommodityType().name() +

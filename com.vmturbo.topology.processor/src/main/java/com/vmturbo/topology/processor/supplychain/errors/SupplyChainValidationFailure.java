@@ -5,7 +5,7 @@ import javax.annotation.Nonnull;
 /**
  * Generic class for supply chain validation errors.
  */
-public class SupplyChainValidationException extends Exception {
+public class SupplyChainValidationFailure {
     private final String fullMessage;
 
     /**
@@ -16,8 +16,11 @@ public class SupplyChainValidationException extends Exception {
      * @param entityDisplay related entity, if any.
      * @param message error message.
      */
-    public SupplyChainValidationException(
-          String probeDisplay, String targetDisplay, String entityDisplay, @Nonnull String message) {
+    public SupplyChainValidationFailure(
+            String probeDisplay,
+            String targetDisplay,
+            String entityDisplay,
+            @Nonnull String message) {
         fullMessage =
             (probeDisplay == null ?  "" : ("Probe: " + probeDisplay + ". ")) +
             (targetDisplay == null ? "" : ("Target: " + targetDisplay + ". ")) +

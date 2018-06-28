@@ -13,11 +13,11 @@ import com.vmturbo.platform.common.dto.SupplyChain.Provider;
 import com.vmturbo.platform.common.dto.SupplyChain.Provider.ProviderType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateCommodity;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
+import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.CommBoughtProviderOrSet;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.CommBoughtProviderProp;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.supplychain.errors.EntitySpecificSupplyChainException;
-import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationException;
+import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 
 /**
  * This class introduces two simplified supply chain definitions.
@@ -51,27 +51,39 @@ public class SupplyChainTestUtils {
      * @param templates collection of templates.
      * @param entity entity for which the {@link TemplateDTO} object must be retrieved.
      * @return {@link TemplateDTO} object retrieved.
-     * @throws SupplyChainValidationException the retrieval failed.
+     * @throws Exception the retrieval failed.
      */
-    public static TemplateDTO retrieveEntityTemplate(Collection<TemplateDTO> templates
-            , TopologyEntity entity) throws SupplyChainValidationException {
+    public static TemplateDTO retrieveEntityTemplate(
+            Collection<TemplateDTO> templates, TopologyEntity entity) throws Exception {
         return templates.stream()
                 .filter(templateDTO -> templateDTO.getTemplateClass().getNumber() == entity.getEntityType())
                 .findAny()
-                .orElseThrow(() -> new EntitySpecificSupplyChainException(
-                      entity, "Retrieving supply chain template failed."));
+                .orElseThrow(() -> new Exception("Retrieving supply chain template failed."));
     }
 
-    private static TemplateDTO createEntityTemplate(EntityType entityType, TemplateType templateType, int priority,
-                                                    Collection<? extends TemplateCommodity> commoditySoldTemplates,
-                                                    Collection<? extends CommBoughtProviderProp> commodityBoughtTemplates) {
+    private static TemplateDTO createEntityTemplate(
+            EntityType entityType, TemplateType templateType, int priority,
+            Collection<? extends TemplateCommodity> commoditySoldTemplates,
+            Collection<? extends CommBoughtProviderProp> commodityBoughtTemplates,
+            Collection<CommBoughtProviderOrSet> disjunctiveSpecifications) {
         return TemplateDTO.newBuilder()
                 .setTemplateClass(entityType)
                 .setTemplateType(templateType)
                 .setTemplatePriority(priority)
                 .addAllCommoditySold(commoditySoldTemplates)
                 .addAllCommodityBought(commodityBoughtTemplates)
+                .addAllCommBoughtOrSet(disjunctiveSpecifications)
                 .build();
+    }
+
+    private static TemplateDTO createEntityTemplate(
+            EntityType entityType, TemplateType templateType, int priority,
+            Collection<? extends TemplateCommodity> commoditySoldTemplates,
+            Collection<? extends CommBoughtProviderProp> commodityBoughtTemplates) {
+        return
+            createEntityTemplate(
+                entityType, templateType, priority,
+                commoditySoldTemplates, commodityBoughtTemplates, Collections.emptyList());
     }
 
     private static TemplateDTO createEntityTemplate(EntityType entityType,
@@ -117,6 +129,11 @@ public class SupplyChainTestUtils {
                 .setCardinalityMin(cardinalityMin)
                 .setCardinalityMax(cardinalityMax)
                 .build();
+    }
+
+    private static CommBoughtProviderOrSet createDisjunctiveSpecification(
+            CommBoughtProviderProp ... disjuncts) {
+        return CommBoughtProviderOrSet.newBuilder().addAllCommBought(Arrays.asList(disjuncts)).build();
     }
 
     /**
@@ -273,5 +290,37 @@ public class SupplyChainTestUtils {
         return Collections.singletonList(
                 createEntityTemplate(EntityType.VIRTUAL_MACHINE, TemplateType.BASE, 0,
                         Collections.emptyList(), Collections.emptyList()));
+    }
+
+    public static Collection<TemplateDTO> supplyChainWithDisjunction() {
+        return
+            Arrays.asList(
+                createEntityTemplate(
+                    EntityType.STORAGE, TemplateType.BASE, 0,
+                    Collections.emptyList(), Collections.emptyList(),
+                    Arrays.asList(
+                        createDisjunctiveSpecification(
+                            createCommBoughtProviderProp(
+                                createHostingProviderTemplate(EntityType.DISK_ARRAY),
+                                Collections.singletonList(
+                                        createCommodityTemplate(CommodityType.EXTENT, null)),
+                                false),
+                            createCommBoughtProviderProp(
+                                createHostingProviderTemplate(EntityType.LOGICAL_POOL),
+                                Collections.singletonList(
+                                    createCommodityTemplate(CommodityType.EXTENT, null)),
+                                false)),
+                        createDisjunctiveSpecification(
+                            createCommBoughtProviderProp(
+                                createHostingProviderTemplate(EntityType.DISK_ARRAY),
+                                Collections.singletonList(
+                                    createCommodityTemplate(CommodityType.STORAGE_ACCESS, null)),
+                                false)))),
+                createEntityTemplate(
+                    EntityType.LOGICAL_POOL, TemplateType.BASE, 0,
+                    Collections.emptyList(), Collections.emptyList(), Collections.emptyList()),
+                createEntityTemplate(
+                    EntityType.DISK_ARRAY, TemplateType.BASE, 0,
+                    Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
     }
 }

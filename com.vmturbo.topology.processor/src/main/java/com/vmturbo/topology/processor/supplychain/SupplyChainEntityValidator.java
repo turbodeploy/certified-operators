@@ -25,13 +25,14 @@ import com.vmturbo.platform.common.dto.SupplyChain.Provider;
 import com.vmturbo.platform.common.dto.SupplyChain.Provider.ProviderType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateCommodity;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
+import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.CommBoughtProviderOrSet;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.CommBoughtProviderProp;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityBagNotFoundException;
-import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityBoughtNotFoundException;
-import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityNotFoundException;
-import com.vmturbo.topology.processor.supplychain.errors.ProviderCardinalityException;
-import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationException;
+import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityBagNotFoundFailure;
+import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityBoughtNotFoundFailure;
+import com.vmturbo.topology.processor.supplychain.errors.MandatoryCommodityNotFoundFailure;
+import com.vmturbo.topology.processor.supplychain.errors.ProviderCardinalityFailure;
+import com.vmturbo.topology.processor.supplychain.errors.SupplyChainValidationFailure;
 
 /**
  * This class contains methods to validate one entity against a set of supply chain templates.
@@ -50,9 +51,11 @@ public class SupplyChainEntityValidator {
     private final Collection<TemplateDTO> templates;
 
     /**
-     * List to add errors encountered during validation.
+     * In this map we group the bag of commodities bought by the entity under check, grouped by provider.
+     * The key to the map is the provider id.  The map is used to facilitate access to the commodities
+     * bought by the entities, which must be fetched by various different methods.
      */
-    private final List<SupplyChainValidationException> validationExceptions;
+    private final Map<Long, Collection<CommodityBoughtDTO>> commoditiesBoughtPerProvider = new HashMap<>();
 
     /**
      * Create a validator for a specific entity.
@@ -63,9 +66,27 @@ public class SupplyChainEntityValidator {
     private SupplyChainEntityValidator(
             @Nonnull Collection<TemplateDTO> templates,
             @Nonnull TopologyEntity entity) {
-        this.validationExceptions = new ArrayList<>();
         this.templates = Objects.requireNonNull(templates);
         this.entity = Objects.requireNonNull(entity);
+
+        // populate the map of entities bought
+        // first get all commodities bought by the entity under check and group them by provider
+        final Map<Long, Set<CommoditiesBoughtFromProvider>> listsOfCommoditiesBoughtPerProvider =
+            entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream().
+                filter(CommoditiesBoughtFromProvider::hasProviderId).
+                collect(Collectors.groupingBy(CommoditiesBoughtFromProvider::getProviderId, Collectors.toSet()));
+
+        // every CommoditiesBoughtFromProvider object contains itself a list of commodities:
+        // flatten the lists
+        // now each provider id is mapped to the set of all commodities the entity buys from that provider
+        listsOfCommoditiesBoughtPerProvider.forEach((providerId, listOfCommoditiesBought) ->
+            commoditiesBoughtPerProvider.put(
+                providerId,
+                listOfCommoditiesBought.
+                    stream().
+                    map(CommoditiesBoughtFromProvider::getCommodityBoughtList).
+                    flatMap(List::stream).
+                    collect(Collectors.toList())));
     }
 
     /**
@@ -76,8 +97,9 @@ public class SupplyChainEntityValidator {
      * @param entity entity to validate.
      * @return a list of errors found during validation.
      */
-    public static List<SupplyChainValidationException> verify(
-          @Nonnull Collection<TemplateDTO> templates, @Nonnull TopologyEntity entity) {
+    public static List<SupplyChainValidationFailure> verify(
+            @Nonnull Collection<TemplateDTO> templates,
+            @Nonnull TopologyEntity entity) {
         return new SupplyChainEntityValidator(templates, entity).verify();
     }
 
@@ -86,22 +108,31 @@ public class SupplyChainEntityValidator {
      *
      * @return a list of errors found during validation.
      */
-    private List<SupplyChainValidationException> verify() {
+    private List<SupplyChainValidationFailure> verify() {
+        final List<SupplyChainValidationFailure> validationFailures = new ArrayList<>();
+
         // verify entity against templates wrt. sold commodities
-        verifySupplyChainCommoditiesSold();
+        validationFailures.addAll(verifySupplyChainCommoditiesSold());
 
         // verify entity against templates wrt. providers and bought commodities
-        verifySupplyChainProvidersAndCommoditiesBought();
+        validationFailures.addAll(verifySupplyChainProvidersAndCommoditiesBought());
+
+        // verify entity against templates wrt. disjunctive specifications
+        validationFailures.addAll(verifyAgainstDisjunctiveSpecifications());
 
         // return collected errors
-        return Collections.unmodifiableList(validationExceptions);
+        return Collections.unmodifiableList(validationFailures);
     }
 
     /**
      * Verifies that the entity is selling all the mandatory commodities specified by the templates.
+     *
+     * @return a list of errors found during validation.
      */
-    private void verifySupplyChainCommoditiesSold() {
+    private List<SupplyChainValidationFailure> verifySupplyChainCommoditiesSold() {
         logger.trace("Verifying sold commodities of entity {}", entity::getDisplayName);
+
+        final List<SupplyChainValidationFailure> validationFailures = new ArrayList<>();
 
         final TopologyEntityDTO.Builder entity = this.entity.getTopologyEntityDtoBuilder();
 
@@ -123,8 +154,8 @@ public class SupplyChainEntityValidator {
                 entity::getDisplayName, () -> commodityTypeNumber);
             final CommoditySoldDTO commoditySoldDTO = commodityType2DTO.get(commodityTypeNumber);
             if (commoditySoldDTO == null) {
-                validationExceptions.add(
-                    new MandatoryCommodityNotFoundException(this.entity, templateCommodity, false));
+                validationFailures.add(
+                    new MandatoryCommodityNotFoundFailure(this.entity, templateCommodity, false));
                 continue;
             }
 
@@ -137,47 +168,39 @@ public class SupplyChainEntityValidator {
             final boolean commodityHasKey =
                 commodityType.hasKey() && !Strings.isEmpty(commodityType.getKey());
             if (commodityHasKey != commodityShouldHaveKey) {
-                validationExceptions.add(
-                    new MandatoryCommodityNotFoundException(
+                validationFailures.add(
+                    new MandatoryCommodityNotFoundFailure(
                         this.entity, templateCommodity, commodityShouldHaveKey));
             }
         }
+
+        return validationFailures;
     }
 
     /**
      * Verifies that the entity
      * - has all mandatory provider types and respects their cardinality bounds.
      * - buys all mandatory commodities per provider, as specified by the templates.
+     *
+     * @return a list of errors found during validation.
      */
-    private void verifySupplyChainProvidersAndCommoditiesBought() {
+    private List<SupplyChainValidationFailure> verifySupplyChainProvidersAndCommoditiesBought() {
         logger.trace("Verifying commodities bought by entity {}", entity::getDisplayName);
 
-        // get all commodities bought by the entity under check and group them by provider
-        final Map<Long, Set<CommoditiesBoughtFromProvider>> listsOfCommoditiesBoughtPerProvider =
-            entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().stream().
-            filter(CommoditiesBoughtFromProvider::hasProviderId).
-            collect(Collectors.groupingBy(CommoditiesBoughtFromProvider::getProviderId, Collectors.toSet()));
-
-        // every CommoditiesBoughtFromProvider object contains itself a list of commodities:
-        // flatten the lists
-        // now each provider id is mapped to the set of all commodities the entity buys from that provider
-        final Map<Long, Set<CommodityBoughtDTO>> commoditiesBoughtPerProvider = new HashMap<>();
-        listsOfCommoditiesBoughtPerProvider.forEach((providerId, listOfCommoditiesBought) ->
-            commoditiesBoughtPerProvider.put(
-                providerId,
-                listOfCommoditiesBought.stream().map(CommoditiesBoughtFromProvider::getCommodityBoughtList).
-                    flatMap(List::stream).collect(Collectors.toSet())));
+        final List<SupplyChainValidationFailure> validationFailures = new ArrayList<>();
 
         // collect the provider/bought commodities specifications (CommBoughtProviderProp objects)
         // from all the templates and check the entity against them
         templates.stream().map(TemplateDTO::getCommodityBoughtList).flatMap(Collection::stream).
-        forEach((CommBoughtProviderProp providerSpecification) -> {
+        forEach(providerSpecification -> {
             logger.trace(
                 "Checking commodities that the entity {} buys from providers of type {}",
                 entity::getDisplayName, () -> providerSpecification.getKey().getTemplateClass());
-            checkProviderAndBoughtCommoditiesAgainstSpecification(
-                commoditiesBoughtPerProvider, providerSpecification);
+            validationFailures.addAll(
+                checkProviderAndBoughtCommoditiesAgainstSpecification(providerSpecification));
         });
+
+        return validationFailures;
     }
 
     /**
@@ -186,11 +209,13 @@ public class SupplyChainEntityValidator {
      * with cardinality either 0 or 1.
      *
      * @param providerSpecification a DTO containing a provider specification.
+     * @param validationFailures list of errors on which to add a provider cardinality failure, if needed.
      * @return the set of all such providers of the entity.
      */
     @Nonnull
     private Set<TopologyEntity> findProvidersInEntity(
-          @Nonnull CommBoughtProviderProp providerSpecification) {
+            @Nonnull CommBoughtProviderProp providerSpecification,
+            @Nonnull List<SupplyChainValidationFailure> validationFailures) {
         final Provider provider = Objects.requireNonNull(providerSpecification).getKey();
         final int providerCategoryId = provider.getTemplateClass().ordinal();
 
@@ -217,8 +242,8 @@ public class SupplyChainEntityValidator {
         int allMatchingProvidersCardinality = allMatchingProviders.size();
         if (allMatchingProvidersCardinality < cardinalityMin ||
             allMatchingProvidersCardinality > cardinalityMax) {
-            validationExceptions.add(
-                new ProviderCardinalityException(
+            validationFailures.add(
+                new ProviderCardinalityFailure(
                     entity, providerCategoryId, cardinalityMin, cardinalityMax,
                     allMatchingProvidersCardinality));
         }
@@ -237,7 +262,8 @@ public class SupplyChainEntityValidator {
      * @return true iff match is successful
      */
     private boolean commodityMatch(
-          @Nonnull CommodityBoughtDTO boughtCommodity, @Nonnull TemplateCommodity templateCommodity) {
+            @Nonnull CommodityBoughtDTO boughtCommodity,
+            @Nonnull TemplateCommodity templateCommodity) {
         final CommodityType boughtCommodityType = Objects.requireNonNull(boughtCommodity).getCommodityType();
 
         // first check the commodity types
@@ -262,13 +288,16 @@ public class SupplyChainEntityValidator {
      * @param commodityBoughtDTOs commodities bought by the entity.
      * @param providerSpecification specifies the commodities that should be bought by the entity.
      * @param matchingProvider the provider of the set of all {@code commodityBoughtDTOs}.
+     * @return a list of errors found during validation.
      */
-    private void checkBoughtCommoditiesAgainstSpecification(
-          @Nonnull Set<CommodityBoughtDTO> commodityBoughtDTOs,
-          @Nonnull CommBoughtProviderProp providerSpecification,
-          @Nonnull TopologyEntity matchingProvider) {
+    private List<SupplyChainValidationFailure> checkBoughtCommoditiesAgainstSpecification(
+            @Nonnull Collection<CommodityBoughtDTO> commodityBoughtDTOs,
+            @Nonnull CommBoughtProviderProp providerSpecification,
+            @Nonnull TopologyEntity matchingProvider) {
         Objects.requireNonNull(commodityBoughtDTOs);
         Objects.requireNonNull(matchingProvider);
+
+        final List<SupplyChainValidationFailure> validationFailures = new ArrayList<>();
 
         Objects.requireNonNull(providerSpecification).getValueList().forEach(templateCommodity -> {
             logger.trace(
@@ -278,10 +307,12 @@ public class SupplyChainEntityValidator {
             if (commodityBoughtDTOs.stream().noneMatch(commodityBought ->
                     commodityMatch(commodityBought, templateCommodity))) {
                 // found an instance of a missing commodity bought
-                validationExceptions.add(new MandatoryCommodityBoughtNotFoundException(
+                validationFailures.add(new MandatoryCommodityBoughtNotFoundFailure(
                     entity, templateCommodity, matchingProvider));
             }
         });
+
+        return validationFailures;
     }
 
     /**
@@ -291,23 +322,24 @@ public class SupplyChainEntityValidator {
      * - the cardinality bounds of this provider type
      * - what commodity types must be bought by this provider type
      *
-     * @param commoditiesBoughtPerProvider map of all commodities bought by the entity, per provider.
      * @param providerSpecification provider specification.
+     * @return a list of errors found during validation.
      */
-    private void checkProviderAndBoughtCommoditiesAgainstSpecification(
-          @Nonnull Map<Long, Set<CommodityBoughtDTO>> commoditiesBoughtPerProvider,
-          @Nonnull CommBoughtProviderProp providerSpecification) {
+    private List<SupplyChainValidationFailure> checkProviderAndBoughtCommoditiesAgainstSpecification(
+            @Nonnull CommBoughtProviderProp providerSpecification) {
         Objects.requireNonNull(commoditiesBoughtPerProvider);
+
+        final List<SupplyChainValidationFailure> validationFailures = new ArrayList<>();
 
         // find all providers of the entity under check
         // whose type is described in providerSpecification
         // and check cardinality constraints
         final Set<TopologyEntity> matchingProviders =
-            findProvidersInEntity(Objects.requireNonNull(providerSpecification));
+            findProvidersInEntity(Objects.requireNonNull(providerSpecification), validationFailures);
 
         // for each matching provider, check the bought commodities against the specification
         matchingProviders.forEach(matchingProvider -> {
-            final Set<CommodityBoughtDTO> commoditiesBag =
+            final Collection<CommodityBoughtDTO> commoditiesBag =
                 commoditiesBoughtPerProvider.get(matchingProvider.getOid());
             if (commoditiesBag == null) {
                 // let E be the entity under validation.
@@ -315,12 +347,109 @@ public class SupplyChainEntityValidator {
                 // - according to the topology graph, an entity P is a provider of E.
                 // - according to the commodity DTOs, there is no bag of commodities sold by P to E.
                 // this inconsistency is probably the result of a bug in the topology graph construction.
-                validationExceptions.add(
-                    new MandatoryCommodityBagNotFoundException(entity, matchingProvider));
+                validationFailures.add(
+                    new MandatoryCommodityBagNotFoundFailure(entity, matchingProvider));
             } else {
-                checkBoughtCommoditiesAgainstSpecification(
-                    commoditiesBag, providerSpecification, matchingProvider);
+                validationFailures.addAll(checkBoughtCommoditiesAgainstSpecification(
+                    commoditiesBag, providerSpecification, matchingProvider));
             }
         });
+
+        return validationFailures;
+    }
+
+    /**
+     * Verifies that the entity respects all disjunctive specifications in the supply chain definition.
+     * The disjunctive specifications are objects of type {@link CommBoughtProviderOrSet},
+     * which sometimes appear in a template.  The entity must satisfy the disjunctive specification of
+     * all the templates.
+     *
+     * A disjunctive specification contains a list of {@link CommBoughtProviderProp} specifications.
+     * To satisfy the disjunctive specification, the entity must satisfy at least one of them.
+     *
+     * It is assumed that any disjunctive specification must have at least one disjunct.
+     *
+     * @return a list of errors found during validation.
+     */
+    private List<SupplyChainValidationFailure> verifyAgainstDisjunctiveSpecifications() {
+        logger.trace("Verifying {} against disjunctive specifications", entity::getDisplayName);
+
+        final List<SupplyChainValidationFailure> validationFailures = new ArrayList<>();
+
+        // collect the disjunctive specifications (CommBoughtProviderOrSet objects)
+        // from all the templates and check the entity against each one of them
+        templates.stream().map(TemplateDTO::getCommBoughtOrSetList).flatMap(Collection::stream).
+            forEach(disjunctiveSpecification ->
+               validationFailures.addAll(
+                    checkProviderAndBoughtCommoditiesAgainstDisjunctiveSpecification(
+                        disjunctiveSpecification)));
+
+        return validationFailures;
+    }
+
+    /**
+     * Verifies the entity against one disjunctive specification.  The disjunctive specification consists of
+     * a set of simple {@link CommBoughtProviderProp} specifications, called "disjuncts".  The entity must
+     * satisfy at least one disjunct.  The entity will be (lazily) checked against disjuncts with the
+     * {@link this#checkProviderAndBoughtCommoditiesAgainstSpecification} method.
+     *
+     * The errors from the individual checks will be collected.
+     *
+     * If one of the checks returns no errors, then the entity satisfies the corresponding disjunct and
+     * therefore the disjunctive specification as a whole.  All errors from other checks will be discarded
+     * and the method will return with an empty list of errors.
+     *
+     * If all the checks return errors, then the entity fails to satisfy the disjunctive specification.
+     * Then, the list of all the errors from all the individual checks will be returned as a result.
+     *
+     * Example 1:
+     * Suppose that the disjuncts are A, B, C.
+     * Suppose that checking against A returns errors [E1, E2], checking against B returns error [E3], and
+     * checking against C returns errors [E4, E5, E6].
+     * Then the result of this method will be the list [E1, E2, E3, E4, E5, E6].
+     *
+     * Example 2:
+     * Suppose again that the disjuncts are A, B, C.
+     * Suppose that checking against A returns errors [E1, E2], checking against B returns no error, and
+     * checking against C returns errors [E4, E5, E6].
+     * Then the result of this method will be an empty list of errors, since the entity satisfies disjunct B.
+     *
+     * Note that checking happens lazily.  In particular, in example 2, if the order of checks is
+     * A then B then C, then the check against C is not going to happen (the check against B will have
+     * already succeeded).
+     *
+     * @param disjunctiveSpecification the disjunctive specification.
+     * @return empty list, if the entity satisfies the disjunctive specification
+     *         list of all errors for all disjuncts, if it doesn't
+     */
+    private List<SupplyChainValidationFailure>
+        checkProviderAndBoughtCommoditiesAgainstDisjunctiveSpecification(
+            CommBoughtProviderOrSet disjunctiveSpecification) {
+        // collector of all errors
+        final List<SupplyChainValidationFailure> validationFailures = new ArrayList<>();
+
+        // check disjuncts until one disjunct is satisfied, or all disjuncts fail
+        // variable success will be set to true if and only if one disjunct is satisfied
+        // a list of all the errors found is accumulated to the list validationFailures
+        final boolean success =
+            disjunctiveSpecification.getCommBoughtList().stream().anyMatch(disjunct -> {
+                // add errors from checking against this disjunct to the overall list of errors
+                final List<SupplyChainValidationFailure> specificValidationFailures =
+                        checkProviderAndBoughtCommoditiesAgainstSpecification(disjunct);
+                validationFailures.addAll(specificValidationFailures);
+
+                // return true if and only if there were no errors
+                return specificValidationFailures.isEmpty();
+            });
+
+        if (success) {
+            // entity satisfies disjunctive specification
+            // no errors should be returned; all errors collected for failing disjuncts must be ignored
+            return Collections.emptyList();
+        } else {
+            // entity does not satisfy disjunctive specification
+            // errors collected from all the disjuncts should be returned
+            return validationFailures;
+        }
     }
 }

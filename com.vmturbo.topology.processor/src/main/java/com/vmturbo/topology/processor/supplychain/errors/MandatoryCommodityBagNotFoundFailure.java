@@ -9,7 +9,7 @@ import com.vmturbo.stitching.TopologyEntity;
  * If this message is seen during supply chain validation, it probably indicates an error in the
  * construction of the topology graph.
  */
-public class MandatoryCommodityBagNotFoundException extends EntitySpecificSupplyChainException {
+public class MandatoryCommodityBagNotFoundFailure extends EntitySpecificSupplyChainFailure {
     final private TopologyEntity provider;
 
     /**
@@ -18,7 +18,9 @@ public class MandatoryCommodityBagNotFoundException extends EntitySpecificSupply
      * @param entity the entity.
      * @param provider the specific provider from which the entity does not buy.
      */
-    public MandatoryCommodityBagNotFoundException(@Nonnull TopologyEntity entity, @Nonnull TopologyEntity provider) {
+    public MandatoryCommodityBagNotFoundFailure(
+            @Nonnull TopologyEntity entity,
+            @Nonnull TopologyEntity provider) {
         super(
             entity,
             "Entity " + provider.getDisplayName() +
