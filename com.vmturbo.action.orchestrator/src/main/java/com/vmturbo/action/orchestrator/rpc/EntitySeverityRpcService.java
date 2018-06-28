@@ -12,7 +12,6 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
@@ -36,13 +35,21 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private final int entitySeverityDefaultPaginationLimit;
+
+    private final int entitySeverityDefaultPaginationMax;
+
     /**
      * Create a new ActionsRpcService.
      *
      * @param actionStorehouse The storehouse containing action stores.
      */
-    public EntitySeverityRpcService(@Nonnull final ActionStorehouse actionStorehouse) {
+    public EntitySeverityRpcService(@Nonnull final ActionStorehouse actionStorehouse,
+                                    final int entitySeverityDefaultPaginationLimit,
+                                    final int defaultPaginationMax) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
+        this.entitySeverityDefaultPaginationLimit = entitySeverityDefaultPaginationLimit;
+        this.entitySeverityDefaultPaginationMax = defaultPaginationMax;
     }
 
     /**
@@ -62,11 +69,12 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
             responseObserver.onCompleted();
             return;
         }
-        final PaginationParameters paginationParameters = request.getPaginationParams();
-        if (paginationParameters.getLimit() <= 0) {
+        if (request.getPaginationParams().hasLimit() &&
+                request.getPaginationParams().getLimit() <= 0) {
             throw new IllegalArgumentException("Illegal pagination limit: " +
-                    paginationParameters.getLimit() + " must be a positive integer");
+                    request.getPaginationParams().getLimit() + " must be be a positive integer");
         }
+        final PaginationParameters paginationParameters = resetPaginationWithDefaultLimit(request);
         final long skipCount = paginationParameters.hasCursor() ? Long.valueOf(paginationParameters.getCursor()) : 0;
         final Comparator<Long> comparator = getComparator(optionalCache);
         final List<EntitySeverity> results = request.getEntityIdsList().stream()
@@ -156,5 +164,24 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
                 : Optional.empty();
         severityOptional.ifPresent(entitySeverityBuilder::setSeverity);
         return entitySeverityBuilder.build();
+    }
+
+    private PaginationParameters resetPaginationWithDefaultLimit(
+            @Nonnull final MultiEntityRequest request) {
+        if (!request.getPaginationParams().hasLimit()) {
+            logger.info("Search pagination with order by severity not provider a limit number, " +
+                    "set to default limit: " + entitySeverityDefaultPaginationLimit);
+            return PaginationParameters.newBuilder(request.getPaginationParams())
+                    .setLimit(entitySeverityDefaultPaginationLimit)
+                    .build();
+        }
+        if (request.getPaginationParams().getLimit() > entitySeverityDefaultPaginationMax) {
+            logger.info("Search pagination with order by severity limit exceed default max limit," +
+                    " set it to default max limit number: " + entitySeverityDefaultPaginationMax);
+            return PaginationParameters.newBuilder(request.getPaginationParams())
+                    .setLimit(entitySeverityDefaultPaginationMax)
+                    .build();
+        }
+        return request.getPaginationParams();
     }
 }

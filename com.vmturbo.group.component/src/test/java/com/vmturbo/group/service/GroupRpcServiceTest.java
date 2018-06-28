@@ -54,11 +54,11 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
+import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
-import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
 
 @SuppressWarnings("unchecked")
@@ -691,11 +691,11 @@ public class GroupRpcServiceTest {
         }
 
         @Override
-        public void searchEntityOids(final Search.SearchRequest request,
-                                     final StreamObserver<Search.SearchResponse> responseObserver) {
+        public void searchEntityOids(final Search.SearchEntityOidsRequest request,
+                                     final StreamObserver<Search.SearchEntityOidsResponse> responseObserver) {
             final List<Long> mockData = mockDataReference.get();
 
-            final Search.SearchResponse searchResp = Search.SearchResponse.newBuilder()
+            final Search.SearchEntityOidsResponse searchResp = Search.SearchEntityOidsResponse.newBuilder()
                     .addAllEntities(mockData)
                     .build();
 

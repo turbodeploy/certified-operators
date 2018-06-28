@@ -134,6 +134,12 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${authRetryDelaySecs}")
     private int authRetryDelaySecs;
 
+    @Value("${repositoryPaginationDefaultLimit}")
+    private int repositoryPaginationDefaultLimit;
+
+    @Value("${repositoryPaginationMaxLimit}")
+    private int repositoryPaginationMaxLimit;
+
     private ArangoDB arangoDB;
 
     private final com.vmturbo.repository.RepositoryProperties.ArangoDB arangoProps;
@@ -340,7 +346,9 @@ public class RepositoryComponent extends BaseVmtComponent {
     public SearchService searchService() throws InterruptedException, CommunicationException, URISyntaxException {
         return new SearchService(supplyChainService(),
                                  topologyManager(),
-                                 searchHandler());
+                                 searchHandler(),
+                                 repositoryPaginationDefaultLimit,
+                                 repositoryPaginationMaxLimit);
     }
 
     @Bean

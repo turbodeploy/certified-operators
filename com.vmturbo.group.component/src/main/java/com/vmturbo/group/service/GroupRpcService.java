@@ -44,13 +44,13 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
+import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.group.GroupStore;
 import com.vmturbo.group.group.GroupStore.GroupNotClusterException;
 import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableGroupUpdateException;
-import com.vmturbo.group.common.ItemNotFoundException.GroupNotFoundException;
 import com.vmturbo.group.policy.PolicyStore.PolicyDeleteException;
 
 public class GroupRpcService extends GroupServiceImplBase {
@@ -350,7 +350,8 @@ public class GroupRpcService extends GroupServiceImplBase {
 
                             // Convert any ClusterMemberFilters to static set member checks based
                             // on current group membership info
-                            Search.SearchRequest.Builder searchRequestBuilder = Search.SearchRequest.newBuilder();
+                            Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
+                                    Search.SearchEntityOidsRequest.newBuilder();
                             try {
                                 for (SearchParameters params : searchParameters) {
                                     searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
@@ -362,8 +363,8 @@ public class GroupRpcService extends GroupServiceImplBase {
                                 return;
 
                             }
-                            final Search.SearchRequest searchRequest = searchRequestBuilder.build();
-                            final Search.SearchResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
+                            final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
+                            final Search.SearchEntityOidsResponse searchResponse = searchServiceRpc.searchEntityOids(searchRequest);
                             final List<Long> searchResults = searchResponse.getEntitiesList();
                             logger.debug("Dynamic group ({}) and its first 10 members {}",
                                 groupId,

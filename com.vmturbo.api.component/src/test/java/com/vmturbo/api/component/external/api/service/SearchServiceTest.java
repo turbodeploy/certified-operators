@@ -63,9 +63,9 @@ import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchResponse;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -257,7 +257,7 @@ public class SearchServiceTest {
                 Optional.of(supplyChainTestUtils.createServiceEntityApiDTO(1L)));
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
-        when(searchServiceSpy.searchEntityOids(any())).thenReturn(SearchResponse.newBuilder()
+        when(searchServiceSpy.searchEntityOids(any())).thenReturn(SearchEntityOidsResponse.newBuilder()
                 .addEntities(1L)
                 .addEntities(2L)
                 .addEntities(3L)

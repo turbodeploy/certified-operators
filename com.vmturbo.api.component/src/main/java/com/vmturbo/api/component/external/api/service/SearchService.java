@@ -72,7 +72,9 @@ import com.vmturbo.common.protobuf.group.GroupDTO.NameFilter;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -315,11 +317,6 @@ public class SearchService implements ISearchService {
         List<SearchParameters> searchParameters =
             groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), nameQuery);
 
-        // Convert any ClusterMemberFilters to static member filters
-        Search.SearchRequest.Builder searchRequestBuilder = Search.SearchRequest.newBuilder();
-        for (SearchParameters params : searchParameters) {
-            searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
-        }
         // match only the entity uuids which are part of the group or cluster
         // defined in the scope
         final Set<String> scopeList = Optional.ofNullable(inputDTO.getScope())
@@ -327,23 +324,28 @@ public class SearchService implements ISearchService {
                 .orElse(ImmutableSet.of());
         final boolean isGlobalScope = containsGlobalScope(scopeList);
         final Set<Long> expandedIds = groupExpander.expandUuids(scopeList);
+        final List<Long> allEntityOids = new ArrayList<>();
         if (!expandedIds.isEmpty() && !isGlobalScope) {
-            searchRequestBuilder.addAllEntityOid(expandedIds);
+            allEntityOids.addAll(expandedIds);
         }
+        final SearchEntityOidsRequest searchRequest = SearchEntityOidsRequest.newBuilder()
+                .addAllSearchParameters(searchParameters)
+                .addAllEntityOid(allEntityOids)
+                .build();
         if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
-            // if pagination request is order by severity, it needs to query action orchestrator
-            // to paginate by severity.
-            final Search.SearchRequest searchRequest = searchRequestBuilder.build();
             return getServiceEntityPaginatedWithSeverity(inputDTO, nameQuery, paginationRequest,
                     expandedIds, searchRequest);
         } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
             return getServiceEntityPaginatedWithUtilization(inputDTO, nameQuery, paginationRequest,
-                    expandedIds, searchRequestBuilder.build(), isGlobalScope);
+                    expandedIds, searchRequest, isGlobalScope);
         } else {
             // TODO: Implement search entities order by utilization and cost.
-            searchRequestBuilder.setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
-            final Search.SearchRequest searchRequest = searchRequestBuilder.build();
-            final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchRequest);
+            final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
+                    .addAllSearchParameters(searchParameters)
+                    .addAllEntityOid(allEntityOids)
+                    .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                    .build();
+            final SearchEntitiesResponse response = searchServiceRpc.searchEntities(searchEntitiesRequest);
             List<ServiceEntityApiDTO> entities = response.getEntitiesList().stream()
                     .map(SearchMapper::seDTO)
                     .collect(Collectors.toList());
@@ -368,7 +370,7 @@ public class SearchService implements ISearchService {
      * @param nameQuery user specified search query for entity name.
      * @param paginationRequest {@link SearchPaginationRequest}
      * @param expandedIds a list of entity oids after expanded.
-     * @param searchRequest {@link Search.SearchRequest}.
+     * @param searchEntityOidsRequest {@link Search.SearchEntityOidsRequest}.
      * @return {@link SearchPaginationResponse}.
      */
     private SearchPaginationResponse getServiceEntityPaginatedWithSeverity(
@@ -376,8 +378,9 @@ public class SearchService implements ISearchService {
             @Nullable final String nameQuery,
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
-            @Nonnull final Search.SearchRequest searchRequest) {
-        final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds, searchRequest);
+            @Nonnull final Search.SearchEntityOidsRequest searchEntityOidsRequest) {
+        final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds,
+                searchEntityOidsRequest);
         /*
          The search query with order by severity workflow will be: 1: The query will first go to
          repository (if need) to get all candidates oids. 2: All candidates oids will passed to Action
@@ -426,7 +429,7 @@ public class SearchService implements ISearchService {
      * @param nameQuery user specified search query for entity name.
      * @param paginationRequest {@link SearchPaginationRequest}.
      * @param expandedIds a list of entity oids after expanded.
-     * @param searchRequest {@link Search.SearchRequest}.
+     * @param searchRequest {@link Search.SearchEntityOidsRequest}.
      * @param isGlobalScope a boolean represents if search scope is global scope or not.
      * @return
      */
@@ -435,7 +438,7 @@ public class SearchService implements ISearchService {
             @Nullable final String nameQuery,
             @Nonnull final SearchPaginationRequest paginationRequest,
             @Nonnull final Set<Long> expandedIds,
-            @Nonnull final Search.SearchRequest searchRequest,
+            @Nonnull final Search.SearchEntityOidsRequest searchRequest,
             @Nonnull final boolean isGlobalScope) {
         // the search query with order by utilizaiton workflow will be: 1: query repository componnet
         // to get all candidate entity oids. 2: query history component to get top X entity oids based
@@ -474,7 +477,7 @@ public class SearchService implements ISearchService {
             @Nonnull final GroupApiDTO inputDTO,
             @Nullable final String nameQuery,
             @Nonnull final Set<Long> expandedIds,
-            @Nonnull final Search.SearchRequest searchRequest) {
+            @Nonnull final Search.SearchEntityOidsRequest searchRequest) {
         final Set<Long> candidates;
         // if query request doesn't contains any filter criteria, it can directly use expanded ids
         // as results. Otherwise, it needs to query repository to get matched entity oids.

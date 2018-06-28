@@ -70,7 +70,8 @@ public class RpcConfig {
 
     @Bean
     public EntitySeverityRpcService entitySeverityRpcService() {
-        return new EntitySeverityRpcService(actionStoreConfig.actionStorehouse());
+        return new EntitySeverityRpcService(actionStoreConfig.actionStorehouse(),
+                actionPaginationDefaultLimit, actionPaginationMaxLimit);
     }
 
     @Bean

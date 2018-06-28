@@ -35,8 +35,9 @@ message MultiEntityRequest {
     // The IDs of the entities being addressed.
     repeated int64 entity_ids = 2;
 
-    // If not provder pagination parameters, the response will contains all request entity oids.
-    // And pagination parameter order by type can only be search order by severity.
+    // If not set pagination parameters, the response will contains all request entity oids.
+    // If use the default instance of PaginationParameters. The backend
+    // will enforce a default ordering and limit, and retrieve the first page.
     optional common.PaginationParameters pagination_params = 3;
 }
 

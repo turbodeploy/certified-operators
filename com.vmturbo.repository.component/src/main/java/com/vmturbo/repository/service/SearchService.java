@@ -12,7 +12,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,12 +29,14 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.Entity;
-import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.EntityCountResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchRequest;
-import com.vmturbo.common.protobuf.search.Search.SearchResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.result.ScopedEntity;
@@ -52,19 +53,24 @@ public class SearchService extends SearchServiceImplBase {
     private final SupplyChainService supplyChainService;
     private final TopologyLifecycleManager lifecycleManager;
     private final SearchHandler searchHandler;
+    private final int repositoryDefaultPaginationLimit;
+    private final int repositoryDefaultPaginationMax;
 
 
     public SearchService(final SupplyChainService supplyChainService,
                          final TopologyLifecycleManager lifecycleManager,
-                         final SearchHandler searchHandler
-                         ) {
+                         final SearchHandler searchHandler,
+                         final int repositoryDefaultPaginationLimit,
+                         final int repositoryDefaultPaginationMax) {
         this.supplyChainService = checkNotNull(supplyChainService);
         this.lifecycleManager = checkNotNull(lifecycleManager);
         this.searchHandler = checkNotNull(searchHandler);
+        this.repositoryDefaultPaginationLimit = repositoryDefaultPaginationLimit;
+        this.repositoryDefaultPaginationMax = repositoryDefaultPaginationMax;
     }
 
     @Override
-    public void countEntities(final SearchRequest request, final StreamObserver<EntityCountResponse> responseObserver) {
+    public void countEntities(final CountEntitiesRequest request, final StreamObserver<EntityCountResponse> responseObserver) {
         logger.debug("Counting entity OIDs with search request: {}", request);
 
         // Return empty result if current topology doesn't exist.
@@ -111,9 +117,16 @@ public class SearchService extends SearchServiceImplBase {
         }
     }
 
+    /**
+     * Get a full list of entity oids based on search parameters, this rpc call will not perform
+     * pagination.
+     *
+     * @param request {@link SearchEntitiesRequest}.
+     * @param responseObserver response observer of {@link SearchEntityOidsResponse}.
+     */
     @Override
-    public void searchEntityOids(SearchRequest request,
-                                 StreamObserver<SearchResponse> responseObserver) {
+    public void searchEntityOids(SearchEntityOidsRequest request,
+                                 StreamObserver<SearchEntityOidsResponse> responseObserver) {
         logger.debug("Searching for entity OIDs with request: {}", request);
 
         // Return empty result if current topology doesn't exist.
@@ -121,21 +134,10 @@ public class SearchService extends SearchServiceImplBase {
         if (!realtimeDb.isPresent()) {
             logger.warn("No real-time topology exists for searching request");
             responseObserver.onNext(
-                    SearchResponse.newBuilder().addAllEntities(Collections.emptyList()).build());
+                    SearchEntityOidsResponse.newBuilder().addAllEntities(Collections.emptyList()).build());
             responseObserver.onCompleted();
             return;
         }
-        final Optional<StatusException> statusExceptionOptional =
-                isValidPaginationParameter(request);
-        if (statusExceptionOptional.isPresent()) {
-            responseObserver.onError(statusExceptionOptional.get());
-            return;
-        }
-
-        final Optional<PaginationParameters> paginationParams =
-                request.hasPaginationParams()
-                        ? Optional.of(request.getPaginationParams())
-                        : Optional.empty();
         final Function<Collection<String>, List<Long>> convertToLong =
                 entityOid -> entityOid.stream()
                         .map(Long::parseLong)
@@ -145,22 +147,12 @@ public class SearchService extends SearchServiceImplBase {
         try {
             // if there is only one search parameter, it can apply pagination directly.
             final List<Long> entities = searchParameters.size() == 1
-                    ? searchWithOnlyOneParameter(request, searchParameters.get(0), paginationParams,
+                    ? searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0), Optional.empty(),
                         searchFunction, convertToLong)
-                    : searchEntityOidMultiParameters(request, searchParameters, paginationParams);
-            final SearchResponse.Builder responseBuilder = SearchResponse.newBuilder()
+                    : searchEntityOidMultiParametersWithoutPagination(request.getEntityOidList(),
+                    searchParameters, Optional.empty());
+            final SearchEntityOidsResponse.Builder responseBuilder = SearchEntityOidsResponse.newBuilder()
                     .addAllEntities(entities);
-            if (paginationParams.isPresent()) {
-                responseBuilder.setPaginationResponse(PaginationResponse.newBuilder());
-                final long skipCount = paginationParams.get().hasCursor()
-                        ? Long.parseLong(paginationParams.get().getCursor())
-                        : 0;
-                if (entities.size() == paginationParams.get().getLimit()) {
-                    final long nextCursor = skipCount + paginationParams.get().getLimit();
-                    responseBuilder.getPaginationResponseBuilder()
-                            .setNextCursor(String.valueOf(nextCursor));
-                }
-            }
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
         } catch (Throwable e) {
@@ -171,7 +163,7 @@ public class SearchService extends SearchServiceImplBase {
     }
 
     @Override
-    public void searchEntities(SearchRequest request,
+    public void searchEntities(SearchEntitiesRequest request,
                                StreamObserver<SearchEntitiesResponse> responseObserver) {
         logger.debug("Searching for entities with request: {}", request);
 
@@ -188,10 +180,13 @@ public class SearchService extends SearchServiceImplBase {
             return;
         }
 
-        final Optional<PaginationParameters> paginationParams =
-                    request.hasPaginationParams()
-                            ? Optional.of(request.getPaginationParams())
-                            : Optional.empty();
+        final PaginationParameters paginationParams = resetPaginationWithDefaultLimit(request);
+        final int limit = paginationParams.getLimit();
+        final PaginationParameters paginationParameterWithLimitPlueOne =
+                PaginationParameters.newBuilder(paginationParams)
+                        // increase limit number by one, in order to check if there are more results left.
+                        .setLimit(limit + 1)
+                        .build();
         final Function<Collection<ServiceEntityRepoDTO>, List<Entity>> convertToEntity =
                 serviceEntityRepoDTOS -> serviceEntityRepoDTOS.stream()
                         .map(SearchDTOConverter::toSearchEntity)
@@ -201,27 +196,29 @@ public class SearchService extends SearchServiceImplBase {
         try {
             // if there is only one search parameter, it can apply pagination directly.
             final List<Entity> entities = (searchParameters.size() == 1)
-                    ? searchWithOnlyOneParameter(request, searchParameters.get(0), paginationParams,
-                        searchFunction, convertToEntity)
-                    : searchEntitiesMultiParameters(request, searchParameters, paginationParams);
-            final Comparator<Entity> comparator = getComparator(paginationParams);
+                    ? searchWithOnlyOneParameter(request.getEntityOidList(), searchParameters.get(0),
+                    Optional.of(paginationParameterWithLimitPlueOne), searchFunction, convertToEntity)
+                    : searchEntitiesMultiParameters(request.getEntityOidList(), searchParameters,
+                            paginationParameterWithLimitPlueOne);
+            final Comparator<Entity> comparator =
+                    Comparator.comparing(entity -> entity.getDisplayName().toLowerCase());
             final List<Entity> sortedEntities = entities.stream()
-                    .sorted(paginationParams.isPresent() && paginationParams.get().getAscending()
+                    .sorted(paginationParams.getAscending()
                             ? comparator
                             : comparator.reversed())
                     .collect(Collectors.toList());
             final SearchEntitiesResponse.Builder responseBuilder = SearchEntitiesResponse.newBuilder()
-                    .addAllEntities(sortedEntities);
-            if (paginationParams.isPresent()) {
-                responseBuilder.setPaginationResponse(PaginationResponse.newBuilder());
-                final long skipCount = paginationParams.get().hasCursor()
-                        ? Long.parseLong(paginationParams.get().getCursor())
-                        : 0;
-                if (entities.size() == paginationParams.get().getLimit()) {
-                    final long nextCursor = skipCount + paginationParams.get().getLimit();
-                    responseBuilder.getPaginationResponseBuilder()
-                            .setNextCursor(String.valueOf(nextCursor));
-                }
+                    // need to remove last element from result lists.
+                    .addAllEntities(sortedEntities.subList(0, Math.min(limit, sortedEntities.size())));
+            responseBuilder.setPaginationResponse(PaginationResponse.newBuilder());
+            final long skipCount = paginationParams.hasCursor()
+                    ? Long.parseLong(paginationParams.getCursor())
+                    : 0;
+            // if result list size is larger than limit number, it means there are more results left.
+            if (entities.size() > limit) {
+                final long nextCursor = skipCount + paginationParams.getLimit();
+                responseBuilder.getPaginationResponseBuilder()
+                        .setNextCursor(String.valueOf(nextCursor));
             }
             responseObserver.onNext(responseBuilder.build());
             responseObserver.onCompleted();
@@ -281,18 +278,23 @@ public class SearchService extends SearchServiceImplBase {
     /**
      * Check if request pagination parameters is valid or not.
      *
-     * @param request a {@link SearchRequest}.
+     * @param request a {@link SearchEntitiesRequest}.
      * @return if request pagination parameter is invalid, return a {@link StatusException}, otherwise
      *          return empty optional.
      */
-    private Optional<StatusException> isValidPaginationParameter(SearchRequest request) {
-        if (request.hasPaginationParams() && request.getPaginationParams().getLimit() <= 0) {
+    private Optional<StatusException> isValidPaginationParameter(SearchEntitiesRequest request) {
+        if (!request.hasPaginationParams()) {
+            return Optional.of(Status.INVALID_ARGUMENT
+                    .withDescription("Must provide a pagination parameter.")
+                    .asException());
+        }
+        if (request.getPaginationParams().hasLimit() && request.getPaginationParams().getLimit() <= 0) {
             return Optional.of(Status.INVALID_ARGUMENT
                     .withDescription("Pagination limit must be a positive integer.")
                     .asException());
 
         }
-        if (request.hasPaginationParams() && request.getPaginationParams().hasCursor()) {
+        if (request.getPaginationParams().hasCursor()) {
             try {
                 final long cursor = Long.parseLong(request.getPaginationParams().getCursor());
                 if (cursor < 0) {
@@ -328,7 +330,7 @@ public class SearchService extends SearchServiceImplBase {
      * into converted AQLs. This helper function combine the common parts of search entities and
      * search entity oid method together.
      *
-     * @param request a {@link SearchRequest}.
+     * @param entityOidList a list of entity oids.
      * @param searchParameter a {@link SearchParameters}.
      * @param paginationParams a {@link PaginationParameters}.
      * @param searchEntityPagination a function interface which include search entity with search oids
@@ -340,13 +342,13 @@ public class SearchService extends SearchServiceImplBase {
      * @throws Throwable if query failed.
      */
     private <RET, TYPE> List<RET> searchWithOnlyOneParameter(
-            @Nonnull final SearchRequest request,
+            @Nonnull final List<Long> entityOidList,
             @Nonnull final SearchParameters searchParameter,
             @Nonnull final Optional<PaginationParameters> paginationParams,
             @Nonnull final SearchEntityPagination searchEntityPagination,
             @Nonnull final Function<Collection<TYPE>, List<RET>> convert) throws Throwable {
         // if search query only has one search parameter, then it can apply pagination directly.
-        final List<String> candidateEntityOids = request.getEntityOidList().stream()
+        final List<String> candidateEntityOids = entityOidList.stream()
                 .map(String::valueOf)
                 .collect(Collectors.toList());
         final String db = TopologyDatabases.getDbName(
@@ -372,29 +374,29 @@ public class SearchService extends SearchServiceImplBase {
      * is "foo", 2: get all VMs which host name is "bar". If we apply pagination (top 5, sorted by entity
      * name) into both search parameters, its results are not always correct.
      *
-     * @param request a {@link SearchRequest}.
+     * @param entityOidList a list of entity oids.
      * @param searchParametersList a list of {@link SearchParameters}.
      * @param paginationParams a {@link PaginationParameters}.
      * @return a list of {@link Entity}.
      * @throws Throwable if query failed.
      */
     private List<Entity> searchEntitiesMultiParameters(
-            @Nonnull final SearchRequest request,
+            @Nonnull final List<Long> entityOidList,
             @Nonnull final List<SearchParameters> searchParametersList,
-            @Nonnull final Optional<PaginationParameters> paginationParams) throws Throwable {
+            @Nonnull final PaginationParameters paginationParams) throws Throwable {
         final List<Long> entityCandidateOids =
-                searchEntityOidMultiParametersWithoutPagination(request, searchParametersList, paginationParams);
-        final long skipCount = paginationParams.isPresent() && paginationParams.get().hasCursor()
-                ? Long.parseLong(paginationParams.get().getCursor())
+                searchEntityOidMultiParametersWithoutPagination(entityOidList, searchParametersList,
+                        Optional.of(paginationParams));
+        final long skipCount = paginationParams.hasCursor()
+                ? Long.parseLong(paginationParams.getCursor())
                 : 0;
-        final List<Long> entityOids = paginationParams.isPresent()
-                ? entityCandidateOids.stream()
+        final List<Long> entityOids = entityCandidateOids.stream()
                     .skip(skipCount)
-                    .limit(paginationParams.get().getLimit())
-                    .collect(Collectors.toList())
-                : entityCandidateOids;
+                    .limit(paginationParams.getLimit())
+                    .collect(Collectors.toList());
         final Either<Throwable, Collection<ServiceEntityRepoDTO>> entities =
-                searchHandler.getEntitiesByOids(Sets.newHashSet(entityOids), lifecycleManager.getRealtimeTopologyId());
+                searchHandler.getEntitiesByOids(Sets.newHashSet(entityOids),
+                        lifecycleManager.getRealtimeTopologyId());
         if (entities.isLeft()) {
             throw entities.getLeft();
         }
@@ -404,68 +406,20 @@ public class SearchService extends SearchServiceImplBase {
     }
 
     /**
-     * Get comparator for {@link Entity}.
-     *
-     * @param paginationParameters {@link PaginationParameters}.
-     * @return a {@link Comparator}.
-     */
-    private Comparator<Entity> getComparator(
-            @Nullable final Optional<PaginationParameters> paginationParameters) {
-        if (!paginationParameters.isPresent()) {
-            // if it is not pagination call, use the oid order as default comparator.
-            return Comparator.comparing(entity -> entity.getOid());
-        }
-        // Because Arangodb pagination ignore upper/lower case, in order to be consistent,
-        // it also need to compare display name with ignore upper/lower case.
-        return Comparator.comparing(entity -> entity.getDisplayName().toLowerCase());
-    }
-
-    /**
-     * For search entity oids with multiple search parameters. It needs get all candidate
-     * entity oids first, then perform pagination based on those entity oids.
-     * <p>
-     * For example: there is a query with two {@link SearchParameters}: 1: get all VMs which name
-     * is "foo", 2: get all VMs which host name is "bar". If we apply pagination (top 5, sorted by entity
-     * name) into both search parameters, its results are not always correct.
-     * @param request a {@link SearchRequest}.
-     * @param searchParametersList a list of {@link SearchParameters}.
-     * @param paginationParams a {@link PaginationParameters}.
-     * @return a list of entity oids.
-     * @throws Throwable if query failed.
-     */
-    private List<Long> searchEntityOidMultiParameters(
-            @Nonnull final SearchRequest request,
-            @Nonnull final List<SearchParameters> searchParametersList,
-            @Nonnull final Optional<PaginationParameters> paginationParams) throws Throwable {
-        final List<Long> entityCandidateOids =
-                searchEntityOidMultiParametersWithoutPagination(request, searchParametersList, paginationParams);
-        final long skipCount = paginationParams.isPresent() && paginationParams.get().hasCursor()
-                ? Long.parseLong(paginationParams.get().getCursor())
-                : 0;
-        final List<Long> entityOids = paginationParams.isPresent()
-                ? entityCandidateOids.stream()
-                .skip(skipCount)
-                .limit(paginationParams.get().getLimit())
-                .collect(Collectors.toList())
-                : entityCandidateOids;
-        return entityOids;
-    }
-
-    /**
      * Search entity oids without pagination. It will return all entity oids which matched with
      * search criteria.
      *
-     * @param request a {@link SearchRequest}.
+     * @param entityOidList a list of entity oids.
      * @param searchParametersList a list of {@link SearchParameters}.
      * @param paginationParameters {@link PaginationParameters} contains parameters for pagination.
      * @return a list of entity oids.
      * @throws Throwable if query failed.
      */
     private List<Long> searchEntityOidMultiParametersWithoutPagination(
-            @Nonnull final SearchRequest request,
+            @Nonnull final List<Long> entityOidList,
             @Nonnull final List<SearchParameters> searchParametersList,
             @Nonnull final Optional<PaginationParameters> paginationParameters) throws Throwable {
-        final List<String> candidateEntityOids = request.getEntityOidList().stream()
+        final List<String> candidateEntityOids = entityOidList.stream()
                 .map(String::valueOf)
                 .collect(Collectors.toList());
         final String db = TopologyDatabases.getDbName(
@@ -497,5 +451,24 @@ public class SearchService extends SearchServiceImplBase {
             }) : Optional.of(searchResult);
         }
         return entitiesList.orElse(Collections.emptyList());
+    }
+
+    private PaginationParameters resetPaginationWithDefaultLimit(
+            @Nonnull final SearchEntitiesRequest request) {
+        if (!request.getPaginationParams().hasLimit()) {
+            logger.info("Search pagination in Repository not provider a limit number, set to " +
+                    "default limit: " + repositoryDefaultPaginationLimit);
+            return PaginationParameters.newBuilder(request.getPaginationParams())
+                    .setLimit(repositoryDefaultPaginationLimit)
+                    .build();
+        }
+        if (request.getPaginationParams().getLimit() > repositoryDefaultPaginationMax) {
+            logger.info("Search pagination in Repository limit exceed default max limit," +
+                    " set it to default max limit number: " + repositoryDefaultPaginationMax);
+            return PaginationParameters.newBuilder(request.getPaginationParams())
+                    .setLimit(repositoryDefaultPaginationMax)
+                    .build();
+        }
+        return request.getPaginationParams();
     }
 }

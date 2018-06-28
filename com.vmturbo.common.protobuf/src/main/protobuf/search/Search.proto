@@ -161,27 +161,21 @@ enum ComparisonOperator {
     LTE = 5;
 }
 
-message SearchRequest {
+// The request to search entity oids based on a list of search parameters. Note that, search entity
+// oids not need to perform pagination, because all the request needs to fetch all matched entity
+//oids, and the search entity oid query should be finish quickly even in large topology environment.
+message SearchEntityOidsRequest {
     repeated SearchParameters searchParameters = 1;
 
     // If the entity oids list is not empty, it means the search parameters will be only applied to those
     // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
     // it means the search parameters will be applied to global entities.
     repeated int64 entity_oid = 2;
-
-    // If not set pagination params, the response will not be paginated, the response will not
-    // contains pagination response object and it will contains all matched entities.
-    // TODO: implement a default pagination parameter, then all the request should be paginated.
-    optional common.PaginationParameters pagination_params = 3;
 }
 
-message SearchResponse {
+message SearchEntityOidsResponse {
     // The OIDs of entities from the search result
     repeated int64 entities = 1;
-
-    // If not set pagination response, it means that the response contains all matched entities.
-    // TODO: implement a default pagination response, then all the request should be paginated.
-    optional common.PaginationResponse pagination_response = 2;
 }
 
 message Entity {
@@ -194,13 +188,28 @@ message Entity {
     optional int32 state = 4;
 }
 
+message SearchEntitiesRequest {
+    repeated SearchParameters searchParameters = 1;
+
+    // If the entity oids list is not empty, it means the search parameters will be only applied to those
+    // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
+    // it means the search parameters will be applied to global entities.
+    repeated int64 entity_oid = 2;
+
+    // If not set, use the default instance of PaginationParameters. The backend
+    // will enforce a default ordering and limit, and retrieve the first page.
+    optional common.PaginationParameters pagination_params = 3;
+}
+
 message SearchEntitiesResponse {
     // A list of matched entities.
     repeated Entity entities = 1;
 
-    // If not set pagination response, it means that the response contains all matched entities.
-    // TODO: implement a default pagination parameter, then all the request should be paginated.
     optional common.PaginationResponse pagination_response = 2;
+}
+
+message CountEntitiesRequest {
+    repeated SearchParameters searchParameters = 1;
 }
 
 message EntityCountResponse {
@@ -210,10 +219,10 @@ message EntityCountResponse {
 // A service responsible for search operations.
 service SearchService {
     // Search for entities based on the search parameters and return entity OID
-    rpc SearchEntityOids(SearchRequest) returns (SearchResponse);
+    rpc SearchEntityOids(SearchEntityOidsRequest) returns (SearchEntityOidsResponse);
 
     // Search for entities based on the search parameters and return entity objects
-    rpc SearchEntities(SearchRequest) returns (SearchEntitiesResponse);
+    rpc SearchEntities(SearchEntitiesRequest) returns (SearchEntitiesResponse);
 
-    rpc CountEntities(SearchRequest) returns (EntityCountResponse);
+    rpc CountEntities(CountEntitiesRequest) returns (EntityCountResponse);
 }

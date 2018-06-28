@@ -52,7 +52,8 @@ public class EntitySeverityRpcServiceTest {
     private final long topologyContextId = 3;
 
     private final EntitySeverityRpcService entitySeverityRpcService =
-            new EntitySeverityRpcService(actionStorehouse);
+            new EntitySeverityRpcService(actionStorehouse,
+                    100, 500);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(entitySeverityRpcService);

@@ -146,6 +146,8 @@ repository:
   grpcPingIntervalSeconds: 300
   arangodbHealthCheckIntervalSeconds: 60
   realtimeTopologyContextId: 777777
+  repositoryPaginationDefaultLimit: 100
+  repositoryPaginationMaxLimit: 500
   <<: *auth_conn_info
 
 group:

@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.time.temporal.TemporalUnit;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.Executors;
@@ -13,29 +12,25 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
-import com.google.protobuf.Empty;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.grpc.stub.StreamObserver;
-import reactor.core.publisher.Flux;
+import com.google.protobuf.Empty;
 
-import com.vmturbo.api.dto.license.ILicense;
-import com.vmturbo.api.dto.license.ILicense.ErrorReason;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.auth.component.licensing.LicenseManagerService.LicenseManagementEvent;
 import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceImplBase;
 import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
+import com.vmturbo.common.protobuf.search.Search.CountEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchRequest;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.licensing.License;
-import com.vmturbo.licensing.utils.LicenseUtil;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -207,7 +202,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     private boolean populateWorkloadCount(License license) {
         // get the workload count from the repository and check if we are over the limit
         // we will fetch either all PM's or active VM's depending on counted entity type.
-        SearchRequest.Builder entityCountRequestBuilder = SearchRequest.newBuilder();
+        CountEntitiesRequest.Builder entityCountRequestBuilder = CountEntitiesRequest.newBuilder();
         switch (license.getCountedEntity()) {
             case VM:
                 logger.debug("Counting active VMs");
@@ -243,7 +238,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // we're going to check the workload limit here and set a boolean, since it's not
         // flagged in the license objects directly.
         boolean isOverLimit = false;
-        SearchRequest request = entityCountRequestBuilder.build();
+        CountEntitiesRequest request = entityCountRequestBuilder.build();
         if (request.getSearchParametersCount() == 0) {
             logger.info("Empty entity count request -- will not request workload count.");
         } else {
