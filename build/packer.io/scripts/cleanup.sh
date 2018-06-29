@@ -42,6 +42,7 @@ chmod +x /etc/rc.d/rc.local
 
 # Set up permissions and a link for
 chmod +x /etc/docker/turboctl.py
+chmod +x /etc/docker/turboupgrade.py
 
 # Add a symlink, so that the sudo would see it.
 ln -s /etc/docker/turboctl.py /usr/bin/turboctl

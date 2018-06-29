@@ -48,6 +48,9 @@ cp ${WORKSPACE}/build/docker-compose.yml.200k ${WORKSPACE}/data/images/
 # Copy the turboctl.py script to add into the iso
 cp ${WORKSPACE}/build/turboctl.py ${WORKSPACE}/data/images/.
 
+# Copy the upgrade script to add into the iso
+cp ${WORKSPACE}/build/turboupgrade.py ${WORKSPACE}/data/images/.
+
 # Copy the common definition .yml files with common values used by the above docker-compose.yml.nnk
 cp ${WORKSPACE}/build/prod-services.yml ${WORKSPACE}/data/images/
 cp ${WORKSPACE}/build/common-services.yml ${WORKSPACE}/data/images/
@@ -68,6 +71,7 @@ sha256sum "${DOCKER_COMPOSE_YML_FILE_TGT}.100k" >> turbonomic_sums.txt
 sha256sum "prod-services.yml" >> turbonomic_sums.txt
 sha256sum "common-services.yml" >> turbonomic_sums.txt
 sha256sum "turboctl.py" >> turbonomic_sums.txt
+sha256sum "turboupgrade.py" >> turbonomic_sums.txt
 
 for file in `ls *tgz`; do sha256sum $file >> turbonomic_sums.txt; done
 popd

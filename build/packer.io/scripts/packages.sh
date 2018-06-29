@@ -6,4 +6,4 @@ yum install -y -q strace
 yum install -y -q sysstat
 yum install -y -q net-tools
 yum install -y -q lvm2
-
+yum install -y -q PyYAML

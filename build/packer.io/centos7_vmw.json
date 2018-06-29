@@ -70,6 +70,11 @@
             "destination": "/etc/docker/turboctl.py"
         },
         {
+            "type": "file",
+            "source": "../turboupgrade.py",
+            "destination": "/etc/docker/turboupgrade.py"
+        },
+        {
             "type": "shell",
             "execute_command": "bash '{{ .Path }}'",
             "scripts": [
