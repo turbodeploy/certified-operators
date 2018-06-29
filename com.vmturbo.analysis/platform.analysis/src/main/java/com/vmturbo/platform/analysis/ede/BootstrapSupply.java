@@ -721,26 +721,16 @@ public class BootstrapSupply {
      */
      private static @Nullable CommoditySpecification findCommSpecWithInfiniteQuote(Trader sellerThatFits,
                     ShoppingList sl, Economy economy) {
-        Basket basket = sl.getBasket();
+        Trader traderToInspect = sl.getSupplier() == null ? sellerThatFits : sl.getSupplier();
+        int boughtIndex = 0;
         CommoditySpecification commWithInfQuote = null;
-        for (int soldIndex = 0, boughtIndex = 0; boughtIndex < basket.size(); boughtIndex++) {
+        Basket basket = sl.getBasket();
+        for (int soldIndex = 0; boughtIndex < basket.size(); boughtIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
-            while (!basketCommSpec.isSatisfiedBy(sellerThatFits.getBasketSold().get(soldIndex))) {
+            while (!basketCommSpec.isSatisfiedBy(traderToInspect.getBasketSold().get(soldIndex))) {
                 soldIndex++;
-                if (soldIndex >= sellerThatFits.getBasketSold().size()) {
-                    logger.error("Trying to provision "
-                            + sellerThatFits.getDebugInfoNeverUseInCode()
-                            + ", for " + sl.getBuyer()
-                            + " but it is not selling "
-                            + basketCommSpec.getDebugInfoNeverUseInCode()
-                            + " which is needed by buyer.");
-                    // we can return null as the reason commSpec with inf quote because in
-                    // AnalysisToProtobuf, we calculate the most expensive commodity and make it
-                    // as the reason commodity
-                    return null;
-                }
             }
-            double[] tempQuote = EdeCommon.computeCommodityCost(economy, sl, sellerThatFits,
+            double[] tempQuote = EdeCommon.computeCommodityCost(economy, sl, traderToInspect,
                                                                 soldIndex, boughtIndex, false);
             if (Double.isInfinite(tempQuote[0])) {
                 commWithInfQuote = basketCommSpec;
