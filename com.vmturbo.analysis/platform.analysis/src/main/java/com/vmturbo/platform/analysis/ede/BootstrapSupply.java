@@ -721,14 +721,28 @@ public class BootstrapSupply {
      */
      private static @Nullable CommoditySpecification findCommSpecWithInfiniteQuote(Trader sellerThatFits,
                     ShoppingList sl, Economy economy) {
-        Trader traderToInspect = sl.getSupplier() == null ? sellerThatFits : sl.getSupplier();
-        int boughtIndex = 0;
-        CommoditySpecification commWithInfQuote = null;
+        Trader traderToInspect = chooseSellerToAskQuotes(sellerThatFits, sl);
+        if (traderToInspect == null) {
+            return null;
+        }
         Basket basket = sl.getBasket();
-        for (int soldIndex = 0; boughtIndex < basket.size(); boughtIndex++) {
+        CommoditySpecification commWithInfQuote = null;
+        for (int soldIndex = 0, boughtIndex = 0; boughtIndex < basket.size(); boughtIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
             while (!basketCommSpec.isSatisfiedBy(traderToInspect.getBasketSold().get(soldIndex))) {
                 soldIndex++;
+                if (soldIndex >= traderToInspect.getBasketSold().size()) {
+                    logger.error("Trying to provision "
+                            + traderToInspect.getDebugInfoNeverUseInCode()
+                            + ", for " + sl.getBuyer()
+                            + " but it is not selling "
+                            + basketCommSpec.getDebugInfoNeverUseInCode()
+                            + " which is needed by buyer.");
+                    // we can return null as the reason commSpec with inf quote because in
+                    // AnalysisToProtobuf, we calculate the most expensive commodity and put it on
+                    // as the reason commodity
+                    return null;
+                }
             }
             double[] tempQuote = EdeCommon.computeCommodityCost(economy, sl, traderToInspect,
                                                                 soldIndex, boughtIndex, false);
@@ -740,6 +754,50 @@ public class BootstrapSupply {
             }
         }
         return commWithInfQuote;
+    }
+
+    /**
+     * Choose a seller between the shopping list's current supplier and the sellerThatFits.
+     * If the shopping list sl has a current supplier, then we choose to ask quotes from there
+     * unless one of the commodities bought by sl does not exist in the current supplier. This can
+     * happen when segmentation commodity is missing from the current supplier. If one of
+     * the commodities bought by sl does not exist in current supplier, then we return the
+     * sellerThatFits.
+     *
+     * @param sellerThatFits future supplier of given shopping list.
+     * @param sl shopping list we are trying to provide for.
+     * @return either the sellerThatFits or shopping list's current supplier.
+     */
+    private static @Nullable Trader chooseSellerToAskQuotes(Trader sellerThatFits,
+                                                                            ShoppingList sl) {
+        Trader traderToInspect = sl.getSupplier() == null ? sellerThatFits : sl.getSupplier();
+        Basket basket = sl.getBasket();
+        boolean isBasketUnsatisfied = false;
+        for (int soldIndex = 0, boughtIndex = 0; boughtIndex < basket.size(); boughtIndex++) {
+            CommoditySpecification basketCommSpec = basket.get(boughtIndex);
+            while (!basketCommSpec.isSatisfiedBy(traderToInspect.getBasketSold().get(soldIndex))) {
+                soldIndex++;
+                if (soldIndex >= traderToInspect.getBasketSold().size()) {
+                    isBasketUnsatisfied = true;
+                    break;
+                }
+            }
+            // If there is a missing commodity, then return seller that fits
+            if (isBasketUnsatisfied) {
+                if (traderToInspect == sellerThatFits) {
+                    logger.error("Trying to provision "
+                            + sellerThatFits.getDebugInfoNeverUseInCode() + ", for " + sl.getBuyer()
+                            + " but it is not selling "
+                            + basketCommSpec.getDebugInfoNeverUseInCode()
+                            + " which is needed by buyer.");
+                    // We are already using seller that fits
+                    return null;
+                } else {
+                    return sellerThatFits;
+                }
+            }
+        }
+        return traderToInspect;
     }
 
     /**
