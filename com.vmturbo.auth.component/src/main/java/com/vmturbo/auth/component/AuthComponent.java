@@ -74,9 +74,10 @@ public class AuthComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         logger.info("Adding MariaDB health check to the component health monitor.");
-        getHealthMonitor().addHealthCheck(
-                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
-                        authDBConfig.dataSource()::getConnection));
+        getHealthMonitor()
+            .addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
+                                    authDBConfig.dataSource()::getConnection))
+            .addHealthCheck(licensingConfig.kafkaProducerHealthMonitor());
     }
 
     /**

@@ -50,7 +50,8 @@ public final class ProbeController {
     @ApiOperation("Get all probes.")
     public ResponseEntity<GetAllProbes> getAllProbes() {
         final List<ProbeDescription> probeDescriptions = probeStore.getProbes().entrySet()
-                        .stream().map(entry -> create(entry.getKey(), entry.getValue()))
+                        .stream()
+                        .map(entry -> create(entry.getKey(), entry.getValue()))
                         .collect(Collectors.toList());
         return new ResponseEntity<>(new GetAllProbes(probeDescriptions), HttpStatus.OK);
     }

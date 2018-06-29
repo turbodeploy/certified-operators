@@ -5,6 +5,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang.StringUtils;
+import org.joda.time.DateTime;
+import org.joda.time.format.ISODateTimeFormat;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
@@ -180,7 +182,7 @@ public class LicenseDTOUtils {
         summaryBuilder.setIsValid(aggregateLicense.isValid());
 
         // set generation date to now.
-        summaryBuilder.setGenerationDate(ILicense.formatDateToISO(new Date()));
+        summaryBuilder.setGenerationDate(new DateTime().toString(ISODateTimeFormat.dateTime()));
 
         return summaryBuilder.build();
     }

@@ -486,7 +486,7 @@ public class TargetsServiceTest {
 
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
-            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100));
+            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100), null);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         Mockito.when(targetInfo.getId()).thenReturn(targetId);
@@ -727,7 +727,7 @@ public class TargetsServiceTest {
 
         @Bean
         public TargetsService targetsService() {
-            return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1));
+            return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1), null);
         }
 
         @Bean

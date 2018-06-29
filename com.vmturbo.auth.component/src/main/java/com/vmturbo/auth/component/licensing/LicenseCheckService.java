@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -30,6 +31,9 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.server.ComponentNotificationSender;
+import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.licensing.License;
 import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -80,6 +84,9 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
     @Nonnull
     private final Repository repositoryListener;
 
+    @Nonnull
+    private final LicenseSummaryPublisher licenseSummaryPublisher;
+
     // cache the last license summary, defaulting to the "no license" result.
     private LicenseSummary lastSummary = NO_LICENSES_SUMMARY;
 
@@ -88,13 +95,18 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
 
     public LicenseCheckService(LicenseManagerService licenseManagerService,
                                SearchServiceBlockingStub searchServiceClient,
-                               Repository repositoryListener) {
+                               Repository repositoryListener,
+                               IMessageSender<LicenseSummary> licenseSummarySender) {
         this.licenseManagerService = licenseManagerService;
         // subscribe to the license manager event stream. This will trigger license check updates
         // whenever licenses are added / removed
         licenseManagerService.getEventStream().subscribe(this::handleLicenseManagerEvent);
         this.searchServiceClient = searchServiceClient;
         this.repositoryListener = repositoryListener;
+
+        // create the license summary publisher
+        licenseSummaryPublisher = new LicenseSummaryPublisher(licenseSummarySender);
+
         // subscribe to new topologies, so we can regenerate the license check when that happens
         repositoryListener.addListener(this);
         // schedule time-based updates. The first update will happen immediately (but on a separate
@@ -142,7 +154,14 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         //This will go to kafka when we add the license check client. For now, it will just update
         // the internal cache.
         logger.info("Publishing new license summary created at {}", newSummary.getGenerationDate());
-        lastSummary = newSummary;
+        try {
+            licenseSummaryPublisher.publish(newSummary);
+
+        } catch (InterruptedException | CommunicationException e) {
+            logger.error("Error publishing license summary", e);
+        } finally {
+            lastSummary = newSummary;
+        }
     }
 
     /**
@@ -307,5 +326,42 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // we are using this as a trigger to update the license summary.
         logger.info("New live topology available in repository -- will update the license summary");
         updateLicenseSummary();
+    }
+
+    /**
+     * Sends a LicenseSummary message to kafka.
+     */
+    public static class LicenseSummaryPublisher extends ComponentNotificationSender<LicenseSummary> {
+
+        public static final String LICENSE_SUMMARY_KEY = "latest";
+
+        private final IMessageSender<LicenseSummary> sender;
+
+        public LicenseSummaryPublisher(@Nonnull IMessageSender<LicenseSummary> sender) {
+            this.sender = Objects.requireNonNull(sender);
+        }
+
+        public void publish(LicenseSummary newSummary)
+                throws CommunicationException, InterruptedException {
+            sender.sendMessage(newSummary);
+        }
+
+        @Override
+        protected String describeMessage(@Nonnull final LicenseSummary licenseSummary) {
+            return LicenseSummary.class.getSimpleName() +"[generated "+ licenseSummary.getGenerationDate() +"]";
+        }
+
+        /**
+         * This is a message key generator for sending {@link LicenseSummary} messages. Because we
+         * only have a concept of one "latest" license summary, we will always send using the same
+         * key. We do not want the default behavior of incremental keys that we would otherwise get.
+         *
+         * @param summary the message to send
+         * @return our static String key to use for the message.
+         */
+        static public String generateMessageKey(LicenseSummary summary) {
+            return LICENSE_SUMMARY_KEY;
+        }
+
     }
 }

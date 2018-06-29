@@ -8,6 +8,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
@@ -80,7 +81,7 @@ public class KafkaMessageProducer implements AutoCloseable {
         props.put("batch.size", 16384);
         props.put("linger.ms", 1);
         // pjs: set a max request size based on standard max protobuf serializabe size for now
-        props.put("max.request.size",67108864); // 64mb
+        props.put("max.request.size", 67108864); // 64mb
         props.put("buffer.memory", 67108864);
         props.put("key.serializer", StringSerializer.class.getName());
         props.put("value.serializer", ByteArraySerializer.class.getName());
@@ -90,25 +91,52 @@ public class KafkaMessageProducer implements AutoCloseable {
 
     /**
      * Did the last send attempt fail?
+     *
      * @return true if the last send attempt resulted in an exception
      */
     public boolean lastSendFailed() {
         return lastSendFailed.get();
     }
 
+    /**
+     * The default message key generator will return a message key that is an incrementing number
+     * for this producer. Other message key generators might select a key based on properties of
+     * the message, or generated as a random value, etc.
+     *
+     * @param message The {@link AbstractMessage} to generate a message key for
+     * @return a string message key to use for the message
+     */
+    private String defaultMessageKeyGenerator(@Nonnull final AbstractMessage message) {
+        return Long.toString(msgCounter.incrementAndGet());
+    }
+
+    /**
+     * Send a kafka message without a specific key. A key wll be automatically generated using the
+     * default key generator.
+     *
+     * @param serverMsg the {@link AbstractMessage} message to send.
+     * @param topic the topic to send it to
+     * @return a Future expecting RecordMetadata confirming the send from the broker.
+     */
     private Future<RecordMetadata> sendKafkaMessage(@Nonnull final AbstractMessage serverMsg,
-            @Nonnull final String topic) {
+                                                    @Nonnull final String topic) {
+        return sendKafkaMessage(serverMsg, topic, defaultMessageKeyGenerator(serverMsg));
+    }
+
+    private Future<RecordMetadata> sendKafkaMessage(@Nonnull final AbstractMessage serverMsg,
+            @Nonnull final String topic, @Nonnull final String key) {
         Objects.requireNonNull(serverMsg);
         long startTime = System.currentTimeMillis();
         byte[] payload = serverMsg.toByteArray();
-        logger.debug("Sending message {}[{} bytes] to topic {}", serverMsg.getClass().getSimpleName(), payload.length, topic);
+        logger.debug("Sending message {}[{} bytes] to topic {} with key {}",
+                serverMsg.getClass().getSimpleName(), payload.length, topic, key);
         MESSAGES_SENT_COUNT.labels(topic).inc();
         MESSAGES_SENT_BYTES.labels(topic).inc((double) payload.length);
         if (payload.length > LARGEST_MESSAGE_SENT.labels(topic).get()) {
             LARGEST_MESSAGE_SENT.labels(topic).set(payload.length);
         }
         return producer.send(
-                new ProducerRecord<>(topic, Long.toString(msgCounter.incrementAndGet()), payload),
+                new ProducerRecord<>(topic, key, payload),
                 (metadata, exception) -> {
                     // update sent time
                     long sentTimeMs = System.currentTimeMillis() - startTime;
@@ -140,20 +168,47 @@ public class KafkaMessageProducer implements AutoCloseable {
     }
 
     /**
+     * Creates a message sender for the specific topic, with a specific key generator function.
+     *
+     * The key generator function should accept a message of the chosen type and return a string
+     * to use as the message key when sending.
+     *
+     * @param topic The topic to send messages to
+     * @param keyGenerator The key generation function to use
+     * @param <S> The Type of the messages to send on this topic
+     * @return a message sender configured for the topic and key generator
+     */
+    public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic,
+                                           @Nonnull Function<S, String> keyGenerator) {
+        return new BusMessageSender<>(topic, keyGenerator);
+    }
+
+    /**
      * Real implementation of the sender.
      */
     private class BusMessageSender<S extends AbstractMessage> implements IMessageSender<S> {
         private final String topic;
+        private final Function<S, String> keyGenerator;
 
         private BusMessageSender(@Nonnull String topic) {
             this.topic = Objects.requireNonNull(topic);
+            keyGenerator = null;
+        }
+
+        private BusMessageSender(@Nonnull String topic, @Nonnull Function<S, String> keyGenerator) {
+            this.topic = Objects.requireNonNull(topic);
+            this.keyGenerator = Objects.requireNonNull(keyGenerator);
         }
 
         @Override
         public void sendMessage(@Nonnull S serverMsg)
                 throws CommunicationException, InterruptedException {
             try {
-                sendKafkaMessage(serverMsg, topic).get();
+                if (keyGenerator != null) {
+                    sendKafkaMessage(serverMsg, topic, keyGenerator.apply(serverMsg));
+                } else {
+                    sendKafkaMessage(serverMsg, topic).get();
+                }
             } catch (ExecutionException e) {
                 throw new CommunicationException("Unexpected exception sending message " +
                         serverMsg.getClass().getSimpleName(), e);

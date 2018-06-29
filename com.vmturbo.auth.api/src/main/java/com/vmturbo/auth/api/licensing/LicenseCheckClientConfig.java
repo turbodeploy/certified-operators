@@ -1,0 +1,48 @@
+package com.vmturbo.auth.api.licensing;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Lazy;
+
+import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
+import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
+import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+
+/**
+ * Configures a {@link LicenseCheckClient} for use in your component.
+ */
+@Lazy
+@Import({BaseKafkaConsumerConfig.class})
+public class LicenseCheckClientConfig {
+    @Autowired
+    private BaseKafkaConsumerConfig kafkaConsumerConfig;
+
+    @Bean(destroyMethod = "shutdownNow")
+    protected ExecutorService threadPool() {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("license-check-client-%d").build();
+        return Executors.newCachedThreadPool(threadFactory);
+    }
+
+    @Bean
+    public IMessageReceiver<LicenseSummary> licenseSummaryConsumer() {
+        return kafkaConsumerConfig.kafkaConsumer()
+                .messageReceiverWithSettings(
+                        new TopicSettings(LicenseCheckClient.LICENSE_SUMMARY_TOPIC, StartFrom.BEGINNING),
+                        LicenseSummary::parseFrom);
+    }
+
+    @Bean
+    public LicenseCheckClient licenseCheckClient() {
+        return new LicenseCheckClient(licenseSummaryConsumer(), threadPool());
+    }
+}

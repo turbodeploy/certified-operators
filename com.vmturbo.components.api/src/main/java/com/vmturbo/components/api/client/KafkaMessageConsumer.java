@@ -7,6 +7,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
@@ -20,6 +21,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -28,6 +30,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -40,6 +43,8 @@ import org.apache.logging.log4j.Logger;
 
 import io.prometheus.client.Counter;
 import io.prometheus.client.Histogram;
+
+import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 
 /**
  * Kafka message consumer is a class to receive all the messages from Kafka. Received messages
@@ -103,6 +108,13 @@ public class KafkaMessageConsumer implements AutoCloseable {
      * Executor service to use.
      */
     private final ExecutorService threadPool;
+
+    /**
+     * map of topic -> settings.
+     */
+    @GuardedBy("consumerLock")
+    private final Map<String, TopicSettings> topicSettingsMap = new HashMap<>();
+
     @GuardedBy("consumerLock")
     private boolean started = false;
 
@@ -135,7 +147,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
             }
             final Set<String> topics = consumers.keySet();
             logger.info("Subscribing to topics {}", topics);
-            consumer.subscribe(topics);
+            consumer.subscribe(topics, new RebalanceListener());
             logger.debug("Subscribed successfully");
             started = true;
         }
@@ -154,6 +166,24 @@ public class KafkaMessageConsumer implements AutoCloseable {
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull String topic,
             @Nonnull Deserializer<T> deserializer) {
         return createMessageReceiver(topic, deserializer);
+    }
+
+    /**
+     * Creates a message receiver for a specific topic, with additional topic-specific settings
+     * configured.
+     *
+     * @param topicSettings the {@link TopicSettings} to use for this topic
+     * @param deserializer function to deserialize the message from bytes
+     * @param <T> type of messages to receive
+     * @return message receiver implementation
+     */
+    public <T> IMessageReceiver<T> messageReceiverWithSettings(@Nonnull TopicSettings topicSettings,
+                                                   @Nonnull Deserializer<T> deserializer) {
+        // store the settings in a map
+        synchronized (consumerLock) {
+            topicSettingsMap.put(topicSettings.topic, topicSettings);
+            return messageReceiver(topicSettings.topic, deserializer);
+        }
     }
 
     /**
@@ -219,8 +249,9 @@ public class KafkaMessageConsumer implements AutoCloseable {
                 }
                 if (!records.isEmpty()) {
                     for (ConsumerRecord<String, byte[]> record : records) {
-                        logger.debug("Received message {} from topic {} ({} bytes {} latency)", record::offset,
-                                record::topic, record::serializedValueSize, () -> (System.currentTimeMillis() - record.timestamp()));
+                        logger.debug("Received message {} (key: {}) from topic {} ({} bytes {} latency)",
+                                record::offset, record::key, record::topic, record::serializedValueSize,
+                                () -> (System.currentTimeMillis() - record.timestamp()));
                         onNewMessage(record);
                     }
                 } else {
@@ -288,6 +319,72 @@ public class KafkaMessageConsumer implements AutoCloseable {
     }
 
     /**
+     * Handles kafka rebalance events for the KafkaMessageConsumer
+     */
+    private class RebalanceListener implements ConsumerRebalanceListener {
+
+        @Override
+        public void onPartitionsRevoked(final Collection<TopicPartition> collection) {
+            // noop at this time
+        }
+
+        /**
+         * Called when partitions are assigned to our consumer.
+         *
+         * @param collection
+         */
+        @Override
+        public void onPartitionsAssigned(final Collection<TopicPartition> collection) {
+            // nothing to do if no topic settings to enforce
+            if (topicSettingsMap.isEmpty()) return;
+
+            // if we have received any new TopicPartitions, apply the initial read position here.
+            // split the partitions into collections per-topic
+            Map<String, List<TopicPartition>> partitionsByTopic = collection.stream()
+                    .collect(Collectors.groupingBy(TopicPartition::topic));
+
+            // iterate through our topic settings and apply the restart behavior to each topic
+            // partition we haven't read yet, but have a customized setting for.
+            for (TopicSettings topicSettings : topicSettingsMap.values()) {
+                // if the topic setting wants to read from lastCommitted, this is the default
+                // consumer behavior and we can move on.
+                if (topicSettings.startFrom == StartFrom.LAST_COMMITTED) {
+                    continue;
+                }
+                // otherwise, we will seek to beginning or end for any partitions we haven't seen yet.
+                if (partitionsByTopic.containsKey(topicSettings.topic)) {
+                    List<TopicPartition> partitions = partitionsByTopic.get(topicSettings.topic);
+
+                    // use the receiver for this topic to filter out already-seen partitions
+                    final KafkaMessageReceiver<?> receiver = consumers.get(topicSettings.topic);
+                    List<TopicPartition> unreadPartitions = partitions.stream()
+                            .filter(partition -> !receiver.hasSeenPartition(partition))
+                            .collect(Collectors.toList());
+
+                    // if no unseen partitions, there is nothing to do, so continue
+                    if (unreadPartitions.isEmpty()) {
+                        continue;
+                    }
+
+                    // apply the seek to the unread partitions
+                    boolean fromBeginning = topicSettings.startFrom.equals(StartFrom.BEGINNING);
+                    logger.debug("Kafka consumer reading {} partitions of topic {} from the {}.",
+                            partitions.size(), topicSettings.topic,
+                            fromBeginning ? "beginning" : "end");
+                    synchronized (consumerLock) {
+                        if (fromBeginning) {
+                            consumer.seekToBeginning(unreadPartitions);
+                        } else {
+                            consumer.seekToEnd(unreadPartitions);
+                        }
+                    }
+                }
+            }
+            logger.info("Done processing initial consumer topic settings.");
+        }
+    }
+
+    /**
      * Message receiver implementation. This object is dedicated to one topic. It still can
      * process incoming messages from different partitions of this topic.
      *
@@ -343,7 +440,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
                 final CodedInputStream inputStream = CodedInputStream.newInstance(buffer);
                 inputStream.setSizeLimit(PROTOBUF_MESSAGE_MAX_LIMIT);
                 final T receivedMessage = deserializer.parseFrom(inputStream);
-                logger.debug("Received message: {}[{} bytes]",
+                logger.debug("Received message: {} [{} bytes]",
                         receivedMessage.getClass().getSimpleName(), buffer.length);
                 final ReceivedMessage<T> message =
                         new ReceivedMessage<>(receivedMessage, partition, offset);
@@ -426,6 +523,16 @@ public class KafkaMessageConsumer implements AutoCloseable {
             final Long lastOffset = lastPartitionsOffset.get(partition);
             return lastOffset != null && offset <= lastOffset;
         }
+
+        /**
+         * Determine if a partition has already been seen by this reciever or not.
+         *
+         * @param partition partition to check
+         * @return true, if the reciever remembers an offset for this partition or not.
+         */
+        public boolean hasSeenPartition(@Nonnull TopicPartition partition) {
+            return lastPartitionsOffset.containsKey(partition);
+        }
     }
 
     /**
@@ -472,5 +579,46 @@ public class KafkaMessageConsumer implements AutoCloseable {
         }
 
         public long getEnqueueTime() { return enqueueTime; }
+    }
+
+    /**
+     * Contains options for customizing consumer behavior for a specific topic. Currently the only
+     * configurable option is <code>startFrom</code>, which controls where in the partition a
+     * consumer will start reading from.
+     */
+    public static class TopicSettings {
+        /**
+         * Options for where to start reading a topic partition from.
+         * <ul><li><code>LAST_COMMITTED</code>: The consumer will read from the last committed offset.
+         * This is the default behavior.</li>
+         * <li><code>BEGINNING</code>: The consumer will read from the earliest available offset in
+         * the parition. Note that this implies that previously seen messages will be seen again, so
+         * be certain your consumer is prepared to handle these.</li>
+         * <li><code>END</code>: The consumer will read from the end of the partition, meaning only
+         * new messages published after the partition was assigned will be seen by the consumer. Use
+         * this setting if you don't care about catching up on missed messages.</li></ul>
+         */
+        public enum StartFrom {
+            LAST_COMMITTED, // start reading from where we left off last time -- this is the default behavior
+            BEGINNING, // always start from the beginning
+            END // always start from the end
+        }
+
+        /**
+         * The name of the topic the settings apply to.
+         */
+        public final String topic;
+
+        /**
+         * Controls where the consumer will start reading new partitions on the topic from. See
+         * {@link StartFrom} for more details.
+         */
+        public final StartFrom startFrom;
+
+        public TopicSettings(String topic, StartFrom startFrom) {
+            this.topic = topic;
+            this.startFrom = startFrom;
+        }
+
     }
 }

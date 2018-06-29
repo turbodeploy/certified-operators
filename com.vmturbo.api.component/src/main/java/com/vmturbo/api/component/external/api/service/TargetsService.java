@@ -40,7 +40,11 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.platform.sdk.common.MediationMessage;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
@@ -119,12 +123,16 @@ public class TargetsService implements ITargetsService {
 
     private final Duration targetValidationPollInterval;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final Duration targetValidationTimeout,
-                          @Nonnull final Duration targetValidationPollInterval) {
+                          @Nonnull final Duration targetValidationPollInterval,
+                          @Nullable final LicenseCheckClient licenseCheckClient) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.targetValidationTimeout = Objects.requireNonNull(targetValidationTimeout);
         this.targetValidationPollInterval = Objects.requireNonNull(targetValidationPollInterval);
+        this.licenseCheckClient = licenseCheckClient;
         logger.debug("Created TargetsService with topology processor instance {}",
                         topologyProcessor);
     }
@@ -209,7 +217,9 @@ public class TargetsService implements ITargetsService {
         final List<TargetApiDTO> answer = new ArrayList<>(probes.size());
         for (ProbeInfo probeInfo : probes) {
             try {
-                answer.add(mapProbeInfoToDTO(probeInfo));
+                if (isProbeLicensed(probeInfo)) {
+                    answer.add(mapProbeInfoToDTO(probeInfo));
+                }
             } catch (FieldVerificationException e) {
                 throw new RuntimeException(
                         "Fields of target " + probeInfo.getType() + " failed validation", e);
@@ -217,6 +227,35 @@ public class TargetsService implements ITargetsService {
         }
         return answer;
     }
+
+    /**
+     * Is the probe licensed for use? A probe is considered "licensed" if the installed license(s)
+     * include the feature(s) necessary to operate the probe. A storage probe, for example, requires
+     * the "storage" feature to available in the license.
+     *
+     * This restriction check is only performed if a {@link LicenseCheckClient} has been provided.
+     * If there is no <code>LicenseCheckClient</code> configured, this check always returns
+     * <code>true</code>.
+     *
+     * @param probeInfo the ProbeInfo to check.
+     * @return false, if the <code>ProbeController</code> was configured with a
+     * <code>LicenseCheckClient</code>, and the probe is <b>not</b> available according to the
+     * license. true, otherwise.
+     */
+    private boolean isProbeLicensed(ProbeInfo probeInfo) {
+        if (licenseCheckClient == null) return true;
+
+        // check if the probe is available according to the license data.
+        // OM-36001 -- for now, we are only filtering out storage targets.
+        ProbeCategory category = ProbeCategory.create(probeInfo.getCategory());
+        switch (category) {
+            case STORAGE:
+                return licenseCheckClient.isFeatureAvailable(LicenseFeature.STORAGE);
+        }
+        // default behavior is that the probe is licensed.
+        return true;
+    }
+
 
     /**
      * Return information about all the Actions related to the entities discovered by

@@ -52,14 +52,16 @@ public class CompositeHealthMonitor implements HealthStatusProvider {
     /**
      * Add (or replace) a subcomponent health status provider to this health monitor.
      *
-     * @param provider the provider of the subcomponent's health status information
+     * @param provider the provider of the subcomponent's health status information.
+     * @return this -- for fluent usage.
      */
-    public void addHealthCheck(HealthStatusProvider provider) {
+    public CompositeHealthMonitor addHealthCheck(HealthStatusProvider provider) {
         if (dependencies.containsKey(provider.getName())) {
             // log a warning that we are replacing a health check
             logger.warn("Health checked named {} was already registered and is being replaced.", provider.getName());
         }
         dependencies.put(provider.getName(), provider);
+        return this;
     }
 
     /**

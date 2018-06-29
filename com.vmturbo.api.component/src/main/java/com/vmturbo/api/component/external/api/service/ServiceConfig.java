@@ -24,6 +24,7 @@ import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.auth.api.widgets.AuthClientConfig;
 import com.vmturbo.kvstore.PublicKeyStoreConfig;
 import com.vmturbo.kvstore.SAMLConfigurationStoreConfig;
@@ -40,8 +41,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
  */
 @Configuration
 @Import({SpringSecurityConfig.class, MapperConfig.class, CommunicationConfig.class,
-        RepositoryClientConfig.class, ReportingClientConfig.class,
-        PublicKeyStoreConfig.class, SAMLConfigurationStoreConfig.class})
+        RepositoryClientConfig.class, ReportingClientConfig.class, PublicKeyStoreConfig.class,
+        SAMLConfigurationStoreConfig.class, LicenseCheckClientConfig.class})
 @PropertySource("classpath:api-component.properties")
 public class ServiceConfig {
 
@@ -99,6 +100,9 @@ public class ServiceConfig {
 
     @Autowired
     private SAMLConfigurationStoreConfig samlConfigurationStoreConfig;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
 
     @Bean
     public ActionsService actionsService() {
@@ -325,7 +329,8 @@ public class ServiceConfig {
     public TargetsService targetService() {
         return new TargetsService(communicationConfig.topologyProcessor(),
                 Duration.ofSeconds(targetValidationTimeoutSeconds),
-                Duration.ofSeconds(targetValidationPollIntervalSeconds));
+                Duration.ofSeconds(targetValidationPollIntervalSeconds),
+                licenseCheckClientConfig.licenseCheckClient());
     }
 
     @Bean
