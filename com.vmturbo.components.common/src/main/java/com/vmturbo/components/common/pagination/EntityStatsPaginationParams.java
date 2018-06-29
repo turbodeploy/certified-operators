@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.components.common.pagination;
 
 import java.util.Optional;
 

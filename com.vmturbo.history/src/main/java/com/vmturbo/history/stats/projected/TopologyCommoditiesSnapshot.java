@@ -18,8 +18,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.schema.StringConstants;
-import com.vmturbo.history.stats.EntityStatsPaginationParams;
 
 /**
  * The {@link TopologyCommoditiesSnapshot} contains information about bought and sold commodities

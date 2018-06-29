@@ -88,6 +88,9 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -299,8 +302,12 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 entityStats.add(statsForEntity);
             }
 
-            responseObserver.onNext(entityStatsPaginator.paginate(entityStats,
-                    paginationParamsFactory.newPaginationParams(request.getPaginationParams())));
+            final PaginatedStats paginatedStats = entityStatsPaginator.paginate(entityStats,
+                    paginationParamsFactory.newPaginationParams(request.getPaginationParams()));
+            responseObserver.onNext(GetEntityStatsResponse.newBuilder()
+                    .addAllEntityStats(paginatedStats.getStatsPage())
+                    .setPaginationResponse(paginatedStats.getPaginationResponse())
+                    .build());
             responseObserver.onCompleted();
             timer.observeDuration();
         } catch (VmtDbException e) {

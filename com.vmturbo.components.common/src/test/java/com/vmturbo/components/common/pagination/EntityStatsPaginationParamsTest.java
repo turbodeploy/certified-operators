@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.components.common.pagination;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -10,7 +10,7 @@ import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
-import com.vmturbo.history.stats.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 
 public class EntityStatsPaginationParamsTest {
 

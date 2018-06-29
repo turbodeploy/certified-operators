@@ -9,6 +9,16 @@ import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.web.client.RestTemplate;
+
 import com.arangodb.ArangoDB;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
@@ -22,21 +32,9 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptors;
-
-import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
-import org.springframework.web.client.RestTemplate;
-
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.arangodb.ArangoHealthMonitor;
 import com.vmturbo.arangodb.tool.ArangoDump;
@@ -53,6 +51,9 @@ import com.vmturbo.components.common.FileFolderZipper;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReaderFactory.DefaultRecursiveZipReaderFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.repository.controller.GraphServiceEntityController;
@@ -134,11 +135,20 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Value("${authRetryDelaySecs}")
     private int authRetryDelaySecs;
 
-    @Value("${repositoryPaginationDefaultLimit}")
-    private int repositoryPaginationDefaultLimit;
+    @Value("${repositoryEntityStatsPaginationDefaultLimit}")
+    private int repositoryEntityStatsPaginationDefaultLimit;
 
-    @Value("${repositoryPaginationMaxLimit}")
-    private int repositoryPaginationMaxLimit;
+    @Value("${repositoryEntityStatsPaginationMaxLimit}")
+    private int repositoryEntityStatsPaginationMaxLimit;
+
+    @Value("${repositoryEntityStatsPaginationDefaultSortCommodity}")
+    private String repositoryEntityStatsPaginationDefaultSortCommodity;
+
+    @Value("${repositorySearchPaginationDefaultLimit}")
+    private int repositorySearchPaginationDefaultLimit;
+
+    @Value("${repositorySearchPaginationMaxLimit}")
+    private int repositorySearchPaginationMaxLimit;
 
     private ArangoDB arangoDB;
 
@@ -331,9 +341,27 @@ public class RepositoryComponent extends BaseVmtComponent {
     }
 
     @Bean
+    public EntityStatsPaginator entityStatsPaginator() {
+        return new EntityStatsPaginator();
+    }
+
+    @Bean
+    public EntityStatsPaginationParamsFactory paginationParamsFactory() {
+        return new DefaultEntityStatsPaginationParamsFactory(
+                repositoryEntityStatsPaginationDefaultLimit,
+                repositoryEntityStatsPaginationMaxLimit,
+                repositoryEntityStatsPaginationDefaultSortCommodity);
+    }
+
+
+    @Bean
     public RepositoryRpcService repositoryRpcService() throws GraphDatabaseException,
             InterruptedException, URISyntaxException, CommunicationException{
-        return new RepositoryRpcService(topologyManager(), topologyProtobufsManager(), graphDBService());
+        return new RepositoryRpcService(topologyManager(),
+                topologyProtobufsManager(),
+                graphDBService(),
+                paginationParamsFactory(),
+                entityStatsPaginator());
     }
 
     @Bean
@@ -347,8 +375,8 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new SearchService(supplyChainService(),
                                  topologyManager(),
                                  searchHandler(),
-                                 repositoryPaginationDefaultLimit,
-                                 repositoryPaginationMaxLimit);
+                repositorySearchPaginationDefaultLimit,
+                repositorySearchPaginationMaxLimit);
     }
 
     @Bean

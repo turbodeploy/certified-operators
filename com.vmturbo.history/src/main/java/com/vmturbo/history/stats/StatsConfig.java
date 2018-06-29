@@ -9,8 +9,10 @@ import org.springframework.context.annotation.Import;
 import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.history.db.HistoryDbConfig;
-import com.vmturbo.history.stats.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
 

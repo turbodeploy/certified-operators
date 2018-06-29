@@ -53,20 +53,20 @@ public class SearchService extends SearchServiceImplBase {
     private final SupplyChainService supplyChainService;
     private final TopologyLifecycleManager lifecycleManager;
     private final SearchHandler searchHandler;
-    private final int repositoryDefaultPaginationLimit;
-    private final int repositoryDefaultPaginationMax;
+    private final int defaultPaginationLimit;
+    private final int maxPaginationLimit;
 
 
     public SearchService(final SupplyChainService supplyChainService,
                          final TopologyLifecycleManager lifecycleManager,
                          final SearchHandler searchHandler,
-                         final int repositoryDefaultPaginationLimit,
-                         final int repositoryDefaultPaginationMax) {
+                         final int defaultPaginationLimit,
+                         final int maxPaginationLimit) {
         this.supplyChainService = checkNotNull(supplyChainService);
         this.lifecycleManager = checkNotNull(lifecycleManager);
         this.searchHandler = checkNotNull(searchHandler);
-        this.repositoryDefaultPaginationLimit = repositoryDefaultPaginationLimit;
-        this.repositoryDefaultPaginationMax = repositoryDefaultPaginationMax;
+        this.defaultPaginationLimit = defaultPaginationLimit;
+        this.maxPaginationLimit = maxPaginationLimit;
     }
 
     @Override
@@ -457,16 +457,16 @@ public class SearchService extends SearchServiceImplBase {
             @Nonnull final SearchEntitiesRequest request) {
         if (!request.getPaginationParams().hasLimit()) {
             logger.info("Search pagination in Repository not provider a limit number, set to " +
-                    "default limit: " + repositoryDefaultPaginationLimit);
+                    "default limit: " + defaultPaginationLimit);
             return PaginationParameters.newBuilder(request.getPaginationParams())
-                    .setLimit(repositoryDefaultPaginationLimit)
+                    .setLimit(defaultPaginationLimit)
                     .build();
         }
-        if (request.getPaginationParams().getLimit() > repositoryDefaultPaginationMax) {
+        if (request.getPaginationParams().getLimit() > maxPaginationLimit) {
             logger.info("Search pagination in Repository limit exceed default max limit," +
-                    " set it to default max limit number: " + repositoryDefaultPaginationMax);
+                    " set it to default max limit number: " + maxPaginationLimit);
             return PaginationParameters.newBuilder(request.getPaginationParams())
-                    .setLimit(repositoryDefaultPaginationMax)
+                    .setLimit(maxPaginationLimit)
                     .build();
         }
         return request.getPaginationParams();

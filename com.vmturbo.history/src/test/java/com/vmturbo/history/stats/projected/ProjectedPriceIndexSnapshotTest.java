@@ -19,7 +19,7 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.history.schema.StringConstants;
-import com.vmturbo.history.stats.EntityStatsPaginationParams;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 

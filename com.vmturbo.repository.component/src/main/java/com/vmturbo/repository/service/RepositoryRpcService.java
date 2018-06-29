@@ -10,8 +10,11 @@ import static javaslang.Patterns.Left;
 import static javaslang.Patterns.Right;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
@@ -41,7 +44,6 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationR
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryDTOREST;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -52,8 +54,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.repository.service.RepositoryRpcService.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
@@ -68,20 +75,42 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
 
     private static final Logger logger = LoggerFactory.getLogger(RepositoryRpcService.class);
 
+    private static final ImmutableBiMap<CommodityDTO.CommodityType, String> COMMODITY_TYPE_TO_STRING_MAPPER =
+            ImmutableBiMap.copyOf(COMMODITY_TYPE_MAPPINGS).inverse();
+
     private final TopologyLifecycleManager topologyLifecycleManager;
 
     private final TopologyProtobufsManager topologyProtobufsManager;
-    private static final ImmutableBiMap<CommodityDTO.CommodityType, String> COMMODITY_TYPE_TO_STRING_MAPPER =
-            ImmutableBiMap.copyOf(COMMODITY_TYPE_MAPPINGS).inverse();
+
     private final GraphDBService graphDBService;
 
+    private final EntityStatsPaginationParamsFactory paginationParamsFactory;
+
+    private final EntityStatsPaginator entityStatsPaginator;
+
+    private final PlanEntityStatsExtractor planEntityStatsExtractor;
 
     public RepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
                                 @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
-                                @Nonnull final GraphDBService graphDBService) {
+                                @Nonnull final GraphDBService graphDBService,
+                                @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
+                                @Nonnull final EntityStatsPaginator entityStatsPaginator) {
+        this(topologyLifecycleManager, topologyProtobufsManager, graphDBService,
+            paginationParamsFactory, entityStatsPaginator, new DefaultPlanEntityStatsExtractor());
+    }
+
+    RepositoryRpcService(@Nonnull final TopologyLifecycleManager topologyLifecycleManager,
+            @Nonnull final TopologyProtobufsManager topologyProtobufsManager,
+            @Nonnull final GraphDBService graphDBService,
+            @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
+            @Nonnull final EntityStatsPaginator entityStatsPaginator,
+            @Nonnull final PlanEntityStatsExtractor planEntityStatsExtractor) {
         this.topologyLifecycleManager = Objects.requireNonNull(topologyLifecycleManager);
         this.topologyProtobufsManager = Objects.requireNonNull(topologyProtobufsManager);
         this.graphDBService = Objects.requireNonNull(graphDBService);
+        this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
+        this.entityStatsPaginator = Objects.requireNonNull(entityStatsPaginator);
+        this.planEntityStatsExtractor = Objects.requireNonNull(planEntityStatsExtractor);
     }
 
     private boolean validateDeleteTopologyRequest(DeleteTopologyRequest request,
@@ -243,13 +272,17 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         final Predicate<TopologyEntityDTO> entityPredicate = newEntityMatcher(request);
         final TopologyProtobufReader reader = topologyProtobufsManager.createTopologyProtobufReader(
                         projectedTopologyid, Optional.empty());
-        // process the chunks of TopologyEntityDTO protobufs as received
 
-        // TODO (roman, June 13 2018): OM-35979 - Stuffing all plan entity stats into a single
-        // protobuf message will fail on large enough topologies.
-        // This is a placeholder implementation. The next step is to use the pagination parameters
-        // in the request, and set the next cursor in the response.
-        final PlanTopologyStatsResponse.Builder responseBuilder = PlanTopologyStatsResponse.newBuilder();
+        // process the chunks of TopologyEntityDTO protobufs as received
+        //
+        // We store them in memory first, and sort and paginate them after.
+        // The better solution would be to do the sorting and pagination in the database, but:
+        //  1) At the time of this writing we often restrict the number of entities we retrieve
+        //     for projected plan stats.
+        //  2) Making that change would mean changing how we store projected topology, so the
+        //     effort is not worth it for now.
+        final Map<Long, TopologyEntityDTO> entities = new HashMap<>();
+        final List<EntityStats.Builder> entityStats = new ArrayList<>();
         while (reader.hasNext()) {
             try {
                 List<TopologyEntityDTO> chunk = reader.nextChunk();
@@ -261,13 +294,8 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                         continue;
                     }
 
-                    // create a return stats record, including only the stats requested
-                    EntityStats stats = getStatsForPlanEntity(entityDTO, request);
-                    PlanEntityStats entityStats = PlanEntityStats.newBuilder()
-                            .setPlanEntity(entityDTO)
-                            .setPlanEntityStats(stats)
-                            .build();
-                    responseBuilder.addEntityStats(entityStats);
+                    entities.put(entityDTO.getOid(), entityDTO);
+                    entityStats.add(planEntityStatsExtractor.extractStats(entityDTO, request));
                 }
             } catch (NoSuchElementException e) {
                 logger.error("Topology with ID: " + projectedTopologyid + "not found.",
@@ -278,112 +306,34 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                 return;
             }
         }
+
+        final EntityStatsPaginationParams paginationParams =
+                paginationParamsFactory.newPaginationParams(request.getPaginationParams());
+
+        // TODO (roman, Jun 25 2018): OM-36437 - Add support for sorting by price index, because
+        // it's the one commodity we often want to sort by.
+        if (paginationParams.getSortCommodity().equals("priceIndex")) {
+            logger.warn("Sorting projected per-entity stats by price index not supported. " +
+                    "Entities will be sorted by OID.");
+        }
+
+        final PaginatedStats paginatedStats =
+                entityStatsPaginator.paginate(entityStats, paginationParams);
+
+        final PlanTopologyStatsResponse.Builder responseBuilder = PlanTopologyStatsResponse.newBuilder()
+                .setPaginationResponse(paginatedStats.getPaginationResponse());
+
+        // It's important to preserve the order in the paginated stats page.
+        paginatedStats.getStatsPage().stream()
+                .map(stats -> PlanEntityStats.newBuilder()
+                    .setPlanEntity(Objects.requireNonNull(entities.get(stats.getOid())))
+                    .setPlanEntityStats(stats))
+                .forEach(responseBuilder::addEntityStats);
         responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
 
 
-    /**
-     * Extract the stats values from a given TopologyEntityDTO and add them to a new
-     * EntityStats object.
-     *
-     * @param entityDTO the {@link TopologyEntityDTO} to transform
-     * @param request the parameters for this request
-     * @return an {@link EntityStats} object populated from the current stats for the
-     * given {@link TopologyEntityDTO}
-     */
-    private EntityStats getStatsForPlanEntity(TopologyEntityDTO entityDTO, PlanTopologyStatsRequest request) {
-        Set<String> commodityNames = Sets.newHashSet(collectCommodityNames(request.getFilter()));
-        StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
-        if (request.hasFilter() && request.getFilter().hasStartDate()) {
-            snapshot.setSnapshotDate(DateTimeUtil.toString(request.getFilter().getStartDate()));
-        }
-
-        // commodities bought - TODO: compute capacity of commodities bought = seller capacity
-        for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
-                entityDTO.getCommoditiesBoughtFromProvidersList()) {
-            String providerOidString = Long.toString(commoditiesBoughtFromProvider.getProviderId());
-            logger.debug("   provider  id {}", providerOidString);
-            commoditiesBoughtFromProvider.getCommodityBoughtList().forEach(commodityBoughtDTO ->
-                    buildStatRecord(commodityBoughtDTO.getCommodityType(), commodityBoughtDTO.getPeak(),
-                            commodityBoughtDTO.getUsed(), 0, providerOidString, commodityNames)
-                            .ifPresent(snapshot::addStatRecords));
-        }
-        // commodities sold
-        String entityOidString = Long.toString(entityDTO.getOid());
-        final List<CommoditySoldDTO> commoditySoldListList = entityDTO.getCommoditySoldListList();
-        for (CommoditySoldDTO commoditySoldDTO : commoditySoldListList) {
-            buildStatRecord(commoditySoldDTO.getCommodityType(), commoditySoldDTO.getPeak(),
-                    commoditySoldDTO.getUsed(), commoditySoldDTO.getCapacity(),
-                    entityOidString, commodityNames)
-                    .ifPresent(snapshot::addStatRecords);
-        }
-        return EntityStats.newBuilder()
-                .setOid(entityDTO.getOid())
-                .addStatSnapshots(snapshot)
-                .build();
-    }
-
-    /**
-     * If the commodityType is in the given list, return an Optional with a new StatRecord
-     * with values populated.
-     * If the commodityType is not in the given list, return Optional.empty().
-     *
-     * @param commodityType the numeric (SDK) type of the commodity
-     * @param peak peak value recorded for one sample
-     * @param used used (or current) value recorded for one sample
-     * @param capacity the total capacity for the commodity
-     * @param providerOidString the OID for the provider - either this SE for sold, or the 'other'
-     *                          SE for bought commodities
-     * @param commodityNames the Set of commodity names (DB String) that are to be included.
-     * @return either an Optional containing a new StatRecord initialized from the given values, or
-     * if the given commodity is not on the list, then return Optional.empty().
-     */
-    private Optional<StatRecord> buildStatRecord(TopologyDTO.CommodityType commodityType,
-                                                 double peak, double used, double capacity,
-                                                 String providerOidString,
-                                                 Set<String> commodityNames) {
-        int commodityNum = commodityType.getType();
-        CommodityDTO.CommodityType commonCommodityDtoType =
-                CommodityDTO.CommodityType.forNumber(commodityNum);
-        final String commodityStringName =
-                COMMODITY_TYPE_TO_STRING_MAPPER.get(commonCommodityDtoType);
-        if (commodityNames.isEmpty() || commodityNames.contains(commodityStringName)) {
-            final String units = CommodityTypeUnits.fromString(commodityStringName).getUnits();
-            final String key = commodityType.getKey();
-            // create a stat record from the used and peak values
-            // todo: capacity value, which comes from provider, is not set - may not be needed
-            StatRecord statRecord = StatRecord.newBuilder()
-                    .setName(commodityStringName)
-                    .setUnits(units)
-                    .setCurrentValue((float) used)
-                    .setUsed(buildStatValue((float) used))
-                    .setPeak(buildStatValue((float) peak))
-                    .setCapacity(buildStatValue((float) capacity))
-                    .setStatKey(key)
-                    .setProviderUuid(providerOidString)
-                    .build();
-            return Optional.of(statRecord);
-        } else {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Create a {@link StatRecord.StatValue} initialized from a single value. All the fields
-     * are set to the same value.
-     *
-     * @param value the value to initialize the StatValue with
-     * @return a {@link StatRecord.StatValue} initialized with all fields set from the given value
-     */
-    private StatRecord.StatValue buildStatValue(float value) {
-        return StatRecord.StatValue.newBuilder()
-                .setAvg(value)
-                .setMin(value)
-                .setMax(value)
-                .setTotal(value)
-                .build();
-    }
 
     /**
      * A predicate over a TopologyEntityDTO that will return true if the entity matches the
@@ -432,6 +382,128 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
 
     private static Predicate<TopologyEntityDTO> noFilterPredicate() {
         return (entity) -> true;
+    }
+
+    /**
+     * A utility to convert extract requested stats from {@link TopologyEntityDTO}.
+     * Split apart mostly for unit testing purposes, so that methods relying on this extraction
+     * can be tested separately.
+     */
+    @FunctionalInterface
+    interface PlanEntityStatsExtractor {
+
+        /**
+         * Extract the stats values from a given TopologyEntityDTO and add them to a new
+         * EntityStats object.
+         *
+         * @param entityDTO the {@link TopologyEntityDTO} to transform
+         * @param request the parameters for this request
+         * @return an {@link EntityStats} object populated from the current stats for the
+         * given {@link TopologyEntityDTO}
+         */
+        @Nonnull
+        EntityStats.Builder extractStats(@Nonnull final TopologyEntityDTO entityDTO,
+                                         @Nonnull final PlanTopologyStatsRequest request);
+
+        /**
+         * The default implementation of {@link PlanEntityStatsExtractor} for use in production.
+         */
+        class DefaultPlanEntityStatsExtractor implements PlanEntityStatsExtractor {
+            @Nonnull
+            @Override
+            public EntityStats.Builder extractStats(@Nonnull final TopologyEntityDTO entityDTO,
+                                                    @Nonnull final PlanTopologyStatsRequest request) {
+                Set<String> commodityNames = Sets.newHashSet(collectCommodityNames(request.getFilter()));
+                StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
+                if (request.hasFilter() && request.getFilter().hasStartDate()) {
+                    snapshot.setSnapshotDate(DateTimeUtil.toString(request.getFilter().getStartDate()));
+                }
+
+                // commodities bought - TODO: compute capacity of commodities bought = seller capacity
+                for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
+                        entityDTO.getCommoditiesBoughtFromProvidersList()) {
+                    String providerOidString = Long.toString(commoditiesBoughtFromProvider.getProviderId());
+                    logger.debug("   provider  id {}", providerOidString);
+                    commoditiesBoughtFromProvider.getCommodityBoughtList().forEach(commodityBoughtDTO ->
+                            buildStatRecord(commodityBoughtDTO.getCommodityType(), commodityBoughtDTO.getPeak(),
+                                    commodityBoughtDTO.getUsed(), 0, providerOidString, commodityNames)
+                                    .ifPresent(snapshot::addStatRecords));
+                }
+                // commodities sold
+                String entityOidString = Long.toString(entityDTO.getOid());
+                final List<CommoditySoldDTO> commoditySoldListList = entityDTO.getCommoditySoldListList();
+                for (CommoditySoldDTO commoditySoldDTO : commoditySoldListList) {
+                    buildStatRecord(commoditySoldDTO.getCommodityType(), commoditySoldDTO.getPeak(),
+                            commoditySoldDTO.getUsed(), commoditySoldDTO.getCapacity(),
+                            entityOidString, commodityNames)
+                            .ifPresent(snapshot::addStatRecords);
+                }
+                return EntityStats.newBuilder()
+                        .setOid(entityDTO.getOid())
+                        .addStatSnapshots(snapshot);
+            }
+
+            /**
+             * If the commodityType is in the given list, return an Optional with a new StatRecord
+             * with values populated.
+             * If the commodityType is not in the given list, return Optional.empty().
+             *
+             * @param commodityType the numeric (SDK) type of the commodity
+             * @param peak peak value recorded for one sample
+             * @param used used (or current) value recorded for one sample
+             * @param capacity the total capacity for the commodity
+             * @param providerOidString the OID for the provider - either this SE for sold, or the 'other'
+             *                          SE for bought commodities
+             * @param commodityNames the Set of commodity names (DB String) that are to be included.
+             * @return either an Optional containing a new StatRecord initialized from the given values, or
+             * if the given commodity is not on the list, then return Optional.empty().
+             */
+            private Optional<StatRecord> buildStatRecord(TopologyDTO.CommodityType commodityType,
+                                                         double peak, double used, double capacity,
+                                                         String providerOidString,
+                                                         Set<String> commodityNames) {
+                int commodityNum = commodityType.getType();
+                CommodityDTO.CommodityType commonCommodityDtoType =
+                        CommodityDTO.CommodityType.forNumber(commodityNum);
+                final String commodityStringName =
+                        COMMODITY_TYPE_TO_STRING_MAPPER.get(commonCommodityDtoType);
+                if (commodityNames.isEmpty() || commodityNames.contains(commodityStringName)) {
+                    final String units = CommodityTypeUnits.fromString(commodityStringName).getUnits();
+                    final String key = commodityType.getKey();
+                    // create a stat record from the used and peak values
+                    // todo: capacity value, which comes from provider, is not set - may not be needed
+                    StatRecord statRecord = StatRecord.newBuilder()
+                            .setName(commodityStringName)
+                            .setUnits(units)
+                            .setCurrentValue((float) used)
+                            .setUsed(buildStatValue((float) used))
+                            .setPeak(buildStatValue((float) peak))
+                            .setCapacity(buildStatValue((float) capacity))
+                            .setStatKey(key)
+                            .setProviderUuid(providerOidString)
+                            .build();
+                    return Optional.of(statRecord);
+                } else {
+                    return Optional.empty();
+                }
+            }
+
+            /**
+             * Create a {@link StatRecord.StatValue} initialized from a single value. All the fields
+             * are set to the same value.
+             *
+             * @param value the value to initialize the StatValue with
+             * @return a {@link StatRecord.StatValue} initialized with all fields set from the given value
+             */
+            private StatRecord.StatValue buildStatValue(float value) {
+                return StatRecord.StatValue.newBuilder()
+                        .setAvg(value)
+                        .setMin(value)
+                        .setMax(value)
+                        .setTotal(value)
+                        .build();
+            }
+        }
     }
 
 }

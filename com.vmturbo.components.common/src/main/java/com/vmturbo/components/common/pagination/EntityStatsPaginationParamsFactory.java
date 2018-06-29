@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.components.common.pagination;
 
 import javax.annotation.Nonnull;
 
@@ -27,7 +27,7 @@ public interface EntityStatsPaginationParamsFactory {
 
         private final String defaultSortCommodity;
 
-        DefaultEntityStatsPaginationParamsFactory(final int defaultLimit,
+        public DefaultEntityStatsPaginationParamsFactory(final int defaultLimit,
                                                   final int maxLimit,
                                                   @Nonnull final String defaultSortCommodity) {
             Preconditions.checkArgument(defaultLimit <= maxLimit);
