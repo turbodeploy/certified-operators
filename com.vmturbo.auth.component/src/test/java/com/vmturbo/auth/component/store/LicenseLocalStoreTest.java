@@ -20,7 +20,15 @@ import com.vmturbo.licensing.utils.LicenseDeserializer;
  */
 public class LicenseLocalStoreTest {
 
-    public static final String C1_LICENSE = "INCREMENT C1-ECS-WOM-P cisco 1 05-dec-2017 uncounted \\\n" +
+    // TODO: this license will expire near the end of 2019. When that happens, we need to either
+    // replace it or change the test.
+    public static final String C1_LICENSE = "INCREMENT C1-ECS-WOM-A cisco 1 07-dec-2019 uncounted \\\n" +
+            "      VENDOR_STRING=<Count>10</Count> HOSTID=ANY \\\n" +
+            "      NOTICE=\"<LicFileID>20171207194925449</LicFileID><LicLineID>1</LicLineID> \\\n" +
+            "      <PAK></PAK>\" SIGN=\"1CB2 3A13 FBBC C231 8887 9337 204D D93C \\\n" +
+            "      7EAF 212D B43F 24D5 821D 1F0F 1344 172A 830E 1CFF 1DD3 5C92 \\\n" +
+            "      DAA0 2102 13C7 FB11 1215 DC4D F153 0C1D C50D 81B2\"";
+    public static final String C1_INVALID_LICENSE = "INCREMENT C1-ECS-WOM-P cisco 1 05-dec-2017 uncounted \\\n" +
             "      VENDOR_STRING=<Count>200</Count> HOSTID=ANY \\\n" +
             "      NOTICE=\"<LicFileID>20171120165449055</LicFileID><LicLineID>1</LicLineID> \\\n" +
             "      <PAK></PAK>\" SIGN=\"0776 BCE6 6051 0697 F19F 2914 1BD1 1404 \\\n" +

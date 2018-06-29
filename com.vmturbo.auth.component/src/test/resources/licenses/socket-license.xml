@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+
+<!-- VMTurbo license file; license created: 2015-03-12 -->
+
+<license>
+  <first-name>Saipriya</first-name>
+  <last-name>Balasubramanian</last-name>
+  <email>sb4406@nyu.edu</email>
+  <num-sockets>100</num-sockets>
+  <expiration-date>2050-01-31</expiration-date>
+  <lock-code>2b8f446e1f85d8937c8bb7fb303e785c</lock-code>
+  <feature FeatureName="applications"/>
+  <feature FeatureName="loadbalancer"/>
+  <feature FeatureName="historical_data"/>
+  <feature FeatureName="multiple_vc"/>
+  <feature FeatureName="scoped_user_view"/>
+  <feature FeatureName="customized_views"/>
+  <feature FeatureName="group_editor"/>
+  <feature FeatureName="vmturbo_api"/>
+  <feature FeatureName="automated_actions"/>
+  <feature FeatureName="active_directory"/>
+  <feature FeatureName="custom_reports"/>
+  <feature FeatureName="planner"/>
+  <feature FeatureName="optimizer"/>
+  <feature FeatureName="full_policy"/>
+  <feature FeatureName="deploy"/>
+  <feature FeatureName="aggregation"/>
+  <feature FeatureName="action_script"/>
+  <feature FeatureName="fabric"/>
+  <feature FeatureName="cloud_targets"/>
+  <feature FeatureName="cluster_flattening"/>
+  <feature FeatureName="network_control"/>
+  <feature FeatureName="storage"/>
+  <feature FeatureName="vdi_control"/>
+  <feature FeatureName="public_cloud"/>
+  <feature FeatureName="cloud_cost"/>
+  <feature FeatureName="container_control"/>
+
+</license>

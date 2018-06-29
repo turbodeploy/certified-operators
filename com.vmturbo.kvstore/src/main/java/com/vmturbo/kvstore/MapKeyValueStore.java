@@ -47,4 +47,8 @@ public class MapKeyValueStore implements KeyValueStore {
     public void remove(String key) {
         map.remove(key);
     }
+
+    public void clear() {
+        map.clear();
+    }
 }

@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<!-- VMTurbo license file; license created: 2018-02-20 -->
+<license>
+<first-name>Engineering</first-name>
+<last-name>null</last-name>
+<email>eng@turbonomic.com</email>
+<vm-total>1000</vm-total>
+<edition>Advanced</edition>
+<expiration-date>2018-02-23</expiration-date>
+<lock-code>6650c5af6ffc5dccde2b7703e7065dba</lock-code>
+<feature FeatureName="historical_data" />
+<feature FeatureName="custom_reports" />
+<feature FeatureName="planner" />
+<feature FeatureName="optimizer" />
+<feature FeatureName="multiple_vc" />
+<feature FeatureName="scoped_user_view" />
+<feature FeatureName="customized_views" />
+<feature FeatureName="group_editor" />
+<feature FeatureName="vmturbo_api" />
+<feature FeatureName="automated_actions" />
+<feature FeatureName="active_directory" />
+<feature FeatureName="full_policy" />
+<feature FeatureName="action_script" />
+<feature FeatureName="applications" />
+<feature FeatureName="app_control" />
+<feature FeatureName="loadbalancer" />
+<feature FeatureName="deploy" />
+<feature FeatureName="aggregation" />
+<feature FeatureName="fabric" />
+<feature FeatureName="storage" />
+<feature FeatureName="cloud_targets" />
+<feature FeatureName="cluster_flattening" />
+<feature FeatureName="network_control" />
+<feature FeatureName="public_cloud" />
+<feature FeatureName="vdi_control" />
+<feature FeatureName="API2" />
+<feature FeatureName="cloud_cost" />
+</license>
