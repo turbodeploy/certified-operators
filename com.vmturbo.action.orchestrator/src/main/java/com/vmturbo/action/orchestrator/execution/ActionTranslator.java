@@ -431,8 +431,8 @@ public class ActionTranslator {
         private Resize translateVcpuResizeInfo(@Nonnull final Resize originalResize,
                                                @Nonnull final HostInfo hostInfo) {
             final Resize newResize = originalResize.toBuilder()
-                .setOldCapacity(Math.round(originalResize.getOldCapacity() / hostInfo.getCpuCoreMhz()))
-                .setNewCapacity(Math.round(originalResize.getNewCapacity() / hostInfo.getCpuCoreMhz()))
+                .setOldCapacity((float)Math.ceil(originalResize.getOldCapacity() / hostInfo.getCpuCoreMhz()))
+                .setNewCapacity((float)Math.ceil(originalResize.getNewCapacity() / hostInfo.getCpuCoreMhz()))
                 .build();
 
             logger.debug("Translated VCPU resize from {} to {} for host with info {}",
