@@ -58,7 +58,7 @@ public abstract class HistoryPerformanceTest {
 
     protected final long SOURCE_TOPOLOGY_ID = 1234;
     protected final long PROJECTED_TOPOLOGY_ID = 5678;
-    protected final long CREATION_TIME = 6789;
+    protected final long CREATION_TIME = System.currentTimeMillis();
 
     protected final TopologyInfo.Builder TOPOLOGY_INFO = TopologyInfo.newBuilder()
         .setTopologyId(SOURCE_TOPOLOGY_ID)
@@ -144,7 +144,7 @@ public abstract class HistoryPerformanceTest {
                 .setTopologyContextId(topologyContextId)
                 .setTopologyId(SOURCE_TOPOLOGY_ID)
                 .setTopologyType(TopologyType.PLAN)
-                .setCreationTime(0L)
+                .setCreationTime(CREATION_TIME)
                 .build();
         broadcastSourceTopology(topologyInfo, topoDTOs);
     }
@@ -180,12 +180,15 @@ public abstract class HistoryPerformanceTest {
     }
 
     protected void fetchStats(final long topologyContextId){
-        Iterable<StatSnapshot> fetchedStats = () -> statsService.getAveragedEntityStats(
+        final GetAveragedEntityStatsRequest.Builder requestBuilder =
             GetAveragedEntityStatsRequest.newBuilder()
-                .addEntities(topologyContextId)
-                .setFilter(makeStatsFilter())
-                .build()
-        );
+                .setFilter(makeStatsFilter());
+        if (topologyContextId != ComponentUtils.REALTIME_TOPOLOGY_CONTEXT) {
+            requestBuilder.addEntities(topologyContextId);
+        }
+
+        final Iterable<StatSnapshot> fetchedStats =
+                () -> statsService.getAveragedEntityStats(requestBuilder.build());
 
         final AtomicInteger counter = new AtomicInteger(0);
         StreamSupport.stream(fetchedStats.spliterator(), false)

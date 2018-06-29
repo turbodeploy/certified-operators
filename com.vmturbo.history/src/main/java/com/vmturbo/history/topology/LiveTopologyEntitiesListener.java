@@ -18,7 +18,7 @@ import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.HistorydbIO;
-import com.vmturbo.history.stats.LiveStatsWriter;
+import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 

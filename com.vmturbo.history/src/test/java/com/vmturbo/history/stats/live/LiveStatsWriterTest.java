@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.history.stats.live;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.times;
@@ -31,6 +31,7 @@ import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
+import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;

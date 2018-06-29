@@ -18,7 +18,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
-import com.vmturbo.history.stats.LiveStatsWriter;
+import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.history.stats.PriceIndexWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;

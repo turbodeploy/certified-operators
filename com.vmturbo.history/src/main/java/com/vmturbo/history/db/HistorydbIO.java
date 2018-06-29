@@ -4,6 +4,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.dField;
 import static com.vmturbo.history.db.jooq.JooqUtils.dateOrTimestamp;
 import static com.vmturbo.history.db.jooq.JooqUtils.doubl;
 import static com.vmturbo.history.db.jooq.JooqUtils.relType;
+import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
 import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.history.db.jooq.JooqUtils.timestamp;
 import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
@@ -23,6 +24,7 @@ import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
+import static org.jooq.impl.DSL.row;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -35,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,6 +53,7 @@ import org.jooq.InsertSetMoreStep;
 import org.jooq.InsertSetStep;
 import org.jooq.Record;
 import org.jooq.Record1;
+import org.jooq.Record2;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.SortField;
@@ -72,6 +76,7 @@ import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.schema.RelationType;
@@ -474,6 +479,37 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
+     * Get the list of {@link Timestamp} objects describing the stat snapshot times in a
+     * requested time range.
+     *
+     * Note: This currently assumes each topology has at least one physical machine.
+     *
+     * @param timeFrame The {@link TimeFrame} to look in.
+     * @param startTime The start time, in epoch millis.
+     * @param endTime The end time, in epoch millis.
+     * @return A list of {@link Timestamp} objects, in descending order. Each timestamp represents
+     *         the snapshot time for a set of records in the database - i.e. you can use any of
+     *         the snapshot times in a query, and it should return results (assuming other filters
+     *         are also satisfied).
+     * @throws VmtDbException If there is an exception running the query.
+     */
+    @Nonnull
+    public List<Timestamp> getTimestampsInRange(@Nonnull final TimeFrame timeFrame,
+                                                final long startTime,
+                                                final long endTime) throws VmtDbException {
+        final Table<?> table = statsTableByTimeFrame(EntityType.PHYSICAL_MACHINE, timeFrame);
+        final Field<Timestamp> snapshotTimeField = (Field<Timestamp>)dField(table, SNAPSHOT_TIME);
+        final Condition condition =
+                HistoryStatsUtils.betweenStartEndTimestampCond(snapshotTimeField, timeFrame, startTime, endTime);
+        return execute(Style.FORCED, getJooqBuilder()
+                .select(snapshotTimeField)
+                .from(table)
+                .where(condition)
+                // Most recent first.
+                .orderBy(snapshotTimeField.desc())).getValues(snapshotTimeField);
+    }
+
+    /**
      * Return a long epoch date representing the most recent timestamp of snapshot data.
      *
      * Currently only looks for the most recent item in the PM_STATS_LATEST table; assuming any
@@ -504,6 +540,83 @@ public class HistorydbIO extends BasedbIO {
             logger.error("Failed to get database connection.", e);
         }
         return Optional.empty();
+    }
+
+    /**
+     * Get the next page of entity IDs given a time frame and pagination parameters.
+     *
+     * @param entityIds The total set of entity IDs to consider. All entities should be of the same
+     *                  type.
+     * @param timestamp The timestamp to use to calculate the next page.
+     * @param tFrame The timeframe to use for the timestamp.
+     * @param paginationParams The pagination parameters. We sort the results by the average value
+     *                         of the sort commodity, and then by the UUID of the entity.
+     * @return A {@link NextPageInfo} object describing the entity IDs that should be in the next page.
+     * @throws VmtDbException If there is an error interacting with the database.
+     * @throws IllegalArgumentException If the input is invalid.
+     */
+    @Nonnull
+    public NextPageInfo getNextPage(final Set<String> entityIds,
+                                    final Timestamp timestamp,
+                                    final TimeFrame tFrame,
+                                    final EntityStatsPaginationParams paginationParams) throws VmtDbException {
+        final List<String> entityTypes = getTypesForEntities(entityIds).values().stream()
+                .distinct()
+                .collect(Collectors.toList());
+        if (entityTypes.isEmpty()) {
+            logger.error("No entity types resolved from provided list of {} entity IDs.", entityIds);
+            throw new IllegalArgumentException("Entity IDs do not resolve to entity type.");
+        } if (entityTypes.size() > 1) {
+            logger.error("Attempting to paginate across multiple entity types: {}",
+                    entityTypes);
+            throw new IllegalArgumentException("Pagination across multiple entity types not supported.");
+        }
+
+        final EntityType entityType = EntityType.getTypeForName(entityTypes.get(0))
+            .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityTypes.get(0)));
+        final SeekPaginationCursor seekPaginationCursor = SeekPaginationCursor.parseCursor(paginationParams.getNextCursor().orElse(""));
+        // Now we have the entity type, we can use it together with the time frame to
+        // figure out the table to paginate in.
+        final Table<?> table = statsTableByTimeFrame(entityType, tFrame);
+
+        final List<Condition> conditions = new ArrayList<>();
+        conditions.add(timestamp(dField(table, SNAPSHOT_TIME)).eq(timestamp));
+        conditions.add(str(dField(table, PROPERTY_TYPE)).eq(paginationParams.getSortCommodity()));
+
+        // This call adds the seek pagination parameters to the list of conditions.
+        seekPaginationCursor.toCondition(table, paginationParams.isAscending()).ifPresent(conditions::add);
+
+        final Field<String> uuidField = (Field<String>)dField(table, UUID);
+        final Field<Double> valueField = (Field<Double>)dField(table, AVG_VALUE);
+
+        conditions.add(uuidField.in(entityIds));
+
+        try (Connection conn = transConnection()) {
+            final Result<Record2<String, Double>> results = using(conn)
+                    .select(uuidField, valueField)
+                    .from(table)
+                    // The pagination is enforced by the conditions (see above).
+                    .where(conditions)
+                    .orderBy(paginationParams.isAscending() ? valueField.asc().nullsLast() : valueField.desc().nullsLast(),
+                            paginationParams.isAscending() ? uuidField.asc() : uuidField.desc())
+                    // Add one to the limit so we can tests to see if there are more results.
+                    .limit(paginationParams.getLimit() + 1)
+                    .fetch();
+            if (results.size() > paginationParams.getLimit()) {
+                // If there are more results, we trim the last result (since that goes beyond
+                // the page limit).
+                final List<String> nextPageIds =
+                        results.getValues(uuidField).subList(0, paginationParams.getLimit());
+                final int lastIdx = nextPageIds.size() - 1;
+                return new NextPageInfo( nextPageIds, table,
+                    SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
+                            results.getValue(lastIdx, valueField)));
+            } else {
+                return new NextPageInfo(results.getValues(uuidField), table, SeekPaginationCursor.empty());
+            }
+        } catch (SQLException e) {
+            throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
+        }
     }
 
     /**
@@ -547,7 +660,7 @@ public class HistorydbIO extends BasedbIO {
      * @return a map from OID to Entity Type, as a String
      * @throws VmtDbException if there's an error querying the DB
      */
-    public Map<String, String> getTypesForEntities(List<String> entityIds) throws VmtDbException {
+    public Map<String, String> getTypesForEntities(Set<String> entityIds) throws VmtDbException {
 
         Result<? extends Record> result = execute(Style.FORCED, JooqBuilder()
                 .selectDistinct(Entities.ENTITIES.UUID, Entities.ENTITIES.CREATION_CLASS)
@@ -1135,5 +1248,158 @@ public class HistorydbIO extends BasedbIO {
             return Optional.of(timestamp);
         }
         return Optional.empty();
+    }
+
+    /**
+     * Information about the next page of entities, when doing a paginated traversal
+     * through a table.
+     */
+    public static class NextPageInfo {
+
+        private final List<String> entityOids;
+
+        private final Table table;
+
+        private final Optional<String> nextCursor;
+
+        private NextPageInfo(final List<String> entityOids,
+                             final Table<?> table,
+                             final SeekPaginationCursor seekPaginationCursor) {
+            this.entityOids = Objects.requireNonNull(entityOids);
+            this.table = table;
+            this.nextCursor = seekPaginationCursor.toCursorString();
+        }
+
+        /**
+         * Get the entities that comprise the next page of results, in order.
+         *
+         * @return The list of entities, in the requested order.
+         */
+        public List<String> getEntityOids() {
+            return entityOids;
+        }
+
+        /**
+         * Get the next (serialized) cursor, if any.
+         *
+         * @return An {@link Optional} containing the next cursor, or an empty optional if there are
+         *         no more results.
+         */
+        public Optional<String> getNextCursor() {
+            return nextCursor;
+        }
+
+        /**
+         * Get the table that the page is coming from.
+         *
+         * @return A {@link Table}.
+         */
+        public Table getTable() {
+            return table;
+        }
+    }
+
+    /**
+     * A helper class to construct a seek pagination cursor to track pagination through a large
+     * number of entities. This not the same as a MySQL cursor!
+     * <p>
+     * We use the seek method for pagination, so the cursor is a serialized version of the
+     * last value and ID:
+     * (https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/)
+     */
+    private static class SeekPaginationCursor {
+        private final Optional<String> lastId;
+
+        private final Optional<Double> lastValue;
+
+        /**
+         * Do not use the constructor - use the helper methods!
+         */
+        private SeekPaginationCursor(final Optional<String> lastId, final Optional<Double> lastValue) {
+            this.lastId = lastId;
+            this.lastValue = lastValue;
+        }
+
+        /**
+         * Parse a string produced by {@link SeekPaginationCursor#toCursorString()} into a {@link SeekPaginationCursor} object.
+         *
+         * @param nextCursor The next cursor string.
+         * @return The {@link SeekPaginationCursor}
+         * @throws IllegalArgumentException If the cursor is invalidky
+         */
+        @Nonnull
+        public static SeekPaginationCursor parseCursor(final String nextCursor) {
+            // The cursor should be: "<lastId>:<lastValue>", where lastId is the ID of the
+            // last element in the previous page, and lastValue is the stat value of the sort
+            // commodity for that ID.
+            String[] results = nextCursor.split(":");
+            if (results.length != 2) {
+                return new SeekPaginationCursor(Optional.empty(), Optional.empty());
+            } else {
+                try {
+                    return new SeekPaginationCursor(Optional.of(results[0]), Optional.of(Double.valueOf(results[1])));
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid cursor: " + nextCursor);
+                }
+            }
+        }
+
+        /**
+         * Create an empty cursor.
+         */
+        public static SeekPaginationCursor empty() {
+            return new SeekPaginationCursor(Optional.empty(), Optional.empty());
+        }
+
+        /**
+         * Create the cursor to access the next page of results.
+         *
+         * @param lastId The last ID in the current page of results.
+         * @param lastValue The last value in the current page of results.
+         * @return The {@link SeekPaginationCursor} object.
+         */
+        public static SeekPaginationCursor nextCursor(@Nonnull final String lastId,
+                                                      @Nonnull final Double lastValue) {
+            return new SeekPaginationCursor(Optional.of(lastId), Optional.of(lastValue));
+        }
+
+        /**
+         * Create the cursor string to respresent this cursor.
+         *
+         * @return An optional containing the cursor string,
+         * or an empty optional if the cursor is empty.
+         */
+        public Optional<String> toCursorString() {
+            if (lastId.isPresent() && lastValue.isPresent()) {
+                return Optional.of(lastId.get() + ":" + Double.toString(lastValue.get()));
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        /**
+         * Create the condition that will apply this cursor to the results in the database.
+         *
+         * @param table The table we're paginating through.
+         * @param isAscending Whether or not the sort order is ascending.
+         *                    TODO (roman, June 28 2018): We should encode the sort order into the
+         *                       cursor, and return an error if the sort order changes between
+         *                       calls.
+         * @return An {@link Optional} containing the condition to insert into the query to get
+         *         the next page of results, or an empty optional if the cursor is empty (i.e.
+         *         we just want the first page of results).
+         */
+        public Optional<Condition> toCondition(final Table<?> table, final boolean isAscending) {
+            if (lastId.isPresent() && lastValue.isPresent()) {
+                // See: https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/
+                if (isAscending) {
+                    return Optional.of(row((Field<Double>)dField(table, AVG_VALUE), (Field<String>)dField(table, UUID)).gt(lastValue.get(), lastId.get()));
+                } else {
+                    return Optional.of(row((Field<Double>)dField(table, AVG_VALUE), (Field<String>)dField(table, UUID)).lt(lastValue.get(), lastId.get()));
+                }
+            } else {
+                return Optional.empty();
+            }
+        }
     }
 }

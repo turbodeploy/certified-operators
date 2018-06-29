@@ -257,10 +257,10 @@ public class MarketStatsAccumulator {
      * @param entityId the OID of the entity which is selling these commodities
      * @param commoditySoldList a list of CommoditySoldDTO values to be persisted
      */
-    void persistCommoditiesSold(long snapshotTime,
+    public void persistCommoditiesSold(long snapshotTime,
                                 long entityId,
                                 @Nonnull List<TopologyDTO.CommoditySoldDTO> commoditySoldList)
-    throws VmtDbException {
+            throws VmtDbException {
         for (TopologyDTO.CommoditySoldDTO commoditySoldDTO : commoditySoldList) {
             final int intCommodityType = commoditySoldDTO.getCommodityType().getType();
 

@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.history.stats.live;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
@@ -16,6 +16,8 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.stats.StatsTestUtils;
+import com.vmturbo.history.stats.live.LiveStatsAggregator;
 import com.vmturbo.history.utils.TopologyOrganizer;
 
 /**

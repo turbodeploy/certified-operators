@@ -17,7 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
-import com.vmturbo.history.stats.LiveStatsWriter;
+import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.stats.PlanStatsWriter;
 import com.vmturbo.history.utils.TopologyOrganizer;
 

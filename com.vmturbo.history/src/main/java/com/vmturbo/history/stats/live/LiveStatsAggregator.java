@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.history.stats.live;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -22,6 +22,7 @@ import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.CommodityTypes;
+import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;

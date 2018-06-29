@@ -2,9 +2,11 @@ package com.vmturbo.history.stats;
 
 import static com.vmturbo.history.schema.StringConstants.USED;
 import static com.vmturbo.history.schema.StringConstants.UTILIZATION;
+import static com.vmturbo.history.stats.StatsTestUtils.newStatRecord;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -13,8 +15,10 @@ import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -27,9 +31,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -40,7 +46,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
@@ -53,9 +59,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
@@ -77,7 +86,6 @@ import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
-import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -85,6 +93,10 @@ import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
+import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
+import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
+import com.vmturbo.history.stats.live.LiveStatsReader;
+import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -115,14 +127,18 @@ public class StatsHistoryRpcServiceTest {
     private EntityStatsPaginationParamsFactory paginationParamsFactory =
             mock(EntityStatsPaginationParamsFactory.class);
 
-    private EntityStatsPaginator entityStatsPaginator = mock(EntityStatsPaginator.class);
+    private StatRecordBuilder statRecordBuilderSpy = spy(new DefaultStatRecordBuilder(mockLivestatsreader));
+
+    private StatSnapshotCreator statSnapshotCreatorSpy = spy(new DefaultStatSnapshotCreator(statRecordBuilderSpy));
 
     private StatsHistoryRpcService statsHistoryRpcService =
             new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
                      mockLivestatsreader, mockPlanStatsReader,
                      mockClusterStatsReader, mockClusterStatsWriter,
                      historyDbio, mockProjectedStatsStore,
-                    paginationParamsFactory, entityStatsPaginator);
+                    paginationParamsFactory,
+                    statSnapshotCreatorSpy,
+                    statRecordBuilderSpy);
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryRpcService);
@@ -141,25 +157,25 @@ public class StatsHistoryRpcServiceTest {
     public void testGetStatsCounts() throws Exception {
         // Arrange
         List<Long> entities = Arrays.asList(1L, 2L, 3L);
-        List<Record> statsRecordsList = new ArrayList<>();
 
         // convert to the standard time format we return
         final String snapshotTimeTest = DateTimeUtil.toString(SNAPSHOT_TIME.getTime());
         // the two values for "c1" will be averaged"
         final float c1Value1 = 123;
         final String propType = "c1";
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, c1Value1, propType, USED);
         final float c1Value2 = 456;
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, c1Value2, propType, USED);
         final float c1Avg = (c1Value1 + c1Value2) / 2;
         // only one value for "c2"
         final float c2Value = 789;
         final String propType2 = "c2";
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, c2Value, propType2, USED);
-        // This one (utilization) should be dropped while processing the stats.
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 0.95, propType2, UTILIZATION);
+        final List<Record> statsRecordsList = Lists.newArrayList(
+            newStatRecord(SNAPSHOT_TIME, c1Value1, propType, USED),
+            newStatRecord(SNAPSHOT_TIME, c1Value2, propType, USED),
+            newStatRecord(SNAPSHOT_TIME, c2Value, propType2, USED),
+            // This one (utilization) should be dropped while processing the stats.
+            newStatRecord(SNAPSHOT_TIME, 0.95, propType2, UTILIZATION));
 
-        when(mockLivestatsreader.getStatsRecords(anyObject(), anyObject(), anyObject(), anyObject()))
+        when(mockLivestatsreader.getStatsRecords(anyObject(), anyObject()))
                 .thenReturn(statsRecordsList);
         Stats.GetAveragedEntityStatsRequest.Builder testStatsRequest =
                 Stats.GetAveragedEntityStatsRequest.newBuilder();
@@ -229,11 +245,11 @@ public class StatsHistoryRpcServiceTest {
                 .setFilter(reqStatsBuilder)
                 .build();
 
-        List<Record> statsRecordsList = new ArrayList<>();
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 1, "c1", "c1-subtype");
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 2, "c2", "c2-subtype");
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 3, "c3", "c3-subtype");
-        when(mockLivestatsreader.getFullMarketStatsRecords(startDate, endDate, commodityRequests,
+        final List<Record> statsRecordsList = Lists.newArrayList(
+            newStatRecord(SNAPSHOT_TIME, 1, "c1", "c1-subtype"),
+            newStatRecord(SNAPSHOT_TIME, 2, "c2", "c2-subtype"),
+            newStatRecord(SNAPSHOT_TIME, 3, "c3", "c3-subtype"));
+        when(mockLivestatsreader.getFullMarketStatsRecords(reqStatsBuilder.build(),
                 Optional.empty()))
                 .thenReturn(statsRecordsList);
 
@@ -243,8 +259,7 @@ public class StatsHistoryRpcServiceTest {
 
         // assert
         assertThat(snapshots.size(), is(1));
-        verify(mockLivestatsreader).getFullMarketStatsRecords(eq(startDate), eq(endDate),
-                anyObject(), anyObject());
+        verify(mockLivestatsreader).getFullMarketStatsRecords(eq(reqStatsBuilder.build()), anyObject());
         verifyNoMoreInteractions(mockPlanStatsReader);
 
     }
@@ -305,7 +320,7 @@ public class StatsHistoryRpcServiceTest {
         long startDate = System.currentTimeMillis();
         long endDate = startDate + Duration.ofSeconds(1).toMillis();
         final List<Long> entityUuids = Lists.newArrayList(ENTITY_UUID);
-        final List<String> entityUuidsStr = Lists.newArrayList(Long.toString(ENTITY_UUID));
+        final Set<String> entityUuidsStr = Collections.singleton(Long.toString(ENTITY_UUID));
 
         StatsFilter.Builder reqStatsBuilder = StatsFilter.newBuilder()
             .setStartDate(startDate)
@@ -313,12 +328,12 @@ public class StatsHistoryRpcServiceTest {
         final List<CommodityRequest> commodityRequests = buildCommodityRequests("c1", "c2", "c3");
         reqStatsBuilder.addAllCommodityRequests(commodityRequests);
 
-        List<Record> statsRecordsList = new ArrayList<>();
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 1, "c1", "c1-subtype");
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 2, "c2", "c2-subtype");
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 3, "c3", "c3-subtype");
-        when(mockLivestatsreader.getStatsRecords(eq(entityUuidsStr), eq(startDate), eq(endDate),
-                eq(commodityRequests))).thenReturn(statsRecordsList);
+        final List<Record> statsRecordsList = Lists.newArrayList(
+            newStatRecord(SNAPSHOT_TIME, 1, "c1", "c1-subtype"),
+            newStatRecord(SNAPSHOT_TIME, 2, "c2", "c2-subtype"),
+            newStatRecord(SNAPSHOT_TIME, 3, "c3", "c3-subtype"));
+        when(mockLivestatsreader.getStatsRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build())))
+            .thenReturn(statsRecordsList);
 
         Stats.GetAveragedEntityStatsRequest testStatsRequest = Stats.GetAveragedEntityStatsRequest.newBuilder()
                 .addAllEntities(entityUuids)
@@ -330,8 +345,7 @@ public class StatsHistoryRpcServiceTest {
 
         // assert
         assertThat(snapshots.size(), is(1));
-        verify(mockLivestatsreader).getStatsRecords(eq(entityUuidsStr), eq(startDate), eq(endDate),
-                eq(commodityRequests));
+        verify(mockLivestatsreader).getStatsRecords(eq(entityUuidsStr), eq(reqStatsBuilder.build()));
         verifyNoMoreInteractions(mockPlanStatsReader);
     }
 
@@ -352,9 +366,9 @@ public class StatsHistoryRpcServiceTest {
         long startDate = System.currentTimeMillis();
         long endDate = startDate + Duration.ofSeconds(1).toMillis();
         final List<Long> queryEntityUuids = Lists.newArrayList(ENTITY_UUID);
-        final List<String> queryEntityUuidsStr = queryEntityUuids.stream()
+        final Set<String> queryEntityUuidsStr = queryEntityUuids.stream()
                 .map(oid -> Long.toString(oid))
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
 
         StatsFilter.Builder reqStatsBuilder = StatsFilter.newBuilder()
                 .setStartDate(startDate)
@@ -367,13 +381,13 @@ public class StatsHistoryRpcServiceTest {
                 .build();
 
         // three rows for 'c1', values 1, 2, 3 respectively
-        List<Record> statsRecordsList = new ArrayList<>();
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 1d, "c1", "c1-subtype");
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 2d, "c1", "c1-subtype");
-        addStatsRecord(statsRecordsList, SNAPSHOT_TIME, 3d, "c1", "c1-subtype");
+        final List<Record> statsRecordsList = Lists.newArrayList(
+            newStatRecord(SNAPSHOT_TIME, 1d, "c1", "c1-subtype"),
+            newStatRecord(SNAPSHOT_TIME, 2d, "c1", "c1-subtype"),
+            newStatRecord(SNAPSHOT_TIME, 3d, "c1", "c1-subtype"));
 
-        when(mockLivestatsreader.getStatsRecords(eq(queryEntityUuidsStr), eq(startDate), eq(endDate),
-                eq(commodityRequests))).thenReturn(statsRecordsList);
+        when(mockLivestatsreader.getStatsRecords(eq(queryEntityUuidsStr), eq(reqStatsBuilder.build())))
+                .thenReturn(statsRecordsList);
 
         // act
         final List<StatSnapshot> snapshots = new ArrayList<>();
@@ -402,101 +416,6 @@ public class StatsHistoryRpcServiceTest {
         assertThat(statRecord.getCapacity().getTotal(), equalTo(18f));
     }
 
-    @Test
-    public void testGroupByKey() throws VmtDbException {
-        // arrange
-        when(historyDbio.entityIdIsPlan(ENTITY_UUID)).thenReturn(false);
-        ScenariosRecord scenariosRecord = new ScenariosRecord();
-        when(historyDbio.getScenariosRecord(PLAN_OID)).thenReturn(Optional.of(scenariosRecord));
-
-        long startDate = System.currentTimeMillis();
-        long endDate = startDate + Duration.ofSeconds(1).toMillis();
-        final List<Long> entityUuids = Lists.newArrayList(ENTITY_UUID);
-        final List<String> entityUuidsStr = Lists.newArrayList(Long.toString(ENTITY_UUID));
-
-        List<Record> statsRecordsList = Lists.newArrayList();
-        addStatsRecordWithKey(statsRecordsList, SNAPSHOT_TIME, 1, "c1", "c1-subtype", "key1");
-        addStatsRecordWithKey(statsRecordsList, SNAPSHOT_TIME, 2, "c1", "c1-subtype", "key2");
-        when(mockLivestatsreader.getStatsRecords(eq(entityUuidsStr), eq(startDate), eq(endDate), any()))
-                .thenReturn(statsRecordsList);
-
-        // test request without grouping by key
-        StatsFilter.Builder reqStatsBuilder = StatsFilter.newBuilder()
-                .setStartDate(startDate)
-                .setEndDate(endDate)
-                .addCommodityRequests(CommodityRequest.newBuilder()
-                    .setCommodityName("c1"));
-
-        Stats.GetAveragedEntityStatsRequest testStatsRequest = Stats.GetAveragedEntityStatsRequest.newBuilder()
-                .addAllEntities(entityUuids)
-                .setFilter(reqStatsBuilder)
-                .build();
-        final List<StatSnapshot> snapshots = new ArrayList<>();
-        clientStub.getAveragedEntityStats(testStatsRequest).forEachRemaining(snapshots::add);
-        assertEquals("The request without grouping by key should receive 1 record", 1,
-                snapshots.get(0).getStatRecordsCount());
-
-        // test with grouping by key
-        GetAveragedEntityStatsRequest.Builder testStatsRequestNoKey
-                = Stats.GetAveragedEntityStatsRequest.newBuilder(testStatsRequest);
-        testStatsRequestNoKey.getFilterBuilder()
-            .getCommodityRequestsBuilder(0)
-                .addGroupBy(StringConstants.KEY);
-
-        snapshots.clear();
-        clientStub.getAveragedEntityStats(testStatsRequestNoKey.build()).forEachRemaining(snapshots::add);
-        assertEquals("The request with grouping by key should receive 2 records", 2,
-                snapshots.get(0).getStatRecordsCount());
-    }
-
-    /**
-     * Create a Record to use in a response list. Use a PmStatsLatestRecord just as an example -
-     * the type of the Record is not important. All of the different _stats_latest records have the
-     * same schema.
-     *
-     * @param statsRecordsList the list to add the new record to
-     * @param snapshotTime the time this stat was recorded
-     * @param testValue the value of the stat
-     * @param propType the property type for this stat
-     * @param propSubType the property subtype for this stat
-     */
-    private void addStatsRecord(List<Record> statsRecordsList,
-                                Timestamp snapshotTime,
-                                double testValue,
-                                String propType,
-                                String propSubType) {
-        addStatsRecordWithKey(statsRecordsList, snapshotTime, testValue, propType, propSubType, null);
-    }
-
-    /**
-     * Create a Record to use in a response list. Use a PmStatsLatestRecord just as an example -
-     * the type of the Record is not important. All of the different _stats_latest records have the
-     * same schema.
-     *
-     * @param statsRecordsList the list to add the new record to
-     * @param snapshotTime the time this stat was recorded
-     * @param testValue the value of the stat
-     * @param propType the property type for this stat
-     * @param propSubType the property subtype for this stat
-     * @param commodityKey the commodity key for this stat
-     */
-    private void addStatsRecordWithKey(List<Record> statsRecordsList,
-                                Timestamp snapshotTime,
-                                double testValue,
-                                String propType,
-                                String propSubType,
-                                @Nullable String commodityKey) {
-        PmStatsLatestRecord statsRecord = new PmStatsLatestRecord();
-        statsRecord.setSnapshotTime(snapshotTime);
-        statsRecord.setPropertyType(propType);
-        statsRecord.setPropertySubtype(propSubType);
-        statsRecord.setAvgValue(testValue);
-        statsRecord.setMinValue(testValue / 2);
-        statsRecord.setMaxValue(testValue * 2);
-        statsRecord.setCapacity(testValue * 3);
-        if (commodityKey != null) statsRecord.setCommodityKey(commodityKey);
-        statsRecordsList.add(statsRecord);
-    }
 
     @Test
     public void testDeletePlanStats() throws VmtDbException {
@@ -729,6 +648,43 @@ public class StatsHistoryRpcServiceTest {
 
         verify(mockClusterStatsReader).getStatsRecordsByMonth(eq(Long.parseLong(clusterId)),
                 eq(startDate), eq(endDate), anyObject());
+    }
+
+    @Test
+    public void testGetEntityStats() throws VmtDbException {
+        final StatsFilter filter = StatsFilter.newBuilder()
+                .setStartDate(100L)
+                .build();
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                .setCursor("foo")
+                .build();
+        final String retCursor = "bar";
+
+        final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
+        when(paginationParamsFactory.newPaginationParams(paginationParameters)).thenReturn(paginationParams);
+        final StatRecordPage statRecordPage = mock(StatRecordPage.class);
+        final Record record = mock(Record.class);
+        final Map<Long, List<Record>> recordPage = ImmutableMap.of(1L, Collections.singletonList(record));
+        when(statRecordPage.getNextPageRecords()).thenReturn(recordPage);
+        when(statRecordPage.getNextCursor()).thenReturn(Optional.of(retCursor));
+
+        when(mockLivestatsreader.getPaginatedStatsRecords(Collections.singleton("1"), filter, paginationParams))
+                .thenReturn(statRecordPage);
+        final StatSnapshot.Builder statSnapshotBuilder = StatSnapshot.newBuilder()
+                .setSnapshotDate("date to uniquely identify this snapshot");
+        doReturn(Stream.of(statSnapshotBuilder)).when(statSnapshotCreatorSpy)
+                .createStatSnapshots(Collections.singletonList(record), false, Collections.emptyList());
+
+        final GetEntityStatsResponse response = clientStub.getEntityStats(GetEntityStatsRequest.newBuilder()
+                .addEntities(1L)
+                .setFilter(filter)
+                .setPaginationParams(paginationParameters)
+                .build());
+        assertThat(response.getEntityStatsList(), contains(EntityStats.newBuilder()
+                .setOid(1L)
+                .addStatSnapshots(statSnapshotBuilder)
+                .build()));
+        assertThat(response.getPaginationResponse().getNextCursor(), is(retCursor));
     }
 
     /**

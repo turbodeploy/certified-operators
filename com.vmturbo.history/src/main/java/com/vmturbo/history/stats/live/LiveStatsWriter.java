@@ -1,4 +1,4 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.history.stats.live;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;

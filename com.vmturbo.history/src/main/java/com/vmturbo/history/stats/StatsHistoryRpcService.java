@@ -1,22 +1,10 @@
 package com.vmturbo.history.stats;
 
 import static com.vmturbo.components.common.stats.StatsUtils.collectCommodityNames;
-import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
-import static com.vmturbo.history.schema.StringConstants.CAPACITY;
-import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
-import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
-import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
-import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
-import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE;
-import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.history.schema.StringConstants.RELATION;
-import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.history.schema.StringConstants.UTILIZATION;
 import static org.joda.time.DateTimeConstants.MILLIS_PER_DAY;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -27,16 +15,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
@@ -47,7 +29,6 @@ import org.jooq.exception.DataAccessException;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -84,22 +65,19 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingReque
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
-import com.vmturbo.components.common.pagination.EntityStatsPaginator;
-import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.schema.CommodityTypes;
-import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
+import com.vmturbo.history.stats.live.LiveStatsReader;
+import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 
 /**
@@ -122,7 +100,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     private final EntityStatsPaginationParamsFactory paginationParamsFactory;
 
-    private final EntityStatsPaginator entityStatsPaginator;
+    private final StatSnapshotCreator statSnapshotCreator;
+
+    private final StatRecordBuilder statRecordBuilder;
 
     private static final String CLUSTER_STATS_TYPE_HEADROOM_VMS = "headroomVMs";
     private static final String CLUSTER_STATS_TYPE_NUM_VMS = "numVMs";
@@ -152,7 +132,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                            @Nonnull final HistorydbIO historydbIO,
                            @Nonnull final ProjectedStatsStore projectedStatsStore,
                            @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
-                           @Nonnull final EntityStatsPaginator entityStatsPaginator) {
+                           @Nonnull final StatSnapshotCreator statSnapshotCreator,
+                           @Nonnull final StatRecordBuilder statRecordBuilder) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
@@ -161,7 +142,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.historydbIO = Objects.requireNonNull(historydbIO);
         this.projectedStatsStore = Objects.requireNonNull(projectedStatsStore);
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
-        this.entityStatsPaginator = Objects.requireNonNull(entityStatsPaginator);
+        this.statSnapshotCreator = Objects.requireNonNull(statSnapshotCreator);
+        this.statRecordBuilder = Objects.requireNonNull(statRecordBuilder);
     }
 
     /**
@@ -228,15 +210,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         try {
             final List<Long> entitiesList = request.getEntitiesList();
             final StatsFilter filter = request.getFilter();
-            // fetch stats for this request
-            Long startDate = null;
-            if (filter.hasStartDate()) {
-                startDate = filter.getStartDate();
-            }
-            Long endDate = null;
-            if (filter.hasEndDate()) {
-                endDate = filter.getEndDate();
-            }
 
             // determine if this request is for stats for a plan topology; for efficiency, check
             // first for the special case ID of the entire live topology, "Market" (i.e. not a plan)
@@ -259,7 +232,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 Optional<String> relatedEntityType = (request.hasRelatedEntityType())
                         ? Optional.of(request.getRelatedEntityType())
                         : Optional.empty();
-                returnLiveMarketStats(responseObserver, startDate, endDate, filter.getCommodityRequestsList(),
+                returnLiveMarketStats(responseObserver, filter,
                         entitiesList, relatedEntityType);
             }
 
@@ -277,36 +250,32 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public void getEntityStats(@Nonnull GetEntityStatsRequest request,
                                @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver) {
-        final Set<Long> targetEntities = Sets.newHashSet(request.getEntitiesList());
+        final Set<String> targetEntities = request.getEntitiesList().stream()
+                .map(id -> Long.toString(id))
+                .collect(Collectors.toSet());
         try {
             final Timer timer = GET_ENTITY_STATS_DURATION_SUMMARY.startTimer();
-            // gather stats and return them for each entity one at a time
-            final List<EntityStats.Builder> entityStats = new ArrayList<>(targetEntities.size());
-            for (final long entityOid : targetEntities) {
-                logger.debug("getEntityStats: {}", entityOid);
-                final StatsFilter statsFilter = request.getFilter();
-                final List<CommodityRequest> commodityRequests = statsFilter.getCommodityRequestsList();
-                List<Record> statDBRecords = liveStatsReader.getStatsRecords(
-                        Collections.singletonList(Long.toString(entityOid)),
-                        statsFilter.getStartDate(), statsFilter.getEndDate(),
-                        commodityRequests);
-                EntityStats.Builder statsForEntity = EntityStats.newBuilder()
-                        .setOid(entityOid);
-
-                // organize the stats DB records for this entity into StatSnapshots and add to response
-                createStatSnapshots(statDBRecords, false, statSnapshotBuilder ->
-                        statsForEntity.addStatSnapshots(statSnapshotBuilder.build()),
-                        commodityRequests);
-
-                // done with this entity
-                entityStats.add(statsForEntity);
-            }
-
-            final PaginatedStats paginatedStats = entityStatsPaginator.paginate(entityStats,
+            final StatRecordPage recordPage = liveStatsReader.getPaginatedStatsRecords(targetEntities,
+                    request.getFilter(),
                     paginationParamsFactory.newPaginationParams(request.getPaginationParams()));
+
+            final List<EntityStats> entityStats = new ArrayList<>(recordPage.getNextPageRecords().size());
+            recordPage.getNextPageRecords().forEach((entityOid, recordList) -> {
+                final EntityStats.Builder statsForEntity = EntityStats.newBuilder()
+                        .setOid(entityOid);
+                // organize the stats DB records for this entity into StatSnapshots and add to response
+                statSnapshotCreator.createStatSnapshots(recordList, false,
+                        request.getFilter().getCommodityRequestsList())
+                    .forEach(statsForEntity::addStatSnapshots);
+                entityStats.add(statsForEntity.build());
+            });
+
+            final PaginationResponse.Builder paginationResponse = PaginationResponse.newBuilder();
+            recordPage.getNextCursor().ifPresent(paginationResponse::setNextCursor);
+
             responseObserver.onNext(GetEntityStatsResponse.newBuilder()
-                    .addAllEntityStats(paginatedStats.getStatsPage())
-                    .setPaginationResponse(paginatedStats.getPaginationResponse())
+                    .addAllEntityStats(entityStats)
+                    .setPaginationResponse(paginationResponse)
                     .build());
             responseObserver.onCompleted();
             timer.observeDuration();
@@ -413,7 +382,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @return a newly initialized {@link StatRecord} protobuf
      */
     private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord) {
-        return buildStatRecord(
+        return statRecordBuilder.buildStatRecord(
                 dbRecord.getPropertyType(),
                 dbRecord.getPropertySubtype(),
                 (Float)null,
@@ -427,7 +396,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     }
 
     private StatRecord createStatRecordForClusterStatsByMonth(ClusterStatsByMonthRecord dbRecord) {
-        return buildStatRecord(
+        return statRecordBuilder.buildStatRecord(
                 dbRecord.getPropertyType(),
                 dbRecord.getPropertySubtype(),
                 (Float)null,
@@ -524,7 +493,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     + topologyContextId, e);
         }
         for (MktSnapshotsStatsRecord statsDBRecord : dbSnapshotStatsRecords) {
-            final StatRecord statResponseRecord = buildStatRecord(
+            final StatRecord statResponseRecord = statRecordBuilder.buildStatRecord(
                     statsDBRecord.getPropertyType(),
                     statsDBRecord.getPropertySubtype(),
                     statsDBRecord.getCapacity() == null ? null : statsDBRecord.getCapacity()
@@ -588,9 +557,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * ignored and only those entities listed are included in the stats averages returned.
      *
      * @param responseObserver the chunking channel on which the response should be returned
-     * @param startDate return stats with date equal to or after this date
-     * @param endDate return stats with date before this date
-     * @param commodityRequests the names of the commodities to include.
+     * @param statsFilter The stats filter to apply.
      * @param entities A list of service entity OIDs; an empty list implies full market, which
      *                 may be filtered based on relatedEntityType
      * @param relatedEntityType optional of entityType to sample if entities list is empty;
@@ -599,17 +566,15 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @throws VmtDbException if error writing to the db.
      */
     private void returnLiveMarketStats(@Nonnull StreamObserver<StatSnapshot> responseObserver,
-                                       @Nullable Long startDate, @Nullable Long endDate,
-                                       @Nullable List<CommodityRequest> commodityRequests,
+                                       @Nonnull final StatsFilter statsFilter,
                                        @Nonnull List<Long> entities,
                                        @Nonnull Optional<String> relatedEntityType) throws VmtDbException {
 
         // get a full list of stats that satisfy this request, depending on the entity request
         final List<Record> statDBRecords;
-        final boolean fullMarket = entities.size() == 0;
+        final boolean fullMarket = entities.isEmpty();
         if (fullMarket) {
-            statDBRecords = liveStatsReader.getFullMarketStatsRecords(startDate, endDate,
-                    commodityRequests, relatedEntityType);
+            statDBRecords = liveStatsReader.getFullMarketStatsRecords(statsFilter, relatedEntityType);
         } else {
             if (relatedEntityType.isPresent() &&
                     !StringUtils.isEmpty(relatedEntityType.get())) {
@@ -619,290 +584,15 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             statDBRecords = liveStatsReader.getStatsRecords(
                     entities.stream()
                             .map(id -> Long.toString(id))
-                            .collect(Collectors.toList()),
-                    startDate, endDate, commodityRequests);
+                            .collect(Collectors.toSet()), statsFilter);
         }
 
         // organize the stats DB records into StatSnapshots and return them to the caller
-        createStatSnapshots(statDBRecords, fullMarket, statSnapshotBuilder ->
-                responseObserver.onNext(statSnapshotBuilder.build()), commodityRequests);
-
+        statSnapshotCreator.createStatSnapshots(statDBRecords, fullMarket,
+                    statsFilter.getCommodityRequestsList())
+                .map(StatSnapshot.Builder::build)
+                .forEach(responseObserver::onNext);
         responseObserver.onCompleted();
-    }
-
-    /**
-     * Process the given DB Stats records, organizing into {@link StatSnapshot} by time and commodity,
-     * and then invoking the handler ({@link Consumer}) from the caller on each StatsSnapshot that is built.
-     *
-     * @param statDBRecords the list of DB stats records to organize
-     * @param fullMarket is this a query against the full market table vs. individual SE type
-     * @param handleSnapshot a function ({@link Consumer}) to call for each new {@link StatSnapshot}
-     * @param commodityRequests a list of {@link CommodityRequest} being satifisfied in this query
-     */
-    private void createStatSnapshots(@Nonnull List<Record> statDBRecords,
-                                     boolean fullMarket,
-                                     @Nonnull Consumer<StatSnapshot.Builder> handleSnapshot,
-                                     List<CommodityRequest> commodityRequests) {
-        // Process all the DB records grouped by, and ordered by, snapshot_time
-        TreeMap<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity =
-                organizeStatsRecordsByTime(statDBRecords, commodityRequests);
-
-        // For each snapshot_time, create a {@link StatSnapshot} and handle as it is constructed
-        statRecordsByTimeByCommodity.forEach((timestamp, commodityMap) -> {
-            StatSnapshot.Builder statSnapshotBuilder = StatSnapshot.newBuilder();
-            statSnapshotBuilder.setSnapshotDate(DateTimeUtil.toString(timestamp.getTime()));
-
-            // process all the stats records for a given commodity for the current snapshot_time
-            // - might be 1, many for group, or none if time range didn't overlap recorded stats
-            commodityMap.asMap().values().forEach(dbStatRecordList -> {
-                if (!dbStatRecordList.isEmpty()) {
-                    // use the first element as the core of the group value
-                    Record dbFirstStatRecord = dbStatRecordList.iterator().next();
-                    final String propertyType = dbFirstStatRecord.getValue(PROPERTY_TYPE, String.class);
-                    String propertySubtype = dbFirstStatRecord.getValue(PROPERTY_SUBTYPE, String.class);
-                    String relation = dbFirstStatRecord.getValue(RELATION, String.class);
-
-                    // In the full-market request we return aggregate stats with no commodity_key
-                    // or producer_uuid.
-                    final String commodityKey = fullMarket ? null :
-                        dbFirstStatRecord.getValue(COMMODITY_KEY, String.class);
-                    final String producerIdString = fullMarket ? null :
-                        dbFirstStatRecord.getValue(PRODUCER_UUID, String.class);
-                    final StatsAccumulator capacityValue = new StatsAccumulator();
-                    Long producerId = null;
-                    if (StringUtils.isNotEmpty(producerIdString)) {
-                        producerId = Long.valueOf(producerIdString);
-                    }
-                    float avgTotal = 0.0f;
-                    float minTotal = 0.0f;
-                    float maxTotal = 0.0f;
-
-                    // calculate totals
-                    for (Record dbStatRecord : dbStatRecordList) {
-                        Float oneAvgValue = dbStatRecord.getValue(AVG_VALUE, Float.class);
-                        if (oneAvgValue != null) {
-                            avgTotal += oneAvgValue;
-                        }
-                        Float oneMinValue = dbStatRecord.getValue(MIN_VALUE, Float.class);
-                        if (oneMinValue != null) {
-                            minTotal += oneMinValue;
-                        }
-                        Float oneMaxValue = dbStatRecord.getValue(MAX_VALUE, Float.class);
-                        if (oneMaxValue != null) {
-                            maxTotal += oneMaxValue;
-                        }
-                        Float oneCapacityValue = dbStatRecord.getValue(CAPACITY, Float.class);
-                        if (oneCapacityValue != null) {
-                            capacityValue.record(oneCapacityValue.doubleValue());
-                        }
-                    }
-
-                    // calculate the averages
-                    final int numStatRecords = dbStatRecordList.size();
-                    float avgValueAvg = avgTotal / numStatRecords;
-                    float minValueAvg = minTotal / numStatRecords;
-                    float maxValueAvg = maxTotal / numStatRecords;
-
-                    // build the record for this stat (commodity type)
-                    final StatRecord statRecord = buildStatRecord(propertyType, propertySubtype,
-                        capacityValue.toStatValue(), producerId, avgValueAvg, minValueAvg, maxValueAvg,
-                        commodityKey, avgTotal, relation);
-
-                    // return add this record to the snapshot for this timestamp
-                    statSnapshotBuilder.addStatRecords(statRecord);
-                }
-            });
-            // process the snapshot for this time_stamp
-            handleSnapshot.accept(statSnapshotBuilder);
-        });
-    }
-
-    /**
-     * Process a list of DB stats reecords and organize into a {@link TreeMap} ordered by Timestamp
-     * and then commodity.
-     * <p>
-     * Note that properties bought and sold may have the same name, so we need to distinguish
-     * those by appending PROPERTY_TYPE with PROPERTY_SUBTYPE for the key for the commodity map.
-     *
-     * @param statDBRecords the list of DB stats records to organize
-     * @param commodityRequests a list of {@link CommodityRequest} being satisfied in this query. We
-     *                          will check if there is a groupBy parameter in the request and
-     *                          implement it here, where we are aggregating results.
-     *                          <b>NOTE:</b> XL only supports grouping by <em>key</em> (i.e.
-     *                          commodity keys), but not <em>relatedEntity</em> or <em>virtualDisk</em>.
-     *                          TODO: those options will be covered in OM-36453.
-     * @return a map from each unique Timestamp to the map of properties to DB stats records for
-     * that property and timestamp
-     */
-    private TreeMap<Timestamp, Multimap<String, Record>> organizeStatsRecordsByTime(
-            @Nonnull List<Record> statDBRecords, List<CommodityRequest> commodityRequests) {
-        // Figure out which stats are getting grouped by "key". This will be the set of commodity names
-        // that have "key" in their groupBy field list.
-        Set<String> statsGroupedByKey = commodityRequests.stream()
-                .filter(CommodityRequest::hasCommodityName)
-                .filter(cr -> cr.getGroupByList().contains(StringConstants.KEY))
-                .map(CommodityRequest::getCommodityName)
-                .collect(Collectors.toSet());
-
-        // organize the statRecords by SNAPSHOT_TIME and then by PROPERTY_TYPE + PROPERTY_SUBTYPE
-        TreeMap<Timestamp, Multimap<String, Record>> statRecordsByTimeByCommodity = new TreeMap<>();
-        for (Record dbStatRecord : statDBRecords) {
-            Timestamp snapshotTime = dbStatRecord.getValue(SNAPSHOT_TIME, Timestamp.class);
-            Multimap<String, Record> snapshotMap = statRecordsByTimeByCommodity.computeIfAbsent(
-                    snapshotTime, k -> HashMultimap.create()
-            );
-
-            String commodityName = dbStatRecord.getValue(PROPERTY_TYPE, String.class);
-            // if this commodity is grouped by key, and the commodity key field is set, use the key
-            // in the record key.
-            String commodityKey = ((statsGroupedByKey.contains(commodityName)
-                    && dbStatRecord.field(COMMODITY_KEY) != null ))
-                    ? dbStatRecord.getValue(COMMODITY_KEY, String.class)
-                    : "";
-            String propertySubType = dbStatRecord.getValue(PROPERTY_SUBTYPE, String.class);
-            // See the enum RelationType in com.vmturbo.history.db.
-            // Commodities, CommoditiesBought, and CommoditiesFromAttributes
-            // (e.g., priceIndex, numVCPUs, etc.)
-            String relation = dbStatRecord.getValue(RELATION, String.class);
-
-            // Need to separate commodity bought and sold as some commodities are both bought
-            // and sold in the same entity, e.g., StorageAccess in Storage entity.
-            String recordKey = commodityName + commodityKey + relation;
-
-            // Filter out the utilization as we are interested in the used values
-            if (!UTILIZATION.equals(propertySubType)) {
-                snapshotMap.put(recordKey, dbStatRecord);
-            }
-        }
-        return statRecordsByTimeByCommodity;
-    }
-
-    /**
-     * Create a {@link StatRecord} protobuf to contain aggregate stats values.
-     *
-     * @param propertyType name for this stat, e.g. VMem
-     * @param propertySubtype refinement for this stat, e.g. "used" vs "utilization"
-     * @param capacityStat The capacity stat.
-     * @param producerId unique id of the producer for commodity bought
-     * @param avgValue average value reported from discovery
-     * @param minValue min value reported from discovery
-     * @param maxValue max value reported from discovery
-     * @param commodityKey unique key to associate commodities between seller and buyer
-     * @param totalValue total of value (avgValue) over all elements of a group
-     * @param relation stat relation to entity, e.g., "CommoditiesBought"
-     * @return a {@link StatRecord} protobuf populated with the given values
-     */
-    private StatRecord buildStatRecord(@Nonnull final String propertyType,
-                                       @Nullable final String propertySubtype,
-                                       @Nullable final StatValue capacityStat,
-                                       @Nullable final Long producerId,
-                                       @Nullable final Float avgValue,
-                                       @Nullable final Float minValue,
-                                       @Nullable final Float maxValue,
-                                       @Nullable final String commodityKey,
-                                       @Nullable final Float totalValue,
-                                       @Nullable final String relation) {
-
-        StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
-            .setName(propertyType);
-
-        if (capacityStat != null) {
-            statRecordBuilder.setCapacity(capacityStat);
-        }
-
-        if (relation != null) {
-            statRecordBuilder.setRelation(relation);
-        }
-
-        // reserved ??
-        if (commodityKey != null) {
-            statRecordBuilder.setStatKey(commodityKey);
-        }
-        if (producerId != null) {
-            // providerUuid
-            statRecordBuilder.setProviderUuid(Long.toString(producerId));
-            // providerDisplayName
-            final String producerDisplayName = liveStatsReader.getEntityDisplayNameForId(producerId);
-            if (producerDisplayName != null) {
-                statRecordBuilder.setProviderDisplayName(producerDisplayName);
-            }
-        }
-
-        // units
-        CommodityTypes commodityType = CommodityTypes.fromString(propertyType);
-        if (commodityType != null) {
-            statRecordBuilder.setUnits(commodityType.getUnits());
-        }
-
-        // values, used, peak
-        StatRecord.StatValue.Builder statValueBuilder = StatRecord.StatValue.newBuilder();
-        if (avgValue != null) {
-            statValueBuilder.setAvg(avgValue);
-        }
-        if (minValue != null) {
-            statValueBuilder.setMin(minValue);
-        }
-        if (maxValue != null) {
-            statValueBuilder.setMax(maxValue);
-        }
-        if (totalValue != null) {
-            statValueBuilder.setTotal(totalValue);
-        }
-
-        // currentValue
-        if (avgValue != null && (propertySubtype == null ||
-            StringConstants.PROPERTY_SUBTYPE_USED.equals(propertySubtype))) {
-            statRecordBuilder.setCurrentValue(avgValue);
-        } else {
-            if (maxValue != null) {
-                statRecordBuilder.setCurrentValue(maxValue);
-            }
-        }
-
-        StatRecord.StatValue statValue = statValueBuilder.build();
-
-        statRecordBuilder.setValues(statValue);
-        statRecordBuilder.setUsed(statValue);
-        statRecordBuilder.setPeak(statValue);
-
-        return statRecordBuilder.build();
-    }
-
-    /**
-     * Create a {@link StatRecord} protobuf to contain aggregate stats values.
-     *
-     * @param propertyType name for this stat, e.g. VMem
-     * @param propertySubtype refinement for this stat, e.g. "used" vs "utilization"
-     * @param capacity available amount on the producer
-     * @param producerId unique id of the producer for commodity bought
-     * @param avgValue average value reported from discovery
-     * @param minValue min value reported from discovery
-     * @param maxValue max value reported from discovery
-     * @param commodityKey unique key to associate commodities between seller and buyer
-     * @param totalValue total of value (avgValue) over all elements of a group
-     * @param relation stat relation to entity, e.g., "CommoditiesBought"
-     * @return a {@link StatRecord} protobuf populated with the given values
-     */
-    private StatRecord buildStatRecord(@Nonnull String propertyType,
-                                       @Nullable String propertySubtype,
-                                       @Nullable Float capacity,
-                                       @Nullable Long producerId,
-                                       @Nullable Float avgValue,
-                                       @Nullable Float minValue,
-                                       @Nullable Float maxValue,
-                                       @Nullable String commodityKey,
-                                       @Nullable Float totalValue,
-                                       @Nullable String relation) {
-        return buildStatRecord(propertyType,
-            propertySubtype,
-            capacity == null ? null : StatsAccumulator.singleStatValue(capacity),
-            producerId,
-            avgValue,
-            minValue,
-            maxValue,
-            commodityKey,
-            totalValue,
-            relation);
     }
 
     /**
@@ -1121,7 +811,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onError(Status.INTERNAL.withDescription("Failed to paginate entities " +
                     "with order by price index.")
                     .asException());
-            return;
         }
     }
 

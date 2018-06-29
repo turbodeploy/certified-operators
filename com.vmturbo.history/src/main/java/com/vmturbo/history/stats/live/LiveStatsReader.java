@@ -1,18 +1,10 @@
-package com.vmturbo.history.stats;
+package com.vmturbo.history.stats.live;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.history.db.jooq.JooqUtils.dField;
-import static com.vmturbo.history.db.jooq.JooqUtils.floorDateTime;
-import static com.vmturbo.history.db.jooq.JooqUtils.number;
-import static com.vmturbo.history.db.jooq.JooqUtils.relation;
 import static com.vmturbo.history.db.jooq.JooqUtils.statsTableByTimeFrame;
 import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
-import static com.vmturbo.history.schema.StringConstants.CAPACITY;
-import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
 import static com.vmturbo.history.schema.StringConstants.CONTAINER;
-import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
-import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
 import static com.vmturbo.history.schema.StringConstants.NUM_CNT_PER_HOST;
 import static com.vmturbo.history.schema.StringConstants.NUM_CNT_PER_STORAGE;
 import static com.vmturbo.history.schema.StringConstants.NUM_CONTAINERS;
@@ -22,10 +14,7 @@ import static com.vmturbo.history.schema.StringConstants.NUM_VMS;
 import static com.vmturbo.history.schema.StringConstants.NUM_VMS_PER_HOST;
 import static com.vmturbo.history.schema.StringConstants.NUM_VMS_PER_STORAGE;
 import static com.vmturbo.history.schema.StringConstants.PHYSICAL_MACHINE;
-import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
-import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE;
 import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.history.schema.StringConstants.RELATION;
 import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.history.schema.StringConstants.STORAGE;
 import static com.vmturbo.history.schema.StringConstants.UUID;
@@ -33,9 +22,6 @@ import static com.vmturbo.history.schema.StringConstants.VIRTUAL_MACHINE;
 import static com.vmturbo.history.utils.HistoryStatsUtils.betweenStartEndTimestampCond;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countPerSEsMetrics;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
-import static org.jooq.impl.DSL.avg;
-import static org.jooq.impl.DSL.max;
-import static org.jooq.impl.DSL.min;
 
 import java.sql.Timestamp;
 import java.time.Duration;
@@ -46,11 +32,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -67,16 +53,17 @@ import org.jooq.Table;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
+import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.TimeFrame;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.jooq.JooqUtils;
@@ -84,52 +71,161 @@ import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
+import com.vmturbo.history.stats.live.StatsQueryFactory.AGGREGATE;
+import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 
 /**
  * Read from the stats database tables for the "live", i.e. real, discovered topology.
  **/
 public class LiveStatsReader {
 
-    private final static long MINUTE_MILLIS = TimeUnit.MINUTES.toMillis(1);
-    private final static long HOUR_MILLIS = TimeUnit.HOURS.toMillis(1);
-
     private static final Logger logger = LogManager.getLogger();
 
     // Partition the list of entities to read into chunks of this size in order not to flood the DB.
     private static final int ENTITIES_PER_CHUNK = 50000;
-    // time (MS) to specify a window before startTime; the config property is latestTableTimeWindowMin
-    private final long latestTableTimeWindowMS;
 
     private final HistorydbIO historydbIO;
 
-    private final int numRetainedMinutes;
-    private final int numRetainedHours;
-    private final int numRetainedDays;
+    private final TimeRangeFactory timeRangeFactory;
+
+    private final StatsQueryFactory statsQueryFactory;
 
     // TODO: After StringConstants class add entity type constant, we can use it from StringConstants.
     private final String ENTITY_TYPE = "entity_type";
 
+    private static final DataMetricSummary GET_STATS_RECORDS_DURATION_SUMMARY = DataMetricSummary.builder()
+            .withName("history_get_live_stats_records_duration_seconds")
+            .withHelp("Duration in seconds it takes the history component to get live stat snapshots for a set of entities.")
+            .build()
+            .register();
 
-    public LiveStatsReader(HistorydbIO historydbIO, int numRetainedMinutes, int numRetainedHours,
-                           int numRetainedDays, long latestTableTimeWindowMin) {
+    public LiveStatsReader(@Nonnull final HistorydbIO historydbIO,
+                           @Nonnull final TimeRangeFactory timeRangeFactory,
+                           @Nonnull final StatsQueryFactory statsQueryFactory)  {
         this.historydbIO = historydbIO;
-        this.numRetainedMinutes = numRetainedMinutes;
-        this.numRetainedHours = numRetainedHours;
-        this.numRetainedDays = numRetainedDays;
-        this.latestTableTimeWindowMS = Duration.ofMinutes(latestTableTimeWindowMin).toMillis();
+        this.timeRangeFactory = timeRangeFactory;
+        this.statsQueryFactory = statsQueryFactory;
     }
 
     /**
-     * Indicate an aggregation style for this query; defined in legacy.
+     * A page of {@link Record}s, sorted in the order requested in input
+     * {@link EntityStatsPaginationParams}.
      */
-    public enum AGGREGATE {NO_AGG, AVG_ALL, AVG_MIN_MAX}
+    public static class StatRecordPage {
+
+        private final Map<Long, List<Record>> nextPageRecords;
+
+        private final Optional<String> nextCursor;
+
+        StatRecordPage(@Nonnull final Map<Long, List<Record>> nextPageRecords,
+                       @Nonnull final Optional<String> nextCursor) {
+            this.nextPageRecords = nextPageRecords;
+            this.nextCursor = nextCursor;
+        }
+
+        /**
+         * Get the next page of records.
+         *
+         * @return A sorted map of (entityId, records for entity). The entities are ordered
+         *         in the order requested in the {@link EntityStatsPaginationParams}.
+         */
+        public Map<Long, List<Record>> getNextPageRecords() {
+            return nextPageRecords;
+        }
+
+        /**
+         * Get the next cursor.
+         *
+         * @return An {@link Optional} containing the next cursor, or an empty optional if end of
+         *         results.
+         */
+        public Optional<String> getNextCursor() {
+            return nextCursor;
+        }
+
+        private static StatRecordPage empty() {
+            return new StatRecordPage(Collections.emptyMap(), Optional.empty());
+        }
+    }
+
+
+    /**
+     * Get a page of stat records. The stats records are returned individually for each entity.
+     * It is the caller's responsibility to aggregate them if desired.
+     *
+     * @param entityIds The set of IDs to retrieve records for.
+     * @param statsFilter The filter specifying which stats to get. If the filter time range spans
+     *                    across multiple snapshots, the sort order for pagination will be
+     *                    derived from the most recent snapshot. However, once we determine the
+     *                    IDs of the entities in the next page, we retrieve records for those
+     *                    entities from all matching snapshots.
+     * @param paginationParams The {@link EntityStatsPaginationParams} specifying the pagination
+     *                         parameters to use.
+     * @return A {@link StatRecordPage} containing the next page of per-entity records and the
+     *         next cursor for subsequent calls to this function.
+     * @throws VmtDbException If there is an error interacting with the database.
+     */
+    @Nonnull
+    public StatRecordPage getPaginatedStatsRecords(@Nonnull final Set<String> entityIds,
+                                     @Nonnull final StatsFilter statsFilter,
+                                     @Nonnull final EntityStatsPaginationParams paginationParams) throws VmtDbException {
+        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter);
+        if (!timeRangeOpt.isPresent()) {
+            // no data persisted yet; just return an empty answer
+            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
+                    " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
+            return StatRecordPage.empty();
+        }
+        final TimeRange timeRange = timeRangeOpt.get();
+
+        // We first get the IDs of the entities in the next page using the most recent snapshot
+        // in the time range.
+        final NextPageInfo nextPageInfo = historydbIO.getNextPage(entityIds,
+                timeRange.getMostRecentSnapshotTime(),
+                timeRange.getTimeFrame(),
+                paginationParams);
+
+        // Now we build up a query to get ALL relevant stats for the entities in the page.
+        // This may include stats for other snapshots, if the time range in the stats filter
+        // matches multiple snapshots.
+        final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(nextPageInfo.getEntityOids(),
+                nextPageInfo.getTable(), statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
+        if (!query.isPresent()) {
+            return StatRecordPage.empty();
+        }
+
+        final Map<Long, List<Record>> recordsByEntityId =
+                new LinkedHashMap<>(nextPageInfo.getEntityOids().size());
+        // Initialize entries in the linked hashmap in the order that they appeared in for the next page.
+        // Preserving the order is very important!
+        nextPageInfo.getEntityOids().forEach(entityId ->
+                recordsByEntityId.put(Long.parseLong(entityId), new ArrayList<>()));
+
+        // Run the query to get all relevant stat records.
+        // TODO (roman, Jun 29 2018): Ideally we should get the IDs of entities in the page and
+        // run the query to get the stats in the same transaction.
+        final Result<? extends Record> statsRecords = historydbIO.execute(
+                BasedbIO.Style.FORCED, query.get());
+        // Process the records, inserting them into the right entry in the linked hashmap.
+        statsRecords.forEach(record -> {
+            final String recordUuid = record.getValue((Field<String>)dField(nextPageInfo.getTable(), UUID));
+            final List<Record> recordListForEntity = recordsByEntityId.get(Long.parseLong(recordUuid));
+            if (recordListForEntity == null) {
+                throw new IllegalStateException("Record without requested ID returned from DB query.");
+            } else {
+                recordListForEntity.add(record);
+            }
+        });
+
+        return new StatRecordPage(recordsByEntityId, nextPageInfo.getNextCursor());
+    }
 
     /**
      * Fetch rows from the stats tables based on the date range, and looking in the appropriate table
-     * for each entity.
-     *
-     * Takes a list of entities, any of which might be a group; groups are expanded, and stats are
-     * accumulated by individual serviceEntity.
+     * for each entity. This method returns individual records. It is the caller's responsibility
+     * to accumulate them.
      *
      * This requires looking up the entity type for each entity id in the list, and and then iterating
      * over the time-based tables for that entity type.
@@ -138,97 +234,78 @@ public class LiveStatsReader {
      *
      * @param entityIds a list of primary-level entities to gather stats from; groups have been
      *                  expanded before we get here
-     * @param startTime the timestamp of the oldest stats to gather; the default is "now"
-     * @param endTime the timestamp of the most recent stats to gather; the default is "now"
-     * @param commodityRequests a list of commodities to gather; the default is "all commodities known"
      * @return a list of Jooq records, one for each stats information row retrieved
      */
-    public @Nonnull List<Record> getStatsRecords(@Nonnull List<String> entityIds,
-                                                 @Nullable Long startTime,
-                                                 @Nullable Long endTime,
-                                                 @Nullable List<CommodityRequest> commodityRequests)
+    @Nonnull
+    public List<Record> getStatsRecords(@Nonnull final Set<String> entityIds,
+                                        @Nonnull final StatsFilter statsFilter)
             throws VmtDbException {
-
-        // assume that either both startTime and endTime are null, or startTime and endTime are set
-        if ((startTime == null || startTime == 0) != (endTime == null || endTime == 0)) {
-            throw new IllegalArgumentException("one of 'startTime', 'endTime' null but not both: "
-                    + startTime + ":" + endTime);
-        }
-        // get most recent snapshot_time from _latest database
-        final Optional<Timestamp> mostRecentDbTimestamp = historydbIO.getMostRecentTimestamp();
-        if (!mostRecentDbTimestamp.isPresent()) {
+        final DataMetricTimer timer = GET_STATS_RECORDS_DURATION_SUMMARY.startTimer();
+        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter);
+        if (!timeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
+            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
+                    " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
             return Collections.emptyList();
         }
-        long mostRecentTimestamp = mostRecentDbTimestamp.get().getTime();
+        final TimeRange timeRange = timeRangeOpt.get();
 
-        // if startTime / endtime are not set, use the most recent timestamp
-        if (startTime == null || startTime == 0) {
-            startTime = endTime = mostRecentTimestamp;
-        } else {
-            // if the startTime and endTime are equal, and within the LATEST table window, open
-            // up the window a bit so that we will catch a stats value
-            if (startTime.equals(endTime) && millis2TimeFrame(startTime).equals(TimeFrame.LATEST)) {
-                startTime -= latestTableTimeWindowMS;
-            }
-        }
+        final Map<String, String> entityClsMap = historydbIO.getTypesForEntities(entityIds);
 
-        Map<String, String> entityClsMap = historydbIO.getTypesForEntities(entityIds);
-
-        Multimap<String, String> entityIdsByType = HashMultimap.create();
-        for (String serviceEntityId : entityIds) {
+        final Multimap<String, String> entityIdsByType = HashMultimap.create();
+        for (final String serviceEntityId : entityIds) {
             String entityClass = entityClsMap.get(serviceEntityId);
             entityIdsByType.put(entityClass, serviceEntityId);
         }
 
         // Accumulate stats records, iterating by entity type at the top level
-        List<Record> answer = new ArrayList<>();
-        Instant overallStart = Instant.now();
-        for (Map.Entry<String, Collection<String>> entityTypeAndId : entityIdsByType.asMap().entrySet()) {
-            String entityClsName = entityTypeAndId.getKey();
+        final List<Record> answer = new ArrayList<>();
+        for (final Map.Entry<String, Collection<String>> entityTypeAndId : entityIdsByType.asMap().entrySet()) {
+            final String entityClsName = entityTypeAndId.getKey();
             logger.debug("fetch stats for entity type {}", entityClsName);
 
-            Optional<EntityType> entityType = EntityType.getTypeForName(entityClsName);
+            final Optional<EntityType> entityType = EntityType.getTypeForName(entityClsName);
             if (!entityType.isPresent()) {
                 // no entity type found for this class name; not supposed to happen
                 logger.warn("DB Entity type not found for clsName {}", entityClsName);
                 continue;
             }
-            List<String> entityIdsForType  = Lists.newArrayList(entityTypeAndId.getValue());
+            final List<String> entityIdsForType  = Lists.newArrayList(entityTypeAndId.getValue());
             final int numberOfEntitiesToPersist = entityIdsForType.size();
             logger.debug("entity count for {} = {}", entityClsName, numberOfEntitiesToPersist);
-            Instant start = Instant.now();
+            final Instant start = Instant.now();
 
             int entityIndex = 0;
             while(entityIndex < numberOfEntitiesToPersist) {
-                int nextIndex = Math.min(entityIndex+ENTITIES_PER_CHUNK, numberOfEntitiesToPersist);
-                List<String> entityIdChunk = entityIdsForType.subList(entityIndex, nextIndex);
-                Optional<Select<?>> query = getQueryString(entityIdChunk, entityType.get(),
-                        commodityRequests, startTime, endTime, AGGREGATE.NO_AGG);
+                final int nextIndex = Math.min(entityIndex+ENTITIES_PER_CHUNK, numberOfEntitiesToPersist);
+                final List<String> entityIdChunk = entityIdsForType.subList(entityIndex, nextIndex);
+                final Optional<Select<?>> query = statsQueryFactory.createStatsQuery(entityIdChunk, statsTableByTimeFrame(entityType.get(), timeRange.getTimeFrame()),
+                        statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
                 if (!query.isPresent()) {
                     continue;
                 }
-                Result<? extends Record> statsRecords = historydbIO.execute(BasedbIO.Style.FORCED,
-                        query.get());
-                int answerSize = statsRecords.size();
+                final Result<? extends Record> statsRecords =
+                        historydbIO.execute(BasedbIO.Style.FORCED, query.get());
+                final int answerSize = statsRecords.size();
                 if (logger.isDebugEnabled() && answerSize == 0) {
-                    logger.debug("zero answers returned from: {}, startTime: {}, endTime: {}",
-                            query.get(), startTime, endTime);
+                    logger.debug("zero answers returned from: {}, time range: {}",
+                            query.get(), timeRange);
                 }
                 answer.addAll(statsRecords);
                 logger.debug("  chunk size {}, statsRecords {}", entityIdChunk.size(), answerSize);
                 entityIndex = entityIndex + ENTITIES_PER_CHUNK;
             }
-            Duration elapsed = Duration.between(start, Instant.now());
+            final Duration elapsed = Duration.between(start, Instant.now());
             if (logger.isDebugEnabled()) {
                 logger.debug(" answer size {}, fetch time: {}", answer.size(), elapsed);
             }
         }
 
         // if requested, add counts
-        addCountStats(mostRecentTimestamp, entityClsMap, commodityRequests, answer);
-        Duration overallElapsed = Duration.between(overallStart, Instant.now());
-        logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(), overallElapsed);
+        addCountStats(timeRange.getSnapshotTimesInRange().get(0).getTime(), entityClsMap, statsFilter.getCommodityRequestsList(), answer);
+
+        final double elapsedSeconds = timer.observe();
+        logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(), elapsedSeconds);
         return answer;
     }
 
@@ -258,50 +335,43 @@ public class LiveStatsReader {
      * to include is implicit. Fetch stats for the given commodity names that occur between the
      * startTime and endTime.
      *
-     * @param startTime beginning time range to query
-     * @param endTime end time range
-     * @param commodityRequests the list of commodities to search
+     * @param statsFilter The filter to use to get the stats.
      * @param entityType optional of entity type
      * @return an ImmutableList of DB Stats Records containing the result from searching all the stats tables
      * for the given time range and commodity names
      * @throws VmtDbException if there's an exception querying the data
      */
-    public @Nonnull List<Record> getFullMarketStatsRecords(
-                                                 @Nullable Long startTime,
-                                                 @Nullable Long endTime,
-                                                 @Nullable List<CommodityRequest> commodityRequests,
+    public @Nonnull List<Record> getFullMarketStatsRecords(@Nonnull final StatsFilter statsFilter,
                                                  @Nonnull Optional<String> entityType)
             throws VmtDbException {
-
-        // get most recent date from _latest database
-        final Optional<Timestamp> mostRecentTimestamp = historydbIO.getMostRecentTimestamp();
-        if (!mostRecentTimestamp.isPresent()) {
+        final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter);
+        if (!timeRangeOpt.isPresent()) {
             // no data persisted yet; just return an empty answer
-            return ImmutableList.of();
+            logger.warn("Stats filter with start {} and end {} does not resolve to any timestamps." +
+                    " There may not be any data.", statsFilter.getStartDate(), statsFilter.getEndDate());
+            return Collections.emptyList();
         }
-        long now = mostRecentTimestamp.get().getTime();
-        startTime = applyTimeDefault(startTime, now);
-        endTime = applyTimeDefault(endTime, now);
+        final TimeRange timeRange = timeRangeOpt.get();
 
         logger.debug("getting stats for full market");
 
         Instant overallStart = Instant.now();
 
-        final TimeFrame tFrame = millis2TimeFrame(startTime);
-        final Table<?> table = getMarketStatsTable(tFrame);
+        final Table<?> table = getMarketStatsTable(timeRange.getTimeFrame());
 
         // accumulate the conditions for this query
         List<Condition> whereConditions = new ArrayList<>();
 
         // add where clause for time range; null if the timeframe cannot be determined
         final Condition timeRangeCondition = betweenStartEndTimestampCond(dField(table, SNAPSHOT_TIME),
-                tFrame, startTime, endTime);
+                timeRange.getTimeFrame(), timeRange.getStartTime(), timeRange.getEndTime());
         if (timeRangeCondition != null) {
             whereConditions.add(timeRangeCondition);
         }
         // add select on the given commodity requests; if no commodityRequests specified,
         // leave out the were clause and thereby include all commodities.
-        Optional<Condition> commodityRequestsCond = commodityRequestsCond(commodityRequests, table);
+        final Optional<Condition> commodityRequestsCond =
+                statsQueryFactory.createCommodityRequestsCond(statsFilter.getCommodityRequestsList(), table);
         commodityRequestsCond.ifPresent(whereConditions::add);
 
         // if no entity type provided, it will include all entity type.
@@ -322,11 +392,11 @@ public class LiveStatsReader {
         final List<Record> answer = new ArrayList<>(results);
 
         final Set<String> requestedRatioProps = new HashSet<>(countPerSEsMetrics);
-        if (commodityRequests != null && !commodityRequests.isEmpty()) {
+        if (!statsFilter.getCommodityRequestsList().isEmpty()) {
             // This does countStats.size() lookups in commodityNames, which is a list.
             // This is acceptable because the asked-for commodityNames is supposed to be
             // a small ( < 10) list.
-            requestedRatioProps.retainAll(commodityRequests);
+            requestedRatioProps.retainAll(statsFilter.getCommodityRequestsList());
         }
 
         // Count any "__ per __" (e.g. vm per host) stats.
@@ -406,19 +476,6 @@ public class LiveStatsReader {
         logger.debug("total stats returned: {}, overall elapsed: {}", answer.size(),
                 overallElapsed.toMillis() / 1000.0);
         return Collections.unmodifiableList(answer);
-    }
-
-    /**
-     * Check a time parameter, e.g. 'startTime' or 'endTime' to see if a default should be applied.
-     * If the 'timeParam' is null or zero, then use 'default'.
-     *
-     * @param timeParam the time parameter to check for default usage
-     * @param defaultTime the default value to apply if the original timeParam is zero or null
-     * @return the time value to use, either the original 'timeParam' or 'defaultTime' if timeParam
-     * is zero or null
-     */
-    private Long applyTimeDefault(@Nullable Long timeParam, long defaultTime) {
-        return (timeParam != null &&  timeParam != 0) ? timeParam : defaultTime;
     }
 
     /**
@@ -514,178 +571,6 @@ public class LiveStatsReader {
     }
 
     /**
-     * Formulate a query string for commodities of a given entity
-     * during time interval between startTime and endTime.
-     *
-     * <p>The database table is determined from the EntityType of the given entity.
-     *
-     * <p>Copied from VMtdbio.java in OpsManager
-     *
-     * <p>note: when the stats roll-up is implemented, the time-frame must be used to iterate over
-     * the different stats tables, e.g. _latest, _hourly, _daily, etc.
-     *
-     * TODO: Implement the 'groupBy' feature of the CommodityRequest list, if specified
-     *
-     * @param entityIdChunk the Entity OID to which the commodities belong
-     * @param entityType the EntityType
-     * @param commodityRequests a list of commodity information to gather; default is all known commodities
-     * @param startTime the oldest snapshot time to include
-     * @param endTime the most recent snapshot time to include
-     * @param agg whether or not to aggregate results
-     * @return a optional with a Jooq query ready to capture the desired stats, or empty()
-     * if there is no db table for this entity type and time frame, e.g.
-     * CLUSTER has no Hourly and Latest tables.
-     */
-    private @Nonnull Optional<Select<?>> getQueryString(@Nonnull List<String> entityIdChunk,
-                             @Nonnull EntityType entityType,
-                             @Nullable List<CommodityRequest> commodityRequests,
-                             long startTime,
-                             long endTime,
-                             @Nonnull AGGREGATE agg) {
-
-        TimeFrame tFrame = millis2TimeFrame(startTime);
-
-        Table<?> table = statsTableByTimeFrame(entityType, tFrame);
-        // check there is a table for this entityType and tFrame; and it has a SNAPSHOT_TIME column
-        if (table == null || table.field(SNAPSHOT_TIME) == null) {
-            return Optional.empty();
-        }
-
-        // accumulate the conditions for this query
-        List<Condition> whereConditions = new ArrayList<>();
-
-        // add where clause for time range; null if the timeframe cannot be determined
-        final Condition timeRangeCondition = betweenStartEndTimestampCond(dField(table, SNAPSHOT_TIME),
-                tFrame, startTime, endTime);
-        if (timeRangeCondition != null) {
-            logger.debug("table {}, timeRangeCondition: {}", table.getName(), timeRangeCondition);
-            whereConditions.add(timeRangeCondition);
-        }
-
-        // include an "in()" clause for uuids, if any
-        if (entityIdChunk.size() > 0) {
-            Condition uuidCond = uuidCond(table, entityIdChunk);
-            whereConditions.add(uuidCond);
-        }
-
-        // note: the legacy DB code defines expression conditions that are not used by new UI
-
-        // add select on the given commodity reqyests; if no commodityRequests specified,
-        // leave out the were clause and thereby include all commodities.
-        Optional<Condition> commodityRequestsCond = commodityRequestsCond(commodityRequests, table);
-        commodityRequestsCond.ifPresent(whereConditions::add);
-
-        // whereConditions.add(propertyExprCond);  // TODO: implement expression conditions
-
-        // the fields to return
-        List<Field<?>> selectFields = Lists.newArrayList(
-                floorDateTime(dField(table, SNAPSHOT_TIME), tFrame).as(SNAPSHOT_TIME),
-                dField(table, PROPERTY_TYPE),
-                dField(table, PROPERTY_SUBTYPE),
-                dField(table, PRODUCER_UUID),
-                dField(table, CAPACITY),
-                dField(table, RELATION),
-                dField(table, COMMODITY_KEY));
-
-        // the fields to order by and group by
-        Field<?>[] orderGroupFields = new Field<?>[]{
-                dField(table, SNAPSHOT_TIME),
-                dField(table, UUID),
-                dField(table, PROPERTY_TYPE),
-                dField(table, PROPERTY_SUBTYPE),
-                dField(table, RELATION)
-        };
-
-        Select<?> statsQueryString;
-        switch (agg) {
-            case NO_AGG:
-                selectFields.add(0, dField(table, UUID));
-                selectFields.add(0, dField(table, AVG_VALUE));
-                selectFields.add(0, dField(table, MIN_VALUE));
-                selectFields.add(0, dField(table, MAX_VALUE));
-
-                statsQueryString = historydbIO.getStatsSelect(table, selectFields, whereConditions,
-                        orderGroupFields);
-                break;
-
-            case AVG_ALL:
-                selectFields.add(0, avg(number(dField(table, AVG_VALUE))).as(AVG_VALUE));
-                selectFields.add(0, avg(number(dField(table, MIN_VALUE))).as(MIN_VALUE));
-                selectFields.add(0, avg(number(dField(table, MAX_VALUE))).as(MAX_VALUE));
-
-                statsQueryString = historydbIO.getStatsSelectWithGrouping(table, selectFields,
-                        whereConditions, orderGroupFields);
-                break;
-
-            case AVG_MIN_MAX:
-                selectFields.add(0, avg(number(dField(table, AVG_VALUE))).as(AVG_VALUE));
-                selectFields.add(0, min(number(dField(table, MIN_VALUE))).as(MIN_VALUE));
-                selectFields.add(0, max(number(dField(table, MAX_VALUE))).as(MAX_VALUE));
-
-                statsQueryString = historydbIO.getStatsSelectWithGrouping(table, selectFields,
-                        whereConditions, orderGroupFields);
-                break;
-
-            default:
-                throw new IllegalArgumentException("Illegal value for AGG: " + agg);
-        }
-        return Optional.of(statsQueryString);
-    }
-
-    /**
-     * Create a Jooq conditional clause to include only the desired commodity names.
-     *
-     * If commodityNames is null or empty, return an empty {@link Optional}
-     * indicating there should be no selection condition on the commodity name. In other words,
-     * all commodities will be returned.
-     *
-     * @param commodityRequests a list of commodity names to include in the result set, and optionally
-     *                          a filter to apply to the commodity row, e.g. "relation==bought";
-     *                          if there are more than commodity requests, then the filters
-     *                          are 'or'ed together; a null or empty list implies no commodity names
-     *                          filter condition at all, i.e. all commodities will be returned
-     *                          TODO: Implement relatedEntity filtering
-     * @param table the DB table from which these stats will be collected
-     * @return an Optional containing a Jooq conditional to only include the desired commodities
-     * with associated filters (if any) 'and'ed in; Optional.empty() if no commodity selection is desired
-     */
-    private @Nonnull Optional<Condition> commodityRequestsCond(@Nullable List<CommodityRequest> commodityRequests,
-                                                               @Nonnull Table<?> table) {
-        if (commodityRequests == null || commodityRequests.isEmpty()) {
-            return Optional.empty();
-        }
-        Condition commodityTests = null;
-        for (CommodityRequest commodityRequest : commodityRequests) {
-            // create a conditional for this commodity
-            Condition commodityTest = str(dField(table, PROPERTY_TYPE))
-                    .eq(commodityRequest.getCommodityName());
-            // add an 'and' for each property value filter specified
-            for (PropertyValueFilter propertyValueFilter : commodityRequest.getPropertyValueFilterList()) {
-                // add a relationType filter if specified
-                switch (propertyValueFilter.getProperty()) {
-                    case RELATION:
-                        // 'bought/sold' are represented in the DB by integers, so we need to map here
-                        RelationType desiredRelation = RelationType.getApiRelationType(
-                                propertyValueFilter.getValue());
-                        commodityTest = commodityTest.and(relation(dField(table, RELATION))
-                                .eq(desiredRelation));
-                        break;
-                    default:
-                        // default is to use 'property' as column name and perform a string match
-                        commodityTest = commodityTest.and(
-                                str(dField(table, propertyValueFilter.getProperty()))
-                                .eq(propertyValueFilter.getValue()));
-                }
-            }
-            // construct the "or" of all the different commodityTests
-            commodityTests = commodityTests == null
-                    ? commodityTest
-                    : commodityTests.or(commodityTest);
-        }
-        return Optional.of(commodityTests);
-    }
-
-    /**
      * Create a Jooq conditional clause to filter on entity type if it is present.
      *
      * @param entityType entity type need to filter on.
@@ -701,53 +586,6 @@ public class LiveStatsReader {
     }
 
     /**
-     * Clip a millisecond epoch number to a {@link TimeFrame}, e.g. LATEST, HOUR, DAY, etc. ago.
-     *
-     * @param millis a millisecond epoch number in the past
-     * @return a {@link TimeFrame} representing how far in the past the given ms epoch number is.
-     */
-    private  TimeFrame millis2TimeFrame(long millis) {
-        return millisAgo2TimeFrame(System.currentTimeMillis() - millis);
-    }
-
-
-    /**
-     * Convert a time interval, milliseconds in the past, to a {@link TimeFrame},
-     * e.g. LATEST, HOUR, DAY, MONTH.
-     *
-     * <p>note that the parameter timeBackMillis is a positive number.
-     *
-     * @param timeBackMillis how far in the past to look
-     * @return a {@link TimeFrame} denoting how far in the past the given time interval is
-     */
-    private TimeFrame millisAgo2TimeFrame(long timeBackMillis) {
-        checkArgument(timeBackMillis > 0);
-        long tMinutesBack = timeBackMillis / MINUTE_MILLIS;
-        if (tMinutesBack <= getNumRetainedMinutes()) {
-            return TimeFrame.LATEST;
-        }
-        long tHoursBack = timeBackMillis / HOUR_MILLIS;
-        if (tHoursBack <= getNumRetainedHours()) {
-            return TimeFrame.HOUR;
-        }
-        if (tHoursBack / 24 <= getNumRetainedDays()) {
-            return TimeFrame.DAY;
-        }
-        return TimeFrame.MONTH;
-    }
-
-    /**
-     * Create a Jooq conditional to query for any of the given UUIDs
-     *
-     * @param table the DB table which will be queried
-     * @param uuids a list of UUID values to be included in the result
-     * @return a Jooq Conditional to add to a query which will select for a UUID in the given list.
-     */
-    private static Condition uuidCond(Table<?> table, List<String> uuids) {
-        return str(dField(table, UUID)).in(uuids);
-    }
-
-    /**
      * Return the display name for the Entity for the given entity ID (OID).
      * <p>
      * If the entity ID is not known, then return null.
@@ -759,32 +597,6 @@ public class LiveStatsReader {
      */
     public String getEntityDisplayNameForId(Long entityOID) {
         return historydbIO.getEntityDisplayNameForId(entityOID);
-    }
-
-    /**
-     * How long should stats values be retained in the _latest table.
-     *
-     * @return the time, in minutes, that stats should be retained in the _latest table
-     */
-    private int getNumRetainedMinutes() {
-        return numRetainedMinutes;
-    }
-
-    /**
-     * How long should stats values be retained in the by_hour table
-     * @return the time, in hours, that stats should be retained in the by_hour table
-     */
-    private int getNumRetainedHours() {
-        return numRetainedHours;
-    }
-
-    /**
-     * How long should stats values be retained in the by_days table.
-     *
-     * @return the time, in days, that stats should be retained in the by_days table
-     */
-    private int getNumRetainedDays() {
-        return numRetainedDays;
     }
 
 }

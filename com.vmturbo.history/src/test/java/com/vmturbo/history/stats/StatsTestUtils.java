@@ -5,11 +5,17 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import org.jooq.Record;
 import org.jooq.Table;
 
 import com.google.gson.Gson;
@@ -21,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.history.db.EntityType;
+import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
 /**
@@ -111,7 +118,7 @@ public class StatsTestUtils {
      * @return a {@link TopologyDTO}s read from the given JSON test file
      * @throws Exception not supposed to happen
      */
-    static TopologyEntityDTO generateEntityDTO(String testDTOFilePath)
+    public static TopologyEntityDTO generateEntityDTO(String testDTOFilePath)
             throws Exception {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         File file = new File(classLoader.getResource(testDTOFilePath).getFile());
@@ -129,7 +136,7 @@ public class StatsTestUtils {
      * @return a collection of {@link TopologyDTO}s read from the given JSON test file
      * @throws Exception not supposed to happen
      */
-    static Collection<TopologyEntityDTO> generateEntityDTOs(String testTopologyPath,
+    public static Collection<TopologyEntityDTO> generateEntityDTOs(String testTopologyPath,
                                                                         String testTopologyFileName)
             throws Exception {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
@@ -140,5 +147,54 @@ public class StatsTestUtils {
         InputStreamReader inputStreamReader = new InputStreamReader(topologyInputStream);
         JsonReader topologyReader = new JsonReader(inputStreamReader);
         return Arrays.asList(GSON.fromJson(topologyReader, TopologyEntityDTO[].class));
+    }
+
+    /**
+     * Create a Record to use in a response list. Use a PmStatsLatestRecord just as an example -
+     * the type of the Record is not important. All of the different _stats_latest records have the
+     * same schema.
+     *
+     * @param snapshotTime the time this stat was recorded
+     * @param testValue the value of the stat
+     * @param propType the property type for this stat
+     * @param propSubType the property subtype for this stat
+     */
+    @Nonnull
+    public static Record newStatRecord(@Nonnull final Timestamp snapshotTime,
+                                final double testValue,
+                                @Nonnull final String propType,
+                                @Nonnull final String propSubType) {
+        return newStatRecordWithKey(snapshotTime, testValue, propType, propSubType, null);
+    }
+
+    /**
+     * Create a Record to use in a response list. Use a PmStatsLatestRecord just as an example -
+     * the type of the Record is not important. All of the different _stats_latest records have the
+     * same schema.
+     *
+     * @param snapshotTime the time this stat was recorded
+     * @param testValue the value of the stat
+     * @param propType the property type for this stat
+     * @param propSubType the property subtype for this stat
+     * @param commodityKey the commodity key for this stat
+     */
+    @Nonnull
+    public static Record newStatRecordWithKey(@Nonnull final Timestamp snapshotTime,
+                                       final double testValue,
+                                       @Nonnull final String propType,
+                                       @Nonnull final String propSubType,
+                                       @Nullable String commodityKey) {
+        final PmStatsLatestRecord statsRecord = new PmStatsLatestRecord();
+        statsRecord.setSnapshotTime(snapshotTime);
+        statsRecord.setPropertyType(propType);
+        statsRecord.setPropertySubtype(propSubType);
+        statsRecord.setAvgValue(testValue);
+        statsRecord.setMinValue(testValue / 2);
+        statsRecord.setMaxValue(testValue * 2);
+        statsRecord.setCapacity(testValue * 3);
+        if (commodityKey != null) {
+            statsRecord.setCommodityKey(commodityKey);
+        }
+        return statsRecord;
     }
 }

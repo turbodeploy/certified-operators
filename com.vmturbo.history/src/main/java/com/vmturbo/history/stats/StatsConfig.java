@@ -1,5 +1,8 @@
 package com.vmturbo.history.stats;
 
+import java.time.Clock;
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -11,8 +14,16 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.common.protobuf.stats.StatsREST.StatsHistoryServiceController;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory.DefaultEntityStatsPaginationParamsFactory;
-import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.history.db.HistoryDbConfig;
+import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
+import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
+import com.vmturbo.history.stats.live.LiveStatsReader;
+import com.vmturbo.history.stats.live.LiveStatsWriter;
+import com.vmturbo.history.stats.live.StatsQueryFactory;
+import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
+import com.vmturbo.history.stats.live.TimeFrameCalculator;
+import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
+import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
 
@@ -61,12 +72,35 @@ public class StatsConfig {
         return new StatsHistoryRpcService(realtimeTopologyContextId, liveStatsReader(),
                 planStatsReader(), clusterStatsReader(), clusterStatsWriter(),
                 historyDbConfig.historyDbIO(),
-                projectedStatsStore(), paginationParamsFactory(), entityStatsPaginator());
+                projectedStatsStore(), paginationParamsFactory(),
+                statSnapshotCreator(), statRecordBuilder());
     }
 
     @Bean
-    public EntityStatsPaginator entityStatsPaginator() {
-        return new EntityStatsPaginator();
+    public StatSnapshotCreator statSnapshotCreator() {
+        return new DefaultStatSnapshotCreator(statRecordBuilder());
+    }
+
+    @Bean
+    public StatRecordBuilder statRecordBuilder() {
+        return new DefaultStatRecordBuilder(liveStatsReader());
+    }
+
+    @Bean
+    public StatsQueryFactory statsQueryFactory() {
+        return new DefaultStatsQueryFactory(historyDbConfig.historyDbIO());
+    }
+
+    @Bean
+    public TimeFrameCalculator timeFrameCalculator() {
+        return new TimeFrameCalculator(Clock.systemUTC(), numRetainedMinutes, numRetainedHours, numRetainedDays);
+    }
+
+    @Bean
+    public TimeRangeFactory timeRangeFactory() {
+        return new DefaultTimeRangeFactory(historyDbConfig.historyDbIO(),
+                timeFrameCalculator(),
+                latestTableTimeWindowMin, TimeUnit.MINUTES);
     }
 
     @Bean
@@ -94,8 +128,7 @@ public class StatsConfig {
 
     @Bean
     public LiveStatsReader liveStatsReader() {
-        return new LiveStatsReader(historyDbConfig.historyDbIO(), numRetainedMinutes,
-                numRetainedHours, numRetainedDays, latestTableTimeWindowMin);
+        return new LiveStatsReader(historyDbConfig.historyDbIO(), timeRangeFactory(), statsQueryFactory());
     }
 
     @Bean

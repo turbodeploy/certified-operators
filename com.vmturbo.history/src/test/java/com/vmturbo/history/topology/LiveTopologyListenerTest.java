@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
-import com.vmturbo.history.stats.LiveStatsWriter;
+import com.vmturbo.history.stats.live.LiveStatsWriter;
 
 /**
  * Test the Live Topology processing classes
