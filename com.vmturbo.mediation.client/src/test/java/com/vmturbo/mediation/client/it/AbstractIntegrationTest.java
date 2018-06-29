@@ -23,7 +23,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestName;
+import org.mockito.Mockito;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.StandardEnvironment;
@@ -33,7 +38,11 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 
 import com.vmturbo.components.api.test.IntegrationTestServer;
+import com.vmturbo.components.common.BaseVmtComponent;
+import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.ConsulRegistrationConfig;
+import com.vmturbo.components.common.migration.MigrationFramework;
+import com.vmturbo.mediation.client.MediationComponentConfig;
 import com.vmturbo.mediation.client.MediationComponentMain;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
 import com.vmturbo.mediation.common.tests.util.IntegrationTestProbeConfiguration;
@@ -80,6 +89,21 @@ public abstract class AbstractIntegrationTest {
     @Rule
     public ThreadNaming threadNaming = new ThreadNaming();
 
+    @Configuration
+    @Import({BaseVmtComponentConfig.class, MediationComponentConfig.class})
+    static class ContextConfiguration extends MediationComponentMain {
+        @Primary
+        @Bean
+        public MigrationFramework migrationFramework() {
+            return Mockito.mock(MigrationFramework.class);
+        }
+
+        @Bean
+        public BaseVmtComponent theComponent() {
+            return new MediationComponentMain<>();
+        }
+    }
+
     @Before
     public final void init() throws Exception {
         logger = LogManager.getLogger(getClass().getName() + "." + testName.getMethodName());
@@ -106,7 +130,7 @@ public abstract class AbstractIntegrationTest {
         logger = LogManager.getLogger();
     }
 
-    /**
+        /**
      * Intialize a web socket endpoint in a jetty server.
      *
      * @throws Exception on exceptions initializing endpoint
@@ -273,6 +297,7 @@ public abstract class AbstractIntegrationTest {
         private final SdkProbe probe;
         private final File probeHome;
 
+
         private SdkContainer(SdkProbe probe) throws Exception {
             if (webSocketServer == null) {
                 throw new IllegalStateException(
@@ -323,7 +348,7 @@ public abstract class AbstractIntegrationTest {
                 final ClassLoader appClassLoader =
                                 createClassLoader(instanceId, probe.getProbeConfig());
                 currentThread.setContextClassLoader(appClassLoader);
-                testServer = new IntegrationTestServer(testName, MediationComponentMain.class,
+                testServer = new IntegrationTestServer(testName, ContextConfiguration.class,
                         environment);
             } finally {
                 currentThread.setContextClassLoader(currentClassLoader);

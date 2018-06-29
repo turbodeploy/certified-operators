@@ -21,6 +21,7 @@ public enum ExecutionStatus {
     RUNNING,
     PAUSED,
     STOPPING,
+    MIGRATING, // Running data migrations.
     TERMINATED,
     FAILED;
     // TODO: add legalNextState(nextState) to encode the above semantics

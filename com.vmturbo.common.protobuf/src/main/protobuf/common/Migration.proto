@@ -1,0 +1,38 @@
+syntax = "proto2";
+
+package common;
+
+option java_package = "com.vmturbo.common.protobuf.common";
+
+message MigrationRecord {
+
+    optional string migrationName = 1;
+
+    // Information about the migration
+    optional MigrationInfo info = 2;
+
+    // Time when the migration was started.
+    optional string startTime = 3;
+
+    // Time when the migration finished/failed.
+    optional string endTime = 4;
+}
+
+message MigrationInfo {
+
+    // This is a mandatory field
+    optional MigrationStatus status = 1;
+
+    // How much of the migration has finished.
+    optional float completionPercentage = 2;
+
+    // Additional Info the migrations want to expose.
+    optional string additionalInfo = 10;
+}
+
+enum MigrationStatus {
+    NOT_STARTED = 0;  // default state
+    RUNNING = 1;
+    FINISHED = 2;
+    FAILED = 3;
+}

@@ -12,6 +12,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import com.vmturbo.components.common.health.DeadlockHealthMonitor;
 import com.vmturbo.components.common.health.MemoryMonitor;
 import com.vmturbo.components.common.metrics.ComponentLifespanMetrics;
+import com.vmturbo.components.common.migration.MigrationFramework;
+import com.vmturbo.components.common.migration.MigrationController;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.KeyValueStoreConfig;
 
@@ -94,6 +96,16 @@ public class BaseVmtComponentConfig {
     @Bean
     public KeyValueStore keyValueStore() {
         return keyValueStoreConfig().keyValueStore();
+    }
+
+    @Bean
+    public MigrationFramework migrationFramework() {
+        return new MigrationFramework(keyValueStore());
+    }
+
+    @Bean
+    public MigrationController migrationController() {
+        return new MigrationController(migrationFramework());
     }
 
     /**

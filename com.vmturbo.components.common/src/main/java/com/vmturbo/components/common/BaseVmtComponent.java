@@ -3,10 +3,12 @@ package com.vmturbo.components.common;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.ZipOutputStream;
@@ -26,11 +28,9 @@ import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.MetricsServlet;
 import io.prometheus.client.hotspot.DefaultExports;
 
-import org.apache.http.HttpVersion;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.server.ServerConnector;
-import org.eclipse.jetty.server.SslConnectionFactory;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
@@ -58,6 +58,7 @@ import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
 import com.vmturbo.components.common.metrics.ScheduledMetrics;
+import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 
@@ -266,6 +267,9 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         }
 
         startGrpc();
+        setStatus(ExecutionStatus.MIGRATING);
+        baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(),
+            false/*don't forceStart failed ones*/);
         onStartComponent();
         setStatus(ExecutionStatus.RUNNING);
     }
@@ -370,6 +374,23 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     protected Optional<Server> buildGrpcServer(@Nonnull final ServerBuilder builder) {
         return Optional.empty();
     }
+
+    /**
+     * Components must override this method if they want to run data migrations.
+     *
+     * @return The migrations to be executed as a sorted mapping from
+     *  migrationName -> Migrations.
+     *
+     *  The migrationName should be of the form:
+     *  V_${two_digits_zero_padded_3_part_version_number_separate_by_underscore}__${MigrationName}
+     *  e.g. V_07_02_00__Migration1
+     *       V_07_12_10__Migration2
+     */
+    @Nonnull
+    protected SortedMap<String, Migration> getMigrations() {
+        return Collections.emptySortedMap();
+    }
+
     // END: Methods to allow component implementations to hook into
     // the component lifecycle.
 

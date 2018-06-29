@@ -9,9 +9,11 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
+import org.mockito.Mockito;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.env.MockEnvironment;
@@ -27,6 +29,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
 import com.vmturbo.components.common.ComponentController;
 import com.vmturbo.components.common.ConsulDiscoveryManualConfig;
+import com.vmturbo.components.common.migration.MigrationFramework;
 
 public class ComponentHealthCheckTest {
 
@@ -54,11 +57,18 @@ public class ComponentHealthCheckTest {
     @EnableWebMvc
     @Import({BaseVmtComponentConfig.class})
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
+        @Primary
+        @Bean
+        public MigrationFramework migrationFramework() {
+            return Mockito.mock(MigrationFramework.class);
+        }
+
         @Bean
         public BaseVmtComponent theComponent() {
             System.out.println("Creating the simple test component.");
             return new SimpleTestComponent();
         }
+
     }
 
     @Before
