@@ -402,7 +402,7 @@ public class Converter {
      * @return the uuid part of the key
      */
     public static String keyToUuid(String key) {
-        return key.split("::")[1];
+        return key.split("::",2)[1];
     }
 
     /**

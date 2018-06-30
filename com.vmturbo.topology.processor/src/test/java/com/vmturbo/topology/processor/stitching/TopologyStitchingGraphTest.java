@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.topology.processor.conversions.Converter;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -256,6 +257,16 @@ public class TopologyStitchingGraphTest {
                 .collect(Collectors.toList()),
             contains("3")
         );
+    }
+
+    @Test
+    public void testKeyToUuid() {
+        final String onpremKey = "PhysicalMachine::7cd62bff-d6c8-e011-0000-00000000000f";
+        final String cloudKey = "PhysicalMachine::aws::us-west-2::PM::us-west-2b";
+        final String onpremUuid = "7cd62bff-d6c8-e011-0000-00000000000f";
+        final String cloudUuid = "aws::us-west-2::PM::us-west-2b";
+        assertEquals(onpremUuid, Converter.keyToUuid(onpremKey));
+        assertEquals(cloudUuid, Converter.keyToUuid(cloudKey));
     }
 
     @Test
