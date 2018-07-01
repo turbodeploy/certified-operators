@@ -199,7 +199,7 @@ api:
   targetValidationTimeoutSeconds: 120
   targetValidationPollIntervalSeconds: 2
   supplyChainFetcherTimeoutSeconds: 360
-  publicVersionString: 7.2.0
+  publicVersionString: 7.3.0
   groupBuildUseCaseFile: 'groupBuilderUsecases.json'
   settingManagersFile: 'settingManagers.json'
   settingStyleFile: 'settingSpecStyle.json'
