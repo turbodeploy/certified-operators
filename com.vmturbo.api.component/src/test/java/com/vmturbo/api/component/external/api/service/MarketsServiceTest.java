@@ -281,8 +281,8 @@ public class MarketsServiceTest {
         @Bean
         public MarketsService marketsService() {
             return new MarketsService(actionSpecMapper(), uuidMapper(), actionRpcService(),
-                    policiesService(), policyCpcService(), planRpcService(), policyMapper(),
-                    marketMapper(), statsMapper(), paginationMapper(),
+                    policyCpcService(), planRpcService(), policyMapper(), marketMapper(),
+                    statsMapper(), paginationMapper(),
                     groupRpcService(), repositoryRpcService(), uiNotificationChannel());
         }
 

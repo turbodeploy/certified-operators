@@ -382,6 +382,7 @@ public class PolicyMapper {
             long consumerId;
             float capacity;
 
+            // So far UI only sends the following four types of policies.
             switch (policyApiInputDTO.getType()) {
                 case BIND_TO_GROUP:
                     providerId = providersGroupId(policyApiInputDTO);
