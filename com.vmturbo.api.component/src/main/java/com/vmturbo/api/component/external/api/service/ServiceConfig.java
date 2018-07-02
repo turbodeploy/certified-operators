@@ -194,6 +194,7 @@ public class ServiceConfig {
         return new MarketsService(mapperConfig.actionSpecMapper(),
                 mapperConfig.uuidMapper(),
                 communicationConfig.actionsRpcService(),
+                policiesService(),
                 communicationConfig.policyRpcService(),
                 communicationConfig.planRpcService(),
                 mapperConfig.policyMapper(),
