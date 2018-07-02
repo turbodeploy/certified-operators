@@ -50,18 +50,20 @@ public class TestUtils {
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
 
+    private static int commSpecCounter;
 
     // CommoditySpecifications to use in tests
-    public static final CommoditySpecification CPU = new CommoditySpecification(0);
-    public static final CommoditySpecification MEM = new CommoditySpecification(1);
-    public static final CommoditySpecification ST_AMT = new CommoditySpecification(2);
-    public static final CommoditySpecification CPU_ALLOC = new CommoditySpecification(3);
-    public static final CommoditySpecification MEM_ALLOC = new CommoditySpecification(4);
-    public static final CommoditySpecification VCPU = new CommoditySpecification(5);
-    public static final CommoditySpecification VMEM = new CommoditySpecification(6);
-    public static final CommoditySpecification COST_COMMODITY = new CommoditySpecification(7);
-    public static final CommoditySpecification IOPS = new CommoditySpecification(8);
-    public static final CommoditySpecification TRANSACTION = new CommoditySpecification(9);
+    public static final CommoditySpecification CPU = createNewCommSpec();
+    public static final CommoditySpecification MEM = createNewCommSpec();
+    public static final CommoditySpecification ST_AMT = createNewCommSpec();
+    public static final CommoditySpecification CPU_ALLOC = createNewCommSpec();
+    public static final CommoditySpecification MEM_ALLOC = createNewCommSpec();
+    public static final CommoditySpecification VCPU = createNewCommSpec();
+    public static final CommoditySpecification VMEM = createNewCommSpec();
+    public static final CommoditySpecification COST_COMMODITY = createNewCommSpec();
+    public static final CommoditySpecification IOPS = createNewCommSpec();
+    public static final CommoditySpecification TRANSACTION = createNewCommSpec();
+    public static final CommoditySpecification SEGMENTATION_COMMODITY = createNewCommSpec();
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
@@ -69,6 +71,17 @@ public class TestUtils {
     public static final CommoditySpecificationTO stAmtTO = CommoditySpecificationTO.newBuilder()
                     .setBaseType(TestUtils.ST_AMT.getBaseType()).setType(TestUtils.ST_AMT.getType())
                     .build();
+
+    /**
+     * Returns a new commodity specification each time it is invoked
+     *
+     * @return new commodity specification
+     */
+    public static CommoditySpecification createNewCommSpec() {
+        CommoditySpecification c = new CommoditySpecification(commSpecCounter);
+        commSpecCounter++;
+        return c;
+    }
 
     /**
      * @param economy - Economy where you want to create a trader.
@@ -95,6 +108,28 @@ public class TestUtils {
     }
 
     /**
+     * @param economy - Economy where you want to create a trader.
+     * @param traderType - integer representing the type of trader
+     * @param cliques - cliques this trader is member of.
+     * @param basketCommodities - commodities that are sold by this trader.
+     * @param capacities - capacities of commodities sold in the same order as basketCommodities.
+     * @param isCloneable - can the trader be cloned.
+     * @param isGuaranteedBuyer - is the trader a guaranteed buyer.
+     * @param name the name of the trader
+     *
+     * @return - Trader which was created.
+     */
+    public static Trader createTrader(Economy economy, int traderType, List<Long> cliques,
+                                      List<CommoditySpecification> basketCommodities,
+                                      double[] capacities, boolean isCloneable,
+                                      boolean isGuaranteedBuyer, String name) {
+        Trader trader = createTrader(economy, traderType, cliques, basketCommodities, capacities,
+                isCloneable, isGuaranteedBuyer);
+        trader.setDebugInfoNeverUseInCode(name);
+        return trader;
+    }
+
+    /**
      * @param economy - Economy where you want to create a PM.
      * @param cliques for the PM
      * @param cpuCapacity
@@ -103,6 +138,22 @@ public class TestUtils {
      */
     public static Trader createPM(Economy economy, List<Long> cliques, double cpuCapacity, double memCapacity, boolean isCloneable) {
         Trader pm = createTrader(economy, PM_TYPE, cliques, Arrays.asList(CPU, MEM), new double[]{cpuCapacity, memCapacity}, isCloneable, false);
+        return pm;
+    }
+
+    /**
+     * @param economy Economy where you want to create a PM.
+     * @param cliques for the PM
+     * @param cpuCapacity
+     * @param isCloneable is the PM cloneable
+     * @param name name of the PM
+     *
+     * @return Trader i.e PM
+     */
+    public static Trader createPM(Economy economy, List<Long> cliques, double cpuCapacity,
+                                  double memCapacity, boolean isCloneable, String name) {
+        Trader pm = createPM(economy, cliques, cpuCapacity, memCapacity, isCloneable);
+        pm.setDebugInfoNeverUseInCode(name);
         return pm;
     }
 
@@ -120,11 +171,38 @@ public class TestUtils {
     }
 
     /**
+     * @param economy Economy where you want to create a storage.
+     * @param cliques for the storage.
+     * @param storageCapacity
+     * @param isCloneable is the storage cloneable
+     * @param name name of the storage
+     *
+     * @return Trader i.e. storage
+     */
+    public static Trader createStorage(Economy economy, List<Long> cliques, double storageCapacity, boolean isCloneable, String name) {
+        Trader st = createStorage(economy, cliques, storageCapacity, isCloneable);
+        st.setDebugInfoNeverUseInCode(name);
+        return st;
+    }
+
+    /**
      * @param economy - Economy where you want to add a VM.
      * @return Trader i.e. VM
      */
     public static Trader createVM(Economy economy) {
         Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
+        return vm1;
+    }
+
+    /**
+     * @param economy Economy where you want to add a VM.
+     * @param name name of the VM
+     *
+     * @return Trader i.e. VM
+     */
+    public static Trader createVM(Economy economy, String name) {
+        Trader vm1 = economy.addTrader(VM_TYPE, TraderState.ACTIVE, new Basket());
+        vm1.setDebugInfoNeverUseInCode(name);
         return vm1;
     }
 
@@ -158,11 +236,14 @@ public class TestUtils {
         sl.setMovable(true);
         if(seller != null){
             sl.move(seller);
-            for(int i=0; i<basketCommodities.size(); i++){
-                double sellerQuantity = seller.getCommoditiesSold().get(seller.getBasketSold()
-                                .indexOf(basketCommodities.get(i))).getQuantity();
-                seller.getCommoditiesSold().get(seller.getBasketSold()
-                                .indexOf(basketCommodities.get(i))).setQuantity(sellerQuantity + commQuantities[i]);
+            for(int i = 0; i < basketCommodities.size(); i++) {
+                int soldIndex = seller.getBasketSold()
+                        .indexOf(basketCommodities.get(i));
+                if (soldIndex >= 0) {
+                    double sellerQuantity = seller.getCommoditiesSold().get(soldIndex).getQuantity();
+                    seller.getCommoditiesSold().get(soldIndex).setQuantity(sellerQuantity + commQuantities[i]);
+                }
+
             }
         }
         return sl;

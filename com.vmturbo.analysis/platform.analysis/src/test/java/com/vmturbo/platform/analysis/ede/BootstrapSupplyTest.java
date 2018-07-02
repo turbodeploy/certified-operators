@@ -6,7 +6,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.junit.Ignore;
 import org.junit.Test;
@@ -34,6 +36,7 @@ public class BootstrapSupplyTest {
     private static final int VM_TYPE = 0;
     private static final int PM_TYPE = 1;
     private static final int ST_TYPE = 2;
+    List<Long> CLIQUE0 = Arrays.asList(0l);
 
     @Test
     public void testShopTogetherBootstrapWithEnoughSupply() {
@@ -737,5 +740,65 @@ public class BootstrapSupplyTest {
         List<Action> bootStrapActionList = BootstrapSupply.bootstrapSupplyDecisions(economy);
 
         assertEquals(bootStrapActionList.size(), 0);
+    }
+
+    /**
+     * Case: pm1 and pm2 connected to st1.
+     * 2 VMs both on pm1 and st1. A placement policy has been created to place both these VMs on pm2.
+     * But pm2 is small and cannot accomodate both VMs.
+     * Expected result: Provision pm2 and move both VMs to pm2 and pm2_clone.
+     */
+    @Test
+    public void test_bootstrapSupplyDecisions_provisionWithSegmentation() {
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createPM(economy, CLIQUE0,
+                100, 100, true, "PM1");
+        Trader st1 = TestUtils.createStorage(economy, CLIQUE0,
+                300, true, "DS1");
+        // Place vm1 on pm1 and st1. VM1 is looking for segmentation which is not sold by pm1.
+        Trader vm1 = TestUtils.createVM(economy, "VM1");
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM,
+                        TestUtils.SEGMENTATION_COMMODITY), vm1, new double[]{40, 0, 1}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT),
+                vm1, new double[]{100}, st1);
+        // Place vm2 on pm1 and st1.  VM2 is looking for segmentation which is not sold by pm1.
+        Trader vm2 = TestUtils.createVM(economy, "VM2");
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM,
+                        TestUtils.SEGMENTATION_COMMODITY), vm2, new double[]{40, 0, 1}, pm1);
+        TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.ST_AMT),
+                vm1, new double[]{100}, st1);
+        // Create pm2 which sells the segmentation, but can accomodate only one of the VMs.
+        Trader pm2 = TestUtils.createTrader(economy, PM_TYPE, CLIQUE0,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM, TestUtils.SEGMENTATION_COMMODITY),
+                new double[]{50, 100, 100}, true, false, "PM2");
+        economy.populateMarketsWithSellers();
+
+        List<Action> bootStrapActionList =
+                BootstrapSupply.bootstrapSupplyDecisions(economy);
+
+        // There should be 2 moves and 1 provision by supply of pm2. Order does not matter
+        // as long as the actions are present.
+        assertEquals(bootStrapActionList.size(), 3);
+        ProvisionBySupply provisionBySupply = (ProvisionBySupply)bootStrapActionList.stream()
+                .filter(a -> a.getType() == ActionType.PROVISION_BY_SUPPLY)
+                .findFirst().get();
+        assertEquals(TestUtils.CPU, provisionBySupply.getReason());
+        // Assert that the provision by supply was modeled off pm2
+        assertEquals(pm2, provisionBySupply.getModelSeller());
+        // Check that both VMs moved to the pm2 and pm2_clone
+        List<Move> moves = bootStrapActionList.stream()
+                .filter(a -> a.getType() == ActionType.MOVE)
+                .map(a -> (Move)a)
+                .collect(Collectors.toList());
+        Move sl1Move = moves.stream().filter(m -> m.getTarget().equals(sl1)).findFirst().get();
+        Move sl2Move = moves.stream().filter(m -> m.getTarget().equals(sl2)).findFirst().get();
+        Move sl1PossibleMove1 = new Move(economy, sl1, pm1, pm2);
+        Move sl2PossibleMove1 = new Move(economy, sl2, pm1, provisionBySupply.getProvisionedSeller());
+        Move sl1PossibleMove2 = new Move(economy, sl1, pm1, provisionBySupply.getProvisionedSeller());
+        Move sl2PossibleMove2 = new Move(economy, sl2, pm1, pm2);
+        assertTrue(sl1Move.equals(sl1PossibleMove1) && sl2Move.equals(sl2PossibleMove1)
+            || sl1Move.equals(sl1PossibleMove2) && sl2Move.equals(sl2PossibleMove2));
     }
 }

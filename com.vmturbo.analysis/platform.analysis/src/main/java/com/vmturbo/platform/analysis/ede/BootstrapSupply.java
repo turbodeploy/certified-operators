@@ -732,15 +732,11 @@ public class BootstrapSupply {
             while (!basketCommSpec.isSatisfiedBy(traderToInspect.getBasketSold().get(soldIndex))) {
                 soldIndex++;
                 if (soldIndex >= traderToInspect.getBasketSold().size()) {
-                    logger.error("Trying to provision "
-                            + traderToInspect.getDebugInfoNeverUseInCode()
-                            + ", for " + sl.getBuyer()
-                            + " but it is not selling "
-                            + basketCommSpec.getDebugInfoNeverUseInCode()
-                            + " which is needed by buyer.");
-                    // we can return null as the reason commSpec with inf quote because in
-                    // AnalysisToProtobuf, we calculate the most expensive commodity and put it on
-                    // as the reason commodity
+                    logBasketUnsatisfiedErrorMessage(traderToInspect, sl, basketCommSpec);
+                    // we can return null as the reason commSpec with infinite quote because in
+                    // AnalysisToProtobuf.actionTO (which is executed before sending over the
+                    // results to platform), we calculate the most expensive commodity and make it
+                    // the reason commodity if the provision action's reason is null
                     return null;
                 }
             }
@@ -785,11 +781,7 @@ public class BootstrapSupply {
             // If there is a missing commodity, then return seller that fits
             if (isBasketUnsatisfied) {
                 if (traderToInspect == sellerThatFits) {
-                    logger.error("Trying to provision "
-                            + sellerThatFits.getDebugInfoNeverUseInCode() + ", for " + sl.getBuyer()
-                            + " but it is not selling "
-                            + basketCommSpec.getDebugInfoNeverUseInCode()
-                            + " which is needed by buyer.");
+                    logBasketUnsatisfiedErrorMessage(traderToInspect, sl, basketCommSpec);
                     // We are already using seller that fits
                     return null;
                 } else {
@@ -798,6 +790,21 @@ public class BootstrapSupply {
             }
         }
         return traderToInspect;
+    }
+
+    /**
+     * Log an error message stating that one of the commodity specs is missing in the modelSeller
+     *
+     * @param modelSeller the modelSeller we are trying to provision
+     * @param sl the shopping list we are trying to satisfy by provisioning
+     * @param missingComm the missing commodity in the model seller
+     */
+    private static void logBasketUnsatisfiedErrorMessage(Trader modelSeller, ShoppingList sl,
+                                                  CommoditySpecification missingComm) {
+        logger.error("Trying to provision "
+                + modelSeller + " for " + sl.getBuyer() + " but it is not selling "
+                + missingComm.getDebugInfoNeverUseInCode()
+                + " which is needed by buyer.");
     }
 
     /**
