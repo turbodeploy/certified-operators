@@ -20,6 +20,8 @@ import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
 
 import com.google.common.collect.ImmutableList;
@@ -118,6 +120,8 @@ public class MarketsService implements IMarketsService {
 
     private final ActionsServiceBlockingStub actionRpcService;
 
+    private final PoliciesService policiesService;
+
     private final PolicyServiceBlockingStub policyRpcService;
 
     private final GroupServiceBlockingStub groupRpcService;
@@ -137,6 +141,7 @@ public class MarketsService implements IMarketsService {
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final ActionsServiceBlockingStub actionRpcService,
+                          @Nonnull final PoliciesService policiesService,
                           @Nonnull final PolicyServiceBlockingStub policyRpcService,
                           @Nonnull final PlanServiceBlockingStub planRpcService,
                           @Nonnull final PolicyMapper policyMapper,
@@ -149,6 +154,7 @@ public class MarketsService implements IMarketsService {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.actionRpcService = Objects.requireNonNull(actionRpcService);
+        this.policiesService = Objects.requireNonNull(policiesService);
         this.policyRpcService = Objects.requireNonNull(policyRpcService);
         this.planRpcService = Objects.requireNonNull(planRpcService);
         this.policyMapper = Objects.requireNonNull(policyMapper);
@@ -303,32 +309,15 @@ public class MarketsService implements IMarketsService {
     }
 
     @Override
-    public PolicyApiDTO addPolicy(final String uuid,
-                                  final String policyName,
-                                  final List<String> uuids,
-                                  final PolicyType type,
-                                  final Integer maxCapacity,
-                                  final Boolean enable,
-                                  final MergePolicyType mergeType) throws Exception {
-        try {
-            // Reconstruct the PolicyApiInputDTO, it was deconstructed in the @Controller layer. :S
-            PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
-            policyApiInputDTO.setPolicyName(policyName);
-            policyApiInputDTO.setType(type);
-            policyApiInputDTO.setCapacity(maxCapacity);
-            policyApiInputDTO.setEnabled(enable);
-            policyApiInputDTO.setMergeType(mergeType);
-            if (PolicyType.MERGE.equals(type)) {
-                policyApiInputDTO.setMergeUuids(uuids);
-            } else {
-                if (uuids != null && uuids.size() == 2) {
-                    policyApiInputDTO.setSellerUuid(uuids.get(0));
-                    policyApiInputDTO.setBuyerUuid(uuids.get(1));
-                } else {
-                    throw new RuntimeException("The policy must contain the provider and consumer group IDs");
-                }
-            }
+    public PolicyApiDTO getPolicy(final String marketUuid, final String policyUuid) throws Exception {
+        return policiesService.getPolicyByUuid(policyUuid);
+    }
 
+    @Override
+    public ResponseEntity<PolicyApiDTO> addPolicy(final String uuid,
+                                                  PolicyApiInputDTO policyApiInputDTO)
+            throws Exception {
+        try {
             final PolicyDTO.PolicyInfo policyInfo = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
             final PolicyDTO.PolicyCreateRequest createRequest = PolicyDTO.PolicyCreateRequest.newBuilder()
                     .setPolicyInfo(policyInfo)
@@ -336,14 +325,13 @@ public class MarketsService implements IMarketsService {
             final PolicyDTO.PolicyCreateResponse policyCreateResp = policyRpcService.createPolicy(createRequest);
             final long createdPolicyID = policyCreateResp.getPolicy().getId();
 
-            // Confirmed with the UI team that the UI doesn't really use the return value.
-            // In the future, if they need to use it, we can change the `createPolicy` to return the policy.
-            final PolicyApiDTO response = new PolicyApiDTO();
-            response.setUuid(Long.toString(createdPolicyID));
+            String createdPolicyUuid = Long.toString(createdPolicyID);
+            final PolicyApiDTO response = policiesService.getPolicyByUuid(createdPolicyUuid);
 
-            return response;
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (RuntimeException e) {
-            logger.error("Error while adding a policy with name " + policyName, e);
+            logger.error("Error while adding a policy with name "
+                    + policyApiInputDTO.getPolicyName(), e);
             throw e;
         }
     }
@@ -351,32 +339,8 @@ public class MarketsService implements IMarketsService {
     @Override
     public PolicyApiDTO editPolicy(final String uuid,
                                    final String policyUuid,
-                                   final String policyName,
-                                   final List<String> uuids,
-                                   final PolicyType type,
-                                   final Integer maxCapacity,
-                                   final Boolean enable) throws Exception {
+                                   PolicyApiInputDTO policyApiInputDTO) throws Exception {
         try {
-            // Reconstruct the PolicyApiInputDTO, it was deconstructed in the @Controller layer. :S
-            // Discussed with an UI team member, they will pass in the DTO rather than individual fields.
-            // Also, edit is not completely functional because `mergeType` isn't being passed in.
-            PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
-            policyApiInputDTO.setPolicyName(policyName);
-            policyApiInputDTO.setType(type);
-            policyApiInputDTO.setCapacity(maxCapacity);
-            policyApiInputDTO.setEnabled(enable);
-            // policyApiInputDTO.setMergeType(mergeType);
-            if (PolicyType.MERGE.equals(type)) {
-                policyApiInputDTO.setMergeUuids(uuids);
-            } else {
-                if (uuids != null && uuids.size() == 2) {
-                    policyApiInputDTO.setSellerUuid(uuids.get(0));
-                    policyApiInputDTO.setBuyerUuid(uuids.get(1));
-                } else {
-                    throw new RuntimeException("The policy must contain the provider and consumer group IDs");
-                }
-            }
-
             final PolicyDTO.PolicyInfo policyInfo = policyMapper.policyApiInputDtoToProto(policyApiInputDTO);
             final PolicyDTO.PolicyEditRequest policyEditRequest = PolicyDTO.PolicyEditRequest.newBuilder()
                     .setPolicyId(Long.valueOf(policyUuid))
@@ -386,7 +350,8 @@ public class MarketsService implements IMarketsService {
 
             return new PolicyApiDTO();
         } catch (RuntimeException e) {
-            logger.error("Fail to edit policy " + policyUuid + " with name " + policyName, e);
+            logger.error("Fail to edit policy " + policyUuid + " with name "
+                    + policyApiInputDTO.getPolicyName(), e);
             throw e;
         }
     }
