@@ -220,7 +220,8 @@ services:
     volumes:
       - api:/home/turbonomic/data
       - /tmp/certs:/tmp/certs
-#      - /Users/marklaff/VMTurbo/opsmgr/com.vmturbo.ux/.tmp:/www:ro
+# customize this line to mount your ux development folder directly on the /www folder in the api
+#      - /Users/...user.../...path-to-ux-app-folder.../ux-app/.tmp:/www:ro
     mem_limit: ${API_MEM_LIMIT_MB}M
 
   nginx:
@@ -514,6 +515,10 @@ services:
       - "${MEDIATION_STORAGESTRESSPROBE_DEBUG_PORT}"
     depends_on: *clustermgrdep
     environment:
+      server_port: 8080
+      server.grpcPort: 9001
+      consul_host: consul
+      consul_port: 8500
       component_type: mediation-stressprobe
       instance_id: mediation-storagestressprobe-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_STORAGESTRESSPROBE_XMX_MB}M ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES}"
