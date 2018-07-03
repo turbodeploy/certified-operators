@@ -155,7 +155,7 @@ public class ProvisionBySupply extends ActionImpl {
         provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
-        provisionedSeller_.getSettings().setMandatorySupplier(getModelSeller().getSettings().isMandatorySupplier());
+        provisionedSeller_.getSettings().setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
 
         List<Trader> unPlacedClones = new ArrayList<>();
         // Add basket(s) bought
@@ -165,11 +165,12 @@ public class ProvisionBySupply extends ActionImpl {
             // shopping list that requires substitution. Here the new commSpec will be used mainly
             // for the sl of the provisionedSeller and the basket sold of the provisionedSeller's
             // supplier
+            @NonNull final ShoppingList shoppingList = entry.getKey();
             Map<CommoditySpecification, CommoditySpecification> commToReplaceMap =
-                            Utility.createCommSpecWithNewKeys(entry.getKey());
+                            Utility.createCommSpecWithNewKeys(shoppingList);
             // replace those of the commodities bought that require substitution
             Basket provisionedSellerSlBasket = Utility.transformBasket(commToReplaceMap,
-                                                               entry.getKey().getBasket());
+                                                               shoppingList.getBasket());
             ShoppingList provisionedSellerSl = getEconomy()
                             .addBasketBought(getProvisionedSeller(), provisionedSellerSlBasket);
             // Copy quantities bought
@@ -180,39 +181,39 @@ public class ProvisionBySupply extends ActionImpl {
             // but we don't have a clear understanding on how to change it so we just copy the same
             // value for now
             for (int i = 0 ; i < entry.getValue().getBasket().size() ; ++i) {
-                provisionedSellerSl.setQuantity(i, entry.getKey().getQuantity(i));
-                provisionedSellerSl.setPeakQuantity(i, entry.getKey().getPeakQuantity(i));
+                provisionedSellerSl.setQuantity(i, shoppingList.getQuantity(i));
+                provisionedSellerSl.setPeakQuantity(i, shoppingList.getPeakQuantity(i));
             }
-            Trader currentSupplier = entry.getKey().getSupplier();
-            // if the modelSeller has a mandatorySeller as supplier, then clone the supplier to
+            Trader currentSupplier = shoppingList.getSupplier();
+            // if the modelSeller needs to clone the supplier, then clone the supplier to
             // place the provisionedSeller on it
-            if (currentSupplier != null && currentSupplier.getSettings().isMandatorySupplier()) {
-                ProvisionBySupply cloneMandatorySupplier = new ProvisionBySupply(getEconomy(),
+            if (currentSupplier != null && getModelSeller().getSettings().isProviderMustClone()) {
+                ProvisionBySupply provisionedSupplier = new ProvisionBySupply(getEconomy(),
                                 currentSupplier, commToReplaceMap,
                                 getReason());
-                subsequentActions_.add(cloneMandatorySupplier.take());
-                subsequentActions_.addAll(cloneMandatorySupplier.getSubsequentActions());
-                // move the sl of the provisionedSeller directly to the newly cloned mandotorySeller
-                Trader clonedMandatorySupplier = cloneMandatorySupplier.getProvisionedSeller();
+                subsequentActions_.add(provisionedSupplier.take());
+                subsequentActions_.addAll(provisionedSupplier.getSubsequentActions());
+                // move the sl of the provisionedSeller directly to the newly cloned manditorySeller
+                Trader clonedMandatorySupplier = provisionedSupplier.getProvisionedSeller();
                 provisionedSellerSl.move(clonedMandatorySupplier);
                 Move.updateQuantities(getEconomy(), provisionedSellerSl,
                                       provisionedSellerSl.getSupplier(),
                                       FunctionalOperatorUtil.ADD_COMM);
                 unPlacedClones.add(clonedMandatorySupplier);
-            } else if (!entry.getKey().isMovable()) {
+            } else if (!shoppingList.isMovable()) {
                 // place the provisionedSeller on the same supplier as modelSeller
-                provisionedSellerSl.move(entry.getKey().getSupplier());
+                provisionedSellerSl.move(shoppingList.getSupplier());
                 Move.updateQuantities(getEconomy(), provisionedSellerSl,
                                       provisionedSellerSl.getSupplier(),
                                       FunctionalOperatorUtil.ADD_COMM);
             } else {
-                // if the new clone has no mandatorySupplier, and it is movable, add it to
-                // unPlacedClones set and run bootstrap to place it
+                // If the new clone does not need its provider to clone and it is movable,
+                // add it to unPlacedClones set and run bootstrap to place it.
                 unPlacedClones.add(provisionedSeller_);
             }
 
             // Copy movable attribute, it has to be set since bootstrap checks it
-            provisionedSellerSl.setMovable(entry.getKey().isMovable());
+            provisionedSellerSl.setMovable(shoppingList.isMovable());
             runBootstrapToPlaceClones(unPlacedClones);
         }
 

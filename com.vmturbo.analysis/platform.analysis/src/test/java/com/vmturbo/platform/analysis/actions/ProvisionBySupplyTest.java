@@ -297,19 +297,19 @@ public class ProvisionBySupplyTest {
        Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.VCPU),
                         new double[]{200}, true, false);
-       c1.getSettings().setMandatorySupplier(true);
        Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
                                           Arrays.asList(TestUtils.VCPU),
                                           new double[]{200}, true, false);
-       c2.getSettings().setMandatorySupplier(true);
        Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
                                             Arrays.asList(TestUtils.TRANSACTION),
                                             new double[]{150}, true, false);
+       app1.getSettings().setProviderMustClone(true);
        ShoppingList sl1 = e.addBasketBought(app1, b1);
        TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{70});
        Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
                                             Arrays.asList(TestUtils.TRANSACTION),
                                             new double[]{150}, true, false);
+       app2.getSettings().setProviderMustClone(true);
        ShoppingList sl2 = e.addBasketBought(app2, b1);
        TestUtils.moveSlOnSupplier(e, sl2, c2, new double[]{70});
        Trader vapp = TestUtils.createTrader(e, TestUtils.VAPP_TYPE, Arrays.asList(0l),
@@ -351,6 +351,7 @@ public class ProvisionBySupplyTest {
      * host the app. The new container will bootstrap a new clone of pm to place it.
      * If provisionBySupply is rolled back, economy contains original traders.
      */
+
     @Test
     public void testTakeAndRollback_provisionBySupplyWithUnplacedClones() {
         Economy e = new Economy();
@@ -362,23 +363,23 @@ public class ProvisionBySupplyTest {
         Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
                                            Arrays.asList(TestUtils.VCPU),
                                            new double[]{100}, true, false);
-        c1.getSettings().setMandatorySupplier(true);
         ShoppingList sl1 = e.addBasketBought(c1, b2);
         TestUtils.moveSlOnSupplier(e, sl1, pm1, new double[]{100});
         Trader c2 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
                                            Arrays.asList(TestUtils.VCPU),
                                            new double[]{100}, true, false);
-        c2.getSettings().setMandatorySupplier(true);
         ShoppingList sl2 = e.addBasketBought(c2, b2);
         TestUtils.moveSlOnSupplier(e, sl2, pm1, new double[]{100});
         Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
                                              Arrays.asList(TestUtils.TRANSACTION),
                                              new double[]{50}, true, false);
+        app1.getSettings().setProviderMustClone(true);
         ShoppingList sl3 = e.addBasketBought(app1, b1);
         TestUtils.moveSlOnSupplier(e, sl3, c1, new double[]{50});
         Trader app2 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
                                              Arrays.asList(TestUtils.TRANSACTION),
                                              new double[]{50}, true, false);
+        app2.getSettings().setProviderMustClone(true);
         ShoppingList sl4 = e.addBasketBought(app2, b1);
         TestUtils.moveSlOnSupplier(e, sl4, c2, new double[]{50});
         e.populateMarketsWithSellers();
@@ -411,10 +412,10 @@ public class ProvisionBySupplyTest {
         Trader c1 = TestUtils.createTrader(e, TestUtils.CONTAINER_TYPE, Arrays.asList(0l),
                                            Arrays.asList(TestUtils.VCPU, appCs),
                                            new double[]{100, 1000}, true, false);
-        c1.getSettings().setMandatorySupplier(true);
         Trader app1 = TestUtils.createTrader(e, TestUtils.APP_TYPE, Arrays.asList(0l),
                                              Arrays.asList(TestUtils.TRANSACTION),
                                              new double[]{150}, true, false);
+        app1.getSettings().setProviderMustClone(true);
         // application buys the appCommodity
         ShoppingList sl1 = e.addBasketBought(app1, b1);
         TestUtils.moveSlOnSupplier(e, sl1, c1, new double[]{70, 1});

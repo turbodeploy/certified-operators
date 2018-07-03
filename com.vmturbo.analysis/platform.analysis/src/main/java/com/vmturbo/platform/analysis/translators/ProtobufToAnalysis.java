@@ -273,7 +273,7 @@ public final class ProtobufToAnalysis {
         destination.setCanAcceptNewCustomers(source.getCanAcceptNewCustomers());
         destination.setIsEligibleForResizeDown(source.getIsEligibleForResizeDown());
         destination.setIsShopTogether(source.getIsShopTogether());
-        destination.setMandatorySupplier(source.getMandatorySupplier());
+        destination.setProviderMustClone(source.getProviderMustClone());
         destination.setQuoteFunction(populateQuoteFunction(destination, source.getQuoteFunction()));
         destination.setQuoteFactor(source.getQuoteFactor());
         if (source.getQuoteFunction().hasRiskBased() && source.getQuoteFunction().getRiskBased().hasCloudCost()) {

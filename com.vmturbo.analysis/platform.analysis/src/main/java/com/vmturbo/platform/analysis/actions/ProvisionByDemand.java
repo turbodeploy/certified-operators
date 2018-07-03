@@ -133,7 +133,7 @@ public class ProvisionByDemand extends ActionImpl {
         provisionedSeller_.getSettings().setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         provisionedSeller_.getSettings().setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         provisionedSeller_.getSettings().setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
-        provisionedSeller_.getSettings().setMandatorySupplier(getModelSeller().getSettings().isMandatorySupplier());
+        provisionedSeller_.getSettings().setProviderMustClone(getModelSeller().getSettings().isProviderMustClone());
 
         // adding commodities to be bought by the provisionedSeller and resizing them
         // TODO: we don't have a case for provisionByDemand a trader with mandatory seller as supplier

@@ -88,8 +88,8 @@ message TraderSettingsTO {
     // This field refers to the balance account that the trader associated with
     optional BalanceAccountDTO balance_account = 10;
 
-    // Whether the trader should be forced to clone if its consumer clones
-    optional bool mandatory_supplier = 11;
+    // Whether a trader's provider should clone when the trader clones
+    optional bool provider_must_clone = 11;
 
     // The quote factor of the trader
     optional float quote_factor = 12 [default = 0.75];

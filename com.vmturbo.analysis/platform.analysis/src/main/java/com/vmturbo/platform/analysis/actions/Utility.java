@@ -87,25 +87,6 @@ public final class Utility {
     }
 
     /**
-     * Check if a given trader has only mandatory sellers as suppliers.
-     *
-     * @param trader the trader
-     * @param economy the economy the trader is in
-     * @return returns true if a given trader has only mandatory sellers as suppliers
-     */
-    public static @NonNull boolean isBuyerConsumeOnlyMandatorySeller(@NonNull Trader trader,
-                                                                         @NonNull Economy economy) {
-        for (@NonNull ShoppingList shoppingList : economy.getMarketsAsBuyer(trader).keySet()) {
-            if (shoppingList.getSupplier() != null && !shoppingList.getSupplier()
-                            .getSettings().isMandatorySupplier()) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
      * Creates a map of newly generated {@link CommoditySpecification}s that are sold
      * by the clone in place of the commodities sold by the modelSeller
      *
