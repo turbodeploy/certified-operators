@@ -12,7 +12,6 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -556,16 +555,26 @@ public interface JournalRecorder {
 
         private final OutputStream outputStream;
 
+        private boolean streamAvailable;
+
         public OutputStreamRecorder(@Nonnull final OutputStream outputStream) {
             this.outputStream = Objects.requireNonNull(outputStream);
+            streamAvailable = true;
         }
 
         @Override
         protected void record(@Nonnull String message) {
-            try {
-                outputStream.write((message + "\n").getBytes());
-            } catch (IOException e) {
-                logger.error("Unable to write to output stream: ", e);
+            if (streamAvailable) {
+                try {
+                    outputStream.write((message + "\n").getBytes());
+                } catch (IOException e) {
+                    logger.error("Unable to write to output stream due to error: ", e);
+
+                    // Abort all future attempts to write to the stream. so that we do not throw
+                    // hundreds or thousands of exceptions attempting to perform writes that we
+                    // know will fail.
+                    streamAvailable = false;
+                }
             }
         }
     }

@@ -60,7 +60,8 @@ public class StitchingJournalController {
     @ApiOperation(value = "Get a human-readable text representation of the stitching journal. " +
         "The text journal is streamed to prevent massive memory consumption in constructing " +
         "or receiving the journal. Note that there is a separate gRPC interface to stream a more " +
-        "machine-parsable representation of the journal.")
+        "machine-parsable representation of the journal. This call will not work from the swagger-ui. " +
+        "Instead you can form your query in the swagger-ui and copy the curl command into the command line.")
     public ResponseEntity<StreamingResponseBody>
     streamTextJournal(@ApiParam(value = "Specification of how to filter the information entered into " +
         "the journal and options for grouping and formatting that information.", required = true)

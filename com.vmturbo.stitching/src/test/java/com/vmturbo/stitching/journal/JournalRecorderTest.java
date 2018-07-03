@@ -1,20 +1,25 @@
 package com.vmturbo.stitching.journal;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalEntry.TargetEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingMetrics;
+import com.vmturbo.stitching.journal.JournalRecorder.OutputStreamRecorder;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
 
 public class JournalRecorderTest {
@@ -183,5 +188,19 @@ public class JournalRecorderTest {
             "|72434315331516|hp-dl.345.vmturbo.com|Hyperflex |123,456   |\n" +
             "+--------------+---------------------+----------+----------+\n\n",
             builder.toString());
+    }
+
+    @Test
+    public void testErrorInOutputStreamRecorder() throws IOException {
+        final OutputStream os = mock(OutputStream.class);
+        final OutputStreamRecorder recorder = new OutputStreamRecorder(os);
+
+        doThrow(new IOException("IO Exception")).when(os).write(Mockito.any());
+        recorder.record("foo");
+        recorder.record("bar");
+
+        // Even though we call record twice, we should only attempt to write once because
+        // we should ignore future attempts to write after an error.
+        Mockito.verify(os, Mockito.times(1)).write(Mockito.any());
     }
 }

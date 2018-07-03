@@ -113,6 +113,8 @@ topology-processor:
   # The interval hours that how long the new discovered entities can not be generated
   # resize down actions by Market.
   resizeDownWarmUpIntervalHours: 4
+  # Default timeout for async requests to topology processor.
+  asyncRestRequestTimeoutSeconds: 300
   # Whether or not to periodically collect changes for random entities during stitching
   # in the stitching journal. Use the journal-related parameters below to tune
   # how much information is collected.

@@ -1,10 +1,15 @@
 package com.vmturbo.topology.processor.rest;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.Callable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import com.google.gson.Gson;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -13,6 +18,10 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.ResourceHttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.context.request.async.CallableProcessingInterceptor;
+import org.springframework.web.context.request.async.TimeoutCallableProcessingInterceptor;
+import org.springframework.web.servlet.config.annotation.AsyncSupportConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -69,6 +78,15 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
 
     @Autowired
     private TopologyProcessorDiagnosticsConfig diagnosticsConfig;
+
+    /**
+     * Maximum amount of time to wait for async REST requests. This comes into use when requesting the stitching
+     * journal for very large topologies. This can take a good deal of time for very large topologies.
+     */
+    @Value("${asyncRestRequestTimeoutSeconds:300}")
+    private long asyncRestRequestTimeoutSeconds;
+
+    private static final Logger logger = LogManager.getLogger();
 
     @Bean
     public TopologyController topologyController() {
@@ -136,5 +154,22 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
         converters.add(new ByteArrayHttpMessageConverter());
         converters.add(new StringHttpMessageConverter());
         converters.add(new ResourceHttpMessageConverter());
+    }
+
+    @Override
+    public void configureAsyncSupport (AsyncSupportConfigurer configurer) {
+        configurer.setDefaultTimeout(Duration.ofSeconds(asyncRestRequestTimeoutSeconds).toMillis());
+        super.configureAsyncSupport(configurer);
+    }
+
+    @Bean
+    public CallableProcessingInterceptor callableProcessingInterceptor() {
+        return new TimeoutCallableProcessingInterceptor() {
+            @Override
+            public <T> Object handleTimeout(NativeWebRequest request, Callable<T> task) throws Exception {
+                logger.error("Async request to timed out.");
+                return super.handleTimeout(request, task);
+            }
+        };
     }
 }
