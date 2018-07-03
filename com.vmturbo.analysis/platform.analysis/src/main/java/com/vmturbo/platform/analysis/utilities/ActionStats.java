@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -68,17 +69,19 @@ public class ActionStats {
     }
 
 
-    private @NonNull ArrayList<@NonNull Action> actions_;
+    private @NonNull List<@NonNull Action> actions_;
     private int size_;
     private Instant begin_;
     private Instant lastPhaseEnd_;
     private boolean closed_;
+    private final long analysisId;
 
-    public ActionStats(ArrayList<@NonNull Action> actions) {
+    public ActionStats(List<@NonNull Action> actions, final long analysisId) {
         actions_ = actions;
         size_ = actions.size();
         begin_ = Instant.now();
         lastPhaseEnd_ = begin_;
+        this.analysisId = analysisId;
     }
 
     /**
@@ -86,7 +89,7 @@ public class ActionStats {
      *
      * @param actions New actions array list
      */
-    public void setActionsList(ArrayList<@NonNull Action> actions) {
+    public void setActionsList(List<@NonNull Action> actions) {
         actions_ = actions;
         size_ = actions.size();
     }
@@ -109,8 +112,8 @@ public class ActionStats {
         long took = end.getEpochSecond() - lastPhaseEnd_.getEpochSecond();
         lastPhaseEnd_ = end;
         StringBuilder sb = new StringBuilder();
-        sb.append("Analysis completed ").append(phase).append(" in ")
-                                        .append(took).append(" sec");
+        sb.append("Analysis completed ").append(analysisId).append(" ").append(phase).append(" in ")
+            .append(took).append(" sec");
         if (isThereData(data)) {
             sb.append(" with");
             body(sb, data, phase);
@@ -132,7 +135,7 @@ public class ActionStats {
         count(0, data);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Analysis completed in ").append(took).append(" sec");
+        sb.append("Analysis completed ").append(analysisId).append(" in ").append(took).append(" sec");
         if (isThereData(data)) {
             sb.append(" with");
             body(sb, data, PHASE_FINAL);
