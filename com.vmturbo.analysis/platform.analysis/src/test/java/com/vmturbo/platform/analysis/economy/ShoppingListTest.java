@@ -103,6 +103,20 @@ public class ShoppingListTest {
     }
 
     @Test
+    public final void testGetDebugInfoNeverUseInCode() {
+        fixture_.getBuyer().setDebugInfoNeverUseInCode("foo");
+
+        assertEquals("SL_foo|" + fixture_.getShoppingListId(), fixture_.getDebugInfoNeverUseInCode());
+    }
+
+    @Test
+    public final void testToString() {
+        fixture_.getBuyer().setDebugInfoNeverUseInCode("foo");
+
+        assertEquals("SL_foo|" + fixture_.getShoppingListId(), fixture_.toString());
+    }
+
+    @Test
     @Parameters
     @TestCaseName("Test #{index}: (set|get)Quantity({0},{1})")
     public final void testSetGetQuantity_NormalInput(int index, double quantity) {

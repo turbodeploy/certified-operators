@@ -167,7 +167,14 @@ public final class ShoppingList implements Serializable {
         return moveCost_;
     }
 
-
+    /**
+     * Returns debug information about this {@link ShoppingList}.
+     * Use only for debugging and logging purposes, never for business logic.
+     */
+    @Pure
+    public String getDebugInfoNeverUseInCode(@ReadOnly ShoppingList this) {
+        return "SL_" + buyer_.getDebugInfoNeverUseInCode() + "|" + shoppingListId;
+    }
 
     /**
      * Sets the value of the <b>supplier</b> field.
@@ -323,5 +330,10 @@ public final class ShoppingList implements Serializable {
      */
     public void setShoppingListId(UUID shoppingListId) {
         this.shoppingListId = shoppingListId;
+    }
+
+    @Override
+    public String toString() {
+        return getDebugInfoNeverUseInCode();
     }
 } // end ShoppingList class

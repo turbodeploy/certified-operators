@@ -166,10 +166,10 @@ public final class QuoteMinimizer {
     private void logMessagesForAccept(Trader seller, double[] quote) {
         if (logger.isTraceEnabled() || seller.isDebugEnabled()
                         || shoppingList_.getBuyer().isDebugEnabled()) {
-            logger.debug("topology id = {}, buyer = {}, oldBestQuote = {}, oldBestSeller = {}, "
+            logger.debug("topology id = {}, shoppingList = {}, oldBestQuote = {}, oldBestSeller = {}, "
                             + "newBestQuote = {}, newBestSeller = {}"
-                            , M2Utils.getTopologyId(economy_), shoppingList_.getBuyer()
-                            , bestQuote_, bestSeller_, quote[0], seller);
+                            , M2Utils.getTopologyId(economy_), shoppingList_,
+                            bestQuote_, bestSeller_, quote[0], seller);
         }
     }
 } // end QuoteMinimizer class
