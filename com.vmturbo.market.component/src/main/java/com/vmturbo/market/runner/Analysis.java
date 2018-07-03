@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
@@ -125,6 +126,8 @@ public class Analysis {
 
     private final float rightsizeUpperWatermark;
 
+    private final float quoteFactor;
+
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
@@ -144,6 +147,8 @@ public class Analysis {
      *                                it, Market could generate resize down actions.
      * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
      *                                it, Market could generate resize up actions.
+     * @param quoteFactor to be used by move recommendations. Move actions are only generated
+     *                                if best-quote < quote-factor * current-quote.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
@@ -152,7 +157,8 @@ public class Analysis {
                     @Nonnull final Optional<Integer> maxPlacementsOverride,
                     @Nonnull final Clock clock,
                     final float rightsizeLowerWatermark,
-                    final float rightsizeUpperWatermark) {
+                    final float rightsizeUpperWatermark,
+                    final float quoteFactor) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs;
         this.includeVDC = includeVDC;
@@ -166,6 +172,7 @@ public class Analysis {
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
         this.rightsizeLowerWatermark = rightsizeLowerWatermark;
         this.rightsizeUpperWatermark = rightsizeUpperWatermark;
+        this.quoteFactor = quoteFactor;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -196,7 +203,7 @@ public class Analysis {
         logger.info("{} Started", logPrefix);
         try {
             final TopologyConverter converter =
-                new TopologyConverter(topologyInfo, includeVDC);
+                new TopologyConverter(topologyInfo, includeVDC, quoteFactor);
 
             final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
             Set<TraderTO> traderTOs = converter.convertToMarket(topologyDTOs);
@@ -708,6 +715,8 @@ public class Analysis {
         // The maximum utilization threshold, if entity's utilization is above threshold,
         // Market could generate resize up action.
         private float rightsizeUpperWatermark;
+        // quoteFactor to be used by move recommendations.
+        private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
 
         /**
          * Capture the {@link TopologyInfo} describing this Analysis, including the IDs, type,
@@ -801,13 +810,24 @@ public class Analysis {
         }
 
         /**
+         * Set the quote factor for this round of analysis.
+         *
+         * @param quoteFactor The quote factor to be used in market analysis.
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setQuoteFactor(final float quoteFactor) {
+            this.quoteFactor = quoteFactor;
+            return this;
+        }
+
+        /**
          * Request a new Analysis object be built using the values specified.
          *
          * @return the newly build Analysis object initialized from the Builder fields.
          */
         public Analysis build() {
             return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsServiceClient,
-                maxPlacementsOverride, clock, rightsizeLowerWatermark, rightsizeUpperWatermark);
+                maxPlacementsOverride, clock, rightsizeLowerWatermark, rightsizeUpperWatermark, quoteFactor);
         }
     }
 

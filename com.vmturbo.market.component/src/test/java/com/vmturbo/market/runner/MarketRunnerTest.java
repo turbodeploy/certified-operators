@@ -84,7 +84,7 @@ public class MarketRunnerTest {
         AnalysisFactory analysisFactory = new AnalysisFactory();
         settingServiceClient =
             SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        runner = new MarketRunner(threadPool, serverApi, analysisFactory);
+        runner = new MarketRunner(threadPool, serverApi, analysisFactory, 0.75f);
 
         topologyContextId += 100;
     }

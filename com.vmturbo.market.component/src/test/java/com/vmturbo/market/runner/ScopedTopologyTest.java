@@ -62,7 +62,7 @@ public class ScopedTopologyTest {
     private static final TopologyInfo PLAN_TOPOLOGY_INFO = TopologyInfo.newBuilder()
             .setTopologyType(TopologyType.PLAN)
             .setPlanInfo(PlanTopologyInfo.newBuilder()
-                    .setPlanType(PlanProjectType.USER))
+                    .setPlanProjectType(PlanProjectType.USER))
             .build();
 
     public static final boolean INCLUDE_VDC = false;
@@ -220,7 +220,7 @@ public class ScopedTopologyTest {
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
         Analysis.AnalysisFactory analysisFactory = new Analysis.AnalysisFactory();
         MarketRunner runner =
-            new MarketRunner(threadPool, serverApi, analysisFactory);
+            new MarketRunner(threadPool, serverApi, analysisFactory, 0.75f);
 
         long topologyContextId = 1000;
         long topologyId = 2000;

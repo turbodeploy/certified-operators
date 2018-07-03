@@ -128,7 +128,7 @@ public class TopologyConverterGuaranteedTest {
     @Test
     public void testIncludeVDCs() throws InvalidTopologyException {
         TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
         Set<TraderTO> traders = converter.convertToMarket(entities);
         assertEquals(4, traders.size());
         List<Long> guaranteedBuyers = traders.stream()

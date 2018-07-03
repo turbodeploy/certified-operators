@@ -62,13 +62,16 @@ public class AnalysisRpcServiceTest {
 
     private final long clockTime = 7L;
 
+    private final String testPlanType = "TEST_PLAN";
+
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
         .setTopologyContextId(planId)
         .setTopologyId(topologyId)
         .setCreationTime(clockTime)
         .setTopologyType(TopologyType.PLAN)
         .setPlanInfo(PlanTopologyInfo.newBuilder()
-            .setPlanType(PlanProjectType.USER))
+            .setPlanProjectType(PlanProjectType.USER)
+            .setPlanType(testPlanType))
         .build();
 
     private TopologyBroadcastInfo broadcastInfo = mock(TopologyBroadcastInfo.class);
@@ -104,6 +107,8 @@ public class AnalysisRpcServiceTest {
                     .setPlanId(planId)
                     // Set the topology ID to request a specific topology.
                     .setTopologyId(topologyId)
+                    .setPlanProjectType(PlanProjectType.USER)
+                    .setPlanType(testPlanType)
                     .build(), responseObserver);
 
         final ArgumentCaptor<StartAnalysisResponse> responseCaptor =
@@ -138,6 +143,8 @@ public class AnalysisRpcServiceTest {
 
         analysisService.startAnalysis(StartAnalysisRequest.newBuilder()
                 .setPlanId(planId)
+                .setPlanProjectType(PlanProjectType.USER)
+                .setPlanType(testPlanType)
                 // Don't set topology ID.
                 .build(), responseObserver);
 

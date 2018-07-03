@@ -17,6 +17,8 @@ import com.google.common.collect.Maps;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
@@ -34,6 +36,7 @@ public class MarketRunner {
     private final ExecutorService runnerThreadPool;
     private final MarketNotificationSender serverApi;
     private final AnalysisFactory analysisFactory;
+    private float alleviatePressureQuoteFactor;
 
     private final Map<Long, Analysis> analysisMap = Maps.newConcurrentMap();
 
@@ -47,10 +50,12 @@ public class MarketRunner {
     public MarketRunner(
             @Nonnull final ExecutorService runnerThreadPool,
             @Nonnull final MarketNotificationSender serverApi,
-            @Nonnull final AnalysisFactory analysisFactory) {
+            @Nonnull final AnalysisFactory analysisFactory,
+            float alleviatePressureQuoteFactor) {
         this.runnerThreadPool = runnerThreadPool;
         this.serverApi = serverApi;
         this.analysisFactory = analysisFactory;
+        this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
     }
 
     /**
@@ -100,6 +105,7 @@ public class MarketRunner {
                     .setMaxPlacementsOverride(maxPlacementsOverride)
                     .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                     .setRightsizeUpperWatermark(rightsizeUpperWatermark)
+                    .setQuoteFactor(getQuoteFactor(topologyInfo))
                     .build();
             analysisMap.put(topologyContextId, analysis);
         }
@@ -154,5 +160,14 @@ public class MarketRunner {
      */
     public  Collection<Analysis> getRuns() {
         return analysisMap.values();
+    }
+
+    private float getQuoteFactor(TopologyInfo topologyInfo) {
+        if (topologyInfo.hasPlanInfo()) {
+            if (topologyInfo.getPlanInfo().getPlanType().equals("ALLEVIATE_PRESSURE")) {
+                return alleviatePressureQuoteFactor;
+            }
+        }
+        return AnalysisUtil.QUOTE_FACTOR;
     }
 }

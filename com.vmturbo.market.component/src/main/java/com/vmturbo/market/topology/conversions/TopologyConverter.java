@@ -23,7 +23,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -151,6 +150,9 @@ public class TopologyConverter {
 
     private final TopologyInfo topologyInfo;
 
+    private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
+    private boolean isAlleviatePressurePlan = false;
+
     public static final float CAPACITY_FACTOR = 0.999999f;
 
     public static final float MIN_DESIRED_UTILIZATION_VALUE = 0.0f;
@@ -172,11 +174,15 @@ public class TopologyConverter {
      *
      * @param topologyInfo Information about the topology.
      * @param includeGuaranteedBuyer whether to include guaranteed buyers (VDC, VPod, DPod) or not
+     * @param quoteFactor to be used by move recommendations.
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo,
-                             final boolean includeGuaranteedBuyer) {
+                             final boolean includeGuaranteedBuyer,
+                             final float quoteFactor) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
+        this.quoteFactor  = quoteFactor;
+        isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
     }
 
     private boolean isPlan() {
@@ -517,7 +523,8 @@ public class TopologyConverter {
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         EconomyDTOs.TraderTO traderDTO = null;
         try {
-            final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
+            final boolean shopTogether = isAlleviatePressurePlan ? true
+                            : topologyDTO.getAnalysisSettings().getShopTogether();
             final EconomyDTOs.TraderStateTO state = traderState(topologyDTO);
             final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
             final boolean bottomOfSupplyChain = topologyDTO.getCommoditiesBoughtFromProvidersList().isEmpty();
@@ -561,7 +568,7 @@ public class TopologyConverter {
                             topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
-                    .setQuoteFactor(AnalysisUtil.QUOTE_FACTOR)
+                    .setQuoteFactor(quoteFactor)
                     .build();
 
             //compute biclique IDs for this entity, the clique list will be used only for

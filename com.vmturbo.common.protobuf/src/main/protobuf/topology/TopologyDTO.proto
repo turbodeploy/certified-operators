@@ -263,7 +263,10 @@ message TopologyInfo {
 // Information specific to a topology generated for the purpose of a plan.
 message PlanTopologyInfo {
     // The type of the plan project that initiated the topology broadcast.
-    optional plan.PlanProjectType plan_type = 1 [default = USER];
+    optional plan.PlanProjectType plan_project_type = 1 [default = USER];
+
+    // The type of the plan initiated.
+    optional string plan_type = 2;
 }
 
 enum EntityState {

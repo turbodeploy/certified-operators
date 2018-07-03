@@ -86,7 +86,7 @@ public class InterpretActionTest {
     @Test
     public void testCommodityIdsAreInvertible() {
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
         final CommodityType segmentationFoo = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
@@ -122,7 +122,7 @@ public class InterpretActionTest {
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(modelSeller, modelType);
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
         final ActionTO executableActionTO = ActionTO.newBuilder()
                 .setImportance(0.)
@@ -158,7 +158,7 @@ public class InterpretActionTest {
                             entityDTO.getOid(), entityDTO.getEntityType());
 
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
         Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(entityDTO));
         final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
@@ -215,7 +215,7 @@ public class InterpretActionTest {
                 reconfigureSourceId, reconfigureSourceType,
                 topologyDTO.getOid(), topologyDTO.getEntityType());
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
         Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(topologyDTO));
         final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
@@ -242,7 +242,7 @@ public class InterpretActionTest {
             ImmutableMap.of(
                 topologyDTO.getOid(), topologyDTO.getEntityType());
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
         Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(topologyDTO));
         final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
@@ -267,7 +267,7 @@ public class InterpretActionTest {
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(modelSeller, modelType);
         final TopologyConverter converter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
         ActionInfo actionInfo = converter.interpretAction(
                 ActionTO.newBuilder()
@@ -290,7 +290,7 @@ public class InterpretActionTest {
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(entityToResize, entityType);
         final TopologyConverter converter = Mockito.spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true));
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity1));
 
@@ -322,7 +322,7 @@ public class InterpretActionTest {
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(entityToActivate, entityType);
         final TopologyConverter converter = Mockito.spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true));
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f));
         // Insert the commodity type into the converter's mapping
         final CommodityType expectedCommodityType = CommodityType.newBuilder()
             .setType(12)
@@ -370,7 +370,7 @@ public class InterpretActionTest {
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(entityToDeactivate, entityType);
         final TopologyConverter converter = Mockito.spy(
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true));
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f));
         Mockito.doReturn(Optional.of(topologyCommodity1))
                 .when(converter).economyToTopologyCommodity(Mockito.eq(economyCommodity1));
         Mockito.doReturn(Optional.of(topologyCommodity2))

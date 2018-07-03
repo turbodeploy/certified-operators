@@ -72,7 +72,8 @@ public class AnalysisRpcService extends AnalysisServiceImplBase {
                 .setCreationTime(clock.millis())
                 .setTopologyType(TopologyType.PLAN)
                 .setPlanInfo(PlanTopologyInfo.newBuilder()
-                        .setPlanType(request.getPlanType()))
+                    .setPlanProjectType(request.getPlanProjectType())
+                    .setPlanType(request.getPlanType()))
                 .build();
 
         try {

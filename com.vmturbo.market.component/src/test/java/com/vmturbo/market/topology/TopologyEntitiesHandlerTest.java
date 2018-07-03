@@ -148,7 +148,7 @@ public class TopologyEntitiesHandlerTest {
 
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
         TopologyConverter topoConverter =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true);
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
         Set<TraderTO> traderDTOs = topoConverter.convertToMarket(
             topoDTOs.stream().map(TopologyEntityDTO.Builder::build).collect(Collectors.toList()));
@@ -340,7 +340,7 @@ public class TopologyEntitiesHandlerTest {
             .map(TopologyEntityDTO.Builder::build)
             .collect(Collectors.toList());
         Set<TraderTO> economyDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true)
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f)
                         .convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
                 .setTopologyContextId(7L)

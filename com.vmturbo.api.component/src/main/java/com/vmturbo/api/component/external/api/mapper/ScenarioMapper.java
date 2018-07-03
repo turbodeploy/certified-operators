@@ -35,7 +35,6 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntit
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
-import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -44,6 +43,7 @@ import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
+import com.vmturbo.api.dto.scenario.RelievePressureObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
@@ -53,13 +53,16 @@ import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
-import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -74,9 +77,9 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.repository.api.Repository;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
  * Maps scenarios between their API DTO representation and their protobuf representation.
@@ -102,6 +105,11 @@ public class ScenarioMapper {
      * in a plan.
      */
     private static final BaseApiDTO MARKET_PLAN_SCOPE;
+
+    /**
+     * Name of alleviate pressure plan type.
+     */
+    private static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -149,15 +157,20 @@ public class ScenarioMapper {
      * @param name The name of the scenario.
      * @param dto The DTO to be converted.
      * @return The ScenarioInfo equivalent of the input DTO.
+     * @throws InvalidOperationException e.g in case if alleviate pressure plan, if we don't get
+     *         cluster information.
      */
     @Nonnull
     public ScenarioInfo toScenarioInfo(final String name,
-                                       @Nonnull final ScenarioApiDTO dto) {
+                                       @Nonnull final ScenarioApiDTO dto) throws InvalidOperationException {
         final ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
         if (name != null) {
             infoBuilder.setName(name);
         }
-
+        if (dto.getType() != null) {
+            infoBuilder.setType(dto.getType());
+            infoBuilder.addAllChanges(addChangesRelevantToPlanType(dto));
+        }
         // TODO: Right now, API send template id and entity id together for Topology Addition, and it
         // doesn't have a field to tell whether it is template id or entity id. Later on,
         // API should tell us if it is template id or not, please see (OM-26675).
@@ -171,11 +184,71 @@ public class ScenarioMapper {
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
 
-        if (dto.getType() != null) {
-            infoBuilder.setType(dto.getType());
+        return infoBuilder.build();
+    }
+
+    /*
+     * Provides changes relevant for given plan type.
+     */
+    private Iterable<ScenarioChange> addChangesRelevantToPlanType(ScenarioApiDTO dto) throws InvalidOperationException {
+        List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
+        switch (dto.getType()) {
+            case ALLEVIATE_PRESSURE_PLAN_TYPE:
+                // 1) Set Merge Policy for given clusters.
+                changes.add(getMergePolicyForSourceAndDestinationClusters(dto));
+                // 2) Disable provision, suspend and resize.
+                changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Provision));
+                changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Suspend));
+                changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Resize));
+                break;
+            default:
+                break;
+        }
+        return changes;
+    }
+
+    /*
+     * Provides globally disabled setting for given entity specification.
+     */
+    private ScenarioChange getChangeWithGlobalSettingsDisabled(EntitySettingSpecs spec) {
+        return ScenarioChange.newBuilder()
+            .setSettingOverride(SettingOverride.newBuilder()
+                .setSetting(Setting.newBuilder()
+                    .setSettingSpecName(spec.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder()
+                        .setValue("DISABLED"))))
+            .build();
+    }
+
+    /*
+     * Create merge policy out of cluster ids in relieve pressure list.
+     */
+    private ScenarioChange getMergePolicyForSourceAndDestinationClusters(ScenarioApiDTO dto) throws InvalidOperationException {
+        MergePolicy.Builder mergePolicyBuilder = MergePolicy.newBuilder()
+            .setMergeType(MergeType.CLUSTER);
+        List<RelievePressureObjectApiDTO> relivePressureList = dto.getTopologyChanges().getRelievePressureList();
+
+        if (relivePressureList == null || relivePressureList.isEmpty()) {
+            throw new InvalidOperationException("Cluster list is empty for alleviate pressure plan.");
         }
 
-        return infoBuilder.build();
+        relivePressureList.forEach(element -> {
+            mergePolicyBuilder.addAllMergeGroupIds(element.getSources().stream()
+                .map(obj -> Long.valueOf(obj.getUuid()))
+                .collect(Collectors.toList()));
+            mergePolicyBuilder.addAllMergeGroupIds(element.getDestinations().stream()
+                .map(obj -> Long.valueOf(obj.getUuid()))
+                .collect(Collectors.toList()));
+        });
+
+        ScenarioChange change = ScenarioChange.newBuilder()
+            .setPlanChanges(PlanChanges.newBuilder()
+                .setPolicyChange(PolicyChange.newBuilder()
+                    .setPlanOnlyPolicy(Policy.newBuilder()
+                        .setPolicyInfo(PolicyInfo.newBuilder()
+                            .setMerge(mergePolicyBuilder)))))
+            .build();
+        return change;
     }
 
     @Nonnull
@@ -196,8 +269,8 @@ public class ScenarioMapper {
         final UtilizationLevel utilizationLevel =
                 UtilizationLevel.newBuilder().setPercentage(percentage).build();
         final ScenarioChange change = ScenarioChange.newBuilder()
-                .setPlanChanges(
-                        PlanChanges.newBuilder().setUtilizationLevel(utilizationLevel).build())
+                .setPlanChanges(PlanChanges.newBuilder()
+                    .setUtilizationLevel(utilizationLevel))
                 .build();
         return Collections.singletonList(change);
     }
@@ -427,7 +500,6 @@ public class ScenarioMapper {
             logger.warn("Skipping {} migration changes.",
                     topoChanges.getMigrateList().size());
         }
-
         return changes.build();
     }
 

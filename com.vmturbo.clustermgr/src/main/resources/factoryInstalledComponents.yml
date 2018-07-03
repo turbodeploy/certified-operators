@@ -53,6 +53,8 @@ market:
   rightsizeLowerWatermark: 0.7
   # If entity utilization is above the upper watermark, Market could generate resize up actions.
   rightsizeUpperWatermark: 0.7
+  # Quote Factor to be used by alleviate pressure plans.
+  alleviatePressureQuoteFactor: 0.2
 
 topology-processor:
   <<: *baseVmtComponentSettings

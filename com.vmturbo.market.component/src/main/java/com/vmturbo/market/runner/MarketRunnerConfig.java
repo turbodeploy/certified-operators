@@ -5,6 +5,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -32,6 +33,9 @@ public class MarketRunnerConfig {
     @Autowired
     private GroupClientConfig groupClientConfig;
 
+    @Value("${alleviatePressureQuoteFactor}")
+    private float alleviatePressureQuoteFactor;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -44,7 +48,8 @@ public class MarketRunnerConfig {
         return new MarketRunner(
                 marketRunnerThreadPool(),
                 apiConfig.marketApi(),
-                analysisFactory());
+                analysisFactory(),
+                alleviatePressureQuoteFactor);
     }
 
     @Bean

@@ -69,7 +69,7 @@ public class EntitySettingsApplicatorTest {
 
     private final TopologyInfo CLUSTER_HEADROOM_TOPOLOGY_INFO = TopologyInfo.newBuilder()
             .setPlanInfo(PlanTopologyInfo.newBuilder()
-                    .setPlanType(PlanProjectType.CLUSTER_HEADROOM))
+                    .setPlanProjectType(PlanProjectType.CLUSTER_HEADROOM))
             .setTopologyType(TopologyType.PLAN)
             .build();
 

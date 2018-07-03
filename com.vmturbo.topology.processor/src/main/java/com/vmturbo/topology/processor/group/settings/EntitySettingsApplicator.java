@@ -357,7 +357,7 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
                 @Nonnull final Map<EntitySettingSpecs, Setting> settings) {
-            if (topologyInfo.getPlanInfo().getPlanType() == PlanProjectType.CLUSTER_HEADROOM) {
+            if (topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.CLUSTER_HEADROOM) {
                 // For cluster headroom calculation, we ignore the normal settings that affect
                 // effective capacity.
                 final Setting targetBand = settings.get(EntitySettingSpecs.TargetBand);
@@ -388,7 +388,7 @@ public class EntitySettingsApplicator {
                                                    @Nonnull final CommodityType commodityType,
                                                    final float maxDesiredUtilization) {
             // We only want to do this for cluster headroom calculations.
-            Preconditions.checkArgument(topologyInfo.getPlanInfo().getPlanType() ==
+            Preconditions.checkArgument(topologyInfo.getPlanInfo().getPlanProjectType() ==
                     PlanProjectType.CLUSTER_HEADROOM);
             for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
                 // We want to factor the max desired utilization into the effective capacity

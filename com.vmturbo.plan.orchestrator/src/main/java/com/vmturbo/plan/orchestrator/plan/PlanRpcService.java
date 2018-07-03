@@ -170,8 +170,11 @@ public class PlanRpcService extends PlanServiceImplBase {
             if (scenarioInfo.hasScope()) {
                 builder.setPlanScope(scenarioInfo.getScope());
             }
+            if (scenarioInfo.hasType()) {
+                builder.setPlanType(scenarioInfo.getType());
+            }
         }
-        builder.setPlanType(planInstance.getProjectType());
+        builder.setPlanProjectType(planInstance.getProjectType());
         startAnalysis(builder.build());
 
         responseObserver.onNext(planInstance);

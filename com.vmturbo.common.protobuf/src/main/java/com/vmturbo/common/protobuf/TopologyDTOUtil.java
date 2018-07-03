@@ -15,6 +15,11 @@ public final class TopologyDTOUtil {
 
     private static final Logger LOGGER = LogManager.getLogger();
 
+    /**
+     * Name of alleviate pressure plan type.
+     */
+    private static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
+
     private TopologyDTOUtil() {
     }
 
@@ -52,6 +57,16 @@ public final class TopologyDTOUtil {
      */
     public static boolean isPlanType(@Nonnull final PlanProjectType type,
                                      @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
-        return isPlan(topologyInfo) && topologyInfo.getPlanInfo().getPlanType() == type;
+        return isPlan(topologyInfo) && topologyInfo.getPlanInfo().getPlanProjectType() == type;
+    }
+
+    /**
+     * Determine whether or not the topology described by a {@link TopologyDTO.TopologyInfo}
+     * is generated for alleviate pressure plan.
+     * @param topologyInfo A type of plan project.
+     * @return true if plan is of type alleviate pressure.
+     */
+    public static boolean isAlleviatePressurePlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+       return isPlan(topologyInfo) && topologyInfo.getPlanInfo().getPlanType().equals(ALLEVIATE_PRESSURE_PLAN_TYPE);
     }
 }

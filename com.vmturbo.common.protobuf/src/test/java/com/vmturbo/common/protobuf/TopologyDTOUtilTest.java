@@ -63,7 +63,7 @@ public class TopologyDTOUtilTest {
                 PlanProjectType.CLUSTER_HEADROOM,
                 TopologyInfo.newBuilder()
                     .setPlanInfo(PlanTopologyInfo.newBuilder()
-                        .setPlanType(PlanProjectType.CLUSTER_HEADROOM))
+                        .setPlanProjectType(PlanProjectType.CLUSTER_HEADROOM))
                     .build()));
     }
 
@@ -73,7 +73,7 @@ public class TopologyDTOUtilTest {
                 PlanProjectType.USER,
                 TopologyInfo.newBuilder()
                         .setPlanInfo(PlanTopologyInfo.newBuilder()
-                                .setPlanType(PlanProjectType.CLUSTER_HEADROOM))
+                                .setPlanProjectType(PlanProjectType.CLUSTER_HEADROOM))
                         .build()));
     }
 

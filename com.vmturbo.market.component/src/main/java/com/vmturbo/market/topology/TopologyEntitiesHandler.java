@@ -160,7 +160,7 @@ public class TopologyEntitiesHandler {
         if (!economy.getTradersForHeadroom().isEmpty()) {
             // Sanity check that the conditions we expect are correct.
             if (isRealtime ||
-                    topologyInfo.getPlanInfo().getPlanType() != PlanProjectType.CLUSTER_HEADROOM) {
+                    topologyInfo.getPlanInfo().getPlanProjectType() != PlanProjectType.CLUSTER_HEADROOM) {
                 throw new IllegalStateException("Attempting to generate headroom actions for a " +
                         "non-headroom analysis request! Topology info: " + topologyInfo);
             }

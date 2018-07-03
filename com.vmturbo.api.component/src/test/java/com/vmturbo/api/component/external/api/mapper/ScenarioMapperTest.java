@@ -54,6 +54,7 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -129,7 +130,7 @@ public class ScenarioMapperTest {
         dto.setCount(6);
         topoChanges.setAddList(Collections.singletonList(dto));
 
-        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+        ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, info.getChanges(0).getDetailsCase());
@@ -157,7 +158,7 @@ public class ScenarioMapperTest {
         when(templatesUtils.getTemplatesByIds(eq(Sets.newHashSet(1L))))
             .thenReturn(Sets.newHashSet(template));
 
-        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+        ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
 
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
@@ -178,7 +179,7 @@ public class ScenarioMapperTest {
         dto.setTarget(entity(1));
         topoChanges.setRemoveList(Collections.singletonList(dto));
 
-        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+        ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
         assertEquals(DetailsCase.TOPOLOGY_REMOVAL, info.getChanges(0).getDetailsCase());
@@ -193,7 +194,7 @@ public class ScenarioMapperTest {
         ScenarioApiDTO scenarioDto = new ScenarioApiDTO();
         scenarioDto.setScope(Collections.singletonList(entity(1)));
 
-        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioDto);
+        ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioDto);
         assertEquals(0, info.getChangesCount());
     }
 
@@ -206,7 +207,7 @@ public class ScenarioMapperTest {
         dto.setTemplate(template(2));
         topoChanges.setReplaceList(Collections.singletonList(dto));
 
-        ScenarioInfo info = scenarioMapper.toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+        ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(SCENARIO_NAME, info.getName());
         assertEquals(1, info.getChangesCount());
 
@@ -232,8 +233,7 @@ public class ScenarioMapperTest {
         topoChanges.setAddList(Collections.singletonList(addDto));
         topoChanges.setRemoveList(Collections.singletonList(removeDto));
 
-        ScenarioInfo info = scenarioMapper
-            .toScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
+        ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
         assertEquals(2, info.getChangesCount());
 
         assertEquals(DetailsCase.TOPOLOGY_ADDITION, info.getChanges(0).getDetailsCase());
@@ -368,7 +368,7 @@ public class ScenarioMapperTest {
     public void testToScenarioInfoWithoutConfigChanges() {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setConfigChanges(null);
-        final ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo("name", dto);
+        final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
         Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
     }
 
@@ -377,7 +377,7 @@ public class ScenarioMapperTest {
      */
     @Test
     public void testToScenarioInfoWithEmptyConfigChanges() {
-        final ScenarioInfo scenarioInfo = getScenarioInfo(null, null);
+        final ScenarioInfo scenarioInfo = getScenarioInfo((List<SettingApiDTO>)null, null);
         Assert.assertTrue(scenarioInfo.getChangesList().stream().noneMatch(ScenarioChange::hasSettingOverride));
     }
 
@@ -420,7 +420,17 @@ public class ScenarioMapperTest {
         configChanges.setAutomationSettingList(automationSettings);
         dto.setConfigChanges(configChanges);
         dto.setLoadChanges(loadChangesApiDTO);
-        return scenarioMapper.toScenarioInfo("name", dto);
+        return getScenarioInfo("name", dto);
+    }
+
+    private ScenarioInfo getScenarioInfo(String scenarioName, ScenarioApiDTO dto) {
+        ScenarioInfo scenarioInfo = null;
+        try {
+            scenarioInfo = scenarioMapper.toScenarioInfo(scenarioName, dto);
+        } catch (InvalidOperationException e) {
+            assertEquals("Could not create scenario info.", true, false);
+        }
+        return scenarioInfo;
     }
 
     @Test
@@ -574,7 +584,7 @@ public class ScenarioMapperTest {
         );
         configChanges.setRemoveConstraintList(removeConstraints);
         dto.setConfigChanges(configChanges);
-        final ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo("name", dto);
+        final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
         final ScenarioChange scenarioChange = scenarioInfo.getChangesList().get(0);
         Assert.assertTrue(scenarioChange.hasPlanChanges());
         final IgnoreConstraint ignoreClusterCommodity =
@@ -608,7 +618,7 @@ public class ScenarioMapperTest {
         topologyChanges.setAddList(ImmutableList.of(addObject));
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setTopologyChanges(topologyChanges);
-        final ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo("", dto);
+        final ScenarioInfo scenarioInfo = getScenarioInfo("", dto);
 
         Assert.assertEquals(1, scenarioInfo.getChangesList().size());
         final ScenarioChange firstAddtion = scenarioInfo.getChanges(0);
@@ -685,5 +695,4 @@ public class ScenarioMapperTest {
         template.setUuid(Long.toString(templateId));
         return template;
     }
-
 }

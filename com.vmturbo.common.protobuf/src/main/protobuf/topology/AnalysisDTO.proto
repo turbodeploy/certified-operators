@@ -15,7 +15,7 @@ message StartAnalysisRequest {
     // At the time of this writing (Nov 28 2017), not all plans are formally associated
     // with a plan project. In the future, every plan will be part of some
     // plan project.
-    optional plan.PlanProjectType plan_type = 5 [default = USER];
+    optional plan.PlanProjectType plan_project_type = 5 [default = USER];
 
     // The ID of the topology to run the analysis on.
     // If not set, run the analysis on the real-time
@@ -30,6 +30,9 @@ message StartAnalysisRequest {
 
     // The scope of the plan, if one was specified.
     optional plan.PlanScope plan_scope = 4;
+
+    // The type of the plan initiated.
+    optional string plan_type = 6;
 }
 
 message StartAnalysisResponse {
