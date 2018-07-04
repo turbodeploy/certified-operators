@@ -660,8 +660,7 @@ public class CostFunctionFactory {
                         -> {
                             if (!validate) {
                                 // seller is the currentSupplier. Just return cost
-                                // TODO: return license based currentCost
-                                return costDTO.getCostWithoutLicense();
+                                return calculateComputeCost(seller, buyer, costDTO, costMap);
                             }
                             if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {
                                 return Double.POSITIVE_INFINITY;
