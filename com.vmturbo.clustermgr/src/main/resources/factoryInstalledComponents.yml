@@ -287,6 +287,10 @@ mediation-rhv:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
+mediation-openstack:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

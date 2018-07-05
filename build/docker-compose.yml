@@ -56,12 +56,12 @@ volumes:
   mediation-xtremio: *localdriver
   mediation-vplex: *localdriver
   mediation-rhv: *localdriver
+  mediation-openstack: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
   nginx-run: *localdriver
 #  mediation-aix: *localdriver
-#  mediation-openstack: *localdriver
 #  mediation-compellent: *localdriver
 
 services:
@@ -781,17 +781,19 @@ services:
       - mediation-rhv:/home/turbonomic/data
     mem_limit: ${MEDIATION_RHV_MEM_LIMIT_MB}M
 
-#  mediation-openstack:
-#    extends:
-#      file: common-services.yml
-#      service: dev-component
-#    image: turbonomic/com.vmturbo.mediation.openstack.component
-#    ports:
-#      - "${MEDIATION_OPENSTACK_DEBUG_PORT}"
-#    depends_on: *clustermgrdep
-#    environment:
-#      component_type: mediation-openstack
-#      instance_id: mediation-openstack-1
-#      JAVA_OPTS: "${DEV_JAVA_OPTS}"
-#    volumes:
-#      - mediation-openstack:/home/turbonomic/data
+  mediation-openstack:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.openstack.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_OPENSTACK_PORT}"
+      - "${MEDIATION_OPENSTACK_DEBUG_PORT}"
+    environment:
+      component_type: mediation-openstack
+      instance_id: mediation-openstack-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_OPENSTACK_XMX_MB}M ${MEDIATION_OPENSTACK_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-openstack:/home/turbonomic/data
+    mem_limit: ${MEDIATION_OPENSTACK_MEM_LIMIT_MB}M
