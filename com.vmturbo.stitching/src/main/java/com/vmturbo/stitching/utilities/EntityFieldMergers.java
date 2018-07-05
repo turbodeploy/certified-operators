@@ -5,8 +5,12 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.stitching.DTOFieldSpec;
 import com.vmturbo.stitching.StitchingEntity;
 
 /**
@@ -18,6 +22,8 @@ import com.vmturbo.stitching.StitchingEntity;
  * {@link com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy}.
  */
 public class EntityFieldMergers {
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * Get a field from an {@link EntityDTOOrBuilder}.
      * Example {@link EntityDTOOrBuilder#getDisplayName()}
@@ -186,6 +192,62 @@ public class EntityFieldMergers {
     }
 
     /**
+     * Return a {@link EntityFieldMerger}  that merges an entity property from the fromEntity onto the
+     * ontoEntity.  If the property is empty or doesn't exist, no merge is done.
+     *
+     * @param propertyName The name of the property to merge.
+     * @return An {@link EntityFieldMerger} that merges the named entityProperty
+     */
+    public static EntityFieldMerger<String> getPropertyFieldMerger(final String propertyName) {
+        return merge((entity) -> {
+                    return DTOFieldAndPropertyHandler.getPropertyFromEntity(entity, propertyName);
+                },
+                (entity, newValue) -> {
+                    DTOFieldAndPropertyHandler.setPropertyOfEntity(entity, propertyName, newValue);
+
+                })
+                .withMethod((fromProperty, ontoProperty) -> fromProperty.isEmpty() ? ontoProperty :
+                        fromProperty);
+    }
+
+    /**
+     * Return an EntityFieldMerger for based on the list of methods in
+     * {@link DTOFieldSpec}.
+     *
+     * @param attribute {@link DTOFieldSpec} encapsulating the getter and setter methods
+     *                  for the attribute.
+     * @return {@link EntityFieldMerger} representing the getter and setter methods to get and set
+     * the passed in attribute.
+     */
+    public static EntityFieldMerger<Object> getAttributeFieldMerger(
+            final DTOFieldSpec attribute) {
+        return EntityFieldMergers.merge(
+                (entityDTOOrBuilder) -> {
+                    try {
+                        return DTOFieldAndPropertyHandler.getValueFromFieldSpec(entityDTOOrBuilder,
+                                attribute);
+                    } catch (NoSuchFieldException e) {
+                        logger.error("Could not extract attribute " + attribute.getFieldName()
+                        + " from entity " + entityDTOOrBuilder.getDisplayName()
+                        + " Exception: " + e);
+                        return null;
+                    }
+                },
+                ((builder, newValue) -> {
+                    try {
+                        DTOFieldAndPropertyHandler.setValueToFieldSpec(builder,
+                                attribute, newValue);
+                    } catch (NoSuchFieldException e) {
+                        logger.error("Could not set value of attribute " + attribute.getFieldName()
+                                + " for entity " + builder.getDisplayName()
+                                + ".  New value to set was " + newValue
+                                + " Exception: " + e);
+                    }
+                })).withMethod((fromProperty, ontoProperty) -> fromProperty);
+
+    }
+
+    /**
      * Merge the display names for two entities, keeping the one that's lexicographically first.
      *
      * It's important to choose a consistent display name when merging entities because, for
@@ -203,4 +265,5 @@ public class EntityFieldMergers {
         merge(EntityDTOOrBuilder::getDisplayName, EntityDTO.Builder::setDisplayName)
         .withMethod((fromDisplayName, ontoDisplayName) ->
             fromDisplayName.compareTo(ontoDisplayName) < 0 ? fromDisplayName : ontoDisplayName);
+
 }

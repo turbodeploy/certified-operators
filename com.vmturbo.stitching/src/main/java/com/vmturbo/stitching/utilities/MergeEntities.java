@@ -58,11 +58,16 @@ public class MergeEntities {
         public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity) {
             return new MergeEntitiesDetails(mergeFromEntity, mergeOntoEntity);
         }
+
+        public MergeEntitiesDetails onto(@Nonnull final StitchingEntity mergeOntoEntity,
+                                         @Nonnull final MergeCommoditySoldStrategy strategy) {
+            return new MergeEntitiesDetails(mergeFromEntity, mergeOntoEntity, strategy);
+        }
     }
 
     /**
      * Details describing which entities should be merged along with instructions describing
-     * how th emerge should be performed.
+     * how the merge should be performed.
      */
     public static class MergeEntitiesDetails {
         private final StitchingEntity mergeFromEntity;
@@ -72,9 +77,15 @@ public class MergeEntities {
 
         private MergeEntitiesDetails(@Nonnull final StitchingEntity entityToBeReplaced,
                                      @Nonnull final StitchingEntity mergeOntoEntity) {
+            this(entityToBeReplaced, mergeOntoEntity, KEEP_DISTINCT_FAVOR_ONTO);
+        }
+
+        private MergeEntitiesDetails(@Nonnull final StitchingEntity entityToBeReplaced,
+                                     @Nonnull final StitchingEntity mergeOntoEntity,
+                                     @Nonnull final MergeCommoditySoldStrategy mergeStrategy) {
             this.mergeFromEntity = Objects.requireNonNull(entityToBeReplaced);
             this.mergeOntoEntity = Objects.requireNonNull(mergeOntoEntity);
-            this.mergeCommoditySoldStrategy = KEEP_DISTINCT_FAVOR_ONTO;
+            this.mergeCommoditySoldStrategy = mergeStrategy;
             this.fieldMergers = new ArrayList<>();
         }
 
