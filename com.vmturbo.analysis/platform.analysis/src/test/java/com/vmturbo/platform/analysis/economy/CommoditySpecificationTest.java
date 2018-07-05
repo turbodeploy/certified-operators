@@ -181,7 +181,7 @@ public class CommoditySpecificationTest {
 
     @Test
     @Parameters
-    @TestCaseName("Test #{index}: CommoditySpecification({0}).toString() == \"{3}\"")
+    @TestCaseName("Test #{index}: CommoditySpecification({0},{1},{2}).toString() == \"{3}\"")
     public final void testToString(int type, int lowerBound, int upperBound, String result) {
         assertEquals(result, new CommoditySpecification(type, 1000+type, lowerBound, upperBound).toString());
     }
@@ -189,13 +189,13 @@ public class CommoditySpecificationTest {
     @SuppressWarnings("unused") // it is used reflectively
     private static Object[] parametersForTestToString() {
         return new Object[][]{
-            {0, 0, 0, "<0>"}, // Quality upper and lower bounds are not logged.
-            {0, 0, 1, "<0>"},
-            {0, 1, 1, "<0>"},
-            {1, 0, 0, "<1>"},
-            {1, 0, 1, "<1>"},
-            {1, 1, 1, "<1>"},
-            {10,0,Integer.MAX_VALUE,"<10>"}
+            {0, 0, 0, "<0, 0, 0>"},
+            {0, 0, 1, "<0, 0, 1>"},
+            {0, 1, 1, "<0, 1, 1>"},
+            {1, 0, 0, "<1, 0, 0>"},
+            {1, 0, 1, "<1, 0, 1>"},
+            {1, 1, 1, "<1, 1, 1>"},
+            {10,0,Integer.MAX_VALUE,"<10, 0, MAX_VALUE>"}
         };
     }
 

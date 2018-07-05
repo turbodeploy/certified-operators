@@ -1,11 +1,9 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -34,7 +32,6 @@ public class ActionStatsTest {
     private static final Basket STtoVM = new Basket(
                                 new CommoditySpecification(4), // Storage Amount (no key)
                                 new CommoditySpecification(5));// DSPM access commodity with key A
-    public static final long ANALYSIS_ID = 1234L;
 
     private @NonNull Economy first;
     private @NonNull Topology firstTopology;
@@ -81,8 +78,8 @@ public class ActionStatsTest {
 
     @Test
     public void testMoveStats() {
-        List<Action> actions = new ArrayList<>();
-        ActionStats actionStats = new ActionStats(actions, ANALYSIS_ID);
+        ArrayList<Action> actions = new ArrayList<>();
+        ActionStats actionStats = new ActionStats(actions);
 
         Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
         ShoppingList pmShoppingList = null;
@@ -96,7 +93,6 @@ public class ActionStatsTest {
 
         String logPhase1 = actionStats.phaseLogEntry("Phase1");
         assertEquals(true, logPhase1.contains("1 moves (PM:1"));
-        assertTrue(logPhase1.contains(Long.toString(ANALYSIS_ID)));
 
         actions.add(move);
         String logPhase2 = actionStats.phaseLogEntry("Phase2");
@@ -104,6 +100,6 @@ public class ActionStatsTest {
 
         String finalEntry = actionStats.finalLogEntry();
         assertEquals(true, finalEntry.contains("2 moves (PM:2"));
-        assertTrue(finalEntry.contains(Long.toString(ANALYSIS_ID)));
     }
+
 }

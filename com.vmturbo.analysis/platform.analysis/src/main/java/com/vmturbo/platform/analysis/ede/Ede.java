@@ -22,7 +22,6 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.ActionStats;
-import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
 import com.vmturbo.platform.analysis.utilities.StatsWriter;
@@ -118,7 +117,7 @@ public final class Ede {
         String analysisLabel = "Analysis ";
         logger.info(analysisLabel + "Started.");
         @NonNull List<Action> actions = new ArrayList<>();
-        ActionStats actionStats = new ActionStats(actions, M2Utils.getTopologyId(economy));
+        ActionStats actionStats = new ActionStats((ArrayList<Action>)actions);
         ActionClassifier classifier = null;
         if (classifyActions) {
             try {
@@ -245,7 +244,7 @@ public final class Ede {
             List<@NonNull Action> collapsed = ActionCollapse.collapsed(actions);
             // Reorder actions by type.
             actions = ActionCollapse.groupActionsByTypeAndReorderBeforeSending(collapsed);
-            actionStats.setActionsList(actions);
+            actionStats.setActionsList((ArrayList<Action>)actions);
         }
 
         // mark non-executable actions

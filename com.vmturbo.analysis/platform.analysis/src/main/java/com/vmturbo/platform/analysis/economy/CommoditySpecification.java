@@ -274,6 +274,11 @@ public final class CommoditySpecification implements Comparable<CommoditySpecifi
         StringBuffer b = new StringBuffer();
         b.append('<');
         b.append(type_);
+        b.append(", ");
+        b.append(qualityLowerBound_);
+        b.append(", ");
+        b.append(qualityUpperBound_ == Integer.MAX_VALUE ?
+                "MAX_VALUE" : qualityUpperBound_);
         b.append('>');
         return b.toString();
     }

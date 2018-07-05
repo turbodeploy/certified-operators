@@ -315,10 +315,10 @@ public class CostFunctionFactory {
     private static void logMessagesForCapacityLimitValidation(ShoppingList sl, int index,
                     Entry<CommoditySpecification, CapacityLimitation> entry) {
         if (logger.isTraceEnabled() || sl.getBuyer().isDebugEnabled()) {
-            logger.debug("{} requested amount {} of {} not within range {} to {}",
-                            sl,
+            logger.debug("Requested amount {} of {} by {} not within range {} to {}",
                             sl.getQuantities()[index],
                             sl.getBasket().get(index).getDebugInfoNeverUseInCode(),
+                            sl.getBuyer(),
                             entry.getValue().getMinCapacity(),
                             entry.getValue().getMaxCapacity());
         }
@@ -348,8 +348,8 @@ public class CostFunctionFactory {
             }
             double soldCapacity = commsSold.get(soldIndex).getCapacity();
             if (quantities[boughtIndex] > soldCapacity) {
-                logMessagesForSellerCapacityValidation(sl, seller, quantities[boughtIndex],
-                    basketCommSpec, soldCapacity);
+                logMessagesForSellerCapacityValidation(sl.getBuyer(), seller,
+                                quantities[boughtIndex], basketCommSpec, soldCapacity);
                 return false;
             }
         }
@@ -360,21 +360,20 @@ public class CostFunctionFactory {
      * Logs messages if the logger's trace is enabled or the seller/buyer of shopping list
      * have their debug enabled.
      *
-     * @param sl the shopping list whose capacity is being validated.
+     * @param buyer the buyer of the Shopping List
      * @param seller the seller
      * @param quantityBought the quantity of commodity requested
      * @param boughtCommSpec the commodity spec of the commodity requested
      * @param soldCapacity the capacity of the commodity of the seller
      */
-    private static void logMessagesForSellerCapacityValidation(ShoppingList sl,
+    private static void logMessagesForSellerCapacityValidation(Trader buyer,
                     Trader seller, double quantityBought, CommoditySpecification boughtCommSpec,
                     double soldCapacity) {
         if (logger.isTraceEnabled() || seller.isDebugEnabled()
-                        || sl.getBuyer().isDebugEnabled()) {
-            logger.debug("{} requested amount {} of {} not within {} capacity ({})",
-                            sl, quantityBought,
-                            boughtCommSpec.getDebugInfoNeverUseInCode(),
-                            seller, soldCapacity);
+                        || buyer.isDebugEnabled()) {
+            logger.debug("Requested amount {} of {} by {} not within {} capacity ({})",
+                            quantityBought, boughtCommSpec.getDebugInfoNeverUseInCode(),
+                            buyer, seller, soldCapacity);
         }
     }
 
@@ -417,7 +416,7 @@ public class CostFunctionFactory {
         if (!isValid && (logger.isTraceEnabled() || seller.isDebugEnabled()
                         || buyer.isDebugEnabled())) {
             CommoditySpecification comm1Sold = seller.getBasketSold().get(comm1SoldIndex);
-            logger.debug("{} bought ({}) + {} bought ({}) by {} is greater than {} capacity ({}) "
+            logger.debug("{} bought ({}) + {} bought ({}) by {} is greater than {} capaity ({}) "
                             + "sold by {}", comm1BoughtIndex != -1
                                             ? sl.getBasket().get(comm1BoughtIndex)
                                                             .getDebugInfoNeverUseInCode()
@@ -426,7 +425,7 @@ public class CostFunctionFactory {
                                             ? sl.getBasket().get(comm2BoughtIndex)
                                                             .getDebugInfoNeverUseInCode()
                                             : "null",
-                            comm2BoughtQuantity, sl, comm1Sold != null
+                            comm2BoughtQuantity, buyer, comm1Sold != null
                                             ? comm1Sold.getDebugInfoNeverUseInCode()
                                             : "null",
                             comm1SoldCapacity, seller);

@@ -188,9 +188,9 @@ public class ResizeTest {
 
         return new Object[][]{
             {new Resize(e1, t1, specifications[0], 10, 15),oid,"<action type=\"resize\" sellingTrader=\"id1\" "
-                + "commoditySpecification=\"<0>\" oldCapacity=\"10.0\" newCapacity=\"15.0\" />"},
+                + "commoditySpecification=\"<0, 0, MAX_VALUE>\" oldCapacity=\"10.0\" newCapacity=\"15.0\" />"},
             {new Resize(e1, t2, specifications[1], 0, 1),oid,"<action type=\"resize\" sellingTrader=\"id2\" "
-                + "commoditySpecification=\"<2>\" oldCapacity=\"0.0\" newCapacity=\"1.0\" />"}
+                + "commoditySpecification=\"<2, 0, MAX_VALUE>\" oldCapacity=\"0.0\" newCapacity=\"1.0\" />"}
         };
     }
 

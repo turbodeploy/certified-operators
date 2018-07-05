@@ -88,7 +88,8 @@ public class QuoteFunctionFactory {
             double budgetUtil = (spent - costOnCurrentSupplier + costOnNewSeller) / budget;
             quote[0] = (budgetUtil >= 1) ? Double.POSITIVE_INFINITY :
                     1 / ((1 - budgetUtil) * (1 - budgetUtil));
-            logMessagesForBudgetDepletion(buyer, seller, economy, costOnNewSeller, quote);
+            logMessagesForbudgetDepletion(buyer, seller, economy,
+                            costOnNewSeller, quote);
             return quote;
         };
         return qf;
@@ -110,14 +111,14 @@ public class QuoteFunctionFactory {
      * Logs messages if the logger's trace is enabled or the seller/buyer of shopping list
      * have their debug enabled.
      *
-     * @param sl the shopping list
+     * @param buyer the shopping list
      * @param seller the seller providing quote
      * @param economy the Economy
      * @param costOnNewSeller cost on the seller
      * @param quote the quote provided by the seller
      */
-    private static void logMessagesForBudgetDepletion(ShoppingList sl, Trader seller, Economy economy,
-                                                      double costOnNewSeller, double[] quote) {
+    private static void logMessagesForbudgetDepletion(ShoppingList sl,
+                    Trader seller, Economy economy, double costOnNewSeller, double[] quote) {
         if (logger.isTraceEnabled() || seller.isDebugEnabled() || sl.getBuyer().isDebugEnabled()) {
             long topologyId = M2Utils.getTopologyId(economy);
             logger.debug("topology id = {}, buyer = {}, seller = {}, cost = {}, quote = {}",
