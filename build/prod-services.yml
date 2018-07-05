@@ -459,16 +459,3 @@ services:
     volumes:
       - mediation-rhv:/home/turbonomic/data
     restart: always
-
-  mediation-openstack-prod:
-    extends:
-      file: common-services.yml
-      service: prod-component
-    image: turbonomic/com.vmturbo.mediation.openstack.component
-    environment:
-      consul_host: consul
-      component_type: mediation-openstack
-      instance_id: mediation-openstack-1
-    volumes:
-      - mediation-openstack:/home/turbonomic/data
-    restart: always

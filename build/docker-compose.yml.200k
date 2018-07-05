@@ -47,7 +47,6 @@ volumes:
   mediation-xtremio: *localdriver
   mediation-vplex: *localdriver
   mediation-rhv: *localdriver
-  mediation-openstack: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -354,15 +353,6 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-rhv-prod
-    environment:
-      JAVA_OPTS: "-Xmx3072M"
-    mem_limit: 4096M
-    depends_on: *clustermgrdep
-
-  mediation-openstack:
-    extends:
-      file: prod-services.yml
-      service: mediation-openstack-prod
     environment:
       JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
