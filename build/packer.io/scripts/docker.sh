@@ -57,11 +57,27 @@ function start_and_verify_xl_component() {
     message="$2"
     start_xl_component ${component}
     # Now wait until it's started correctly
+    # grep logs for non-native 3rd party xl components
+    echo "Waiting for $component to be READY"
+    if [[ "$component" =~ ^(rsyslog||consul||clustermgr||db||arangodb||rsyslog)$ ]];
+    then
+        while true
+        do
+            /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml logs rsyslog 2>&1 | grep "$component" | grep -q "${message}"
+            if [[ $? == 0 ]]; then
+                return
+            fi
+            sleep 5
+        done
+    fi
+
+    # For XL native components, we query the /state REST endpoint
+    ipaddress=`docker inspect docker_"${component}"_1 | grep '"IPAddress": "[0-9]+*' | awk '{print $NF}' | tr -d '",'`
     while true
     do
-        /usr/local/bin/docker-compose -f /etc/docker/docker-compose.yml logs rsyslog 2>&1 | grep "$component" | grep -q "${message}"
-        if [[ $? == 0 ]]; then
-            break
+        state=`curl -sS --stderr /tmp/vmtctl_stderr.out http://$ipaddress:8080/state | tr -d '"'`
+        if [ "$state" == "RUNNING" ]; then
+            return
         fi
         sleep 5
     done
