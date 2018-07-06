@@ -446,8 +446,10 @@ public class BootstrapSupply {
                                         + " buyer {} has an infinity quote.", buyerDebugInfo);
                         }
                     } else {
-                        Action action = new ProvisionByDemand(economy, sl, clonableSellers.get(0))
-                                        .take();
+                        Trader currentSupplier = sl.getSupplier();
+                        Action action = new ProvisionByDemand(economy, sl,
+                            (currentSupplier != null && clonableSellers.contains(currentSupplier)) ?
+                                        currentSupplier : clonableSellers.get(0)).take();
                         ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
                         Trader newSeller = ((ProvisionByDemand)action).getProvisionedSeller();
                         boolean isDebugSeller = newSeller.isDebugEnabled();
