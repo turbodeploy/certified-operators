@@ -387,18 +387,14 @@ public final class AnalysisToProtobuf {
             builder.setReconfigure(reconfigureTO);
         } else if (input instanceof Activate) {
             Activate activate = (Activate)input;
-            builder.setActivate(ActivateTO.newBuilder()
-                            .setTraderToActivate(traderOid.get(activate.getTarget()))
-                            .setModelSeller(traderOid.get(activate.getModelSeller()))
-                            .setMostExpensiveCommodity(
-                                            activate.getReason() == null
-                                                            ? findMostExpensiveCommodity(
-                                                                            activate.getModelSeller(),
-                                                                            topology.getEconomy())
-                                                                                            .getBaseType()
-                                                            : activate.getReason()
-                                                                            .getBaseType())
-                .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket())));
+            ActivateTO.Builder activateBuilder = ActivateTO.newBuilder()
+                    .setTraderToActivate(traderOid.get(activate.getTarget()))
+                    .setModelSeller(traderOid.get(activate.getModelSeller()))
+                    .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket()));
+            if (activate.getReason() != null) {
+                activateBuilder.setMostExpensiveCommodity(activate.getReason().getBaseType());
+            }
+            builder.setActivate(activateBuilder);
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
             builder.setDeactivate(DeactivateTO.newBuilder()

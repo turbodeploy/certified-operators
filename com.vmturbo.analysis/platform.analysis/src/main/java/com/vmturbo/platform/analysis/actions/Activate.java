@@ -26,7 +26,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
 
     private final @NonNull Trader modelSeller_;
     private final @NonNull Economy economy_;
-    private @NonNull CommoditySpecification reasonCommodity;
+    private @Nullable CommoditySpecification reasonCommodity;
     // Constructors
 
     /**
