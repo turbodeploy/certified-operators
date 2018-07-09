@@ -33,7 +33,7 @@
         <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
 
-        <prometheus.java.client.version>0.0.21</prometheus.java.client.version>
+        <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
         <slf4j.version>1.7.25</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
