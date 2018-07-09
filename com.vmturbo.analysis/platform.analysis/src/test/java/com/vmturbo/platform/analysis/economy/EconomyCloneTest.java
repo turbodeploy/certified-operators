@@ -53,17 +53,19 @@ public class EconomyCloneTest {
     }
 
     /**
-     * Test that a quote in the cloned economy is equal to a quote in the orginal economy.
+     * Test that a quote in the cloned economy is equal to a quote in the original economy.
      */
     @Test
     public void  testCloneEconomy() {
         Trader seller = economy.getTraders().get(0);
         ShoppingList shoppingList = seller.getCustomers().get(0);
-        double quote = EdeCommon.quote(economy, shoppingList, seller, Double.POSITIVE_INFINITY, false)[0];
+        double quote = EdeCommon.quote(economy, shoppingList, seller, Double.POSITIVE_INFINITY, false)
+            .getQuoteValue();
 
         Trader cloneSeller = clone.getTraders().get(0);
         ShoppingList cloneShoppingList = cloneSeller.getCustomers().get(0);
-        double cloneQuote = EdeCommon.quote(clone, cloneShoppingList, cloneSeller, Double.POSITIVE_INFINITY, false)[0];
+        double cloneQuote = EdeCommon.quote(clone, cloneShoppingList, cloneSeller, Double.POSITIVE_INFINITY, false)
+            .getQuoteValue();
         assertTrue(quote > 0); // Just to be sure
         assertEquals(quote, cloneQuote, TestUtils.FLOATING_POINT_DELTA);
     }

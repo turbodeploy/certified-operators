@@ -52,14 +52,16 @@ public class QuoteFunctionFactoryTest {
         // Move onto the seller.
         shoppingList.move(seller);
 
-        final double quote[] = qf.calculateQuote(shoppingList, seller, 0, false, economy);
+        final double quote[] = qf.calculateQuote(shoppingList, seller, 0, false, economy)
+            .getQuoteValues();
         assertTrue(quote[0] > 0.5); // Each commodity adds 0.3333... to the quote. So the sum of the 3 is 1.0
     }
 
     // We can early-exit for new suppliers if they are more expensive than the best quote.
     @Test
     public void testSumOfCommodityQuoteFunctionNewSupplier() {
-        final double quote[] = qf.calculateQuote(shoppingList, seller, 0, false, economy);
+        final double quote[] = qf.calculateQuote(shoppingList, seller, 0, false, economy)
+            .getQuoteValues();
         // Because best quote is 0, as soon as we get above this value we should early exit and not compute
         // the full quote since we are getting the quote from the current supplier.
         assertTrue(quote[0] < 0.5);

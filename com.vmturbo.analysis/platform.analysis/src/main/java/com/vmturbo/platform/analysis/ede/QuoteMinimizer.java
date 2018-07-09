@@ -14,6 +14,10 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.Quote;
+import com.vmturbo.platform.analysis.utilities.Quote.InitialInfiniteQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
+import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
 /**
  * A mutable collector class used to find the best quote and corresponding seller.
@@ -33,9 +37,17 @@ public final class QuoteMinimizer {
     // Accumulator Fields
     private @MonotonicNonNull Trader bestSeller_ = null; // will hold the best-so-far seller i.e.
                                                         // the one giving the minimum quote.
-    private double bestQuote_ = Double.POSITIVE_INFINITY; // will hold the best-so-far quote. i.e. the minimum one.
-    private double currentQuote_ = Double.POSITIVE_INFINITY; // may hold the quote from the current
+    private Quote bestQuote_ = new InitialInfiniteQuote(); // will hold the best-so-far quote. i.e. the minimum one.
+    private Quote currentQuote_ = new InitialInfiniteQuote(); // may hold the quote from the current
                                                             // supplier if it's in the list of sellers.
+
+    /**
+     * Used to track infinite quotes. Quotes tracked by the quote tracker can be used to generate
+     * explanations for traders that cannot be placed on any trader during the placement process.
+     *
+     * A trader will be unplaced if all possible sellers provide it an infinite quote.
+     */
+    private QuoteTracker quoteTracker;
 
     // Constructors
 
@@ -48,6 +60,7 @@ public final class QuoteMinimizer {
     public QuoteMinimizer(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList) {
         economy_ = economy;
         shoppingList_ = shoppingList;
+        quoteTracker = new QuoteTracker(shoppingList);
     }
 
     // Getters
@@ -79,7 +92,7 @@ public final class QuoteMinimizer {
      */
     @Pure
     public double getBestQuote(@ReadOnly QuoteMinimizer this) {
-        return bestQuote_;
+        return bestQuote_.getQuoteValue();
     }
 
     /**
@@ -102,7 +115,12 @@ public final class QuoteMinimizer {
      */
     @Pure
     public double getCurrentQuote(@ReadOnly QuoteMinimizer this) {
-        return currentQuote_;
+        return currentQuote_.getQuoteValue();
+    }
+
+    @Pure
+    public QuoteTracker getQuoteTracker(@ReadOnly QuoteMinimizer this) {
+        return quoteTracker;
     }
 
     // Reduction Methods
@@ -115,28 +133,33 @@ public final class QuoteMinimizer {
      *  and {@link #getCurrentQuote()} to reflect the new minima.
      * </p>
      *
+     * Any VMs that receive an infinite quote are added to the internal {@link QuoteTracker}.
+     *
      * @param seller The seller from which to get a quote and update internal state.
      */
     public void accept(@NonNull Trader seller) {
-        final double[] quote = EdeCommon.quote(economy_, shoppingList_, seller, bestQuote_, false);
+        final MutableQuote quote = EdeCommon.quote(economy_, shoppingList_, seller,
+            bestQuote_.getQuoteValue(), false);
 
         if (seller == shoppingList_.getSupplier()) {
-            currentQuote_ = quote[0];
+            currentQuote_ = quote;
             if (logger.isTraceEnabled()) {
                 logger.trace("topology id = {}, shoppingList = {}, currentQuote = {}"
                             , M2Utils.getTopologyId(economy_), shoppingList_,
                             currentQuote_);
             }
         } else {
-            quote[0] += shoppingList_.getMoveCost();
+            quote.addCostToQuote(shoppingList_.getMoveCost());
         }
 
         // keep the minimum between quotes
-        if (quote[0] < bestQuote_) {
-            logMessagesForAccept(seller, quote);
-            bestQuote_ = quote[0];
+        if (quote.getQuoteValue() < bestQuote_.getQuoteValue()) {
+            logMessagesForAccept(seller, quote.getQuoteValues());
+            bestQuote_ = quote;
             bestSeller_ = seller;
         }
+        quoteTracker.trackQuote(quote);
+        economy_.getPlacementStats().incrementQuoteMinimizerCount();
     }
 
     /**
@@ -150,15 +173,17 @@ public final class QuoteMinimizer {
      * @param other The minimizer that should be used to update the internal state.
      */
     public void combine(@NonNull @ReadOnly QuoteMinimizer other) {
-        if (other.bestQuote_ < bestQuote_) {
+        if (other.bestQuote_.getQuoteValue() < bestQuote_.getQuoteValue()) {
             bestQuote_ = other.bestQuote_;
             bestSeller_ = other.bestSeller_;
         }
 
         // Test if the other minimizer has seen the current supplier.
-        if (other.currentQuote_ != Double.POSITIVE_INFINITY) {
+        if (other.currentQuote_.getQuoteValue() != Double.POSITIVE_INFINITY) {
             currentQuote_ = other.currentQuote_;
         }
+
+        quoteTracker.combine(other.quoteTracker);
     }
 
     /**
@@ -172,9 +197,9 @@ public final class QuoteMinimizer {
         if (logger.isTraceEnabled() || seller.isDebugEnabled()
                         || shoppingList_.getBuyer().isDebugEnabled()) {
             logger.debug("topology id = {}, shoppingList = {}, oldBestQuote = {}, oldBestSeller = {}, "
-                            + "newBestQuote = {}, newBestSeller = {}"
-                            , M2Utils.getTopologyId(economy_), shoppingList_,
-                            bestQuote_, bestSeller_, quote[0], seller);
+                    + "newBestQuote = {}, newBestSeller = {}"
+                , M2Utils.getTopologyId(economy_), shoppingList_,
+                bestQuote_, bestSeller_, quote[0], seller);
         }
     }
 } // end QuoteMinimizer class

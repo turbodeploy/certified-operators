@@ -10,6 +10,8 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.google.common.base.Preconditions;
 
 /**
@@ -26,7 +28,12 @@ import com.google.common.base.Preconditions;
  * See for example http://nlp.stanford.edu/IR-book/html/htmledition/an-example-information-retrieval-problem-1.html#963
  * which also includes many guidelines for how to speed up information retrieval.
  */
-class InvertedIndex implements Serializable {
+public class InvertedIndex implements Serializable {
+
+    /**
+     * A wrapper around a list of the type of values stored in the index.
+     */
+    private class PostingsList extends ArrayList<Trader> {}
 
     private final Economy economy;
     private final Map<Integer, PostingsList> index = new HashMap<>();
@@ -209,7 +216,60 @@ class InvertedIndex implements Serializable {
     }
 
     /**
-     * A wrapper around a list of the type of values stored in the index.
+     * Get an {@link ActiveSellerLookup} for this index which can be used to quickly find active sellers of
+     * a particular commodity.
+     *
+     * @return An {@link ActiveSellerLookup} that can be used to quickly find active sellers of
+     * a particular commodity.
      */
-    private class PostingsList extends ArrayList<Trader> {}
+    public ActiveSellerLookup getActiveSellerLookup() {
+        return new ActiveSellerLookup();
+    }
+
+    /**
+     * Check if the integer index for a commoditySpecificationType.
+     *
+     * For the exact definition of what constitutes an active seller in this context, please
+     * see {@link ActiveSellerLookup#hasActiveSellers(CommoditySpecification)}
+     *
+     * @param commoditySpecificationType The integer index of the commodity specification type.
+     * @return True if there is at least one active seller for the type.
+     */
+    private boolean hasActiveSellersForType(@NonNull final Integer commoditySpecificationType) {
+        final PostingsList sellers = index.get(commoditySpecificationType);
+        return (sellers != null) && sellers.stream()
+            // Find a seller that is active and is selling into at least one market. The at least one
+            // market restriction is necessary filters out, for example, on-prem hosts when running a
+            // migrate to cloud VM.
+            .anyMatch(seller -> seller.getState().isActive() &&
+                !economy.getMarketsAsSeller(seller).isEmpty());
+    }
+
+    /**
+     * An active seller lookup provides a means to find active sellers in any market for a given
+     * commodity.
+     *
+     * Results of lookups are cached so that lookups after the first can be faster.
+     */
+    public class ActiveSellerLookup {
+        private final Map<Integer, Boolean> activeSellerCache = new HashMap<>();
+
+        /**
+         * Check if there are any active sellers in any markets for a given commodity.
+         *
+         * Note that to count as an active seller in this context, a seller must meet the following criteria:
+         * 1. Be selling the given commodity in its basket sold.
+         * 2. The trader must be in the active state.
+         * 3. The trader must be selling into at least one market that another trader is buying from.
+         *    This last condition prevents us from selecting entities in a plan that are purposely excluded
+         *    as eligible (ie in a migrate to cloud plan, this excludes on-premises entities).
+         *
+         * @param commoditySpecification The commodity specification whose active sellers should be looked up.
+         * @return True if there is at least one seller meeting the above criteria.
+         */
+        public boolean hasActiveSellers(@NonNull final CommoditySpecification commoditySpecification) {
+            return activeSellerCache.computeIfAbsent(commoditySpecification.getType(),
+                InvertedIndex.this::hasActiveSellersForType);
+        }
+    }
 }

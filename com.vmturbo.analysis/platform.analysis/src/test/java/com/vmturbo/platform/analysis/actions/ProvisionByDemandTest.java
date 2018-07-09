@@ -50,7 +50,8 @@ public class ProvisionByDemandTest {
     @TestCaseName("Test #{index}: new ProvisionByDemand({0},{1},{2},{3])")
     public final void testProvisionByDemand(@NonNull Economy economy,
                     @NonNull ShoppingList modelBuyer, @NonNull Trader modelSeller, boolean isProvisionUseful) {
-        double[] quoteBefore = EdeCommon.quote(economy, modelBuyer, modelSeller, Double.POSITIVE_INFINITY, false);
+        double[] quoteBefore = EdeCommon.quote(economy, modelBuyer, modelSeller, Double.POSITIVE_INFINITY, false)
+            .getQuoteValues();
 
         if (isProvisionUseful) {
             assertTrue(Double.isInfinite(quoteBefore[0]));
@@ -73,7 +74,8 @@ public class ProvisionByDemandTest {
         // verify if all the modified commodities are added to commodityNewCapacityMap_
         assertEquals(provision.getCommodityNewCapacityMap().isEmpty(), !isProvisionUseful);
 
-        double[] quoteAfter = EdeCommon.quote(economy, modelBuyer, provision.getProvisionedSeller(), 0, false);
+        double[] quoteAfter = EdeCommon.quote(economy, modelBuyer, provision.getProvisionedSeller(), 0, false)
+            .getQuoteValues();
         assertTrue(Double.isFinite(quoteAfter[0]));
 
         assertSame(economy, provision.getEconomy());
@@ -156,8 +158,8 @@ public class ProvisionByDemandTest {
                 DEBUG_INFO + " clone #" + provisionedSeller.getEconomyIndex());
         assertTrue(economy.getTraders().contains(provisionedSeller));
         assertEquals(oldSize+1, economy.getTraders().size());
-        assertTrue(EdeCommon.quote(economy, modelBuyer, provisionedSeller, Double.POSITIVE_INFINITY, false)[0]
-                                    < Double.POSITIVE_INFINITY);
+        assertTrue(EdeCommon.quote(economy, modelBuyer, provisionedSeller, Double.POSITIVE_INFINITY, false)
+            .getQuoteValue() < Double.POSITIVE_INFINITY);
         // assert that it can fit.
 
         assertSame(provision, provision.rollback());

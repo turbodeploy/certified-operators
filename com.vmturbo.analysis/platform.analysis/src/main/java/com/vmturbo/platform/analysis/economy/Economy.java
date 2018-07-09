@@ -6,7 +6,6 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -15,7 +14,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -31,13 +29,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Longs;
+
 import com.vmturbo.platform.analysis.actions.Move;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
-import com.vmturbo.platform.analysis.ede.Placement;
-import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.utilities.PlacementStats;
 
 /**
  * A set of related markets and the traders participating in them.
@@ -94,6 +91,11 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull InvertedIndex sellersInvertedIndex_ = new InvertedIndex(this, 32);
 
     private final @NonNull Set<@NonNull CommoditySpecification> commsToAdjustOverhead_ = new HashSet<>();
+
+    /**
+     * The placement statistics associated with this {@link Economy}.
+     */
+    private final PlacementStats placementStats = new PlacementStats();
 
     private boolean marketsPopulated = false;
 
@@ -840,6 +842,15 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
+     * Get the inverted index that maps sellers to markets.
+     *
+     * @return the inverted index that maps sellers to markets.
+     */
+    public InvertedIndex getSellersInvertedIndex() {
+        return sellersInvertedIndex_;
+    }
+
+    /**
      * Find the common cliques for a given trader. Consider only markets
      * with non-empty cliques maps.
      *
@@ -935,5 +946,16 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             .flatMap(List::stream)
             .collect(Collectors.toSet());
         return Sets.union(cliqueSellers, nonCliqueSellers);
+    }
+
+    /**
+     * Get the placement statistics associated with this economy.
+     *
+     * @return {@link PlacementStats} associated with this economy.
+     */
+    @Override
+    @NonNull
+    public PlacementStats getPlacementStats() {
+        return placementStats;
     }
 } // end class Economy

@@ -2,7 +2,9 @@ package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -19,6 +21,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
+import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 
 /**
  * A mutable collector class used to compute the total quote obtained for a number of
@@ -27,6 +30,9 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
  * <p>
  *  This is intended to be used with {@link Stream#collect(Trader, BiConsumer, BiConsumer)}.
  * </p>
+ *
+ * Often used in conjunction with {@link CliqueMinimizer}. For example usage
+ * {@see CliqueMinimizer}.
  */
 final class QuoteSummer {
     // Auxiliary Fields
@@ -46,6 +52,8 @@ final class QuoteSummer {
     // Cached data
     // Cached unmodifiable view of the bestSellers_ list.
     private final @NonNull List<@Nullable Trader> unmodifiableBestSellers_ = Collections.unmodifiableList(bestSellers_);
+
+    private final Map<ShoppingList, QuoteTracker> unplacedShoppingListQuoteTrackers = new HashMap<>();
 
     // Constructors
 
@@ -117,6 +125,10 @@ final class QuoteSummer {
         return simulatedMoveActions_;
     }
 
+    public Map<ShoppingList, QuoteTracker> getUnplacedShoppingListQuoteTrackers() {
+        return unplacedShoppingListQuoteTrackers;
+    }
+
     // Reduction Methods
 
     /**
@@ -141,11 +153,14 @@ final class QuoteSummer {
 
         totalQuote_ += minimizer.getBestQuote();
         bestSellers_.add(minimizer.getBestSeller());
+        economy_.getPlacementStats().incrementQuoteSummerCount();
         if (minimizer.getBestSeller() != null
                         && (entry.getKey().getSupplier() != minimizer.getBestSeller())) {
             // when we have a best seller for a shoppingList, we simulate the move to this seller
             // not doing so can lead to ping-pongs as observed in OM-34056
             simulatedMoveActions_.add((new Move(economy_, entry.getKey(), minimizer.getBestSeller())).take());
+        } else {
+            unplacedShoppingListQuoteTrackers.put(entry.getKey(), minimizer.getQuoteTracker());
         }
     }
 
@@ -161,6 +176,15 @@ final class QuoteSummer {
     public void combine(@NonNull @ReadOnly QuoteSummer other) {
         totalQuote_ += other.getTotalQuote();
         bestSellers_.addAll(other.getBestSellers());
+
+        other.getUnplacedShoppingListQuoteTrackers().forEach((sl, otherQuoteTracker) -> {
+            final QuoteTracker thisQuoteTracker = unplacedShoppingListQuoteTrackers.get(sl);
+            if (thisQuoteTracker != null) {
+                thisQuoteTracker.combine(otherQuoteTracker);
+            } else {
+                unplacedShoppingListQuoteTrackers.put(sl, otherQuoteTracker);
+            }
+        });
     }
 
 } // end QuoteSummer class

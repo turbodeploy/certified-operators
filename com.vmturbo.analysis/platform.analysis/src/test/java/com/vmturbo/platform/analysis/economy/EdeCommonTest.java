@@ -73,7 +73,7 @@ public class EdeCommonTest {
 
         consumerShoppingList.setSupplier(oldSupplierPresent ? providingTrader : null);
         assertTrue(expectedQuote ==  Math.round(EdeCommon.quote(economy, consumerShoppingList, providingTrader,
-                        Double.POSITIVE_INFINITY, false)[0]*100d)/100d);
+                        Double.POSITIVE_INFINITY, false).getQuoteValue()*100d)/100d);
 
     }
 
@@ -144,7 +144,8 @@ public class EdeCommonTest {
             consumerShoppingList.setQuantity(indexOfItem, quantity[indexOfItem]).setPeakQuantity(indexOfItem, peakQuantity[indexOfItem]);
         });
 
-        boolean qInf = Double.isInfinite(EdeCommon.quote(economy, consumerShoppingList, seller, Double.POSITIVE_INFINITY, false)[0]);
+        boolean qInf = Double.isInfinite(EdeCommon
+            .quote(economy, consumerShoppingList, seller, Double.POSITIVE_INFINITY, false).getQuoteValue());
         assertTrue(isCorrect != qInf);
     }
 
@@ -171,8 +172,8 @@ public class EdeCommonTest {
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm1,
                         new double[] {100, 200}, gp2);
         assertTrue(EdeCommon.quote(economy, sl1, gp2, Double.POSITIVE_INFINITY,
-                        false)[0] < EdeCommon.quote(economy, sl1, io1, Double.POSITIVE_INFINITY,
-                                        false)[0]);
+                        false).getQuoteValue() < EdeCommon.quote(economy, sl1, io1, Double.POSITIVE_INFINITY,
+                                        false).getQuoteValue());
 
     }
 

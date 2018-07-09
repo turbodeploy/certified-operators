@@ -14,6 +14,8 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
+import com.vmturbo.platform.analysis.utilities.Quote;
+import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
  * EdeCommon contains a number of methods that are common across decisions algorithms in the engine.
@@ -34,13 +36,10 @@ public final class EdeCommon {
      *                         Pass {@link Double#POSITIVE_INFINITY} to get the exact quote.
      * @param forTraderIncomeStmt - is true when we want to compute the min(max)desiredExp(rev)
      *
-     * @return an array containing the quote offered by the seller for the given shopping list,
-     *         or a part of it greater than or equal to bestQuoteSoFar iff the actual quote would
-     *         exceed that value or if any commodity returns an INFINITE price, the minQuote and
-     *         the maxQuote.
+     * @return A quote offered by the seller for the given shopping list.
      */
     @Pure
-    public static double[] quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
+    public static MutableQuote quote(@NonNull UnmodifiableEconomy economy, @NonNull ShoppingList shoppingList,
                     @NonNull Trader seller, final double bestQuoteSoFar, boolean forTraderIncomeStmt) {
         return seller.getSettings().getQuoteFunction().calculateQuote(shoppingList, seller, bestQuoteSoFar,
                         forTraderIncomeStmt, (Economy)economy);

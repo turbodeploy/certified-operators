@@ -198,4 +198,51 @@ public class InvertedIndexTest {
             invertedIndex.getSatisfyingTraders(EMPTY_BASKET).collect(Collectors.toList())
         );
     }
+
+    @Test
+    public void testActiveSellerLookupWithInactive() {
+        economy.addTrader(0, TraderState.INACTIVE, CPU_MEM_BASKET);
+        economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
+        economy.populateMarketsWithSellers();
+
+        // Inactive sellers should not be included in the active sellers lookup
+        assertFalse(economy.getSellersInvertedIndex()
+            .getActiveSellerLookup()
+            .hasActiveSellers(CPU));
+    }
+
+    @Test
+    public void testActiveSellerLookupInNoMarkets() {
+        // Test that a seller not selling into any markets is not included in the active seller lookup
+        economy.addTrader(0, TraderState.ACTIVE, CPU_MEM_BASKET);
+        economy.populateMarketsWithSellers();
+
+        assertFalse(economy.getSellersInvertedIndex()
+            .getActiveSellerLookup()
+            .hasActiveSellers(CPU));
+    }
+
+    @Test
+    public void testActiveSellerLookupNoneSelling() {
+        // Test that no active sellers are found if no traders are selling the commodity searched for
+        economy.addTrader(0, TraderState.ACTIVE, MEM_BASKET);
+        economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
+        economy.populateMarketsWithSellers();
+
+        assertFalse(economy.getSellersInvertedIndex()
+            .getActiveSellerLookup()
+            .hasActiveSellers(CPU));
+    }
+
+    @Test
+    public void testActiveSellerLookupSuccess() {
+        // Test that when there is an active seller, we say there is one.
+        economy.addTrader(0, TraderState.ACTIVE, CPU_BASKET);
+        economy.addTrader(0, TraderState.ACTIVE, EMPTY_BASKET, CPU_BASKET);
+        economy.populateMarketsWithSellers();
+
+        assertTrue(economy.getSellersInvertedIndex()
+            .getActiveSellerLookup()
+            .hasActiveSellers(CPU));
+    }
 }

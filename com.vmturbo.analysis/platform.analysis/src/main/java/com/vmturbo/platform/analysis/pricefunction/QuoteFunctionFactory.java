@@ -15,6 +15,8 @@ import com.vmturbo.platform.analysis.economy.UnmodifiableEconomy;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 public class QuoteFunctionFactory {
 
@@ -27,10 +29,12 @@ public class QuoteFunctionFactory {
      */
     public static @Nonnull QuoteFunction sumOfCommodityQuoteFunction() {
         QuoteFunction qf = (buyer, seller, bestQuoteSoFar, forTraderIncomeStmt, economy) -> {
+
             Basket basket = buyer.getBasket();
-            double[] quote = {0.0, 0.0, 0.0};
+            final CommodityQuote quote = new CommodityQuote(seller);
             // go over all commodities in basket
             int boughtIndex = 0;
+
 
             // We should only early-exit when computing the quote for suppliers other than the current one.
             // We must compute the full quote for the current supplier because the value is saved and
@@ -39,7 +43,7 @@ public class QuoteFunctionFactory {
             final boolean isCurrentSupplier = buyer.getSupplier() == seller;
 
             for (int soldIndex = 0; boughtIndex < basket.size() &&
-                (quote[0] < bestQuoteSoFar || isCurrentSupplier) && Double.isFinite(quote[0]);
+                (quote.getQuoteValue() < bestQuoteSoFar || isCurrentSupplier);
                  boughtIndex++, soldIndex++) {
                 CommoditySpecification basketCommSpec = basket.get(boughtIndex);
                 // Find corresponding commodity sold. Commodities sold are ordered the same way as the
@@ -48,20 +52,22 @@ public class QuoteFunctionFactory {
                     soldIndex++;
                 }
                 double[] tempQuote = EdeCommon.computeCommodityCost(economy, buyer, seller,
-                                                                    soldIndex, boughtIndex, forTraderIncomeStmt);
-                quote[0] += tempQuote[0];
+                    soldIndex, boughtIndex, forTraderIncomeStmt);
+                quote.addCostToQuote(tempQuote[0], seller, soldIndex);
                 if (forTraderIncomeStmt) {
-                    quote[1] += tempQuote[1];
-                    quote[2] += tempQuote[2];
+                    quote.addCostToMinQuote(tempQuote[1]);
+                    quote.addCostToMaxQuote(tempQuote[2]);
                 }
             }
             if ((logger.isTraceEnabled() || seller.isDebugEnabled())
-                            && buyer.getSupplier() == seller && Double.isInfinite(quote[0])) {
+                && buyer.getSupplier() == seller && Double.isInfinite(quote.getQuoteValue())) {
                 CommoditySpecification basketCommSpec = basket.get(boughtIndex - 1);
-                logger.info("{" + buyer.getBuyer().getDebugInfoNeverUseInCode()
-                            + "} The commodity causing the infinite quote is : "
-                            + basketCommSpec.getDebugInfoNeverUseInCode());
+                logger.debug("{" + buyer.getBuyer().getDebugInfoNeverUseInCode()
+                    + "} The commodity causing the infinite quote is : "
+                    + basketCommSpec.getDebugInfoNeverUseInCode());
             }
+
+            economy.getPlacementStats().incrementSumOfCommodityQuoteCount();
             return quote;
         };
         return qf;
@@ -75,22 +81,26 @@ public class QuoteFunctionFactory {
      */
     public static @Nonnull QuoteFunction budgetDepletionRiskBasedQuoteFunction() {
         QuoteFunction qf = (buyer, seller, bestQuoteSoFar, forTraderIncomeStmt, economy) -> {
-            double[] quote = {0.0, 0.0, 0.0};
-            double costOnNewSeller = computeCost(buyer, seller, true, economy);
-            double costOnCurrentSupplier = computeCost(buyer, buyer.getSupplier(), false, economy);
+            MutableQuote costOnNewSeller = computeCost(buyer, seller, true, economy);
+            MutableQuote costOnCurrentSupplier = computeCost(buyer, buyer.getSupplier(), false, economy);
             BalanceAccount ba = seller.getSettings().getBalanceAccount();
             // TODO: if the buyer is on the wrong supplier, costOnSupplier may be infinity
             // now I added this to workaround such a case
-            if (Double.isInfinite(costOnCurrentSupplier)) {
-                costOnCurrentSupplier = 0;
+            if (Double.isInfinite(costOnCurrentSupplier.getQuoteValue())) {
+                costOnCurrentSupplier.setQuoteValue(0);
             }
             double spent = (ba == null ? 0 : ba.getSpent());
             double budget = (ba == null ? 1 : ba.getBudget());
-            double budgetUtil = (spent - costOnCurrentSupplier + costOnNewSeller) / budget;
-            quote[0] = (budgetUtil >= 1) ? Double.POSITIVE_INFINITY :
-                    1 / ((1 - budgetUtil) * (1 - budgetUtil));
-            logMessagesForBudgetDepletion(buyer, seller, economy, costOnNewSeller, quote);
-            return quote;
+            double budgetUtil = (spent - costOnCurrentSupplier.getQuoteValue() +
+                costOnNewSeller.getQuoteValue()) / budget;
+            final double quoteValue = (budgetUtil >= 1) ? Double.POSITIVE_INFINITY :
+                1 / ((1 - budgetUtil) * (1 - budgetUtil));
+            logMessagesForBudgetDepletion(buyer, seller, economy, costOnNewSeller.getQuoteValue(), quoteValue);
+
+            costOnNewSeller.setQuoteValue(quoteValue);
+
+            economy.getPlacementStats().incrementBudgetDepletionQuoteCount();
+            return costOnNewSeller;
         };
         return qf;
     }
@@ -99,31 +109,31 @@ public class QuoteFunctionFactory {
      * Computes the cost of shopping list on a trader by applying the trader's {@link CostFunction}.
      *
      * @param shoppingList the shopping list as buyer
-     * @param seller the trader which charges the buyer
+     * @param seller       the trader which charges the buyer
      * @return the cost
      */
-    public static double computeCost(ShoppingList shoppingList, Trader seller, boolean validate, UnmodifiableEconomy economy) {
-        return (seller == null || seller.getSettings().getCostFunction() == null) ? 0
-                        : seller.getSettings().getCostFunction().calculateCost(shoppingList, seller, validate, economy);
+    public static MutableQuote computeCost(ShoppingList shoppingList, Trader seller, boolean validate, UnmodifiableEconomy economy) {
+        return (seller == null || seller.getSettings().getCostFunction() == null) ? CommodityQuote.zero(seller)
+            : seller.getSettings().getCostFunction().calculateCost(shoppingList, seller, validate, economy);
     }
 
     /**
      * Logs messages if the logger's trace is enabled or the seller/buyer of shopping list
      * have their debug enabled.
      *
-     * @param sl the shopping list
-     * @param seller the seller providing quote
-     * @param economy the Economy
+     * @param sl              the shopping list
+     * @param seller          the seller providing quote
+     * @param economy         the Economy
      * @param costOnNewSeller cost on the seller
-     * @param quote the quote provided by the seller
+     * @param quoteValue      the quote provided by the seller
      */
     private static void logMessagesForBudgetDepletion(ShoppingList sl, Trader seller, Economy economy,
-                                                      double costOnNewSeller, double[] quote) {
+                                                      double costOnNewSeller, double quoteValue) {
         if (logger.isTraceEnabled() || seller.isDebugEnabled() || sl.getBuyer().isDebugEnabled()) {
             long topologyId = M2Utils.getTopologyId(economy);
             logger.debug("topology id = {}, buyer = {}, seller = {}, cost = {}, quote = {}",
-                            topologyId, sl.getBuyer(),
-                            seller, costOnNewSeller, quote[0]);
+                topologyId, sl.getBuyer(),
+                seller, costOnNewSeller, quoteValue);
         }
     }
 }

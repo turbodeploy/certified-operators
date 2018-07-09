@@ -109,7 +109,7 @@ public class PlacementTest {
 
         @Test
         public final void testShopTogetherPlacementDecisions() {
-            final Object[] actuals = Placement.shopTogetherDecisions(economy).toArray();
+            final Object[] actuals = Placement.shopTogetherDecisions(economy).getActions().toArray();
             if (testsExpectingReconfigure.contains(testNumber++)) {
                 // Verify that there is a single Reconfigure at the end, and the rest of the
                 // list matches
@@ -517,7 +517,8 @@ public class PlacementTest {
 
         @Test
         public final void testShopAlonePlacementDecisions() {
-            assertArrayEquals(actions, Placement.generateShopAlonePlacementDecisions(economy, shoppingList).toArray());
+            assertArrayEquals(actions, Placement.generateShopAlonePlacementDecisions(economy, shoppingList)
+                .getActions().toArray());
         }
 
         @Parameters(name = "Test #{index}: placementActions({0}) == {1}")

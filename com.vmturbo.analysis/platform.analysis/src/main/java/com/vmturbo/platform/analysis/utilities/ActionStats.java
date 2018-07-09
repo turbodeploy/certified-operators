@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.utilities;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
@@ -98,6 +97,20 @@ public class ActionStats {
      * Generates the log message with counts of various actions. It is called after
      * a phase completes.
      *
+     * @param phaseName The phase string containing placement, resize, provision, suspension
+     * @param placementStats The placement stats for placements performed during the phase.
+     * @return log string
+     */
+    public String phaseLogEntry(@NonNull final String phaseName,
+                                @NonNull final PlacementStats placementStats) {
+        final String phaseString = phaseLogEntry(phaseName);
+        return phaseString + " " + placementStats.logMessage();
+    }
+
+    /**
+     * Generates the log message with counts of various actions. It is called after
+     * a phase completes.
+     *
      * @param phase The phase string containing placement, resize, provision, suspension
      * @return log string
      */
@@ -112,12 +125,13 @@ public class ActionStats {
         long took = end.getEpochSecond() - lastPhaseEnd_.getEpochSecond();
         lastPhaseEnd_ = end;
         StringBuilder sb = new StringBuilder();
-        sb.append("Analysis completed ").append(analysisId).append(" ").append(phase).append(" in ")
+        sb.append("Analysis completed ").append(phase).append(" in ")
             .append(took).append(" sec");
         if (isThereData(data)) {
             sb.append(" with");
             body(sb, data, phase);
         }
+        sb.append(" [analysisId=").append(analysisId).append("]");
         return sb.toString();
     }
 
@@ -135,11 +149,12 @@ public class ActionStats {
         count(0, data);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Analysis completed ").append(analysisId).append(" in ").append(took).append(" sec");
+        sb.append("Analysis completed in ").append(took).append(" sec");
         if (isThereData(data)) {
             sb.append(" with");
             body(sb, data, PHASE_FINAL);
         }
+        sb.append(" [analysisId=").append(analysisId).append("]");
 
         closed_ = true;
         return sb.toString();

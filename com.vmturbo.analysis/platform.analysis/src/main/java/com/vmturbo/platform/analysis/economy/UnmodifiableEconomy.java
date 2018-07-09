@@ -14,6 +14,7 @@ import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.analysis.utilities.PlacementStats;
 
 /**
  * An unmodifiable view of an {@link Economy}.
@@ -247,4 +248,12 @@ public interface UnmodifiableEconomy {
      */
     @NonNull
     public Set<Trader> getPotentialSellers(Trader trader);
+
+    /**
+     * Get the placement statistics associated with this economy.
+     *
+     * @return {@link PlacementStats} associated with this economy.
+     */
+    @NonNull
+    PlacementStats getPlacementStats();
 } // end UnmodifiableEconomy interface

@@ -222,7 +222,7 @@ public class ActionClassifier {
             }
 
             final double[] quote = EdeCommon.quote(simulationEconomy_, targetCopy, newSupplierCopy,
-                            Double.POSITIVE_INFINITY, false);
+                            Double.POSITIVE_INFINITY, false).getQuoteValues();
             if (quote[0] < Double.POSITIVE_INFINITY) {
                 move.simulateChangeDestinationOnly(simulationEconomy_, currentSupplierCopy,
                                 newSupplierCopy, targetCopy);

@@ -25,6 +25,7 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.utilities.PlacementResults;
 
 /**
  * Contains static methods related to optimizing the placement of {@link Trader}s in an
@@ -51,10 +52,10 @@ public class Placement {
      * @param preferentialPlacementOnly - boolean to run placements only on the buyers passed
      * @return the placement decisions
      */
-    public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy,
+    public static @NonNull PlacementResults placementDecisions(@NonNull Economy economy,
                     List<ShoppingList> sls, boolean preferentialPlacementOnly) {
-        @NonNull List<Action> actions = prefPlacementDecisions(economy, sls);
-        @NonNull List<@NonNull ShoppingList> slsToPlace = new ArrayList<>();
+        @NonNull PlacementResults placementResults = prefPlacementDecisions(economy, sls);
+        @NonNull Set<@NonNull ShoppingList> slsToPlace = new LinkedHashSet<>();
         if (!preferentialPlacementOnly) {
             // iterate over all markets, i.e., all sets of providers selling a specific basket
             for (Market market : economy.getMarketsForPlacement()) {
@@ -66,9 +67,9 @@ public class Placement {
                     slsToPlace.add(shoppingList);
                 }
             }
-            actions.addAll(generatePlacementDecisions(economy, slsToPlace));
+            placementResults.combine(generatePlacementDecisions(economy, slsToPlace));
         }
-        return actions;
+        return placementResults;
     }
 
     /**
@@ -80,7 +81,7 @@ public class Placement {
      * @param economy - the economy whose traders' placement we want to optimize
      * @return placement decisions
      */
-    public static @NonNull List<@NonNull Action> placementDecisions(@NonNull Economy economy) {
+    public static @NonNull PlacementResults placementDecisions(@NonNull Economy economy) {
         return Placement.placementDecisions(economy, new ArrayList<>(), false);
     }
 
@@ -94,14 +95,11 @@ public class Placement {
      * @param sls - list of shoppingLists that denotes buyers that are to shop before the others
      * @return placement decisions due to performance
      */
-    public static @NonNull List<@NonNull Action> prefPlacementDecisions(@NonNull Economy economy,
+    public static @NonNull PlacementResults prefPlacementDecisions(@NonNull Economy economy,
                                                                         List<ShoppingList> sls) {
-        @NonNull List<Action> actions = new ArrayList<>();
-        // iterate over all buyers passed
-        actions.addAll(generatePlacementDecisions(economy, sls));
-        return actions;
+        return generatePlacementDecisions(economy, sls);
     }
-
+    
     /**
      * Returns a list of recommendations to optimize the placement of a trader either using shop
      * together or shop alone algorithm depending on the trader's setting.
@@ -110,9 +108,9 @@ public class Placement {
      * @param shoppingLists - The {@link ShoppingList} for which we try to find the best destination
      * @return the placement actions
      */
-    public static @NonNull List<@NonNull Action> generatePlacementDecisions(
-                    @NonNull Economy economy, @NonNull List<@NonNull ShoppingList> shoppingLists) {
-        @NonNull List<@NonNull Action> actions = new ArrayList<>();
+    public static @NonNull PlacementResults generatePlacementDecisions(
+                    @NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists) {
+        @NonNull PlacementResults placementResults = new PlacementResults();
         // Use a LinkedHashSet to prevent duplicates but allow ordered traversal.
         @NonNull Set<@NonNull Trader> shopTogetherTraders = new LinkedHashSet<>();
         for (ShoppingList sl : shoppingLists) {
@@ -121,11 +119,11 @@ public class Placement {
             if (buyer.getSettings().isShopTogether()) {
                 shopTogetherTraders.add(buyer);
             } else {
-                actions.addAll(generateShopAlonePlacementDecisions(economy, sl));
+                placementResults.combine(generateShopAlonePlacementDecisions(economy, sl));
             }
         }
-        actions.addAll(generateShopTogetherDecisions(economy, shopTogetherTraders));
-        return actions;
+        placementResults.combine(generateShopTogetherDecisions(economy, shopTogetherTraders));
+        return placementResults;
     }
 
     /**
@@ -139,25 +137,23 @@ public class Placement {
      * @param shoppingList - The {@link ShoppingList} for which we try to find the best destination
      * @return the placement actions
      */
-    public static @NonNull List<@NonNull Action> generateShopAlonePlacementDecisions(
+    public static PlacementResults generateShopAlonePlacementDecisions(
                     @NonNull Economy economy, ShoppingList shoppingList) {
-        @NonNull List<Action> actions = new ArrayList<>();
         if (economy.getForceStop()) {
-            return actions;
+            return PlacementResults.empty();
         }
         // if there are no sellers in the market, the buyer is misconfigured
         final @NonNull List<@NonNull Trader> sellers =
                         economy.getMarket(shoppingList).getActiveSellersAvailableForPlacement();
         // sl can be immovable when the underlying provider is not availableForPlacement
-        if (!shoppingList.isMovable()) {
-            return actions;
-        }
+        if (!shoppingList.isMovable())
+            return PlacementResults.empty();
         if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
-            actions.add(new Reconfigure(economy, shoppingList).take()
-                            .setImportance(Double.POSITIVE_INFINITY));
+            final PlacementResults results = PlacementResults.forSingleAction(
+                new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
             // To prevent regeneration of duplicate reconfigure actions
             shoppingList.setMovable(false);
-            return actions;
+            return results;
         }
 
         // get cheapest quote
@@ -201,6 +197,7 @@ public class Placement {
         final double currentQuote = minimizer.getCurrentQuote();
 
         // move, and update economy and state
+        PlacementResults placementResults = PlacementResults.empty();
         if (cheapestQuote < currentQuote * buyer.getSettings().getQuoteFactor()) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
@@ -214,8 +211,8 @@ public class Placement {
             }
             // create recommendation, add it to the result list and  update the economy to
             // reflect the decision
-            actions.add(new Move(economy, shoppingList, cheapestSeller).take().setImportance(
-                            savings));
+            placementResults = PlacementResults.forSingleAction(
+                new Move(economy, shoppingList, cheapestSeller).take().setImportance(savings));
             if (economy.getSettings().isUseExpenseMetricForTermination()) {
                 Market myMarket = economy.getMarket(shoppingList);
                 myMarket.setPlacementSavings(myMarket.getPlacementSavings() + savings);
@@ -227,7 +224,8 @@ public class Placement {
                 }
             }
         }
-        return actions;
+
+        return placementResults;
     }
 
     /**
@@ -239,7 +237,7 @@ public class Placement {
      * @param economy - the economy whose traders' placement we want to optimize
      * @return shop-together decisions
      */
-    public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy) {
+    public static @NonNull PlacementResults shopTogetherDecisions(@NonNull Economy economy) {
         return Placement.shopTogetherDecisions(economy, new ArrayList<>(), false);
     }
 
@@ -257,9 +255,9 @@ public class Placement {
      * @param preferentialPlacementOnly - boolean to run placements only on the buyers passed
      * @return shop-together decisions
      */
-    public static @NonNull List<@NonNull Action> shopTogetherDecisions(@NonNull Economy economy,
+    public static @NonNull PlacementResults shopTogetherDecisions(@NonNull Economy economy,
                                 List<ShoppingList> shopFirstShoppingLists, boolean preferentialPlacementOnly) {
-        @NonNull List<@NonNull Action> output = new ArrayList<>();
+        @NonNull final PlacementResults placementResults = new PlacementResults();
 
         // Use a linkedHashSet to preserve order, permit fast #contains lookups, and ensure only
         // unique elements in the collection.
@@ -267,16 +265,16 @@ public class Placement {
         if (!shopFirstShoppingLists.isEmpty()) {
             shopFirstShoppingLists.forEach(sl -> specialTraders.add(sl.getBuyer()));
             // place selected list of buyers
-            output.addAll(generateShopTogetherDecisions(economy, specialTraders));
+            placementResults.combine(generateShopTogetherDecisions(economy, specialTraders));
             if (!preferentialPlacementOnly) {
-                output.addAll(generateShopTogetherDecisions(economy, economy.getTraders().stream()
+                placementResults.combine(generateShopTogetherDecisions(economy, economy.getTraders().stream()
                     .filter(trader -> !specialTraders.contains(trader))
                     .collect(Collectors.toList())));
             }
         } else {
-            output.addAll(generateShopTogetherDecisions(economy, economy.getTraders()));
+            placementResults.combine(generateShopTogetherDecisions(economy, economy.getTraders()));
         }
-        return output;
+        return placementResults;
     }
 
     /**
@@ -291,13 +289,13 @@ public class Placement {
      * {@link Economy}
      * @return shop-together decisions
      */
-    public static @NonNull List<@NonNull Action> generateShopTogetherDecisions(@NonNull Economy
+    public static PlacementResults generateShopTogetherDecisions(@NonNull Economy
                     economy, Collection<Trader> traders) {
-        @NonNull List<@NonNull Action> output = new ArrayList<>();
+        @NonNull final PlacementResults placementResults = new PlacementResults();
 
         for (Trader buyingTrader : traders) {
             if (economy.getForceStop()) {
-                return output;
+                return placementResults;
             }
             if (!shouldConsiderTraderForShopTogether(economy, buyingTrader)) {
                 continue;
@@ -312,8 +310,8 @@ public class Placement {
                     // Since the shopping list can be in multiple entries in this loop,
                     // we need to check whether a Reconfigure was already generated for
                     // this list.
-                    output.add(new Reconfigure(economy, sl).take()
-                               .setImportance(Double.POSITIVE_INFINITY));
+                    placementResults.addAction(new Reconfigure(economy, sl).take()
+                        .setImportance(Double.POSITIVE_INFINITY));
                     // Set movable to false to prevent generating further reconfigures
                     // for this shopping list
                     sl.setMovable(false);
@@ -325,9 +323,16 @@ public class Placement {
 
             CliqueMinimizer minimizer = computeBestQuote(economy, buyingTrader);
             // If the best suppliers are not current ones, move shopping lists to best places
-            output.addAll(checkAndGenerateCompoundMoveActions(economy, buyingTrader, minimizer));
+            placementResults.addActions(checkAndGenerateCompoundMoveActions(economy,
+                buyingTrader, minimizer));
+
+            // Add explanations for unplaced traders.
+            if (minimizer != null && Double.isInfinite(minimizer.getBestTotalQuote())) {
+                placementResults.addUnplacedTraders(buyingTrader,
+                    minimizer.getInfiniteQuoteTrackers().values());
+            }
         }
-        return output;
+        return placementResults;
     }
 
     /**
@@ -425,7 +430,7 @@ public class Placement {
                 return Double.POSITIVE_INFINITY;
             }
             quote += EdeCommon.quote(economy, entry.getKey(), entry.getKey().getSupplier(),
-                                     Double.POSITIVE_INFINITY, false)[0];
+                                     Double.POSITIVE_INFINITY, false).getQuoteValue();
         }
         return quote;
     }
@@ -452,7 +457,7 @@ public class Placement {
      * @param callerPhase - tag to identify phase it is being called from
      * @return a list of recommendations about trader placement
      */
-    public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
+    public static @NonNull PlacementResults runPlacementsTillConverge(Economy economy,
                     Ledger ledger, String callerPhase) {
         return runPlacementsTillConverge(economy, new ArrayList<ShoppingList>(), ledger,
                         false, callerPhase);
@@ -471,11 +476,10 @@ public class Placement {
      * @param callerPhase - tag to identify phase it is being called from
      * @return a list of recommendations about trader placement
      */
-    public static @NonNull List<@NonNull Action> runPlacementsTillConverge(Economy economy,
+    public static @NonNull PlacementResults runPlacementsTillConverge(Economy economy,
                     List<ShoppingList> shoppingLists, Ledger ledger,
                     boolean preferentialPlacementOnly, String callerPhase) {
-        @NonNull
-        List<Action> actions = new ArrayList<@NonNull Action>();
+        @NonNull final PlacementResults placementResults = new PlacementResults();
         // generate placement actions
         boolean keepRunning = true;
         // we want to prevent computation of the expenseMetric when we perform preferentialPlacement
@@ -500,14 +504,15 @@ public class Placement {
                     + " rounds, forcing placement to stop now!");
                 break;
             }
-            List<Action> placeActions =
-                            placementDecisions(economy, shoppingLists, preferentialPlacementOnly);
+            final PlacementResults intermediateResults =
+                placementDecisions(economy, shoppingLists, preferentialPlacementOnly);
+
             counter++;
             globalCounter++;
-            keepRunning = !(placeActions.isEmpty()
-                            || placeActions.stream().allMatch(a -> a instanceof Reconfigure)
+            keepRunning = !(intermediateResults.getActions().isEmpty()
+                            || intermediateResults.getActions().stream().allMatch(a -> a instanceof Reconfigure)
                             || (useExpenseMetric && areSavingsLessThanThreshold(economy)));
-            actions.addAll(placeActions);
+            placementResults.combine(intermediateResults);
             if (useExpenseMetric) {
                 adjustMarketBaselineExpenses(economy, ledger);
             }
@@ -516,7 +521,7 @@ public class Placement {
         if (logger.isDebugEnabled()) {
             logger.debug(callerPhase + " Total Placement Iterations: " + counter + " " + globalCounter);
         }
-        return actions;
+        return placementResults;
     }
 
     /**

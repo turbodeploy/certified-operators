@@ -96,7 +96,7 @@ public class OldSuspension {
                 takeActionAndUpdateLedger(economy, market, ledger, leastProfitableTrader, actions);
 
                 List<@NonNull Action> placementActions = Placement.runPlacementsTillConverge(
-                                economy, ledger, SUSPENSION_PHASE);
+                                economy, ledger, SUSPENSION_PHASE).getActions();
                 actions.addAll(placementActions);
                 // keep a set of traders whose ROI will be affected as a result of placement after
                 // the suspension action.

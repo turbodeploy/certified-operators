@@ -26,7 +26,7 @@ import org.checkerframework.dataflow.qual.Pure;
  *  invalidated.
  * </p>
  */
-public final class ShoppingList implements Serializable {
+public class ShoppingList implements Serializable {
     /**
      *
      */

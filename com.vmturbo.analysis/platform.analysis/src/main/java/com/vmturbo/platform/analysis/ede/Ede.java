@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -14,15 +15,21 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionCollapse;
+import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomyConstants;
+import com.vmturbo.platform.analysis.economy.InvertedIndex.ActiveSellerLookup;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.ActionStats;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
+import com.vmturbo.platform.analysis.utilities.PlacementResults;
+import com.vmturbo.platform.analysis.utilities.PlacementStats;
+import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
 import com.vmturbo.platform.analysis.utilities.StatsWriter;
@@ -167,12 +174,13 @@ public final class Ede {
         if (isReplay && getReplayActions() != null) {
             getReplayActions().replayActions(economy, ledger);
             actions.addAll(getReplayActions().getActions());
-            logger.info(actionStats.phaseLogEntry("replaying"));
+            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
         }
 
         // generate moves for preferential shoppingLists
-        actions.addAll(Placement.prefPlacementDecisions(economy, economy.getPreferentialShoppingLists()));
-        logger.info(actionStats.phaseLogEntry("inactive/idle Trader placement"));
+        actions.addAll(Placement.prefPlacementDecisions(economy,
+            economy.getPreferentialShoppingLists()).getActions());
+        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "inactive/idle Trader placement");
 
         // Start by provisioning enough traders to satisfy all the demand
         // Save first call to before() to calculate total plan time
@@ -180,15 +188,15 @@ public final class Ede {
         if (isProvision) {
             actions.addAll(BootstrapSupply.bootstrapSupplyDecisions(economy));
             ledger = new Ledger(economy);
-            logger.info(actionStats.phaseLogEntry("bootstrap"));
+            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "bootstrap");
             // time to run bootstrap
             statsUtils.after();
 
             statsUtils.before();
             // run placement algorithm to balance the environment
-            actions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                                                               EconomyConstants.PLACEMENT_PHASE));
-            logger.info(actionStats.phaseLogEntry("placement"));
+            actions.addAll(Placement.runPlacementsTillConverge(
+                economy, ledger, EconomyConstants.PLACEMENT_PHASE).getActions());
+            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "placement");
             // time to run initial placement
             statsUtils.after();
         }
@@ -197,14 +205,15 @@ public final class Ede {
         if (isResize) {
             actions.addAll(Resizer.resizeDecisions(economy, ledger));
         }
-        logger.info(actionStats.phaseLogEntry("resizing"));
+        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "resizing");
         // resize time
         statsUtils.after();
 
         statsUtils.before();
-        actions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                        EconomyConstants.PLACEMENT_PHASE));
-        logger.info(actionStats.phaseLogEntry("placement"));
+        PlacementResults placementResults = Placement.runPlacementsTillConverge(economy, ledger,
+            EconomyConstants.PLACEMENT_PHASE);
+        actions.addAll(placementResults.getActions());
+        logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "placement");
         // placement time
         statsUtils.after();
 
@@ -213,11 +222,12 @@ public final class Ede {
         int oldActionCount = actions.size();
         if (isProvision) {
             actions.addAll(Provision.provisionDecisions(economy, ledger, this));
-            logger.info(actionStats.phaseLogEntry("provisioning"));
+            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provisioning");
             // if provision generated some actions, run placements
             if (actions.size() > oldActionCount) {
-                actions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                                EconomyConstants.PLACEMENT_PHASE));
+                placementResults = Placement.runPlacementsTillConverge(economy, ledger,
+                    EconomyConstants.PLACEMENT_PHASE);
+                actions.addAll(placementResults.getActions());
                 logger.info(actionStats.phaseLogEntry("post provisioning placement"));
             }
         }
@@ -239,7 +249,7 @@ public final class Ede {
             if (getReplayActions() != null) {
                 getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
             }
-            logger.info(actionStats.phaseLogEntry("suspending"));
+            logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "suspending");
         }
         // suspension time
         statsUtils.after();
@@ -270,6 +280,9 @@ public final class Ede {
                             .forEach((k, v) -> logger
                                             .debug("    " + k.getSimpleName() + " : " + v.size()));
         }
+        addUnplacementsForEmptyReconfigures(economy, actions, placementResults);
+        logUnplacedTraders(placementResults);
+
         return actions;
     }
 
@@ -370,4 +383,65 @@ public final class Ede {
      public ReplayActions getReplayActions() {
          return replayActions_;
      }
+
+    /**
+     * Log messages to describe why traders could not be placed.
+     *
+     * @param placementResults The results describing why traders could not be placed.
+     */
+    private void logUnplacedTraders(@NonNull final PlacementResults placementResults) {
+        try {
+            placementResults.getUnplacedTraders().forEach((trader, quoteTrackers) ->
+                logger.info("Unable to place trader " + trader + " due to:\n\t" +
+                    quoteTrackers.stream()
+                        .filter(QuoteTracker::hasQuotesToExplain)
+                        .map(QuoteTracker::explainInterestingSellers)
+                        .collect(Collectors.joining("\n\t"))));
+        } catch (Exception e) {
+            logger.error("Error during unplaced trader logging: ", e);
+        }
+    }
+
+    /**
+     * Create a log entry for the phase with the given name and clear placement stats after logging them.
+     *
+     * @param actionStats Statistics for actions for the phase.
+     * @param placementStats Statistics for placements performed during the phase.
+     * @param phaseName The name of the phase.
+     */
+    private void logPhaseAndClearPlacementStats(@NonNull final ActionStats actionStats,
+                                                @NonNull final PlacementStats placementStats,
+                                                @NonNull final String phaseName) {
+        logger.info(actionStats.phaseLogEntry(phaseName, placementStats));
+        placementStats.clear();
+    }
+
+    /**
+     * When a shopping list is buying from a market with no sellers, we create a reconfigure with no
+     * explaining commodity. These reconfigures are not very helpful, but they do indicate that the
+     * shopping list could not be placed. When we generate these actions, create unplacement information
+     * for them so that they can be logged or sent along.
+     *
+     * TODO: Hopefully one day we will do something other than generate a reconfigure with no commodity
+     *       and we can get rid of this specialized logic.
+     *
+     * @param placementResults The actions and unplaced VMs that resulted from running analysis.
+     */
+    private void addUnplacementsForEmptyReconfigures(@NonNull final Economy economy,
+                                                     @NonNull final List<Action> actions,
+                                                     @NonNull final PlacementResults placementResults) {
+        Map<Trader, List<ShoppingList>> shoppingListsForMarketsWithNoSellers = actions.stream()
+            .filter(action -> action instanceof Reconfigure)
+            .map(action -> (Reconfigure) action)
+            .filter(reconfigure -> economy.getMarket(reconfigure.getTarget()).getActiveSellers().isEmpty())
+            .map(reconfigure -> reconfigure.getTarget())
+            .collect(Collectors.groupingBy(ShoppingList::getBuyer));
+
+        // The active seller lookup is used to identify traders in markets with no active sellers.
+        final ActiveSellerLookup activeSellerLookup = economy.getSellersInvertedIndex()
+            .getActiveSellerLookup();
+        shoppingListsForMarketsWithNoSellers.forEach((trader, shoppingLists) ->
+            placementResults.addResultsForMarketsWithNoSuppliers(
+                trader, shoppingLists, economy, activeSellerLookup));
+    }
 }

@@ -132,7 +132,7 @@ public class Suspension {
                     if (seller.getCustomers().isEmpty()) {
                         if (logger.isTraceEnabled() || isDebugTrader) {
                             logger.info("Suspending " + sellerDebugInfo
-                                    + " as there are no customers.");
+                                + " as there are no customers.");
                         }
                         suspendTrader(economy, market, seller, allActions);
                         // Avoid further suspensions if setting is CLUSTER
@@ -175,7 +175,7 @@ public class Suspension {
             if (allActions.size() > oldNumActions) {
                 // run economy wide placements if there are new actions in this round of suspension
                 allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                                                                      EconomyConstants.SUPPLY_PHASE));
+                    EconomyConstants.SUPPLY_PHASE).getActions());
             }
             round++;
         }
@@ -231,12 +231,11 @@ public class Suspension {
             // perform placement on just the customers on the suspensionCandidate
             // The act of suspension of chains of providerMustClone traders may clear the supplier
             // of some the customers, so remove them first.
-            suspendActions.addAll(
-                                  Placement.runPlacementsTillConverge(economy,
-                                          customersOfSuspCandidate.stream()
-                                            .filter(sl -> sl.getSupplier() != null)
-                                            .collect(Collectors.toList()),
-                                          ledger, true, EconomyConstants.SUSPENSION_PHASE));
+            suspendActions.addAll(Placement.runPlacementsTillConverge(
+                economy, customersOfSuspCandidate.stream()
+                    .filter(sl -> sl.getSupplier() != null)
+                    .collect(Collectors.toList()),
+                ledger, true, EconomyConstants.SUSPENSION_PHASE).getActions());
         }
 
         // Rollback actions if the trader still has customers.  If all of the customers are

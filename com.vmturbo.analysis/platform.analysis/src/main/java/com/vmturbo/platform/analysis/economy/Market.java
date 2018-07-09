@@ -248,7 +248,8 @@ public final class Market implements Serializable {
                             Placement.computeCurrentQuote(economy, movableSlByMarket)));
                 } else{
                     currentQuote.add(new SimpleEntry<>(shoppingList,
-                            QuoteFunctionFactory.computeCost(shoppingList, newSupplier, false, economy)));
+                        QuoteFunctionFactory.computeCost(shoppingList, newSupplier, false, economy)
+                            .getQuoteValue()));
                 }
 
             }

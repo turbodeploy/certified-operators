@@ -35,6 +35,11 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBu
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceDependency;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceLimitation;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentResourcePairQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.LicenseUnavailableQuote;
+import com.vmturbo.platform.analysis.utilities.Quote.MutableQuote;
 
 /**
  * The factory class to construct cost function.
@@ -230,7 +235,7 @@ public class CostFunctionFactory {
     /**
      * A utility method to extract base and dependent commodities and their max ratio constraint.
      *
-     * @param dependencyDTO the DTO represents the base and dependent commodity relation
+     * @param dependencyDTOs the DTO represents the base and dependent commodity relation
      * @return a list of {@link DependentResourcePair}
      */
     public static List<DependentResourcePair>
@@ -251,12 +256,14 @@ public class CostFunctionFactory {
      *
      * @param sl the shopping list which requests resources
      * @param seller the seller which sells resources
-     * @param dependentResourcePair the dependency information between base and dependent commodities
-     * @return true if the validation passes, otherwise false
+     * @param dependencyList the dependency information between base and dependent commodities
+     * @return A quote for the cost of the dependent resource pair. An infinite quote indicates the requested
+     *         amount does not comply with the resource limitation.
      */
-    private static boolean validateDependentCommodityAmount(@NonNull ShoppingList sl,
-                                                            @NonNull Trader seller, @NonNull List<DependentResourcePair> dependencyList,
-                                                            @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacity) {
+    private static MutableQuote getDependentResourcePairQuote(@NonNull ShoppingList sl,
+                                                              @NonNull Trader seller,
+                                                              @NonNull List<DependentResourcePair> dependencyList,
+                                                              @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacity) {
         // check if the dependent commodity requested amount is more than the
         // max ratio * base commodity requested amount
         for (DependentResourcePair dependency : dependencyList) {
@@ -270,24 +277,31 @@ public class CostFunctionFactory {
             if (baseIndex == -1 || depIndex == -1) {
                 continue;
             }
-            double dependentCommodityLowerBoundCapacity = commCapacity.get(dependency.getDependentCommodity()).getMinCapacity();
-            if (Math.max(sl.getQuantities()[baseIndex]
-                            * dependency.maxRatio_, dependentCommodityLowerBoundCapacity) < sl.getQuantities()[depIndex]) {
-                return false;
+            double dependentCommodityLowerBoundCapacity =
+                commCapacity.get(dependency.getDependentCommodity()).getMinCapacity();
+            double baseQuantity = Math.max(sl.getQuantities()[baseIndex] * dependency.maxRatio_,
+                dependentCommodityLowerBoundCapacity); 
+            if (baseQuantity < sl.getQuantities()[depIndex]) {
+                return new InfiniteDependentResourcePairQuote(dependency, baseQuantity,
+                    sl.getQuantities()[depIndex]);
             }
         }
-        return true;
+        return CommodityQuote.zero(seller);
     }
 
     /**
-     * Validate if the requested amount of commodity is within the maximum range.
+     * Scan commodities in the shopping list to find any that the maximum capacities in the given map
+     * of capacity limitations.
      *
      * @param sl the shopping list
      * @param commCapacity the information of a commodity and its minimum and maximum capacity
-     * @return false if the requested amount more than maximum capacity, otherwise false
+     * @return If all commodities fit within the max capacity, returns a number les than zero.
+     *         If one or more commodities does not fit, returns the index of the first commodity encountered in
+     *         the shopping list that does not fit.
      */
-    private static boolean validateRequestedAmountWithinMaxCapacity(ShoppingList sl,
-                    Map<CommoditySpecification, CapacityLimitation> commCapacity) {
+    private static MutableQuote insufficientCommodityWithinMaxCapacityQuote(ShoppingList sl, Trader seller,
+                                               Map<CommoditySpecification, CapacityLimitation> commCapacity) {
+        final CommodityQuote quote = new CommodityQuote(seller);
         // check if the commodities bought comply with capacity limitation on seller
         for (Entry<CommoditySpecification, CapacityLimitation> entry : commCapacity.entrySet()) {
             int index = sl.getBasket().indexOf(entry.getKey());
@@ -300,10 +314,11 @@ public class CostFunctionFactory {
             }
             if (sl.getQuantities()[index] > entry.getValue().getMaxCapacity()) {
                 logMessagesForCapacityLimitValidation(sl, index, entry);
-                return false;
+                quote.addCostToQuote(Double.POSITIVE_INFINITY, entry.getValue().getMaxCapacity(), entry.getKey());
             }
         }
-        return true;
+
+        return quote;
     }
 
     /**
@@ -328,19 +343,22 @@ public class CostFunctionFactory {
     }
 
     /**
-     * Validate if the shoppingList can fit in the seller.
+     * Scan commodities in the shopping list to find any that exceed capacities in the seller.
      *
      * @param sl the shopping list
      * @param seller the templateProvider that supplies the resources
-     * @return true if validation passes, otherwise false
+     * @return If all commodities in the shopping list fit within the seller, returns a number less than zero.
+     *         If some commodity does not fit, returns the boughtIndex of the first commodity in that shopping list's
+     *         basket that cannot fit within the seller.
      */
-    private static boolean validateRequestedAmountWithinSellerCapacity(ShoppingList sl,
-                    Trader seller) {
+    private static MutableQuote insufficientCommodityWithinSellerCapacityQuote(ShoppingList sl, Trader seller) {
         // check if the commodities bought comply with capacity limitation on seller
         int boughtIndex = 0;
         Basket basket = sl.getBasket();
         final double[] quantities = sl.getQuantities();
         List<CommoditySold> commsSold = seller.getCommoditiesSold();
+        final CommodityQuote quote = new CommodityQuote(seller);
+
         for (int soldIndex = 0; boughtIndex < basket.size();
                         boughtIndex++, soldIndex++) {
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
@@ -353,10 +371,11 @@ public class CostFunctionFactory {
             if (quantities[boughtIndex] > soldCapacity) {
                 logMessagesForSellerCapacityValidation(sl, seller, quantities[boughtIndex],
                     basketCommSpec, soldCapacity);
-                return false;
+                quote.addCostToQuote(Double.POSITIVE_INFINITY, soldCapacity, basketCommSpec);
             }
         }
-        return true;
+
+        return quote;
     }
 
     /**
@@ -388,12 +407,13 @@ public class CostFunctionFactory {
      * @param seller the templateProvider that supplies the resources
      * @param comm1Type is the type of 1st commodity
      * @param comm2Type is the type of 2nd commodity
-     * @return true if validation passes, otherwise false
+     * @return A quote for the dependent compute commodities. An infinite quote indicates that the
+     *         dependent compute commodities do not comply with the maximum capacity.
      */
-    private static boolean validateDependantComputeCommodities(ShoppingList sl,
-                                                         Trader seller,
-                                                         int comm1Type,
-                                                         int comm2Type) {
+    private static MutableQuote getDependantComputeCommoditiesQuote(ShoppingList sl,
+                                                                    Trader seller,
+                                                                    int comm1Type,
+                                                                    int comm2Type) {
         int comm1BoughtIndex = sl.getBasket().indexOf(comm1Type);
         int comm2BoughtIndex = sl.getBasket().indexOf(comm2Type);
         int comm1SoldIndex = seller.getBasketSold().indexOf(comm1Type);
@@ -406,7 +426,9 @@ public class CostFunctionFactory {
         logMessagesForDependentComputeCommValidation(isValid, seller, sl.getBuyer(), sl,
                         comm1BoughtIndex, comm2BoughtIndex, comm1BoughtQuantity, comm2BoughtQuantity,
                         comm1SoldIndex, comm1SoldCapacity);
-        return isValid;
+        return isValid ? CommodityQuote.zero(seller) :
+            new InfiniteDependentComputeCommodityQuote(comm1BoughtIndex, comm2BoughtIndex,
+                comm1SoldCapacity, comm1BoughtQuantity, comm2BoughtQuantity);
     }
 
     /**
@@ -439,32 +461,37 @@ public class CostFunctionFactory {
     /**
      * Calculates the cost of template that a shopping list has matched to
      *
+     * @param seller {@link Trader} that the buyer matched to
      * @param sl is the {@link ShoppingList} that is requesting price
      * @param costDTO is the resourceBundle associated with this templateProvider
      * @param costMap is the license based cost map where the key is the commType and the value is the cost
      *
-     * @return the cost given by {@link CostFunction}
+     * @return A quote for the cost given by {@link CostFunction}
      */
-    private static double calculateComputeCost(ShoppingList sl,
-                                               ComputeResourceBundleCostDTO costDTO,
-                                               Map<Integer, Double> costMap) {
+    public static MutableQuote calculateComputeCostQuote(Trader seller, ShoppingList sl,
+                                                         ComputeResourceBundleCostDTO costDTO,
+                                                         Map<Integer, Double> costMap) {
         final int licenseBaseType = costDTO.getLicenseBaseType();
         int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         if (licenseCommBoughtIndex == -1) {
-            // buyer doesn't shop for license
-            return costDTO.getCostWithoutLicense();
+            // buyer doesnt shop for license
+            return new CommodityQuote(seller, costDTO.getCostWithoutLicense());
         }
 
         // if the commodity exists in the basketBought, get the type of that commodity
         // and lookup the costMap for that license type
         final Integer type = sl.getBasket().get(licenseCommBoughtIndex).getType();
         final Double cost = costMap.get(type);
+        
         if (cost == null) {
             logger.error("Cannot find type {} in costMap, license base type: {}", type,
                     licenseBaseType);
-            return costDTO.getCostWithoutLicense();
+            return new CommodityQuote(seller, costDTO.getCostWithoutLicense());
         }
-        return cost;
+
+        return Double.isInfinite(cost) ?
+            new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
+            new CommodityQuote(seller, cost);
     }
 
     /**
@@ -590,7 +617,7 @@ public class CostFunctionFactory {
                         couponCommSoldByCbtp.getCapacity() - couponCommSoldByCbtp.getQuantity();
 
         // Get the cost of the template matched with the vm
-        double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy);
+        double templateCost = QuoteFunctionFactory.computeCost(buyer, matchingTP, false, economy).getQuoteValue();
         double discountedCost = 0;
         if (availableCoupons > 0) {
             double discountCoefficient = Math.min(requestedCoupons, availableCoupons) / requestedCoupons;
@@ -641,19 +668,29 @@ public class CostFunctionFactory {
         // the capacity constraint between commodities
         List<DependentResourcePair> dependencyList =
                         translateResourceDependency(costDTO.getResourceDependencyList());
-        CostFunction costFunction = (buyer, seller, validate, economy)
-                        -> {
-                            if (seller == null) {
-                                return 0;
-                            }
-                            if (!validateRequestedAmountWithinMaxCapacity(buyer, commCapacity)) {
-                                return Double.POSITIVE_INFINITY;
-                            }
-                            if (!validateDependentCommodityAmount(buyer, seller, dependencyList, commCapacity)) {
-                                return Double.POSITIVE_INFINITY;
-                            }
-                            return calculateStorageCost(priceDataMap, commCapacity, buyer);
-                        };
+
+        CostFunction costFunction = new CostFunction() {
+            @Override
+            public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
+                                        boolean validate, UnmodifiableEconomy economy) {
+                if (seller == null) {
+                    return CommodityQuote.zero(seller);
+                }
+                final MutableQuote maxCapacityQuote = insufficientCommodityWithinMaxCapacityQuote(
+                    buyer, seller, commCapacity);
+                if (maxCapacityQuote.isInfinite()) {
+                    return maxCapacityQuote;
+                }
+
+                final MutableQuote dependentCommodityQuote =
+                    getDependentResourcePairQuote(buyer, seller, dependencyList, commCapacity);
+                if (dependentCommodityQuote.isInfinite()) {
+                    return dependentCommodityQuote;
+                }
+                return new CommodityQuote(seller, calculateStorageCost(priceDataMap, commCapacity, buyer));
+            }
+        };
+
         return costFunction;
     }
 
@@ -666,56 +703,71 @@ public class CostFunctionFactory {
     public static @NonNull CostFunction createResourceBundleCostFunctionForCompute(ComputeResourceBundleCostDTO costDTO) {
         Map<Integer, Double> costMap = costDTO.getCostMapList().stream().collect(Collectors.toMap(CostPair::getLicenseType,
                                                                                                CostPair::getLicenseCost));
-        CostFunction costFunction = (buyer, seller, validate, economy)
-                        -> {
-                            if (!validate) {
-                                // seller is the currentSupplier. Just return cost
-                                return calculateComputeCost(buyer, costDTO, costMap);
-                            }
-                            if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {
-                                return Double.POSITIVE_INFINITY;
-                            }
-                            if (costDTO.getAccumulateResources() &&
-                                        !validateDependantComputeCommodities(buyer, seller,
-                                                                           costDTO.getComm1Type(),
-                                                                           costDTO.getComm2Type())) {
-                                return Double.POSITIVE_INFINITY;
-                            }
-                            return calculateComputeCost(buyer, costDTO, costMap);
-                        };
+        CostFunction costFunction = new CostFunction() {
+            @Override
+            public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
+                                        boolean validate, UnmodifiableEconomy economy) {
+                if (!validate) {
+                    // seller is the currentSupplier. Just return cost
+                    return calculateComputeCostQuote(seller, buyer, costDTO, costMap);
+                }
+
+                final MutableQuote capacityQuote = insufficientCommodityWithinSellerCapacityQuote(buyer, seller);
+                if (capacityQuote.isInfinite()) {
+                    return capacityQuote;
+                }
+
+                if (costDTO.getAccumulateResources()) {
+                    final MutableQuote dependantComputeCommoditiesQuote = getDependantComputeCommoditiesQuote(
+                        buyer, seller, costDTO.getComm1Type(), costDTO.getComm2Type());
+                    if (dependantComputeCommoditiesQuote.isInfinite()) {
+                        return dependantComputeCommoditiesQuote;
+                    }
+                }
+
+                return calculateComputeCostQuote(seller, buyer, costDTO, costMap);
+            }
+        };
         return costFunction;
     }
 
     /**
      * Create {@link CostFunction} by extracting data from {@link CbtpCostDTO}
      *
-     * @param costDTO the DTO carries the data used to construct cost function for cbtp
+     * @param cbtpResourceBundle the DTO carries the data used to construct cost function for cbtp
      * @return CostFunction
      */
     public static @NonNull CostFunction
                     createResourceBundleCostFunctionForCbtp(CbtpCostDTO cbtpResourceBundle) {
 
-        CostFunction costFunction = (buyer, seller, validate, economy)
-                        -> {
-                            if (!validate) {
-                                // In case that a vm is already placed on a cbtp, we need to avoid
-                                // calculating it's discounted cost in order to prevent a recursive
-                                // call to calculateDiscountedComputeCost. The recursive call will
-                                // be triggered because of the fact the cbtp is also a seller in a
-                                // market associated with the vm, and the quote minimizer will try
-                                // to calculate it's cost, that is a discounted cost.
-                                // By returning 0 we make sure that once a vm got placed on a cbtp
-                                // it will not move to another location. This assuming that the
-                                // cbtp provides the cheapest cost.
-                                return 0;
-                            }
-                            if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {
-                                return Double.POSITIVE_INFINITY;
-                            }
-                            return calculateDiscountedComputeCost(buyer, seller, cbtpResourceBundle, economy);
-                        };
+        CostFunction costFunction = new CostFunction() {
+            @Override
+            public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
+                                        boolean validate, UnmodifiableEconomy economy) {
+                if (!validate) {
+                    // In case that a vm is already placed on a cbtp, we need to avoid
+                    // calculating it's discounted cost in order to prevent a recursive
+                    // call to calculateDiscountedComputeCost. The recursive call will
+                    // be triggered because of the fact the cbtp is also a seller in a
+                    // market associated with the vm, and the quote minimizer will try
+                    // to calculate it's cost, that is a discounted cost.
+                    // By returning 0 we make sure that once a vm got placed on a cbtp
+                    // it will not move to another location. This assuming that the
+                    // cbtp provides the cheapest cost.
+                    return CommodityQuote.zero(seller);
+                }
+
+                final MutableQuote quote =
+                    insufficientCommodityWithinSellerCapacityQuote(buyer, seller);
+                if (quote.isInfinite()) {
+                    return quote;
+                }
+
+                return new CommodityQuote(seller,
+                    calculateDiscountedComputeCost(buyer, seller, cbtpResourceBundle, economy));
+            }
+        };
+
         return costFunction;
     }
-
-
 }

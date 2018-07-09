@@ -307,7 +307,7 @@ public class Ledger {
             if (sl.getSupplier() != null) {
                 try {
                     double[] tempQuote = EdeCommon.quote(economy, sl, sl.getSupplier()
-                                            , Double.POSITIVE_INFINITY, true);
+                                            , Double.POSITIVE_INFINITY, true).getQuoteValues();
                     for (int i=0; i<3; i++) {
                         quote[i] = quote[i] + tempQuote[i];
                     }
@@ -346,7 +346,7 @@ public class Ledger {
         if (shoppingList.getSupplier() != null) {
             try {
                 double[] tempQuote = EdeCommon.quote(economy, shoppingList, shoppingList.getSupplier()
-                                        , Double.POSITIVE_INFINITY, true);
+                                        , Double.POSITIVE_INFINITY, true).getQuoteValues();
                 for (int i=0; i<3; i++) {
                     quote[i] = quote[i] + tempQuote[i];
                 }

@@ -98,10 +98,10 @@ public class Provision {
         List<@NonNull Action> allActions = new ArrayList<>();
         if (economy.getSettings().isEstimatesEnabled()) {
             EstimateSupply es = new EstimateSupply(economy, ledger, true);
-
+            
             allActions.addAll(es.getActions());
             allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                    EconomyConstants.PROVISION_PHASE));
+                    EconomyConstants.PROVISION_PHASE).getActions());
         }
         // copy the markets from economy and use the copy to iterate, because in
         // the provision logic, we may add new basket which result in new market
@@ -120,7 +120,7 @@ public class Provision {
 
                 // run placement on the current buyers
                 allActions.addAll(Placement.prefPlacementDecisions(economy,
-                        new ArrayList<ShoppingList>(market.getBuyers())));
+                        new ArrayList<>(market.getBuyers())).getActions());
 
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
                 // break if there is no seller that is eligible for cloning in the market
@@ -271,12 +271,12 @@ public class Provision {
             , @NonNull Trader mostProfitableTrader) {
         List<@NonNull Action> actions = new ArrayList<>();
         actions.addAll(Placement.prefPlacementDecisions(economy,
-                new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers())));
+                new ArrayList<>(mostProfitableTrader.getCustomers())).getActions());
         // Allow all buyers in markets where mostProfitableTrader is a seller place again so they
         // can re-balance with the added resources in case these buyers are not part of the
         // current market.
         for (Market m : economy.getMarketsAsSeller(mostProfitableTrader)) {
-            actions.addAll(Placement.prefPlacementDecisions(economy, m.getBuyers()));
+            actions.addAll(Placement.prefPlacementDecisions(economy, m.getBuyers()).getActions());
         }
         return actions;
     }
