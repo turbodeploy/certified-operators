@@ -232,15 +232,8 @@ public class GroupMapper {
         switch (groupInfo.getSelectionCriteriaCase()) {
             case STATIC_GROUP_MEMBERS:
                 outputDTO.setIsStatic(true);
-                // TODO (roman, Jul 9 2018) OM-36862: Support getting the active entities count for
-                // a group because the UI needs that information in some screens.
-                outputDTO.setActiveEntitiesCount(groupInfo.getStaticGroupMembers().getStaticMemberOidsCount());
                 outputDTO.setEntitiesCount(
                     groupInfo.getStaticGroupMembers().getStaticMemberOidsCount());
-                // Right now in XL we don't support group-of-groups, so entities count is always
-                // the same as members count.
-                outputDTO.setMembersCount(
-                        groupInfo.getStaticGroupMembers().getStaticMemberOidsCount());
                 outputDTO.setMemberUuidList(
                         groupInfo.getStaticGroupMembers().getStaticMemberOidsList().stream()
                                 .map(Object::toString)
@@ -254,11 +247,7 @@ public class GroupMapper {
                                     .collect(Collectors.toList());
                 outputDTO.setIsStatic(false);
                 outputDTO.setMemberUuidList(groupMembers);
-                // TODO (roman, Jul 9 2018) OM-36862: Support getting the active entities count for
-                // a group because the UI needs that information in some screens.
-                outputDTO.setActiveEntitiesCount(groupMembers.size());
                 outputDTO.setEntitiesCount(groupMembers.size());
-                outputDTO.setMembersCount(groupMembers.size());
                 outputDTO.setCriteriaList(convertToFilterApis(groupInfo));
                 break;
             default:
