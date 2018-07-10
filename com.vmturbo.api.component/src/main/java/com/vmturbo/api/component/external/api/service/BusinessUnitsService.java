@@ -9,11 +9,21 @@ import javax.annotation.Nullable;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiInputDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
+import com.vmturbo.api.enums.EntityDetailType;
+import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.HierarchicalRelationship;
+import com.vmturbo.api.pagination.ActionPaginationRequest;
+import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
+import com.vmturbo.api.pagination.EntityPaginationRequest;
+import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
 
 public class BusinessUnitsService implements IBusinessUnitsService {
@@ -69,6 +79,41 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     @Override
     public Collection<BusinessUnitApiDTO> getRelatedBusinessUnits(@Nonnull String uuid) {
         // TODO OM-35804 implement required behavior
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public EntityPaginationResponse getEntities(final String uuid,
+                            final EntityPaginationRequest paginationRequest) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public ActionPaginationResponse getActions(final String uuid,
+                            final ActionApiInputDTO inputDto,
+                            final ActionPaginationRequest paginationRequest) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<StatSnapshotApiDTO> getActionCountStatsByUuid(final String uuid,
+                            final ActionApiInputDTO paginationRequest) throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public List<StatSnapshotApiDTO> getStatsByQuery(final String uuid,
+                            @Nullable final StatPeriodApiInputDTO statPeriodApiInputDTO)
+            throws Exception {
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Override
+    public SupplychainApiDTO getSupplychainByUuid(@Nonnull final String uuid,
+                            @Nullable final List<String> types,
+                            @Nullable final List<EntityState> entityStates,
+                            @Nullable final EntityDetailType detailTypes,
+                            @Nullable final Boolean healthSummary) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
 
