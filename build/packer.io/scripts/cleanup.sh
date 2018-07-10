@@ -40,12 +40,14 @@ echo 'echo "IP: $(/sbin/ip route get 1 | /bin/head -n 1 | awk '"'"'{print $7}'"'
 chmod +x /etc/rc.local
 chmod +x /etc/rc.d/rc.local
 
-# Set up permissions and a link for
+# Set up permissions
 chmod +x /etc/docker/turboctl.py
 chmod +x /etc/docker/turboupgrade.py
+chmod +x /usr/local/bin/vmtctl
 
 # Add a symlink, so that the sudo would see it.
 ln -s /etc/docker/turboctl.py /usr/bin/turboctl
+ln -s /usr/local/bin/vmtctl /usr/bin/vmtctl
 
 # clean up the disk
 # Compress the image as much as possible

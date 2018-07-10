@@ -1,9 +1,11 @@
-#!/bin/python
+#!/usr/bin/env python
 
 """
 Script to upgrade XL components.
+
 """
 
+import argparse
 import datetime
 import errno
 import glob
@@ -16,16 +18,30 @@ import shutil
 import subprocess
 import sys
 import time
-import yaml
+
 from logging import handlers
 
 
 TURBO_DOCKER_CONF_ROOT = "/etc/docker"
 DOCKER_COMPOSE_FILE = os.path.join(TURBO_DOCKER_CONF_ROOT, "docker-compose.yml")
 TURBO_CHECKSUM_FILE = os.path.join(TURBO_DOCKER_CONF_ROOT, "turbonomic_sums.txt")
+TURBO_INFO_FILE = os.path.join(TURBO_DOCKER_CONF_ROOT, "turbonomic_info.txt")
 TURBO_UPGRADE_SPEC_FILE =\
-    os.path.join(TURBO_DOCKER_CONF_ROOT, "turbo_upgrade_spec.yaml")
+    os.path.join(TURBO_DOCKER_CONF_ROOT, "turbo_upgrade_spec.yml")
+TURBO_VMTCTL_LOC = "/usr/local/bin/vmtctl"
+DOCKER_DIR = "/var/lib/docker/"
 ISO_MOUNTPOINT = "/media/cdrom"
+UPGRADE_STATUS_FILE="/tmp/status/load_status"
+FREE_SPACE_THRESHOLD_PCT = 10 # If space is below this, exit upgrade
+
+# Set this timeout value to a correct value as part of OM-12900.
+# Currently XL components are started via the entrypoint script which
+# has PID 1 and the main component service is a child process of the
+# entrypoint cmd. So when docker issues a stop, the SIGTERM doesn't
+# propogate to the child. So the effect is that "docker stop" will
+# send a SIGKILL to XL components.
+CONTAINER_STOP_TIMEOUT_SECS = 30
+
 # Create logger. Add console and syslog handlers
 LOGGER = logging.getLogger('upgrade')
 LOGGER.setLevel(logging.INFO)
@@ -39,6 +55,33 @@ sh.setLevel(logging.INFO)
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 sh.setFormatter(formatter)
 LOGGER.addHandler(sh)
+
+
+def mkdirs(path):
+    try:
+        os.makedirs(path)
+    except OSError as ex:
+        if ex.errno != errno.EEXIST:
+            LOGGER.error("Failed to create directory: %s Error:%s"%(path, ex))
+            sys.exit(1)
+
+def exec_cmd(exit_on_error=True, *args):
+    try:
+        return (0, subprocess.check_output(args))
+    except subprocess.CalledProcessError as ex:
+        if not exit_on_error:
+            return (ex.returncode, ex.output)
+        LOGGER.error("Failed to execute command %s. Return code:%s. Error:%s"
+            %(" ".join(args), ex.returncode, ex.output))
+        sys.exit(1)
+
+try:
+    import yaml
+except ImportError:
+    LOGGER.info("Installing PyYAML package")
+    exec_cmd("True", "yum", "-q", "-y", "install",
+        os.path.join(ISO_MOUNTPOINT, "PyYAML-3.10-11.el7.x86_64.rpm"))
+    import yaml
 
 def topological_sort(dag):
     """
@@ -162,20 +205,10 @@ def exec_docker_compose_cmd(exit_on_error, cmd, *args):
         out = subprocess.check_output(cmd)
         return (0, out)
     except subprocess.CalledProcessError as ex:
+        if not exit_on_error:
+            return (ex.returncode, ex.output)
         LOGGER.error("Failed to execute docker compose command:%s"\
             "Return code:%s Error:%s"%(cmd, ex.returncode, ex.output))
-        if not exit_on_error:
-            return (ex.returncode, ex.output)
-        sys.exit(1)
-
-def exec_cmd(exit_on_error=True, *args):
-    try:
-        return (0, subprocess.check_output(args))
-    except subprocess.CalledProcessError as ex:
-        LOGGER.error("Failed to execute command %s. Return code:%s. Error:%s"
-            %(" ".join(args), ex.returncode, ex.output))
-        if not exit_on_error:
-            return (ex.returncode, ex.output)
         sys.exit(1)
 
 def wait_until_log_msg(component):
@@ -207,11 +240,10 @@ def wait_until_component_ready(component):
     LOGGER.info("Waiting for component : '%s' to be READY"%component)
 
     wait_secs = 30
-    if component == "nginx" or component.startswith("mediation"):
+    if component in ["nginx", "zoo1", "kafka1"]:
         time.sleep(wait_secs)
         return
-    elif component in ["arangodb", "db", "consul", "clustermgr", "rsyslog",
-                        "kafka1", "zoo1"]:
+    elif component in ["arangodb", "db", "consul", "clustermgr", "rsyslog"]:
         wait_until_log_msg(component)
         return
 
@@ -228,36 +260,66 @@ def wait_until_component_ready(component):
     port = 8080
     wait_secs = 5
     while True:
-        ret, state = exec_cmd(False, "curl", "-X", "GET",
+        ret, state = exec_cmd(False, "curl", "-s", "-X", "GET",
                          "http://%s:%s/state"%(ip, port),
                          "-H", '"accept: application/json;charset=UTF-8"')
         state = state.strip()
 
-        if state == "RUNNING":
+        if state.find("RUNNING")>=0:
             break
-        elif state == "MIGRATING":
+        elif state.find("MIGRATING")>=0:
             # print migration progress
-            ret, migration_info = exec_cmd(False, "curl", "-X", "GET",
-                             "http://%s:%s/migration/"%(ip, port),
+            ret, migration_info = exec_cmd(False, "curl", "-s", "-X", "GET",
+                             "http://%s:%s/migration"%(ip, port),
                              "-H", '"accept: application/json;charset=UTF-8"')
-            print migration_info
+            #print migration_info
 
         time.sleep(wait_secs)
 
+def check_free_space():
+    stat = os.statvfs(DOCKER_DIR)
+    total_space = stat.f_frsize * stat.f_blocks
+    free_space = stat.f_frsize * stat.f_bavail
+    if ((free_space*1.0/total_space)*100) <= FREE_SPACE_THRESHOLD_PCT:
+        LOGGER.error("Disk space below %s. Exiting"%FREE_SPACE_THRESHOLD_PCT)
+        sys.exit(1)
+
+def get_version_number(info_file):
+    with open(info_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if (line.find("Version:")>=0):
+                return (line.strip().split()[2]).strip()
+
+    return ""
+
+def get_component_name_from_image_file_name(fname):
+    comp_name, ext = os.path.splitext(fname)
+    """
+    Return the name of the component given the image tarball name
+    """
+    d  = {
+        "kafka" : "kafka1",
+        "zookeeper" : "zoo1",
+        "syslog" : "rsyslog",
+        "reports" : "reporting"
+    }
+
+    return d.get(comp_name, comp_name.replace('_', '-'))
+
 if __name__ == '__main__':
     """
-    Steps:
+    STEPS:
     1. Mount the iso
     2. Find all the images which needs to be upgraded by checking the turbonomic_sums file
-       Replace the docker-compose.yml.* files
-       Create the set of components_to_upgrade based on components which have new checksums.
-       Validate the checksums:
-       sha256sum -c turbonomic_sums.txt
-    3. Parse the docker compose yaml and upgrade spec yaml file.
-    4. Create unified dependency graph (G and Transpose(G)) from the yaml files. If there
+    3. Replace the docker-compose.yml.* files
+    4. Create the set of components_to_upgrade based on components which have new checksums.
+    5. Validate the checksums
+    6. Parse docker-compose.yml and turbo_upgrade_spec.yml file(if it exists)
+    7. Create unified dependency graphs (G and Transpose(G)) from the yaml files. If there
        are cycles, throw error and exit.
-    5. Create a topological ordering T of the graph G
-    6. For each component C in the list T:
+    8. Create a topological ordering T of the graph G
+    9. For each component C in the list T:
         If there is a new image for C:
             a) Untar and add image to local registry
             b) Shutdown C and all the components that depend on it (BFS on Transpose(G))
@@ -265,29 +327,54 @@ if __name__ == '__main__':
             d) Load the new image
             e) Start C
             f) Wait for C to become "READY". For Turbo components, we query '/state'
-            endpoint. For 3rd party components, sleep for 1 minute (or component
-            specific logic for checking "READINESS")
+            endpoint. For 3rd party components, sleep for few secs or add component
+            specific "READINESS" check.
             g) Run post-commit hooks
-    7. Unmount the iso
+    10. Copy the turbonomic_sums.txt file
+    11. Unmount the iso
     """
 
-    my_name = os.path.basename(__file__)
-    if (len(sys.argv) != 2) or (sys.argv[1] != "start"):
-        print "Usage: %s start"%my_name
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description='Upgrade XL components to a newer version.')
+    parser.add_argument('--loc',
+        help="Location where the upgrade artifacts are located.\
+              Default location is CD-ROM.",
+        action='store', dest="loc")
 
-    try:
-        os.makedirs(ISO_MOUNTPOINT)
-    except OSError as ex:
-        if ex.errno != errno.EEXIST:
-            LOGGER.error("Failed to create CD mount dir: %s Error:%s"%(
-                ISO_MOUNTPOINT, ex))
-            sys.exit(1)
+    parser.add_argument("start", help="start the upgrade")
+    args = parser.parse_args()
+    my_name = os.path.basename(__file__)
+
+
+    # Write to load_status file so that the upgrade progess is displayed in the UI.
+    # We want to write only one line in the file. Control the number of lines
+    # approximately by specifying the number of bytes before file rotation kicks in.
+    mkdirs(os.path.dirname(UPGRADE_STATUS_FILE))
+    maxBytes = 50
+    backupCount = 1
+    fh = handlers.RotatingFileHandler(UPGRADE_STATUS_FILE, 'w',
+            maxBytes, backupCount)
+    fh.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(message)s')
+    fh.setFormatter(formatter)
+    LOGGER.addHandler(fh)
 
     LOGGER.info("Starting XL upgrade")
 
-    LOGGER.info("Mounting iso from CDROM")
-    mount_iso(ISO_MOUNTPOINT)
+    check_free_space()
+
+    if not args.loc:
+        LOGGER.info("Mounting iso from CDROM")
+        mkdirs(ISO_MOUNTPOINT)
+        mount_iso(ISO_MOUNTPOINT)
+    else:
+        ISO_MOUNTPOINT = args.loc
+
+    if (get_version_number(TURBO_INFO_FILE) >
+        get_version_number(os.path.join(ISO_MOUNTPOINT,
+            os.path.basename(TURBO_INFO_FILE)))):
+
+        LOGGER.error("The newer version should be higher than the current version.")
+        sys.exit(1)
 
     curr_checksums = parse_checksum_file(TURBO_CHECKSUM_FILE)
     new_checksums = parse_checksum_file(os.path.join(ISO_MOUNTPOINT,
@@ -297,9 +384,11 @@ if __name__ == '__main__':
     if (curr_checksums.has_key(my_name) and
             new_checksums.has_key(my_name) and
             new_checksums.get(my_name) != curr_checksums.get(my_name)):
-        LOGGER.info("Replacing with the new version of upgrade script.")
+        LOGGER.info("Newer version of upgrade tool is available."\
+            "Upgrading to latest version")
         shutil.copy(os.path.join(ISO_MOUNTPOINT, my_name), __file__)
-        LOGGER.info("Upgraded the upgrade script. Please restart the upgrade.")
+        LOGGER.info("Upgraded the upgrade tool. Please restart the upgrade.")
+        sys.exit(1)
 
     # Backup old files
     # FIXME:(karthikt) Handle case where the script crashes or is interrupted
@@ -308,25 +397,33 @@ if __name__ == '__main__':
     tstamp = datetime.datetime.today().strftime('%Y-%m-%d-%H%M%S')
     shutil.copytree(TURBO_DOCKER_CONF_ROOT,
         "%s.%s"%(TURBO_DOCKER_CONF_ROOT,tstamp))
-    # copy all the turbo docker compose files
+    # update the docker compose files and scripts with the latest version
     for fname in glob.glob("%s/*.yml*"%ISO_MOUNTPOINT):
+        verify_sha256sum(fname,
+            new_checksums.get(os.path.basename(fname)))
         shutil.copy(fname, TURBO_DOCKER_CONF_ROOT)
-
+    vmtctl_loc = os.path.join(ISO_MOUNTPOINT,
+                    os.path.basename(TURBO_VMTCTL_LOC))
+    if os.path.isfile(vmtctl_loc):
+        verify_sha256sum(vmtctl_loc,
+            os.path.basename(vmtctl_loc))
+        shutil.copy2(vmtctl_loc, TURBO_VMTCTL_LOC)
     yaml_files_to_parse = [DOCKER_COMPOSE_FILE]
     if os.path.isfile(TURBO_UPGRADE_SPEC_FILE):
         LOGGER.info("Using upgrade spec file: %s"%(
             TURBO_UPGRADE_SPEC_FILE))
-        yaml_files_to_parse.append(sys.argv[1])
+        yaml_files_to_parse.append(TURBO_UPGRADE_SPEC_FILE)
 
     # Mapping from vertex -> list_of_vertices
     dep_graph = {}
     dep_graph_transpose = {}
+    # Map of component name to its description map(from the yaml files)
     service_desc = {}
     for yml in yaml_files_to_parse:
         yaml_doc = load_yaml(yml)
         for k, v in yaml_doc['services'].iteritems():
             service_desc[k] = v
-            if v.has_key('depends_on'):
+            if v and (v.has_key('depends_on')):
                 for dep in v["depends_on"]:
                     dep_graph.setdefault(k, set()).add(dep)
                     dep_graph_transpose.setdefault(dep, set()).add(k)
@@ -348,14 +445,19 @@ if __name__ == '__main__':
                 and ext == '.tgz')):
             new_version_loc = os.path.join(ISO_MOUNTPOINT, name)
             verify_sha256sum(new_version_loc, new_checksums.get(name))
-            comp_name = comp_name.replace('_', '-')
+            comp_name = get_component_name_from_image_file_name(name)
             component_to_image_loc[comp_name] = new_version_loc
             components_to_upgrade.add(comp_name)
 
+    if not components_to_upgrade:
+        LOGGER.info("No new images found")
+
     stopped_components = set()
     LOGGER.info("%s components to upgrade: %s"
-        %(len(components_to_upgrade), " ".join(components_to_upgrade)))
+        %(len(components_to_upgrade),
+        " ".join([x for x in topological_order if x in components_to_upgrade])))
     count = 0
+
     for component in topological_order:
         if component in components_to_upgrade:
             count += 1
@@ -364,23 +466,32 @@ if __name__ == '__main__':
             # Get the components which depend on this component and stop them.
             deps = get_dependencies(dep_graph_transpose, component)
             if deps:
-                ret, out = exec_docker_compose_cmd(True, "stop", *deps)
+                ret, out = exec_docker_compose_cmd(True, "stop", "-t",
+                                str(CONTAINER_STOP_TIMEOUT_SECS), *deps)
                 stopped_components |= set(deps)
-            ret, out = exec_docker_compose_cmd(True, "stop", component)
+            ret, out = exec_docker_compose_cmd(True, "stop", "-t",
+                            str(CONTAINER_STOP_TIMEOUT_SECS), component)
+            LOGGER.info("Loading new image for component: %s"%component);
             exec_cmd(True, "docker", "load", "-i",
                 component_to_image_loc.get(component))
-            exec_docker_compose_cmd(True, "stop", dep)
-            if service_desc.get(component).has_key("pre_hook"):
-                exec_cmd(True, service_desc.get(component).get("pre_hook"))
+            if (service_desc.get(component) and
+                service_desc.get(component).has_key("pre_hook")):
+                LOGGER.info("Running pre upgrade hooks for component:%s"
+                    %component)
+                exec_cmd(True, os.path.join(ISO_MOUNTPOINT,
+                    service_desc.get(component).get("pre_hook")))
             exec_docker_compose_cmd(True, "up", "-d", component)
             wait_until_component_ready(component)
             if component in stopped_components:
                 stopped_components.remove(component)
 
-    for component in stopped_components:
-        exec_docker_compose_cmd(True, "up", "-d", component)
+    for component in topological_order:
+        if (component in stopped_components):
+            exec_docker_compose_cmd(True, "up", "-d", component)
 
     # Remove dangling images
+    LOGGER.info("Removing dangling images")
+    exec_cmd(True, "docker", "images", "prune")
     #exec_cmd(True, "docker", "images", "-qa", "-f", "dangling=true", "|",
     #                "xargs", "docker", "rmi")
 
@@ -388,6 +499,7 @@ if __name__ == '__main__':
     for fname in glob.glob("%s/*.txt"%ISO_MOUNTPOINT):
         shutil.copy(fname, TURBO_DOCKER_CONF_ROOT)
 
-    LOGGER.info("Unmounting CDROM")
-    umount_iso(ISO_MOUNTPOINT)
+    if not args.loc:
+        LOGGER.info("Unmounting CDROM")
+        umount_iso(ISO_MOUNTPOINT)
     LOGGER.info("XL upgrade finished successfully")

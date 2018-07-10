@@ -51,6 +51,9 @@ cp ${WORKSPACE}/build/turboctl.py ${WORKSPACE}/data/images/.
 # Copy the upgrade script to add into the iso
 cp ${WORKSPACE}/build/turboupgrade.py ${WORKSPACE}/data/images/.
 
+# Copy vmtctl script to add into the iso
+cp ${WORKSPACE}/build/vmtctl ${WORKSPACE}/data/images/.
+
 # Copy the common definition .yml files with common values used by the above docker-compose.yml.nnk
 cp ${WORKSPACE}/build/prod-services.yml ${WORKSPACE}/data/images/
 cp ${WORKSPACE}/build/common-services.yml ${WORKSPACE}/data/images/
@@ -72,6 +75,13 @@ sha256sum "prod-services.yml" >> turbonomic_sums.txt
 sha256sum "common-services.yml" >> turbonomic_sums.txt
 sha256sum "turboctl.py" >> turbonomic_sums.txt
 sha256sum "turboupgrade.py" >> turbonomic_sums.txt
+sha256sum "vmtctl" >> turbonomic_sums.txt
+
+# For customers who don't allow access to remote yum repository, we would have
+# to ship the PyYAML package along with XL components.
+# PyYAML is used by turboupgrade.py script for parsing yml files.
+curl -O -ks https://10.10.150.66/repository/xl/PyYAML-3.10-11.el7.x86_64.rpm
+
 
 for file in `ls *tgz`; do sha256sum $file >> turbonomic_sums.txt; done
 popd

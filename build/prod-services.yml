@@ -27,7 +27,7 @@ services:
       instance_id: nginx-1
     volumes:
       - /tmp/certs:/etc/nginx/certs
-      - /tmp/load_status:/var/www/load_status
+      - /tmp/status:/var/www/status
       - nginx-data:/var/lib/nginx
       - nginx-run:/var/run
     restart: always

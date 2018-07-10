@@ -10,8 +10,8 @@
             "headless": "false",
             "format": "ova",
             "output_directory": "turbonomic_xl",
-            "iso_url": "http://mirrors.sonic.net/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1708.iso",
-            "iso_checksum": "aae20c8052a55cf179af88d9dd35f1a889cd5773",
+            "iso_url": "http://mirrors.sonic.net/centos/7/isos/x86_64/CentOS-7-x86_64-Minimal-1804.iso",
+            "iso_checksum": "13675c6f74880e7ff3481b91bdaf925ce81bda8f",
             "iso_checksum_type": "sha1",
             "vm_name": "turbonomic_xl",
             "vmdk_name": "turbonomic_xl",
@@ -73,6 +73,11 @@
             "type": "file",
             "source": "../turboupgrade.py",
             "destination": "/etc/docker/turboupgrade.py"
+        },
+        {
+            "type": "file",
+            "source": "../vmtctl",
+            "destination": "/usr/local/bin/vmtctl"
         },
         {
             "type": "shell",
