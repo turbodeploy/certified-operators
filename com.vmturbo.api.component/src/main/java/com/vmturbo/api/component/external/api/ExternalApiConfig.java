@@ -4,8 +4,6 @@ import java.util.List;
 
 import javax.servlet.ServletContext;
 
-import com.google.common.collect.ImmutableList;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +13,8 @@ import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
+
+import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.api.component.external.api.service.MarketsService;
 import com.vmturbo.components.common.LoggingFilter;
@@ -87,8 +87,13 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
         // resources for the Turbonomic UI
         registry.addResourceHandler("/app/**")
                 .addResourceLocations("file:/www/app/");
+        // In a production environment the assets and docs are in a resource bundle, and there
+        // are no requests to those paths. But in a local development environment with an
+        // un-compressed UI we need to support these routes or else the UI won't work.
         registry.addResourceHandler("/assets/**")
                 .addResourceLocations("file:/www/assets/");
+        registry.addResourceHandler("/doc/**")
+                .addResourceLocations("file:/www/doc/");
         registry.addResourceHandler("/vmturbo/apidoc/**")
                 .addResourceLocations("file:/swagger/");
         registry.addResourceHandler("/swagger/**")
