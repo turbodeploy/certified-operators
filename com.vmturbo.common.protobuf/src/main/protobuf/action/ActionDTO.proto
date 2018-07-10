@@ -60,7 +60,7 @@ message Explanation {
 
     // An activate explanation contains the base type of the most expensive commodity.
     message ActivateExplanation {
-        optional int32 most_expensive_commodity = 1;
+        required int32 most_expensive_commodity = 1;
     }
 
     // Deactivate explanation will always be improve overall efficiency.
