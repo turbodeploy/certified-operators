@@ -29,7 +29,8 @@ public class ExplanationComposer {
     public static final String MOVE_PERFORMANCE_EXPLANATION =
         "Improve utilization of infrastructure resources to achieve better application performance";
     public static final String RESIZE_EXPLANATION = "Address the issue of ";
-    public static final String ACTIVATE_EXPLANATION = "Address high utilization of ";
+    public static final String ACTIVATE_EXPLANATION_WITH_REASON_COMM = "Address high utilization of ";
+    public static final String ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM = "Add more resource to satisfy the increased demand";
     public static final String DEACTIVATE_EXPLANATION = "Improve infrastructure efficiency";
     public static final String RECONFIGURE_EXPLANATION =
         "Enable supplier to offer requested resource(s) ";
@@ -70,8 +71,13 @@ public class ExplanationComposer {
                     explanation.getResize().getStartUtilization(),
                     explanation.getResize().getEndUtilization());
             case ACTIVATE:
-                return buildActivateExplanation(
-                    explanation.getActivate().getMostExpensiveCommodity());
+                // default value for most_expensive_commodity in ActivateDTO is set to -1
+                if (explanation.getActivate().getMostExpensiveCommodity() == -1) {
+                    return ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM;
+                } else {
+                    return buildActivateExplanation(explanation.getActivate()
+                                                    .getMostExpensiveCommodity());
+                }
             case DEACTIVATE:
                 return buildDeactivateExplanation();
             case RECONFIGURE:
@@ -191,7 +197,7 @@ public class ExplanationComposer {
      * @return explanation
      */
     public static String buildActivateExplanation(final int commodityType) {
-        return new StringBuilder().append(ACTIVATE_EXPLANATION)
+        return new StringBuilder().append(ACTIVATE_EXPLANATION_WITH_REASON_COMM)
             .append(CommodityType.forNumber(commodityType)).toString();
     }
 
