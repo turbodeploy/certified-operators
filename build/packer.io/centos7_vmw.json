@@ -54,6 +54,11 @@
             "destination": "/opt/netedit"
         },
         {
+            "type": "file",
+            "source": "../vmtctl",
+            "destination": "/usr/local/bin/vmtctl"
+        },
+        {
             "type": "shell",
             "execute_command": "bash '{{ .Path }}'",
             "scripts": [
@@ -73,11 +78,6 @@
             "type": "file",
             "source": "../turboupgrade.py",
             "destination": "/etc/docker/turboupgrade.py"
-        },
-        {
-            "type": "file",
-            "source": "../vmtctl",
-            "destination": "/usr/local/bin/vmtctl"
         },
         {
             "type": "shell",

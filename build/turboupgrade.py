@@ -80,7 +80,7 @@ try:
 except ImportError:
     LOGGER.info("Installing PyYAML package")
     exec_cmd("True", "yum", "-q", "-y", "install",
-        os.path.join(ISO_MOUNTPOINT, "PyYAML-3.10-11.el7.x86_64.rpm"))
+        os.path.join(ISO_MOUNTPOINT, "pyyaml-3.10-11.el7.x86_64.rpm"))
     import yaml
 
 def topological_sort(dag):
@@ -340,10 +340,8 @@ if __name__ == '__main__':
               Default location is CD-ROM.",
         action='store', dest="loc")
 
-    parser.add_argument("start", help="start the upgrade")
+    parser.add_argument("cmd", help="start the upgrade", choices=['start'])
     args = parser.parse_args()
-    my_name = os.path.basename(__file__)
-
 
     # Write to load_status file so that the upgrade progess is displayed in the UI.
     # We want to write only one line in the file. Control the number of lines
@@ -380,11 +378,11 @@ if __name__ == '__main__':
     new_checksums = parse_checksum_file(os.path.join(ISO_MOUNTPOINT,
         os.path.basename(TURBO_CHECKSUM_FILE)))
 
+    my_name = os.path.basename(__file__)
     # Replace myself if there is a newer version
-    if (curr_checksums.has_key(my_name) and
-            new_checksums.has_key(my_name) and
-            new_checksums.get(my_name) != curr_checksums.get(my_name)):
-        LOGGER.info("Newer version of upgrade tool is available."\
+    if  (new_checksums.has_key(my_name) and
+            not verify_sha256sum(__file__, new_checksums.get(my_name))):
+        LOGGER.info("Newer version of the upgrade tool is available. "\
             "Upgrading to latest version")
         shutil.copy(os.path.join(ISO_MOUNTPOINT, my_name), __file__)
         LOGGER.info("Upgraded the upgrade tool. Please restart the upgrade.")
@@ -399,14 +397,18 @@ if __name__ == '__main__':
         "%s.%s"%(TURBO_DOCKER_CONF_ROOT,tstamp))
     # update the docker compose files and scripts with the latest version
     for fname in glob.glob("%s/*.yml*"%ISO_MOUNTPOINT):
-        verify_sha256sum(fname,
-            new_checksums.get(os.path.basename(fname)))
+        if not (verify_sha256sum(fname,
+            new_checksums.get(os.path.basename(fname)))):
+            LOGGER.error("Checksum mismatch for %s"%fname)
+            sys.exit(1)
         shutil.copy(fname, TURBO_DOCKER_CONF_ROOT)
     vmtctl_loc = os.path.join(ISO_MOUNTPOINT,
                     os.path.basename(TURBO_VMTCTL_LOC))
     if os.path.isfile(vmtctl_loc):
-        verify_sha256sum(vmtctl_loc,
-            os.path.basename(vmtctl_loc))
+        if not verify_sha256sum(vmtctl_loc,
+            os.path.basename(vmtctl_loc)):
+            LOGGER.error("Checksum doesn't match for %s"%vmtctl_loc)
+            sys.exit(1)
         shutil.copy2(vmtctl_loc, TURBO_VMTCTL_LOC)
     yaml_files_to_parse = [DOCKER_COMPOSE_FILE]
     if os.path.isfile(TURBO_UPGRADE_SPEC_FILE):
@@ -444,7 +446,9 @@ if __name__ == '__main__':
         if ((name not in curr_checksums) or (curr_checksums[name] != cksum
                 and ext == '.tgz')):
             new_version_loc = os.path.join(ISO_MOUNTPOINT, name)
-            verify_sha256sum(new_version_loc, new_checksums.get(name))
+            if not verify_sha256sum(new_version_loc, new_checksums.get(name)):
+                LOGGER.error("Checksum verification failed for %s"%new_version_loc)
+                sys.exit(1)
             comp_name = get_component_name_from_image_file_name(name)
             component_to_image_loc[comp_name] = new_version_loc
             components_to_upgrade.add(comp_name)

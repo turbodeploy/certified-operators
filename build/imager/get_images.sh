@@ -71,6 +71,7 @@ sha256sum "${DOCKER_COMPOSE_YML_FILE_TGT}.15k" > turbonomic_sums.txt
 sha256sum "${DOCKER_COMPOSE_YML_FILE_TGT}.25k" >> turbonomic_sums.txt
 sha256sum "${DOCKER_COMPOSE_YML_FILE_TGT}.50k" >> turbonomic_sums.txt
 sha256sum "${DOCKER_COMPOSE_YML_FILE_TGT}.100k" >> turbonomic_sums.txt
+sha256sum "${DOCKER_COMPOSE_YML_FILE_TGT}.200k" >> turbonomic_sums.txt
 sha256sum "prod-services.yml" >> turbonomic_sums.txt
 sha256sum "common-services.yml" >> turbonomic_sums.txt
 sha256sum "turboctl.py" >> turbonomic_sums.txt
