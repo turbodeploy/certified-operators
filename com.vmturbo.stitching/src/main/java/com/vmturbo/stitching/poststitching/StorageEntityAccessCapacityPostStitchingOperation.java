@@ -10,8 +10,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -25,7 +27,8 @@ import com.vmturbo.stitching.TopologyEntity;
 /**
  * Post-stitching operation for the purpose of setting Storage Access commodity capacities for
  * Storage entities. The entity's Storage Access capacity is set to that of its Disk Array or
- * Logical Pool provider.
+ * Logical Pool provider. If its Disk Array or Logical Pool provider does not sell Storage Access
+ * capacity, the Storage Access capacity is set from the IOPS setting directly.
  *
  * This operation must occur after any StorageAccessCapacityPostStitchingOperations
  * so that all possible providers have their capacity set properly.
@@ -53,17 +56,34 @@ public class StorageEntityAccessCapacityPostStitchingOperation implements PostSt
 
         entities.forEach(storage -> {
             final Optional<Double> providerCapacity = findProviderCapacity(storage.getProviders());
+            final Optional<Setting> iopsSetting =
+                    settingsCollection.getEntitySetting(storage, EntitySettingSpecs.IOPSCapacity);
+            // The provider capacity, if set, overrides the setting-derived capacity AND any
+            // capacity already set in the entity.
             if (providerCapacity.isPresent()) {
                 resultBuilder.queueUpdateEntityAlone(storage, entityForUpdate -> {
-                    logger.debug("Setting Storage Access capacity for Storage {} using IOPS " +
-                        "Capacity setting {}", entityForUpdate.getOid(), providerCapacity.get());
+                    logger.debug("Setting unset Storage Access capacities for Storage {} based on provider capacity: {}",
+                            entityForUpdate.getOid(), providerCapacity.get());
                     getCommoditiesToUpdate(entityForUpdate).forEach(commodity ->
-                        commodity.setCapacity(providerCapacity.get()));
+                            commodity.setCapacity(providerCapacity.get()));
+                });
+            } else if (iopsSetting.isPresent()) {
+                // If there is no storage access provider (which happens with hypervisor probes),
+                // and the probe did not set an explicit storage access capacity, derive
+                // the storage access capacity from the IOPS capacity setting.
+                resultBuilder.queueUpdateEntityAlone(storage, entityForUpdate -> {
+                    final float settingVal = iopsSetting.get().getNumericSettingValue().getValue();
+                    logger.debug("Setting unset Storage Access capacities for Storage {} using IOPS " +
+                            "Capacity setting {}", entityForUpdate.getOid(), settingVal);
+                    getCommoditiesToUpdate(entityForUpdate)
+                        // Only update the unset commodities.
+                        .filter(comm -> !comm.hasCapacity() || comm.getCapacity() == 0)
+                        .forEach(commodity -> commodity.setCapacity(iopsSetting.get().getNumericSettingValue().getValue()));
                 });
             } else {
                 logger.warn("Could not set Storage Access capacity for Storage {} ({}) because " +
-                    "it had no Disk Array or Logical Pool provider with Storage Access capacity",
-                    storage.getOid(), storage.getDisplayName());
+                    "it had no Disk Array or Logical Pool provider with Storage Access capacity, and" +
+                    " no setting for IOPS capacity.", storage.getOid(), storage.getDisplayName());
             }
         });
 
@@ -76,8 +96,7 @@ public class StorageEntityAccessCapacityPostStitchingOperation implements PostSt
      * @param entity The entity to get commodities from
      * @return a stream of commodity builders for update
      */
-    private Stream<CommoditySoldDTO.Builder> getCommoditiesToUpdate(
-                                                            @Nonnull final TopologyEntity entity) {
+    private Stream<CommoditySoldDTO.Builder> getCommoditiesToUpdate(@Nonnull final TopologyEntity entity) {
         return entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
             .filter(COMMODITY_IS_STORAGE_ACCESS);
     }

@@ -3,15 +3,20 @@ package com.vmturbo.stitching.poststitching;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -30,6 +35,14 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
         .withEntityType(EntityType.LOGICAL_POOL_VALUE)
         .withCommoditiesSold(
             CommoditySoldBuilder.newBuilder().withType(COMMODITY_TYPE).withCapacity(CAPACITY));
+
+    private static final float IOPS_SETTING_DEFAULT = 7.0f;
+
+    private static final Setting IOPS_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.IOPSCapacity.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue(IOPS_SETTING_DEFAULT))
+            .build();
 
     private final StorageEntityAccessCapacityPostStitchingOperation op =
         new StorageEntityAccessCapacityPostStitchingOperation();
@@ -56,18 +69,38 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
     }
 
     @Test
-    public void testNoProviders() {
+    public void testNoProvidersSetFromSettings() {
         final TopologyEntity te1 = TopologyEntityBuilder.newBuilder()
             .withEntityType(EntityType.STORAGE_VALUE)
             .withCommoditiesSold(emptyCommodity)
             .build();
 
+        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
+                .thenReturn(Optional.of(IOPS_SETTING));
+        op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
+
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
+
+        assertEquals(1, resultBuilder.getChanges().size());
+        assertEquals(IOPS_SETTING_DEFAULT,
+                te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
+    }
+
+    @Test
+    public void testNoProvidersOrSettings() {
+        final TopologyEntity te1 = TopologyEntityBuilder.newBuilder()
+                .withEntityType(EntityType.STORAGE_VALUE)
+                .withCommoditiesSold(emptyCommodity)
+                .build();
+
+        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
+            .thenReturn(Optional.empty());
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
         assertTrue(resultBuilder.getChanges().isEmpty());
     }
 
     @Test
-    public void testNoGoodProviders() {
+    public void testNoGoodProvidersSetFromSettings() {
 
         final TopologyEntityBuilder ineligibleProvider1 = TopologyEntityBuilder.newBuilder()
             .withEntityType(EntityType.STORAGE_CONTROLLER_VALUE)
@@ -91,19 +124,27 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
             .withProviders(ineligibleProvider1, ineligibleProvider2, ineligibleProvider3)
             .build();
 
+        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
+                .thenReturn(Optional.of(IOPS_SETTING));
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
-        assertTrue(resultBuilder.getChanges().isEmpty());
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
+
+        assertEquals(1, resultBuilder.getChanges().size());
+        assertEquals(IOPS_SETTING_DEFAULT,
+                te1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
     }
 
     @Test
-    public void testOneGoodProvider() {
-
+    public void testOneGoodProviderOverridesSettingCapacity() {
         final TopologyEntity te1 = TopologyEntityBuilder.newBuilder()
             .withEntityType(EntityType.STORAGE_VALUE)
             .withCommoditiesSold(emptyCommodity)
             .withProviders(PROVIDER).build();
 
 
+        // Even though we get the setting, we should use the provider's capacity.
+        when(settingsMock.getEntitySetting(te1, EntitySettingSpecs.IOPSCapacity))
+                .thenReturn(Optional.of(IOPS_SETTING));
         op.performOperation(Stream.of(te1), settingsMock, resultBuilder);
         resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
 
@@ -142,7 +183,7 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
     }
 
     @Test
-    public void testOverwritePreexistingCapacity() {
+    public void testProviderCapacityOverwritePreexistingCapacity() {
 
         final TopologyEntity te = TopologyEntityBuilder.newBuilder()
             .withEntityType(EntityType.STORAGE_VALUE)
@@ -157,5 +198,26 @@ public class StorageEntityStorageAccessCapacityPostStitchingOpTest {
         assertEquals(1, resultBuilder.getChanges().size());
         assertEquals(CAPACITY,
             te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
+    }
+
+    @Test
+    public void testSettingCapacityNotOverwritePreexistingCapacity() {
+        final float existingCapacity = 11;
+
+        final TopologyEntity te = TopologyEntityBuilder.newBuilder()
+                .withEntityType(EntityType.STORAGE_VALUE)
+                .withCommoditiesSold(CommoditySoldBuilder.newBuilder()
+                        .withCapacity(existingCapacity)
+                        .withType(CommodityType.STORAGE_ACCESS))
+                .build();
+
+        when(settingsMock.getEntitySetting(te, EntitySettingSpecs.IOPSCapacity))
+                .thenReturn(Optional.of(IOPS_SETTING));
+        op.performOperation(Stream.of(te), settingsMock, resultBuilder);
+        resultBuilder.getChanges().forEach(change -> change.applyChange(stitchingJournal));
+
+        assertEquals(1, resultBuilder.getChanges().size());
+        assertEquals(11,
+                te.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getCapacity(), 0);
     }
 }
