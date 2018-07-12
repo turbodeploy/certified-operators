@@ -75,10 +75,22 @@ def exec_cmd(exit_on_error=True, *args):
             %(" ".join(args), ex.returncode, ex.output))
         sys.exit(1)
 
+def mount_iso(mount_point):
+    try:
+        if os.path.ismount(mount_point):
+            LOGGER.info("CDROM already mounted")
+            return
+        out = subprocess.check_output(["mount", "/dev/cdrom", mount_point])
+    except subprocess.CalledProcessError as ex:
+        LOGGER.error("Failed to mount cdrom. Return code:%s Error:%s"
+            %(ex.returncode, ex.output))
+        sys.exit(1)
+
 try:
     import yaml
 except ImportError:
     LOGGER.info("Installing PyYAML package")
+    mount_iso(ISO_MOUNTPOINT)
     exec_cmd("True", "yum", "-q", "-y", "install",
         os.path.join(ISO_MOUNTPOINT, "pyyaml-3.10-11.el7.x86_64.rpm"))
     import yaml
@@ -178,17 +190,6 @@ def verify_sha256sum(file_path, expected_sum):
             sha256.update(data)
 
     return sha256.hexdigest() == expected_sum
-
-def mount_iso(mount_point):
-    try:
-        if os.path.ismount(mount_point):
-            LOGGER.info("CDROM already mounted")
-            return
-        out = subprocess.check_output(["mount", "/dev/cdrom", mount_point])
-    except subprocess.CalledProcessError as ex:
-        LOGGER.error("Failed to mount cdrom. Return code:%s Error:%s"
-            %(ex.returncode, ex.output))
-        sys.exit(1)
 
 def umount_iso(mount_point):
     try:
@@ -406,7 +407,7 @@ if __name__ == '__main__':
                     os.path.basename(TURBO_VMTCTL_LOC))
     if os.path.isfile(vmtctl_loc):
         if not verify_sha256sum(vmtctl_loc,
-            os.path.basename(vmtctl_loc)):
+            new_checksums.get(os.path.basename(vmtctl_loc), "")):
             LOGGER.error("Checksum doesn't match for %s"%vmtctl_loc)
             sys.exit(1)
         shutil.copy2(vmtctl_loc, TURBO_VMTCTL_LOC)
