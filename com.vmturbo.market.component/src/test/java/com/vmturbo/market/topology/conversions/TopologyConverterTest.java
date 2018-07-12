@@ -519,6 +519,121 @@ public class TopologyConverterTest {
                 entity.get(0).getCommoditiesBoughtFromProviders(0).getProviderEntityType());
     }
 
+    /**
+     * Test conversion from {@link TraderTO} to {@link TopologyDTO} when entity is VM and state is
+     * SUSPEND. It's to ensure after conversion, the VM entity state is still SUSPEND.
+     * Entity (SUSPEND) -> TRADER (IDLE) -> TRADER (ACTIVE) -> Entity (SUSPEND)
+     *
+     * @throws Exception not supposed to happen in this test
+     */
+    @Test
+    public void testVMTraderToEntityConversion() throws Exception {
+        TopologyConverter converter = Mockito.spy(
+                new TopologyConverter(TopologyInfo.newBuilder()
+                        .setTopologyType(TopologyType.PLAN)
+                        .build()));
+        final TopologyDTO.CommoditySoldDTO topologyDSPMSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE)
+                                .build())
+                        .build();
+        final TopologyDTO.CommoditySoldDTO topologyCPUSold =
+                TopologyDTO.CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.CPU_VALUE)
+                                .build())
+                        .build();
+        final List<CommodityBoughtDTO> topologyDSPMBought =
+                Lists.newArrayList(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE))
+                        .build());
+
+        final List<CommodityBoughtDTO> topologyCPUBought =
+                Lists.newArrayList(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.CPU_VALUE))
+                        .build());
+
+        NumericIDAllocator idAllocator = new NumericIDAllocator();
+        final int base = idAllocator.allocate("BICLIQUE");
+        final int cpuType = idAllocator.allocate("CPU");
+        final int dspmType = idAllocator.allocate("DSPM");
+        Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
+        shoppingListMap.put(10001L, new ShoppingListInfo(2, 20000L, 10000L,
+                EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
+        Field commTypeAllocator =
+                TopologyConverter.class.getDeclaredField("commodityTypeAllocator");
+        commTypeAllocator.setAccessible(true);
+        commTypeAllocator.set(converter, idAllocator);
+        Field shoppingListInfos =
+                TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
+        shoppingListInfos.setAccessible(true);
+        shoppingListInfos.set(converter, shoppingListMap);
+
+        final CommodityDTOs.CommoditySoldTO economyCPUSold = CommodityDTOs.CommoditySoldTO.newBuilder()
+                .setSpecification(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(2)
+                        .setType(cpuType)
+                        .build())
+                .build();
+        final CommodityDTOs.CommoditySoldTO economyDSPMSold = CommodityDTOs.CommoditySoldTO.newBuilder()
+                .setSpecification(CommoditySpecificationTO.newBuilder()
+                        .setBaseType(base)
+                        .setType(dspmType)
+                        .build())
+                .build();
+        Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType())).when(converter)
+                .economyToTopologyCommodity(Mockito.eq(economyCPUSold.getSpecification()));
+        // create a topology entity DTO with DSPM sold
+        TopologyDTO.TopologyEntityDTO expectedEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(10000L)
+                .setEntityState(EntityState.SUSPENDED)
+                .addCommoditySoldList(topologyDSPMSold)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(10000L)
+                        .addAllCommodityBought(topologyCPUBought)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE))
+                .putEntityPropertyMap("dummy", "dummy")
+                .build();
+
+        final long entityId = 10;
+        final TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+                .setEntityType(1)
+                .setOid(entityId)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(topologyCommodity1))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(topologyCommodity2))
+                .build();
+
+        converter.convertToMarket(Lists.newArrayList(entityDTO));
+
+        // create trader DTO corresponds to originalEntity
+        EconomyDTOs.TraderTO trader = EconomyDTOs.TraderTO.newBuilder()
+                .setOid(10000L)
+                .addCommoditiesSold(economyDSPMSold)
+                .setState(TraderStateTO.ACTIVE)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(10001L)
+                        .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                                .setSpecification(CommoditySpecificationTO.newBuilder()
+                                        .setBaseType(2)
+                                        .setType(cpuType)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+
+        List<TopologyDTO.TopologyEntityDTO> entity =
+                converter.convertFromMarket(Arrays.asList(trader),
+                        Sets.newHashSet(expectedEntity));
+        assertEquals(1L, entity.size());
+        // Ensure the entity is having SUSPENDED state.
+        assertEquals(EntityState.SUSPENDED, entity.get(0).getEntityState());
+    }
+
     private static final Set<String> CONSTANT_PRICE_TYPES_S = ImmutableSet.of(
         CommodityDTO.CommodityType.COOLING.name(), CommodityDTO.CommodityType.POWER.name(), CommodityDTO.CommodityType.SPACE.name(),
         CommodityDTO.CommodityType.APPLICATION.name(), CommodityDTO.CommodityType.CLUSTER.name(),

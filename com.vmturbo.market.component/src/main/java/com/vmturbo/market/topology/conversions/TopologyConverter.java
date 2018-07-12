@@ -70,6 +70,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
@@ -386,21 +387,38 @@ public class TopologyConverter {
         }
 
         TopologyDTO.EntityState entityState = TopologyDTO.EntityState.POWERED_ON;
-        TopologyDTO.TopologyEntityDTO originalTrader = traderOidToEntityDTO.get(traderTO.getOid());
-        String displayName = originalTrader != null ? originalTrader.getDisplayName()
+        TopologyDTO.TopologyEntityDTO originalEntity = traderOidToEntityDTO.get(traderTO.getOid());
+        String displayName = originalEntity != null ? originalEntity.getDisplayName()
                         : traderOidToEntityDTO.get(traderTO.getCloneOf()).getDisplayName()
                         + "_Clone #" + cloneIndex.addAndGet(1);
-        if (originalTrader != null) {
-            // set state of IDLE VM to poweredOff
-            entityState = originalTrader.getEntityState() == TopologyDTO.EntityState.POWERED_OFF
-                            ? TopologyDTO.EntityState.POWERED_OFF
-                            : TopologyDTO.EntityState.POWERED_ON;
+        if (originalEntity != null) {
+            EntityState originalState = originalEntity.getEntityState();
+            // TODO: Address the following workaroud for SUSPEND VM.
+            // Without the workaround for VM:
+            // Entity (SUSPEND) -> TRADER (IDLE) -> TRADER (ACTIVE) -> Entity (POWER_ON)
+            // The correct behavior for VM:
+            // Entity (SUSPEND) -> TRADER (IDLE) -> TRADER (IDLE) -> Entity (SUSPEND)
+            // For VMs, if trader states are not changed, then the new entity state
+            // should be the same as original entity state.
+            if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                EconomyDTOs.TraderTO oldTraderTo = topologyDTOtoTraderTO(originalEntity);
+                if (oldTraderTo != null
+                        && isSameVMTraderState(traderTO.getState(), oldTraderTo.getState())) {
+                    entityState = originalEntity.getEntityState();
+                }
+            } else {
+                // set state of IDLE VM to poweredOff
+                entityState = originalState == TopologyDTO.EntityState.POWERED_OFF
+                        ? TopologyDTO.EntityState.POWERED_OFF
+                        : TopologyDTO.EntityState.POWERED_ON;
+            }
         }
         if (entityState == TopologyDTO.EntityState.POWERED_ON) {
             entityState = (traderTO.getState() == EconomyDTOs.TraderStateTO.ACTIVE)
                             ? TopologyDTO.EntityState.POWERED_ON
                             : TopologyDTO.EntityState.SUSPENDED;
         }
+
         final TraderSettingsTO traderSetting = traderTO.getSettings();
         TopologyDTO.TopologyEntityDTO.AnalysisSettings analysisSetting =
             TopologyDTO.TopologyEntityDTO.AnalysisSettings.newBuilder()
@@ -423,22 +441,42 @@ public class TopologyConverter {
                     .addAllCommoditySoldList(retrieveCommSoldList(traderTO))
                     .addAllCommoditiesBoughtFromProviders(topoDTOCommonBoughtGrouping)
                     .setAnalysisSettings(analysisSetting);
-        if (originalTrader == null) {
+        if (originalEntity == null) {
             // this is a clone trader
-            originalTrader = traderOidToEntityDTO.get(traderTO.getCloneOf());
+            originalEntity = traderOidToEntityDTO.get(traderTO.getCloneOf());
         } else {
             // copy the origin story from the original entity
-            if (originalTrader.hasOrigin()) {
-                entityDTO.setOrigin(originalTrader.getOrigin());
+            if (originalEntity.hasOrigin()) {
+                entityDTO.setOrigin(originalEntity.getOrigin());
             }
         }
         // get dspm and datastore commodity sold from the original trader, add
         // them to projected topology entity DTO
-        return entityDTO.addAllCommoditySoldList(originalTrader.getCommoditySoldListList().stream()
+        return entityDTO.addAllCommoditySoldList(originalEntity.getCommoditySoldListList().stream()
                         .filter(c -> AnalysisUtil.DSPM_OR_DATASTORE
                                         .contains(c.getCommodityType().getType()))
                         .collect(Collectors.toSet()))
                         .build();
+    }
+
+    /**
+     * For VM, IDLE trader can be ACTIVE after analysis. It's a workaround to treat ACTIVE as IDEL,
+     * and vise verse.
+     * @param newState new VM state
+     * @param originalState original VM state
+     * @return true if the they have "same" state.
+     */
+    private boolean isSameVMTraderState(@Nonnull final TraderStateTO newState,
+                                        @Nonnull final TraderStateTO originalState) {
+        Objects.requireNonNull(newState);
+        Objects.requireNonNull(originalState);
+        if (originalState == TraderStateTO.ACTIVE && newState == TraderStateTO.IDLE) {
+            return true;
+        }
+        if (originalState == TraderStateTO.IDLE && newState == TraderStateTO.ACTIVE) {
+            return true;
+        }
+        return originalState == newState;
     }
 
     private TopologyDTO.CommodityBoughtDTO newCommodity(int type, long pmOid) {
