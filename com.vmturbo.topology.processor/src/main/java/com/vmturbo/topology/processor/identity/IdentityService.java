@@ -15,6 +15,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.proactivesupport.DataMetricSummary;
+import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.identity.services.EntityProxyDescriptor;
 import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
@@ -29,6 +31,18 @@ public class IdentityService {
      * The invalid OID. Only used internally. The code outside should always see a valid number.
      */
     public static final long INVALID_OID = IdentityGenerator.nextDummy();
+
+    /**
+     * Track the time taken to perform oid assignment. This will be broken into two steps:
+     *   "assign" -- the amount of time it takes to assign OID's.
+     *   "store" -- the amount of time it takes to store the OID assignments.
+     */
+    private static final DataMetricSummary OID_ASSIGNMENT_TIME = DataMetricSummary.builder()
+            .withName("tp_oid_assignment_seconds")
+            .withHelp("Time (in seconds) spent assigning entity oids.")
+            .withLabelNames("step")
+            .build()
+            .register();
 
     /**
      * The underlying store.
@@ -72,11 +86,16 @@ public class IdentityService {
         final Map<Long, EntryData> entriesToUpdate = new HashMap<>();
 
         final List<Long> retList = new ArrayList<>(entries.size());
-        for (EntryData data : entries) {
-            retList.add(getOidToUse(data, entriesToUpdate));
+
+        try (DataMetricTimer timer = OID_ASSIGNMENT_TIME.labels("assign").startTimer()) {
+            for (EntryData data : entries) {
+                retList.add(getOidToUse(data, entriesToUpdate));
+            }
         }
 
-        store_.upsertEntries(entriesToUpdate);
+        try (DataMetricTimer timer = OID_ASSIGNMENT_TIME.labels("store").startTimer()) {
+            store_.upsertEntries(entriesToUpdate);
+        }
 
         return Collections.unmodifiableList(retList);
     }
@@ -140,7 +159,7 @@ public class IdentityService {
                 // Entity, and see if match is found.
                 // The match is found, return OID.
                 if (heuristicsMatcher_.locateMatch(heuristicsLast, heuristicsNow, descriptor, metadataDescriptor)) {
-                    entriesToUpsert.put(oid, entryData);
+                    entriesToUpsert.put(match.getOID(), entryData);
                     return match.getOID();
                 }
             }

@@ -26,6 +26,15 @@ public class EntityDescriptorMock implements EntityDescriptor {
         this.heuristicPropertiers = composePropertySet(heuristicPropertiers);
     }
 
+    public EntityDescriptorMock(List<String> nonVolatileProperties,
+                                List<String> volatileProperties,
+                                List<String> heuristicProperties) {
+        this.identifyingPropertiers = composePropertySet(nonVolatileProperties);
+        this.volatilePropertiers = composePropertySet(volatileProperties);
+        this.identifyingPropertiers.addAll(this.volatilePropertiers);
+        this.heuristicPropertiers = composePropertySet(heuristicProperties);
+    }
+
     @Override
     @Nonnull
     public List<PropertyDescriptor> getVolatileProperties(

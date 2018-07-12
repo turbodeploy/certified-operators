@@ -4,6 +4,7 @@
 package com.vmturbo.topology.processor.identity;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -175,4 +176,34 @@ public class IdentityServiceTest {
                 Mockito.mock(EntityMetadataDescriptor.class), properties));
         idSvc.removeEntity(oid);
     }
+
+    @Test
+    public void testMatchByHeuristicProperties() throws Exception {
+        long oid = idSvc.getEntityOID(new EntityDescriptorMock(
+                        Collections.singletonList("VM"),
+                        Collections.singletonList("Volatile1"),
+                        Arrays.asList("Heuristic1", "Heuristic2")),
+                Mockito.mock(EntityMetadataDescriptor.class));
+        Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
+
+        // verify that a new entity descriptor w/same non-volatile id props + same heuristic props
+        // BUT different volatile id props should still result in the same oid.
+        long hopefullySameOid = idSvc.getEntityOID(new EntityDescriptorMock(
+                        Collections.singletonList("VM"),
+                        Collections.singletonList("Volatile2"),
+                        Arrays.asList("Heuristic1", "Heuristic2")),
+                Mockito.mock(EntityMetadataDescriptor.class));
+        Assert.assertEquals("Match on heuristic properties should find existing oid",
+                oid, hopefullySameOid);
+
+        // verify that there are no invalid oid's in the store. (test for reopen on OM-31658)
+        Assert.assertFalse("IdentityStore should not contain any invalid oids.",
+                idSvc.containsOID(IdentityService.INVALID_OID));
+
+        // clean up
+        idSvc.removeEntity(oid);
+        idSvc.removeEntity(hopefullySameOid);
+    }
+
+
 }
