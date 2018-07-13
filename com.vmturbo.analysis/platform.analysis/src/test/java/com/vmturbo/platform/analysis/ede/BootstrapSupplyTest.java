@@ -545,16 +545,19 @@ public class BootstrapSupplyTest {
     @Test
     public void test_bootstrapShopTogether_reactivateHost(){
         Economy economy = new Economy();
-        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
+        // change pm1 clique to 1 and pm2 clique to 0, because right now, it always pick the first
+        // clique id from common clique list as the cliqueId of shopping list, in order to generate
+        // activate pm2 actions, it needs make sure pm2 clique 0 is picked from common list.
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(1l), 100, 100, false);
         pm1.setDebugInfoNeverUseInCode("PM1");
-        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(1l), 300, false);
         st1.setDebugInfoNeverUseInCode("DS1");
         //Create PM2 and inactivate it. PM2 is same size of PM1 to make sure only one VM
         // not two VMs will move to PM2
-        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(1l), 100, 100, false);
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, false);
         pm2.setDebugInfoNeverUseInCode("PM2");
         pm2.changeState(TraderState.INACTIVE);
-        Trader st2 = TestUtils.createStorage(economy, Arrays.asList(1l), 300, false);
+        Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 300, false);
         st2.setDebugInfoNeverUseInCode("DS2");
         Trader vm1 = TestUtils.createVM(economy);
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,

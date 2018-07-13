@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -160,7 +161,7 @@ public class BootstrapSupply {
                 List<Trader> sellers = mkt.getCliques().get(cliqueId).stream()
                                 .filter(t -> mkt.getActiveSellersAvailableForPlacement().contains(t))
                                 .collect(Collectors.toList());
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, mkt, economy);
+                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, mkt, economy, Optional.of(cliqueId));
                 if (sellerThatFits != null) {
                     boolean isDebugSeller = sellerThatFits.isDebugEnabled();
                     String sellerDebugInfo = sellerThatFits.getDebugInfoNeverUseInCode();
@@ -418,7 +419,7 @@ public class BootstrapSupply {
                 boolean isDebugBuyer = sl.getBuyer().isDebugEnabled();
                 String buyerDebugInfo = sl.getBuyer().getDebugInfoNeverUseInCode();
 
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy);
+                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.empty());
                 // provision by supply
                 if (sellerThatFits != null) {
                     boolean isDebugSeller = sellerThatFits.isDebugEnabled();
@@ -687,7 +688,7 @@ public class BootstrapSupply {
             if (Double.isInfinite(minimizer.getBestQuote())) {
                 // on getting an infiniteQuote, provision new Seller and move unplaced Trader to it
                 // clone one of the sellers or reactivate an inactive seller that the VM can fit in
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy);
+                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.empty());
                 if (sellerThatFits != null) {
                     CommoditySpecification commoditySpecWithInfiniteQuote =
                                     findCommSpecWithInfiniteQuote(sellerThatFits, sl, economy);
@@ -846,7 +847,7 @@ public class BootstrapSupply {
             }
             return actions;
         }
-        Trader sellerThatFits = findTraderThatFitsBuyer(shoppingList, activeSellers, market, economy);
+        Trader sellerThatFits = findTraderThatFitsBuyer(shoppingList, activeSellers, market, economy, Optional.empty());
         if (sellerThatFits != null) {
             boolean isDebugSeller = sellerThatFits.isDebugEnabled();
             String sellerDebugInfo = sellerThatFits.getDebugInfoNeverUseInCode();
@@ -924,14 +925,18 @@ public class BootstrapSupply {
      * @param market is the {@link Market} in which we try finding the best provider to
      * reactivate/clone
      * @param economy the {@Link Economy} that contains the unplaced {@link Trader}
+     * @param clique a optional parameter, if it is present, the sell's clique list must contains it.
      *
      * @return the any of the candidateSellers that can fit the buyer when cloned, or NULL if none
      * is big enough
      */
     private static Trader findTraderThatFitsBuyer(ShoppingList buyerShoppingList, List<Trader>
-                                                  candidateSellers, Market market, Economy economy) {
+                                                  candidateSellers, Market market, Economy economy,
+                                                  Optional<Long> clique) {
         for (Trader seller : market.getInactiveSellers()) {
-            if (canBuyerFitInSeller(buyerShoppingList, seller, economy)) {
+            // the seller clique list must contains input cliqueId.
+            if ((!clique.isPresent() || seller.getCliques().contains(clique.get())) &&
+                    canBuyerFitInSeller(buyerShoppingList, seller, economy)) {
                 return seller;
             }
         }
