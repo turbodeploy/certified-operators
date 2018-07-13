@@ -628,9 +628,8 @@ public class ActionSpecMapper {
                 readableEntityTypeAndName(actionApiDTO.getCurrentEntity())));
         } else {
             actionApiDTO.setDetails(MessageFormat.format(
-                "Reconfigure {0} which requires {1} but is unplaced.",
-                readableEntityTypeAndName(actionApiDTO.getTarget()),
-                readableCommodityTypes(explanation.getReconfigureCommodityList())));
+                "Reconfigure {0} as it is unplaced.",
+                readableEntityTypeAndName(actionApiDTO.getTarget())));
         }
     }
 

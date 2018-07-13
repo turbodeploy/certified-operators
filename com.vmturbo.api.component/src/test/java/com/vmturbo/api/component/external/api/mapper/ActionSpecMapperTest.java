@@ -357,7 +357,7 @@ public class ActionSpecMapperTest {
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
-            "Reconfigure C 0 'Target' which requires Cpu Allocation but is unplaced.",
+            "Reconfigure C 0 'Target' as it is unplaced.",
             actionApiDTO.getDetails());
     }
 
