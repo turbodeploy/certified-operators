@@ -61,6 +61,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
@@ -671,10 +673,28 @@ public class ActionSpecMapper {
         actionApiDTO.setDetails(MessageFormat.format("Resize commodity {0} on entity {1} from {2} to {3}",
                 readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
                 readableEntityTypeAndName(actionApiDTO.getTarget()),
-                resize.getOldCapacity(),
-                resize.getNewCapacity()));
+                formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
+                formatResizeActionCommodityValue(commodityType, resize.getNewCapacity())));
         actionApiDTO.setCurrentValue(Float.toString(resize.getOldCapacity()));
         actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
+    }
+
+    /**
+     * Format resize actions commodity capacity value to more readable format. If it is vMem commodity,
+     * format it from default KB to GB unit. Otherwise, it will keep its original format.
+     *
+     * @param commodityType commodity type.
+     * @param capacity commodity capacity which needs to format.
+     * @return a string after format.
+     */
+    private String formatResizeActionCommodityValue(@Nonnull final CommodityDTO.CommodityType commodityType,
+                                                    final double capacity) {
+        if (commodityType.equals(CommodityDTO.CommodityType.VMEM)) {
+            // if it is vMem commodity, it needs to convert to GB units. And its default capacity unit is KB.
+            return MessageFormat.format("{0} GB", capacity / (Units.GBYTE / Units.KBYTE));
+        } else {
+            return MessageFormat.format("{0}", capacity);
+        }
     }
 
     private void addActivateInfo(@Nonnull final ActionApiDTO actionApiDTO,

@@ -97,6 +97,7 @@ public class ActionSpecMapperTest {
 
     private CommodityType commodityCpu;
     private CommodityType commodityMem;
+    private CommodityType commodityVMem;
 
     private static final String START = "Start";
     private static final String TARGET = "Target";
@@ -126,6 +127,10 @@ public class ActionSpecMapperTest {
         commodityMem = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.MEM_VALUE)
             .setKey("grah")
+            .build();
+        commodityVMem = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMEM_VALUE)
+            .setKey("foo")
             .build();
     }
 
@@ -413,6 +418,34 @@ public class ActionSpecMapperTest {
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.CPU.name(),
+                actionApiDTO.getRisk().getReasonCommodity());
+    }
+
+    @Test
+    public void testResizeVMemDetail() throws Exception {
+        final long targetId = 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                        .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                        .setOldCapacity(1024 * 1024 * 2)
+                        .setNewCapacity(1024 * 1024 * 1)
+                        .setCommodityType(commodityVMem))
+                .build();
+        final String expectedDetailCapacityy = "from 2 GB to 1 GB";
+        Explanation resize = Explanation.newBuilder()
+                .setResize(ResizeExplanation.newBuilder()
+                        .setStartUtilization(0.2f)
+                        .setEndUtilization(0.4f).build())
+                .build();
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+                .thenReturn(oidToEntityMap(entityApiDTO("EntityToResize", targetId, "c0")));
+
+        final ActionApiDTO actionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
+
+        assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertTrue(actionApiDTO.getDetails().contains(expectedDetailCapacityy));
+        assertEquals(CommodityDTO.CommodityType.VMEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
     }
 
