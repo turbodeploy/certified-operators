@@ -71,8 +71,7 @@ public class ExplanationComposer {
                     explanation.getResize().getStartUtilization(),
                     explanation.getResize().getEndUtilization());
             case ACTIVATE:
-                // default value for most_expensive_commodity in ActivateDTO is set to -1
-                if (explanation.getActivate().getMostExpensiveCommodity() == -1) {
+                if (!explanation.getActivate().hasMostExpensiveCommodity()) {
                     return ACTIVATE_EXPLANATION_WITHOUT_REASON_COMM;
                 } else {
                     return buildActivateExplanation(explanation.getActivate()
