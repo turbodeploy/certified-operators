@@ -93,7 +93,7 @@ message ActivateTO {
     required int64 model_seller = 3;
 
    // The base type of the most expensive commodity
-    optional int32 most_expensive_commodity = 4 [default = -1];
+    optional int32 most_expensive_commodity = 4;
 }
 
 // An action to deactivate (suspend) an active trader.
