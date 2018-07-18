@@ -63,6 +63,10 @@
             <version>${vmturbo.mt.branch.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>kvstore</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
@@ -97,6 +101,10 @@
         <dependency>
             <groupId>io.projectreactor</groupId>
             <artifactId>reactor-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15on</artifactId>
         </dependency>
         <!-- Required for testing, because ProtobufHttpMessageConverter has a
              dependency on protobuf-java-format -->

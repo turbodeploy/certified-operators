@@ -236,10 +236,6 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.clustermgr.api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
          <dependency>
@@ -274,10 +270,6 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.licensing</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.group.api</artifactId>
-        </dependency>
 
         <!-- return XML from REST endpoints if requested -->
         <dependency>
@@ -304,6 +296,10 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
         </dependency>
 
         <!-- test dependencies -->

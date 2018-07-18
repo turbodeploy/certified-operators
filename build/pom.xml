@@ -33,7 +33,7 @@
         <protobuf.maven.plugin.version>0.5.1</protobuf.maven.plugin.version>
         <os.maven.plugin.version>1.4.1.Final</os.maven.plugin.version>
 
-        <prometheus.java.client.version>0.0.21</prometheus.java.client.version>
+        <prometheus.java.client.version>0.4.0</prometheus.java.client.version>
 
         <slf4j.version>1.7.25</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
@@ -88,7 +88,6 @@
         <zjsonpatch.version>0.3.6</zjsonpatch.version>
 
         <jjwt.version>0.7.0</jjwt.version>
-        <bouncycastle.version>1.57</bouncycastle.version>
         <json-path.version>2.2.0</json-path.version>
         <copy.rename.plugin.version>1.0.1</copy.rename.plugin.version>
 
@@ -106,7 +105,7 @@
         <!-- This allows nested modules to override the path to the root checkstyle.xml -->
         <checkstyle.path>${project.basedir}/../build/checkstyle.xml</checkstyle.path>
         <jetty.version>9.4.9.v20180320</jetty.version>
-
+        <bouncycastle.version>1.57</bouncycastle.version>
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
 
@@ -438,7 +437,6 @@
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.common.protobuf</module>
-                <module>../com.vmturbo.proactivesupport</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.consul</module>
@@ -541,7 +539,6 @@
                 <module>../com.vmturbo.auth.test</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.common.protobuf</module>
-                <module>../com.vmturbo.proactivesupport</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.consul</module>
@@ -1293,6 +1290,11 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.proactivesupport</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.reports</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
             </dependency>
@@ -1345,11 +1347,6 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>platform.analysis.protobuf</artifactId>
                 <version>${market.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.vmturbo</groupId>
-                <artifactId>com.vmturbo.proactivesupport</artifactId>
-                <version>${project.version}</version>
             </dependency>
             <!-- Embedded Tomcat -->
             <dependency>
@@ -1651,6 +1648,9 @@
                 <artifactId>consul-client</artifactId>
                 <version>${consul-client.version}</version>
             </dependency>
+
+
+
 
             <dependency>
                 <groupId>org.mariadb.jdbc</groupId>
