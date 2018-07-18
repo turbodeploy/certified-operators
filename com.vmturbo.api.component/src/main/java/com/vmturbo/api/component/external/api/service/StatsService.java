@@ -92,6 +92,11 @@ public class StatsService implements IStatsService {
 
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
+    // the threshold (relative to the current time in milliseconds) under which a stats request
+    // start date will be treated as a request for the latest live stats, rather than as a strict
+    // start date.
+    private static final int LATEST_LIVE_STATS_RETRIEVAL_START_DATE_THRESHOLD_MS = 60000;
+
     private final StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub statsServiceRpc;
 
     private final PlanServiceBlockingStub planRpcService;
@@ -229,9 +234,12 @@ public class StatsService implements IStatsService {
      * this UI requirement, we add a filter with the "current" prefix for each of the filters.
      * (e.g. for numHosts, we will add currentNumHosts.)
      *
+     * The results will be ordered such that projected stats come at the end of the list.
+     *
      * @param uuid the UUID of either a single ServiceEntity or a group.
      * @param inputDto the parameters to further refine this search.
-     * @return a list of {@link StatSnapshotApiDTO}s one for each ServiceEntity in the expanded list
+     * @return a list of {@link StatSnapshotApiDTO}s one for each ServiceEntity in the expanded list,
+     * with projected/future stats coming at the end of the list.
      */
     @Override
     public List<StatSnapshotApiDTO> getStatsByEntityQuery(String uuid, StatPeriodApiInputDTO inputDto)
@@ -296,8 +304,34 @@ public class StatsService implements IStatsService {
                 stats.add(projectedStatSnapshot);
             }
             // if the startDate is in the past, read from the history (and combine with projected, if any)
-            if (inputDto.getStartDate() == null || DateTimeUtil.parseTime(inputDto.getStartDate()) <
-                    clockTimeNow) {
+            Long startTime = null;
+            if (inputDto.getStartDate() == null
+                    || (startTime = DateTimeUtil.parseTime(inputDto.getStartDate())) < clockTimeNow) {
+                // Because of issues like https://vmturbo.atlassian.net/browse/OM-36537, where a UI
+                // request expecting stats between "now" and "future" fails to get "now" results
+                // because the specified start time is often (but not always) later than the latest
+                // available live topology broadcast, we are adding a special clause for the
+                // case where, if a "now" start date is specified, the request will be treated as a
+                // request for the latest available live topology stats.
+                //
+                // A "now" request is identified as one with a start date falling within
+                // (LATEST_LIVE_STATS_RETRIEVAL_START_DATE_THRESHOLD_MS) of the current system time.
+                //
+                // The "special request" is handled by adjusting the historical stat request to have
+                // neither a start nor end date set. This triggers a special case in the History
+                // component, which interprets the null start/end as a request to get the most recent
+                // live stats, regardless of current time.
+                //
+                // In the future, we would probably prefer an explicit parameter be able to handle
+                // this case instead of using this special case for start date. But for now, this is
+                // a small change we are making so we can avoid also having to change the stats API,
+                // UI code and classic API to support a new param or special value.
+                if (startTime != null
+                    && (startTime > clockTimeNow - LATEST_LIVE_STATS_RETRIEVAL_START_DATE_THRESHOLD_MS)) {
+                    logger.trace("Clearing start and end date since start time is {}ms ago.", (clockTimeNow - startTime));
+                    inputDto.setStartDate(null);
+                    inputDto.setEndDate(null);
+                }
                 if (statsFilters != null) {
                     // Duplicate the set of stat filters and add "current" as a prefix to the filter name.
                     List<StatApiInputDTO> currentStatFilters =
@@ -319,8 +353,12 @@ public class StatsService implements IStatsService {
                 final Iterable<StatSnapshot> statsIterator = () ->
                         statsServiceRpc.getAveragedEntityStats(request);
 
-                // convert the stats snapshots to the desired ApiDTO and return them.
-                stats.addAll(StreamSupport.stream(statsIterator.spliterator(), false)
+                // convert the stats snapshots to the desired ApiDTO and return them. Also, insert
+                // them before any projected stats in the output collection, since the UI expects
+                // the projected stats to always come last.
+                // (We are still fetching projected stats first, since we may have mutated
+                // the inputDTO in this clause that fetches live/historical stats)
+                stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
                         .map(statsMapper::toStatSnapshotApiDTO)
                         .collect(Collectors.toList()));
             }
