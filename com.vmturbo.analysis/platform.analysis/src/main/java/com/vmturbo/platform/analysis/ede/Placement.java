@@ -1,6 +1,8 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
@@ -111,17 +113,18 @@ public class Placement {
     public static @NonNull List<@NonNull Action> generatePlacementDecisions(
                     @NonNull Economy economy, @NonNull List<@NonNull ShoppingList> shoppingLists) {
         @NonNull List<@NonNull Action> actions = new ArrayList<>();
-        @NonNull List<@NonNull Trader> shopTogetherTraderList = new ArrayList<>();
+        // Use a LinkedHashSet to prevent duplicates but allow ordered traversal.
+        @NonNull Set<@NonNull Trader> shopTogetherTraders = new LinkedHashSet<>();
         for (ShoppingList sl : shoppingLists) {
             // if the sl is shop together, put it into a list, else, run non shop alone placement
             Trader buyer = sl.getBuyer();
             if (buyer.getSettings().isShopTogether()) {
-                shopTogetherTraderList.add(buyer);
+                shopTogetherTraders.add(buyer);
             } else {
                 actions.addAll(generateShopAlonePlacementDecisions(economy, sl));
             }
         }
-        actions.addAll(generateShopTogetherDecisions(economy, shopTogetherTraderList));
+        actions.addAll(generateShopTogetherDecisions(economy, shopTogetherTraders));
         return actions;
     }
 
@@ -258,14 +261,17 @@ public class Placement {
                                 List<ShoppingList> shopFirstShoppingLists, boolean preferentialPlacementOnly) {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
-        List<Trader> specialTraders = new ArrayList<>();
+        // Use a linkedHashSet to preserve order, permit fast #contains lookups, and ensure only
+        // unique elements in the collection.
+        Set<Trader> specialTraders = new LinkedHashSet<>();
         if (!shopFirstShoppingLists.isEmpty()) {
             shopFirstShoppingLists.forEach(sl -> specialTraders.add(sl.getBuyer()));
             // place selected list of buyers
             output.addAll(generateShopTogetherDecisions(economy, specialTraders));
             if (!preferentialPlacementOnly) {
                 output.addAll(generateShopTogetherDecisions(economy, economy.getTraders().stream()
-                                .filter(trader -> !specialTraders.contains(trader)).collect(Collectors.toList())));
+                    .filter(trader -> !specialTraders.contains(trader))
+                    .collect(Collectors.toList())));
             }
         } else {
             output.addAll(generateShopTogetherDecisions(economy, economy.getTraders()));
@@ -286,7 +292,7 @@ public class Placement {
      * @return shop-together decisions
      */
     public static @NonNull List<@NonNull Action> generateShopTogetherDecisions(@NonNull Economy
-                    economy, List<Trader> traders) {
+                    economy, Collection<Trader> traders) {
         @NonNull List<@NonNull Action> output = new ArrayList<>();
 
         for (Trader buyingTrader : traders) {
