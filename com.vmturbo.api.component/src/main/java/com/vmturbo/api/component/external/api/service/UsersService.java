@@ -22,9 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.Errors;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import com.google.common.collect.ImmutableList;
@@ -68,7 +66,6 @@ public class UsersService implements IUsersService {
     public static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
     public static final String ENTITY_ID = "entityID";
     public static final String SAML_IDP_ENTITY_NAME = "SAML IDP entity name: ";
-    public static final String MD_SINGLE_LOGOUT_SERVICE = "md:SingleLogoutService";
 
     /**
      * The logger.
@@ -95,7 +92,7 @@ public class UsersService implements IUsersService {
      */
     private final Gson GSON_ = new GsonBuilder().create();
     private final String idpURL;
-    private final boolean samlEnabled, isSingleLogoutEnabled;
+    private final boolean samlEnabled;
 
     /**
      * Constructs the users service.
@@ -117,14 +114,11 @@ public class UsersService implements IUsersService {
         }
         restTemplate_ = Objects.requireNonNull(restTemplate);
         if (samlEnabled && samlIdpMetadata != null) {
-            final String idpMetadata = geIdpMetadataXML(samlIdpMetadata);
-            this.idpURL = getIdpEntityName(idpMetadata).orElse("");
+            this.idpURL = getIdpEntityName(samlIdpMetadata).orElse("");
             this.samlEnabled = true;
-            this.isSingleLogoutEnabled = isSingleLogoutEnabled(idpMetadata);
         } else {
             this.idpURL = "";
             this.samlEnabled = false;
-            this.isSingleLogoutEnabled = false;
         }
 
 
@@ -675,14 +669,15 @@ public class UsersService implements IUsersService {
                 SAMLIdpApiDTO samlIdpApiDTO = new SAMLIdpApiDTO();
                 samlIdpApiDTO.setIdpURL(idpURL);
                 samlIdpApiDTO.setSAMLOnly(samlEnabled);
-                samlIdpApiDTO.setSingleLogoutEnabled(isSingleLogoutEnabled);
                 return Optional.of(samlIdpApiDTO);
         }
         return Optional.empty();
     }
 
-    private Optional<String> getIdpEntityName(@Nonnull final String idpMetadata) {
+    private Optional<String> getIdpEntityName(String samlIdpMetadata) {
         try {
+            byte[] byteArray = Base64CodecUtils.decode(samlIdpMetadata);
+            String idpMetadata = new String(byteArray);
             Element element = SAMLUtils.loadXMLFromString(idpMetadata).getDocumentElement();
             return Optional.ofNullable(element.getAttribute(ENTITY_ID));
         } catch (SAXException e) {
@@ -696,29 +691,5 @@ public class UsersService implements IUsersService {
             logger_.info(e);
         }
         return Optional.empty();
-    }
-
-    // decode the SAML IDP metadata
-    private String geIdpMetadataXML(@Nonnull final String samlIdpMetadata) {
-        byte[] byteArray = Base64CodecUtils.decode(samlIdpMetadata);
-        return new String(byteArray);
-    }
-
-    // Check if the Single Logout is exist in IDP metadata.
-    private boolean isSingleLogoutEnabled(@Nonnull final String idpMetadata) {
-        try {
-            final Document document = SAMLUtils.loadXMLFromString(idpMetadata);
-            final NodeList nodeList =  document.getElementsByTagName(MD_SINGLE_LOGOUT_SERVICE);
-            return nodeList != null && nodeList.getLength() >0;
-        } catch (IOException e) {
-            logger_.info(e);
-        } catch (SAXException e) {
-            logger_.info(e);
-        } catch (ParserConfigurationException e) {
-            logger_.info(e);
-        } catch (RuntimeException e) {
-            logger_.info(e);
-        }
-        return false;
     }
 }
