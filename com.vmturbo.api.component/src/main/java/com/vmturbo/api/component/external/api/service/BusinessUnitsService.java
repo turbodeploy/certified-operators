@@ -75,13 +75,6 @@ public class BusinessUnitsService implements IBusinessUnitsService {
         throw ApiUtils.notImplementedInXL();
     }
 
-    @Nonnull
-    @Override
-    public Collection<BusinessUnitApiDTO> getRelatedBusinessUnits(@Nonnull String uuid) {
-        // TODO OM-35804 implement required behavior
-        throw ApiUtils.notImplementedInXL();
-    }
-
     @Override
     public EntityPaginationResponse getEntities(final String uuid,
                             final EntityPaginationRequest paginationRequest) throws Exception {
