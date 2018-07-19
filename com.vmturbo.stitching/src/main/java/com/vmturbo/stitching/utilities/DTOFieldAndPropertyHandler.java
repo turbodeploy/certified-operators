@@ -1,19 +1,15 @@
 package com.vmturbo.stitching.utilities;
 
-import java.util.Iterator;
-import java.util.List;
+import java.util.Map.Entry;
 import java.util.Optional;
-import java.util.Stack;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.Descriptors.FieldDescriptor;
-import com.google.protobuf.Message;
 import com.google.protobuf.Message.Builder;
 import com.google.protobuf.MessageOrBuilder;
 
-import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
@@ -157,6 +153,26 @@ public class DTOFieldAndPropertyHandler {
         // at this point, we've reached the Builder for the field we want to set
         nxtBuilder.setField(getFieldDescriptor(nxtBuilder, fieldSpec.getFieldName()), newValue);
         nxtBuilder.build();
+    }
+
+    /**
+     * Take all the populated fields from one Builder and push them onto the other, overwriting
+     * fields if necessary.
+     *
+     * @param from the MessageOrBuilder to take the fields from
+     * @param onto the Builder to write the values onto
+     */
+    public static <T extends Builder> T mergeBuilders(@Nonnull final T from,
+                                     @Nonnull final T onto) {
+        for (Entry<FieldDescriptor, Object> nxtEntry : from.getAllFields().entrySet()) {
+            if (nxtEntry.getValue() instanceof Builder) {
+                Builder ontoBuilder = onto.getFieldBuilder(nxtEntry.getKey());
+                mergeBuilders((Builder) nxtEntry.getValue(), ontoBuilder);
+            } else {
+                onto.setField(nxtEntry.getKey(), nxtEntry.getValue());
+            }
+        }
+        return onto;
     }
 }
 

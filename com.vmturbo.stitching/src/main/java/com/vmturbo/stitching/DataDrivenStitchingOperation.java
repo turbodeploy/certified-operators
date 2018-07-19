@@ -22,6 +22,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
+import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 import com.vmturbo.stitching.utilities.DeleteCommodities;
 import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.MergeEntities;
@@ -310,6 +311,12 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
         @Override
         public Optional<Builder> onDistinctCommodity(@Nonnull final Builder commodity,
                                                      final Origin origin) {
+            // don't keep the from commodity if it is not in the list of sold commodities we are
+            // configured to keep
+            if (origin == Origin.FROM_ENTITY &&
+                    !soldCommodityTypesToPush.contains(commodity.getCommodityType())) {
+                return Optional.empty();
+            }
             return Optional.of(commodity);
         }
 
@@ -317,8 +324,11 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
         @Override
         public Optional<Builder> onOverlappingCommodity(@Nonnull final Builder fromCommodity,
                                                         @Nonnull final Builder ontoCommodity) {
+            // if the soldMetaData says to preserve this commodity type merge the fromCommodity
+            // with the ontoCommodity
             if (soldCommodityTypesToPush.contains(fromCommodity.getCommodityType())) {
-                return Optional.of(fromCommodity);
+                return Optional.of(DTOFieldAndPropertyHandler.mergeBuilders(fromCommodity,
+                        ontoCommodity));
             }
             return Optional.of(ontoCommodity);
         }

@@ -4,9 +4,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -15,11 +17,17 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.platform.common.builders.CommodityBuilderIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.CommodityBoughtMetaData;
+import com.vmturbo.stitching.DTOFieldSpec;
 import com.vmturbo.stitching.StitchingEntity;
 
 /**
@@ -35,7 +43,6 @@ public class CopyCommodities {
     private CopyCommodities() {
 
     }
-
 
     /**
      * A builder for allowing the copying of commodities from a source entity to a destination entity.
@@ -70,7 +77,7 @@ public class CopyCommodities {
         private final Collection<CommodityBoughtMetaData> boughtMetaData;
 
         CopyCommoditiesBoughtWithSource(@Nonnull final StitchingEntity source,
-                                        @Nullable Collection<CommodityBoughtMetaData> boughtMetaData) {
+                                        @Nullable final Collection<CommodityBoughtMetaData> boughtMetaData) {
             this.source = Objects.requireNonNull(source);
             this.boughtMetaData = boughtMetaData;
         }
@@ -153,7 +160,9 @@ public class CopyCommodities {
      */
     private static void copyCommoditiesBought(@Nonnull final StitchingEntity source,
                                               @Nonnull final StitchingEntity destination,
-                                              @Nullable Collection<CommodityBoughtMetaData> boughtMetaData) {
+                                              @Nullable Collection<CommodityBoughtMetaData>
+                                                      commBoughtMetaData)
+    {
         final Map<StitchingEntity, List<CommodityDTO.Builder>> destinationBought =
                 destination.getCommoditiesBoughtByProvider();
 
@@ -162,8 +171,83 @@ public class CopyCommodities {
                     "Was this entity already removed from the topology?", source);
         }
 
+        // iterate over providers in the source and copy the commodities there over to destination
+        // subject to the boughtMetaData Map.
         source.getCommoditiesBoughtByProvider().forEach((provider, commoditiesBought) ->
-                destinationBought.computeIfAbsent(provider, key -> new ArrayList<>())
-                        .addAll(verifyCommoditiesBought(provider, commoditiesBought, boughtMetaData)));
+                destinationBought.put(provider, mergeCommoditiesBought(commoditiesBought,
+                        destinationBought.get(provider),
+                        commBoughtMetaData == null ? Optional.empty()
+                                : commBoughtMetaData.stream()
+                                .filter(m -> m.getProviderType() == provider.getEntityType())
+                                .findFirst()
+                                .map(CommodityBoughtMetaData::getCommodities)
+                        ,
+                        commBoughtMetaData != null)));
+    }
+
+    /**
+     * Copy the fromCommodities onto the ontoCommodities subject to the commodityMetaData.  If a
+     * commodity attribute exists only in the onto commodity, keep its value.  If it exists in the
+     * from commodity, overwrite the value in the onto commodity.
+     *
+     * @param fromCommodities CommodityDTO.Builders of commodities whose values we want to pass onto
+     *                        the ontoCommodities
+     * @param ontoCommodities CommodityDTO.Builders to receive the updated values
+     * @param commodityMetaData List of CommodityTypes to transfer
+     * @param filterFromCommodities true if we should filter fromCommodities by commodityMetaData,
+     *                              false if not.  Should only be false for stitching operations
+     *                              that don't specify commodityMetaData.
+     * @return {@List<CommodityDTO.Builder>} giving the merged commodities.
+     */
+    private static List<CommodityDTO.Builder> mergeCommoditiesBought(
+            @Nonnull final List<CommodityDTO.Builder> fromCommodities,
+            @Nullable final List<CommodityDTO.Builder> ontoCommodities,
+            @Nullable final Optional<Collection<CommodityType>>
+                    commodityMetaData,
+            boolean filterFromCommodities) {
+        List<CommodityDTO.Builder> retVal = Lists.newArrayList();
+        // Collect the mergeFromCommodities into a map where they can be looked up by
+        // {@link CommodityBuilderIdentifier}.
+        final Map<CommodityBuilderIdentifier, CommodityDTO.Builder> mergeFromCommoditiesMap =
+                fromCommodities.stream().collect(Collectors.toMap(
+                        commodity -> new CommodityBuilderIdentifier(commodity.getCommodityType(),
+                                commodity.getKey()), Function.identity()));
+
+        // Collect the mergeOntoCommodities into a map where they can be looked up by
+        // {@link CommodityBuilderIdentifier}.
+        final Map<CommodityBuilderIdentifier, CommodityDTO.Builder> mergeOntoCommoditiesMap =
+                ontoCommodities == null ? Maps.newHashMap() :
+                        ontoCommodities.stream().collect(Collectors.toMap(
+                                commodity -> new CommodityBuilderIdentifier(commodity.getCommodityType(),
+                                        commodity.getKey()), Function.identity()));
+
+        Set<CommodityType> mergeMetaDataSet = Sets.newHashSet();
+        // if we are not filtering based on commodityMetaData, make sure all fromCommodities are
+        // merged
+        if (!filterFromCommodities) {
+            for (CommodityDTO.Builder commBuilder : fromCommodities) {
+                mergeMetaDataSet.add(commBuilder.getCommodityType());
+            }
+        } else {
+            commodityMetaData.ifPresent(commMetaDataCollection -> {
+                for (CommodityType commMetaData : commMetaDataCollection) {
+                    mergeMetaDataSet.add(commMetaData);
+                }
+            });
+        }
+
+        // For all from Commodities whose type exists in mergeMetaData, merge with matching onto
+        // commodity if it exists, and then add to return value.
+        for (Entry<CommodityBuilderIdentifier, Builder> entry :
+                mergeFromCommoditiesMap.entrySet()) {
+            if (mergeMetaDataSet.contains(entry.getKey().type)) {
+                Builder ontoBuilder = mergeOntoCommoditiesMap.remove(entry.getKey());
+                retVal.add(ontoBuilder == null ? entry.getValue()
+                        : DTOFieldAndPropertyHandler.mergeBuilders(entry.getValue(), ontoBuilder));
+            }
+        }
+        // add any onto builders that didn't have matching from side commodities to the return value
+        mergeOntoCommoditiesMap.values().forEach(builder -> retVal.add(builder));
+        return retVal;
     }
 }

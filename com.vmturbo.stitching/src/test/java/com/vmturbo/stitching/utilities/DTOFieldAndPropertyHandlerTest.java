@@ -1,10 +1,10 @@
 package com.vmturbo.stitching.utilities;
 
+import static com.vmturbo.platform.common.builders.CommodityBuilders.vCpuMHz;
 import static com.vmturbo.platform.common.builders.EntityBuilders.virtualMachine;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 import java.util.List;
 
@@ -13,6 +13,8 @@ import org.junit.Test;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.platform.common.builders.ConsumerPolicyBuilder;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.UtilizationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 import com.vmturbo.stitching.DTOFieldSpec;
@@ -100,5 +102,22 @@ public class DTOFieldAndPropertyHandlerTest {
                     }
                 }, true);
         assertTrue(vmFoo.getConsumerPolicy().getControllable());
+    }
+
+    @Test
+    public void testMergeCommodities() {
+        // try to copy the same commodity from source to destination
+        // The number of commodities should not change, but the value of used should get written to
+        // the destination commodity
+        CommodityDTO.Builder comm1 = vCpuMHz().used(10.0D).capacity(20.0D).active(true)
+                .utilizationData(UtilizationData.newBuilder().addPoint(10.0D).addPoint(20.0D)
+                        .setIntervalMs(100).setLastPointTimestampMs(2121221L).build())
+                .build().toBuilder();
+
+        CommodityDTO.Builder comm2 = vCpuMHz().peak(100.0D).build().toBuilder();
+        DTOFieldAndPropertyHandler.mergeBuilders(comm1, comm2);
+        assertEquals(10.0D, comm2.getUsed(), 0.1D);
+        assertEquals(100, comm2.getUtilizationData().getIntervalMs());
+        assertEquals(100.0D, comm2.getPeak(), 0.1D);
     }
 }

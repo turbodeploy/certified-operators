@@ -4,6 +4,7 @@ import static com.vmturbo.platform.common.builders.CommodityBuilders.vCpuMHz;
 import static com.vmturbo.platform.common.builders.CommodityBuilders.vMemKB;
 import static com.vmturbo.stitching.utilities.CopyCommodities.copyCommodities;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,21 +41,33 @@ public class CopyCommoditiesTest {
     private final StitchingEntity provider = mock(StitchingEntity.class);
 
     @Test
-    public void testCopyWithExistingProvider() {
+    public void testCopyWithExistingProviderSameCommodity() {
+        // try to copy the same commodity from source to destination
+        // The number of commodities should not change, but the value of used should get written to
+        // the destination commodity
         final List<CommodityDTO.Builder> sourceProviderList = new ArrayList<>();
-        sourceProviderList.add(vCpuMHz().build().toBuilder());
+        sourceProviderList.add(vCpuMHz().used(10.0D).build().toBuilder());
 
         final List<CommodityDTO.Builder> destProviderList = new ArrayList<>();
         destProviderList.add(vCpuMHz().build().toBuilder());
         final Map<StitchingEntity, List<CommodityDTO.Builder>> destProviderMap = new HashMap<>();
         destProviderMap.put(provider, destProviderList);
 
-        when(sourceEntity.getCommoditiesBoughtByProvider()).thenReturn(ImmutableMap.of(provider, sourceProviderList));
+        when(sourceEntity.getCommoditiesBoughtByProvider()).thenReturn(ImmutableMap.of(provider,
+                sourceProviderList));
         when(destinationEntity.getCommoditiesBoughtByProvider()).thenReturn(destProviderMap);
 
-        assertEquals(1, destinationEntity.getCommoditiesBoughtByProvider().get(provider).size());
+        assertEquals(1,
+                destinationEntity.getCommoditiesBoughtByProvider().get(provider).size());
+        assertEquals(0,
+                destinationEntity.getCommoditiesBoughtByProvider().get(provider).get(0).getUsed(),
+                0.1D);
         copyCommodities().from(sourceEntity).to(destinationEntity);
-        assertEquals(2, destinationEntity.getCommoditiesBoughtByProvider().get(provider).size());
+        assertEquals(1,
+                destinationEntity.getCommoditiesBoughtByProvider().get(provider).size());
+        assertEquals(10.0D,
+                destinationEntity.getCommoditiesBoughtByProvider().get(provider).get(0).getUsed(),
+                0.1D);
     }
 
     @Test
@@ -74,28 +87,37 @@ public class CopyCommoditiesTest {
     @Test
     public void testCopyWithExistingProviderWithBoughtMetaData() {
         final List<CommodityDTO.Builder> sourceProviderList = new ArrayList<>();
-        sourceProviderList.add(vCpuMHz().build().toBuilder());
+        sourceProviderList.add(vCpuMHz().used(20.0D).resizable(true).build().toBuilder());
         sourceProviderList.add(vMemKB().build().toBuilder());
         // create a bought commodity meta data filter that contains only one of the two commodities
         // in the source and also contains an irrelevant commodity not provided by the source.
-        final Collection<CommodityType> commodityBoughtData = ImmutableList.of(CommodityType.VCPU,
+        final Collection<CommodityType> commodityBoughtTypeList = ImmutableList.of(
+                CommodityType.VCPU,
                 CommodityType.BALLOONING);
         final Collection<CommodityBoughtMetaData> boughtFilter =
                 ImmutableList.of(new CommodityBoughtMetaData(EntityType.PHYSICAL_MACHINE,
-                        commodityBoughtData));
+                        commodityBoughtTypeList));
 
         final List<CommodityDTO.Builder> destProviderList = new ArrayList<>();
         destProviderList.add(vCpuMHz().build().toBuilder());
         final Map<StitchingEntity, List<CommodityDTO.Builder>> destProviderMap = new HashMap<>();
         destProviderMap.put(provider, destProviderList);
 
-        when(sourceEntity.getCommoditiesBoughtByProvider()).thenReturn(ImmutableMap.of(provider, sourceProviderList));
+        when(sourceEntity.getCommoditiesBoughtByProvider()).thenReturn(ImmutableMap.of(provider,
+                sourceProviderList));
         when(destinationEntity.getCommoditiesBoughtByProvider()).thenReturn(destProviderMap);
         when(provider.getEntityType()).thenReturn(EntityType.PHYSICAL_MACHINE);
 
-        assertEquals(1, destinationEntity.getCommoditiesBoughtByProvider().get(provider).size());
+        assertEquals(1,
+                destinationEntity.getCommoditiesBoughtByProvider().get(provider).size());
         copyCommodities(boughtFilter).from(sourceEntity).to(destinationEntity);
-        assertEquals(2, destinationEntity.getCommoditiesBoughtByProvider().get(provider).size());
+        assertEquals(1,
+                destinationEntity.getCommoditiesBoughtByProvider().get(provider).size());
+        assertEquals(20.0D,
+                destinationEntity.getCommoditiesBoughtByProvider().get(provider).get(0).getUsed(),
+                0.1D);
+        assertFalse(destinationEntity.getCommoditiesBoughtByProvider().get(provider)
+                .get(0).hasReservation());
     }
 
 }
