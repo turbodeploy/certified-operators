@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -25,6 +26,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -57,6 +59,7 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -108,9 +111,9 @@ public class TopologyConverterTest {
 
     @Test
     public void testConvertCommodityCloneWithNewType() {
-        TopologyDTO.TopologyEntityDTO topologyDTO = DTOWithProvisionedAndCloneWithNewTypeComm();
+        TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
-        TraderTO traderTO = converter.convertToMarket(Lists.newArrayList(topologyDTO)).iterator().next();
+        TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertTrue(traderTO.getCommoditiesSold(1).getSpecification().getCloneWithNewType());
     }
 
@@ -133,9 +136,9 @@ public class TopologyConverterTest {
 
     @Test
     public void testProvisionedCommodityResizable() {
-        TopologyDTO.TopologyEntityDTO topologyDTO = DTOWithProvisionedAndCloneWithNewTypeComm();
+        TopologyDTO.TopologyEntityDTO entityDto = DTOWithProvisionedAndCloneWithNewTypeComm();
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
-        TraderTO traderTO = converter.convertToMarket(Lists.newArrayList(topologyDTO)).iterator().next();
+        TraderTO traderTO = converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto)).iterator().next();
         assertFalse(traderTO.getCommoditiesSold(0).getSettings().getResizable());
     }
 
@@ -346,7 +349,7 @@ public class TopologyConverterTest {
         // as the implementation of the ID allocator doesn't change.
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
-        converter.convertToMarket(Lists.newArrayList(entityDTO));
+        converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         assertEquals(topologyCommodity1,
                 converter.economyToTopologyCommodity(economyCommodity1).get());
@@ -374,7 +377,8 @@ public class TopologyConverterTest {
             throws InvalidTopologyException {
 
         return new TopologyConverter(topologyInfo, true, 0.75f)
-                        .convertToMarket(topology);
+            .convertToMarket(topology.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
 
     @Test
@@ -385,13 +389,14 @@ public class TopologyConverterTest {
      * @throws InvalidTopologyException not supposed to happen here
      */
     public void testSkipVDC() throws IOException, InvalidTopologyException {
-        Set<TopologyDTO.TopologyEntityDTO> topologyDTOs = Sets.newHashSet(
-                        messageFromJsonFile("protobuf/messages/vdc-2.dto.json"),
-                        messageFromJsonFile("protobuf/messages/pm-2.dto.json"),
-                        messageFromJsonFile("protobuf/messages/vm-2.dto.json"));
+        final Map<Long, TopologyDTO.TopologyEntityDTO> topologyDTOs = Stream.of(
+                messageFromJsonFile("protobuf/messages/vdc-2.dto.json"),
+                messageFromJsonFile("protobuf/messages/pm-2.dto.json"),
+                messageFromJsonFile("protobuf/messages/vm-2.dto.json"))
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> traderTOs =
                 new TopologyConverter(REALTIME_TOPOLOGY_INFO, false, 0.75f)
-                        .convertToMarket(topologyDTOs.stream().collect(Collectors.toList()));
+                        .convertToMarket(topologyDTOs);
         assertEquals(2, traderTOs.size());
         for (TraderTO traderTO : traderTOs) {
             if (traderTO.getType() == EntityType.PHYSICAL_MACHINE_VALUE) {
@@ -508,15 +513,16 @@ public class TopologyConverterTest {
                             .build())
                         .build();
 
-        List<TopologyDTO.TopologyEntityDTO> entity =
-                        converter.convertFromMarket(Arrays.asList(trader),
-                            Sets.newHashSet(expectedEntity, expectedEntity2));
+        List<TopologyDTO.ProjectedTopologyEntity> entity =
+            converter.convertFromMarket(Arrays.asList(trader),
+                ImmutableMap.of(expectedEntity.getOid(), expectedEntity, expectedEntity2.getOid(), expectedEntity2),
+                PriceIndexMessage.getDefaultInstance());
         assertEquals(1L, entity.size());
         assertTrue(expectedEntity.getCommoditySoldList(0)
-                        .equals(entity.get(0).getCommoditySoldList(0)));
-        assertEquals(1, entity.get(0).getCommoditiesBoughtFromProvidersCount());
+                        .equals(entity.get(0).getEntity().getCommoditySoldList(0)));
+        assertEquals(1, entity.get(0).getEntity().getCommoditiesBoughtFromProvidersCount());
         assertEquals(EntityType.PHYSICAL_MACHINE_VALUE,
-                entity.get(0).getCommoditiesBoughtFromProviders(0).getProviderEntityType());
+                entity.get(0).getEntity().getCommoditiesBoughtFromProviders(0).getProviderEntityType());
     }
 
     /**
@@ -607,7 +613,7 @@ public class TopologyConverterTest {
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(topologyCommodity2))
                 .build();
 
-        converter.convertToMarket(Lists.newArrayList(entityDTO));
+        converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         // create trader DTO corresponds to originalEntity
         EconomyDTOs.TraderTO trader = EconomyDTOs.TraderTO.newBuilder()
@@ -626,12 +632,13 @@ public class TopologyConverterTest {
                         .build())
                 .build();
 
-        List<TopologyDTO.TopologyEntityDTO> entity =
+        List<TopologyDTO.ProjectedTopologyEntity> entity =
                 converter.convertFromMarket(Arrays.asList(trader),
-                        Sets.newHashSet(expectedEntity));
+                        ImmutableMap.of(expectedEntity.getOid(), expectedEntity),
+                        PriceIndexMessage.getDefaultInstance());
         assertEquals(1L, entity.size());
         // Ensure the entity is having SUSPENDED state.
-        assertEquals(EntityState.SUSPENDED, entity.get(0).getEntityState());
+        assertEquals(EntityState.SUSPENDED, entity.get(0).getEntity().getEntityState());
     }
 
     private static final Set<String> CONSTANT_PRICE_TYPES_S = ImmutableSet.of(
@@ -711,7 +718,8 @@ public class TopologyConverterTest {
         TopologyDTO.TopologyEntityDTO actionManager = TopologyDTO.TopologyEntityDTO.newBuilder()
                         .setOid(1003L).setEntityType(22).build();
         TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO);
-        assertTrue(converter.convertToMarket(Arrays.asList(container, virtualApp, actionManager))
+        assertTrue(converter.convertToMarket(Stream.of(container, virtualApp, actionManager)
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())))
                         .size() == 2);
     }
 

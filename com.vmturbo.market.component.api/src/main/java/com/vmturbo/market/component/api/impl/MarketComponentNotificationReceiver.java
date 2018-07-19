@@ -17,6 +17,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -28,9 +29,7 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.market.component.api.ActionsListener;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
-import com.vmturbo.market.component.api.PriceIndexListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
 /**
  * The notification receiver connecting to the Market Component.
@@ -50,22 +49,17 @@ public class MarketComponentNotificationReceiver extends
      * Action plans topic.
      */
     public static final String ACTION_PLANS_TOPIC = "action-plans";
-    /**
-     * Price index topic.
-     */
-    public static final String PRICE_INDICES_TOPIC = "price-indices";
 
     private final Set<ActionsListener> actionsListenersSet;
 
     private final Set<ProjectedTopologyListener> projectedTopologyListenersSet;
-    private final Set<PriceIndexListener> priceIndexListenerSet;
     private final Set<PlanAnalysisTopologyListener> planAnalysisTopologyListenersSet;
-    private final ChunkingReceiver<TopologyEntityDTO> topologyChunkReceiver;
+    private final ChunkingReceiver<TopologyEntityDTO> planAnalysisTopologyChunkReceiver;
+    private final ChunkingReceiver<ProjectedTopologyEntity> projectedTopologyChunkReceiver;
 
     public MarketComponentNotificationReceiver(
             @Nullable final IMessageReceiver<ProjectedTopology> projectedTopologyReceiver,
             @Nullable final IMessageReceiver<ActionPlan> actionPlanReceiver,
-            @Nullable final IMessageReceiver<PriceIndexMessage> priceIndexReceiver,
             @Nullable final IMessageReceiver<Topology> planAnalysisTopologyReceiver,
             @Nonnull final ExecutorService executorService) {
         super(actionPlanReceiver, executorService);
@@ -80,13 +74,8 @@ public class MarketComponentNotificationReceiver extends
         } else {
             actionsListenersSet = Collections.emptySet();
         }
-        topologyChunkReceiver = new ChunkingReceiver<>(executorService);
-        if (priceIndexReceiver != null) {
-            priceIndexListenerSet = Sets.newConcurrentHashSet();
-            priceIndexReceiver.addListener(this::processPriceIndex);
-        } else {
-            priceIndexListenerSet = Collections.emptySet();
-        }
+        planAnalysisTopologyChunkReceiver = new ChunkingReceiver<>(executorService);
+        projectedTopologyChunkReceiver = new ChunkingReceiver<>(executorService);
         if (planAnalysisTopologyReceiver != null) {
             planAnalysisTopologyListenersSet = Collections.newSetFromMap(new ConcurrentHashMap<>());
             planAnalysisTopologyReceiver.addListener(this::processPlanAnalysisTopology);
@@ -103,11 +92,6 @@ public class MarketComponentNotificationReceiver extends
     @Override
     public void addProjectedTopologyListener(@Nonnull final ProjectedTopologyListener listener) {
         projectedTopologyListenersSet.add(Objects.requireNonNull(listener));
-    }
-
-    @Override
-    public void addPriceIndexListener(@Nonnull PriceIndexListener listener) {
-        priceIndexListenerSet.add(Objects.requireNonNull(listener));
     }
 
     @Override
@@ -134,15 +118,15 @@ public class MarketComponentNotificationReceiver extends
         switch (topology.getSegmentCase()) {
             case START:
                 final Start start = topology.getStart();
-                topologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
-                        createProjectedTopologyChunkConsumers(topologyId, start.getSourceTopologyInfo()));
+                projectedTopologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
+                        createProjectedTopologyChunkConsumers(topologyId, start.getSourceTopologyInfo(), Sets.newHashSet(start.getSkippedEntitiesList())));
                 break;
             case DATA:
-                topologyChunkReceiver.processData(topology.getTopologyId(),
+                projectedTopologyChunkReceiver.processData(topology.getTopologyId(),
                         topology.getData().getEntitiesList());
                 break;
             case END:
-                topologyChunkReceiver.finishTopologyBroadcast(topology.getTopologyId(),
+                projectedTopologyChunkReceiver.finishTopologyBroadcast(topology.getTopologyId(),
                         topology.getEnd().getTotalCount());
                 commitCommand.run();
                 break;
@@ -164,15 +148,15 @@ public class MarketComponentNotificationReceiver extends
         switch (topology.getSegmentCase()) {
             case START:
                 final Topology.Start start = topology.getStart();
-                topologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
+                planAnalysisTopologyChunkReceiver.startTopologyBroadcast(topology.getTopologyId(),
                         createPlanAnalysisTopologyChunkConsumers(start.getTopologyInfo()));
                 break;
             case DATA:
-                topologyChunkReceiver.processData(topology.getTopologyId(),
+                planAnalysisTopologyChunkReceiver.processData(topology.getTopologyId(),
                         topology.getData().getEntitiesList());
                 break;
             case END:
-                topologyChunkReceiver.finishTopologyBroadcast(topology.getTopologyId(),
+                planAnalysisTopologyChunkReceiver.finishTopologyBroadcast(topology.getTopologyId(),
                         topology.getEnd().getTotalCount());
                 commitCommand.run();
                 break;
@@ -182,20 +166,12 @@ public class MarketComponentNotificationReceiver extends
         }
     }
 
-    private void processPriceIndex(@Nonnull final PriceIndexMessage topology,
-            @Nonnull Runnable commitCommand) {
-        for (final PriceIndexListener listener : priceIndexListenerSet) {
-            listener.onPriceIndexReceived(topology);
-        }
-        commitCommand.run();
-    }
-
-    private Collection<Consumer<RemoteIterator<TopologyEntityDTO>>> createProjectedTopologyChunkConsumers(
-            final long topologyId, final TopologyInfo topologyInfo) {
+    private Collection<Consumer<RemoteIterator<ProjectedTopologyEntity>>> createProjectedTopologyChunkConsumers(
+            final long topologyId, final TopologyInfo topologyInfo, final Set<Long> skippedEntities) {
         return projectedTopologyListenersSet.stream().map(listener -> {
-            final Consumer<RemoteIterator<TopologyEntityDTO>> consumer =
+            final Consumer<RemoteIterator<ProjectedTopologyEntity>> consumer =
                     iterator -> listener.onProjectedTopologyReceived(
-                            topologyId, topologyInfo, iterator);
+                            topologyId, topologyInfo, skippedEntities, iterator);
             return consumer;
         }).collect(Collectors.toList());
     }

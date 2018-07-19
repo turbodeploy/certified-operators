@@ -23,13 +23,6 @@ public interface MarketComponent {
     void addProjectedTopologyListener(@Nonnull final ProjectedTopologyListener listener);
 
     /**
-     * Registers a listener for price index notifications.
-     *
-     * @param listener listener to register
-     */
-    void addPriceIndexListener(@Nonnull final PriceIndexListener listener);
-
-    /**
      * Register a listener for handling plan analysis topologies.
      *
      * @param listener the listener for plan analysis topologies

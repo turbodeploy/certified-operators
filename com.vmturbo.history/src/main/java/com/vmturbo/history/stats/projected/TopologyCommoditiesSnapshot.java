@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
@@ -15,11 +17,13 @@ import javax.annotation.concurrent.Immutable;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.schema.StringConstants;
+import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 
 /**
  * The {@link TopologyCommoditiesSnapshot} contains information about bought and sold commodities
@@ -34,6 +38,7 @@ class TopologyCommoditiesSnapshot {
     private final SoldCommoditiesInfo soldCommoditiesInfo;
     private final BoughtCommoditiesInfo boughtCommoditiesInfo;
     private final EntityCountInfo entityCountInfo;
+    private final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot;
     private final long topologySize;
 
     /**
@@ -46,9 +51,10 @@ class TopologyCommoditiesSnapshot {
             @Nonnull
             @Override
             public TopologyCommoditiesSnapshot createSnapshot(
-                        @Nonnull final RemoteIterator<TopologyEntityDTO> entities)
+                        @Nonnull final RemoteIterator<ProjectedTopologyEntity> entities,
+                        @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory)
                     throws InterruptedException, TimeoutException, CommunicationException {
-                return new TopologyCommoditiesSnapshot(entities);
+                return new TopologyCommoditiesSnapshot(entities, priceIndexSnapshotFactory);
             }
         };
     }
@@ -57,14 +63,17 @@ class TopologyCommoditiesSnapshot {
     TopologyCommoditiesSnapshot(@Nonnull final SoldCommoditiesInfo soldCommoditiesInfo,
                                 @Nonnull final BoughtCommoditiesInfo boughtCommoditiesInfo,
                                 @Nonnull final EntityCountInfo entityCountInfo,
+                                @Nonnull final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot,
                                 final long numEntities) {
         this.soldCommoditiesInfo = soldCommoditiesInfo;
         this.boughtCommoditiesInfo = boughtCommoditiesInfo;
         this.entityCountInfo = entityCountInfo;
         this.topologySize = numEntities;
+        this.projectedPriceIndexSnapshot = projectedPriceIndexSnapshot;
     }
 
-    private TopologyCommoditiesSnapshot(@Nonnull final RemoteIterator<TopologyEntityDTO> entities)
+    private TopologyCommoditiesSnapshot(@Nonnull final RemoteIterator<ProjectedTopologyEntity> entities,
+                                        @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory)
             throws InterruptedException, TimeoutException, CommunicationException {
         final SoldCommoditiesInfo.Builder soldCommoditiesBuilder =
                 SoldCommoditiesInfo.newBuilder();
@@ -73,13 +82,15 @@ class TopologyCommoditiesSnapshot {
         final EntityCountInfo.Builder entityCountBuilder = EntityCountInfo.newBuilder();
         long numEntities = 0;
 
+        final Map<Long, Double> projectedPriceIndexByEntity = new HashMap<>();
         while (entities.hasNext()) {
-            final Collection<TopologyEntityDTO> nextChunk = entities.nextChunk();
+            final Collection<ProjectedTopologyEntity> nextChunk = entities.nextChunk();
             numEntities += nextChunk.size();
             nextChunk.forEach(entity -> {
-                entityCountBuilder.addEntity(entity);
-                soldCommoditiesBuilder.addEntity(entity);
-                boughtCommoditiesBuilder.addEntity(entity);
+                entityCountBuilder.addEntity(entity.getEntity());
+                soldCommoditiesBuilder.addEntity(entity.getEntity());
+                boughtCommoditiesBuilder.addEntity(entity.getEntity());
+                projectedPriceIndexByEntity.put(entity.getEntity().getOid(), entity.getProjectedPriceIndex());
             });
         }
 
@@ -87,6 +98,7 @@ class TopologyCommoditiesSnapshot {
         this.boughtCommoditiesInfo = boughtCommoditiesBuilder.build(this.soldCommoditiesInfo);
         this.entityCountInfo = entityCountBuilder.build();
         this.topologySize = numEntities;
+        this.projectedPriceIndexSnapshot = priceIndexSnapshotFactory.createSnapshot(projectedPriceIndexByEntity);
     }
 
     long getTopologySize() {
@@ -136,7 +148,7 @@ class TopologyCommoditiesSnapshot {
             throw new IllegalArgumentException("Can't order by count commodity: " +
                     sortCommodity);
         } else if (sortCommodity.equals(StringConstants.PRICE_INDEX)) {
-            throw new IllegalArgumentException("Can't order by price index in commodities snapshot.");
+            return projectedPriceIndexSnapshot.getEntityComparator(paginationParams);
         }
 
         return (id1, id2) -> {
@@ -168,10 +180,9 @@ class TopologyCommoditiesSnapshot {
                     .map(Collections::singletonList)
                     .orElse(Collections.emptyList());
         } else if (commodityName.equals("priceIndex")) {
-            // Price index requests are actually handled separately, because the price
-            // index doesn't come in as part of the topology.
-            // TODO: handle the Price Index in the snapshot, e.g. by creating PriceIndexInfo class
-            return Collections.emptyList();
+            return projectedPriceIndexSnapshot.getRecord(targetEntities)
+                .map(Collections::singletonList)
+                .orElse(Collections.emptyList());
         } else {
             // This is probably a "regular" commodity.
             final List<StatRecord> retList = new ArrayList<>();
@@ -194,7 +205,9 @@ class TopologyCommoditiesSnapshot {
     interface TopologyCommoditiesSnapshotFactory {
 
         @Nonnull
-        TopologyCommoditiesSnapshot createSnapshot(final @Nonnull RemoteIterator<TopologyEntityDTO> entities)
-                throws InterruptedException, TimeoutException, CommunicationException;
+        TopologyCommoditiesSnapshot createSnapshot(
+                @Nonnull final RemoteIterator<ProjectedTopologyEntity> entities,
+                @Nonnull final PriceIndexSnapshotFactory priceIndexSnapshotFactory)
+            throws InterruptedException, TimeoutException, CommunicationException;
     }
 }

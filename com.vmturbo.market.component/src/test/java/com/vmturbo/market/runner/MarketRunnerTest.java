@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -41,7 +42,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
 /**
  * Unit tests for the {@link MarketRunner}.
@@ -112,12 +112,8 @@ public class MarketRunnerTest {
         // since the IDgenerator gives us a different projectedTopoID every time, we create a
         // MockitoMatcher using anyLong to represent this parameter
         Mockito.verify(serverApi, Mockito.times(1))
-                .notifyProjectedTopology(eq(topologyInfo), anyLong(),
+                .notifyProjectedTopology(eq(topologyInfo), anyLong(), anySet(),
                         eq(analysis.getProjectedTopology().get()));
-        PriceIndexMessage pim = PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
-                        .setTopologyContextId(analysis.getContextId())
-                        .build();
-        Mockito.verify(serverApi).sendPriceIndex(eq(topologyInfo), eq(pim));
     }
 
     /**

@@ -1,8 +1,8 @@
 package com.vmturbo.repository.listener;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
@@ -11,8 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
+import com.google.common.collect.Collections2;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -43,8 +44,10 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
     }
 
     @Override
-    public void onProjectedTopologyReceived(long projectedTopologyId, TopologyInfo originalTopologyInfo,
-            @Nonnull final RemoteIterator<TopologyEntityDTO> projectedTopo) {
+    public void onProjectedTopologyReceived(final long projectedTopologyId,
+                @Nonnull final TopologyInfo originalTopologyInfo,
+                @Nonnull final Set<Long> skippedEntities,
+                @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo) {
         try {
             onProjectedTopologyReceivedInternal(projectedTopologyId, originalTopologyInfo,
                     projectedTopo);
@@ -57,7 +60,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
 
     public void onProjectedTopologyReceivedInternal(long projectedTopologyId,
             TopologyInfo originalTopologyInfo,
-            @Nonnull final RemoteIterator<TopologyEntityDTO> projectedTopo)
+            @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopo)
             throws CommunicationException, InterruptedException {
         final long topologyContextId = originalTopologyInfo.getTopologyContextId();
         final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId,
@@ -73,9 +76,9 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
             int numberOfEntities = 0;
             int chunkNumber = 0;
             while (projectedTopo.hasNext()) {
-                Collection<TopologyEntityDTO> chunk = projectedTopo.nextChunk();
+                Collection<ProjectedTopologyEntity> chunk = projectedTopo.nextChunk();
                 logger.debug("Received chunk #{} of size {} for topology {}", ++chunkNumber, chunk.size(), tid);
-                topologyCreator.addEntities(chunk);
+                topologyCreator.addEntities(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity));
                 numberOfEntities += chunk.size();
             }
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE

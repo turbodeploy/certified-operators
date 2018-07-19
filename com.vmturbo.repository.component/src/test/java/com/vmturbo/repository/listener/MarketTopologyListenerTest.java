@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -16,6 +17,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -45,16 +47,22 @@ public class MarketTopologyListenerTest {
     private TopologyCreator topologyCreator;
 
     @Mock
-    private RemoteIterator<TopologyEntityDTO> entityIterator;
+    private RemoteIterator<ProjectedTopologyEntity> entityIterator;
 
-    private final TopologyEntityDTO vmDTO;
-    private final TopologyEntityDTO pmDTO;
-    private final TopologyEntityDTO dsDTO;
+    private final ProjectedTopologyEntity vmDTO;
+    private final ProjectedTopologyEntity pmDTO;
+    private final ProjectedTopologyEntity dsDTO;
 
     public MarketTopologyListenerTest() throws IOException {
-        vmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        pmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
-        dsDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/ds-1.dto.json");
+        vmDTO = ProjectedTopologyEntity.newBuilder()
+            .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json"))
+            .build();
+        pmDTO = ProjectedTopologyEntity.newBuilder()
+            .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json"))
+            .build();
+        dsDTO = ProjectedTopologyEntity.newBuilder()
+            .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/ds-1.dto.json"))
+            .build();
     }
 
     @Before
@@ -87,6 +95,7 @@ public class MarketTopologyListenerTest {
                         .setTopologyContextId(topologyContextId)
                         .setCreationTime(creationTime)
                         .build(),
+                Collections.emptySet(),
                 entityIterator);
 
         verify(topologyManager).newTopologyCreator(tid);

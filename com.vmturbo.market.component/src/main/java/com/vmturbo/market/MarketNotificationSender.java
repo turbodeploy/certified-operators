@@ -2,6 +2,7 @@ package com.vmturbo.market;
 
 import java.util.Collection;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -11,6 +12,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.End;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology.Start;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -31,17 +33,14 @@ public class MarketNotificationSender extends
     private final IMessageSender<ProjectedTopology> projectedTopologySender;
     private final IMessageSender<Topology> planAnalysisTopologySender;
     private final IMessageSender<ActionPlan> actionPlanSender;
-    private final IMessageSender<PriceIndexMessage> priceIndexSender;
 
     public MarketNotificationSender(
             @Nonnull IMessageSender<ProjectedTopology> projectedTopologySender,
             @Nonnull IMessageSender<Topology> planAnalysisTopologySender,
-            @Nonnull IMessageSender<ActionPlan> actionPlanSender,
-            @Nonnull IMessageSender<PriceIndexMessage> priceIndexSender) {
+            @Nonnull IMessageSender<ActionPlan> actionPlanSender) {
         this.projectedTopologySender = Objects.requireNonNull(projectedTopologySender);
         this.planAnalysisTopologySender = Objects.requireNonNull(planAnalysisTopologySender);
         this.actionPlanSender = Objects.requireNonNull(actionPlanSender);
-        this.priceIndexSender = Objects.requireNonNull(priceIndexSender);
     }
 
     /**
@@ -101,23 +100,27 @@ public class MarketNotificationSender extends
      *
      * @param originalTopologyInfo The {@link TopologyInfo} describing the original topology.
      * @param projectedTopologyId The ID of the projected topology.
+     * @param skippedEntities The IDs of entities in the original topology that were skipped
+     *                        during conversion, and do not appear in the projected topology.
      * @param projectedTopo The protobuf objects describing the traders after plan execution.
      * @throws CommunicationException if persistent communication error occurs
      * @throws InterruptedException if thread interrupted
      */
     public void notifyProjectedTopology(@Nonnull final TopologyInfo originalTopologyInfo,
                                     final long projectedTopologyId,
-                                        @Nonnull final Collection<TopologyEntityDTO> projectedTopo)
+                                    final Set<Long> skippedEntities,
+                                    @Nonnull final Collection<ProjectedTopologyEntity> projectedTopo)
             throws CommunicationException, InterruptedException {
         sendProjectedTopologySegment(ProjectedTopology.newBuilder()
                 .setStart(Start.newBuilder()
                         .setSourceTopologyInfo(originalTopologyInfo)
+                        .addAllSkippedEntities(skippedEntities)
                         .build())
                 .setTopologyId(projectedTopologyId)
                 .build());
-        final Iterable<Collection<TopologyEntityDTO>> chunks = MessageChunker.chunk(projectedTopo);
+        final Iterable<Collection<ProjectedTopologyEntity>> chunks = MessageChunker.chunk(projectedTopo);
         long totalCount = 0;
-        for (Collection<TopologyEntityDTO> chunk : chunks) {
+        for (Collection<ProjectedTopologyEntity> chunk : chunks) {
             totalCount += chunk.size();
             final ProjectedTopology topology = ProjectedTopology.newBuilder()
                     .setData(Data.newBuilder().addAllEntities(chunk).build())
@@ -136,34 +139,6 @@ public class MarketNotificationSender extends
         getLogger().debug("Sending topology {} segment {}", segment::getTopologyId,
                 segment::getSegmentCase);
         projectedTopologySender.sendMessage(segment);
-    }
-
-    /**
-     * Notify the counterpart about the PriceIndices for all the traders in the market.
-     *
-     * @param topologyInfo The {@link TopologyInfo} of the topology the price index describes.
-     * @param priceIndexMessage The message to send.
-     * @throws InterruptedException if thread has been interrupted
-     * @throws CommunicationException if persistent communication error occurred
-     */
-    public void sendPriceIndex(@Nonnull final TopologyInfo topologyInfo,
-            final PriceIndexMessage priceIndexMessage)
-            throws CommunicationException, InterruptedException {
-        PriceIndexMessage.Builder builder = PriceIndexMessage.newBuilder();
-        final PriceIndexMessage serverMessage = builder.addAllPayload(
-                priceIndexMessage.getPayloadList()
-                        .stream()
-                        .map(p -> createPayload(p.getOid(), (float)p.getPriceindexCurrent(),
-                                (float)p.getPriceindexProjected()))
-                        .collect(Collectors.toList()))
-                .setMarketId(priceIndexMessage.getMarketId())
-                .setTopologyContextId(priceIndexMessage.getTopologyContextId())
-                .setTopologyId(topologyInfo.getTopologyId())
-                .setSourceTopologyCreationTime(topologyInfo.getCreationTime())
-                .build();
-        priceIndexSender.sendMessage(serverMessage);
-        getLogger().info("Successfully sent price index information for {}",
-                topologyInfo.getTopologyId());
     }
 
     /**

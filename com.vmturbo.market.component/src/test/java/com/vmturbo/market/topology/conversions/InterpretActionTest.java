@@ -149,18 +149,19 @@ public class InterpretActionTest {
         long destId = 5678;
         int srcType = 0;
         int destType = 1;
-        TopologyDTO.TopologyEntityDTO entityDTO =
+        TopologyDTO.TopologyEntityDTO entityDto =
                 TopologyConverterTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
 
         Map<Long, Integer> entityIdTypeMap =
             ImmutableMap.of(srcId, srcType,
                             destId, destType,
-                            entityDTO.getOid(), entityDTO.getEntityType());
+                            entityDto.getOid(), entityDto.getEntityType());
 
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
-        Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(entityDTO));
+        final Set<TraderTO> traderTOs =
+            converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
         final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
         ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(0);
 
@@ -208,16 +209,17 @@ public class InterpretActionTest {
         long reconfigureSourceId = 1234;
         int reconfigureSourceType = 1;
 
-        TopologyDTO.TopologyEntityDTO topologyDTO =
+        TopologyDTO.TopologyEntityDTO entityDto =
                         TopologyConverterTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(
                 reconfigureSourceId, reconfigureSourceType,
-                topologyDTO.getOid(), topologyDTO.getEntityType());
+                entityDto.getOid(), entityDto.getEntityType());
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
-        Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(topologyDTO));
+        final Set<TraderTO> traderTOs =
+                converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
         final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
         ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(0);
 
@@ -236,15 +238,16 @@ public class InterpretActionTest {
 
     @Test
     public void testInterpretReconfigureActionWithoutSource() throws IOException, InvalidTopologyException {
-        TopologyDTO.TopologyEntityDTO topologyDTO =
+        TopologyDTO.TopologyEntityDTO entityDto =
                         TopologyConverterTest.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
         final Map<Long, Integer> entityIdToTypeMap =
             ImmutableMap.of(
-                topologyDTO.getOid(), topologyDTO.getEntityType());
+                entityDto.getOid(), entityDto.getEntityType());
         final TopologyConverter converter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
-        Set<TraderTO> traderTOs = converter.convertToMarket(Lists.newArrayList(topologyDTO));
+        final Set<TraderTO> traderTOs =
+                converter.convertToMarket(ImmutableMap.of(entityDto.getOid(), entityDto));
         final TraderTO vmTraderTO = TopologyConverterTest.getVmTrader(traderTOs);
         ShoppingListTO shoppingList = vmTraderTO.getShoppingListsList().get(0);
 

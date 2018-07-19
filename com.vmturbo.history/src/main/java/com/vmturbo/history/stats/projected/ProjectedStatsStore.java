@@ -10,7 +10,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -20,14 +19,12 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.TopologyCommoditiesSnapshotFactory;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
 /**
  * The {@link ProjectedStatsStore} keeps track of stats from the most recent projected topology.
@@ -51,9 +48,6 @@ public class ProjectedStatsStore {
      */
     @GuardedBy("topologyCommoditiesLock")
     private TopologyCommoditiesSnapshot topologyCommodities;
-
-    @GuardedBy("topologyCommoditiesLock")
-    private ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot;
 
     private final StatSnapshotCalculator statSnapshotCalculator;
 
@@ -109,24 +103,17 @@ public class ProjectedStatsStore {
         }
 
         final TopologyCommoditiesSnapshot targetCommodities;
-        final ProjectedPriceIndexSnapshot targetPriceIndex;
         synchronized(topologyCommoditiesLock) {
             targetCommodities = topologyCommodities;
-            targetPriceIndex = projectedPriceIndexSnapshot;
         }
 
-        final boolean sortByPriceIndex =
-                paginationParams.getSortCommodity().equals(StringConstants.PRICE_INDEX);
-
-        if (sortByPriceIndex && targetPriceIndex == null ||
-                !sortByPriceIndex && targetCommodities == null) {
+        if (targetCommodities == null) {
             return ProjectedEntityStatsResponse.newBuilder()
                     .setPaginationResponse(PaginationResponse.getDefaultInstance())
                     .build();
         }
 
         return entityStatsCalculator.calculateNextPage(targetCommodities,
-                targetPriceIndex,
                 statSnapshotCalculator,
                 entities,
                 commodities,
@@ -152,17 +139,15 @@ public class ProjectedStatsStore {
 
         // capture the current topologyCommodities object; new topologies replace the entire object
         final TopologyCommoditiesSnapshot targetCommodities;
-        final ProjectedPriceIndexSnapshot targetPriceIndex;
         synchronized(topologyCommoditiesLock) {
             targetCommodities = topologyCommodities;
-            targetPriceIndex = projectedPriceIndexSnapshot;
         }
 
         if (targetCommodities == null) {
             return Optional.empty();
         }
 
-        return Optional.of(statSnapshotCalculator.buildSnapshot(targetCommodities, targetPriceIndex, targetEntities, commodityNames));
+        return Optional.of(statSnapshotCalculator.buildSnapshot(targetCommodities, targetEntities, commodityNames));
     }
 
     /**
@@ -174,25 +159,13 @@ public class ProjectedStatsStore {
      * @throws TimeoutException If it takes too long to get entities from the remote iterator.
      * @throws CommunicationException If there are issues connecting to the source of the entities.
      */
-    public long updateProjectedTopology(@Nonnull final RemoteIterator<TopologyEntityDTO> entities)
+    public long updateProjectedTopology(@Nonnull final RemoteIterator<ProjectedTopologyEntity> entities)
             throws InterruptedException, TimeoutException, CommunicationException {
-        final TopologyCommoditiesSnapshot newCommodities = topoCommSnapshotFactory.createSnapshot(entities);
+        final TopologyCommoditiesSnapshot newCommodities = topoCommSnapshotFactory.createSnapshot(entities, priceIndexSnapshotFactory);
         synchronized (topologyCommoditiesLock) {
             topologyCommodities = newCommodities;
         }
         return newCommodities.getTopologySize();
-    }
-
-    /**
-     * Replace the 'priceIndexMap' in its entirety when a new PriceIndexMessage payload is received.
-     *
-     * @param priceIndex the {@link PriceIndexMessage} with the priceIndex values for each SE OID
-     */
-    public void updateProjectedPriceIndex(@Nonnull final PriceIndexMessage priceIndex) {
-        final ProjectedPriceIndexSnapshot newPriceIndex = priceIndexSnapshotFactory.createSnapshot(priceIndex);
-        synchronized (topologyCommoditiesLock) {
-            projectedPriceIndexSnapshot = newPriceIndex;
-        }
     }
 
     /**
@@ -205,22 +178,12 @@ public class ProjectedStatsStore {
         @Nonnull
         default ProjectedEntityStatsResponse calculateNextPage(
                 @Nonnull final TopologyCommoditiesSnapshot targetCommodities,
-                @Nonnull final ProjectedPriceIndexSnapshot targetPriceIndex,
                 @Nonnull final StatSnapshotCalculator statSnapshotCalculator,
                 @Nonnull final Set<Long> targetEntities,
                 @Nonnull final Set<String> commodityNames,
                 @Nonnull final EntityStatsPaginationParams paginationParams) {
-            final boolean sortByPriceIndex =
-                    paginationParams.getSortCommodity().equals(StringConstants.PRICE_INDEX);
-
-
             // Get the entity comparator to use.
-            final Comparator<Long> entityComparator;
-            if (sortByPriceIndex) {
-                entityComparator = targetPriceIndex.getEntityComparator(paginationParams);
-            } else {
-                entityComparator = targetCommodities.getEntityComparator(paginationParams);
-            }
+            final Comparator<Long> entityComparator = targetCommodities.getEntityComparator(paginationParams);
 
             // Sort the input entity IDs using the comparator, and apply the pagination parameters
             // (i.e. limit + cursor)
@@ -243,8 +206,8 @@ public class ProjectedStatsStore {
             nextPageIds.stream()
                     .map(entityId -> EntityStats.newBuilder()
                             .setOid(entityId)
-                            .addStatSnapshots(statSnapshotCalculator.buildSnapshot(targetCommodities,
-                                    targetPriceIndex, Collections.singleton(entityId), commodityNames))
+                            .addStatSnapshots(statSnapshotCalculator.buildSnapshot(
+                                targetCommodities, Collections.singleton(entityId), commodityNames))
                             .build())
                     .forEach(responseBuilder::addEntityStats);
             return responseBuilder.build();
@@ -260,7 +223,6 @@ public class ProjectedStatsStore {
 
         default StatSnapshot buildSnapshot(
                 @Nonnull final TopologyCommoditiesSnapshot targetCommodities,
-                @Nullable final ProjectedPriceIndexSnapshot targetPriceIndex,
                 @Nonnull final Set<Long> targetEntities,
                 @Nonnull final Set<String> commodityNames) {
             // accumulate 'standard' and 'count' stats
@@ -268,11 +230,6 @@ public class ProjectedStatsStore {
             targetCommodities
                     .getRecords(commodityNames, targetEntities)
                     .forEach(builder::addStatRecords);
-
-            // accumulate 'priceIndex' stats if requested, since they are accumulated separately
-            if (commodityNames.contains(StringConstants.PRICE_INDEX) && targetPriceIndex != null) {
-                targetPriceIndex.getRecord(targetEntities).ifPresent(builder::addStatRecords);
-            }
             return builder.build();
         }
     }

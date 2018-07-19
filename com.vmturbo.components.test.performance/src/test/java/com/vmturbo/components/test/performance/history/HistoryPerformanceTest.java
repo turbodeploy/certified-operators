@@ -2,6 +2,7 @@ package com.vmturbo.components.test.performance.history;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -17,6 +18,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Before;
 
+import com.google.common.collect.Lists;
+
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -27,6 +30,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -39,8 +43,6 @@ import com.vmturbo.history.component.api.HistoryComponent;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.api.MarketKafkaSender;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorKafkaSender;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
@@ -124,7 +126,6 @@ public abstract class HistoryPerformanceTest {
 
         sendTopology(topoDTOs, topologyContextId);
         sendProjectedTopology(topoDTOs, topologyContextId);
-        sendPriceIndex(topoDTOs, topologyContextId);
 
         // Wait for stats to be available before fetching them.
         getStatsAvailableFuture().get(statsTimeoutMinutes, TimeUnit.MINUTES);
@@ -153,30 +154,18 @@ public abstract class HistoryPerformanceTest {
                                          final long topologyContextId) throws Exception {
         logger.info("Sending {} entity projected {} topology...", topoDTOs.size(), getTestContextType());
 
-        marketSender.notifyProjectedTopology(TOPOLOGY_INFO
-            .setTopologyContextId(topologyContextId)
-            .setTopologyType(ComponentUtils.topologyType(topologyContextId))
-            .build(), PROJECTED_TOPOLOGY_ID, topoDTOs);
-    }
-
-    protected void sendPriceIndex(@Nonnull final List<TopologyEntityDTO> topoDTOs,
-                                  final long topologyContextId) throws Exception {
-        logger.info("Sending price index for {} entities...", topoDTOs.size());
-
-        final PriceIndexMessage.Builder builder = PriceIndexMessage.newBuilder()
-            .setTopologyId(SOURCE_TOPOLOGY_ID)
-            .setTopologyContextId(topologyContextId);
-        topoDTOs.forEach(entity ->
-            builder.addPayload(PriceIndexMessagePayload.newBuilder()
-                    .setOid(entity.getOid())
-                    .setPriceindexCurrent(2.0)
-                    .setPriceindexProjected(1.0)
-            ));
-
-        marketSender.sendPriceIndex(TOPOLOGY_INFO
-            .setTopologyContextId(topologyContextId)
-            .setTopologyType(ComponentUtils.topologyType(topologyContextId))
-            .build(), builder.build());
+        marketSender.notifyProjectedTopology(
+                TOPOLOGY_INFO
+                    .setTopologyContextId(topologyContextId)
+                    .setTopologyType(ComponentUtils.topologyType(topologyContextId))
+                    .build(),
+                PROJECTED_TOPOLOGY_ID,
+                Collections.emptySet(),
+                Lists.transform(topoDTOs, entity -> ProjectedTopologyEntity.newBuilder()
+                    .setEntity(entity)
+                    .setProjectedPriceIndex(1.0)
+                    .setOriginalPriceIndex(2.0)
+                    .build()));
     }
 
     protected void fetchStats(final long topologyContextId){

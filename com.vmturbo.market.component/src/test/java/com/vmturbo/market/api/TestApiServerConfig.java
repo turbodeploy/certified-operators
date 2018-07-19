@@ -28,7 +28,7 @@ public class TestApiServerConfig {
     @Bean
     public MarketNotificationSender marketNotificationSender() {
         return new MarketNotificationSender(projectedTopologySender(), planAnalysisTopologySender(),
-                actionPlanSender(), priceIndexSender());
+                actionPlanSender());
     }
 
     @Bean
@@ -43,11 +43,6 @@ public class TestApiServerConfig {
 
     @Bean
     public IMessageSender<ProjectedTopology> projectedTopologySender() {
-        return new SenderReceiverPair<>();
-    }
-
-    @Bean
-    public IMessageSender<PriceIndexMessage> priceIndexSender() {
         return new SenderReceiverPair<>();
     }
 

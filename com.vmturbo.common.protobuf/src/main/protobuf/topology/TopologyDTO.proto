@@ -210,6 +210,28 @@ message Topology {
     }
 }
 
+message ProjectedTopologyEntity {
+    // The entity DTO representing the entity in the
+    // projected topology.
+    optional TopologyEntityDTO entity = 1;
+
+    // The original price index of the entity. It is sent along with the projected topology
+    // because we don't know the price index of an entity until the market analyzes a topology.
+    // It is the consumer's responsibility to associate the price index with the TopologyEntityDTO
+    // of the entity in the original (NOT the projected) topology.
+    //
+    // Note: If an entity from the original topology was skipped during conversion and does not
+    // appear in the projected topology, it's the consumer's responsibility to use a default
+    // price index for that entity.
+    //
+    // This will be unset if the entity did not exist in the original
+    // topology.
+    optional double original_price_index = 10;
+
+    // The projected price index of the entity.
+    optional double projected_price_index = 11;
+}
+
 // Message to hold topology, projected by market.
 message ProjectedTopology {
     // GeneratedId of the topology created after the plan
@@ -225,11 +247,19 @@ message ProjectedTopology {
     message Start {
         // The basic information of the source topology
         optional TopologyInfo source_topology_info = 1;
+
+        // Entities in the source topology that were skipped in the analysis.
+        // These entities will not have associated entries in the projected
+        // topology.
+        repeated int64 skipped_entities = 2;
     };
     // Message to hold real data of the topology - it is the chunk
     message Data {
-        // The entities in the topology
-        repeated TopologyEntityDTO entities = 1;
+        // The entities in the projected topology.
+        repeated ProjectedTopologyEntity entities = 2;
+
+        // The entities in the topology. This is deprecated.
+        repeated TopologyEntityDTO __deprecated__entities = 1 [deprecated = true];
     }
     // Message to appear at the very end of topology broadcast
     message End {

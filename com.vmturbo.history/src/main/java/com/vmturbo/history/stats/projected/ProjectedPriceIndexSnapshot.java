@@ -2,22 +2,18 @@ package com.vmturbo.history.stats.projected;
 
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedCalculatedCommodity;
-import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 
 /**
  * The {@link ProjectedPriceIndexSnapshot} contains information about the projected price index
@@ -39,10 +35,8 @@ public class ProjectedPriceIndexSnapshot {
      */
     private final Map<Long, Double> priceIndexMap;
 
-    private ProjectedPriceIndexSnapshot(@Nonnull final PriceIndexMessage priceIndexMessage) {
-        priceIndexMap = Collections.unmodifiableMap(priceIndexMessage.getPayloadList().stream()
-                .collect(Collectors.toMap(PriceIndexMessagePayload::getOid,
-                        PriceIndexMessagePayload::getPriceindexProjected)));
+    private ProjectedPriceIndexSnapshot(@Nonnull final Map<Long, Double> priceIndexByEntity) {
+        priceIndexMap = Collections.unmodifiableMap(priceIndexByEntity);
     }
 
     /**
@@ -117,8 +111,8 @@ public class ProjectedPriceIndexSnapshot {
         return new PriceIndexSnapshotFactory() {
             @Nonnull
             @Override
-            public ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final PriceIndexMessage priceIndex) {
-                return new ProjectedPriceIndexSnapshot(priceIndex);
+            public ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final Map<Long, Double> priceIndexByEntity) {
+                return new ProjectedPriceIndexSnapshot(priceIndexByEntity);
             }
         };
     }
@@ -130,6 +124,6 @@ public class ProjectedPriceIndexSnapshot {
     interface PriceIndexSnapshotFactory {
 
         @Nonnull
-        ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final PriceIndexMessage priceIndex);
+        ProjectedPriceIndexSnapshot createSnapshot(@Nonnull final Map<Long, Double> priceIndexByEntity);
     }
 }

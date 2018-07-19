@@ -46,52 +46,8 @@ public class StatsAvailabilityTrackerTest {
     }
 
     @Test
-    public void testOnlyPriceIndexAvailable() throws Exception {
-        StatsAvailabilityStatus status =
-            availabilityTracker.priceIndexAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        assertEquals(StatsAvailabilityStatus.UNAVAILABLE, status);
-
-        assertTrue(availabilityTracker.isTracking(PLAN_CONTEXT_ID));
-        assertFalse(availabilityTracker.isTracking(LIVE_CONTEXT_ID));
-    }
-
-    @Test
-    public void testPriceIndexAndTopologyAvailable() throws Exception {
-        availabilityTracker.priceIndexAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        StatsAvailabilityStatus status =
-            availabilityTracker.topologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        assertEquals(StatsAvailabilityStatus.UNAVAILABLE, status);
-
-        assertTrue(availabilityTracker.isTracking(PLAN_CONTEXT_ID));
-        assertFalse(availabilityTracker.isTracking(LIVE_CONTEXT_ID));
-    }
-
-    @Test
-    public void testPriceIndexAndProjectedTopologyAvailable() throws Exception {
-        availabilityTracker.priceIndexAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        StatsAvailabilityStatus status =
-            availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        assertEquals(StatsAvailabilityStatus.UNAVAILABLE, status);
-
-        assertTrue(availabilityTracker.isTracking(PLAN_CONTEXT_ID));
-        assertFalse(availabilityTracker.isTracking(LIVE_CONTEXT_ID));
-    }
-
-    @Test
-    public void testTopologyAndProjectedTopologyAvailable() throws Exception {
-        availabilityTracker.topologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        StatsAvailabilityStatus status =
-            availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        assertEquals(StatsAvailabilityStatus.UNAVAILABLE, status);
-
-        assertTrue(availabilityTracker.isTracking(PLAN_CONTEXT_ID));
-        assertFalse(availabilityTracker.isTracking(LIVE_CONTEXT_ID));
-    }
-
-    @Test
     public void testAllAvailable() throws Exception {
         availabilityTracker.topologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        availabilityTracker.priceIndexAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
         StatsAvailabilityStatus status =
             availabilityTracker.projectedTopologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
 
@@ -102,7 +58,6 @@ public class StatsAvailabilityTrackerTest {
     @Test
     public void testTrackingRemovedAfterAvailable() throws Exception {
         availabilityTracker.topologyAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
-        availabilityTracker.priceIndexAvailable(PLAN_CONTEXT_ID, TopologyContextType.PLAN);
 
         assertTrue(availabilityTracker.isTracking(PLAN_CONTEXT_ID));
 

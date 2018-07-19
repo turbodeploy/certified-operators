@@ -3,11 +3,11 @@ package com.vmturbo.repository.listener;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -18,16 +18,14 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
-import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -49,10 +47,10 @@ public class MarketTopologyListenerExceptionTest {
     private TopologyCreator topologyCreator;
 
     @Mock
-    private RemoteIterator<TopologyEntityDTO> entityIterator;
+    private RemoteIterator<ProjectedTopologyEntity> entityIterator;
 
-    private final TopologyEntityDTO vmDTO;
-    private final TopologyEntityDTO pmDTO;
+    private final ProjectedTopologyEntity vmDTO;
+    private final ProjectedTopologyEntity pmDTO;
 
     private static final long topologyContextId = 11L;
     private static final long srcTopologyId = 11111L;
@@ -61,8 +59,12 @@ public class MarketTopologyListenerExceptionTest {
     private static final TopologyID tid = new TopologyID(topologyContextId, projectedTopologyId, TopologyID.TopologyType.PROJECTED);
 
     public MarketTopologyListenerExceptionTest() throws IOException {
-        vmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json");
-        pmDTO = RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json");
+        vmDTO = ProjectedTopologyEntity.newBuilder()
+            .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/vm-1.dto.json"))
+            .build();
+        pmDTO = ProjectedTopologyEntity.newBuilder()
+            .setEntity(RepositoryTestUtil.messageFromJsonFile("protobuf/messages/pm-1.dto.json"))
+            .build();
     }
 
     @Before
@@ -90,6 +92,7 @@ public class MarketTopologyListenerExceptionTest {
                         .setTopologyContextId(topologyContextId)
                         .setCreationTime(creationTime)
                         .build(),
+                 Collections.emptySet(),
                  entityIterator);
 
         verifyMocks();
@@ -113,6 +116,7 @@ public class MarketTopologyListenerExceptionTest {
                         .setTopologyContextId(topologyContextId)
                         .setCreationTime(creationTime)
                         .build(),
+                Collections.emptySet(),
                 entityIterator);
 
         verifyMocks();
@@ -137,6 +141,7 @@ public class MarketTopologyListenerExceptionTest {
                             .setTopologyContextId(topologyContextId)
                             .setCreationTime(creationTime)
                             .build(),
+                    Collections.emptySet(),
                     entityIterator);
         } catch (IllegalStateException ise) {
             // expected

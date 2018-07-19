@@ -1,5 +1,6 @@
 package com.vmturbo.market.runner;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -7,6 +8,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.Optional;
 import java.util.Set;
 
+import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -61,7 +63,7 @@ public class AnalysisBuilderTest {
         Analysis analysis = testBuilder.setTopologyDTOs(testTopologyDTOs)
             .build();
         // Assert
-        assertEquals(testTopologyDTOs, analysis.getTopology());
+        assertThat(analysis.getTopology().values(), Matchers.containsInAnyOrder(testTopologyDTOs.toArray()));
     }
 
     @Test

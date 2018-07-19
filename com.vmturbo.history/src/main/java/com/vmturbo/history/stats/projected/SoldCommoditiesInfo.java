@@ -21,6 +21,7 @@ import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.history.stats.projected.AccumulatedCommodity.AccumulatedSoldCommodity;

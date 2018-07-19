@@ -150,8 +150,9 @@ public class TopologyEntitiesHandlerTest {
         TopologyConverter topoConverter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
 
-        Set<TraderTO> traderDTOs = topoConverter.convertToMarket(
-            topoDTOs.stream().map(TopologyEntityDTO.Builder::build).collect(Collectors.toList()));
+        Set<TraderTO> traderDTOs = topoConverter.convertToMarket(topoDTOs.stream()
+                .map(TopologyEntityDTO.Builder::build)
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
         Set<String> debugInfos = traderDTOs.stream()
                 .map(TraderTO::getCommoditiesSoldList)
                 .flatMap(List::stream)
@@ -193,11 +194,9 @@ public class TopologyEntitiesHandlerTest {
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
 
         Set<TraderTO> traderDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO)
-                .convertToMarket(
-                    topoDTOs.stream()
+            new TopologyConverter(REALTIME_TOPOLOGY_INFO).convertToMarket(topoDTOs.stream()
                         .map(TopologyEntityDTO.Builder::build)
-                        .collect(Collectors.toList()));
+                        .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
 
         for (TraderTO traderTO : traderDTOs) {
             if (traderTO.getDebugInfoNeverUseInCode().startsWith("STORAGE")) {
@@ -239,9 +238,9 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, nonShopTogetherProbeDTOs.size()).forEach(i -> map.put((long)i, nonShopTogetherProbeDTOs.get(i)));
 
-        List<TopologyEntityDTO> nonShopTogetherTopoDTOs = Converter.convert(map).stream()
+        Map<Long, TopologyEntityDTO> nonShopTogetherTopoDTOs = Converter.convert(map).stream()
             .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList());
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter togetherConverter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO);
@@ -272,9 +271,9 @@ public class TopologyEntitiesHandlerTest {
         Map<Long, CommonDTO.EntityDTO> shopTogetherMap = Maps.newHashMap();
         IntStream.range(0, shopTogetherProbeDTOs.size()).forEach(i -> shopTogetherMap.put((long)i, shopTogetherProbeDTOs.get(i)));
 
-        List<TopologyEntityDTO> shopTogetherTopoDTOs = Converter.convert(shopTogetherMap).stream()
+        Map<Long, TopologyEntityDTO> shopTogetherTopoDTOs = Converter.convert(shopTogetherMap).stream()
             .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList());
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
 
         TopologyConverter shopTogetherConverter =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO);
@@ -315,11 +314,10 @@ public class TopologyEntitiesHandlerTest {
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
 
         List<TopologyEntityDTO.Builder> topoDTOs = Converter.convert(map);
-        new TopologyConverter(REALTIME_TOPOLOGY_INFO)
-            .convertToMarket(
-                topoDTOs.stream()
-                        .map(TopologyEntityDTO.Builder::build)
-                        .collect(Collectors.toList()));
+        new TopologyConverter(REALTIME_TOPOLOGY_INFO).convertToMarket(
+            topoDTOs.stream()
+                .map(TopologyEntityDTO.Builder::build)
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
     }
 
     /**
@@ -336,9 +334,9 @@ public class TopologyEntitiesHandlerTest {
 
         Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
         IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-        List<TopologyEntityDTO> topoDTOs = Converter.convert(map).stream()
+        Map<Long, TopologyEntityDTO> topoDTOs = Converter.convert(map).stream()
             .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toList());
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         Set<TraderTO> economyDTOs =
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f)
                         .convertToMarket(topoDTOs);
@@ -413,7 +411,7 @@ public class TopologyEntitiesHandlerTest {
      * Helper method to check that bicliques are created correctly on the {@link TraderTO}.
      *
      * @param traderDTOs {@link TraderTO} to check
-     * @param shoptogether true if shoptogether enabled
+     * @param shopTogether true if shoptogether enabled
      */
     private void checkBicliques(final Set<TraderTO> traderDTOs, boolean shopTogether) {
         // Each storage is member of exactly one biclique (check using the 'cliques' property)

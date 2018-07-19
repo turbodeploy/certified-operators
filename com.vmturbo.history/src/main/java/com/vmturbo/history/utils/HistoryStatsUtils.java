@@ -50,6 +50,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 public class HistoryStatsUtils {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * The default price index value.
+     */
+    public static final double DEFAULT_PRICE_IDX = 1.0f;
+
     /**
      * If any of these metrics are requested, we need to post-process the response and tally
      * up counts.

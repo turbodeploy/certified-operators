@@ -68,12 +68,6 @@ public class StatsAvailabilityTracker {
         this.notificationSender = Objects.requireNonNull(notificationSender);
     }
 
-    public StatsAvailabilityStatus priceIndexAvailable(final long topologyContextId,
-            TopologyContextType contextType) throws CommunicationException, InterruptedException {
-        return statsPartAvailable(topologyContextId, contextType,
-                AvailabilityInfo::markPriceIndexAvailable);
-    }
-
     public StatsAvailabilityStatus topologyAvailable(final long topologyContextId,
             TopologyContextType contextType) throws CommunicationException, InterruptedException {
         return statsPartAvailable(topologyContextId, contextType,
@@ -130,17 +124,12 @@ public class StatsAvailabilityTracker {
      * projected topology.
      */
     private static class AvailabilityInfo {
-        private boolean priceIndex = false;
         private boolean topology = false;
         private boolean projectedTopology = false;
         private TopologyContextType contextType;
 
         private AvailabilityInfo(final TopologyContextType contextType) {
             this.contextType = contextType;
-        }
-
-        void markPriceIndexAvailable() {
-            priceIndex = true;
         }
 
         void markTopologyAvailable() {
@@ -152,7 +141,7 @@ public class StatsAvailabilityTracker {
         }
 
         boolean areAllAvailable() {
-            return priceIndex && topology && projectedTopology;
+            return topology && projectedTopology;
         }
 
         public TopologyContextType getContextType() {

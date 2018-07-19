@@ -91,7 +91,6 @@ public class MarketListenerConfig {
                 EnumSet.of(Subscription.ProjectedTopologies, Subscription.PriceIndexes,
                         Subscription.PlanAnalysisTopologies));
         market.addProjectedTopologyListener(marketListener());
-        market.addPriceIndexListener(marketListener());
         market.addPlanAnalysisTopologyListener(planAnalysisTopologyListener());
         return market;
     }

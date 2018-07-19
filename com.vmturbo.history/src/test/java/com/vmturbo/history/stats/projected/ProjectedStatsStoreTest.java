@@ -7,7 +7,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -34,6 +33,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -43,7 +43,6 @@ import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceInde
 import com.vmturbo.history.stats.projected.ProjectedStatsStore.EntityStatsCalculator;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore.StatSnapshotCalculator;
 import com.vmturbo.history.stats.projected.TopologyCommoditiesSnapshot.TopologyCommoditiesSnapshotFactory;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 
 public class ProjectedStatsStoreTest {
 
@@ -66,8 +65,8 @@ public class ProjectedStatsStoreTest {
     private ArgumentCaptor<Collection<TopologyEntityDTO>> entitiesCaptor;
 
     @SuppressWarnings("unchecked")
-    private RemoteIterator<TopologyEntityDTO> emptyIterator =
-            (RemoteIterator<TopologyEntityDTO>)mock(RemoteIterator.class);
+    private RemoteIterator<ProjectedTopologyEntity> emptyIterator =
+            (RemoteIterator<ProjectedTopologyEntity>)mock(RemoteIterator.class);
 
 
 
@@ -92,36 +91,23 @@ public class ProjectedStatsStoreTest {
         final StatRecord statRecord = StatRecord.newBuilder()
                 .setName(COMMODITY)
                 .build();
-        final StatRecord piStatRecord = StatRecord.newBuilder()
-                .setName(StringConstants.PRICE_INDEX)
-                .build();
 
         final TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
         when(snapshot.getRecords(commodities, entities)).thenReturn(Stream.of(statRecord));
 
-        final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot = mock(ProjectedPriceIndexSnapshot.class);
-        when(projectedPriceIndexSnapshot.getRecord(entities)).thenReturn(Optional.of(piStatRecord));
-
-        final StatSnapshot statSnapshot = statSnapshotCalculator.buildSnapshot(snapshot, projectedPriceIndexSnapshot, entities, commodities);
+        final StatSnapshot statSnapshot = statSnapshotCalculator.buildSnapshot(snapshot, entities, commodities);
 
         verify(snapshot).getRecords(commodities, entities);
-        verify(projectedPriceIndexSnapshot).getRecord(entities);
 
-        assertThat(statSnapshot.getStatRecordsList(), containsInAnyOrder(statRecord, piStatRecord));
+        assertThat(statSnapshot.getStatRecordsList(), containsInAnyOrder(statRecord));
     }
 
     @Test
     public void testGetSnapshot() throws InterruptedException, TimeoutException, CommunicationException {
         final TopologyCommoditiesSnapshot topoSnapshot = mock(TopologyCommoditiesSnapshot.class);
-        when(snapshotFactory.createSnapshot(eq(emptyIterator)))
+        when(snapshotFactory.createSnapshot(emptyIterator, priceIndexSnapshotFactory))
                 .thenReturn(topoSnapshot);
         store.updateProjectedTopology(emptyIterator);
-
-        final PriceIndexMessage priceIndexMsg = PriceIndexMessage.getDefaultInstance();
-        final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot = mock(ProjectedPriceIndexSnapshot.class);
-        when(priceIndexSnapshotFactory.createSnapshot(priceIndexMsg)).thenReturn(projectedPriceIndexSnapshot);
-
-        store.updateProjectedPriceIndex(priceIndexMsg);
 
         final Set<Long> entities = Sets.newHashSet(2L, 1L, 3L);
         final Set<String> commodities = Sets.newHashSet(COMMODITY);
@@ -129,7 +115,7 @@ public class ProjectedStatsStoreTest {
         final StatSnapshot snapshot = StatSnapshot.newBuilder()
                 .setSnapshotDate("foo")
                 .build();
-        when(statSnapshotCalculator.buildSnapshot(topoSnapshot, projectedPriceIndexSnapshot, entities, commodities))
+        when(statSnapshotCalculator.buildSnapshot(topoSnapshot, entities, commodities))
             .thenReturn(snapshot);
         final Optional<StatSnapshot> retSnapshot = store.getStatSnapshotForEntities(entities, commodities);
         assertThat(retSnapshot.get(), is(snapshot));
@@ -143,15 +129,17 @@ public class ProjectedStatsStoreTest {
 
     @Test
     public void testUpdateSnapshot() throws Exception {
-        final TopologyEntityDTO entity =
-                TopologyEntityDTO.newBuilder()
+        final double priceIndex = 7.0;
+        final ProjectedTopologyEntity entity = ProjectedTopologyEntity.newBuilder()
+                .setEntity(TopologyEntityDTO.newBuilder()
                     .setEntityType(1)
-                    .setOid(10)
-                    .build();
+                    .setOid(10))
+                .setProjectedPriceIndex(priceIndex)
+                .build();
 
         @SuppressWarnings("unchecked")
-        final RemoteIterator<TopologyEntityDTO> remoteIterator =
-                (RemoteIterator<TopologyEntityDTO>)Mockito.mock(RemoteIterator.class);
+        final RemoteIterator<ProjectedTopologyEntity> remoteIterator =
+                (RemoteIterator<ProjectedTopologyEntity>)Mockito.mock(RemoteIterator.class);
 
         when(remoteIterator.hasNext()).thenReturn(true, false);
         when(remoteIterator.nextChunk()).thenReturn(Collections.singletonList(entity));
@@ -159,26 +147,20 @@ public class ProjectedStatsStoreTest {
         TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
         when(snapshot.getTopologySize()).thenReturn(7L);
 
-        when(snapshotFactory.createSnapshot(eq(remoteIterator)))
+        when(snapshotFactory.createSnapshot(remoteIterator, priceIndexSnapshotFactory))
                .thenReturn(snapshot);
 
         assertEquals(7L, store.updateProjectedTopology(remoteIterator));
 
-        verify(snapshotFactory).createSnapshot(eq(remoteIterator));
+        verify(snapshotFactory).createSnapshot(remoteIterator, priceIndexSnapshotFactory);
     }
 
     @Test
     public void testGetEntityStats() throws Exception {
         final TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
-        when(snapshotFactory.createSnapshot(eq(emptyIterator)))
+        when(snapshotFactory.createSnapshot(emptyIterator, priceIndexSnapshotFactory))
                 .thenReturn(snapshot);
         store.updateProjectedTopology(emptyIterator);
-
-        final PriceIndexMessage priceIndexMsg = PriceIndexMessage.getDefaultInstance();
-        final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot = mock(ProjectedPriceIndexSnapshot.class);
-        when(priceIndexSnapshotFactory.createSnapshot(priceIndexMsg)).thenReturn(projectedPriceIndexSnapshot);
-
-        store.updateProjectedPriceIndex(priceIndexMsg);
 
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
         when(paginationParams.getSortCommodity()).thenReturn(COMMODITY);
@@ -188,14 +170,14 @@ public class ProjectedStatsStoreTest {
         final ProjectedEntityStatsResponse responseProto = ProjectedEntityStatsResponse.newBuilder()
                 .setPaginationResponse(PaginationResponse.getDefaultInstance())
                 .build();
-        when(entityStatsCalculator.calculateNextPage(snapshot, projectedPriceIndexSnapshot, statSnapshotCalculator,
+        when(entityStatsCalculator.calculateNextPage(snapshot, statSnapshotCalculator,
                 targetEntities, targetCommodities, paginationParams))
             .thenReturn(responseProto);
 
         final ProjectedEntityStatsResponse response =
                 store.getEntityStats(targetEntities, targetCommodities, paginationParams);
 
-        verify(entityStatsCalculator).calculateNextPage(snapshot, projectedPriceIndexSnapshot, statSnapshotCalculator,
+        verify(entityStatsCalculator).calculateNextPage(snapshot, statSnapshotCalculator,
                 targetEntities, targetCommodities, paginationParams);
 
         assertThat(response, is(responseProto));
@@ -203,31 +185,8 @@ public class ProjectedStatsStoreTest {
 
     @Test
     public void testGetEntityStatsNoTopology() throws Exception {
-        final PriceIndexMessage priceIndexMsg = PriceIndexMessage.getDefaultInstance();
-        final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot = mock(ProjectedPriceIndexSnapshot.class);
-        when(priceIndexSnapshotFactory.createSnapshot(priceIndexMsg)).thenReturn(projectedPriceIndexSnapshot);
-
-        store.updateProjectedPriceIndex(priceIndexMsg);
-
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
         when(paginationParams.getSortCommodity()).thenReturn(COMMODITY);
-        final Set<Long> targetEntities = Collections.singleton(1L);
-        final Set<String> targetCommodities = Collections.singleton("foo");
-
-        store.getEntityStats(targetEntities, targetCommodities, paginationParams);
-
-        verifyZeroInteractions(entityStatsCalculator);
-    }
-
-    @Test
-    public void testGetEntityStatsNoPriceIndex() throws Exception {
-        final TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
-        when(snapshotFactory.createSnapshot(eq(emptyIterator)))
-                .thenReturn(snapshot);
-        store.updateProjectedTopology(emptyIterator);
-
-        final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
-        when(paginationParams.getSortCommodity()).thenReturn(StringConstants.PRICE_INDEX);
         final Set<Long> targetEntities = Collections.singleton(1L);
         final Set<String> targetCommodities = Collections.singleton("foo");
 
@@ -242,43 +201,6 @@ public class ProjectedStatsStoreTest {
                 Collections.emptySet(), mock(EntityStatsPaginationParams.class));
         assertThat(response, is(ProjectedEntityStatsResponse.newBuilder()
                 .setPaginationResponse(PaginationResponse.getDefaultInstance())
-                .build()));
-    }
-
-    @Test
-    public void testCalculateNextPageSortByPriceIndex() {
-        final TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
-        final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot = mock(ProjectedPriceIndexSnapshot.class);
-        final StatSnapshotCalculator snapshotCalculator = mock(StatSnapshotCalculator.class);
-
-        final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
-        when(paginationParams.getSortCommodity()).thenReturn(StringConstants.PRICE_INDEX);
-        when(paginationParams.getLimit()).thenReturn(2);
-        when(paginationParams.getNextCursor()).thenReturn(Optional.empty());
-
-        final Set<Long> entities = Sets.newHashSet(2L, 1L, 3L);
-        final Set<String> commodities = Sets.newHashSet(COMMODITY);
-
-        final StatSnapshot snapshot1 = StatSnapshot.newBuilder()
-                .setSnapshotDate("foo")
-                .build();
-        final StatSnapshot snapshot2 = StatSnapshot.newBuilder()
-                .setSnapshotDate("bar")
-                .build();
-        when(projectedPriceIndexSnapshot.getEntityComparator(paginationParams)).thenReturn(Long::compare);
-        when(snapshotCalculator.buildSnapshot(snapshot, projectedPriceIndexSnapshot, Collections.singleton(1L), commodities))
-                .thenReturn(snapshot1);
-        when(snapshotCalculator.buildSnapshot(snapshot, projectedPriceIndexSnapshot, Collections.singleton(2L), commodities))
-                .thenReturn(snapshot2);
-
-        final EntityStatsCalculator entityStatsCalculator = new EntityStatsCalculator() {};
-        final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(snapshot,
-                projectedPriceIndexSnapshot, snapshotCalculator, entities, commodities, paginationParams);
-        assertThat(response.getEntityStatsList(), contains(
-                EntityStats.newBuilder().setOid(1L).addStatSnapshots(snapshot1).build(),
-                EntityStats.newBuilder().setOid(2L).addStatSnapshots(snapshot2).build()));
-        assertThat(response.getPaginationResponse(), is(PaginationResponse.newBuilder()
-                .setNextCursor("2")
                 .build()));
     }
 
@@ -303,14 +225,14 @@ public class ProjectedStatsStoreTest {
                 .setSnapshotDate("bar")
                 .build();
         when(snapshot.getEntityComparator(paginationParams)).thenReturn(Long::compare);
-        when(snapshotCalculator.buildSnapshot(snapshot, projectedPriceIndexSnapshot, Collections.singleton(1L), commodities))
+        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities))
                 .thenReturn(snapshot1);
-        when(snapshotCalculator.buildSnapshot(snapshot, projectedPriceIndexSnapshot, Collections.singleton(2L), commodities))
+        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(2L), commodities))
                 .thenReturn(snapshot2);
 
         final EntityStatsCalculator entityStatsCalculator = new EntityStatsCalculator() {};
         final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(snapshot,
-                projectedPriceIndexSnapshot, snapshotCalculator, entities, commodities, paginationParams);
+                snapshotCalculator, entities, commodities, paginationParams);
         assertThat(response.getEntityStatsList(), contains(
                 EntityStats.newBuilder().setOid(1L).addStatSnapshots(snapshot1).build(),
                 EntityStats.newBuilder().setOid(2L).addStatSnapshots(snapshot2).build()));
@@ -322,7 +244,6 @@ public class ProjectedStatsStoreTest {
     @Test
     public void testCalculateFinalPage() {
         final TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
-        final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot = mock(ProjectedPriceIndexSnapshot.class);
         final StatSnapshotCalculator snapshotCalculator = mock(StatSnapshotCalculator.class);
 
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
@@ -337,12 +258,12 @@ public class ProjectedStatsStoreTest {
                 .setSnapshotDate("foo")
                 .build();
         when(snapshot.getEntityComparator(paginationParams)).thenReturn(Long::compare);
-        when(snapshotCalculator.buildSnapshot(snapshot, projectedPriceIndexSnapshot, Collections.singleton(1L), commodities))
+        when(snapshotCalculator.buildSnapshot(snapshot, Collections.singleton(1L), commodities))
                 .thenReturn(snapshot1);
 
         final EntityStatsCalculator entityStatsCalculator = new EntityStatsCalculator() {};
         final ProjectedEntityStatsResponse response = entityStatsCalculator.calculateNextPage(snapshot,
-                projectedPriceIndexSnapshot, snapshotCalculator, entities, commodities, paginationParams);
+                snapshotCalculator, entities, commodities, paginationParams);
         assertThat(response.getEntityStatsList(), contains(
                 EntityStats.newBuilder().setOid(1L).addStatSnapshots(snapshot1).build()));
         assertThat(response.getPaginationResponse(), is(PaginationResponse.newBuilder()

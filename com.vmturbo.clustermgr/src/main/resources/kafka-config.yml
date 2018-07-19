@@ -33,9 +33,6 @@ topics:
   - topic: action-plans
     properties:
       retention.ms: 2400000 # 2400k ms = 40 min
-  - topic: price-indices
-    properties:
-      retention.ms: 7200000 # 7200k ms = 2 hr
   - topic: historyNotifications
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr

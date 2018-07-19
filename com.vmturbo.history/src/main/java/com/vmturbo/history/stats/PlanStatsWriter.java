@@ -1,25 +1,27 @@
 package com.vmturbo.history.stats;
 
 import java.util.Collection;
-import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeoutException;
+
+import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.Collections2;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.history.utils.TopologyOrganizer;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 
 /**
  * Persist stats from a plan topology to the mkt_snapshots tables in the relational database.
@@ -36,74 +38,6 @@ public class PlanStatsWriter {
 
     public PlanStatsWriter(HistorydbIO historydbIO) {
         this.historydbIO = historydbIO;
-    }
-
-    /**
-     * Persist priceIndex information for a plan analysis result. This includes both the current
-     * and projecte priceIndex for each of a collection of ServiceEntities.
-     * @param priceIndexMessage a list of priceIndex information records
-     *                          ({@link PriceIndexMessagePayload})
-     */
-    public void persistPlanPriceIndexInfo(PriceIndexDTOs.PriceIndexMessage priceIndexMessage) {
-
-        final long topologyContextId = priceIndexMessage.getTopologyContextId();
-        final long topologyId = priceIndexMessage.getTopologyId();
-        final long snapshotTime = priceIndexMessage.getSourceTopologyCreationTime();
-        final List<PriceIndexMessagePayload> payloadList = priceIndexMessage.getPayloadList();
-
-        if (payloadList.isEmpty()) {
-            // no priceIndex items, no work to do
-            logger.debug("Topology context {}, topology {} has empty priceIndex payload.",
-                    topologyContextId, topologyId);
-            return;
-        }
-
-        SharedMetrics.UPDATE_PRICE_INDEX_DURATION_SUMMARY
-            .labels(SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
-            .time(
-                    () -> persistPlanPriceIndexInternal(priceIndexMessage, topologyContextId,
-                            topologyId, snapshotTime, payloadList));
-    }
-
-    private void persistPlanPriceIndexInternal(PriceIndexMessage priceIndexMessage, long topologyContextId,
-                                               long topologyId, long snapshotTime,
-                                               List<PriceIndexMessagePayload> payloadList) {
-        try {
-            ScenariosRecord scenarioInfo = historydbIO.getOrAddScenariosRecord(topologyContextId,
-                    topologyId, snapshotTime);
-
-            // prepare records to write to the mkt_snapshots_stats table for current and projected
-            MktSnapshotsStatsRecord currentPriceIndexRecord = buildPriceIndexRecord(scenarioInfo,
-                    "currentPriceIndex");
-            MktSnapshotsStatsRecord projectedPriceIndexRecord = buildPriceIndexRecord(scenarioInfo,
-                    "priceIndex");
-
-            // tabulate min, max, and total (capacity) priceIndex for the SE's given.
-            for (PriceIndexMessagePayload priceIndexInfo : payloadList) {
-                double current = priceIndexInfo.getPriceindexCurrent();
-                tabulateCapacityMinMax(currentPriceIndexRecord, current);
-                double projected = priceIndexInfo.getPriceindexProjected();
-                tabulateCapacityMinMax(projectedPriceIndexRecord, projected);
-            }
-
-            // add the priceIndex current and projected values
-            currentPriceIndexRecord.setAvgValue(currentPriceIndexRecord.getCapacity() /
-                    payloadList.size());
-            projectedPriceIndexRecord.setAvgValue(projectedPriceIndexRecord.getCapacity() /
-                    payloadList.size());
-
-            historydbIO.execute(HistorydbIO.getJooqBuilder()
-                    .insertInto(MktSnapshotsStats.MKT_SNAPSHOTS_STATS)
-                    .set(currentPriceIndexRecord)
-                    .newRecord()
-                    .set(projectedPriceIndexRecord));
-
-        } catch (VmtDbException e) {
-            throw new RuntimeException(new VmtDbException(VmtDbException.INSERT_ERR,
-                    "Error persisting priceIndex for context " + topologyContextId +
-                    ", topology ID " + priceIndexMessage.getTopologyId() +
-                    ", market id " + priceIndexMessage.getMarketId(), e));
-        }
     }
 
     /**
@@ -152,10 +86,60 @@ public class PlanStatsWriter {
      * @throws VmtDbException if there is a problem writing to the DB
      * @return The number of entities processed.
      */
-    public int processProjectedChunks(TopologyOrganizer topologyOrganizer,
-        RemoteIterator<TopologyEntityDTO> dtosIterator)
+    public int processProjectedChunks(@Nonnull final TopologyOrganizer topologyOrganizer,
+                @Nonnull final Set<Long> skippedEntities,
+                @Nonnull final RemoteIterator<ProjectedTopologyEntity> dtosIterator)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
-        return internalProcessChunks(topologyOrganizer, dtosIterator, false);
+        final ScenariosRecord scenarioInfo = historydbIO.getOrAddScenariosRecord(
+            topologyOrganizer.getTopologyContextId(), topologyOrganizer.getTopologyId(),
+            topologyOrganizer.getSnapshotTime());
+
+        // prepare records to write to the mkt_snapshots_stats table for current and projected
+        final MktSnapshotsStatsRecord currentPriceIndexRecord = buildPriceIndexRecord(scenarioInfo,
+                "currentPriceIndex");
+        final MktSnapshotsStatsRecord projectedPriceIndexRecord = buildPriceIndexRecord(scenarioInfo,
+                "priceIndex");
+
+        int numOriginalPriceIndex = skippedEntities.size();
+        skippedEntities.forEach(skippedEntityOid ->
+            tabulateCapacityMinMax(currentPriceIndexRecord, HistoryStatsUtils.DEFAULT_PRICE_IDX));
+
+        int numberOfEntities = 0;
+        historydbIO.addMktSnapshotRecord(topologyOrganizer);
+        final PlanStatsAggregator aggregator
+                = new PlanStatsAggregator(historydbIO, topologyOrganizer, false);
+        while (dtosIterator.hasNext()) {
+            final Collection<ProjectedTopologyEntity> chunk = dtosIterator.nextChunk();
+            aggregator.handleChunk(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity));
+
+            for (final ProjectedTopologyEntity entity : chunk) {
+                if (entity.hasOriginalPriceIndex()) {
+                    numOriginalPriceIndex++;
+                    tabulateCapacityMinMax(currentPriceIndexRecord, entity.getOriginalPriceIndex());
+                }
+                tabulateCapacityMinMax(projectedPriceIndexRecord, entity.getProjectedPriceIndex());
+            }
+
+            numberOfEntities += chunk.size();
+        }
+        logger.debug("Writing aggregates for topology {} and context {}",
+                topologyOrganizer.getTopologyId(), topologyOrganizer.getTopologyContextId());
+        aggregator.writeAggregates();
+
+        // add the priceIndex current and projected values
+        currentPriceIndexRecord.setAvgValue(currentPriceIndexRecord.getCapacity() / numOriginalPriceIndex);
+        projectedPriceIndexRecord.setAvgValue(projectedPriceIndexRecord.getCapacity() / numberOfEntities);
+        historydbIO.execute(HistorydbIO.getJooqBuilder()
+                .insertInto(MktSnapshotsStats.MKT_SNAPSHOTS_STATS)
+                .set(currentPriceIndexRecord)
+                .newRecord()
+                .set(projectedPriceIndexRecord));
+
+        logger.debug("Done handling topology notification for projected topology {} in context {}."
+                        + " Number of entities: {}", topologyOrganizer.getTopologyId(),
+                topologyOrganizer.getTopologyContextId(), numberOfEntities);
+
+        return numberOfEntities;
     }
 
     /**
@@ -169,34 +153,22 @@ public class PlanStatsWriter {
      * @throws VmtDbException if there is a problem writing to the DB
      * @return The number of entities processed.
      */
-    public int processChunks(TopologyOrganizer topologyOrganizer,
-        RemoteIterator<TopologyEntityDTO> dtosIterator)
-            throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
-        return internalProcessChunks(topologyOrganizer, dtosIterator, true);
-    }
-
-    private int internalProcessChunks(TopologyOrganizer topologyOrganizer,
-        RemoteIterator<TopologyEntityDTO> dtosIterator, boolean isProcessingCurrent)
+    public int processChunks(@Nonnull final TopologyOrganizer topologyOrganizer,
+                             @Nonnull final RemoteIterator<TopologyEntityDTO> dtosIterator)
             throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
         int numberOfEntities = 0;
-        int chunkNumber = 0;
         historydbIO.addMktSnapshotRecord(topologyOrganizer);
-        PlanStatsAggregator aggregator
-            = new PlanStatsAggregator(historydbIO, topologyOrganizer, isProcessingCurrent);
+        final PlanStatsAggregator aggregator
+                = new PlanStatsAggregator(historydbIO, topologyOrganizer, true);
         while (dtosIterator.hasNext()) {
-            Collection<TopologyEntityDTO> chunk = dtosIterator.nextChunk();
-            logger.debug("Received chunk #{} of size {} for topology {} and context {}",
-                ++chunkNumber, chunk.size(), topologyOrganizer.getTopologyId(),
-                topologyOrganizer.getTopologyContextId());
+            final Collection<TopologyEntityDTO> chunk = dtosIterator.nextChunk();
             aggregator.handleChunk(chunk);
             numberOfEntities += chunk.size();
         }
-        logger.debug("Writing aggregates for topology {} and context {}",
-            topologyOrganizer.getTopologyId(), topologyOrganizer.getTopologyContextId());
         aggregator.writeAggregates();
-        logger.debug("Done handling topology notification for topology {} and context {}."
+        logger.debug("Done handling topology notification for source topology {} in context {}."
                         + " Number of entities: {}", topologyOrganizer.getTopologyId(),
-                        topologyOrganizer.getTopologyContextId(), numberOfEntities);
+                topologyOrganizer.getTopologyContextId(), numberOfEntities);
 
         return numberOfEntities;
     }

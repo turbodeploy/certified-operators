@@ -2,11 +2,10 @@ package com.vmturbo.history.stats.projected;
 
 import static com.vmturbo.history.stats.projected.ProjectedStatsTestConstants.COMMODITY;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
-import static org.hamcrest.Matchers.is;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -15,13 +14,12 @@ import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
-import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
+import com.vmturbo.history.schema.StringConstants;
 
 public class ProjectedPriceIndexSnapshotTest {
 
@@ -37,16 +35,9 @@ public class ProjectedPriceIndexSnapshotTest {
 
     @Before
     public void setup() {
-        snapshot = ProjectedPriceIndexSnapshot.newFactory().createSnapshot(PriceIndexMessage.newBuilder()
-                .addPayload(PriceIndexMessagePayload.newBuilder()
-                        .setOid(SMALLER_ENTITY_OID)
-                        .setPriceindexCurrent(0)
-                        .setPriceindexProjected(SMALLER_ENTITY_PRICE_INDEX))
-                .addPayload(PriceIndexMessagePayload.newBuilder()
-                        .setOid(BIGGER_ENTITY_OID)
-                        .setPriceindexCurrent(0)
-                        .setPriceindexProjected(BIGGER_ENTITY_PRICE_INDEX))
-                .build());
+        snapshot = ProjectedPriceIndexSnapshot.newFactory().createSnapshot(
+            ImmutableMap.of(SMALLER_ENTITY_OID, SMALLER_ENTITY_PRICE_INDEX,
+                BIGGER_ENTITY_OID, BIGGER_ENTITY_PRICE_INDEX));
     }
 
     @Test

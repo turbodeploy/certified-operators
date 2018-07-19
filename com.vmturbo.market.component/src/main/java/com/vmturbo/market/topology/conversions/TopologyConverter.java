@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -73,6 +74,8 @@ import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
+import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
@@ -192,14 +195,17 @@ public class TopologyConverter {
 
     /**
      * Convert a collection of common protobuf topology entity DTOs to analysis protobuf economy DTOs.
-     * @param entities list of topology entity DTOs
+     * @param topology list of topology entity DTOs
      * @return set of economy DTOs
      * @throws InvalidTopologyException when the topology is invalid, e.g. used > capacity
      */
     @Nonnull
     public Set<EconomyDTOs.TraderTO> convertToMarket(
-                @Nonnull final Collection<TopologyDTO.TopologyEntityDTO> entities) {
-        for (TopologyDTO.TopologyEntityDTO entity : entities) {
+                @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology) {
+        // TODO (roman, Jul 5 2018): We don't need to create a new entityOidToDto map.
+        // We can have a helper class that will apply the skipped entity logic on the
+        // original topology.
+        for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
             int entityType = entity.getEntityType();
             if (AnalysisUtil.SKIPPED_ENTITY_TYPES.contains(entityType)
                 || SKIPPED_ENTITY_STATES.contains(entity.getEntityState())
@@ -269,57 +275,41 @@ public class TopologyConverter {
     }
 
     /**
-     * Convert the {@link EconomyDTOs.TraderTO}s to {@link TopologyDTO.TopologyEntityDTO}s. This method
+     * Convert the {@link EconomyDTOs.TraderTO}s to {@link TopologyDTO.ProjectedTopologyEntity}s. This method
      * creates a lazy collection, which is really converted during iteration.
      *
-     * @param traderTOs list of {@link EconomyDTOs.TraderTO}s that are to be converted to
+     * @param projectedTraders list of {@link EconomyDTOs.TraderTO}s that are to be converted to
      * {@link TopologyDTO.TopologyEntityDTO}s
-     * @param entityByOid whose key is the traderOid and the value is the original traderTO
-     * @return list of {@link TopologyDTO.TopologyEntityDTO}s
+     * @param originalTopology the original set of {@link TopologyDTO.TopologyEntityDTO}s by OID.
+     * @return list of {@link TopologyDTO.ProjectedTopologyEntity}s
      */
     @Nonnull
-    private List<TopologyDTO.TopologyEntityDTO> convertFromMarket(
-                 @Nonnull final List<EconomyDTOs.TraderTO> traderTOs,
-                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> entityByOid) {
-        logger.info("Converting traderTOs to topologyEntityDTOs");
-        oidToTraderTOMap = traderTOs.stream().collect(
-                        Collectors.toMap(EconomyDTOs.TraderTO::getOid, Function.identity()));
+    public List<TopologyDTO.ProjectedTopologyEntity> convertFromMarket(
+                @Nonnull final List<EconomyDTOs.TraderTO> projectedTraders,
+                @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology,
+                @Nonnull final PriceIndexMessage priceIndexMessage) {
+        final Map<Long, PriceIndexMessagePayload> priceIndexByOid =
+            priceIndexMessage.getPayloadList().stream()
+                .collect(Collectors.toMap(PriceIndexMessagePayload::getOid, Function.identity()));
+        logger.info("Converting projectedTraders to topologyEntityDTOs");
+        oidToTraderTOMap = projectedTraders.stream().collect(
+                Collectors.toMap(EconomyDTOs.TraderTO::getOid, Function.identity()));
         // Perform lazy transformation, so do not store all the TopologyEntityDTOs in memory
-        return Lists.transform(traderTOs, dto -> traderTOtoTopologyDTO(dto, entityByOid));
-    }
-
-    /**
-     * Convert the {@link EconomyDTOs.TraderTO}s to {@link TopologyDTO.TopologyEntityDTO}s. This method
-     * creates a lazy collection, which is really converted during iteration.
-     *
-     * @param traderTOs list of {@link EconomyDTOs.TraderTO}s that are to be converted to
-     * {@link TopologyDTO.TopologyEntityDTO}s
-     * @param topologyDTOs the original set of {@link TopologyDTO.TopologyEntityDTO}s
-     * @return list of {@link TopologyDTO.TopologyEntityDTO}s
-     */
-    @Nonnull
-    public List<TopologyDTO.TopologyEntityDTO> convertFromMarket(
-                    @Nonnull final List<EconomyDTOs.TraderTO> traderTOs,
-                    @Nonnull final Set<TopologyDTO.TopologyEntityDTO> topologyDTOs) {
-        Map<Long, TopologyDTO.TopologyEntityDTO> entityByOid =
-                        getEntityMap(topologyDTOs);
-        return convertFromMarket(traderTOs, entityByOid);
-    }
-
-    /**
-     * Create a map which is indexed by the traderOid and the value is the
-     * corresponding {@link TopologyDTO.TopologyEntityDTO}.
-     *
-     * @param topologyDTOs list of {@link TopologyDTO.TopologyEntityDTO}s
-     * @return Map whose key is the traderOid and the value is the original
-     * {@link TopologyDTO.TopologyEntityDTO}
-     */
-    public static Map<Long, TopologyDTO.TopologyEntityDTO> getEntityMap(
-                   @Nonnull final Set<TopologyDTO.TopologyEntityDTO> topologyDTOs) {
-
-        return topologyDTOs.stream()
-                .collect(Collectors.toMap(
-                    TopologyDTO.TopologyEntityDTO::getOid, Function.identity()));
+        return Lists.transform(projectedTraders, projectedTrader -> {
+            final TopologyDTO.TopologyEntityDTO projectedEntity =
+                    traderTOtoTopologyDTO(projectedTrader, originalTopology);
+            final ProjectedTopologyEntity.Builder projectedEntityBuilder =
+                    ProjectedTopologyEntity.newBuilder()
+                        .setEntity(projectedEntity);
+            final PriceIndexMessagePayload priceIndex = priceIndexByOid.get(projectedEntity.getOid());
+            if (priceIndex != null) {
+                if (originalTopology.containsKey(projectedEntity.getOid())) {
+                    projectedEntityBuilder.setOriginalPriceIndex(priceIndex.getPriceindexCurrent());
+                }
+                projectedEntityBuilder.setProjectedPriceIndex(priceIndex.getPriceindexProjected());
+            }
+            return projectedEntityBuilder.build();
+        });
     }
 
     /**

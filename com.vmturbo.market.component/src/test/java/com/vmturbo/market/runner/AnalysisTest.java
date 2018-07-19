@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 
@@ -51,7 +52,6 @@ public class AnalysisTest {
     private long topologyContextId = 1111;
     private long topologyId = 2222;
     private TopologyType topologyType = TopologyType.PLAN;
-    private Set<TopologyEntityDTO> EMPTY = ImmutableSet.of();
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(topologyContextId)
@@ -112,7 +112,7 @@ public class AnalysisTest {
                 .build();
         assertEquals(topologyContextId, analysis.getContextId());
         assertEquals(topologyId, analysis.getTopologyId());
-        assertEquals(EMPTY, analysis.getTopology());
+        assertEquals(Collections.emptyMap(), analysis.getTopology());
         assertEquals(Instant.EPOCH, analysis.getStartTime());
         assertEquals(Instant.EPOCH, analysis.getCompletionTime());
     }
@@ -136,7 +136,6 @@ public class AnalysisTest {
 
         assertTrue(analysis.getActionPlan().isPresent());
         assertTrue(analysis.getProjectedTopology().isPresent());
-        assertTrue(analysis.getPriceIndexMessage().isPresent());
     }
 
     /**
@@ -159,7 +158,6 @@ public class AnalysisTest {
 
         assertFalse(analysis.getActionPlan().isPresent());
         assertFalse(analysis.getProjectedTopology().isPresent());
-        assertFalse(analysis.getPriceIndexMessage().isPresent());
     }
 
     /**

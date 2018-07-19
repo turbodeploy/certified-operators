@@ -5,6 +5,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.junit.Before;
 import org.junit.Ignore;
@@ -123,8 +126,7 @@ public class ScopedTopologyTest {
 
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO);
-        final Set<EconomyDTOs.TraderTO> traderTOs = converter
-                .convertToMarket(topologyDTOs);
+        final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
                 Sets.newHashSet(HOST_12_OID));
@@ -142,8 +144,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyOneHost() throws InvalidTopologyException {
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO);
-        final Set<EconomyDTOs.TraderTO> traderTOs = converter
-                .convertToMarket(topologyDTOs);
+        final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
                 Sets.newHashSet(HOST_11_OID));
@@ -162,8 +163,7 @@ public class ScopedTopologyTest {
     public void testScopeTopologyTwoHosts() throws InvalidTopologyException {
         final TopologyConverter converter =
             new TopologyConverter(PLAN_TOPOLOGY_INFO);
-        final Set<EconomyDTOs.TraderTO> traderTOs = converter
-                .convertToMarket(topologyDTOs);
+        final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
                 Sets.newHashSet(HOST_11_OID, HOST_13_OID));
@@ -192,8 +192,7 @@ public class ScopedTopologyTest {
                         .setProviderId(-1)
                         .build())
                 .build());
-        final Set<EconomyDTOs.TraderTO> traderTOs = converter
-                .convertToMarket(topologyDTOs);
+        final Set<EconomyDTOs.TraderTO> traderTOs = convertToMarket(converter);
 
         Set<EconomyDTOs.TraderTO> scopedTraderTOs = testAnalysis.scopeTopology(traderTOs,
                 Sets.newHashSet(HOST_11_OID));
@@ -254,14 +253,8 @@ public class ScopedTopologyTest {
         // since the IDgenerator gives us a different projectedTopoID every time, we create a
         // MockitoMatcher using anyLong to represent this parameter
         Mockito.verify(serverApi, Mockito.times(1))
-                .notifyProjectedTopology(eq(topologyInfo), anyLong(),
+                .notifyProjectedTopology(eq(topologyInfo), anyLong(), anySet(),
                         eq(analysis.getProjectedTopology().get()));
-        assertThat(analysis.getPriceIndexMessage().isPresent(), equalTo(true));
-        PriceIndexDTOs.PriceIndexMessage pim = PriceIndexDTOs.PriceIndexMessage
-                .newBuilder(analysis.getPriceIndexMessage().get())
-                .setTopologyContextId(analysis.getContextId())
-                .build();
-        Mockito.verify(serverApi).sendPriceIndex(eq(topologyInfo), eq(pim));
 
         // check the original topology size
         assertThat(analysis.getTopology().size(), equalTo(topologyDTOs.size()));
@@ -270,12 +263,12 @@ public class ScopedTopologyTest {
         // "DiskArray #1-10", "Datacenter #0"
         assertThat(analysis.getProjectedTopology().isPresent(), equalTo(true));
         assertThat(analysis.getProjectedTopology().get().size(), equalTo(CLUSTER_1_EXPANDED_SE_COUNT));
-
-        // check the output 'priceIndex' info to make sure it has the correct size
-        assertThat(analysis.getPriceIndexMessage().get().getPayloadList().size(),
-                equalTo(CLUSTER_1_EXPANDED_SE_COUNT));
     }
 
+    private Set<EconomyDTOs.TraderTO> convertToMarket(TopologyConverter converter) {
+        return converter.convertToMarket(topologyDTOs.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+    }
 
     /**
      * "App #15": 72207427031437 buys from "VM #14": 72207427031425

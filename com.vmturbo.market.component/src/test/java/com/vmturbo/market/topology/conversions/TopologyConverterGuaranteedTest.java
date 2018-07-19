@@ -7,15 +7,13 @@ import static org.junit.Assert.assertTrue;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-
-import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -49,7 +47,7 @@ public class TopologyConverterGuaranteedTest {
     private static CommodityType MEM_ALLOC = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE)
             .build();
-    private static List<TopologyEntityDTO> entities;
+    private static Map<Long, TopologyEntityDTO> entities;
 
     /**
      * Create a topology with two VDCs, one that qualifies as guaranteed buyer and one that doesn't,
@@ -96,7 +94,8 @@ public class TopologyConverterGuaranteedTest {
                         .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                         .setEntityState(EntityState.MAINTENANCE)
                         .build();
-        entities = ImmutableList.of(vdc1, vdc2, dpod, pm, vm1, vm2);
+        entities = Stream.of(vdc1, vdc2, dpod, pm, vm1, vm2)
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
     }
 
     /**

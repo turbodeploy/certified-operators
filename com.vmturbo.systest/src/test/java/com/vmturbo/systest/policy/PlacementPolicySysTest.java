@@ -35,9 +35,6 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import io.grpc.stub.StreamObserver;
-import io.swagger.annotations.ApiOperation;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
@@ -48,14 +45,12 @@ import org.junit.rules.TestName;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
-import org.junit.runner.RunWith;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
-import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
@@ -64,6 +59,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.UriComponentsBuilder;
+
+import io.grpc.stub.StreamObserver;
+import io.swagger.annotations.ApiOperation;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -87,6 +85,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.St
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopology;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -267,7 +266,7 @@ public class PlacementPolicySysTest {
         actionsReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.ACTION_PLANS_TOPIC, ActionPlan::parseFrom);
         marketComponent = new MarketComponentNotificationReceiver(
-                projectedTopologyReceiver, actionsReceiver, null, null, threadPool);
+                projectedTopologyReceiver, actionsReceiver, null, threadPool);
         kafkaMessageConsumer.start();
     }
 
@@ -1008,16 +1007,18 @@ public class PlacementPolicySysTest {
         }
 
         @Override
-        public void onProjectedTopologyReceived(long projectedTopologyId, TopologyInfo sourceTopologyInfo,
-                                                @Nonnull RemoteIterator<TopologyEntityDTO> projectedTopology) {
+        public void onProjectedTopologyReceived(final long projectedTopologyId,
+                                                @Nonnull final TopologyInfo sourceTopologyInfo,
+                                                @Nonnull final Set<Long> skippedEntities,
+                                                @Nonnull final RemoteIterator<ProjectedTopologyEntity> projectedTopology) {
             this.projectedTopology = new HashMap<>();
             this.projectedEntities = new ArrayList<>();
 
             try {
                 while (projectedTopology.hasNext()) {
                     projectedTopology.nextChunk().forEach(entity -> {
-                        this.projectedTopology.put(entity.getOid(), entity);
-                        this.projectedEntities.add(entity);
+                        this.projectedTopology.put(entity.getEntity().getOid(), entity.getEntity());
+                        this.projectedEntities.add(entity.getEntity());
                     });
                 }
             } catch (InterruptedException | CommunicationException | TimeoutException e) {

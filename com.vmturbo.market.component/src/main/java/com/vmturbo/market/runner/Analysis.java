@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -33,6 +34,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -43,8 +45,6 @@ import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -62,14 +62,16 @@ public class Analysis {
     private final boolean includeVDC;
     private Instant startTime = Instant.EPOCH;
     private Instant completionTime = Instant.EPOCH;
-    private final Set<TopologyEntityDTO> topologyDTOs;
+    private final Map<Long, TopologyEntityDTO> topologyDTOs;
     private final String logPrefix;
 
-    private Set<TopologyEntityDTO> scopeEntities = Collections.emptySet();
-    private Collection<TopologyEntityDTO> projectedEntities = null;
+    private final TopologyConverter converter;
+
+    private Map<Long, TopologyEntityDTO> scopeEntities = Collections.emptyMap();
+
+    private Collection<ProjectedTopologyEntity> projectedEntities = null;
     private final long projectedTopologyId;
     private ActionPlan actionPlan = null;
-    private PriceIndexMessage priceIndexMessage = null;
 
     private String errorMsg;
     private AnalysisState state;
@@ -77,8 +79,6 @@ public class Analysis {
     private final Logger logger = LogManager.getLogger();
 
     private final TopologyInfo topologyInfo;
-
-    private final double DEFAULT_PRICE_INDEX = 1.0;
 
     private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
         .withName("mkt_economy_scoping_duration_seconds")
@@ -126,8 +126,6 @@ public class Analysis {
 
     private final float rightsizeUpperWatermark;
 
-    private final float quoteFactor;
-
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
      * apply, and a flag determining whether guaranteed buyers (VDC, VPod, DPod) are included
@@ -160,7 +158,8 @@ public class Analysis {
                     final float rightsizeUpperWatermark,
                     final float quoteFactor) {
         this.topologyInfo = topologyInfo;
-        this.topologyDTOs = topologyDTOs;
+        this.topologyDTOs = topologyDTOs.stream()
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
         this.includeVDC = includeVDC;
         this.state = AnalysisState.INITIAL;
         logPrefix = topologyInfo.getTopologyType() + " Analysis " +
@@ -172,7 +171,7 @@ public class Analysis {
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
         this.rightsizeLowerWatermark = rightsizeLowerWatermark;
         this.rightsizeUpperWatermark = rightsizeUpperWatermark;
-        this.quoteFactor = quoteFactor;
+        this.converter = new TopologyConverter(topologyInfo, includeVDC, quoteFactor);
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -202,8 +201,6 @@ public class Analysis {
         startTime = clock.instant();
         logger.info("{} Started", logPrefix);
         try {
-            final TopologyConverter converter =
-                new TopologyConverter(topologyInfo, includeVDC, quoteFactor);
 
             final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
             Set<TraderTO> traderTOs = converter.convertToMarket(topologyDTOs);
@@ -218,7 +215,9 @@ public class Analysis {
                 }
 
                 // save the scoped topology for later broadcast
-                captureScopedTopology(traderTOs);
+                scopeEntities = traderTOs.stream()
+                        .collect(Collectors.toMap(TraderTO::getOid,
+                                trader -> topologyDTOs.get(trader.getOid())));
             }
 
             // remove any (scoped) traders that may have been flagged for removal
@@ -231,7 +230,7 @@ public class Analysis {
             // here, the effect on the analysis is exactly equivalent if we had unplaced them
             // (as of 4/6/2016) because attempting to buy from a non-existing trader results in
             // an infinite quote which is exactly the same as not having a provider.
-            Set<Long> oidsToRemove = topologyDTOs.stream()
+            final Set<Long> oidsToRemove = topologyDTOs.values().stream()
                     .filter(dto -> dto.hasEdit())
                     .filter(dto -> dto.getEdit().hasRemoved()
                                 || dto.getEdit().hasReplaced())
@@ -251,7 +250,7 @@ public class Analysis {
                 traderTOs.stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
             }
 
-            Map<String, Setting> settingsMap = getSettingsMap();
+            final Map<String, Setting> settingsMap = getSettingsMap();
 
             final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                 topologyInfo, settingsMap, maxPlacementsOverride, rightsizeLowerWatermark,
@@ -262,7 +261,10 @@ public class Analysis {
             logger.info(logPrefix + "Done performing analysis");
 
             try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
-                projectedEntities = converter.convertFromMarket(results.getProjectedTopoEntityTOList(), topologyDTOs);
+                projectedEntities = converter.convertFromMarket(
+                    results.getProjectedTopoEntityTOList(),
+                    topologyDTOs,
+                    results.getPriceIndexMsg());
             }
 
             // Create the action plan
@@ -286,10 +288,6 @@ public class Analysis {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(actionPlanBuilder::addAction);
-            // Also add skipped service entities into price index messages.
-            priceIndexMessage = PriceIndexMessage.newBuilder(results.getPriceIndexMsg())
-                    .addAllPayload(generatePriceIndexForSkippedEntities(converter.getSkippedEntities()))
-                    .build();
             logger.info(logPrefix + "Completed successfully");
             processResultTime.observe();
             state = AnalysisState.SUCCEEDED;
@@ -311,37 +309,6 @@ public class Analysis {
     }
 
     /**
-     * Remember the scoped topology entities for later broadcast.
-     *
-     * @param traderTOs The set of trader TO's that represent the scoped topology.
-     */
-    private void captureScopedTopology(Set<TraderTO> traderTOs) {
-        // get the subset of topology DTO's in the scoped economy
-        Map<Long, TopologyEntityDTO> entityMap = TopologyConverter.getEntityMap(topologyDTOs);
-        scopeEntities = traderTOs.stream()
-                .map(traderTO -> entityMap.get(traderTO.getOid()))
-                .collect(Collectors.toSet());
-    }
-
-    /**
-     * Also add skipped service entities into price index messages. Otherwise, the price index message
-     * will miss those skipped service entities. And the default price index value is 1.0.
-     *
-     * @param skippedEntities a list of skipped service entities.
-     * @return a list of {@link PriceIndexMessagePayload}.
-     */
-    private List<PriceIndexMessagePayload> generatePriceIndexForSkippedEntities(
-            @Nonnull final List<TopologyEntityDTO> skippedEntities) {
-        return skippedEntities.stream()
-                .map(entity -> PriceIndexMessagePayload.newBuilder()
-                        .setOid(entity.getOid())
-                        .setPriceindexCurrent(DEFAULT_PRICE_INDEX)
-                        .setPriceindexProjected(DEFAULT_PRICE_INDEX)
-                        .build())
-                .collect(Collectors.toList());
-    }
-
-    /**
      * Get the ID of the projected topology.
      * The value will be available only when the run is completed successfully, meaning
      * the projected topology, the action plan and the price index message were all computed.
@@ -358,7 +325,7 @@ public class Analysis {
      * the projected topology, the action plan and the price index message were all computed.
      * @return the projected topology
      */
-    public Optional<Collection<TopologyEntityDTO>> getProjectedTopology() {
+    public Optional<Collection<ProjectedTopologyEntity>> getProjectedTopology() {
         return completed ? Optional.ofNullable(projectedEntities) : Optional.empty();
     }
 
@@ -370,16 +337,6 @@ public class Analysis {
      */
     public Optional<ActionPlan> getActionPlan() {
         return completed ? Optional.ofNullable(actionPlan) : Optional.empty();
-    }
-
-    /**
-     * The price index message resulted from the analysis run.
-     * The value will be available only when the run is completed successfully, meaning
-     * the projected topology, the action plan and the price index message were all computed.
-     * @return the price index message
-     */
-    public Optional<PriceIndexMessage> getPriceIndexMessage() {
-        return completed ? Optional.ofNullable(priceIndexMessage) : Optional.empty();
     }
 
     /**
@@ -416,20 +373,14 @@ public class Analysis {
 
     /**
      * An unmodifiable view of the set of topology entity DTOs that this analysis run is executed on.
-     * @return an unmodifiable view of the set of topology entity DTOs that this analysis run is executed on
+     *
+     * If the analysis was scoped, this will return only the entities in the scope, because those
+     * were the entities that the market analysis actually ran on.
+     *
+     * @return an unmodifiable view of the map of topology entity DTOs that this analysis run is executed on
      */
-    public Set<TopologyEntityDTO> getTopology() {
-        return Collections.unmodifiableSet(topologyDTOs);
-    }
-
-    /**
-     * If a scope was set on the topology, then this returns an unmodifiable set of the entities
-     * included in the scoped version of the topology. This will contain all entities buying from
-     * or possibly selling to any of the entities in the set of plan scope entries.
-     * @return The unmodifiable set of scope entities, or an empty set if there was no scope set.
-     */
-    public Set<TopologyEntityDTO> getScopedTopology() {
-        return Collections.unmodifiableSet(scopeEntities);
+    public Map<Long, TopologyEntityDTO> getTopology() {
+        return isScoped() ? scopeEntities : Collections.unmodifiableMap(topologyDTOs);
     }
 
     /**
@@ -499,6 +450,31 @@ public class Analysis {
      */
     public boolean isDone() {
         return completed;
+    }
+
+    /**
+     * Check if the analysis is running on a scoped topology.
+     *
+     * @return true if the analysis is running on a scoped topology, false otherwise.
+     */
+    public boolean isScoped() {
+        return !topologyInfo.getScopeSeedOidsList().isEmpty();
+    }
+
+    /**
+     * Get the OIDs of entities skipped during conversion of {@link TopologyEntityDTO}s to
+     * {@link TraderTO}s.
+     *
+     * @return A set of the OIDS of entities skipped during conversion.
+     */
+    @Nonnull
+    public Set<Long> getSkippedEntities() {
+        if (!isDone()) {
+            throw new IllegalStateException("Attempting to get skipped entities before analysis is done.");
+        }
+        return converter.getSkippedEntities().stream()
+            .map(TopologyEntityDTO::getOid)
+            .collect(Collectors.toSet());
     }
 
     /**

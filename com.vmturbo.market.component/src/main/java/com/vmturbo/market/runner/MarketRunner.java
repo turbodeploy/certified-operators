@@ -126,27 +126,21 @@ public class MarketRunner {
     private void runAnalysis(@Nonnull final Analysis analysis) {
         analysis.execute();
         analysisMap.remove(analysis.getContextId());
-        if (analysis.getState() == AnalysisState.SUCCEEDED) {
+        if (analysis.isDone() && analysis.getState() == AnalysisState.SUCCEEDED) {
             try {
                 // if this was a plan topology, broadcast the plan analysis topology
                 if (analysis.getTopologyInfo().hasPlanInfo()) {
-                    Set<TopologyEntityDTO> planAnalysisTopology = analysis.getScopedTopology().isEmpty()
-                            ? analysis.getTopology()
-                            : analysis.getScopedTopology();
-                    serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(), planAnalysisTopology);
+                    serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
+                            analysis.getTopology().values());
                 }
                 // Send projected topology before recommended actions, because some recommended
                 // actions will have OIDs that are only present in the projected topology, and we
                 // want to minimize the risk of the projected topology being unavailable.
                 serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
                         analysis.getProjectedTopologyId().get(),
+                        analysis.getSkippedEntities(),
                         analysis.getProjectedTopology().get());
                 serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
-                final PriceIndexMessage pim =
-                    PriceIndexMessage.newBuilder(analysis.getPriceIndexMessage().get())
-                        .setTopologyContextId(analysis.getContextId())
-                        .build();
-                serverApi.sendPriceIndex(analysis.getTopologyInfo(), pim);
             } catch (CommunicationException | InterruptedException e) {
                 // TODO we need to decide, whether to commit the incoming topology here or not.
                 logger.error("Could not send market notifications", e);
