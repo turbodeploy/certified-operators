@@ -27,8 +27,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
 
     private final MarketRunner marketRunner;
 
-    private final SettingServiceBlockingStub settingServiceClient;
-
     private Optional<Integer> maxPlacementsOverride;
 
     private final float rightsizeLowerWatermark;
@@ -44,12 +42,10 @@ public class TopologyEntitiesListener implements EntitiesListener {
     }
 
     public TopologyEntitiesListener(@Nonnull MarketRunner marketRunner,
-                                    @Nonnull SettingServiceBlockingStub settingServiceClient,
                                     @Nonnull final Optional<Integer> maxPlacementsOverride,
                                     final float rightsizeLowerWatermark,
                                     final float rightsizeUpperWatermark) {
         this.marketRunner = Objects.requireNonNull(marketRunner);
-        this.settingServiceClient = Objects.requireNonNull(settingServiceClient);
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
         this.rightsizeLowerWatermark = rightsizeLowerWatermark;
         this.rightsizeUpperWatermark = rightsizeUpperWatermark;
@@ -82,7 +78,6 @@ public class TopologyEntitiesListener implements EntitiesListener {
             logger.info("Thread interrupted receiving topology " + topologyId + " with for " +
                     "context " + topologyContextId, e);
         }
-        marketRunner.scheduleAnalysis(topologyInfo, entities, false,
-            settingServiceClient, maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
+        marketRunner.scheduleAnalysis(topologyInfo, entities, false, maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
     }
 }

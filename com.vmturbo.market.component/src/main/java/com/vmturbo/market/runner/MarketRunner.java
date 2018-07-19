@@ -2,6 +2,7 @@ package com.vmturbo.market.runner;
 
 import java.time.Clock;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -14,16 +15,22 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Maps;
 
+import io.grpc.StatusRuntimeException;
+
+import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**
@@ -35,8 +42,11 @@ public class MarketRunner {
     private final Logger logger = LogManager.getLogger();
     private final ExecutorService runnerThreadPool;
     private final MarketNotificationSender serverApi;
+    private final SettingServiceBlockingStub settingServiceClient;
     private final AnalysisFactory analysisFactory;
     private float alleviatePressureQuoteFactor;
+
+    private final Optional<MarketDebugRpcService> marketDebugRpcService;
 
     private final Map<Long, Analysis> analysisMap = Maps.newConcurrentMap();
 
@@ -47,13 +57,16 @@ public class MarketRunner {
             .build()
             .register();
 
-    public MarketRunner(
-            @Nonnull final ExecutorService runnerThreadPool,
+    public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
             @Nonnull final MarketNotificationSender serverApi,
             @Nonnull final AnalysisFactory analysisFactory,
+            @Nonnull final SettingServiceBlockingStub settingServiceClient,
+            @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
             float alleviatePressureQuoteFactor) {
         this.runnerThreadPool = runnerThreadPool;
         this.serverApi = serverApi;
+        this.settingServiceClient = settingServiceClient;
+        this.marketDebugRpcService = marketDebugRpcService;
         this.analysisFactory = analysisFactory;
         this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
     }
@@ -64,7 +77,6 @@ public class MarketRunner {
      * @param topologyInfo describes this topology, including contextId, id, etc
      * @param topologyDTOs the TopologyEntityDTOs in this topology
      * @param includeVDC should VDC's be included in the analysis
-     * @param settingServiceClient Client for getting the Settings from Setting Service
      * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
      *                              by the market during analysis.
      * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
@@ -77,7 +89,6 @@ public class MarketRunner {
     public Analysis scheduleAnalysis(@Nonnull final TopologyDTO.TopologyInfo topologyInfo,
                                      @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                                      final boolean includeVDC,
-                                     @Nonnull SettingServiceBlockingStub settingServiceClient,
                                      @Nonnull final Optional<Integer> maxPlacementsOverride,
                                      final float rightsizeLowerWatermark,
                                      final float rightsizeUpperWatermark) {
@@ -100,7 +111,7 @@ public class MarketRunner {
                     .setTopologyInfo(topologyInfo)
                     .setTopologyDTOs(topologyDTOs)
                     .setIncludeVDC(includeVDC)
-                    .setSettingsServiceClient(settingServiceClient)
+                    .setSettingsMap(retrieveSettings())
                     .setClock(Clock.systemUTC())
                     .setMaxPlacementsOverride(maxPlacementsOverride)
                     .setRightsizeLowerWatermark(rightsizeLowerWatermark)
@@ -126,24 +137,30 @@ public class MarketRunner {
     private void runAnalysis(@Nonnull final Analysis analysis) {
         analysis.execute();
         analysisMap.remove(analysis.getContextId());
-        if (analysis.isDone() && analysis.getState() == AnalysisState.SUCCEEDED) {
-            try {
-                // if this was a plan topology, broadcast the plan analysis topology
-                if (analysis.getTopologyInfo().hasPlanInfo()) {
-                    serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
-                            analysis.getTopology().values());
+        if (analysis.isDone()) {
+            marketDebugRpcService.ifPresent(debugService -> {
+                debugService.recordCompletedAnalysis(analysis);
+            });
+
+            if (analysis.getState() == AnalysisState.SUCCEEDED) {
+                try {
+                    // if this was a plan topology, broadcast the plan analysis topology
+                    if (analysis.getTopologyInfo().hasPlanInfo()) {
+                        serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
+                                analysis.getTopology().values());
+                    }
+                    // Send projected topology before recommended actions, because some recommended
+                    // actions will have OIDs that are only present in the projected topology, and we
+                    // want to minimize the risk of the projected topology being unavailable.
+                    serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
+                            analysis.getProjectedTopologyId().get(),
+                            analysis.getSkippedEntities(),
+                            analysis.getProjectedTopology().get());
+                    serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
+                } catch (CommunicationException | InterruptedException e) {
+                    // TODO we need to decide, whether to commit the incoming topology here or not.
+                    logger.error("Could not send market notifications", e);
                 }
-                // Send projected topology before recommended actions, because some recommended
-                // actions will have OIDs that are only present in the projected topology, and we
-                // want to minimize the risk of the projected topology being unavailable.
-                serverApi.notifyProjectedTopology(analysis.getTopologyInfo(),
-                        analysis.getProjectedTopologyId().get(),
-                        analysis.getSkippedEntities(),
-                        analysis.getProjectedTopology().get());
-                serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
-            } catch (CommunicationException | InterruptedException e) {
-                // TODO we need to decide, whether to commit the incoming topology here or not.
-                logger.error("Could not send market notifications", e);
             }
         }
     }
@@ -152,7 +169,7 @@ public class MarketRunner {
      * Get all the analysis runs.
      * @return a collection of the analysis runs
      */
-    public  Collection<Analysis> getRuns() {
+    public Collection<Analysis> getRuns() {
         return analysisMap.values();
     }
 
@@ -163,5 +180,33 @@ public class MarketRunner {
             }
         }
         return AnalysisUtil.QUOTE_FACTOR;
+    }
+
+    /**
+     * Retrieve global settings used for analysis configuration.
+     *
+     * @return The map of setting values, arranged by name.
+     */
+    private Map<String, Setting> retrieveSettings() {
+
+        final Map<String, Setting> settingsMap = new HashMap<>();
+
+        // for now only interested in one global settings: RateOfResize
+        final GetSingleGlobalSettingRequest settingRequest =
+                GetSingleGlobalSettingRequest.newBuilder()
+                        .setSettingSpecName(GlobalSettingSpecs.RateOfResize.getSettingName())
+                        .build();
+
+        try {
+            final GetGlobalSettingResponse response =
+                    settingServiceClient.getGlobalSetting(settingRequest);
+            if (response.hasSetting()) {
+                settingsMap.put(response.getSetting().getSettingSpecName(), response.getSetting());
+            }
+        } catch (StatusRuntimeException e) {
+            logger.error("Failed to get global settings from group component. Will run analysis " +
+                    " without global settings.", e);
+        }
+        return settingsMap;
     }
 }

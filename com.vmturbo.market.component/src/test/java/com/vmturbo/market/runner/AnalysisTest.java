@@ -5,7 +5,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -14,23 +13,21 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
-import java.util.Optional;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -51,6 +48,7 @@ public class AnalysisTest {
 
     private long topologyContextId = 1111;
     private long topologyId = 2222;
+    private static final float DEFAULT_RATE_OF_RESIZE = 10.0f;
     private TopologyType topologyType = TopologyType.PLAN;
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
@@ -77,27 +75,17 @@ public class AnalysisTest {
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0L);
-        settingServiceClient = getSettingService(10.0f);
 
         when(mockClock.instant())
             .thenReturn(START_INSTANT)
             .thenReturn(END_INSTANT);
     }
 
-    /*
-     * Set rateOfResize with given value and return settings.
-     */
-    private SettingServiceBlockingStub getSettingService(float resizeValue) {
-        SettingServiceBlockingStub settingServiceClient = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        when(testSettingService.getGlobalSetting(any()))
-            .thenReturn(GetGlobalSettingResponse.newBuilder()
-                .setSetting(Setting.newBuilder()
-                    .setSettingSpecName(
-                        GlobalSettingSpecs.RateOfResize.getSettingName())
-                    .setNumericSettingValue(
-                        SettingDTOUtil.createNumericSettingValue(resizeValue)))
-                .build());
-        return settingServiceClient;
+    private Map<String, Setting> getRateOfResizeSettingMap(float resizeValue) {
+        return ImmutableMap.of(GlobalSettingSpecs.RateOfResize.getSettingName(), Setting.newBuilder()
+            .setSettingSpecName(GlobalSettingSpecs.RateOfResize.getSettingName())
+            .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(resizeValue))
+            .build());
     }
 
     /**
@@ -108,7 +96,7 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
                 .setTopologyInfo(topologyInfo)
                 .setIncludeVDC(true)
-                .setSettingsServiceClient(settingServiceClient)
+                .setSettingsMap(getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .build();
         assertEquals(topologyContextId, analysis.getContextId());
         assertEquals(topologyId, analysis.getTopologyId());
@@ -126,7 +114,7 @@ public class AnalysisTest {
                 .setTopologyInfo(topologyInfo)
                 .setIncludeVDC(true)
                 .setClock(mockClock)
-                .setSettingsServiceClient(settingServiceClient)
+                .setSettingsMap(getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .build();
         analysis.execute();
         assertTrue(analysis.isDone());
@@ -147,8 +135,8 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
             .setIncludeVDC(true)
             .setTopologyDTOs(set)
-                // RateOfResize negative to throw exception
-                .setSettingsServiceClient(getSettingService(-1))
+            // RateOfResize negative to throw exception
+            .setSettingsMap(getRateOfResizeSettingMap(-1))
             .setClock(mockClock)
             .build();
         analysis.execute();
@@ -184,7 +172,7 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
                 .setTopologyInfo(topologyInfo)
                 .setIncludeVDC(true)
-                .setSettingsServiceClient(settingServiceClient)
+                .setSettingsMap(getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .build();
         boolean first = analysis.execute();
         boolean second = analysis.execute();
@@ -197,7 +185,7 @@ public class AnalysisTest {
         Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
             .setTopologyInfo(topologyInfo)
             .setIncludeVDC(true)
-            .setSettingsServiceClient(settingServiceClient)
+            .setSettingsMap(getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
             .setClock(mockClock)
             .build();
 

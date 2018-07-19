@@ -1,0 +1,91 @@
+syntax = "proto2";
+
+package market;
+
+option java_package = "com.vmturbo.common.protobuf.market";
+
+import "topology/TopologyDTO.proto";
+import "action/ActionDTO.proto";
+import "setting/Setting.proto";
+
+message GetAnalysisInfoRequest {
+    // If true, retrieve the latest realtime analysis info.
+    // If false, retrieve the latest plan analysis info.
+    optional bool latest_realtime = 1 [default = true];
+}
+
+message GetAnalysisInfoResponse {
+    // The input to the market in the latest analysis.
+    // Always set.
+    optional AnalysisInput input = 1;
+
+    // The output from the market given the input.
+    // Set if the analysis completed successfully.
+    optional AnalysisOutput output = 2;
+
+    // The start time of the analysis, in millis since epoch.
+    optional int64 start_time = 10;
+
+    // The end time of the analysis, in millis since epoch.
+    optional int64 end_time = 11;
+}
+
+// The input to a market analysis.
+// This should be kept in sync with the arguments to the AnalysisBuilder.
+// See: Analysis.java for documentation.
+message AnalysisInput {
+    optional .topology.TopologyInfo topology_info = 1;
+
+    repeated .topology.TopologyEntityDTO entities = 2;
+
+    optional bool include_vdc = 3;
+
+    optional int32 max_placements_override = 4;
+
+    optional float right_size_lower_watermark = 5;
+
+    optional float right_size_upper_watermark = 6;
+
+    optional float quote_factor = 7;
+
+    map<string, .setting.Setting> settings = 8;
+}
+
+// The output of a market analysis.
+message AnalysisOutput {
+    // The actions suggested by the market.
+    optional .action.ActionPlan action_plan = 1;
+
+    // The projected topology after executing the actions.
+    repeated .topology.ProjectedTopologyEntity projected_entities = 2;
+}
+
+message ControlAnalysisCollectionRequest {
+    // Whether to enable or disable analysis collection.
+    //
+    // Analytics collection is disabled by default because it has a high overhead in a larger
+    // topology, and is unused most of the time even in development/test environments.
+    optional bool enable = 1 [default = true];
+}
+
+message ControlAnalysisCollectionResponse {
+    // Whether or not the analysis collection is enabled.
+    optional bool enabled = 1;
+}
+
+// Service for debugging the market component.
+// This service should only be enabled in development and test environment, never in production.
+// It may have significant memory overhead if used in a large environment.
+service MarketDebugService {
+    // Enable the collection of analyses in the debug service.
+    rpc ControlAnalysisCollection(ControlAnalysisCollectionRequest) returns (ControlAnalysisCollectionResponse);
+
+    // Get information about the most recent completed (succeeded or failed) analysis in some
+    // topology context.
+    //
+    // Returns NOT_FOUND if the selected context has no completed analysis.
+    // Returns UNAVAILABLE if analysis collection is not enabled. However, calling this method
+    // when analysis collection is not enabled enables analysis collection, so you can re-run
+    // the broadcast and call it again.
+    rpc GetAnalysisInfo(GetAnalysisInfoRequest) returns (GetAnalysisInfoResponse);
+}

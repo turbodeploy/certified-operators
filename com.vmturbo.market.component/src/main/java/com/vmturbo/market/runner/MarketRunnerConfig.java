@@ -15,8 +15,8 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.market.MarketGlobalConfig;
 import com.vmturbo.market.api.MarketApiConfig;
+import com.vmturbo.market.rpc.MarketRpcConfig;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 
 /**
@@ -24,7 +24,8 @@ import com.vmturbo.market.runner.Analysis.AnalysisFactory;
  */
 @Configuration
 @Import({MarketApiConfig.class,
-        GroupClientConfig.class})
+        GroupClientConfig.class,
+        MarketRpcConfig.class})
 public class MarketRunnerConfig {
 
     @Autowired
@@ -32,6 +33,9 @@ public class MarketRunnerConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private MarketRpcConfig marketRpcConfig;
 
     @Value("${alleviatePressureQuoteFactor}")
     private float alleviatePressureQuoteFactor;
@@ -49,6 +53,8 @@ public class MarketRunnerConfig {
                 marketRunnerThreadPool(),
                 apiConfig.marketApi(),
                 analysisFactory(),
+                settingServiceClient(),
+                marketRpcConfig.marketDebugRpcService(),
                 alleviatePressureQuoteFactor);
     }
 

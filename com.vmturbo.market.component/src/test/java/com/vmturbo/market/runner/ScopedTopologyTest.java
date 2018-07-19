@@ -8,7 +8,6 @@ import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -219,7 +218,7 @@ public class ScopedTopologyTest {
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
         Analysis.AnalysisFactory analysisFactory = new Analysis.AnalysisFactory();
         MarketRunner runner =
-            new MarketRunner(threadPool, serverApi, analysisFactory, 0.75f);
+            new MarketRunner(threadPool, serverApi, analysisFactory, settingServiceClient, Optional.empty(), 0.75f);
 
         long topologyContextId = 1000;
         long topologyId = 2000;
@@ -236,7 +235,7 @@ public class ScopedTopologyTest {
         // Act
         Analysis analysis =
             runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
-                settingServiceClient, maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
+                maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
             Thread.sleep(1000);

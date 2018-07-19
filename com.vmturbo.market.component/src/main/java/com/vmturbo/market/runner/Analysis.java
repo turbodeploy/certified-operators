@@ -5,7 +5,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -27,19 +26,13 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import io.grpc.StatusRuntimeException;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -118,13 +111,22 @@ public class Analysis {
      */
     private final Clock clock;
 
-    private final SettingServiceBlockingStub settingsServiceClient;
+    private final Map<String, Setting> globalSettingsMap;
 
     private final Optional<Integer> maxPlacementsOverride;
 
     private final float rightsizeLowerWatermark;
 
     private final float rightsizeUpperWatermark;
+
+    /**
+     * The quote factor controls the aggressiveness with which the market suggests moves.
+     *
+     * It's a number between 0 and 1, so that Move actions are only generated if
+     * best-quote < quote-factor * current-quote. That means that if we only want Moves that
+     * result in at least 25% improvement we should use a quote-factor of 0.75.
+     */
+    private final float quoteFactor;
 
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
@@ -137,7 +139,7 @@ public class Analysis {
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
      * @param includeVDC specify whether guaranteed buyers (VDC, VPod, DPod) are included in the
      *                     market analysis
-     * @param settingsServiceClient Used to look up settings to control the behavior of market analysis.
+     * @param globalSettingsMap Used to look up settings to control the behavior of market analysis.
      * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
      *                              by the market during analysis.
      * @param clock The clock used to time market analysis.
@@ -145,13 +147,12 @@ public class Analysis {
      *                                it, Market could generate resize down actions.
      * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
      *                                it, Market could generate resize up actions.
-     * @param quoteFactor to be used by move recommendations. Move actions are only generated
-     *                                if best-quote < quote-factor * current-quote.
+     * @param quoteFactor to be used. See {@link Analysis#quoteFactor}.
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                     final boolean includeVDC,
-                    @Nonnull final SettingServiceBlockingStub settingsServiceClient,
+                    @Nonnull final Map<String, Setting> globalSettingsMap,
                     @Nonnull final Optional<Integer> maxPlacementsOverride,
                     @Nonnull final Clock clock,
                     final float rightsizeLowerWatermark,
@@ -166,12 +167,13 @@ public class Analysis {
             topologyInfo.getTopologyContextId() + " with topology " +
             topologyInfo.getTopologyId() + " : ";
         this.projectedTopologyId = IdentityGenerator.next();
-        this.settingsServiceClient = settingsServiceClient;
+        this.globalSettingsMap = globalSettingsMap;
         this.clock = Objects.requireNonNull(clock);
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
         this.rightsizeLowerWatermark = rightsizeLowerWatermark;
         this.rightsizeUpperWatermark = rightsizeUpperWatermark;
         this.converter = new TopologyConverter(topologyInfo, includeVDC, quoteFactor);
+        this.quoteFactor = quoteFactor;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -250,10 +252,8 @@ public class Analysis {
                 traderTOs.stream().map(dto -> "Economy DTO: " + dto).forEach(logger::trace);
             }
 
-            final Map<String, Setting> settingsMap = getSettingsMap();
-
             final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                topologyInfo, settingsMap, maxPlacementsOverride, rightsizeLowerWatermark,
+                topologyInfo, globalSettingsMap, maxPlacementsOverride, rightsizeLowerWatermark,
                 rightsizeUpperWatermark);
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
@@ -384,6 +384,18 @@ public class Analysis {
     }
 
     /**
+     * An unmodifiable view of the original topology input into the market. Whether or not the
+     * analysis was scoped, this will return all the input entities (i.e. the whole topology).
+     *
+     * @return an unmodifiable view of the map of topology entity DTOs passed to the analysis,
+     *         prior to scoping.
+     */
+    @Nonnull
+    public Map<Long, TopologyEntityDTO> getOriginalInputTopology() {
+        return Collections.unmodifiableMap(topologyDTOs);
+    }
+
+    /**
      * Return the value of the "includeVDC" flag for this builder.
      *
      * @return the current value of the "includeVDC" flag for this builder
@@ -485,6 +497,25 @@ public class Analysis {
     @Nonnull
     public TopologyInfo getTopologyInfo() {
         return topologyInfo;
+    }
+
+    /**
+     * Get the quote factor used for this analysis.
+     *
+     * @return The quote factor.
+     */
+    public float getQuoteFactor() {
+        return quoteFactor;
+    }
+
+    /**
+     * Get the global settings map used for this analysis.
+     *
+     * @return The map of global setting values arranged by name.
+     */
+    @Nonnull
+    public Map<String, Setting> getGlobalSettingsMap() {
+        return Collections.unmodifiableMap(globalSettingsMap);
     }
 
     /**
@@ -683,7 +714,7 @@ public class Analysis {
         private Clock clock = Clock.systemUTC();
 
         private Optional<Integer> maxPlacementsOverride = Optional.empty();
-        private SettingServiceBlockingStub settingsServiceClient = null;
+        private Map<String, Setting> settingsMap = Collections.emptyMap();
 
         // The minimum utilization threshold, if entity's utilization is below threshold,
         // Market could generate resize down action.
@@ -729,13 +760,12 @@ public class Analysis {
         }
 
         /**
-         * Configure the Group client to get the Settings.
          *
-         * @param serviceClient Settings Service client
+         * @param settingsMap The map of global settings retrieved from the group client.
          * @return this Builder to support flow style
          */
-        public AnalysisBuilder setSettingsServiceClient(SettingServiceBlockingStub serviceClient) {
-            this.settingsServiceClient  = serviceClient;
+        public AnalysisBuilder setSettingsMap(@Nonnull final Map<String, Setting> settingsMap) {
+            this.settingsMap = settingsMap;
             return this;
         }
 
@@ -802,7 +832,7 @@ public class Analysis {
          * @return the newly build Analysis object initialized from the Builder fields.
          */
         public Analysis build() {
-            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsServiceClient,
+            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsMap,
                 maxPlacementsOverride, clock, rightsizeLowerWatermark, rightsizeUpperWatermark, quoteFactor);
         }
     }
@@ -816,28 +846,5 @@ public class Analysis {
         public AnalysisBuilder newAnalysisBuilder() {
             return new AnalysisBuilder();
         }
-    }
-
-    private Map<String, Setting> getSettingsMap() {
-
-        Map<String, Setting> settingsMap = new HashMap<>();
-
-        // for now only interested in one global settings: RateOfResize
-        final GetSingleGlobalSettingRequest settingRequest =
-            GetSingleGlobalSettingRequest.newBuilder()
-                .setSettingSpecName(GlobalSettingSpecs.RateOfResize.getSettingName())
-                .build();
-
-        try {
-            final GetGlobalSettingResponse response =
-                    settingsServiceClient.getGlobalSetting(settingRequest);
-            if (response.hasSetting()) {
-                settingsMap.put(response.getSetting().getSettingSpecName(), response.getSetting());
-            }
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to get global settings from group component. Will run analysis " +
-                    " without global settings.", e);
-        }
-        return settingsMap;
     }
 }

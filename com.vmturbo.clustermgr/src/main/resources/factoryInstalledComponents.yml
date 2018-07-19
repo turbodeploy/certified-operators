@@ -44,6 +44,7 @@ market:
   <<: *baseVmtComponentSettings
   <<: *topologyProcessorClient
   grpcPingIntervalSeconds: 300
+  realtimeTopologyContextId: 777777
   identityGeneratorPrefix: 2
   groupHost: 'group'
   # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from

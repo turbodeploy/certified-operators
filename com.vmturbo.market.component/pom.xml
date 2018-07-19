@@ -35,6 +35,7 @@
                         <apiSource>
                             <locations>
                                 <location>com.vmturbo.components.common</location>
+                                <location>com.vmturbo.common.protobuf.market</location>
                             </locations>
                         </apiSource>
                     </apiSources>

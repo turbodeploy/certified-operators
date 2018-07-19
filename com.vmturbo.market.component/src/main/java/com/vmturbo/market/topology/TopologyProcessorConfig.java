@@ -49,8 +49,7 @@ public class TopologyProcessorConfig {
 
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
-        return new TopologyEntitiesListener(marketRunnerConfig.marketRunner(),
-            marketRunnerConfig.settingServiceClient(), maxPlacementsOverride(),
+        return new TopologyEntitiesListener(marketRunnerConfig.marketRunner(), maxPlacementsOverride(),
             rightsizeLowerWatermark, rightsizeUpperWatermark);
     }
 
