@@ -605,14 +605,20 @@ public class TopologyConverterTest {
                 .putEntityPropertyMap("dummy", "dummy")
                 .build();
 
-        final long entityId = 10;
+        final long entityId = 10000;
         final TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
                 .setEntityType(1)
                 .setOid(entityId)
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(true).build())
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(topologyCommodity1))
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder().setCommodityType(topologyCommodity2))
                 .build();
 
+        Field entityOidToDto = TopologyConverter.class.getDeclaredField("entityOidToDto");
+        Map<Long, TopologyEntityDTO> map = new HashMap<>();
+        map.put(entityId, entityDTO);
+        entityOidToDto.setAccessible(true);
+        entityOidToDto.set(converter, map);
         converter.convertToMarket(ImmutableMap.of(entityDTO.getOid(), entityDTO));
 
         // create trader DTO corresponds to originalEntity
@@ -873,5 +879,60 @@ public class TopologyConverterTest {
         // (80 + (60/2.0))/100
         assertThat(TopologyConverter.getMaxDesiredUtilization(entityDTO),
             is(1f));
+    }
+
+    @Test
+    public void testEntityInControlState() {
+        TopologyEntityDTO pmEntityDTO = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setOid(1)
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                        .setCloneable(true)
+                        .setSuspendable(true)
+                        .setIsAvailableAsProvider(true)
+                        .setControllable(false).build())
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                                .setType(CommodityDTO.CommodityType.CPU_VALUE).build())
+                        .build())
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setMovable(true)
+                        .setProviderId(10000L)
+                        .setProviderEntityType(EntityType.DATACENTER_VALUE)
+                                .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                        .setCommodityType(CommodityType.newBuilder()
+                                                .setType(CommodityDTO.CommodityType.COOLING_VALUE))))
+                .build();
+        TopologyEntityDTO vmEntityDTO = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(100)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.APPLICATION_VALUE).build())
+                        .build())
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setMovable(true)
+                        .setProviderId(1)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(CommodityType.newBuilder()
+                                        .setType(CommodityDTO.CommodityType.CPU_VALUE))))
+                .build();
+        final TopologyConverter converter =
+                        new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f);
+        Map<Long, TopologyEntityDTO> topology = new HashMap<>();
+        topology.put(pmEntityDTO.getOid(), pmEntityDTO);
+        topology.put(vmEntityDTO.getOid(), vmEntityDTO);
+        Set<TraderTO> traders = converter.convertToMarket(topology);
+        for (TraderTO t : traders) {
+            if (t.getType() == vmEntityDTO.getEntityType()) {
+                assertFalse(t.getShoppingLists(0).getMovable());
+            } else if (t.getType() == pmEntityDTO.getEntityType()) {
+                assertFalse(t.getSettings().getCanAcceptNewCustomers());
+                assertFalse(t.getSettings().getClonable());
+                assertFalse(t.getSettings().getSuspendable());
+                assertFalse(t.getShoppingLists(0).getMovable());
+            }
+        }
     }
 }

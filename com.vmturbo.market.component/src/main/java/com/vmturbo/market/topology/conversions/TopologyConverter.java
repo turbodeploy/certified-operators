@@ -585,12 +585,13 @@ public class TopologyConverter {
                                             : suspendable;
             final boolean isGuranteedBuyer = guaranteedBuyer(topologyDTO);
             final EconomyDTOs.TraderSettingsTO settings = EconomyDTOs.TraderSettingsTO.newBuilder()
-                    .setClonable(clonable)
-                    .setSuspendable(suspendable)
+                    .setClonable(clonable && topologyDTO.getAnalysisSettings().getControllable())
+                    .setSuspendable(suspendable && topologyDTO.getAnalysisSettings().getControllable())
                     .setMinDesiredUtilization(getMinDesiredUtilization(topologyDTO))
                     .setMaxDesiredUtilization(getMaxDesiredUtilization(topologyDTO))
                     .setGuaranteedBuyer(isGuranteedBuyer)
-                    .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider())
+                    .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider()
+                                              && topologyDTO.getAnalysisSettings().getControllable())
                     .setIsShopTogether(shopTogether)
                     .setIsEligibleForResizeDown(isPlan() ||
                             topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
@@ -820,12 +821,18 @@ public class TopologyConverter {
         final boolean isMovable = commBoughtGrouping.hasMovable()
             ? commBoughtGrouping.getMovable()
             : AnalysisUtil.MOVABLE_TYPES.contains(entityType);
+        // if the buyer of the shopping list is in control state(controllable = false), or if the
+        // shopping list has a provider and the provider is in control state (controllable = false)
+        // the shopping list should not move
+        final boolean isControllable = entityOidToDto.get(buyerOid).getAnalysisSettings()
+                        .getControllable() && (provider == null || (provider != null &&
+                        provider.getAnalysisSettings().getControllable()));
         final EconomyDTOs.ShoppingListTO.Builder economyShoppingListBuilder = EconomyDTOs.ShoppingListTO
                 .newBuilder()
                 .addAllCommoditiesBought(values)
                 .setOid(id)
                 .setStorageMoveCost(moveCost)
-                .setMovable(isMovable);
+                .setMovable(isMovable && isControllable);
         if (providerOid != null) {
             economyShoppingListBuilder.setSupplier(providerOid);
         }
