@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builde
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
@@ -76,6 +77,17 @@ public class ConstraintsEditorTest {
             ));
     }
 
+    private TopologyEntity.Builder buildTopologyEntity(long oid, int type, int entityType) {
+        return TopologyEntityUtils.topologyEntityBuilder(
+                        TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(
+                            CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
+                                CommodityBoughtDTO.newBuilder().setCommodityType(
+                                    CommodityType.newBuilder().setType(type).setKey("").build()
+                                ).setActive(true)
+                            ).setProviderId(1L)
+                        ).setEntityType(entityType));
+    }
+
     @Test
     public void testIgnoreConstraint() throws IOException {
         final List<Group> groups = ImmutableList.of(buildGroup(1l, ImmutableList.of(1l, 2l)));
@@ -95,7 +107,7 @@ public class ConstraintsEditorTest {
                 )).build());
         final TopologyGraph graph = TopologyGraph.newGraph(topology);
         Assert.assertEquals(3, getActiveCommodities(graph).count());
-        constraintsEditor.editConstraints(graph, changes);
+        constraintsEditor.editConstraints(graph, changes, false);
         Assert.assertEquals(1, getActiveCommodities(graph).count());
     }
 
@@ -120,8 +132,37 @@ public class ConstraintsEditorTest {
                 buildScenarioChange("NetworkCommodity", 2l));
         final TopologyGraph graph = TopologyGraph.newGraph(topology);
         Assert.assertEquals(4, getActiveCommodities(graph).count());
-        constraintsEditor.editConstraints(graph, changes);
+        constraintsEditor.editConstraints(graph, changes, false);
         Assert.assertEquals(0, getActiveCommodities(graph).count());
+    }
+
+    @Test
+    public void testEditConstraintsForAlleviatePressurePlan() throws IOException {
+        final List<Group> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L)));
+        final GroupTestService testService = new GroupTestService(groups);
+        GrpcTestServer testServer = GrpcTestServer.newServer(testService);
+        testServer.start();
+        groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
+        constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
+                        EntityType.PHYSICAL_MACHINE_VALUE));
+        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
+                        EntityType.VIRTUAL_MACHINE_VALUE));
+        topology.put(3L, buildTopologyEntity(3L, CommodityDTO.CommodityType.NETWORK.getNumber()));
+        List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
+                .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
+                        IgnoreConstraint.newBuilder().setCommodityType("ClusterCommodity")
+                                .setGroupUuid(1L).build()
+                )).build());
+        final TopologyGraph graph = TopologyGraph.newGraph(topology);
+
+        constraintsEditor.editConstraints(graph, changes, false);
+        Assert.assertEquals(2, getActiveCommodities(graph).count());
+
+        // For alleviate pressure plan, VM's commodity should be disabled too.
+        constraintsEditor.editConstraints(graph, changes, true);
+        Assert.assertEquals(1, getActiveCommodities(graph).count());
     }
 
     private ScenarioChange buildScenarioChange(@Nonnull String commodityType, long uuid) {

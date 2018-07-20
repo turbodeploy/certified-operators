@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.Ignor
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -59,9 +60,10 @@ public class ConstraintsEditor {
      *
      * @param graph to resolve groups members
      * @param changes with ignore constraint settings
+     * @param isPressurePlan is true if plan is of type alleviate pressure
      */
     public void editConstraints(@Nonnull final TopologyGraph graph,
-            @Nonnull final List<ScenarioChange> changes) {
+            @Nonnull final List<ScenarioChange> changes, boolean isPressurePlan) {
         final Multimap<Long, String> entitiesToIgnoredCommodities = HashMultimap.create();
         changes.forEach(change -> {
             if (change.hasPlanChanges()) {
@@ -69,7 +71,7 @@ public class ConstraintsEditor {
                         .getPlanChanges().getIgnoreConstraintsList();
                 if (!CollectionUtils.isEmpty(ignoreConstraints)) {
                     entitiesToIgnoredCommodities.putAll(
-                            getEntitiesOidsForIgnoredCommodities(ignoreConstraints, graph));
+                        getEntitiesOidsForIgnoredCommodities(ignoreConstraints, graph, isPressurePlan));
                 }
             } else {
                 logger.warn("Unimplemented handling for change of type {}", change.getDetailsCase());
@@ -81,7 +83,8 @@ public class ConstraintsEditor {
 
     @Nonnull
     private Multimap<Long, String> getEntitiesOidsForIgnoredCommodities(
-            @Nonnull List<IgnoreConstraint> ignoredCommodities, @Nonnull TopologyGraph graph) {
+                    @Nonnull List<IgnoreConstraint> ignoredCommodities,
+                    @Nonnull TopologyGraph graph, boolean isPressurePlan) {
         Set<Long> groups = ignoredCommodities.stream()
                 .map(IgnoreConstraint::getGroupUuid)
                 .collect(Collectors.toSet());
@@ -93,18 +96,37 @@ public class ConstraintsEditor {
                 .forEachRemaining(group -> {
             try {
                 final Set<Long> groupMembersOids = groupResolver.resolve(group, graph);
+                if (isPressurePlan) {
+                   // VMs on hosts in a cluster will have other constraints (e.g. Datacenter, Network)
+                   // that may stop them from being moved. In an alleviate pressure plan,
+                   // we need to ignore these constraints on VM consumers of the hot cluster members
+                   // so that the market can simulate moves of these VMs to the cold cluster(s).
+                    groupMembersOids.addAll(getVMCustomers(groupMembersOids, graph));
+                }
                 final Set<String> commoditiesOfGroup = ignoredCommodities.stream()
                         .filter(commodity -> commodity.getGroupUuid() == group.getId())
                         .map(IgnoreConstraint::getCommodityType)
                         .collect(Collectors.toSet());
                 groupMembersOids.forEach(entityId ->
-                        entitesToIgnoredCommodities.putAll(entityId, commoditiesOfGroup));
+                    entitesToIgnoredCommodities.putAll(entityId, commoditiesOfGroup));
             } catch (GroupResolutionException e) {
                 logger.warn("Cannot resolve member for group {}", group);
             }
         });
 
         return entitesToIgnoredCommodities;
+    }
+
+    private Collection<Long> getVMCustomers(Set<Long> groupMembersOids,
+                    TopologyGraph graph) {
+        return groupMembersOids.stream()
+            .map(oid -> graph.getEntity(oid))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .flatMap(entity -> entity.getConsumers().stream())
+            .filter(customer -> customer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+            .map(TopologyEntity::getOid)
+            .collect(Collectors.toSet());
     }
 
     @Nonnull

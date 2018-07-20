@@ -1,6 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -109,7 +110,7 @@ public class ScenarioMapper {
     /**
      * Name of alleviate pressure plan type.
      */
-    private static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
+    static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -119,6 +120,10 @@ public class ScenarioMapper {
     }
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final List<ConstraintType> ALLEVIATE_PRESSURE_IGNORE_CONSTRAINTS = Arrays.asList(
+                    ConstraintType.NetworkCommodity, ConstraintType.StorageClusterCommodity,
+                    ConstraintType.DataCenterCommodity);
 
     private final TemplatesUtils templatesUtils;
 
@@ -194,17 +199,46 @@ public class ScenarioMapper {
         List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
         switch (dto.getType()) {
             case ALLEVIATE_PRESSURE_PLAN_TYPE:
+                List<RelievePressureObjectApiDTO> relievePressureList =
+                                dto.getTopologyChanges().getRelievePressureList();
+                if (CollectionUtils.isEmpty(relievePressureList)) {
+                    throw new InvalidOperationException(
+                                    "Cluster list is empty for alleviate pressure plan.");
+                }
                 // 1) Set Merge Policy for given clusters.
-                changes.add(getMergePolicyForSourceAndDestinationClusters(dto));
-                // 2) Disable provision, suspend and resize.
+                changes.add(getMergePolicyForSourceAndDestinationClusters(relievePressureList));
+                // 2) Apply constraints on hot cluster.
+                changes.add(getIgnoreConstraintsForHotCluster(relievePressureList));
+                // 3) Disable provision, suspend, resize and reconfigure.
                 changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Provision));
                 changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Suspend));
                 changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Resize));
+                changes.add(getChangeWithGlobalSettingsDisabled(EntitySettingSpecs.Reconfigure));
                 break;
             default:
                 break;
         }
         return changes;
+    }
+
+    private ScenarioChange getIgnoreConstraintsForHotCluster(
+                    List<RelievePressureObjectApiDTO> relievePressureList) {
+        final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
+        relievePressureList.stream()
+           .flatMap(relievePressureDto -> relievePressureDto.getSources().stream())
+           .map(obj -> Long.valueOf(obj.getUuid()))
+           .distinct()
+           .flatMap(clusterId -> ALLEVIATE_PRESSURE_IGNORE_CONSTRAINTS.stream()
+               // Create an IgnoreConstraint message for each commodity to ignore for the cluster.
+               .map(constraintType -> IgnoreConstraint.newBuilder()
+                   .setCommodityType(constraintType.name())
+                   .setGroupUuid(clusterId)))
+           .forEach(planChangesBuilder::addIgnoreConstraints);
+
+
+        return ScenarioChange.newBuilder()
+            .setPlanChanges(planChangesBuilder)
+            .build();
     }
 
     /*
@@ -223,16 +257,11 @@ public class ScenarioMapper {
     /*
      * Create merge policy out of cluster ids in relieve pressure list.
      */
-    private ScenarioChange getMergePolicyForSourceAndDestinationClusters(ScenarioApiDTO dto) throws InvalidOperationException {
+    private ScenarioChange getMergePolicyForSourceAndDestinationClusters(List<RelievePressureObjectApiDTO> relievePressureList) {
         MergePolicy.Builder mergePolicyBuilder = MergePolicy.newBuilder()
             .setMergeType(MergeType.CLUSTER);
-        List<RelievePressureObjectApiDTO> relivePressureList = dto.getTopologyChanges().getRelievePressureList();
 
-        if (relivePressureList == null || relivePressureList.isEmpty()) {
-            throw new InvalidOperationException("Cluster list is empty for alleviate pressure plan.");
-        }
-
-        relivePressureList.forEach(element -> {
+        relievePressureList.forEach(element -> {
             mergePolicyBuilder.addAllMergeGroupIds(element.getSources().stream()
                 .map(obj -> Long.valueOf(obj.getUuid()))
                 .collect(Collectors.toList()));

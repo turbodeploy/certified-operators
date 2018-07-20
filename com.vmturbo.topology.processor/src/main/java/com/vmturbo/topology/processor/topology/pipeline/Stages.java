@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -539,7 +540,8 @@ public class Stages {
 
         @Override
         public void passthrough(TopologyGraph input) throws PipelineStageException {
-            constraintsEditor.editConstraints(input, changes);
+            boolean isPressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(getContext().getTopologyInfo());
+            constraintsEditor.editConstraints(input, changes, isPressurePlan);
         }
     }
 

@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -44,6 +45,7 @@ import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
+import com.vmturbo.api.dto.scenario.RelievePressureObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ReplaceObjectApiDTO;
@@ -63,6 +65,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
@@ -79,6 +82,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 public class ScenarioMapperTest {
     private static final String SCENARIO_NAME = "MyScenario";
@@ -650,6 +654,77 @@ public class ScenarioMapperTest {
         // This will compare object references, which is fine for testing purposes - it means
         // the right lookup is happening in the group mapper.
         assertThat(context.dtoForId(groupId), is(groupApiDTO));
+    }
+
+    /**
+     * Tests converting of ScenarioApiDto to ScenarioInfo for alleviate pressure plan.
+     */
+    @Test
+    public void testToScenarioInfoForAlleviatePressurePlan() {
+        final ScenarioApiDTO dto = scenarioApiForAlleviatePressurePlan(1000, 2000);
+
+        final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
+        assertEquals(ScenarioMapper.ALLEVIATE_PRESSURE_PLAN_TYPE, scenarioInfo.getType());
+
+        // Expected changes : 6
+        // Merge Policy Change, Ignore constraints on hot cluster
+        // and disable 4 (suspend, provision, resize, reconfigure) actions.
+        final List<ScenarioChange> scenarioChanges = scenarioInfo.getChangesList();
+        assertEquals(6, scenarioChanges.size());
+
+        // Contains Merge Policy
+        ScenarioChange mergePolicyChange = scenarioChanges.stream()
+            .filter(change -> change.hasPlanChanges() && change.getPlanChanges().hasPolicyChange())
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(mergePolicyChange);
+        assertEquals(MergeType.CLUSTER, mergePolicyChange.getPlanChanges().getPolicyChange()
+                        .getPlanOnlyPolicy().getPolicyInfo().getMerge().getMergeType());
+
+        // 3 Ignore Constraints expected for hot cluster
+        ScenarioChange ignoreConstraintsChange = scenarioChanges.stream()
+                        .filter(change -> change.hasPlanChanges() && change.getPlanChanges()
+                                        .getIgnoreConstraintsList().size() == 3)
+                        .findFirst().orElse(null);
+
+        assertNotNull(ignoreConstraintsChange);
+
+        Arrays.asList(ConstraintType.NetworkCommodity.name(),
+            ConstraintType.StorageClusterCommodity.name(),
+            ConstraintType.DataCenterCommodity.name())
+                .equals(ignoreConstraintsChange.getPlanChanges()
+                    .getIgnoreConstraintsList().stream()
+                        .map(constraint -> constraint.getCommodityType())
+                        .collect(Collectors.toList()));
+
+        // Contains Disabled Actions.
+        ScenarioChange provisionDisabledChange = scenarioChanges.stream()
+                        .filter(change -> change.hasSettingOverride() && change.getSettingOverride()
+                                        .getSetting().getSettingSpecName()
+                                        .equals(EntitySettingSpecs.Provision.getSettingName()))
+                        .findFirst().orElse(null);
+        assertNotNull(provisionDisabledChange);
+
+        Arrays.asList(EntitySettingSpecs.Suspend.getSettingName(),
+                        EntitySettingSpecs.Resize.getSettingName(),
+                        EntitySettingSpecs.Provision.getSettingName(),
+                        EntitySettingSpecs.Reconfigure.getSettingName())
+                            .equals(scenarioChanges.stream()
+                                .filter(change -> change.hasSettingOverride())
+                                .map(change -> change.getSettingOverride().getSetting())
+                                .collect(Collectors.toList()));
+    }
+
+    private ScenarioApiDTO scenarioApiForAlleviatePressurePlan(long sourceId, long destinationId) {
+        RelievePressureObjectApiDTO relievePressureObjectApiDTO = new RelievePressureObjectApiDTO();
+        relievePressureObjectApiDTO.setSources(Arrays.asList(template(sourceId)));
+        relievePressureObjectApiDTO.setDestinations(Arrays.asList(template(destinationId)));
+        TopologyChangesApiDTO topologyChanges = new TopologyChangesApiDTO();
+        topologyChanges.setRelievePressureList(Arrays.asList(relievePressureObjectApiDTO));
+        ScenarioApiDTO dto = scenarioApiDTO(topologyChanges);
+        dto.setType(ScenarioMapper.ALLEVIATE_PRESSURE_PLAN_TYPE);
+        return dto;
     }
 
     @Nonnull
