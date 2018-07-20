@@ -19,6 +19,8 @@ import org.mockito.Captor;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.google.common.collect.Sets;
+
 import io.grpc.Status.Code;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -36,6 +38,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAt
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.operation.OperationManager;
@@ -45,8 +48,10 @@ public class ActionExecutionRpcServiceTest {
 
     private OperationManager operationManager = Mockito.mock(OperationManager.class);
 
+    private EntityActionDao entityActionDao = Mockito.mock(EntityActionDao.class);
+
     private ActionExecutionRpcService actionExecutionBackend =
-            new ActionExecutionRpcService(entityStore, operationManager);
+            new ActionExecutionRpcService(entityStore, operationManager, entityActionDao);
 
     @Captor
     private ArgumentCaptor<List<ActionItemDTO>> actionItemDTOCaptor;
@@ -111,6 +116,7 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId), actionItemDTOCaptor.capture());
+        Mockito.verify(entityActionDao).insertAction(0, Sets.newHashSet(2L,3L,4L,5L));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 
@@ -751,8 +757,7 @@ public class ActionExecutionRpcServiceTest {
     }
 
     public static ActionEntity createActionEntity(long id) {
-        // set some fake type for now
-        final int defaultEntityType = 1;
+        final int defaultEntityType = EntityType.VIRTUAL_MACHINE_VALUE;
         return ActionEntity.newBuilder()
                     .setId(id)
                     .setType(defaultEntityType)

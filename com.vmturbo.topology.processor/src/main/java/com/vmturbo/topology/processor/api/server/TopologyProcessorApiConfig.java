@@ -11,13 +11,9 @@ import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
-import com.vmturbo.components.api.server.IMessageSender;
 import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
 import com.vmturbo.topology.processor.GlobalConfig;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
-import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 
@@ -25,7 +21,10 @@ import com.vmturbo.topology.processor.targets.TargetConfig;
  * Spring configuration for server-side API.
  */
 @Configuration
-@Import({TargetConfig.class, GlobalConfig.class, ProbeConfig.class, BaseKafkaProducerConfig.class})
+@Import({TargetConfig.class,
+        GlobalConfig.class,
+        ProbeConfig.class,
+        BaseKafkaProducerConfig.class})
 public class TopologyProcessorApiConfig {
 
     @Autowired

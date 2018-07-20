@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
+import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
@@ -40,7 +41,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
     ClockConfig.class,
     ReservationConfig.class,
     ProbeConfig.class,
-    TargetConfig.class
+    TargetConfig.class,
+    ControllableConfig.class
 })
 public class TopologyConfig {
 
@@ -82,6 +84,9 @@ public class TopologyConfig {
 
     @Autowired
     private SupplyChainValidationConfig supplyChainValidationConfig;
+
+    @Autowired
+    private ControllableConfig controllableConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -132,7 +137,8 @@ public class TopologyConfig {
                 stitchingGroupFixer(),
                 entityConfig.entityValidator(),
                 supplyChainValidationConfig.supplyChainValidator(),
-                groupConfig.discoveredClusterConstraintCache());
+                groupConfig.discoveredClusterConstraintCache(),
+                controllableConfig.controllableManager());
     }
 
     /**

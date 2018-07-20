@@ -17,9 +17,11 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -42,6 +44,8 @@ import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
+import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
@@ -119,6 +123,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final ExecutorService resultExecutor = Executors.newSingleThreadExecutor();
 
+    private final EntityActionDao entityActionDao;
+
     private static final DataMetricGauge ONGOING_OPERATION_GAUGE = DataMetricGauge.builder()
         .withName("tp_ongoing_operation_total")
         .withHelp("Total number of ongoing operations in the topology processor.")
@@ -140,6 +146,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final EntityStore entityStore,
                             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
+                            @Nonnull final EntityActionDao entityActionDao,
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
                             final long actionTimeoutSeconds) {
@@ -150,6 +157,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.operationListener = Objects.requireNonNull(operationListener);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
+        this.entityActionDao = Objects.requireNonNull(entityActionDao);
         this.discoveredTemplateDeploymentProfileNotifier = Objects.requireNonNull(discoveredTemplateDeploymentProfileNotifier);
         this.discoveryTimeoutMs = TimeUnit.MILLISECONDS.convert(discoveryTimeoutSeconds, TimeUnit.SECONDS);
         this.validationTimeoutMs = TimeUnit.MILLISECONDS.convert(validationTimeoutSeconds, TimeUnit.SECONDS);
@@ -512,6 +520,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             @Nonnull final ActionResult message) {
         resultExecutor.execute(() -> {
             processActionResponse(operation, message);
+            updateControllableState(operation);
         });
     }
 
@@ -521,6 +530,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             resultExecutor.execute(() -> {
                 ((Action)operation).updateProgress(message.getActionProgress().getResponse());
                 operationListener.notifyOperationState(operation);
+                updateControllableState((Action) operation);
             });
         }
     }
@@ -736,5 +746,34 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 .filter(type::isInstance)
                 .forEach(op -> opBuilder.add(type.cast(op)));
         return opBuilder.build();
+    }
+
+    private void updateControllableState(@Nonnull final Action action) {
+        try {
+            final Optional<ActionState> actionState = getActionState(action.getStatus());
+            if (actionState.isPresent()) {
+                entityActionDao.updateActionState(action.getActionId(), actionState.get());
+            }
+        } catch (DataAccessException e) {
+            logger.error("Failed to update controllable table for action {}: {}",
+                    action.getActionId(), e.getMessage());
+        } catch (ControllableRecordNotFoundException e) {
+            logger.error("There is no existed action {}, Failed to update controllable table." ,
+                    action.getActionId());
+        }
+    }
+
+    private Optional<ActionState> getActionState(@Nonnull final Status status) {
+        switch (status) {
+            case IN_PROGRESS:
+                return Optional.of(ActionState.IN_PROGRESS);
+            case SUCCESS:
+                return Optional.of(ActionState.SUCCEEDED);
+            case FAILED:
+                return Optional.of(ActionState.FAILED);
+            default:
+                logger.warn("Not supported action state {} for controllable flag", status);
+                return Optional.empty();
+        }
     }
 }

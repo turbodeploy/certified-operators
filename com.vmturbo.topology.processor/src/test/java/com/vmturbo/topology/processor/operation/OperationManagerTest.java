@@ -52,6 +52,7 @@ import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
+import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -90,10 +91,12 @@ public class OperationManagerTest {
 
     private DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader = Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
 
+    private EntityActionDao entityActionDao = Mockito.mock(EntityActionDao.class);
+
     private final OperationManager operationManager = new OperationManager(
             identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener,
-            entityStore, discoveredGroupUploader, discoveredTemplatesUploader,
+            entityStore, discoveredGroupUploader, discoveredTemplatesUploader, entityActionDao,
             10, 10, 10);
 
     private long probeId;

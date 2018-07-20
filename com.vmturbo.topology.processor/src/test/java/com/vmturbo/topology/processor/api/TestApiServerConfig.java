@@ -26,6 +26,7 @@ import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
+import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -36,13 +37,13 @@ import com.vmturbo.topology.processor.identity.services.HeuristicsMatcher;
 import com.vmturbo.topology.processor.identity.storage.IdentityDatabaseStore;
 import com.vmturbo.topology.processor.identity.storage.IdentityServiceInMemoryUnderlyingStore;
 import com.vmturbo.topology.processor.operation.OperationManager;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.rest.OperationController;
 import com.vmturbo.topology.processor.rest.ProbeController;
 import com.vmturbo.topology.processor.rest.TargetController;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
 /**
@@ -116,6 +117,11 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public EntityActionDao controllableDao() {
+        return Mockito.mock(EntityActionDao.class);
+    }
+
+    @Bean
     public IdentityProvider identityProvider() {
             return Mockito.spy(new IdentityProviderImpl(identityService(), keyValueStore(), 0L));
     }
@@ -181,7 +187,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public OperationManager operationManager() {
         return new OperationManager(identityProvider(), targetStore(), probeStore(),
                 remoteMediation(), topologyProcessorNotificationSender(),
-                entityRepository(), groupRecorder(), discoveredTemplatesUploader(),
+                entityRepository(), groupRecorder(), discoveredTemplatesUploader(), controllableDao(),
             1L, 1L, 1L);
     }
 
@@ -197,7 +203,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public ActionExecutionRpcService actionExecutionRpcService() {
-        return new ActionExecutionRpcService(entityRepository(), operationManager());
+        return new ActionExecutionRpcService(entityRepository(), operationManager(), controllableDao());
     }
 
 }

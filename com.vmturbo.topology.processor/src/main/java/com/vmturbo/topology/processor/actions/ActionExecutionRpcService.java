@@ -1,13 +1,17 @@
 package com.vmturbo.topology.processor.actions;
 
+import static com.vmturbo.common.protobuf.ActionDTOUtil.getProviderEntityIdsFromMoveAction;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.exception.DataAccessException;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
@@ -27,6 +31,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.CommodityAt
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.operation.IOperationManager;
@@ -41,10 +46,14 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
     private final IOperationManager operationManager;
 
+    private final EntityActionDao entityActionDao;
+
     public ActionExecutionRpcService(@Nonnull final EntityStore entityStore,
-                    @Nonnull final IOperationManager operationManager) {
+                    @Nonnull final IOperationManager operationManager,
+                    @Nonnull final EntityActionDao entityActionDao) {
         this.entityStore = Objects.requireNonNull(entityStore);
         this.operationManager = Objects.requireNonNull(operationManager);
+        this.entityActionDao = Objects.requireNonNull(entityActionDao);
     }
 
     @Override
@@ -181,7 +190,13 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     @Nonnull final ActionDTO.Move moveAction)
                                     throws InterruptedException, ProbeException,
                                     TargetNotFoundException, CommunicationException, ActionExecutionException {
-
+        final Set<Long> entityIds = getProviderEntityIdsFromMoveAction(moveAction);
+        try {
+            // insert records to controllable table which have "queued" status.
+            entityActionDao.insertAction(actionId, entityIds);
+        } catch (DataAccessException e) {
+            logger.error("Failed to create queued controllable records for action: {}", actionId);
+        }
         List<ActionItemDTO> actions = Lists.newArrayList();
         final PerTargetInfo targetInfo = getPerTargetInfo(targetId, moveAction.getTarget().getId(), "target");
         for (ChangeProvider change : moveAction.getChangesList()) {

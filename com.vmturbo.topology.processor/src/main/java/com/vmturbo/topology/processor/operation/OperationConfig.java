@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
+import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
@@ -28,7 +29,8 @@ import com.vmturbo.topology.processor.plan.PlanConfig;
     TargetConfig.class,
     IdentityProviderConfig.class,
     TopologyProcessorApiConfig.class,
-    PlanConfig.class
+    PlanConfig.class,
+    ControllableConfig.class
 })
 public class OperationConfig {
 
@@ -54,6 +56,9 @@ public class OperationConfig {
     private TopologyProcessorApiConfig apiConfig;
 
     @Autowired
+    private ControllableConfig controllableConfig;
+
+    @Autowired
     private PlanConfig discoveredTemplateDeploymentProfileConfig;
 
     @Value("${discoveryTimeoutSeconds}")
@@ -75,6 +80,7 @@ public class OperationConfig {
             entityConfig.entityStore(),
             groupConfig.discoveredGroupUploader(),
             discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
+            controllableConfig.entityActionDaoImp(),
             discoveryTimeoutSeconds,
             validationTimeoutSeconds,
             actionTimeoutSeconds

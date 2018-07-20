@@ -44,6 +44,7 @@ import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
+import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
@@ -422,6 +423,23 @@ public class Stages {
             reservationManager.applyReservation(input);
         }
     }
+
+    /**
+     * This stage is to update entity controllable flag.
+     */
+    public static class ControllableStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
+        private final ControllableManager controllableManager;
+
+        public ControllableStage(@Nonnull final ControllableManager controllableManager) {
+            this.controllableManager = Objects.requireNonNull(controllableManager);
+        }
+
+        @Override
+        public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
+            controllableManager.applyControllable(input);
+        }
+    }
+
 
     /**
      * The ScopeResolutionStage will translate a list of scope entries (specified in the PlanScope)

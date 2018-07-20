@@ -65,6 +65,8 @@ topology-processor:
   dbSchemaName: 'topology_processor'
   sqlDialect: 'MARIADB'
   mariadbHealthCheckIntervalSeconds: 60
+  controllableInProgressRecordExpiredSeconds: 3600
+  controllableSucceedRecordExpiredSeconds: 1800
   # END - database-related properties
 
   # authentication-related properties

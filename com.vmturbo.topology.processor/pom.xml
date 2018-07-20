@@ -106,6 +106,10 @@
                                     <name>com.vmturbo.topology.processor.identity.storage.EntityInMemoryProxyDescriptor</name>
                                     <converter>com.vmturbo.topology.processor.identity.storage.EntityInMemoryProxyDescriptorConverter</converter>
                                 </customType>
+                                <customType>
+                                    <name>java.time.LocalDateTime</name>
+                                    <converter>com.vmturbo.sql.utils.LocalDateTimeConverter</converter>
+                                </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
@@ -114,6 +118,10 @@
                                     <name>com.vmturbo.topology.processor.identity.storage.EntityInMemoryProxyDescriptor</name>
                                     <expression>.*\.assigned_identity\.properties</expression>
                                 </forcedType>
+                                <forcedType>
+                                    <name>java.time.LocalDateTime</name>
+                                    <expression>.*\..*_time</expression>
+                                </forcedType>>
                             </forcedTypes>
                         </database>
                         <generate>

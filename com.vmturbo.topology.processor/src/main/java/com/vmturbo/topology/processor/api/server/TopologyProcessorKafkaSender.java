@@ -19,8 +19,9 @@ public class TopologyProcessorKafkaSender {
      * @param kafkaMessageProducer kafka producer to send through
      * @return topology processor notification sender.
      */
-    public static TopologyProcessorNotificationSender create(@Nonnull ExecutorService threadPool,
-            @Nonnull KafkaMessageProducer kafkaMessageProducer) {
+    public static TopologyProcessorNotificationSender create(
+            @Nonnull final ExecutorService threadPool,
+            @Nonnull final KafkaMessageProducer kafkaMessageProducer) {
         return new TopologyProcessorNotificationSender(threadPool,
                 kafkaMessageProducer.messageSender(
                         TopologyProcessorClient.TOPOLOGY_LIVE),

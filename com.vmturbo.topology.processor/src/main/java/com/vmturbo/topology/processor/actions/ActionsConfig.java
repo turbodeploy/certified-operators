@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.topology.ActionExecutionREST.ActionExecutionServiceController;
+import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 
@@ -13,7 +14,7 @@ import com.vmturbo.topology.processor.operation.OperationConfig;
  * Configuration for action execution.
  */
 @Configuration
-@Import({EntityConfig.class, OperationConfig.class})
+@Import({EntityConfig.class, OperationConfig.class, ControllableConfig.class})
 public class ActionsConfig {
 
     @Autowired
@@ -22,10 +23,14 @@ public class ActionsConfig {
     @Autowired
     private OperationConfig operationConfig;
 
+    @Autowired
+    private ControllableConfig controllableConfig;
+
     @Bean
     public ActionExecutionRpcService actionExecutionService() {
         return new ActionExecutionRpcService(entityConfig.entityStore(),
-                operationConfig.operationManager());
+                operationConfig.operationManager(),
+                controllableConfig.entityActionDaoImp());
     }
 
     @Bean

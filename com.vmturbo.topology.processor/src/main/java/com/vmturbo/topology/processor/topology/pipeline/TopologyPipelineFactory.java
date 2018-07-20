@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
+import com.vmturbo.topology.processor.controllable.ControllableManager;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -36,6 +37,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.AddDatacenterPref
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.ControllableStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
@@ -99,6 +101,8 @@ public class TopologyPipelineFactory {
 
     private final SupplyChainValidator supplyChainValidator;
 
+    private final ControllableManager controllableManager;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -115,7 +119,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final StitchingGroupFixer stitchingGroupFixer,
                                    @Nonnull final EntityValidator entityValidator,
                                    @Nonnull final SupplyChainValidator supplyChainValidator,
-                                   @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache) {
+                                   @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
+                                   @Nonnull final ControllableManager controllableManager) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -133,6 +138,7 @@ public class TopologyPipelineFactory {
         this.discoveredClusterConstraintCache = Objects.requireNonNull(discoveredClusterConstraintCache);
         this.entityValidator = Objects.requireNonNull(entityValidator);
         this.supplyChainValidator = Objects.requireNonNull(supplyChainValidator);
+        this.controllableManager = Objects.requireNonNull(controllableManager);
     }
 
     /**
@@ -172,6 +178,7 @@ public class TopologyPipelineFactory {
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
                 .addStage(new ReservationStage(reservationManager))
+                .addStage(new ControllableStage(controllableManager))
                 .addStage(new GraphCreationStage())
                 .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
                 .addStage(new PolicyStage(policyManager))

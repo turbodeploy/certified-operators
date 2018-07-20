@@ -1,6 +1,7 @@
 package com.vmturbo.common.protobuf;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -8,6 +9,8 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -19,6 +22,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -26,6 +30,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Utility functions for dealing with {@link ActionDTO} protobuf objects.
  */
 public class ActionDTOUtil {
+    private static final Logger logger = LogManager.getLogger();
 
     public static final double NORMAL_SEVERITY_THRESHOLD = Integer.getInteger("importance.normal", -1000).doubleValue();
     public static final double MINOR_SEVERITY_THRESHOLD = Integer.getInteger("importance.minor", 0).doubleValue();
@@ -206,5 +211,31 @@ public class ActionDTOUtil {
             default:
                 return ActionType.NONE;
         }
+    }
+
+    /**
+     * Get a set of provider entity ids for the input Move action.
+     *
+     * @param moveAction a {@link Move} action.
+     * @return a set of provider entity ids.
+     */
+    public static Set<Long> getProviderEntityIdsFromMoveAction(@Nonnull final Move moveAction) {
+        // right now, only support controllable flag for VM move actions.
+        if (moveAction.getTarget().hasType()
+                && moveAction.getTarget().getType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+            logger.warn("Ignore controllable logic for Move action with type: " +
+                    moveAction.getTarget().getType());
+            return Collections.emptySet();
+        }
+        final Set<Long> entityIds = new HashSet<>();
+        for (ChangeProvider changeProvider : moveAction.getChangesList()) {
+            if (changeProvider.hasSource()) {
+                entityIds.add(changeProvider.getSource().getId());
+            }
+            if (changeProvider.hasDestination()) {
+                entityIds.add(changeProvider.getDestination().getId());
+            }
+        }
+        return entityIds;
     }
 }

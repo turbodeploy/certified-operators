@@ -60,6 +60,7 @@ import com.vmturbo.topology.processor.api.impl.OperationRESTApi.ValidateAllRespo
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
+import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -75,12 +76,12 @@ import com.vmturbo.topology.processor.operation.OperationMessageHandler;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
+import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
-import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
 /**
@@ -155,6 +156,11 @@ public class OperationControllerTest {
             return Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
         }
 
+        @Bean
+        EntityActionDao controllableDao() {
+            return Mockito.mock(EntityActionDao.class);
+        }
+
         @SuppressWarnings("unchecked")
         OperationListener operationListener() {
             return Mockito.mock(OperationListener.class);
@@ -168,7 +174,7 @@ public class OperationControllerTest {
                 mockRemoteMediation(),
                 operationListener(),
                 entityRepository(),
-                groupRecorder(), discoveredTemplatesUploader(),
+                groupRecorder(), discoveredTemplatesUploader(), controllableDao(),
                 10, 10, 10
             );
         }
