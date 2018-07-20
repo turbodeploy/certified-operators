@@ -15,6 +15,7 @@ import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -46,6 +47,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -66,6 +68,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
+import com.vmturbo.common.protobuf.group.GroupDTO.TempGroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -84,6 +87,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChain.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
@@ -497,7 +502,7 @@ public class StatsServiceTest {
     }
 
     @Test
-    public void testGetStatsByUuidsQueryHistorical() throws Exception {
+    public void testGetStatsByUuidsQueryHistoricalNoGlobalEntityType() throws Exception {
 
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Lists.newArrayList("1"));
@@ -506,7 +511,8 @@ public class StatsServiceTest {
         inputDto.setPeriod(period);
 
         final Set<Long> expandedUids = Sets.newHashSet(1L);
-        when(groupExpander.expandUuids(anySetOf(String.class))).thenReturn(Sets.newHashSet(1L));
+        when(groupExpander.getGroup("1")).thenReturn(Optional.empty());
+        when(groupExpander.expandUuids(anySetOf(String.class))).thenReturn(expandedUids);
 
         final EntityStatsPaginationRequest paginationRequest =
                 spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
@@ -515,7 +521,7 @@ public class StatsServiceTest {
                 .build())).thenReturn(ImmutableMap.of(1L, Optional.of(ENTITY_DESCRIPTOR)));
 
         final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
-        when(statsMapper.toEntityStatsRequest(expandedUids, period, paginationRequest))
+        when(statsMapper.toEntityStatsRequest(any(), eq(period), eq(paginationRequest)))
             .thenReturn(request);
 
         final String nextCursor = "you're next!";
@@ -539,7 +545,76 @@ public class StatsServiceTest {
 
         verify(groupExpander).expandUuids(Collections.singleton("1"));
         verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids).build());
-        verify(statsMapper).toEntityStatsRequest(expandedUids, period, paginationRequest);
+        verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                    .addEntities(1L))
+                .build(), period, paginationRequest);
+        verify(statsHistoryServiceSpy).getEntityStats(request);
+        verify(statsMapper).toStatsSnapshotApiDtoList(ENTITY_STATS);
+
+        verify(paginationRequest).nextPageResponse(any(), eq(nextCursor));
+
+
+        assertThat(response.getRawResults().size(), equalTo(1));
+
+        final EntityStatsApiDTO entityStatDto = response.getRawResults().get(0);
+        assertThat(entityStatDto.getStats(), is(statDtos));
+        assertThat(entityStatDto.getUuid(), is(ENTITY_DESCRIPTOR.getUuid()));
+        assertThat(entityStatDto.getDisplayName(), is(ENTITY_DESCRIPTOR.getDisplayName()));
+        assertThat(entityStatDto.getClassName(), is(ENTITY_DESCRIPTOR.getClassName()));
+
+    }
+
+    @Test
+    public void testGetStatsByUuidsQueryHistoricalWithGlobalEntityType() throws Exception {
+
+        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Lists.newArrayList("1"));
+        StatPeriodApiInputDTO period = buildStatPeriodApiInputDTO(2000L, "1000",
+                "1000", "a");
+        inputDto.setPeriod(period);
+
+        final Set<Long> expandedUids = Sets.newHashSet(1L);
+        when(groupExpander.getGroup("1")).thenReturn(Optional.of(Group.newBuilder()
+            .setTempGroup(TempGroupInfo.newBuilder()
+                    .setEntityType(ServiceEntityMapper.fromUIEntityType(PHYSICAL_MACHINE_TYPE))
+                    .setIsGlobalScopeGroup(true))
+            .build()));
+
+        final EntityStatsPaginationRequest paginationRequest =
+                spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
+
+        when(repositoryApi.getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids)
+                .build())).thenReturn(ImmutableMap.of(1L, Optional.of(ENTITY_DESCRIPTOR)));
+
+        final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
+        when(statsMapper.toEntityStatsRequest(any(), eq(period), eq(paginationRequest)))
+                .thenReturn(request);
+
+        final String nextCursor = "you're next!";
+        when(statsHistoryServiceSpy.getEntityStats(request)).thenReturn(
+                GetEntityStatsResponse.newBuilder()
+                        .addEntityStats(ENTITY_STATS)
+                        .setPaginationResponse(PaginationResponse.newBuilder()
+                                .setNextCursor(nextCursor))
+                        .build());
+
+        final List<StatSnapshotApiDTO> statDtos = Collections.singletonList(new StatSnapshotApiDTO());
+        when(statsMapper.toStatsSnapshotApiDtoList(ENTITY_STATS)).thenReturn(statDtos);
+
+        // act
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+
+        // Assert
+        verify(statsHistoryServiceSpy, times(0)).getProjectedStats(anyObject(),
+                anyObject());
+
+        verify(groupExpander, never()).expandUuids(any());
+        verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedUids).build());
+        verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
+                .setEntityType(ServiceEntityMapper.fromUIEntityType(PHYSICAL_MACHINE_TYPE))
+                .build(), period, paginationRequest);
         verify(statsHistoryServiceSpy).getEntityStats(request);
         verify(statsMapper).toStatsSnapshotApiDtoList(ENTITY_STATS);
 
@@ -695,11 +770,11 @@ public class StatsServiceTest {
         when(nodeFetcherBuilder.fetch()).thenReturn(supplyChainQueryResult);
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
 
-
-        final Set<Long> pmIds = Collections.singleton(pmId);
-
         final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
-        when(statsMapper.toEntityStatsRequest(pmIds, period, paginationRequest)).thenReturn(request);
+        when(statsMapper.toEntityStatsRequest(any(), eq(period), eq(paginationRequest))).thenReturn(request);
+        when(statsMapper.normalizeRelatedType(inputDto.getRelatedType())).thenReturn(inputDto.getRelatedType());
+
+        when(groupExpander.getGroup(any())).thenReturn(Optional.empty());
 
         // We don't care about the result - for this test we just want to make sure
         // that the vm ID gets expanded into the PM id.
@@ -709,8 +784,13 @@ public class StatsServiceTest {
             // This is expected, since we didn't mock out the call to the repository API.
         }
 
+        // Make sure we normalize the related entity type.
+        verify(statsMapper, atLeastOnce()).normalizeRelatedType(inputDto.getRelatedType());
         // Make sure that the stats mapper got called with the right IDs.
-        verify(statsMapper).toEntityStatsRequest(pmIds, period, paginationRequest);
+        verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                        .addEntities(pmId))
+                .build(), period, paginationRequest);
     }
 
     @Test
@@ -831,19 +911,9 @@ public class StatsServiceTest {
         when(statsMapper.normalizeRelatedType(PHYSICAL_MACHINE_TYPE)).thenReturn(PHYSICAL_MACHINE_TYPE);
 
         final Set<Long> expandedIds = Sets.newHashSet(1L);
-        final Map<String, SupplyChainNode> supplyChainResult =
-                ImmutableMap.of(PHYSICAL_MACHINE_TYPE, SupplyChainNode.newBuilder()
-                        .putMembersByState(0, MemberList.newBuilder()
-                                .addMemberOids(1L)
-                                .build())
-                        .build());
-        final SupplyChainNodeFetcherBuilder builder = mock(SupplyChainNodeFetcherBuilder.class);
-        when(builder.entityTypes(any())).thenReturn(builder);
-        when(builder.fetch()).thenReturn(supplyChainResult);
-        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(builder);
 
         final GetEntityStatsRequest request = GetEntityStatsRequest.getDefaultInstance();
-        when(statsMapper.toEntityStatsRequest(expandedIds, period, paginationRequest))
+        when(statsMapper.toEntityStatsRequest(any(), eq(period), eq(paginationRequest)))
             .thenReturn(request);
 
         final EntityStats entityStats = EntityStats.newBuilder()
@@ -877,8 +947,9 @@ public class StatsServiceTest {
 
         // Assert
         verify(statsMapper).normalizeRelatedType(PHYSICAL_MACHINE_TYPE);
-        verify(supplyChainFetcherFactory).newNodeFetcher();
-        verify(statsMapper).toEntityStatsRequest(expandedIds, period, paginationRequest);
+        verify(statsMapper).toEntityStatsRequest(EntityStatsScope.newBuilder()
+                .setEntityType(ServiceEntityMapper.fromUIEntityType(PHYSICAL_MACHINE_TYPE))
+                .build(), period, paginationRequest);
         verify(statsHistoryServiceSpy).getEntityStats(request);
         verify(repositoryApi).getServiceEntitiesById(ServiceEntitiesRequest.newBuilder(expandedIds).build());
         verify(statsMapper).toStatsSnapshotApiDtoList(entityStats);

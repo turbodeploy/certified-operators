@@ -36,6 +36,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsReq
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
@@ -268,7 +269,7 @@ public class StatsMapper {
     /**
      * Create a {@link GetEntityStatsRequest}.
      *
-     * @param entityIds The IDs to get stats for.
+     * @param entityStatsScope The {@link EntityStatsScope} for the request.
      * @param statApiInput A {@link StatApiInputDTO} specifying query options.
      * @param paginationRequest A {@link EntityStatsPaginationRequest} specifying the pagination
      *                          parameters.
@@ -276,13 +277,13 @@ public class StatsMapper {
      */
     @Nonnull
     public GetEntityStatsRequest toEntityStatsRequest(
-            @Nonnull final Set<Long> entityIds,
+            @Nonnull final EntityStatsScope entityStatsScope,
             @Nonnull final StatPeriodApiInputDTO statApiInput,
             @Nonnull final EntityStatsPaginationRequest paginationRequest) {
         return GetEntityStatsRequest.newBuilder()
                 .setFilter(newPeriodStatsFilter(statApiInput, Optional.empty()))
                 .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                .addAllEntities(entityIds)
+                .setScope(entityStatsScope)
                 .build();
     }
 

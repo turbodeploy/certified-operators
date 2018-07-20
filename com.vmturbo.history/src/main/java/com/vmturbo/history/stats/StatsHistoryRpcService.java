@@ -14,7 +14,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -46,6 +45,7 @@ import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
@@ -250,12 +250,20 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public void getEntityStats(@Nonnull GetEntityStatsRequest request,
                                @Nonnull StreamObserver<GetEntityStatsResponse> responseObserver) {
-        final Set<String> targetEntities = request.getEntitiesList().stream()
-                .map(id -> Long.toString(id))
-                .collect(Collectors.toSet());
+        final EntityStatsScope scope = request.getScope();
+        if (scope.hasEntityList() &&
+                scope.getEntityList().getEntitiesList().isEmpty()) {
+            // It's not an error to request stats for "no" entities, but you will get no results :)
+            responseObserver.onNext(GetEntityStatsResponse.getDefaultInstance());
+            responseObserver.onCompleted();
+            return;
+        } else if (!(scope.hasEntityList() || scope.hasEntityType())) {
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
+                "Scope must have either an entity type or  a list of entity IDs.").asException());
+        }
         try {
             final Timer timer = GET_ENTITY_STATS_DURATION_SUMMARY.startTimer();
-            final StatRecordPage recordPage = liveStatsReader.getPaginatedStatsRecords(targetEntities,
+            final StatRecordPage recordPage = liveStatsReader.getPaginatedStatsRecords(request.getScope(),
                     request.getFilter(),
                     paginationParamsFactory.newPaginationParams(request.getPaginationParams()));
 
@@ -281,15 +289,30 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             timer.observeDuration();
         } catch (VmtDbException e) {
             responseObserver.onError(Status.INTERNAL
-                    .withDescription("DB Error fetching stats for " + targetEntities.size() + " entities.")
+                    .withDescription("DB Error fetching stats for " + scopeErrorDescription(scope))
                     .withCause(e)
                     .asException());
         } catch (RuntimeException e) {
-            logger.error("Internal exception fetching stats for " + targetEntities.size() + " entities.");
+            logger.error("Internal exception fetching stats for " + scopeErrorDescription(scope));
             responseObserver.onError(Status.INTERNAL
-                    .withDescription("Internal Error fetching stats for " + targetEntities.size() + " entities.")
+                    .withDescription("Internal Error fetching stats for " + scopeErrorDescription(scope))
                     .withCause(e)
                     .asException());
+        }
+    }
+
+    /**
+     * Utility method to describe a scope (mostly for logging/error messages).
+     *
+     * @param scope The {@link EntityStatsScope}.
+     * @return A string usable for error messages and logs.
+     */
+    @Nonnull
+    private String scopeErrorDescription(@Nonnull final EntityStatsScope scope) {
+        if (scope.hasEntityType()) {
+            return "scope with global entity type " + scope.getEntityType();
+        } else {
+            return "scope with " + scope.getEntityList().getEntitiesCount() + " entities";
         }
     }
 

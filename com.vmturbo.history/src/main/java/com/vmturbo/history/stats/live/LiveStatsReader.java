@@ -56,6 +56,7 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
@@ -168,7 +169,7 @@ public class LiveStatsReader {
      * @throws VmtDbException If there is an error interacting with the database.
      */
     @Nonnull
-    public StatRecordPage getPaginatedStatsRecords(@Nonnull final Set<String> entityIds,
+    public StatRecordPage getPaginatedStatsRecords(@Nonnull final EntityStatsScope entityStatsScope,
                                      @Nonnull final StatsFilter statsFilter,
                                      @Nonnull final EntityStatsPaginationParams paginationParams) throws VmtDbException {
         final Optional<TimeRange> timeRangeOpt = timeRangeFactory.resolveTimeRange(statsFilter);
@@ -182,7 +183,7 @@ public class LiveStatsReader {
 
         // We first get the IDs of the entities in the next page using the most recent snapshot
         // in the time range.
-        final NextPageInfo nextPageInfo = historydbIO.getNextPage(entityIds,
+        final NextPageInfo nextPageInfo = historydbIO.getNextPage(entityStatsScope,
                 timeRange.getMostRecentSnapshotTime(),
                 timeRange.getTimeFrame(),
                 paginationParams);

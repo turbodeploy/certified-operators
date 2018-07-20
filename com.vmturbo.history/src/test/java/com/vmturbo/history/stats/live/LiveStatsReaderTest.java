@@ -22,6 +22,8 @@ import org.mockito.stubbing.Answer;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.history.db.BasedbIO.Style;
@@ -55,6 +57,10 @@ public class LiveStatsReaderTest {
     @Test
     public void testGetStatPage() throws VmtDbException {
         final Set<String> entityIds = Collections.singleton("1");
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                        .addEntities(1))
+                .build();
         final StatsFilter statsFilter = StatsFilter.newBuilder()
                 .setStartDate(123L)
                 .build();
@@ -70,7 +76,7 @@ public class LiveStatsReaderTest {
         when(nextPageInfo.getEntityOids()).thenReturn(Lists.newArrayList(entityIds));
         when(nextPageInfo.getTable()).thenReturn(TABLE);
         when(nextPageInfo.getNextCursor()).thenReturn(nextCursor);
-        when(mockHistorydbIO.getNextPage(entityIds, TIMESTAMP, TIME_FRAME, paginationParams))
+        when(mockHistorydbIO.getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams))
                 .thenReturn(nextPageInfo);
 
         Select<?> query = mock(Select.class);
@@ -87,10 +93,10 @@ public class LiveStatsReaderTest {
         when(mockHistorydbIO.execute(Style.FORCED, query)).thenReturn(records);
 
         final StatRecordPage result =
-                liveStatsReader.getPaginatedStatsRecords(entityIds, statsFilter, paginationParams);
+                liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
 
         verify(timeRangeFactory).resolveTimeRange(statsFilter);
-        verify(mockHistorydbIO).getNextPage(entityIds, TIMESTAMP, TIME_FRAME, paginationParams);
+        verify(mockHistorydbIO).getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams);
         verify(statsQueryFactory).createStatsQuery(nextPageInfo.getEntityOids(), TABLE, statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
 
         assertThat(result.getNextCursor(), is(nextCursor));

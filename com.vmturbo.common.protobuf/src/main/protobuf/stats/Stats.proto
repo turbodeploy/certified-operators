@@ -20,10 +20,25 @@ message GetAveragedEntityStatsRequest {
     optional string relatedEntityType = 3;
 }
 
+// The scope for an entity stats query.
+message EntityStatsScope {
+    message EntityList {
+        // If empty, return no results.
+        repeated int64 entities = 1;
+    }
+
+    oneof scope {
+        // Scope the entity stats request to a specific list of entities.
+        EntityList entity_list = 1;
+
+        // Scope the entity stats request to entities of a specific type.
+        int32 entity_type = 2;
+    }
+}
+
 message GetEntityStatsRequest {
-    // The entities to gather stats for. These should be the IDs of individual entities.
-    // If empty, return no results.
-    repeated int64 entities = 1;
+    // The entities to gather stats for. If not set, return no results.
+    optional EntityStatsScope scope = 1;
 
     // The filter to apply to the stats. If not set, retrieve all stats.
     optional StatsFilter filter = 2;

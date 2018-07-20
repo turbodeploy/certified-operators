@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
@@ -203,16 +204,14 @@ public abstract class HistoryPerformanceTest {
                 .setEntityStats(EntityStatsOrderBy.newBuilder()
                     .setStatName("Mem")))
             .build();
-        final GetEntityStatsRequest.Builder requestBuilder = GetEntityStatsRequest.newBuilder()
+        final GetEntityStatsRequest request = GetEntityStatsRequest.newBuilder()
             .setFilter(makeStatsFilter())
-            .setPaginationParams(paginationParams);
+            .setPaginationParams(paginationParams)
+            .setScope(EntityStatsScope.newBuilder()
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE))
+            .build();
 
-        topology.stream()
-            .filter(entity -> entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
-            .map(TopologyEntityDTO::getOid)
-            .forEach(requestBuilder::addEntities);
-
-        final GetEntityStatsResponse response = statsService.getEntityStats(requestBuilder.build());
+        final GetEntityStatsResponse response = statsService.getEntityStats(request);
 
         logger.info("Fetched first page of stats, with {} results.", response.getEntityStatsCount());
     }

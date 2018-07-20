@@ -62,8 +62,11 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 import org.springframework.beans.factory.annotation.Value;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.api.enums.DayOfWeek;
 import com.vmturbo.api.enums.Period;
@@ -74,6 +77,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
@@ -545,8 +549,7 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Get the next page of entity IDs given a time frame and pagination parameters.
      *
-     * @param entityIds The total set of entity IDs to consider. All entities should be of the same
-     *                  type.
+     * @param entityScope The {@link EntityStatsScope} for the stats query.
      * @param timestamp The timestamp to use to calculate the next page.
      * @param tFrame The timeframe to use for the timestamp.
      * @param paginationParams The pagination parameters. We sort the results by the average value
@@ -556,24 +559,38 @@ public class HistorydbIO extends BasedbIO {
      * @throws IllegalArgumentException If the input is invalid.
      */
     @Nonnull
-    public NextPageInfo getNextPage(final Set<String> entityIds,
+    public NextPageInfo getNextPage(final EntityStatsScope entityScope,
                                     final Timestamp timestamp,
                                     final TimeFrame tFrame,
                                     final EntityStatsPaginationParams paginationParams) throws VmtDbException {
-        final List<String> entityTypes = getTypesForEntities(entityIds).values().stream()
-                .distinct()
-                .collect(Collectors.toList());
-        if (entityTypes.isEmpty()) {
-            logger.error("No entity types resolved from provided list of {} entity IDs.", entityIds);
-            throw new IllegalArgumentException("Entity IDs do not resolve to entity type.");
-        } if (entityTypes.size() > 1) {
-            logger.error("Attempting to paginate across multiple entity types: {}",
-                    entityTypes);
-            throw new IllegalArgumentException("Pagination across multiple entity types not supported.");
+        final EntityType entityType;
+        // This will be an empty list if entity list is not set.
+        // This should NOT be an empty list if the entity list is set (we should filter out
+        // those requests earlier on).
+        final Set<String> requestedIdSet = Sets.newHashSet(Collections2.transform(
+                entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
+        // Make sure the layers that call this method filtered out invalid arguments.
+        Preconditions.checkArgument(entityScope.hasEntityType() || !requestedIdSet.isEmpty());
+        if (entityScope.hasEntityList()) {
+            final List<String> entityTypes = getTypesForEntities(requestedIdSet).values().stream()
+                    .distinct()
+                    .collect(Collectors.toList());
+            if (entityTypes.isEmpty()) {
+                logger.error("No entity types resolved from provided list of {} entity IDs.", entityScope);
+                throw new IllegalArgumentException("Entity IDs do not resolve to entity type.");
+            }
+            if (entityTypes.size() > 1) {
+                logger.error("Attempting to paginate across multiple entity types: {}",
+                        entityTypes);
+                throw new IllegalArgumentException("Pagination across multiple entity types not supported.");
+            }
+            entityType = EntityType.getTypeForName(entityTypes.get(0))
+                    .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityTypes.get(0)));
+        } else {
+            entityType = getEntityType(entityScope.getEntityType())
+                    .orElseThrow(() -> new IllegalArgumentException("Invalid entity type: " + entityScope.getEntityType()));
         }
 
-        final EntityType entityType = EntityType.getTypeForName(entityTypes.get(0))
-            .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityTypes.get(0)));
         final SeekPaginationCursor seekPaginationCursor = SeekPaginationCursor.parseCursor(paginationParams.getNextCursor().orElse(""));
         // Now we have the entity type, we can use it together with the time frame to
         // figure out the table to paginate in.
@@ -589,7 +606,9 @@ public class HistorydbIO extends BasedbIO {
         final Field<String> uuidField = (Field<String>)dField(table, UUID);
         final Field<Double> valueField = (Field<Double>)dField(table, AVG_VALUE);
 
-        conditions.add(uuidField.in(entityIds));
+        if (!requestedIdSet.isEmpty()) {
+            conditions.add(uuidField.in(requestedIdSet));
+        }
 
         try (Connection conn = transConnection()) {
             final Result<Record2<String, Double>> results = using(conn)

@@ -60,6 +60,8 @@ import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
@@ -652,6 +654,10 @@ public class StatsHistoryRpcServiceTest {
 
     @Test
     public void testGetEntityStats() throws VmtDbException {
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                        .addEntities(1L))
+                .build();
         final StatsFilter filter = StatsFilter.newBuilder()
                 .setStartDate(100L)
                 .build();
@@ -668,7 +674,7 @@ public class StatsHistoryRpcServiceTest {
         when(statRecordPage.getNextPageRecords()).thenReturn(recordPage);
         when(statRecordPage.getNextCursor()).thenReturn(Optional.of(retCursor));
 
-        when(mockLivestatsreader.getPaginatedStatsRecords(Collections.singleton("1"), filter, paginationParams))
+        when(mockLivestatsreader.getPaginatedStatsRecords(scope, filter, paginationParams))
                 .thenReturn(statRecordPage);
         final StatSnapshot.Builder statSnapshotBuilder = StatSnapshot.newBuilder()
                 .setSnapshotDate("date to uniquely identify this snapshot");
@@ -676,7 +682,7 @@ public class StatsHistoryRpcServiceTest {
                 .createStatSnapshots(Collections.singletonList(record), false, Collections.emptyList());
 
         final GetEntityStatsResponse response = clientStub.getEntityStats(GetEntityStatsRequest.newBuilder()
-                .addEntities(1L)
+                .setScope(scope)
                 .setFilter(filter)
                 .setPaginationParams(paginationParameters)
                 .build());

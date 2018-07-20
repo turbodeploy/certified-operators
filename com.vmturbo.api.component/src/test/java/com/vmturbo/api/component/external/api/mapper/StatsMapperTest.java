@@ -41,6 +41,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
@@ -144,7 +146,10 @@ public class StatsMapperTest {
     @Test
     public void testToEntityStatsRequest() {
         // Arrange
-        Set<Long> entityOids = Sets.newHashSet(1L, 2L);
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                        .addEntities(1L))
+                .build();
         StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
         apiRequestInput.setStartDate(Long.toString(START_DATE));
         apiRequestInput.setEndDate(Long.toString(END_DATE));
@@ -174,11 +179,11 @@ public class StatsMapperTest {
         when(paginationMapper.toProtoParams(paginationRequest))
             .thenReturn(PaginationParameters.getDefaultInstance());
 
-        final GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(entityOids,
+        final GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(scope,
                 apiRequestInput, paginationRequest);
 
         // Assert
-        assertThat(requestProtobuf.getEntitiesCount(), equalTo(entityOids.size()));
+        assertThat(requestProtobuf.getScope(), equalTo(scope));
         assertTrue(requestProtobuf.hasFilter());
         final Stats.StatsFilter filter = requestProtobuf.getFilter();
         assertThat(filter.getStartDate(), equalTo(Long.valueOf(apiRequestInput.getStartDate())));
@@ -206,7 +211,10 @@ public class StatsMapperTest {
     @Test
     public void testToEntityStatsRequestDefaults() {
         // Arrange
-        Set<Long> entityOids = Sets.newHashSet(1L, 2L);
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                        .addEntities(1L))
+                .build();
         StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
 
         final EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
@@ -214,11 +222,11 @@ public class StatsMapperTest {
                 .thenReturn(PaginationParameters.getDefaultInstance());
 
         // Act
-        GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(entityOids,
+        GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(scope,
                 apiRequestInput, paginationRequest);
 
         // Assert
-        assertThat(requestProtobuf.getEntitiesCount(), equalTo(entityOids.size()));
+        assertThat(requestProtobuf.getScope(), equalTo(scope));
         assertTrue(requestProtobuf.hasFilter());
         final Stats.StatsFilter filter = requestProtobuf.getFilter();
         assertFalse(filter.hasStartDate());
