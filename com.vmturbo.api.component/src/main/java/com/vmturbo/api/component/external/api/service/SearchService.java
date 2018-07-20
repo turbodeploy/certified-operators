@@ -78,8 +78,13 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 
 /**
@@ -440,32 +445,41 @@ public class SearchService implements ISearchService {
             @Nonnull final Set<Long> expandedIds,
             @Nonnull final Search.SearchEntityOidsRequest searchRequest,
             @Nonnull final boolean isGlobalScope) {
-        // the search query with order by utilizaiton workflow will be: 1: query repository componnet
-        // to get all candidate entity oids. 2: query history component to get top X entity oids based
-        // on pagination parameters. 3: query repository to get full entity information only for top X entity oids.
-        final Set<Long> candidates = getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds, searchRequest);
         // if it is global scope and there is no other search criteria, it means all service entities
         // of same entity type are search candidates.
         final boolean isGlobalEntities =
                 isGlobalScope && inputDTO.getCriteriaList().isEmpty() && StringUtils.isEmpty(nameQuery);
-        final int entityType = ServiceEntityMapper.fromUIEntityType(inputDTO.getClassName());
-        GetPaginationEntityByUtilizationRequest request = GetPaginationEntityByUtilizationRequest.newBuilder()
-                .setEntityType(entityType)
-                .addAllEntityIds(candidates)
-                .setIsGlobal(isGlobalEntities)
+        // the search query with order by utilizaiton workflow will be:
+        // 1: (if necessary) query repository componnet to get all candidate entity oids.
+        // 2: query history component to get top X entity oids from the candidates sorted by price index.
+        // 3: query repository to get full entity information only for top X entity oids.
+        final EntityStatsScope.Builder statsScope = EntityStatsScope.newBuilder();
+        if (!isGlobalEntities) {
+            statsScope.setEntityList(EntityList.newBuilder()
+                .addAllEntities(getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds, searchRequest)));
+        } else {
+            statsScope.setEntityType(ServiceEntityMapper.fromUIEntityType(inputDTO.getClassName()));
+        }
+        final GetEntityStatsResponse response = statsHistoryServiceRpc.getEntityStats(
+            GetEntityStatsRequest.newBuilder()
+                .setScope(statsScope)
+                .setFilter(StatsFilter.newBuilder()
+                    .addCommodityRequests(CommodityRequest.newBuilder()
+                        .setCommodityName("priceIndex")))
                 .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                .build();
-        GetPaginationEntityByUtilizationResponse response =
-                statsHistoryServiceRpc.getPaginationEntityByUtilization(request);
+                .build());
+        final List<Long> nextPageIds = response.getEntityStatsList().stream()
+                .map(EntityStats::getOid)
+                .collect(Collectors.toList());
         final Map<Long, ServiceEntityApiDTO> serviceEntityMap =
                 repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(Sets.newHashSet(response.getEntityIdsList())).build())
+                        ServiceEntitiesRequest.newBuilder(Sets.newHashSet(nextPageIds)).build())
                         .entrySet().stream()
                         .filter(entry -> entry.getValue().isPresent())
                         .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
         // It is important to keep the order of entityIdsList, because they have already sorted by
         // utilization.
-        final List<ServiceEntityApiDTO> entities = response.getEntityIdsList().stream()
+        final List<ServiceEntityApiDTO> entities = nextPageIds.stream()
                 .filter(serviceEntityMap::containsKey)
                 .map(serviceEntityMap::get)
                 .collect(Collectors.toList());

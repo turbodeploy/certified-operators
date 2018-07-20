@@ -35,7 +35,6 @@ import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -52,8 +51,6 @@ import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
@@ -108,10 +105,6 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     private static final String CLUSTER_STATS_TYPE_NUM_VMS = "numVMs";
 
     private static final String PROPERTY_TYPE_PREFIX_CURRENT = "current";
-
-    private static final int DEFAULT_PAGINATION_LIMIT = 100;
-
-    private static final int DEFAULT_PAGINATION_MAX = 500;
 
     private static final Summary GET_STATS_SNAPSHOT_DURATION_SUMMARY = Summary.build()
         .name("history_get_stats_snapshot_duration_seconds")
@@ -783,71 +776,5 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void getPaginationEntityByUtilization(
-            GetPaginationEntityByUtilizationRequest request,
-            StreamObserver<GetPaginationEntityByUtilizationResponse> responseObserver) {
-        if (!request.hasPaginationParams()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Must provide a " +
-                    "pagination parameter.")
-                    .asException());
-            return;
-        }
-        final PaginationParameters paginationParameters = request.getPaginationParams();
-        if (paginationParameters.getLimit() <= 0) {
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Pagination limit " +
-                    "Must be a positive integer")
-                    .asException());
-            return;
-        }
-        final List<Long> entityOids = request.getEntityIdsList();
-        final long skipCount = paginationParameters.hasCursor()
-                ? Long.valueOf(paginationParameters.getCursor())
-                : 0;
-        GetPaginationEntityByUtilizationResponse.Builder responseBuilder =
-                GetPaginationEntityByUtilizationResponse.newBuilder()
-                        .setPaginationResponse(PaginationResponse.newBuilder());
-        try {
-            final int limit = resetPaginationWithDefaultLimit(request.getPaginationParams());
-            final PaginationParameters paginationParametersWithNewLimit =
-                    PaginationParameters.newBuilder(request.getPaginationParams())
-                            // increase limit by one in order to check if there are more results left.
-                            .setLimit(limit + 1)
-                            .build();
-            final List<Long> results = historydbIO.paginateEntityByPriceIndex(entityOids, request.getEntityType(),
-                    paginationParametersWithNewLimit, request.getIsGlobal());
-            // need to remove last element from result lists.
-            responseBuilder.addAllEntityIds(results.subList(0, Math.min(limit, results.size())));
-            // if result list size is larger than limit number, it means there are more results left.
-            if (results.size() > limit) {
-                responseBuilder.getPaginationResponseBuilder()
-                        .setNextCursor(String.valueOf(skipCount + paginationParameters.getLimit()));
-            }
-            responseObserver.onNext(responseBuilder.build());
-            responseObserver.onCompleted();
-        } catch (VmtDbException e) {
-            responseObserver.onError(Status.INTERNAL.withDescription("Failed to paginate entities " +
-                    "with order by price index.")
-                    .asException());
-        }
-    }
-
-    private int resetPaginationWithDefaultLimit(@Nonnull final PaginationParameters paginationParameters) {
-        if (!paginationParameters.hasLimit()) {
-            logger.info("Search pagination with order by utilization pagination parameter not" +
-                    "provide a limit, set it to default limit number: " + DEFAULT_PAGINATION_LIMIT);
-            return DEFAULT_PAGINATION_LIMIT;
-        }
-        if (paginationParameters.getLimit() > DEFAULT_PAGINATION_MAX) {
-            logger.info("Search pagination with order by utilization pagination parameter limit " +
-                    "number is larger than default max limit, set it to default max limit: " + DEFAULT_PAGINATION_MAX);
-            return DEFAULT_PAGINATION_MAX;
-        }
-        return paginationParameters.getLimit();
     }
 }

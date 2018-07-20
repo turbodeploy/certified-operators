@@ -69,7 +69,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
@@ -288,10 +289,11 @@ public class SearchServiceTest {
                 Optional.of(supplyChainTestUtils.createServiceEntityApiDTO(1L)));
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest("0", 10, true, SearchOrderBy.UTILIZATION.name());
-        when(historyServiceSpy.getPaginationEntityByUtilization(any())).thenReturn(
-                GetPaginationEntityByUtilizationResponse.newBuilder()
-                        .addAllEntityIds(Lists.newArrayList(1L))
-                        .build());
+        when(historyServiceSpy.getEntityStats(any())).thenReturn(
+                GetEntityStatsResponse.newBuilder()
+                    .addEntityStats(EntityStats.newBuilder()
+                        .setOid(1L))
+                    .build());
         when(repositoryApi.getServiceEntitiesById(any())).thenReturn(serviceEntityMap);
         SearchPaginationResponse response = searchService.getMembersBasedOnFilter("", request, paginationRequest);
         List<BaseApiDTO> results = response.getRawResults();

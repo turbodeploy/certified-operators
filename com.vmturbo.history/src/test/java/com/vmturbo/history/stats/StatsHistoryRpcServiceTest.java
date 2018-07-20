@@ -9,7 +9,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
@@ -37,16 +36,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.annotation.Nullable;
-
-import com.google.common.collect.Lists;
-
 import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status.Code;
@@ -67,8 +63,6 @@ import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRe
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationRequest;
-import com.vmturbo.common.protobuf.stats.Stats.GetPaginationEntityByUtilizationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
@@ -91,16 +85,13 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Test gRPC methods to handle snapshot requests.
@@ -852,27 +843,5 @@ public class StatsHistoryRpcServiceTest {
         } catch (StatusRuntimeException e) {
             assertThat(e, GrpcRuntimeExceptionMatcher.hasCode(Code.INTERNAL).anyDescription());
         }
-    }
-
-    @Test
-    public void testGetPaginationEntityByUtilization() throws Exception {
-        final GetPaginationEntityByUtilizationRequest request =
-                GetPaginationEntityByUtilizationRequest.newBuilder()
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setIsGlobal(false)
-                        .addAllEntityIds(Lists.newArrayList(1L, 2L))
-                        .setPaginationParams(PaginationParameters.newBuilder()
-                                .setLimit(20))
-                .build();
-        when(historyDbio.paginateEntityByPriceIndex(request.getEntityIdsList(), request.getEntityType(),
-                PaginationParameters.newBuilder(request.getPaginationParams())
-                        .setLimit(request.getPaginationParams().getLimit() + 1)
-                        .build(),
-                request.getIsGlobal())).thenReturn(Lists.newArrayList(1L, 2L));
-        final GetPaginationEntityByUtilizationResponse response =
-                clientStub.getPaginationEntityByUtilization(request);
-        assertEquals(2L, response.getEntityIdsCount());
-        assertTrue(response.getEntityIdsList().containsAll(Lists.newArrayList(1L, 2L)));
-        assertFalse(response.getPaginationResponse().hasNextCursor());
     }
 }
