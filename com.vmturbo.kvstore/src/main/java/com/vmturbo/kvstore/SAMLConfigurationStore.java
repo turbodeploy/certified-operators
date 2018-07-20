@@ -8,7 +8,8 @@ import javax.annotation.Nonnull;
  * {@inheritDoc}
  */
 public class SAMLConfigurationStore implements ISAMLConfigurationStore {
-    public static final String API_PATH = "components/api/defaults/";
+    private final String apiPath;
+
     public static final String VMTURBO = "vmturbo";
     private final ConsulKeyValueStore consulKeyValueStore;
 
@@ -25,6 +26,7 @@ public class SAMLConfigurationStore implements ISAMLConfigurationStore {
                 consulPort,
                 kvStoreRetryIntervalMillis,
                 milliseconds);
+        this.apiPath = "components/api/instances/" + namespace + "/properties/";
         this.namespace = namespace;
     }
 
@@ -33,7 +35,7 @@ public class SAMLConfigurationStore implements ISAMLConfigurationStore {
      */
     @Override
     public void put(@Nonnull final String key, @Nonnull final String value) {
-        consulKeyValueStore.put(API_PATH + key, value);
+        consulKeyValueStore.put(apiPath + key, value);
     }
 
     /**
