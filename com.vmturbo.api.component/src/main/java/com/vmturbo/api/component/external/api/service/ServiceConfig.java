@@ -59,6 +59,13 @@ public class ServiceConfig {
 
     @Value("${targetValidationPollIntervalSeconds}")
     private Long targetValidationPollIntervalSeconds;
+
+    @Value("${targetDiscoveryTimeoutSeconds}")
+    private Long targetDiscoveryTimeoutSeconds;
+
+    @Value("${targetDiscoveryPollIntervalSeconds}")
+    private Long targetDiscoveryPollIntervalSeconds;
+
     @Value("${initialPlacementTimeoutSeconds}")
     private  Long initialPlacementTimeoutSeconds;
 
@@ -331,6 +338,8 @@ public class ServiceConfig {
         return new TargetsService(communicationConfig.topologyProcessor(),
                 Duration.ofSeconds(targetValidationTimeoutSeconds),
                 Duration.ofSeconds(targetValidationPollIntervalSeconds),
+                Duration.ofSeconds(targetDiscoveryTimeoutSeconds),
+                Duration.ofSeconds(targetDiscoveryPollIntervalSeconds),
                 licenseCheckClientConfig.licenseCheckClient());
     }
 

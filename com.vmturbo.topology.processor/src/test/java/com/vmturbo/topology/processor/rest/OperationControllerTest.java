@@ -299,7 +299,7 @@ public class OperationControllerTest {
         assertOperationsEq(firstResponse.operation, byTargetResponse.operation);
 
         // Simulate the validation completing on the server.
-        final Discovery actualDiscovery = operationManager.getLastDiscoveryForTarget(targetId).get();
+        final Discovery actualDiscovery = operationManager.getInProgressDiscoveryForTarget(targetId).get();
         operationManager.notifyDiscoveryResult(actualDiscovery,
                 com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse.getDefaultInstance());
         OperationTestUtilities.waitForDiscovery(operationManager, firstResponse.operation);
@@ -482,7 +482,7 @@ public class OperationControllerTest {
         assertOperationsEq(firstResponse.operation, byTargetResponse.operation);
 
         // Simulate the validation completing on the server.
-        final Validation actualValidation = operationManager.getLastValidationForTarget(targetId).get();
+        final Validation actualValidation = operationManager.getInProgressValidationForTarget(targetId).get();
         operationManager.notifyValidationResult(actualValidation,
                 com.vmturbo.platform.common.dto.Discovery.ValidationResponse.getDefaultInstance());
         OperationTestUtilities.waitForValidation(operationManager, firstResponse.operation);

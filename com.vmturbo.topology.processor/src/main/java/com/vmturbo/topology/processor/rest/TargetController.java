@@ -27,6 +27,9 @@ import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
@@ -65,6 +68,8 @@ public class TargetController {
     private final TopologyHandler topologyHandler;
 
     private final Scheduler scheduler;
+
+    private final Logger logger = LogManager.getLogger();
 
     public TargetController(@Nonnull final Scheduler scheduler, @Nonnull final TargetStore targetStore,
                             @Nonnull final ProbeStore probeStore, @Nonnull IOperationManager operationManager,
@@ -186,48 +191,51 @@ public class TargetController {
     }
 
     private TargetInfo targetToTargetInfo(@Nonnull final Target target) {
-        final Optional<Validation> validation =
+        final Optional<Validation> currentValidation =
+                operationManager.getInProgressValidationForTarget(target.getId());
+        final Optional<Validation> lastValidation =
                 operationManager.getLastValidationForTarget(target.getId());
-        final Optional<Discovery> discovery =
+        final Optional<Discovery> currentDiscovery =
+                operationManager.getInProgressDiscoveryForTarget(target.getId());
+        final Optional<Discovery> lastDiscovery =
                 operationManager.getLastDiscoveryForTarget(target.getId());
-        final Optional<? extends Operation> latestFinished = getLatestOperationDate(validation,
-                discovery);
+        final Optional<? extends Operation> latestFinished =
+                getLatestOperationDate(lastValidation, lastDiscovery);
         final LocalDateTime lastValidated =
                 latestFinished.isPresent() ? latestFinished.get().getCompletionTime() : null;
         boolean isProbeConnected = probeStore.isProbeConnected(target.getProbeId());
-        final String status = getStatus(latestFinished, validation, discovery, isProbeConnected);
+        final String status = getStatus(latestFinished, currentValidation, currentDiscovery, isProbeConnected);
         return success(target, isProbeConnected, status, lastValidated);
     }
 
     /**
-     * Returns status of the target, based on the last validation and discovery operations.
+     * Returns status of the target, based on the status of the inProgressValidation
+     * and discovery operations on it.
      *
      * @param latestFinished latest finished operation on the target (if present)
-     * @param validation latest known validation task (may be not finished)
-     * @param discovery latest known discovery task (may be not finished)
+     * @param inProgressValidation current validationt task
+     * @param inProgressDiscovery current discovery task
+     * @param isProbeConnected Status of the connection to the probe.
      * @return string, representing the target status.
      */
     @Nonnull
     private String getStatus(@Nonnull Optional<? extends Operation> latestFinished,
-            @Nonnull Optional<Validation> validation, @Nonnull Optional<Discovery> discovery,
+                             @Nonnull Optional<Validation> inProgressValidation,
+                             @Nonnull Optional<Discovery> inProgressDiscovery,
                              boolean isProbeConnected) {
         final String status;
-        if (validation.isPresent() && validation.get()
-                .getCompletionTime() == null) {
+        if (inProgressValidation.isPresent() && inProgressValidation.get().getUserInitiated()) {
             status = "Validation in progress";
-        } else if (discovery.isPresent() && discovery.get()
-                .getCompletionTime() == null) {
+        } else if (inProgressDiscovery.isPresent() && inProgressDiscovery.get().getUserInitiated()) {
             status = "Discovery in progress";
+        } else if (latestFinished.isPresent()) {
+            status = latestFinished.get().getStatus() ==
+                    TopologyProcessorDTO.OperationStatus.Status.SUCCESS ? VALIDATED :
+                    String.join("Validation Failed, ", latestFinished.get().getErrors());
+        } else if (!isProbeConnected) {
+            status = "Failed to connect to probe. Check if probe is running";
         } else {
-            if (!isProbeConnected) {
-                status = "Probe disconnected";
-            } else if (latestFinished.isPresent()) {
-                status = latestFinished.get().getStatus() ==
-                        TopologyProcessorDTO.OperationStatus.Status.SUCCESS ? VALIDATED :
-                        String.join(", ", latestFinished.get().getErrors());
-            } else {
-                status = "<status unknown>";
-            }
+            status = "Unknown";
         }
         return status;
     }

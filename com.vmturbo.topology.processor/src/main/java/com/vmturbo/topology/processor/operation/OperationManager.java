@@ -77,13 +77,23 @@ import com.vmturbo.topology.processor.targets.TargetStoreListener;
 @ThreadSafe
 public class OperationManager implements ProbeStoreListener, TargetStoreListener,
         IOperationManager {
-    private final Logger logger = LogManager.getLogger();
 
+    private final Logger logger = LogManager.getLogger(OperationManager.class);
+
+    // Mapping from OperationID -> Ongoing Operations
     private final ConcurrentMap<Long, Operation> ongoingOperations = new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<Long, Discovery> targetDiscoveries = new ConcurrentHashMap<>();
+    // Mapping from TargetID -> Current Discovery Operation
+    private final ConcurrentMap<Long, Discovery> currentTargetDiscoveries = new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<Long, Validation> targetValidations = new ConcurrentHashMap<>();
+    // Mapping from TargetID -> Current Validation Operation
+    private final ConcurrentMap<Long, Validation> currentTargetValidations = new ConcurrentHashMap<>();
+
+    // Mapping from TargetID -> Completed Discovery Operation
+    private final ConcurrentMap<Long, Discovery> lastCompletedTargetDiscoveries = new ConcurrentHashMap<>();
+
+    // Mapping from TargetID -> Completed Validation Operation
+    private final ConcurrentMap<Long, Validation> lastCompletedTargetValidations = new ConcurrentHashMap<>();
 
     /**
      * A set of targets for which there are pending discoveries.
@@ -259,9 +269,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 validationMessageHandler);
 
         operationStart(validation);
-        targetValidations.put(targetId, validation);
-
-        logger.info("Beginning " + validation);
+        currentTargetValidations.put(targetId, validation);
+        logger.info("Beginning {}", validation);
         return validation;
     }
 
@@ -278,7 +287,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      *
      * @param targetId The id of the target to discover.
      * @return An {@link Optional<Discovery>}. If there was no in progress discovery
-     *         for the target and the target's probe is connected, a new discovery will be initiated.
+     *         for the target and the target's probe is connected, a new discovery will be initiated
+     *         and this new Discovery operation will be returned.
      *         If there was an in progress discovery for the target or the target's probe is disconnected,
      *         returns {@link Optional#empty()}.
      * @throws TargetNotFoundException When the requested target cannot be found.
@@ -300,6 +310,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             return Optional.of(startDiscovery(targetId));
         } catch (ProbeException e) {
             pendingDiscoveries.add(targetId);
+            lastCompletedTargetDiscoveries.remove(targetId);
+            lastCompletedTargetValidations.remove(targetId);
             return Optional.empty();
         }
     }
@@ -359,9 +371,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 discoveryMessageHandler);
 
         operationStart(discovery);
-        targetDiscoveries.put(targetId, discovery);
-
-        logger.info("Beginning " + discovery);
+        currentTargetDiscoveries.put(targetId, discovery);
+        logger.info("Beginning {}", discovery);
         return discovery;
     }
 
@@ -374,15 +385,15 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     @Nonnull
     public Optional<Discovery> getInProgressDiscoveryForTarget(final long targetId) {
-        final Discovery lastDiscovery = targetDiscoveries.get(targetId);
-        return lastDiscovery == null || lastDiscovery.getStatus() != Status.IN_PROGRESS ?
-                Optional.empty() : Optional.of(lastDiscovery);
+        final Discovery currentDiscovery = currentTargetDiscoveries.get(targetId);
+        return currentDiscovery == null || currentDiscovery.getStatus() != Status.IN_PROGRESS ?
+                Optional.empty() : Optional.of(currentDiscovery);
     }
 
     @Override
     @Nonnull
     public Optional<Discovery> getLastDiscoveryForTarget(final long targetId) {
-        return Optional.ofNullable(targetDiscoveries.get(targetId));
+        return Optional.ofNullable(lastCompletedTargetDiscoveries.get(targetId));
     }
 
     @Override
@@ -399,15 +410,15 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     @Nonnull
     public Optional<Validation> getInProgressValidationForTarget(final long targetId) {
-        final Validation lastValidation = targetValidations.get(targetId);
+        final Validation lastValidation = currentTargetValidations.get(targetId);
         return lastValidation == null || lastValidation.getStatus() != Status.IN_PROGRESS ?
-                Optional.empty() : Optional.of(lastValidation);
+                Optional.empty() : Optional.ofNullable(lastValidation);
     }
 
     @Override
     @Nonnull
     public Optional<Validation> getLastValidationForTarget(final long targetId) {
-        return Optional.ofNullable(targetValidations.get(targetId));
+        return Optional.ofNullable(lastCompletedTargetValidations.get(targetId));
     }
 
     @Override
@@ -575,6 +586,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      */
     @Override
     public void onProbeRegistered(long probeId, ProbeInfo probe) {
+        logger.info("Registration of probe {}", probeId);
         resultExecutor.execute(() ->
                 targetStore.getProbeTargets(probeId).stream()
                     .map(Target::getId)
@@ -604,6 +616,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             notifyOperationCancelled(operation, "Target removed.");
         }
         pendingDiscoveries.remove(targetId);
+        lastCompletedTargetValidations.remove(targetId);
+        lastCompletedTargetDiscoveries.remove(targetId);
         discoveredGroupUploader.targetRemoved(targetId);
         discoveredTemplateDeploymentProfileNotifier.deleteTemplateDeploymentProfileByTarget(targetId);
     }
@@ -692,10 +706,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     private void activatePendingDiscovery(long targetId) {
         if (pendingDiscoveries.remove(targetId)) {
             try {
-                logger.info("Activating pending discovery for " + targetId);
+                logger.info("Activating pending discovery for {}", targetId);
                 startDiscovery(targetId);
             } catch (Exception e) {
-                logger.error("Failed to activate discovery for "  + targetId + ": ", e);
+                logger.error("Failed to activate discovery for {}", targetId, e);
             }
         }
     }
@@ -717,10 +731,24 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         } else {
             operation.fail();
         }
-        logger.info("Completed " + operation);
+        logger.info("Completed {}", operation);
 
+        Operation completedOperation = ongoingOperations.remove(operation.getId());
+        if (completedOperation != null) {
+            long targetId = operation.getTargetId();
+            if (completedOperation.getClass() == Discovery.class) {
+                Discovery lastDiscovery = currentTargetDiscoveries.remove(targetId);
+                if (lastDiscovery !=null) {
+                    lastCompletedTargetDiscoveries.put(targetId, lastDiscovery);
+                }
+            } else if (completedOperation.getClass() == Validation.class){
+                Validation lastValidation = currentTargetValidations.remove(targetId);
+                if (lastValidation !=null) {
+                    lastCompletedTargetValidations.put(targetId, lastValidation);
+                }
+            }
+        }
         operationListener.notifyOperationState(operation);
-        ongoingOperations.remove(operation.getId());
         ONGOING_OPERATION_GAUGE.labels(operation.getClass().getName().toLowerCase()).decrement();
     }
 

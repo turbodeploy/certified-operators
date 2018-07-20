@@ -204,7 +204,8 @@ public class OperationManagerTest {
     @Test
     public void testGetLastDiscoveryForTarget() throws Exception {
         final Discovery discovery = operationManager.startDiscovery(targetId);
-        Assert.assertEquals(discovery, operationManager.getLastDiscoveryForTarget(targetId).get());
+        Assert.assertEquals(Optional.empty(),
+            operationManager.getLastDiscoveryForTarget(targetId));
 
         // Make sure that we can still get the discovery after the
         // operation is complete.
@@ -461,7 +462,8 @@ public class OperationManagerTest {
     @Test
     public void testGetLastValidationForTarget() throws Exception {
         final Validation validation = operationManager.startValidation(targetId);
-        Assert.assertEquals(validation, operationManager.getLastValidationForTarget(targetId).get());
+        Assert.assertEquals(Optional.empty(),
+            operationManager.getLastValidationForTarget(targetId));
 
         // Make sure that we can still get the validation after the
         // operation is complete.

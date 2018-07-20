@@ -78,6 +78,15 @@ public interface IOperationManager {
     Optional<Validation> getInProgressValidation(long id);
 
     /**
+     * Returns current running validation for the given target.
+     *
+     * @param targetId target id
+     * @return current validation, or empty result, if there is no validation.
+     */
+    @Nonnull
+    Optional<Validation> getInProgressValidationForTarget(long targetId);
+
+    /**
      * Request a discovery on a target. There may be only a single ongoing discovery
      * at a time for a given target. Attempting a discovery for a target with a current
      * ongoing discovery will return the current ongoing discovery.
@@ -113,7 +122,7 @@ public interface IOperationManager {
     /**
      * Returns discovery, that is in progress.
      *
-     * @param id discovery id to retriege
+     * @param id discovery id to retrieve.
      * @return discovery operation in progress, or empty result, if the validation is finished
      * or does not exist
      */
@@ -121,7 +130,7 @@ public interface IOperationManager {
     Optional<Discovery> getInProgressDiscovery(long id);
 
     /**
-     * Returns last available discovery for the specified target, either running or finished.
+     * Returns current running discovery for the given target.
      *
      * @param targetId target id
      * @return last discovery, or empty result, if no discoveries has happen
@@ -130,10 +139,10 @@ public interface IOperationManager {
     Optional<Discovery> getInProgressDiscoveryForTarget(long targetId);
 
     /**
-     * Returns last available discovery for the specified target, either running or finished.
+     * Returns last completed discovery for the specified target.
      *
      * @param targetId target id
-     * @return last discovery, or empty result, if no discoveries has happen
+     * @return Last discovery or empty result if there were no discoveries.
      */
     @Nonnull
     Optional<Discovery> getLastDiscoveryForTarget(long targetId);

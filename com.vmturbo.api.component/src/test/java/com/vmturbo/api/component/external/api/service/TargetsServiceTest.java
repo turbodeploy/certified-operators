@@ -486,7 +486,8 @@ public class TargetsServiceTest {
 
         final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
         final TargetsService targetsService = new TargetsService(
-            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100), null);
+            topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
+                Duration.ofMillis(50), Duration.ofMillis(100), null);
 
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         Mockito.when(targetInfo.getId()).thenReturn(targetId);
@@ -499,6 +500,29 @@ public class TargetsServiceTest {
         Mockito.verify(topologyProcessor, Mockito.times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
             TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, validationInfo.getStatus());
+    }
+
+    @Test
+    public void testSynchronousDiscoveryTimeout() throws Exception {
+        final long probeId = 2;
+        final long targetId = 3;
+
+        final TopologyProcessor topologyProcessor = Mockito.mock(TopologyProcessor.class);
+        final TargetsService targetsService = new TargetsService(
+                topologyProcessor, Duration.ofMillis(50), Duration.ofMillis(100),
+                Duration.ofMillis(50), Duration.ofMillis(100), null);
+
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        Mockito.when(targetInfo.getId()).thenReturn(targetId);
+        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+
+        Mockito.when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
+        TargetInfo discoveryInfo = targetsService.discoverTargetSynchronously(targetId);
+
+        Mockito.verify(topologyProcessor, Mockito.times(2)).getTarget(targetId);
+        org.junit.Assert.assertEquals(
+                TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, discoveryInfo.getStatus());
     }
 
     /**
@@ -623,7 +647,7 @@ public class TargetsServiceTest {
             TargetsService.mapStatusToApiDTO(targetInfo));
     }
 
-    // If there was prior validation, discovery in progress should display as "Validated"
+    // Discovery in progress should be displayed as "Validating"
     @Test
     public void testDiscoveryInProgressValidationStatusWithPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
@@ -631,7 +655,7 @@ public class TargetsServiceTest {
             .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         Mockito.when(targetInfo.getLastValidationTime()).thenReturn(LocalDateTime.now());
 
-        org.junit.Assert.assertEquals(TargetsService.UI_VALIDATED_STATUS,
+        org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
             TargetsService.mapStatusToApiDTO(targetInfo));
     }
 
@@ -727,7 +751,8 @@ public class TargetsServiceTest {
 
         @Bean
         public TargetsService targetsService() {
-            return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1), null);
+            return new TargetsService(topologyProcessor(), Duration.ofSeconds(60), Duration.ofSeconds(1),
+                    Duration.ofSeconds(60), Duration.ofSeconds(1), null);
         }
 
         @Bean

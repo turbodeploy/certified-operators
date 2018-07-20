@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.rest;
 
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -151,7 +152,11 @@ public class TargetControllerTest {
             final IOperationManager result = Mockito.mock(IOperationManager.class);
             Mockito.when(result.getLastDiscoveryForTarget(Mockito.anyLong()))
                     .thenReturn(Optional.empty());
+            Mockito.when(result.getInProgressDiscoveryForTarget(Mockito.anyLong()))
+                    .thenReturn(Optional.empty());
             Mockito.when(result.getLastValidationForTarget(Mockito.anyLong()))
+                    .thenReturn(Optional.empty());
+            Mockito.when(result.getInProgressValidationForTarget(Mockito.anyLong()))
                     .thenReturn(Optional.empty());
             return result;
         }
@@ -506,29 +511,41 @@ public class TargetControllerTest {
         adder.setAccountField("mandatory", "prop");
         final TargetInfo result = adder.postAndExpect(HttpStatus.OK);
         Assert.assertNotNull(result.getTargetId());
-        Assert.assertEquals("<status unknown>", result.getStatus());
+        Assert.assertEquals("Unknown", result.getStatus());
         Assert.assertNull(result.getLastValidationTime());
 
         Mockito.when(operationManager.getLastDiscoveryForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(discovery));
         Mockito.when(operationManager.getLastValidationForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validation));
+        Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
+                .thenReturn(Optional.of(validation));
+        Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
+                .thenReturn(Optional.of(validation));
         {
             final TargetInfo target2 = getTarget(result.getId());
-            Assert.assertThat(target2.getStatus(), CoreMatchers.containsString("in progress"));
+            Assert.assertThat(target2.getStatus(), CoreMatchers.containsString("Unknown"));
             Assert.assertNull(target2.getLastValidationTime());
+
+            validation.setUserInitiated(true);
+            discovery.setUserInitiated(true);
+            final TargetInfo target2_user = getTarget(result.getId());
+            Assert.assertThat(target2_user.getStatus(), CoreMatchers.containsString("in progress"));
         }
         {
+            Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
+                    .thenReturn(Optional.empty());
+            Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
+                    .thenReturn(Optional.empty());
             validation.success();
             final TargetInfo target3 = getTarget(result.getId());
-            Assert.assertThat(target3.getStatus(), CoreMatchers.containsString("in progress"));
+            Assert.assertThat(target3.getStatus(), is(TargetController.VALIDATED));
             Assert.assertEquals(validation.getCompletionTime(), target3.getLastValidationTime());
         }
         {
             discovery.success();
             final TargetInfo target4 = getTarget(result.getId());
-            Assert.assertThat(target4.getStatus(),
-                    CoreMatchers.containsString(TargetController.VALIDATED));
+            Assert.assertThat(target4.getStatus(), is(TargetController.VALIDATED));
             Assert.assertEquals(discovery.getCompletionTime(), target4.getLastValidationTime());
         }
         {

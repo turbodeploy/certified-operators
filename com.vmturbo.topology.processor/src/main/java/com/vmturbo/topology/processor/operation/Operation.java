@@ -64,6 +64,12 @@ public abstract class Operation {
     private Status status;
 
     /**
+     * If this is an user initiated operation or not.
+     */
+    @ApiModelProperty(value = "Whether the operation was triggered by the user", required = false)
+    private boolean userInitiated;
+
+    /**
      * Any errors that occurred with the operation.
      */
     @ApiModelProperty(value = "Any errors that occurred with the operation. The list will be empty if there have been no errors.", required = true)
@@ -87,6 +93,7 @@ public abstract class Operation {
         this.probeId = probeId;
         this.status = Status.IN_PROGRESS;
         this.errors = new ArrayList<>();
+        this.userInitiated = false;
     }
 
     public long getId() {
@@ -133,6 +140,20 @@ public abstract class Operation {
      */
     public boolean isInProgress() {
         return status == Status.IN_PROGRESS;
+    }
+
+    /**
+     * Set if the operation is userInitiated.
+     *
+     * Set to true if the operation is triggered by user.
+     *
+     */
+    public void setUserInitiated(boolean userInitiated) {
+        this.userInitiated = userInitiated;
+    }
+
+    public boolean getUserInitiated() {
+        return userInitiated;
     }
 
     /**

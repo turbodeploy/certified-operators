@@ -105,6 +105,7 @@ public class TargetsService implements ITargetsService {
             new ImmutableMap.Builder<String, String>()
                     .put(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, UI_VALIDATING_STATUS)
                     .put(TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS, UI_VALIDATED_STATUS)
+                    .put(TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, UI_VALIDATING_STATUS)
                     .build();
 
     /**
@@ -123,15 +124,23 @@ public class TargetsService implements ITargetsService {
 
     private final Duration targetValidationPollInterval;
 
+    private final Duration targetDiscoveryTimeout;
+
+    private final Duration targetDiscoveryPollInterval;
+
     private final LicenseCheckClient licenseCheckClient;
 
     public TargetsService(@Nonnull final TopologyProcessor topologyProcessor,
                           @Nonnull final Duration targetValidationTimeout,
                           @Nonnull final Duration targetValidationPollInterval,
+                          @Nonnull final Duration targetDiscoveryTimeout,
+                          @Nonnull final Duration targetDiscoveryPollInterval,
                           @Nullable final LicenseCheckClient licenseCheckClient) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
         this.targetValidationTimeout = Objects.requireNonNull(targetValidationTimeout);
         this.targetValidationPollInterval = Objects.requireNonNull(targetValidationPollInterval);
+        this.targetDiscoveryTimeout = Objects.requireNonNull(targetDiscoveryTimeout);
+        this.targetDiscoveryPollInterval = Objects.requireNonNull(targetDiscoveryPollInterval);
         this.licenseCheckClient = licenseCheckClient;
         logger.debug("Created TargetsService with topology processor instance {}",
                         topologyProcessor);
@@ -398,10 +407,16 @@ public class TargetsService implements ITargetsService {
                 .orElse(true);
 
             if (shouldDiscover) {
-                topologyProcessor.discoverTarget(targetId);
+                result = Optional.of(discoverTargetSynchronously(targetId));
             }
 
-            return mapTargetInfoToDTO(topologyProcessor.getTarget(targetId));
+            // Because mapTargetInfoToDTO throws an exception, using the if else instead
+            // of map().OrElse idiom on the optional.
+            if (result.isPresent()) {
+                return mapTargetInfoToDTO(result.get());
+            } else {
+                return mapTargetInfoToDTO(topologyProcessor.getTarget(targetId));
+            }
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -581,15 +596,8 @@ public class TargetsService implements ITargetsService {
     @VisibleForTesting
     static String mapStatusToApiDTO(@Nonnull final TargetInfo targetInfo) {
         final String status = targetInfo.getStatus();
-        if (status != null && status.equals(TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS)) {
-            // If the target has never been validated before when a discovery occurs,
-            // indicate that it's validation status is not yet known by marking it as "validating"
-            return targetInfo.getLastValidationTime() == null ?
-                UI_VALIDATING_STATUS : UI_VALIDATED_STATUS;
-        }
-
         return status == null ?
-            UNKNOWN_TARGET_STATUS : TARGET_STATUS_MAP.getOrDefault(status, UNKNOWN_TARGET_STATUS);
+            UNKNOWN_TARGET_STATUS : TARGET_STATUS_MAP.getOrDefault(status, status);
     }
 
     /**
@@ -615,17 +623,64 @@ public class TargetsService implements ITargetsService {
         throws CommunicationException, TopologyProcessorException, InterruptedException {
 
         topologyProcessor.validateTarget(targetId);
-        Duration elapsed = Duration.ofMillis(0);
+        return pollForTargetStatus(targetId, targetValidationTimeout,
+                targetValidationPollInterval, TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+    }
+
+    /**
+     * Poll the topology processor until discovery completes or the discovery times out.
+     * Execution of this method blocks until one of the following happens:
+     * <ul>
+     *     <li>Discovery completes.</ul>
+     *     <li>An exception is thrown.</ul>
+     *     <li>The discovery timeout expires.</ul>
+     * </ul>
+     *
+     * If the timeout expires, the method returns the status of target when the timeout expires.
+     *
+     * @param targetId The ID of the target to be discovered.
+     * @return The discovery status of the target upon completion or when the timeout expires.
+     * @throws CommunicationException if there is an HTTP error.
+     * @throws TopologyProcessorException if the update fails in the T-P.
+     * @throws InterruptedException If the polling is interrupted.
+     */
+    @Nonnull
+    @VisibleForTesting
+    TargetInfo discoverTargetSynchronously(final long targetId)
+        throws CommunicationException, TopologyProcessorException, InterruptedException {
+
+        topologyProcessor.discoverTarget(targetId);
+        return pollForTargetStatus(targetId, targetDiscoveryTimeout,
+                targetDiscoveryPollInterval, TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+    }
+
+    /**
+     * @param targetId The ID of the target to be polled.
+     * @param timeout Timeout for the operation.
+     * @param pollInterval Wait time between polling.
+     * @param waitOnStatus Status string on which to wait on.
+     * @return The discovery status of the target upon completion or when the timeout expires.
+     * @throws CommunicationException if there is an HTTP error.
+     * @throws TopologyProcessorException if the update fails in the T-P.
+     * @throws InterruptedException If the polling is interrupted.
+     */
+    private TargetInfo pollForTargetStatus(final long targetId,
+                                           final Duration timeout,
+                                           final Duration pollInterval,
+                                           String waitOnStatus)
+        throws CommunicationException, TopologyProcessorException, InterruptedException {
+
         TargetInfo targetInfo = topologyProcessor.getTarget(targetId);
+        Duration elapsed = Duration.ofMillis(0);
 
         while (targetInfo.getStatus() != null &&
-            targetInfo.getStatus().equals(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS) &&
-            elapsed.compareTo(targetValidationTimeout) < 0) {
+            targetInfo.getStatus().equals(waitOnStatus) &&
+            elapsed.compareTo(timeout) < 0) {
 
-            Thread.sleep(targetValidationPollInterval.toMillis());
-            elapsed = elapsed.plus(targetValidationPollInterval);
+            Thread.sleep(pollInterval.toMillis());
+            elapsed = elapsed.plus(pollInterval);
             targetInfo = topologyProcessor.getTarget(targetId);
-            logger.debug("Polled status of \"{}\" after waiting {}s while validating target {}",
+            logger.debug("Polled status of \"{}\" after waiting {}s for target {}",
                 targetInfo.getStatus(), elapsed.getSeconds(), targetId);
         }
 

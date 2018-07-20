@@ -195,7 +195,7 @@ public class KVBackedTargetStore implements TargetStore {
                             retTarget.toJsonString());
         }
 
-        logger.info("Updated target " + retTarget.getId() + " for probe " + retTarget.getProbeId());
+        logger.info("Updated target {} for probe {}", retTarget.getId(), retTarget.getProbeId());
         listeners.forEach(listener -> listener.onTargetUpdated(retTarget));
         return retTarget;
     }

@@ -130,7 +130,9 @@ public class OperationController {
     public ResponseEntity<OperationResponse> getTargetDiscovery(@PathVariable("targetId") final Long targetId) {
         final OperationResponse resp = operationManager.getLastDiscoveryForTarget(targetId)
                 .map(OperationController::success)
-                .orElse(OperationResponse.error("No discovery for target.", targetId));
+                .orElse(operationManager.getInProgressDiscoveryForTarget(targetId)
+                        .map(OperationController::success)
+                        .orElse(OperationResponse.error("No discovery for target.", targetId)));
         return new ResponseEntity<>(resp, resp.isSuccess() ? HttpStatus.OK : HttpStatus.NOT_FOUND);
     }
 
@@ -209,7 +211,9 @@ public class OperationController {
     public ResponseEntity<OperationResponse> getTargetValidation(@PathVariable("targetId") final Long targetId) {
         final OperationResponse resp = operationManager.getLastValidationForTarget(targetId)
                 .map(OperationController::success)
-                .orElse(OperationResponse.error("No validation for target.", targetId));
+                .orElse(operationManager.getInProgressValidationForTarget(targetId)
+                        .map(OperationController::success)
+                        .orElse(OperationResponse.error("No validation for target.", targetId)));
         return new ResponseEntity<>(resp, resp.isSuccess() ? HttpStatus.OK : HttpStatus.NOT_FOUND);
     }
 
@@ -228,6 +232,7 @@ public class OperationController {
                 scheduler.resetDiscoverySchedule(targetId);
             }
             final Discovery discovery = operationManager.startDiscovery(targetId);
+            discovery.setUserInitiated(true);
             return new ResponseEntity<>(success(discovery), HttpStatus.OK);
         } catch (TargetNotFoundException e) {
             return new ResponseEntity<>(
@@ -244,6 +249,7 @@ public class OperationController {
     private ResponseEntity<OperationResponse> performValidation(final long targetId) {
         try {
             final Validation validation = operationManager.startValidation(targetId);
+            validation.setUserInitiated(true);
             return new ResponseEntity<>(success(validation), HttpStatus.OK);
         } catch (TargetNotFoundException e) {
             return new ResponseEntity<>(
