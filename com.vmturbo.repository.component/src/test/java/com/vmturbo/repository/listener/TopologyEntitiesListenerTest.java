@@ -1,10 +1,7 @@
 package com.vmturbo.repository.listener;
 
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,11 +20,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
-import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
-import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
@@ -47,7 +42,7 @@ public class TopologyEntitiesListenerTest {
     private TopologyRelationshipRecorder globalSupplyChainRecorder;
 
     @Mock
-    private TopologyCreator topologyCreator;
+    private SourceTopologyCreator topologyCreator;
 
     private final long realtimeTopologyContextId = 77L;
 
@@ -78,7 +73,7 @@ public class TopologyEntitiesListenerTest {
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenReturn(Sets.newHashSet(dsDTO));
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyManager.newTopologyCreator(any())).thenReturn(topologyCreator);
+        when(topologyManager.newSourceTopologyCreator(any())).thenReturn(topologyCreator);
     }
 
     @Test
@@ -97,7 +92,7 @@ public class TopologyEntitiesListenerTest {
                         .build(),
                 entityIterator);
 
-        verify(topologyManager).newTopologyCreator(tid);
+        verify(topologyManager).newSourceTopologyCreator(tid);
         verify(topologyCreator).complete();
         verify(topologyCreator, times(2)).addEntities(any());
         verify(globalSupplyChainRecorder, times(1))

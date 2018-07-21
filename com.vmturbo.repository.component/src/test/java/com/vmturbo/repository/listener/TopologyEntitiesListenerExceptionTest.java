@@ -27,7 +27,7 @@ import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseExc
 import com.vmturbo.repository.graph.driver.GraphDatabaseDriver;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
@@ -51,7 +51,7 @@ public class TopologyEntitiesListenerExceptionTest {
     private TopologyLifecycleManager topologyManager;
 
     @Mock
-    private TopologyCreator topologyCreator;
+    private SourceTopologyCreator topologyCreator;
 
     private final long realtimeTopologyContextId = 77L;
 
@@ -90,7 +90,7 @@ public class TopologyEntitiesListenerExceptionTest {
         final TopologyID tid = new TopologyID(topologyContextId, topologyId,
                 TopologyID.TopologyType.SOURCE);
 
-        when(topologyManager.newTopologyCreator(eq(tid))).thenReturn(topologyCreator);
+        when(topologyManager.newSourceTopologyCreator(eq(tid))).thenReturn(topologyCreator);
 
         topologyEntitiesListener.onTopologyNotification(
                 TopologyInfo.newBuilder()

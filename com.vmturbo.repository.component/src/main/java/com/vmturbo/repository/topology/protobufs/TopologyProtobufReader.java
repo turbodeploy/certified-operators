@@ -1,13 +1,16 @@
 package com.vmturbo.repository.topology.protobufs;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.arangodb.ArangoCollection;
-import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.gson.Gson;
@@ -16,6 +19,7 @@ import com.google.gson.JsonParseException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyEntityFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
@@ -44,9 +48,7 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
      * Get a handle to the collection.
      */
     @Override
-    protected ArangoCollection collection(long topologyId) {
-        ArangoDatabase database = database();
-        String collectionName = collectionName(topologyId);
+    protected ArangoCollection collection(@Nonnull final String collectionName) {
         return database.collection(collectionName);
     }
 
@@ -54,31 +56,58 @@ public class TopologyProtobufReader extends TopologyProtobufHandler {
         return sequenceNumber < count;
     }
 
-    public List<TopologyDTO.TopologyEntityDTO> nextChunk() {
+    public List<ProjectedTopologyEntity> nextChunk() {
         BaseDocument doc = topologyCollection.getDocument(String.valueOf(sequenceNumber), BaseDocument.class);
         logger.debug("...fetch next chunk, doc properties size:  {}", doc.getProperties().size());
         sequenceNumber++;
-        return doc.getProperties().values().stream()
-            .map(TopologyProtobufReader::parseJson)
+        return parseJson(topologyId, doc.getProperties().values())
             .filter(this::entityMatchesFilter)
             .collect(Collectors.toList());
     }
 
-    private static TopologyDTO.TopologyEntityDTO EMPTY_DTO =
-            TopologyDTO.TopologyEntityDTO.newBuilder().setOid(-1).setEntityType(0).build();
-
     @VisibleForTesting
-    protected static TopologyDTO.TopologyEntityDTO parseJson(Object json) {
-        try {
-            return GSON.fromJson((String)json, TopologyDTO.TopologyEntityDTO.class);
-        } catch (JsonParseException e) {
-            logger.error("Problem parsing DTO : " + json, e);
-            return EMPTY_DTO;
-        }
+    protected static Stream<ProjectedTopologyEntity> parseJson(final long topologyId,
+                                               @Nonnull final Collection<Object> jsonObjects) {
+        // We assume we're going to be reading ProjectedTopologyEntity objects. However,
+        // in old saved topologies we may actually read TopologyEntityDTO objects.
+        // Use this flag to detect the old format, to avoid having exceptions on every
+        // encountered entity.
+        AtomicBoolean areProjectedEntities = new AtomicBoolean(true);
+        return jsonObjects.stream()
+            .map(jsonObj -> {
+                ProjectedTopologyEntity parsedEntity = null;
+                if (areProjectedEntities.get()) {
+                    try {
+                        parsedEntity = GSON.fromJson((String)jsonObj, ProjectedTopologyEntity.class);
+                    } catch (JsonParseException e) {
+                        // Try parsing the old format - simple TopologyEntityDTOs.
+                        areProjectedEntities.set(false);
+                        logger.warn("Reading projected topology {} stored in older format (without price index)!", topologyId);
+                    }
+                }
+
+                // Separate if statement so that we still try to re-parse the first entity.
+                if (!areProjectedEntities.get()) {
+                    try {
+                        // Note: We don't re-save the old entity in the new format because the main
+                        // reason this would get called is to look at old plan results, and we should
+                        // clear them out eventually anyway.
+                        final TopologyEntityDTO entityDTO = GSON.fromJson((String)jsonObj, TopologyEntityDTO.class);
+                        parsedEntity = ProjectedTopologyEntity.newBuilder()
+                                .setEntity(entityDTO)
+                                .build();
+                    } catch (JsonParseException e2) {
+                        logger.error("Problem parsing DTO : " + jsonObj, e2);
+                    }
+                }
+                return parsedEntity;
+            })
+            .filter(Objects::nonNull);
     }
 
-    private boolean entityMatchesFilter(@Nonnull final TopologyEntityDTO entity) {
-        return entityFilter.map(filter -> RepositoryDTOUtil.entityMatchesFilter(entity, filter))
+    private boolean entityMatchesFilter(@Nonnull final ProjectedTopologyEntity entity) {
+        // Reference comparison with EMPTY_DTO for speed.
+        return entityFilter.map(filter -> RepositoryDTOUtil.entityMatchesFilter(entity.getEntity(), filter))
                 .orElse(true);
     }
 }

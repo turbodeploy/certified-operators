@@ -230,10 +230,10 @@ message ProjectedTopologyEntity {
     //
     // This will be unset if the entity did not exist in the original
     // topology.
-    optional double original_price_index = 10;
+    optional double original_price_index = 10 [default = 1.0];
 
     // The projected price index of the entity.
-    optional double projected_price_index = 11;
+    optional double projected_price_index = 11 [default = 1.0];
 }
 
 // Message to hold topology, projected by market.

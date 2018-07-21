@@ -1,14 +1,16 @@
 package com.vmturbo.repository.topology.protobufs;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.arangodb.ArangoDBException;
 import com.arangodb.entity.BaseDocument;
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
@@ -32,20 +34,20 @@ public class TopologyProtobufWriter extends TopologyProtobufHandler {
      * @param chunk a collection of topology DTOs that form one chunk.
      * @throws ArangoDBException when there is a problem interacting with the database
      */
-    public void storeChunk(
-                    Collection<TopologyDTO.TopologyEntityDTO> chunk)
+    public void storeChunk(Collection<ProjectedTopologyEntity> chunk)
                         throws ArangoDBException {
         logger.debug("Writing chunk #{} of size {} for topology {}",
             sequenceNumber, chunk.size(), topologyId);
-        BaseDocument doc = new BaseDocument();
-        doc.setKey(String.valueOf(sequenceNumber));
-        Map<String, Object> map = chunk.stream()
-                        .collect(Collectors.toMap(
-                                dto -> String.valueOf(dto.getOid()),
-                                GSON::toJson)); // TODO: use dto.toByteArray()
-        doc.setProperties(map);
-        topologyCollection.insertDocument(doc);
+        final BaseDocument entityChunkDoc = new BaseDocument();
+        entityChunkDoc.setKey(String.valueOf(sequenceNumber));
+        final Map<String, Object> map = chunk.stream()
+            .collect(Collectors.toMap(
+                    dto -> String.valueOf(dto.getEntity().getOid()),
+                    GSON::toJson)); // TODO: use dto.toByteArray()
+        entityChunkDoc.setProperties(map);
+        topologyCollection.insertDocument(entityChunkDoc);
         logger.debug("Done writing chunk #{} for topology {}", sequenceNumber, topologyId);
+
         sequenceNumber++;
     }
 }

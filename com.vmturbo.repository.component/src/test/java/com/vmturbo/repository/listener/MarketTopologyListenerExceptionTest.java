@@ -25,6 +25,7 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
@@ -44,7 +45,7 @@ public class MarketTopologyListenerExceptionTest {
     private TopologyLifecycleManager topologyManager;
 
     @Mock
-    private TopologyCreator topologyCreator;
+    private ProjectedTopologyCreator topologyCreator;
 
     @Mock
     private RemoteIterator<ProjectedTopologyEntity> entityIterator;
@@ -73,7 +74,7 @@ public class MarketTopologyListenerExceptionTest {
         marketTopologyListener = new MarketTopologyListener( apiBackend, topologyManager);
 
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyManager.newTopologyCreator(any())).thenReturn(topologyCreator);
+        when(topologyManager.newProjectedTopologyCreator(any())).thenReturn(topologyCreator);
     }
 
     /**
@@ -152,7 +153,7 @@ public class MarketTopologyListenerExceptionTest {
     }
 
     private void verifyMocks() throws Exception {
-        verify(topologyManager).newTopologyCreator(tid);
+        verify(topologyManager).newProjectedTopologyCreator(tid);
         verify(topologyCreator, never()).complete();
         verify(topologyCreator).rollback();
         // 1 invocation before the exception is thrown

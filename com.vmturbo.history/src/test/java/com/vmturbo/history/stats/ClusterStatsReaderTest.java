@@ -6,8 +6,8 @@ import static org.junit.Assert.assertEquals;
 
 import java.math.BigDecimal;
 import java.sql.Date;
-import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import org.jooq.InsertSetMoreStep;
 import org.junit.After;
@@ -18,6 +18,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+import com.google.common.collect.Sets;
 
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.DBConnectionPool;
@@ -137,7 +139,7 @@ public class ClusterStatsReaderTest {
      */
     @Test
     public void testGetStatsRecordsByDayWithDateRange1() throws VmtDbException {
-        List<String> commodityNames = Arrays.asList("headroomVMs", "numVMs");
+        Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
         List<ClusterStatsByDayRecord> result =
                 clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
                         Date.valueOf("2017-12-14").getTime(),
@@ -153,7 +155,7 @@ public class ClusterStatsReaderTest {
      */
     @Test
     public void testGetStatsRecordsByDayWithDateRange2() throws VmtDbException {
-        List<String> commodityNames = Arrays.asList("headroomVMs", "numVMs");
+        Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
         List<ClusterStatsByDayRecord> result =
                 clusterStatsReader.getStatsRecordsByDay(Long.parseLong(clusterId1),
                         Date.valueOf("2017-12-10").getTime(),
@@ -163,7 +165,7 @@ public class ClusterStatsReaderTest {
     }
     @Test
     public void testGetStatsRecordsByMonth() throws VmtDbException {
-        List<String> commodityNames = Arrays.asList("headroomVMs", "numVMs");
+        Set<String> commodityNames = Sets.newHashSet("headroomVMs", "numVMs");
         List<ClusterStatsByMonthRecord> result =
                 clusterStatsReader.getStatsRecordsByMonth(Long.parseLong(clusterId1),
                         Date.valueOf("2017-09-10").getTime(),

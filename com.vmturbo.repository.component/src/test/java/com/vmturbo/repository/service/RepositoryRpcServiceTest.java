@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -143,17 +144,18 @@ public class RepositoryRpcServiceTest {
         repositoryService.deleteTopology(createDeleteTopologyRequest(topologyId, topologyContextId));
     }
 
-    private static final TopologyEntityDTO ENTITY = TopologyEntityDTO.newBuilder()
-            .setEntityType(10)
-            .setOid(1L)
-            .build();
 
     @Test
     public void testRetrieveTopology() throws Exception {
+        final ProjectedTopologyEntity entity = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                    .setEntityType(10)
+                    .setOid(1L))
+            .build();
         when(topologyProtobufsManager.createTopologyProtobufReader(topologyId, Optional.empty()))
                 .thenReturn(topologyProtobufReader);
         when(topologyProtobufReader.hasNext()).thenReturn(true, false);
-        when(topologyProtobufReader.nextChunk()).thenReturn(Collections.singletonList(ENTITY));
+        when(topologyProtobufReader.nextChunk()).thenReturn(Collections.singletonList(entity));
 
         final List<RetrieveTopologyResponse> responseList = new ArrayList<>();
         repositoryService.retrieveTopology(RetrieveTopologyRequest.newBuilder()
@@ -161,7 +163,7 @@ public class RepositoryRpcServiceTest {
             .build()).forEachRemaining(responseList::add);
 
         assertThat(responseList.size(), is(1));
-        assertThat(responseList.get(0).getEntitiesList(), containsInAnyOrder(ENTITY));
+        assertThat(responseList.get(0).getEntitiesList(), containsInAnyOrder(entity.getEntity()));
 
     }
 
@@ -196,11 +198,12 @@ public class RepositoryRpcServiceTest {
     @Test
     public void testRetrievePlanProjectedStats() {
         // arrange
-        final TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
-                .setOid(1L)
-                .setEntityType(10)
-                .setDisplayName("x")
-                .build();
+        final ProjectedTopologyEntity topologyEntityDTO = ProjectedTopologyEntity.newBuilder()
+            .setEntity(TopologyEntityDTO.newBuilder()
+                    .setOid(1L)
+                    .setEntityType(10)
+                    .setDisplayName("x"))
+            .build();
         final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
                 .setCursor("foo")
                 .build();
@@ -210,7 +213,7 @@ public class RepositoryRpcServiceTest {
                 .setFilter(StatsFilter.newBuilder()
                         .setStartDate(Instant.now().toEpochMilli() + 100000))
                 .setEntityFilter(RepositoryDTO.EntityFilter.newBuilder()
-                        .addEntityIds(topologyEntityDTO.getOid()))
+                        .addEntityIds(topologyEntityDTO.getEntity().getOid()))
                 .build();
 
         final TopologyProtobufReader protobufReader = mock(TopologyProtobufReader.class);
@@ -221,7 +224,7 @@ public class RepositoryRpcServiceTest {
                 .thenReturn(protobufReader);
 
         final EntityStats.Builder statsBuilder = EntityStats.newBuilder()
-                .setOid(topologyEntityDTO.getOid());
+                .setOid(topologyEntityDTO.getEntity().getOid());
         when(planEntityStatsExtractor.extractStats(topologyEntityDTO, request)).thenReturn(statsBuilder);
 
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
@@ -229,14 +232,14 @@ public class RepositoryRpcServiceTest {
         when(paginationParamsFactory.newPaginationParams(paginationParameters)).thenReturn(paginationParams);
 
         final PaginatedStats paginatedStats = mock(PaginatedStats.class);
-        when(paginatedStats.getStatsPage()).thenReturn(Collections.singletonList(statsBuilder.build()));
+        when(paginatedStats.getNextPageIds()).thenReturn(Collections.singletonList(topologyEntityDTO.getEntity().getOid()));
 
         final PaginationResponse paginationResponse = PaginationResponse.newBuilder()
                 .setNextCursor("bar")
                 .build();
         when(paginatedStats.getPaginationResponse()).thenReturn(paginationResponse);
 
-        when(entityStatsPaginator.paginate(Collections.singletonList(statsBuilder), paginationParams))
+        when(entityStatsPaginator.paginate(eq(Collections.singleton(topologyEntityDTO.getEntity().getOid())), any(), eq(paginationParams)))
                 .thenReturn(paginatedStats);
 
         // act
@@ -246,11 +249,11 @@ public class RepositoryRpcServiceTest {
         verify(topologyProtobufsManager).createTopologyProtobufReader(topologyId, Optional.empty());
         verify(planEntityStatsExtractor).extractStats(topologyEntityDTO, request);
         verify(paginationParamsFactory).newPaginationParams(paginationParameters);
-        verify(entityStatsPaginator).paginate(Collections.singletonList(statsBuilder), paginationParams);
+        verify(entityStatsPaginator).paginate(eq(Collections.singleton(topologyEntityDTO.getEntity().getOid())), any(), eq(paginationParams));
 
         assertThat(response.getPaginationResponse(), is(paginationResponse));
         assertThat(response.getEntityStatsList(), is(Collections.singletonList(PlanEntityStats.newBuilder()
-                .setPlanEntity(topologyEntityDTO)
+                .setPlanEntity(topologyEntityDTO.getEntity())
                 .setPlanEntityStats(statsBuilder)
                 .build())));
     }

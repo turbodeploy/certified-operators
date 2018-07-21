@@ -22,7 +22,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Collections2;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -171,16 +174,24 @@ public class TopologyLifecycleManager implements Diagnosable {
         }
     }
 
-    public TopologyCreator newTopologyCreator(@Nonnull final TopologyID topologyID) {
-        return new TopologyCreator(
+    public SourceTopologyCreator newSourceTopologyCreator(@Nonnull final TopologyID topologyID) {
+        return new SourceTopologyCreator(
+                topologyID,
+                graphDatabaseDriverBuilder,
+                this::registerTopology,
+                graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
+                TopologyConverter::convert);
+    }
+
+    public ProjectedTopologyCreator newProjectedTopologyCreator(@Nonnull final TopologyID topologyID) {
+        return new ProjectedTopologyCreator(
                 topologyID,
                 graphDatabaseDriverBuilder,
                 topologyProtobufsManager,
                 this::registerTopology,
                 graphDriver -> new TopologyGraphCreator(graphDriver, graphDefinition),
                 TopologyConverter::convert,
-                realtimeTopologyContextId
-        );
+                realtimeTopologyContextId);
     }
 
     /**
@@ -389,7 +400,8 @@ public class TopologyLifecycleManager implements Diagnosable {
      * {@link TopologyEntityDTO}s) in the repository.
      * <p>
      * The user obtains an instance via
-     * {@link TopologyLifecycleManager#newTopologyCreator(TopologyID)}, and is responsible
+     * {@link TopologyLifecycleManager#newSourceTopologyCreator(TopologyID)} or
+     * {@link TopologyLifecycleManager#newProjectedTopologyCreator(TopologyID)}, and is responsible
      * for calling the methods in the following order:
      *
      *  {@link TopologyCreator#initialize()}
@@ -398,39 +410,31 @@ public class TopologyLifecycleManager implements Diagnosable {
      *     |
      *  {@link TopologyCreator#complete()} or {@link TopologyCreator#rollback()}.
      */
-    public static class TopologyCreator {
+    public abstract static class TopologyCreator<ENTITY_DTO_TYPE> {
 
         private final GraphDatabaseDriver graphDatabaseDriver;
 
-        private final TopologyGraphCreator topologyGraphCreator;
+        final TopologyGraphCreator topologyGraphCreator;
 
         private final TopologyID topologyID;
 
-        private final EntityConverter entityConverter;
+        final EntityConverter entityConverter;
+
+        final Optional<TopologyProtobufWriter> topologyProtobufWriter;
 
         private final Consumer<TopologyID> onComplete;
 
-        private final Optional<TopologyProtobufWriter> topologyProtobufWriter;
-
         TopologyCreator(@Nonnull final TopologyID topologyID,
                         @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
-                        @Nonnull final TopologyProtobufsManager protobufsManager,
+                        @Nonnull final Optional<TopologyProtobufWriter> topologyProtobufWriter,
                         @Nonnull final Consumer<TopologyID> onComplete,
                         @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
-                        @Nonnull final EntityConverter entityConverter,
-                        final long realtimeTopologyContextId) {
+                        @Nonnull final EntityConverter entityConverter) {
             this.topologyID = Objects.requireNonNull(topologyID);
             this.graphDatabaseDriver = Objects.requireNonNull(graphDatabaseDriverBuilder.build(
                     topologyID.toDatabaseName()));
             this.onComplete = onComplete;
-
-            // persist raw topology protobuf only for plan projected topologies.
-            // realtime (both source and projected) and plan source raw topologies are not used yet.
-            if (TopologyUtil.isPlanProjectedTopology(topologyID, realtimeTopologyContextId)) {
-                topologyProtobufWriter = Optional.of(protobufsManager.createTopologyProtobufWriter(topologyID.getTopologyId()));
-            } else {
-                topologyProtobufWriter = Optional.empty();
-            }
+            this.topologyProtobufWriter = topologyProtobufWriter;
 
             topologyGraphCreator = topologyGraphCreatorFactory.newGraphCreator(graphDatabaseDriver);
             this.entityConverter = entityConverter;
@@ -447,22 +451,8 @@ public class TopologyLifecycleManager implements Diagnosable {
             topologyGraphCreator.init();
         }
 
-        /**
-         * Add a collection of entities to the topology.
-         * The caller can call this method as many times as necessary.
-         *
-         * @param entities The entities to add.
-         * @throws TopologyEntitiesException If there is any issue writing the entities.
-         */
-        public void addEntities(final Collection<TopologyEntityDTO> entities)
-                throws TopologyEntitiesException {
-            try {
-                topologyGraphCreator.updateTopologyToDb(entityConverter.convert(entities));
-                topologyProtobufWriter.ifPresent(writer -> writer.storeChunk(entities));
-            } catch (VertexOperationException | EdgeOperationException | CollectionOperationException e) {
-                throw new TopologyEntitiesException(e);
-            }
-        }
+        public abstract void addEntities(final Collection<ENTITY_DTO_TYPE> entities)
+                throws TopologyEntitiesException;
 
         /**
          * Finalize the topology. To be called after all the entities are added.
@@ -479,6 +469,77 @@ public class TopologyLifecycleManager implements Diagnosable {
         public void rollback() {
             graphDatabaseDriver.dropDatabase();
             topologyProtobufWriter.ifPresent(TopologyProtobufHandler::delete);
+        }
+    }
+
+    /**
+     * The {@link TopologyCreator} to use for the source topology.
+     */
+    public static class SourceTopologyCreator extends TopologyCreator<TopologyEntityDTO> {
+
+        SourceTopologyCreator(@Nonnull final TopologyID topologyID,
+                              @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
+                              @Nonnull final Consumer<TopologyID> onComplete,
+                              @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
+                              @Nonnull final EntityConverter entityConverter) {
+            super(topologyID, graphDatabaseDriverBuilder, Optional.empty(), onComplete,
+                    topologyGraphCreatorFactory, entityConverter);
+            Preconditions.checkArgument(!topologyProtobufWriter.isPresent());
+        }
+
+        /**
+         * Add a collection of entities to the topology.
+         * The caller can call this method as many times as necessary.
+         *
+         * @param entities The entities to add.
+         * @throws TopologyEntitiesException If there is any issue writing the entities.
+         */
+        @Override
+        public void addEntities(final Collection<TopologyEntityDTO> entities)
+                throws TopologyEntitiesException {
+            try {
+                topologyGraphCreator.updateTopologyToDb(entityConverter.convert(entities));
+            } catch (VertexOperationException | EdgeOperationException | CollectionOperationException e) {
+                throw new TopologyEntitiesException(e);
+            }
+        }
+    }
+
+    /**
+     * The {@link TopologyCreator} to use for the projected topology.
+     */
+    public static class ProjectedTopologyCreator extends TopologyCreator<ProjectedTopologyEntity> {
+        ProjectedTopologyCreator(@Nonnull final TopologyID topologyID,
+                 @Nonnull final GraphDatabaseDriverBuilder graphDatabaseDriverBuilder,
+                 @Nonnull final TopologyProtobufsManager protobufsManager,
+                 @Nonnull final Consumer<TopologyID> onComplete,
+                 @Nonnull final TopologyGraphCreatorFactory topologyGraphCreatorFactory,
+                 @Nonnull final EntityConverter entityConverter,
+                 final long realtimeTopologyContextId) {
+            super(topologyID, graphDatabaseDriverBuilder,
+                TopologyUtil.isPlanProjectedTopology(topologyID, realtimeTopologyContextId) ?
+                    Optional.of(protobufsManager.createTopologyProtobufWriter(topologyID.getTopologyId())) : Optional.empty(),
+                onComplete, topologyGraphCreatorFactory, entityConverter);
+        }
+
+        /**
+         * Add a collection of entities to the topology.
+         * The caller can call this method as many times as necessary.
+         *
+         * @param entities The entities to add.
+         * @throws TopologyEntitiesException If there is any issue writing the entities.
+         */
+        @Override
+        public void addEntities(final Collection<ProjectedTopologyEntity> entities)
+                throws TopologyEntitiesException {
+            try {
+                topologyGraphCreator.updateTopologyToDb(
+                    entityConverter.convert(Collections2.transform(entities,
+                            ProjectedTopologyEntity::getEntity)));
+                topologyProtobufWriter.ifPresent(writer -> writer.storeChunk(entities));
+            } catch (VertexOperationException | EdgeOperationException | CollectionOperationException e) {
+                throw new TopologyEntitiesException(e);
+            }
         }
     }
 

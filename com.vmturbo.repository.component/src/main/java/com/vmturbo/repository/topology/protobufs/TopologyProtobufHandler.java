@@ -1,5 +1,11 @@
 package com.vmturbo.repository.topology.protobufs;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import javax.annotation.Nonnull;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -8,13 +14,14 @@ import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.arangodb.ArangoDatabase;
 import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.PersistentIndexOptions;
 
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 
 /**
  * Handle writing/reading/deleting to/from the database of raw topologies in chunks. A raw
  * topology is saved as an {@link ArangoCollection} of {@link BaseDocument}s, each document
- * contains a chunk of {@link TopologyDTO.TopologyEntityDTO}s.
+ * contains a chunk of {@link com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity}s.
  *
  */
 public abstract class TopologyProtobufHandler {
@@ -22,6 +29,7 @@ public abstract class TopologyProtobufHandler {
     protected static final Logger logger = LogManager.getLogger();
     protected final long topologyId;
     private final ArangoDB arangoDB;
+    protected final ArangoDatabase database;
     protected final ArangoCollection topologyCollection;
     protected int sequenceNumber = 0;
 
@@ -36,22 +44,21 @@ public abstract class TopologyProtobufHandler {
     protected TopologyProtobufHandler(ArangoDatabaseFactory arangoDatabaseFactory, long topologyId) {
         this.topologyId = topologyId;
         arangoDB = arangoDatabaseFactory.getArangoDriver();
-        topologyCollection = collection(topologyId);
+        database = database();
+        topologyCollection = collection(getTopologyCollectionName(topologyId));
     }
 
-    protected static String collectionName(long topologyId) {
+    private static String getTopologyCollectionName(long topologyId) {
         return "topology-dtos-" + topologyId;
     }
 
     /**
      * Obtain a collection where the topology chunks are/will be stored.
      *
-     * @param topologyId identifying the raw topology
+     * @param collectionName identifying the raw topology
      * @return an ArangoDB collection that holds the chunks of this topology
      */
-    protected ArangoCollection collection(long topologyId) {
-        ArangoDatabase database = database();
-        String collectionName = collectionName(topologyId);
+    protected ArangoCollection collection(@Nonnull final String collectionName) {
         database.createCollection(collectionName);
         return database.collection(collectionName);
     }
@@ -61,7 +68,7 @@ public abstract class TopologyProtobufHandler {
      *
      * @return the raw topologies database
      */
-    protected synchronized ArangoDatabase database() {
+    private synchronized ArangoDatabase database() {
         if (!arangoDB.getDatabases().contains(RAW_TOPOLOGIES_DATABASE_NAME)) {
             logger.info("Creating database {}", RAW_TOPOLOGIES_DATABASE_NAME);
             arangoDB.createDatabase(RAW_TOPOLOGIES_DATABASE_NAME);

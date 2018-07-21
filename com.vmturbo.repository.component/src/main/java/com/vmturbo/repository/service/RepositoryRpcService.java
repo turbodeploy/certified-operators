@@ -10,7 +10,6 @@ import static javaslang.Patterns.Left;
 import static javaslang.Patterns.Right;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -26,6 +25,7 @@ import javax.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -51,6 +51,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
@@ -58,6 +59,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
+import com.vmturbo.components.common.pagination.EntityStatsPaginator.SortCommodityValueGetter;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.repository.service.RepositoryRpcService.PlanEntityStatsExtractor.DefaultPlanEntityStatsExtractor;
@@ -72,6 +74,8 @@ import com.vmturbo.repository.topology.protobufs.TopologyProtobufsManager;
  * Server side implementation of the repository gRPC calls.
  */
 public class RepositoryRpcService extends RepositoryServiceImplBase {
+
+    private static final String PRICE_INDEX_STAT_NAME = "priceIndex";
 
     private static final Logger logger = LoggerFactory.getLogger(RepositoryRpcService.class);
 
@@ -173,10 +177,10 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                         topologyRequest.hasEntityFilter() ?
                                 Optional.of(topologyRequest.getEntityFilter()) : Optional.empty());
             while (reader.hasNext()) {
-                List<TopologyEntityDTO> chunk = reader.nextChunk();
+                List<ProjectedTopologyEntity> chunk = reader.nextChunk();
                 final RepositoryDTO.RetrieveTopologyResponse responseChunk =
                                 RepositoryDTO.RetrieveTopologyResponse.newBuilder()
-                                        .addAllEntities(chunk)
+                                        .addAllEntities(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity))
                                         .build();
                 responseObserver.onNext(responseChunk);
             }
@@ -281,21 +285,20 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         //     for projected plan stats.
         //  2) Making that change would mean changing how we store projected topology, so the
         //     effort is not worth it for now.
-        final Map<Long, TopologyEntityDTO> entities = new HashMap<>();
-        final List<EntityStats.Builder> entityStats = new ArrayList<>();
+        final Map<Long, EntityAndStats> entities = new HashMap<>();
         while (reader.hasNext()) {
             try {
-                List<TopologyEntityDTO> chunk = reader.nextChunk();
+                List<ProjectedTopologyEntity> chunk = reader.nextChunk();
                 logger.debug("chunk size: {}", chunk.size());
-                for (TopologyEntityDTO entityDTO : chunk) {
+                for (ProjectedTopologyEntity entity : chunk) {
                     // apply the filtering predicate
-                    if (!entityPredicate.test(entityDTO)) {
-                        logger.trace("skipping {}", entityDTO.getDisplayName());
+                    if (!entityPredicate.test(entity.getEntity())) {
+                        logger.trace("skipping {}", entity.getEntity().getDisplayName());
                         continue;
                     }
 
-                    entities.put(entityDTO.getOid(), entityDTO);
-                    entityStats.add(planEntityStatsExtractor.extractStats(entityDTO, request));
+                    final EntityStats.Builder stats = planEntityStatsExtractor.extractStats(entity, request);
+                    entities.put(entity.getEntity().getOid(), new EntityAndStats(entity, stats));
                 }
             } catch (NoSuchElementException e) {
                 logger.error("Topology with ID: " + projectedTopologyid + "not found.",
@@ -310,25 +313,30 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         final EntityStatsPaginationParams paginationParams =
                 paginationParamsFactory.newPaginationParams(request.getPaginationParams());
 
-        // TODO (roman, Jun 25 2018): OM-36437 - Add support for sorting by price index, because
-        // it's the one commodity we often want to sort by.
-        if (paginationParams.getSortCommodity().equals("priceIndex")) {
-            logger.warn("Sorting projected per-entity stats by price index not supported. " +
-                    "Entities will be sorted by OID.");
+        final SortCommodityValueGetter sortCommodityValueGetter;
+        if (paginationParams.getSortCommodity().equals(PRICE_INDEX_STAT_NAME)) {
+            sortCommodityValueGetter = (entityId) ->
+                Optional.of((float)entities.get(entityId).entity.getProjectedPriceIndex());
+        } else {
+            sortCommodityValueGetter = (entityId) ->
+                entities.get(entityId).getCommodityUsedAvg(paginationParams.getSortCommodity());
         }
 
         final PaginatedStats paginatedStats =
-                entityStatsPaginator.paginate(entityStats, paginationParams);
+                entityStatsPaginator.paginate(entities.keySet(), sortCommodityValueGetter, paginationParams);
 
         final PlanTopologyStatsResponse.Builder responseBuilder = PlanTopologyStatsResponse.newBuilder()
                 .setPaginationResponse(paginatedStats.getPaginationResponse());
 
         // It's important to preserve the order in the paginated stats page.
-        paginatedStats.getStatsPage().stream()
-                .map(stats -> PlanEntityStats.newBuilder()
-                    .setPlanEntity(Objects.requireNonNull(entities.get(stats.getOid())))
-                    .setPlanEntityStats(stats))
-                .forEach(responseBuilder::addEntityStats);
+        paginatedStats.getNextPageIds().stream()
+            .map(entityId -> {
+                final EntityAndStats entityAndStats = Objects.requireNonNull(entities.get(entityId));
+                return PlanEntityStats.newBuilder()
+                        .setPlanEntity(entityAndStats.entity.getEntity())
+                        .setPlanEntityStats(entityAndStats.stats);
+            })
+            .forEach(responseBuilder::addEntityStats);
         responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
     }
@@ -393,16 +401,16 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
     interface PlanEntityStatsExtractor {
 
         /**
-         * Extract the stats values from a given TopologyEntityDTO and add them to a new
-         * EntityStats object.
+         * Extract the stats values from a given {@link ProjectedTopologyEntity} and add them to a new
+         * {@link EntityStats} object.
          *
-         * @param entityDTO the {@link TopologyEntityDTO} to transform
+         * @param projectedEntity the {@link ProjectedTopologyEntity} to transform
          * @param request the parameters for this request
          * @return an {@link EntityStats} object populated from the current stats for the
-         * given {@link TopologyEntityDTO}
+         * given {@link ProjectedTopologyEntity}
          */
         @Nonnull
-        EntityStats.Builder extractStats(@Nonnull final TopologyEntityDTO entityDTO,
+        EntityStats.Builder extractStats(@Nonnull final ProjectedTopologyEntity projectedEntity,
                                          @Nonnull final PlanTopologyStatsRequest request);
 
         /**
@@ -411,9 +419,9 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         class DefaultPlanEntityStatsExtractor implements PlanEntityStatsExtractor {
             @Nonnull
             @Override
-            public EntityStats.Builder extractStats(@Nonnull final TopologyEntityDTO entityDTO,
+            public EntityStats.Builder extractStats(@Nonnull final ProjectedTopologyEntity projectedEntity,
                                                     @Nonnull final PlanTopologyStatsRequest request) {
-                Set<String> commodityNames = Sets.newHashSet(collectCommodityNames(request.getFilter()));
+                Set<String> commodityNames = collectCommodityNames(request.getFilter());
                 StatSnapshot.Builder snapshot = StatSnapshot.newBuilder();
                 if (request.hasFilter() && request.getFilter().hasStartDate()) {
                     snapshot.setSnapshotDate(DateTimeUtil.toString(request.getFilter().getStartDate()));
@@ -421,7 +429,7 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
 
                 // commodities bought - TODO: compute capacity of commodities bought = seller capacity
                 for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
-                        entityDTO.getCommoditiesBoughtFromProvidersList()) {
+                        projectedEntity.getEntity().getCommoditiesBoughtFromProvidersList()) {
                     String providerOidString = Long.toString(commoditiesBoughtFromProvider.getProviderId());
                     logger.debug("   provider  id {}", providerOidString);
                     commoditiesBoughtFromProvider.getCommodityBoughtList().forEach(commodityBoughtDTO ->
@@ -430,16 +438,29 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
                                     .ifPresent(snapshot::addStatRecords));
                 }
                 // commodities sold
-                String entityOidString = Long.toString(entityDTO.getOid());
-                final List<CommoditySoldDTO> commoditySoldListList = entityDTO.getCommoditySoldListList();
+                String entityOidString = Long.toString(projectedEntity.getEntity().getOid());
+                final List<CommoditySoldDTO> commoditySoldListList = projectedEntity.getEntity().getCommoditySoldListList();
                 for (CommoditySoldDTO commoditySoldDTO : commoditySoldListList) {
                     buildStatRecord(commoditySoldDTO.getCommodityType(), commoditySoldDTO.getPeak(),
                             commoditySoldDTO.getUsed(), commoditySoldDTO.getCapacity(),
                             entityOidString, commodityNames)
                             .ifPresent(snapshot::addStatRecords);
                 }
+
+                if (commodityNames.contains(PRICE_INDEX_STAT_NAME)) {
+                    final float projectedPriceIdx = (float) projectedEntity.getProjectedPriceIndex();
+                    final StatRecord priceIdxStatRecord = StatRecord.newBuilder()
+                            .setName(PRICE_INDEX_STAT_NAME)
+                            .setCurrentValue(projectedPriceIdx)
+                            .setUsed(buildStatValue(projectedPriceIdx))
+                            .setPeak(buildStatValue(projectedPriceIdx))
+                            .setCapacity(buildStatValue(projectedPriceIdx))
+                            .build();
+                    snapshot.addStatRecords(priceIdxStatRecord);
+                }
+
                 return EntityStats.newBuilder()
-                        .setOid(entityDTO.getOid())
+                        .setOid(projectedEntity.getEntity().getOid())
                         .addStatSnapshots(snapshot);
             }
 
@@ -506,4 +527,45 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         }
     }
 
+    /**
+     * Utility class to store a {@link ProjectedTopologyEntity} and it's associated
+     * {@link EntityStats} during stat retrieval.
+     *
+     * Only for use inside this class.
+     */
+    private static class EntityAndStats {
+        final ProjectedTopologyEntity entity;
+        final EntityStats.Builder stats;
+
+        private EntityAndStats(@Nonnull final ProjectedTopologyEntity entity,
+                       @Nonnull final EntityStats.Builder stats) {
+            this.entity = entity;
+            this.stats = stats;
+        }
+
+        /**
+         * Get the average used value of a commodity for this entity.
+         *
+         * @param commodityName The name of the commodity.
+         * @return An optional containing the average used commodity value, or an empty optional if
+         *         the entity does not buy/sell that commodity.
+         */
+        @Nonnull
+        Optional<Float> getCommodityUsedAvg(@Nonnull final String commodityName) {
+            return stats.getStatSnapshotsList().stream()
+                    // There should be at most one stat snapshot, because each stat snapshot represents
+                    // a point in time, and we are restoring a single ProjectedTopologyEntity
+                    // message - which is just the entity at the time that the projected
+                    // topology was generated.
+                    .findFirst()
+                    .flatMap(snapshot -> snapshot.getStatRecordsList().stream()
+                            .filter(record -> record.getName().equals(commodityName))
+                            // This is technically incorrect, because commodities may have keys.
+                            // But in practice, we usually sort by sold commodities (e.g. CPU) or
+                            // commodities from attributes (e.g. priceIndex) that don't
+                            // have keys.
+                            .findFirst())
+                    .map(record -> record.getUsed().getAvg());
+        }
+    }
 }

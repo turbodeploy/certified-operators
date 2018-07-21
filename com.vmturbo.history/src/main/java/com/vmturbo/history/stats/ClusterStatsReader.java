@@ -9,6 +9,7 @@ import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -47,7 +48,7 @@ public class ClusterStatsReader {
             @Nonnull Long clusterUuid,
             @Nonnull Long startDate,
             @Nonnull Long endDate,
-            @Nonnull List<String> commodityNames)
+            @Nonnull Set<String> commodityNames)
             throws VmtDbException {
         Objects.requireNonNull(clusterUuid);
         Objects.requireNonNull(startDate);
@@ -86,7 +87,7 @@ public class ClusterStatsReader {
             @Nonnull Long clusterUuid,
             @Nonnull Long startDate,
             @Nonnull Long endDate,
-            @Nonnull List<String> commodityNames)
+            @Nonnull Set<String> commodityNames)
             throws VmtDbException {
         final Condition whereInCommodityNames = str(dField(CLUSTER_STATS_BY_MONTH, PROPERTY_TYPE))
                 .in(commodityNames);

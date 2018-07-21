@@ -20,6 +20,7 @@ import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseExc
 import com.vmturbo.repository.topology.IncrementalTopologyRelationshipRecorder;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.SourceTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 import com.vmturbo.repository.topology.TopologyRelationshipRecorder;
@@ -68,7 +69,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             .labels(SharedMetrics.SOURCE_LABEL)
             .startTimer();
         final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
-        TopologyCreator topologyCreator = topologyManager.newTopologyCreator(tid);
+        SourceTopologyCreator topologyCreator = topologyManager.newSourceTopologyCreator(tid);
         try {
             logger.info("Start updating topology {}", tid);
             topologyCreator.initialize();

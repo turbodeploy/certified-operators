@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.arangodb.ArangoDBException;
-import com.google.common.collect.Collections2;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -24,7 +23,7 @@ import com.vmturbo.repository.SharedMetrics;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
-import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyEntitiesException;
 
 /**
@@ -69,7 +68,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
                 .labels(SharedMetrics.PROJECTED_LABEL)
                 .startTimer();
 
-        TopologyCreator topologyCreator = topologyManager.newTopologyCreator(tid);
+        ProjectedTopologyCreator topologyCreator = topologyManager.newProjectedTopologyCreator(tid);
         try {
             topologyCreator.initialize();
             logger.info("Start updating topology {}",  tid);
@@ -78,7 +77,7 @@ public class MarketTopologyListener implements ProjectedTopologyListener {
             while (projectedTopo.hasNext()) {
                 Collection<ProjectedTopologyEntity> chunk = projectedTopo.nextChunk();
                 logger.debug("Received chunk #{} of size {} for topology {}", ++chunkNumber, chunk.size(), tid);
-                topologyCreator.addEntities(Collections2.transform(chunk, ProjectedTopologyEntity::getEntity));
+                topologyCreator.addEntities(chunk);
                 numberOfEntities += chunk.size();
             }
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_GAUGE

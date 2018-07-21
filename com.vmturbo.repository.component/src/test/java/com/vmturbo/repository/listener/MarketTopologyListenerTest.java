@@ -25,6 +25,7 @@ import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
+import com.vmturbo.repository.topology.TopologyLifecycleManager.ProjectedTopologyCreator;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
@@ -44,7 +45,7 @@ public class MarketTopologyListenerTest {
     private RepositoryNotificationSender apiBackend;
 
     @Mock
-    private TopologyCreator topologyCreator;
+    private ProjectedTopologyCreator topologyCreator;
 
     @Mock
     private RemoteIterator<ProjectedTopologyEntity> entityIterator;
@@ -75,7 +76,7 @@ public class MarketTopologyListenerTest {
         when(entityIterator.nextChunk()).thenReturn(Sets.newHashSet(vmDTO, pmDTO))
                                         .thenReturn(Sets.newHashSet(dsDTO));
         when(entityIterator.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
-        when(topologyManager.newTopologyCreator(any())).thenReturn(topologyCreator);
+        when(topologyManager.newProjectedTopologyCreator(any())).thenReturn(topologyCreator);
     }
 
     /**
@@ -98,7 +99,7 @@ public class MarketTopologyListenerTest {
                 Collections.emptySet(),
                 entityIterator);
 
-        verify(topologyManager).newTopologyCreator(tid);
+        verify(topologyManager).newProjectedTopologyCreator(tid);
         verify(topologyCreator).complete();
         verify(topologyCreator, never()).rollback();
         // 2 invocations, one for each chunk
