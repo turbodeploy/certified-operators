@@ -325,16 +325,16 @@ public class OperationManagerTest {
         operationManager.notifyDiscoveryResult(discovery, response);
         OperationTestUtilities.waitForDiscovery(operationManager, discovery);
 
-        verify(entityStore, times(1)).entitiesDiscovered(eq(probeId),
-                eq(targetId), eq(Collections.singletonList(entity)));
+        verify(entityStore, times(1)).entitiesDiscovered(eq(probeId), eq(targetId),
+                eq(Collections.singletonList(entity)));
 
         final Discovery discovery2 = operationManager.startDiscovery(targetId);
         operationManager.notifyTimeout(discovery2, 1);
         OperationTestUtilities.waitForDiscovery(operationManager, discovery2);
 
         // The timeout shouldn't have resulted in another call to entitiesDiscovered.
-        verify(entityStore, times(1)).entitiesDiscovered(eq(probeId),
-                eq(targetId), eq(Collections.singletonList(entity)));
+        verify(entityStore, times(1)).entitiesDiscovered(eq(probeId), eq(targetId),
+                eq(Collections.singletonList(entity)));
     }
 
     /**

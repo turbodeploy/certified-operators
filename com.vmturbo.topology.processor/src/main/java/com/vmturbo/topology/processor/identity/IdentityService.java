@@ -69,7 +69,7 @@ public class IdentityService {
 
     /**
      * Uses the same algorithm as
-     * {@link IdentityService#getEntityOID(EntityDescriptor, EntityMetadataDescriptor, long)}, but
+     * {@link IdentityService#getEntityOID(EntityDescriptor, EntityMetadataDescriptor)}, but
      * gets multiple OIDs atomically.
      *
      * @param entries A list of the entries to get OIDs for.
@@ -185,7 +185,6 @@ public class IdentityService {
      *
      * @param descriptor         The entity descriptor
      * @param metadataDescriptor The entity metadata descriptor.
-     * @param probeId            The Id of the probe of the target which discovered the entity.
      * @return The OID.
      * @throws IdentityWrongSetException         In case the properties don't constitute the
      *                                              Identity property set.
@@ -193,12 +192,10 @@ public class IdentityService {
      *                                              underlying store.
      * @throws IdentityUninitializedException If the identity service initialization is incomplete.
      */
-    public long getEntityOID(@Nonnull EntityDescriptor descriptor,
-                             @Nonnull EntityMetadataDescriptor metadataDescriptor,
-                             final long probeId)
+    public long getEntityOID(EntityDescriptor descriptor, EntityMetadataDescriptor metadataDescriptor)
             throws IdentityWrongSetException, IdentityServiceOperationException, IdentityUninitializedException {
         return getEntityOIDs(Collections.singletonList(
-            new EntryData(descriptor, metadataDescriptor, probeId, null))).get(0);
+            new EntryData(descriptor, metadataDescriptor, null))).get(0);
     }
 
     /**

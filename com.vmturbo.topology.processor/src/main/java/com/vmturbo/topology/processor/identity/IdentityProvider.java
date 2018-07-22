@@ -46,7 +46,7 @@ public interface IdentityProvider extends Diagnosable {
      * Get the entity ID for the entities discovered by a specific probe
      * and described by the given DTO.
      *
-     * @param probeId The Id of the probe that discovered the entity.
+     * @param probeId The probe that discovered the entity.
      * @param entityDTOs A list of the descriptors of the entities' properties.
      * @return A map from the assigned OID to the descriptor it was assigned to. Not all entities
      *         in the input are guaranteed to have an ID - for example, if the probe that discovered
@@ -58,8 +58,7 @@ public interface IdentityProvider extends Diagnosable {
      *         for which there is no identity metadata.
      * @throws IdentityProviderException if unable to persist the generated entity identities.
      */
-    Map<Long, EntityDTO> getIdsForEntities(long probeId,
-            @Nonnull List<EntityDTO> entityDTOs)
+    Map<Long, EntityDTO> getIdsForEntities(long probeId, @Nonnull List<EntityDTO> entityDTOs)
             throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException;
 
     /**

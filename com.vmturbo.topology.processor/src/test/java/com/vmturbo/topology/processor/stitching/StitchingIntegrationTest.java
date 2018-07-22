@@ -553,10 +553,8 @@ public class StitchingIntegrationTest {
             throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
-                Mockito.eq(probeId),
-                Mockito.eq(new ArrayList<>(entities.values()))))
+                Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))
                 .thenReturn(entities);
-        entityStore.entitiesDiscovered(probeId, targetId,
-                new ArrayList<>(entities.values()));
+        entityStore.entitiesDiscovered(probeId, targetId, new ArrayList<>(entities.values()));
     }
  }

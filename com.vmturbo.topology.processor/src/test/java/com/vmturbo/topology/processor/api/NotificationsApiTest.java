@@ -46,7 +46,6 @@ import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
-import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.Target;
@@ -511,13 +510,6 @@ public class NotificationsApiTest extends AbstractApiCallsTest {
         probeStore.registerNewProbe(Probes.defaultProbe, transport);
         final long probeId = probeStore.getProbes().keySet().iterator().next();
         return probeId;
-    }
-
-    private String getProbeType(long probeId) throws Exception {
-        return probeStore.getProbe(probeId)
-                .map(MediationMessage.ProbeInfo::getProbeType)
-                .orElseThrow(() -> new ProbeException("Probe " + probeId
-                        + " is not registered"));
     }
 
     private static long toEpochMillis(LocalDateTime date) {
