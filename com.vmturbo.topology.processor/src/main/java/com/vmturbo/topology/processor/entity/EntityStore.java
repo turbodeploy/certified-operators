@@ -246,14 +246,17 @@ public class EntityStore {
      *                                   persisted.
      */
     @Nonnull
-    private Map<Long, EntityDTO> assignIdsToEntities(final long probeId, final long targetId,
-              @Nonnull final List<EntityDTO> entityDTOList) throws IdentityUninitializedException,
+    private Map<Long, EntityDTO> assignIdsToEntities(final long probeId,
+                                                     final long targetId,
+                                                     @Nonnull final List<EntityDTO> entityDTOList)
+        throws IdentityUninitializedException,
                     IdentityMetadataMissingException, IdentityProviderException {
         // There may be duplicate entries (though that's a bug in the probes),
         // and we should deal with that without throwing exceptions.
         final Map<Long, EntityDTO> finalEntitiesById = new HashMap<>();
 
-        identityProvider.getIdsForEntities(probeId, entityDTOList).forEach((entityId, entityDto) -> {
+        identityProvider.getIdsForEntities(probeId, entityDTOList)
+            .forEach((entityId, entityDto) -> {
 
             final EntityDTO existingEntry = finalEntitiesById.putIfAbsent(entityId, entityDto);
             if (existingEntry != null) {
@@ -283,7 +286,8 @@ public class EntityStore {
      * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
      *         for which there is no identity metadata.
      */
-    public void entitiesDiscovered(final long probeId, final long targetId,
+    public void entitiesDiscovered(final long probeId,
+                                   final long targetId,
                                    @Nonnull final List<EntityDTO> entityDTOList)
         throws IdentityUninitializedException, IdentityMetadataMissingException,
                 IdentityProviderException {

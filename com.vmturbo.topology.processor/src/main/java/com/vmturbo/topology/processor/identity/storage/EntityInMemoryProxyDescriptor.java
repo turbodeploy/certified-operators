@@ -116,7 +116,8 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
         }
 
         @Nonnull EntityInMemoryProxyDescriptor that = (EntityInMemoryProxyDescriptor)obj;
-        return (oid == that.oid && key.equals(that.key) &&
+        return (oid == that.oid &&
+                key.equals(that.key) &&
                 queryPropertySet.equals(that.queryPropertySet) &&
                 heuristicProperties.equals(that.heuristicProperties));
     }

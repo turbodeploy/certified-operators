@@ -500,8 +500,8 @@ public class TargetControllerTest {
         probeStore.registerNewProbe(info, transport);
 
         final long probeId = identityProvider.getProbeId(info);
-        final Discovery discovery = new Discovery(0, probeId, identityProvider);
-        final Validation validation = new Validation(0, probeId, identityProvider);
+        final Discovery discovery = new Discovery(probeId, 0, identityProvider);
+        final Validation validation = new Validation(probeId,  0, identityProvider);
         Mockito.when(operationManager.getLastDiscoveryForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.empty());
         Mockito.when(operationManager.getLastValidationForTarget(Mockito.anyLong()))
