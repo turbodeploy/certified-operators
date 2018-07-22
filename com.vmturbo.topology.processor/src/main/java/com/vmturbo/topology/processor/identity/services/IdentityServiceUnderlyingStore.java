@@ -39,12 +39,14 @@ public interface IdentityServiceUnderlyingStore {
      * @param oid                The object id.
      * @param descriptor         The descriptor.
      * @param metadataDescriptor The metadata descriptor.
+     * @param probeId            The ID of the probe of the target which discovered the entity.
      * @throws IdentityServiceStoreOperationException In case of an error adding the Entity.
      * @throws IdentityUninitializedException If the store is not initialized yet.
      */
     void addEntry(final long oid,
                   @Nonnull final EntityDescriptor descriptor,
-                  @Nonnull final EntityMetadataDescriptor metadataDescriptor)
+                  @Nonnull final EntityMetadataDescriptor metadataDescriptor,
+                  final long probeId)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**
@@ -63,12 +65,14 @@ public interface IdentityServiceUnderlyingStore {
      * @param oid                The object id.
      * @param descriptor         The descriptor.
      * @param metadataDescriptor The metadata descriptor.
+     * @param probeId            The ID of the probe of the target which discovered the entity.
      * @throws IdentityServiceStoreOperationException In case of an error updating the Entity.
      * @throws IdentityUninitializedException If the store is not initialized yet.
      */
     void updateEntry(final long oid,
                      @Nonnull final EntityDescriptor descriptor,
-                     @Nonnull final EntityMetadataDescriptor metadataDescriptor)
+                     @Nonnull final EntityMetadataDescriptor metadataDescriptor,
+                     final long probeId)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
     /**

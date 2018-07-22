@@ -15,8 +15,12 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
  */
 @Immutable
 public class EntryData {
+
     private final EntityDescriptor entityDescriptor;
     private final EntityMetadataDescriptor metadataDescriptor;
+
+    // The ID of the probe of the target which discovered this entity.
+    private final long probeId;
 
     /**
      * The {@link EntityDTO} associated with this entry, if any.
@@ -28,9 +32,11 @@ public class EntryData {
 
     public EntryData(@Nonnull final EntityDescriptor entityDescriptor,
                      @Nonnull final EntityMetadataDescriptor metadataDescriptor,
+                     @Nonnull final long probeId,
                      @Nullable final EntityDTO entityDTO) {
         this.entityDescriptor = entityDescriptor;
         this.metadataDescriptor = metadataDescriptor;
+        this.probeId = probeId;
         this.entityDTO = Optional.ofNullable(entityDTO);
     }
 
@@ -42,6 +48,11 @@ public class EntryData {
     @Nonnull
     public EntityMetadataDescriptor getMetadata() {
         return metadataDescriptor;
+    }
+
+    @Nonnull
+    public long getProbeId() {
+        return probeId;
     }
 
     @Nonnull

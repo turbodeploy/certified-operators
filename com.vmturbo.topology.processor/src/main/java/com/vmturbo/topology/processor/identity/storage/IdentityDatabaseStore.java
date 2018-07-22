@@ -22,7 +22,7 @@ import com.vmturbo.topology.processor.db.tables.AssignedIdentity;
  */
 public class IdentityDatabaseStore {
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(IdentityDatabaseStore.class);
 
     private final DSLContext dsl;
 
@@ -30,12 +30,13 @@ public class IdentityDatabaseStore {
         this.dsl = dsl;
     }
 
-    void saveDescriptors(@Nonnull final Collection<EntityInMemoryProxyDescriptor> descriptors)
+    void saveDescriptors(final long probeId,
+                         @Nonnull final Collection<EntityInMemoryProxyDescriptor> descriptors)
             throws IdentityDatabaseException {
         try {
             dsl.transaction(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
-                descriptors.forEach(descriptor -> insert(transactionDsl, descriptor));
+                descriptors.forEach(descriptor -> insert(transactionDsl, probeId, descriptor));
             });
         } catch (DataAccessException e) {
             throw new IdentityDatabaseException(e);
@@ -43,10 +44,13 @@ public class IdentityDatabaseStore {
     }
 
     private void insert(@Nonnull final DSLContext context,
+                        @Nonnull long probeId,
                         @Nonnull final EntityInMemoryProxyDescriptor descriptor) {
         context.insertInto(AssignedIdentity.ASSIGNED_IDENTITY)
-                .columns(AssignedIdentity.ASSIGNED_IDENTITY.ID, AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES)
-                .values(descriptor.getOID(), descriptor)
+                .columns(AssignedIdentity.ASSIGNED_IDENTITY.ID,
+                    AssignedIdentity.ASSIGNED_IDENTITY.PROBE_ID,
+                    AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES)
+                .values(descriptor.getOID(), probeId, descriptor)
                 .onDuplicateKeyUpdate()
                 .set(AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES, descriptor)
                 .execute();

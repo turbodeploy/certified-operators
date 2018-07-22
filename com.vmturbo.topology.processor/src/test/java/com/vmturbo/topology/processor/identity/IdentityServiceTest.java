@@ -5,7 +5,6 @@ package com.vmturbo.topology.processor.identity;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -31,6 +30,8 @@ public class IdentityServiceTest {
 
     private IdentityService idSvc;
 
+    private long probeId = 111;
+
     @BeforeClass
     public static void setUpBeforeClass() throws Exception {
         IdentityGenerator.initPrefix(0);
@@ -48,7 +49,7 @@ public class IdentityServiceTest {
     public void testEmpty() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class), probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         idSvc.removeEntity(oid);
     }
@@ -57,11 +58,11 @@ public class IdentityServiceTest {
     public void testOneThereIdentical() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class), probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         long oid1 = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                    new ArrayList<String>()),
-                                       Mockito.mock(EntityMetadataDescriptor.class));
+                                       Mockito.mock(EntityMetadataDescriptor.class), probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid1);
         Assert.assertEquals(oid, oid1);
         idSvc.removeEntity(oid);
@@ -74,12 +75,14 @@ public class IdentityServiceTest {
         descriptors.add(new PropertyDescriptorImpl("VM", 1));
         descriptors.add(new PropertyDescriptorImpl("PM", 1));
         long oid = idSvc.getEntityOID(new EntityDescriptorImpl(descriptors, Collections.emptyList(),
-                Collections.emptyList()), Mockito.mock(EntityMetadataDescriptor.class));
+                Collections.emptyList()), Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         final List<PropertyDescriptor> reverseDescriptors = Lists.reverse(descriptors);
         long oid1 = idSvc.getEntityOID(
                 new EntityDescriptorImpl(reverseDescriptors, Collections.emptyList(),
-                        Collections.emptyList()), Mockito.mock(EntityMetadataDescriptor.class));
+                        Collections.emptyList()), Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid1);
         Assert.assertNotEquals(oid, oid1);
         idSvc.removeEntity(oid);
@@ -90,12 +93,12 @@ public class IdentityServiceTest {
     public void testOneThereIdenticalWithRemoval() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class), probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         idSvc.removeEntity(oid);
         long oid1 = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                    new ArrayList<String>()),
-                                       Mockito.mock(EntityMetadataDescriptor.class));
+                                       Mockito.mock(EntityMetadataDescriptor.class), probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid1);
         Assert.assertNotEquals(oid, oid1);
         idSvc.removeEntity(oid);
@@ -106,12 +109,14 @@ public class IdentityServiceTest {
     public void testOneThereNonIdentical() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         long oid1 = idSvc.getEntityOID(new EntityDescriptorMock(
                                                Collections.singletonList("VM_Different"),
                                                new ArrayList<String>()),
-                                       Mockito.mock(EntityMetadataDescriptor.class));
+                                       Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid1);
         Assert.assertNotEquals(oid, oid1);
         idSvc.removeEntity(oid);
@@ -122,7 +127,8 @@ public class IdentityServiceTest {
     public void testOneCheckPresentByOID() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         Assert.assertTrue(idSvc.containsOID(oid));
         idSvc.removeEntity(oid);
@@ -132,7 +138,8 @@ public class IdentityServiceTest {
     public void testOneCheckNotPresentByOID() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         Assert.assertFalse(idSvc.containsOID(oid + 1));
         idSvc.removeEntity(oid);
@@ -142,7 +149,8 @@ public class IdentityServiceTest {
     public void testOneCheckPresentByIdentifyingProperties() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(new PropertyDescriptorImpl("VM", 1));
@@ -155,7 +163,8 @@ public class IdentityServiceTest {
     public void testOneCheckNotPresentByIdentifyingProperties() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(new PropertyDescriptorImpl("VM_Not", 1));
@@ -168,7 +177,8 @@ public class IdentityServiceTest {
     public void testOneCheckNotPresentByIdentifyingPropertiesDiffRank() throws Exception {
         long oid = idSvc.getEntityOID(new EntityDescriptorMock(Collections.singletonList("VM"),
                                                                   new ArrayList<String>()),
-                                      Mockito.mock(EntityMetadataDescriptor.class));
+                                      Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
         List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(new PropertyDescriptorImpl("VM", 2));
@@ -183,7 +193,8 @@ public class IdentityServiceTest {
                         Collections.singletonList("VM"),
                         Collections.singletonList("Volatile1"),
                         Arrays.asList("Heuristic1", "Heuristic2")),
-                Mockito.mock(EntityMetadataDescriptor.class));
+                Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertNotEquals(IdentityService.INVALID_OID, oid);
 
         // verify that a new entity descriptor w/same non-volatile id props + same heuristic props
@@ -192,7 +203,8 @@ public class IdentityServiceTest {
                         Collections.singletonList("VM"),
                         Collections.singletonList("Volatile2"),
                         Arrays.asList("Heuristic1", "Heuristic2")),
-                Mockito.mock(EntityMetadataDescriptor.class));
+                Mockito.mock(EntityMetadataDescriptor.class),
+                probeId);
         Assert.assertEquals("Match on heuristic properties should find existing oid",
                 oid, hopefullySameOid);
 

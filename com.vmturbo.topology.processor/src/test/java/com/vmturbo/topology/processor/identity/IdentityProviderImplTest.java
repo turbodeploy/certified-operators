@@ -302,6 +302,7 @@ public class IdentityProviderImplTest {
         verify(identityService).restore(any());
         // It should assign the same ID for the same probe type.
         assertEquals(probeId, newProvider.getProbeId(probeInfo));
-        assertEquals(idMap, newProvider.getIdsForEntities(probeId, Collections.singletonList(entity)));
+        assertEquals(idMap, newProvider.getIdsForEntities(probeId,
+                Collections.singletonList(entity)));
     }
 }

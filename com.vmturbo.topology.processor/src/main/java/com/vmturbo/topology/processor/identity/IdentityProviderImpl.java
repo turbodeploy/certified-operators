@@ -195,7 +195,7 @@ public class IdentityProviderImpl implements IdentityProvider {
             if (entityMetadata != null) {
                 final EntityDescriptor descriptor =
                     IdentifyingPropertyExtractor.extractEntityDescriptor(dto, entityMetadata);
-                entryData.add(new EntryData(descriptor, entityMetadata, dto));
+                entryData.add(new EntryData(descriptor, entityMetadata, probeId, dto));
             } else {
                 // If we are unable to assign an OID for an entity, abandon the attempt.
                 // One missing entity OID spoils the entire batch because of how tangled the relationships

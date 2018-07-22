@@ -49,7 +49,6 @@ public class Validation extends Operation {
                 .append(super.toString()).toString();
     }
 
-
     @Nonnull
     @Override
     protected DataMetricTimer getMetricsTimer() {

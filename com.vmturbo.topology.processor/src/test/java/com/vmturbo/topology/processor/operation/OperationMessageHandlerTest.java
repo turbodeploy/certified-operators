@@ -30,7 +30,7 @@ public class OperationMessageHandlerTest {
 
     private final OperationManager operationManager = Mockito.mock(OperationManager.class);
     private final IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
-    private final Discovery discovery = new Discovery(0, 0, identityProvider);
+    private final Discovery discovery = new Discovery(0,0, identityProvider);
 
     /**
      * Test that the handler works properly when receiving a discovery response.

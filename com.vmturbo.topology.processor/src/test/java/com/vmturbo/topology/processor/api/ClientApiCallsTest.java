@@ -580,14 +580,17 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         Assert.assertEquals(actionId, success.getActionId());
     }
 
-    private void addEntities(final long probeId, final long targetId, Map<Long, EntityDTO> entities)
+    private void addEntities(final long probeId,
+                             final long targetId,
+                             Map<Long, EntityDTO> entities)
             throws EntitiesValidationException, IdentityUninitializedException,
                     IdentityMetadataMissingException, IdentityProviderException {
         Mockito.doReturn(entities)
                 .when(identityProviderSpy)
                 .getIdsForEntities(Mockito.eq(probeId),
                         Mockito.eq(new ArrayList<>(entities.values())));
-        entityStore.entitiesDiscovered(probeId, targetId, new ArrayList<>(entities.values()));
+        entityStore.entitiesDiscovered(probeId, targetId,
+                new ArrayList<>(entities.values()));
     }
 
     private EntityDTO createEntity(final EntityType type, final String id) {
