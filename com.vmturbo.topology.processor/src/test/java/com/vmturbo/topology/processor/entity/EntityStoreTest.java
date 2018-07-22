@@ -249,6 +249,7 @@ public class EntityStoreTest {
         Mockito.when(identityProvider.getIdsForEntities(
             Mockito.eq(probeId), Mockito.eq(new ArrayList<>(entities.values()))))
             .thenReturn(entities);
-        entityStore.entitiesDiscovered(probeId, targetId, new ArrayList<>(entities.values()));
+        entityStore.entitiesDiscovered(probeId, targetId,
+                new ArrayList<>(entities.values()));
     }
 }

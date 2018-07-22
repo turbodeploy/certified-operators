@@ -200,7 +200,8 @@ public class SharedStorageIntegrationTest {
             .thenReturn(entities);
         when(entityClock.millis()).thenReturn(discoveryTime);
 
-        entityStore.entitiesDiscovered(probeId, targetId, new ArrayList<>(entities.values()));
+        entityStore.entitiesDiscovered(probeId, targetId,
+                new ArrayList<>(entities.values()));
     }
 
     /**
