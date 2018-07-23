@@ -193,8 +193,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
                         + " corresponding to target " + targetId + " is not registered"));
 
-        final Action action = new Action(actionId, target.getProbeId(),
-                targetId, identityProvider);
+        final Action action = new Action(actionId, target.getProbeId(), targetId, identityProvider);
         final ActionRequest request = ActionRequest.newBuilder()
                 .setProbeType(probeType)
                 .addAllAccountValue(target.getMediationAccountVals())
