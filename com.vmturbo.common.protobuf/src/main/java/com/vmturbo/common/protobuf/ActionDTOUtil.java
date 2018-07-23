@@ -12,6 +12,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -24,6 +25,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -237,5 +241,42 @@ public class ActionDTOUtil {
             }
         }
         return entityIds;
+    }
+
+    /**
+     * Gets the display name of the commodity from the {@link CommodityType}
+     *
+     * @param commType the {@link CommodityType} for which the displayName is to be retrieved
+     * @return display name string of the commodity
+     */
+    public static String getCommodityDisplayName(@Nonnull TopologyDTO.CommodityType commType) {
+        CommodityDTO.CommodityType commodity = CommodityDTO.CommodityType.forNumber(
+                commType.getType());
+        // If the commodity type is network, we need to append the name of the name of the network.
+        // The name of the network is stored in the key currently. So we append the key.
+        // TODO: But, this is a hack. We need to come up with a framework for showing display names
+        // of commodities.
+        return getSpaceSeparatedWordsFromCamelCaseString(
+                CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, commodity.name())) +
+                (commodity == CommodityDTO.CommodityType.NETWORK ? " "+ commType.getKey() : "");
+    }
+
+    /**
+     * Convert camel case (e.g. PhysicalMachine) into strings with the same
+     * capitalization plus blank spaces (e.g. "Physical Machine"). It also splits numbers,
+     * e.g. "May5" -> "May 5" and respects upper case runs, e.g. (PDFLoader -> "PDF Loader").
+     *
+     * The regex uses zero-length pattern matching with look-behind and look-forward, and is
+     * taken from - http://stackoverflow.com/questions/2559759.
+     *
+     * @param str any string
+     * @return see description
+     */
+    public static String getSpaceSeparatedWordsFromCamelCaseString(@Nonnull final String str) {
+        return str.replaceAll(String.format("%s|%s|%s",
+                "(?<=[A-Z])(?=[A-Z][a-z])",
+                "(?<=[^A-Z])(?=[A-Z])",
+                "(?<=[A-Za-z])(?=[^A-Za-z])"),
+                " ");
     }
 }
