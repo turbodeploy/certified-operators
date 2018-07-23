@@ -766,7 +766,7 @@ public class ActionSpecMapper {
      */
     private String readableEntityTypeAndName(BaseApiDTO entityDTO) {
         return String.format("%s '%s'",
-            formatString(entityDTO.getClassName()),
+            ActionDTOUtil.getSpaceSeparatedWordsFromCamelCaseString(entityDTO.getClassName()),
             entityDTO.getDisplayName()
         );
     }
@@ -781,28 +781,8 @@ public class ActionSpecMapper {
      */
     private String readableCommodityTypes(@Nonnull final List<TopologyDTO.CommodityType> commodityTypes) {
         return commodityTypes.stream()
-            .map(commodityType -> CommodityDTO.CommodityType.forNumber(commodityType.getType()).name())
-            .map(name -> formatString(CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, name)))
+            .map(commodityType -> ActionDTOUtil.getCommodityDisplayName(commodityType))
             .collect(Collectors.joining(", "));
-    }
-
-    /**
-     * Convert camel case (e.g. PhysicalMachine) into strings with the same
-     * capitalization plus blank spaces (e.g. "Physical Machine"). It also splits numbers,
-     * e.g. "May5" -> "May 5" and respects upper case runs, e.g. (PDFLoader -> "PDF Loader").
-     *
-     * The regex uses zero-length pattern matching with look-behind and look-forward, and is
-     * taken from - http://stackoverflow.com/questions/2559759.
-     *
-     * @param str any string
-     * @return see description
-     */
-    private String formatString(@Nonnull final String str) {
-        return str.replaceAll(String.format("%s|%s|%s",
-                "(?<=[A-Z])(?=[A-Z][a-z])",
-                "(?<=[^A-Z])(?=[A-Z])",
-                "(?<=[A-Za-z])(?=[^A-Za-z])"),
-            " ");
     }
 
     /**
