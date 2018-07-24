@@ -33,11 +33,6 @@ public class ExplanationComposerTest {
         .setType(CommodityDTO.CommodityType.SEGMENTATION_VALUE)
         .build();
 
-    private static final CommodityType NETWORK = CommodityType.newBuilder()
-            .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
-            .setKey("testNetwork1")
-            .build();
-
     @Test
     public void testMoveExplanation() throws Exception {
         Explanation compliance = Explanation.newBuilder()
@@ -59,12 +54,10 @@ public class ExplanationComposerTest {
         Explanation reconfigure =
             Explanation.newBuilder()
                 .setReconfigure(ReconfigureExplanation.newBuilder()
-                    .addReconfigureCommodity(SEGMENTATION).addReconfigureCommodity(NETWORK)
-                        .build())
+                    .addReconfigureCommodity(SEGMENTATION).build())
                 .build();
 
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation, Network " +
-                        "testNetwork1",
+        assertEquals("Enable supplier to offer requested resource(s) SEGMENTATION",
             ExplanationComposer.composeExplanation(reconfigure));
     }
 

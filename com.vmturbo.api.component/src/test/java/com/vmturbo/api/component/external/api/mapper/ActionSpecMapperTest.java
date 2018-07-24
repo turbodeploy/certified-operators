@@ -291,10 +291,6 @@ public class ActionSpecMapperTest {
         final CommodityType cpuAllocation = CommodityType.newBuilder()
             .setType(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE)
             .build();
-        final CommodityType network = CommodityType.newBuilder()
-                .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
-                .setKey("TestNetworkName1")
-                .build();
 
         ActionInfo moveInfo =
                     ActionInfo.newBuilder().setReconfigure(
@@ -306,8 +302,7 @@ public class ActionSpecMapperTest {
         Explanation reconfigure =
                     Explanation.newBuilder()
                             .setReconfigure(ReconfigureExplanation.newBuilder()
-                                    .addReconfigureCommodity(cpuAllocation)
-                                    .addReconfigureCommodity(network).build())
+                                    .addReconfigureCommodity(cpuAllocation).build())
                             .build();
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
                         .thenReturn(oidToEntityMap(
@@ -326,9 +321,8 @@ public class ActionSpecMapperTest {
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
-            "Reconfigure C 0 'Target' which requires Cpu Allocation, Network TestNetworkName1 but " +
-                    "is hosted by C 1 'Source' which does not provide Cpu Allocation, Network " +
-                    "TestNetworkName1",
+            "Reconfigure C 0 'Target' which requires Cpu Allocation but is hosted by C 1 'Source' " +
+                "which does not provide Cpu Allocation",
             actionApiDTO.getDetails());
     }
 

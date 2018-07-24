@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
@@ -217,9 +216,7 @@ public class ExplanationComposer {
     public static String buildReconfigureExplanation(
         @Nonnull final Collection<TopologyDTO.CommodityType> commodityTypes) {
         StringBuilder sb = new StringBuilder().append(RECONFIGURE_EXPLANATION);
-        sb.append(commodityTypes.stream().map(commodityType ->
-                ActionDTOUtil.getCommodityDisplayName(commodityType))
-                .collect(Collectors.joining(", ")));
+        commodityTypes.forEach(commodityType -> sb.append(CommodityType.forNumber(commodityType.getType())));
         return sb.toString();
     }
 
