@@ -10,6 +10,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -34,6 +35,7 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperatorUtil;
  * template.
  */
 public class ProvisionBySupply extends ActionImpl {
+
     // Fields
     private final @NonNull Economy economy_;
     private final @NonNull Trader modelSeller_;
@@ -138,7 +140,7 @@ public class ProvisionBySupply extends ActionImpl {
         super.take();
         // a list of shopping list sponsored by guaranteed buyers that consume only the model seller
         List<ShoppingList> slBetweenModelSellerAndGuaranteedBuyer = GuaranteedBuyerHelper
-                        .findSlsBetweenSellerAndGuaranteedBuyer(getEconomy(), getModelSeller());
+                        .findSlsBetweenSellerAndGuaranteedBuyer(getModelSeller());
         // a map of each guaranteed buyer to all shopping lists that it sponsors
         Map<Trader, Set<ShoppingList>> allSlsSponsoredByGuaranteedBuyer = GuaranteedBuyerHelper
                         .getAllSlsSponsoredByGuaranteedBuyer(getEconomy(),
@@ -314,7 +316,7 @@ public class ProvisionBySupply extends ActionImpl {
     public @NonNull Action rollback() {
         super.rollback();
         GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
-                                                                    provisionedSeller_);
+                provisionedSeller_);
         getEconomy().removeTrader(provisionedSeller_);
         getSubsequentActions().forEach(a -> {
             if (a instanceof ProvisionBySupply) {

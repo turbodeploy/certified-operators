@@ -32,6 +32,7 @@ import com.vmturbo.platform.analysis.economy.TraderState;
  * template.
  */
 public class ProvisionByDemand extends ActionImpl {
+
     // Fields
     private final @NonNull Economy economy_;
     private final @NonNull ShoppingList modelBuyer_; // TODO: also add source market? Desired state?
@@ -120,7 +121,7 @@ public class ProvisionByDemand extends ActionImpl {
         super.take();
         // a list of shopping list sponsored by guaranteed buyers that consume only the model seller
         List<ShoppingList> guaranteedBuyerSlsOnModelSeller = GuaranteedBuyerHelper
-                        .findSlsBetweenSellerAndGuaranteedBuyer(getEconomy(), getModelSeller());
+                        .findSlsBetweenSellerAndGuaranteedBuyer(getModelSeller());
         // a map of each guaranteed buyer to all shopping lists that it sponsors
         Map<Trader, Set<ShoppingList>> allSlsSponsoredByGuaranteedBuyer = GuaranteedBuyerHelper
                         .getAllSlsSponsoredByGuaranteedBuyer(getEconomy(), guaranteedBuyerSlsOnModelSeller);
@@ -243,7 +244,8 @@ public class ProvisionByDemand extends ActionImpl {
     @Override
     public @NonNull Action rollback() {
         super.rollback();
-        GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(), provisionedSeller_);
+        GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(),
+                provisionedSeller_);
         getEconomy().removeTrader(provisionedSeller_);
         provisionedSeller_ = null;
         commodityNewCapacityMap_.clear();

@@ -1,8 +1,11 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper.findGuaranteedBuyers;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -13,8 +16,10 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -31,6 +36,8 @@ public class Suspension {
 
     // a set to keep all traders that is the sole seller in any market.
     private @NonNull Set<@NonNull Trader> soleProviders = new HashSet<@NonNull Trader>();
+    // Keeps track of the guaranteed buyers who have had a supplier suspend
+    private @NonNull Set<@NonNull Trader> guaranteedBuyersWithSuspensions = new HashSet<>();
 
     static final Logger logger = LogManager.getLogger();
 
@@ -110,8 +117,8 @@ public class Suspension {
                 // activeSellersAvailableForPlacement as entities should not move out of the ones
                 // not available for placement
                 if (market.getActiveSellersAvailableForPlacement().isEmpty() ||
-                                !market.getActiveSellersAvailableForPlacement().stream().anyMatch(
-                                                t -> t.getSettings().isSuspendable())) {
+                        market.getActiveSellersAvailableForPlacement().stream().noneMatch(
+                                        t -> t.getSettings().isSuspendable())) {
                     continue;
                 }
                 List<Trader> suspensionCandidates = new ArrayList<>();
@@ -153,7 +160,10 @@ public class Suspension {
             Trader trader;
             double oldNumActions = allActions.size();
             while ((trader = suspensionCandidateHeap_.poll()) != null) {
-                allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger));
+                if (!soleProviders.contains(trader) && trader.getState().isActive()) {
+                    allActions.addAll(deactivateTraderIfPossible(trader, economy, ledger));
+                    findSoleProviders(economy);  // find traders who just became a sole provider
+                }
             }
             // reset threshold
             adjustUtilThreshold(economy, false);
@@ -177,7 +187,7 @@ public class Suspension {
      * @param ledger The {@link Ledger} related to current {@link Economy}
      * @return action list related to suspension of trader.
      */
-    public List<Action> deactivateTraderIfPossible(Trader trader, Economy economy, Ledger ledger) {
+    List<Action> deactivateTraderIfPossible(Trader trader, Economy economy, Ledger ledger) {
         boolean isDebugTrader = trader.isDebugEnabled();
         String traderDebugInfo = trader.getDebugInfoNeverUseInCode();
         if (logger.isTraceEnabled() || isDebugTrader) {
@@ -193,10 +203,23 @@ public class Suspension {
             }
             return suspendActions;
         }
+
         List<ShoppingList> customersOfSuspCandidate = new ArrayList<>();
         customersOfSuspCandidate.addAll(trader.getCustomers());
 
-        suspendTrader(economy, market, trader, suspendActions);
+        // Need to get this before doing the suspend, or the list will be empty.
+        List<ShoppingList> guaranteedBuyerSls = GuaranteedBuyerHelper
+                .findSlsBetweenSellerAndGuaranteedBuyer(trader);
+        Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
+                GuaranteedBuyerHelper.getAllSlsSponsoredByGuaranteedBuyer(economy,
+                        guaranteedBuyerSls);
+
+        if (!suspendTrader(economy, market, trader, suspendActions)) {
+            return suspendActions;
+        }
+        // reset threshold
+        adjustUtilThreshold(economy, true);
+
         if (logger.isTraceEnabled() || isDebugTrader) {
             logger.info("Suspending trader " + traderDebugInfo
                         + " and trying to move its customers to other traders.");
@@ -204,28 +227,55 @@ public class Suspension {
 
         if (market != null) {
             // perform placement on just the customers on the suspensionCandidate
+            // The act of suspension of chains of providerMustClone traders may clear the supplier
+            // of some the customers, so remove them first.
             suspendActions.addAll(
                                   Placement.runPlacementsTillConverge(economy,
-                                                                      customersOfSuspCandidate,
-                                                                      ledger, true,
-                                                                      EconomyConstants.SUSPENSION_PHASE));
+                                          customersOfSuspCandidate.stream()
+                                            .filter(sl -> sl.getSupplier() != null)
+                                            .collect(Collectors.toList()),
+                                          ledger, true, EconomyConstants.SUSPENSION_PHASE));
         }
 
-        // rollback actions if the trader still has customers
-        if (!trader.getCustomers().isEmpty()) {
+        // Rollback actions if the trader still has customers.  If all of the customers are
+        // guaranteed buyers, it's still okay to proceed with the suspend.
+
+        if (trader.getCustomers().stream()
+                .anyMatch(cust -> !cust.getBuyer().getSettings().isGuaranteedBuyer())) {
             if (logger.isTraceEnabled() || isDebugTrader) {
                 logger.info("{" + traderDebugInfo + "} will not be suspended"
                         + " because of " + trader.getCustomers().size() + " customer(s).");
             }
-            Lists.reverse(suspendActions).forEach(axn -> axn.rollback());
-            return new ArrayList<>();
-        } else {
-            logger.info("{" + traderDebugInfo + "} was suspended.");
-            if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
-                makeCoSellersNonSuspendable(economy, trader);
+            return rollBackSuspends(suspendActions);
+        }
+
+        // If the new suspensions would cause a guaranteed buyer to get an infinite quote,
+        // then reverse the suspensions.
+
+        for (Set<ShoppingList> shoppingLists : slsSponsoredByGuaranteedBuyer.values()) {
+            for (ShoppingList sl : shoppingLists) {
+                final @NonNull List<@NonNull Trader> sellers =
+                        economy.getMarket(sl).getActiveSellersAvailableForPlacement();
+                final QuoteMinimizer minimizer =
+                        sellers.stream()
+                                .collect(() -> new QuoteMinimizer(economy, sl),
+                                        QuoteMinimizer::accept, QuoteMinimizer::combine);
+                if (Double.isInfinite(minimizer.getBestQuote())) {
+                    return rollBackSuspends(suspendActions);
+                }
             }
         }
+
+        logger.info("{" + traderDebugInfo + "} was suspended.");
+        if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
+            makeCoSellersNonSuspendable(economy, trader);
+        }
         return suspendActions;
+    }
+
+    private List<Action> rollBackSuspends (List<Action> suspendActions) {
+        Lists.reverse(suspendActions).forEach(axn -> axn.rollback());
+        return new ArrayList<>();
     }
 
     /**
@@ -268,11 +318,25 @@ public class Suspension {
      * @param traderToSuspend - the trader that satisfies the engagement criteria best
      * @param actions - a list that the suspend action would be added to
      */
-    public void suspendTrader(Economy economy, Market market, Trader traderToSuspend,
+    public boolean suspendTrader(Economy economy, Market market, Trader traderToSuspend,
                               List<@NonNull Action> actions) {
+        final List<@NonNull Trader> guaranteedBuyers = GuaranteedBuyerHelper
+                .findGuaranteedBuyers(traderToSuspend);
+        // Do not allow a suspension if the trader's guaranteed buyer already had a supplier
+        // suspend.
+        // TODO This needs to eventually be handled by the suspension throttling mechanism by
+        // creating groups for each guaranteed buyer.
+        if (guaranteedBuyers.stream().anyMatch(guaranteedBuyersWithSuspensions::contains)) {
+            return false;
+        }
+
         Deactivate deactivateAction = new Deactivate(economy, traderToSuspend, market);
+        // If this trader is supplying guaranteed buyers, add them to the list of guaranteed
+        // buyers who have had a suspension this pass.
+        guaranteedBuyersWithSuspensions.addAll(guaranteedBuyers);
         actions.add(deactivateAction.take());
-        return;
+        actions.addAll(deactivateAction.getSubsequentActions());
+        return true;
     }
 
     /**
@@ -287,10 +351,22 @@ public class Suspension {
             // and it has some customers which are not the shoppinglists from guaranteed buyers
             if (marketsAsSeller.stream().anyMatch((m) -> m.getActiveSellersAvailableForPlacement()
                             .size() == 1 && m.getBuyers().stream().anyMatch(
-                                                                            sl -> !sl.getBuyer()
-                                                                                            .getSettings()
-                                                                                            .isGuaranteedBuyer()))) {
-                soleProviders.add(trader);
+                                                        sl -> !sl.getBuyer()
+                                                                        .getSettings()
+                                                                        .isGuaranteedBuyer()))) {
+                    soleProviders.add(trader);
+            } else if (trader.getSettings().isGuaranteedBuyer()) {
+                // This identifies sole providers of guaranteed buyers.  We do not want to suspend the
+                // last supplier of a guaranteed buyer.
+                final List<Trader> activeTraders = economy.getMarketsAsBuyer(trader)
+                        .keySet().stream()
+                        .map(ShoppingList::getSupplier)
+                        .filter(supp -> supp != null && supp.getState().isActive())
+                        .limit(2)  // We only need to know whether there is 1 or more than 1
+                        .collect(Collectors.toList());
+                if (activeTraders.size() == 1) {
+                        soleProviders.add(activeTraders.get(0));
+                }
             }
         }
     }
@@ -321,9 +397,9 @@ public class Suspension {
         final Trader picked = trader;
         for (Market mktAsSeller : economy.getMarketsAsSeller(trader)) {
             mktAsSeller.getActiveSellers().stream().filter(seller -> seller != picked)
-                            .forEach(t -> t.getSettings().setSuspendable(false));
+                    .forEach(t -> t.getSettings().setSuspendable(false));
             mktAsSeller.getInactiveSellers().stream().filter(seller -> seller != picked)
-                            .forEach(t -> t.getSettings().setSuspendable(false));
+                    .forEach(t -> t.getSettings().setSuspendable(false));
         }
     }
 

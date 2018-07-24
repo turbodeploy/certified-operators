@@ -3,16 +3,24 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.google.common.hash.Hashing;
+
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
@@ -21,9 +29,13 @@ import com.vmturbo.platform.analysis.economy.TraderState;
  */
 public class Deactivate extends StateChangeBase { // inheritance for code reuse
 
-    // Constructors
-
+    private static final Logger logger = LogManager.getLogger();
     private final @NonNull Economy economy_;
+    // Actions triggered by chaining Deactivate actions triggering by providerMustClone
+    private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
+    private List<ShoppingList> removedShoppingLists = new ArrayList<>();
+
+    // Constructors
 
     /**
      * Constructs a new Deactivate action with the specified target.
@@ -60,10 +72,15 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
      * Takes a deactivate action to change the state of a trader from active to inactive.
      */
     @Override
-    public @NonNull Deactivate take() {
+    public @NonNull Action take() {
         super.take();
         checkArgument(getTarget().getState().isActive());
+
+        // If this trader has providerMustClone set, suspend this trader's suppliers as well.
+        GuaranteedBuyerHelper.suspendProviders(this);
         getTarget().changeState(TraderState.INACTIVE);
+        removedShoppingLists.addAll(
+            GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(), getTarget()));
         return this;
     }
 
@@ -75,7 +92,25 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
         super.rollback();
         checkArgument(!getTarget().getState().isActive());
         getTarget().changeState(TraderState.ACTIVE);
+        List<ShoppingList> slsBetweenGuaranteedBuyersAndOriginalTrader =
+                GuaranteedBuyerHelper.getSlsWithGuaranteedBuyers(removedShoppingLists);
+        Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
+                GuaranteedBuyerHelper.getAllSlsSponsoredByGuaranteedBuyer(getEconomy(),
+                        slsBetweenGuaranteedBuyersAndOriginalTrader);
+        GuaranteedBuyerHelper.addNewSlAndAdjustExistingSls(getEconomy(),
+                slsBetweenGuaranteedBuyersAndOriginalTrader, slsSponsoredByGuaranteedBuyer,
+                getTarget());
+        removedShoppingLists.clear();
         return this;
+    }
+
+    /**
+     * Returns the actions that were triggered after taking {@code this} action
+     * @return a list of actions followed by {@code this}
+     */
+    @Pure
+    public @NonNull List<Action> getSubsequentActions() {
+        return subsequentActions_;
     }
 
     // TODO: update description and reason when we create the corresponding matrix.

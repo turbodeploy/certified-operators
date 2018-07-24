@@ -5,15 +5,20 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -80,83 +85,97 @@ public final class GuaranteedBuyerHelper {
                 commSoldOnClone.setPeakQuantity(commSoldOnClone.getPeakQuantity() +
                                                 newSl.getPeakQuantity(boughtIndex));
                 for (ShoppingList spList : slsNeedsUpdate) {
-                    double origQuantity = spList.getQuantity(boughtIndex);
-                    double origPeakQuantity = spList.getPeakQuantity(boughtIndex);
-                    spList.setQuantity(boughtIndex, updatedQuantity);
-                    spList.setPeakQuantity(boughtIndex, updatedPeakQuantity);
-                    // update commSold that the spList consume as a result of changing
-                    // quantity and peak quantity of spList, the commSold is from existing
-                    // sellers
-                    CommoditySold commSold = spList.getSupplier()
-                                    .getCommoditySold(spList.getBasket().get(boughtIndex));
-                    commSold.setQuantity(Math.max(0, commSold.getQuantity() - origQuantity +
-                                                  updatedQuantity));
-                    commSold.setPeakQuantity(Math.max(commSold.getPeakQuantity()- origPeakQuantity
-                                                      + updatedPeakQuantity,
-                                                      commSold.getQuantity()));
+                    adjustCommodity(boughtIndex, updatedQuantity, updatedPeakQuantity, spList);
                 }
             }
+        }
+    }
+
+    /**
+     * Helper function to update the commodity sold that the shopping list consumes as a result
+     * of changing the quantity and peak quantity of the shopping list.
+     * @param boughtIndex commodity index
+     * @param updatedQuantity new quantity
+     * @param updatedPeakQuantity new peak quantity
+     * @param shoppingList shopping list to modify
+     */
+    private static void adjustCommodity(final int boughtIndex,
+                                        final double updatedQuantity,
+                                        final double updatedPeakQuantity,
+                                        final ShoppingList shoppingList) {
+        double origQuantity = shoppingList.getQuantity(boughtIndex);
+        double origPeakQuantity = shoppingList.getPeakQuantity(boughtIndex);
+        shoppingList.setQuantity(boughtIndex, updatedQuantity);
+        shoppingList.setPeakQuantity(boughtIndex, updatedPeakQuantity);
+        // update commSold that the shoppingList consume as a result of changing
+        // quantity and peak quantity of shoppingList, the commSold is from existing
+        // sellers
+        CommoditySold commSold = shoppingList.getSupplier()
+                        .getCommoditySold(shoppingList.getBasket().get(boughtIndex));
+        if (commSold != null) {
+            commSold.setQuantity(Math.max(0, commSold.getQuantity() - origQuantity +
+                    updatedQuantity));
+            commSold.setPeakQuantity(Math.max(commSold.getPeakQuantity() - origPeakQuantity
+                            + updatedPeakQuantity,
+                    commSold.getQuantity()));
         }
     }
 
     /**
      * A helper method to remove buyer-seller relation between guaranteed buyers and a seller.
      * @param economy the economy the target is part of
-     * @param target the seller to be removed from supplier list of guaranteed buyers
+     * @param seller the seller to be removed from supplier list of guaranteed buyers
      */
-    public static void removeShoppingListForGuaranteedBuyers(Economy economy, Trader seller) {
+    public static List<ShoppingList>
+            removeShoppingListForGuaranteedBuyers(Economy economy, Trader seller) {
         List<ShoppingList> guaranteedBuyerSlsOnNewClone = GuaranteedBuyerHelper
-                        .findSlsBetweenSellerAndGuaranteedBuyer(economy, seller);
+                        .findSlsBetweenSellerAndGuaranteedBuyer(seller);
         Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
                         getAllSlsSponsoredByGuaranteedBuyer(economy, guaranteedBuyerSlsOnNewClone);
+        List<ShoppingList> removedShoppingLists = new ArrayList<>();
         for (ShoppingList shoppingList : guaranteedBuyerSlsOnNewClone) {
             // a set of shopping list sponsored by guaranteed buyer, the sl consuming new clone is
             // included
-            Set<ShoppingList> slsNeedsUpdate =
-                                             slsSponsoredByGuaranteedBuyer
-                                                             .get(shoppingList.getBuyer());
-            // update quantity and peak quantity of the shopping list sponsored by guaranteed buyer
-            // because we force to remove the shopping list between guaranteed buyer and new clone
-            // it is not the sl between new clone and guaranteed buyer
-            for (int i = 0; i < shoppingList.getBasket().size(); i++) {
-                double updatedQuantity = shoppingList.getQuantity(i) * slsNeedsUpdate.size()
-                                         / (slsNeedsUpdate.size() - 1);
-                double updatedPeakQuantity = shoppingList.getPeakQuantity(i) *
-                                             slsNeedsUpdate.size()
-                                             / (slsNeedsUpdate.size() - 1);
-                for (ShoppingList sl : slsNeedsUpdate) {
-                    // no need to update the sl on new clone as it will be removed
-                    if (!sl.equals(shoppingList)) {
-                        double origQuantity = sl.getQuantity(i);
-                        double origPeakQuantity = sl.getPeakQuantity(i);
-                        sl.setQuantity(i, updatedQuantity);
-                        sl.setPeakQuantity(i, updatedPeakQuantity);
-                        // update commSold that the sl consume as a result of changing
-                        // quantity and peak quantity of sl
-                        CommoditySold commSold = sl.getSupplier()
-                                        .getCommoditySold(sl.getBasket().get(i));
-                        commSold.setQuantity(Math.max(0, commSold.getQuantity() - origQuantity
-                                                         + updatedQuantity));
-                        commSold.setPeakQuantity(Math.max(commSold.getPeakQuantity() -
-                                                          origPeakQuantity
-                                                          + updatedPeakQuantity,
-                                                          commSold.getQuantity()));
+            Set<ShoppingList> slsNeedsUpdate = slsSponsoredByGuaranteedBuyer
+                    .get(shoppingList.getBuyer()).stream()
+                    .filter(sl -> sl.getBuyer().getState().isActive()).collect(Collectors.toSet());
+            // Cannot rebalance across zero buyers.
+            if (slsNeedsUpdate.size() > 1) {
+                // update quantity and peak quantity of the shopping list sponsored by guaranteed buyer
+                // because we force to remove the shopping list between guaranteed buyer and new clone
+                // it is not the sl between new clone and guaranteed buyer
+                for (int i = 0; i < shoppingList.getBasket().size(); i++) {
+                    double updatedQuantity = shoppingList.getQuantity(i) * slsNeedsUpdate.size()
+                            / (slsNeedsUpdate.size() - 1);
+                    double updatedPeakQuantity = shoppingList.getPeakQuantity(i) *
+                            slsNeedsUpdate.size()
+                            / (slsNeedsUpdate.size() - 1);
+                    for (ShoppingList sl : slsNeedsUpdate) {
+                        // no need to update the sl on new clone as it will be removed
+                        if (!sl.equals(shoppingList)) {
+                            adjustCommodity(i, updatedQuantity, updatedPeakQuantity, sl);
+                        }
                     }
                 }
+            } else {
+                logger.warn("Attempt to remove only shopping list from " +
+                        shoppingList.getBuyer() + " - skipping");
+                continue;
             }
+
             economy.removeBasketBought(shoppingList);
+            removedShoppingLists.add(shoppingList);
         }
+        return removedShoppingLists;
     }
 
     /**
      * A helper method to find all {@link ShoppingList} between guaranteed buyers and a given
      * seller.
-     * @param economy the economy the seller is part of
      * @param seller the {@link Trader} whom may be a supplier for guaranteed buyers
      * @return a list of {@link ShoppingList}
      */
-    public static List<ShoppingList> findSlsBetweenSellerAndGuaranteedBuyer(Economy economy,
-                                                                            Trader seller) {
+    public static List<ShoppingList> findSlsBetweenSellerAndGuaranteedBuyer(Trader seller) {
         List<ShoppingList> shoppingLists = new ArrayList<ShoppingList>();
         for (ShoppingList shoppingList : seller.getCustomers()) {
             if (shoppingList.getBuyer().getSettings().isGuaranteedBuyer()) {
@@ -164,6 +183,17 @@ public final class GuaranteedBuyerHelper {
             }
         }
         return shoppingLists;
+    }
+
+    /**
+     * Return the list of guaranteed buyers that this trader supplies
+     * @param trader Trader to check for guaranteed buyers
+     * @return a list of guaranteed buyers, or an empty list if none
+     */
+    public static List<@NonNull Trader> findGuaranteedBuyers(final Trader trader) {
+        return findSlsBetweenSellerAndGuaranteedBuyer(trader).stream()
+                .map(ShoppingList::getBuyer).filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -242,18 +272,19 @@ public final class GuaranteedBuyerHelper {
      * by the newly provisioned clones and bought by the guaranteedBuyers are added.
      * @param guaranteedBuyerInfo a list of guaranteed buyer info to be processed
      */
+
     public static void processGuaranteedbuyerInfo (Economy economy,
                                                    List<BuyerInfo> guaranteedBuyerInfo) {
         for (BuyerInfo info : guaranteedBuyerInfo) {
             addNewSlAndAdjustExistingSls(economy, info.getSLs(), info.getGuaranteedBuyerSls(),
-                                               info.getNewSupplier());
+                    info.getNewSupplier());
         }
     }
 
     /**
      * A helper method to get a map for a guaranteed buyer to all of its shopping list
      *
-     * @param eonomy the economy
+     * @param economy the economy
      * @param shoppingLists the guaranteed buyer's shopping list on one seller
      * @return a map for a guaranteed buyer to all of its shopping list
      */
@@ -266,4 +297,43 @@ public final class GuaranteedBuyerHelper {
         return guaranteedBuyerSls;
     }
 
+    /**
+     * A helper method to get a list of all shopping lists whose buyer is a guaranteed buyer
+     *
+     * @param shoppingLists a list of shopping lists to select from
+     * @return the list os shopping lists with guaranteed buyers
+     */
+    public static List<ShoppingList> getSlsWithGuaranteedBuyers (List<ShoppingList> shoppingLists) {
+        return shoppingLists.stream()
+                .filter(sl -> sl.getBuyer().getSettings().isGuaranteedBuyer())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * A helper method to suspend the provider of the target of the Deactivate action if required.
+     * If any provider is also providerMustClone, then those providers are also suspended.  If any
+     * subsequent Deactivate actions are generated, they are added this this action's subsequent
+     * actions list.
+     * @param deactivate The Deactivate context
+     */
+    public static void suspendProviders(final Deactivate deactivate) {
+        if (deactivate.getTarget().getSettings().isProviderMustClone()) {
+            for (Map.Entry<ShoppingList, Market> entry :
+                    deactivate.getEconomy().getMarketsAsBuyer(deactivate.getTarget()).entrySet()) {
+                @Nullable Trader trader = entry.getKey().getSupplier();
+                if (trader.getState().isActive()) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Suspending {} because {} has providerMustClone",
+                                entry.getKey().getSupplier().getDebugInfoNeverUseInCode(),
+                                deactivate.getTarget().getDebugInfoNeverUseInCode());
+                    }
+                    Deactivate deactivateAction = new Deactivate(deactivate.getEconomy(), trader,
+                            deactivate.getSourceMarket());
+                    deactivate.getSubsequentActions().add(deactivateAction.take());
+                    deactivate.getSubsequentActions()
+                            .addAll(deactivateAction.getSubsequentActions());
+                }
+            }
+        }
+    }
 } // end GuaranteedBuyerHelper class
