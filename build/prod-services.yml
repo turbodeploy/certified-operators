@@ -472,3 +472,16 @@ services:
     volumes:
       - mediation-openstack:/home/turbonomic/data
     restart: always
+
+  mediation-ucsdirector-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.ucsdirector.component
+    environment:
+      consul_host: consul
+      component_type: mediation-ucsdirector
+      instance_id: mediation-ucsdirector-1
+    volumes:
+      - mediation-ucsdirector:/home/turbonomic/data
+    restart: always

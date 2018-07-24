@@ -298,6 +298,10 @@ mediation-openstack:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
+mediation-ucsdirector:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

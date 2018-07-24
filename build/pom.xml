@@ -251,6 +251,7 @@
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
+                <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
@@ -411,6 +412,13 @@
         </profile>
 
         <profile>
+            <id>mediation-ucsdirector</id>
+            <modules>
+                <module>../com.vmturbo.mediation.ucsdirector.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -477,6 +485,7 @@
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
+                <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.hpe3par.component</module>
@@ -577,6 +586,7 @@
                 <module>../com.vmturbo.mediation.vcenter.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
+                <module>../com.vmturbo.mediation.ucsdirector.component</module>
                 <module>../com.vmturbo.mediation.aix.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.netapp.component</module>
