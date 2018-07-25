@@ -122,6 +122,11 @@ public final class QuoteMinimizer {
 
         if (seller == shoppingList_.getSupplier()) {
             currentQuote_ = quote[0];
+            if (logger.isTraceEnabled()) {
+                logger.trace("topology id = {}, shoppingList = {}, currentQuote = {}"
+                            , M2Utils.getTopologyId(economy_), shoppingList_,
+                            currentQuote_);
+            }
         } else {
             quote[0] += shoppingList_.getMoveCost();
         }
