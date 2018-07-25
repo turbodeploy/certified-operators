@@ -78,9 +78,9 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
 
         // If this trader has providerMustClone set, suspend this trader's suppliers as well.
         GuaranteedBuyerHelper.suspendProviders(this);
-        getTarget().changeState(TraderState.INACTIVE);
         removedShoppingLists.addAll(
             GuaranteedBuyerHelper.removeShoppingListForGuaranteedBuyers(getEconomy(), getTarget()));
+        getTarget().changeState(TraderState.INACTIVE);
         return this;
     }
 
@@ -92,13 +92,13 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
         super.rollback();
         checkArgument(!getTarget().getState().isActive());
         getTarget().changeState(TraderState.ACTIVE);
-        List<ShoppingList> slsBetweenGuaranteedBuyersAndOriginalTrader =
+        List<ShoppingList> slsBetweenGuaranteedBuyersAndSuspendedTrader =
                 GuaranteedBuyerHelper.getSlsWithGuaranteedBuyers(removedShoppingLists);
         Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
                 GuaranteedBuyerHelper.getAllSlsSponsoredByGuaranteedBuyer(getEconomy(),
-                        slsBetweenGuaranteedBuyersAndOriginalTrader);
+                        slsBetweenGuaranteedBuyersAndSuspendedTrader);
         GuaranteedBuyerHelper.addNewSlAndAdjustExistingSls(getEconomy(),
-                slsBetweenGuaranteedBuyersAndOriginalTrader, slsSponsoredByGuaranteedBuyer,
+                slsBetweenGuaranteedBuyersAndSuspendedTrader, slsSponsoredByGuaranteedBuyer,
                 getTarget());
         removedShoppingLists.clear();
         return this;

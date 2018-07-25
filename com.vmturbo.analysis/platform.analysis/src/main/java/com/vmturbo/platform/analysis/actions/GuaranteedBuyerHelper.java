@@ -138,7 +138,7 @@ public final class GuaranteedBuyerHelper {
             // included
             Set<ShoppingList> slsNeedsUpdate = slsSponsoredByGuaranteedBuyer
                     .get(shoppingList.getBuyer()).stream()
-                    .filter(sl -> sl.getBuyer().getState().isActive()).collect(Collectors.toSet());
+                    .filter(sl -> sl.getSupplier().getState().isActive()).collect(Collectors.toSet());
             // Cannot rebalance across zero buyers.
             if (slsNeedsUpdate.size() > 1) {
                 // update quantity and peak quantity of the shopping list sponsored by guaranteed buyer
@@ -328,7 +328,7 @@ public final class GuaranteedBuyerHelper {
                                 deactivate.getTarget().getDebugInfoNeverUseInCode());
                     }
                     Deactivate deactivateAction = new Deactivate(deactivate.getEconomy(), trader,
-                            deactivate.getSourceMarket());
+                            entry.getValue());
                     deactivate.getSubsequentActions().add(deactivateAction.take());
                     deactivate.getSubsequentActions()
                             .addAll(deactivateAction.getSubsequentActions());
