@@ -419,17 +419,29 @@ public class Placement {
     public static double computeCurrentQuote(Economy economy,
                     List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket) {
         // Compute current total quote.
-        return movableSlByMarket.stream().mapToDouble(entry -> entry.getKey().getSupplier() == null // if unplaced or incorrectly placed
-                        || !entry.getValue().getBasket()
-                                        .isSatisfiedBy(entry.getKey().getSupplier().getBasketSold())
-                                                        ? Double.POSITIVE_INFINITY // current total is infinite
-                                                        : EdeCommon.quote(economy, entry.getKey(),
-                                                                        entry.getKey().getSupplier(),
-                                                                        Double.POSITIVE_INFINITY,
-                                                                        false)[0])
-                        .sum(); // TODO: break early...
+        double quote = 0;
+        for (Entry<ShoppingList, Market> entry : movableSlByMarket) {
+            if (isQuoteInfinity(entry)) {
+                return Double.POSITIVE_INFINITY;
+            }
+            quote += EdeCommon.quote(economy, entry.getKey(), entry.getKey().getSupplier(),
+                                     Double.POSITIVE_INFINITY, false)[0];
+        }
+        return quote;
     }
 
+    /**
+     * Check if a quote for a shopping list is infinite. If the shopping list has no active supplier,
+     * or the supplier does not satisfy the requests of shopping list, quote is infinity.
+     *
+     * @param slByMkt shopping list to market mapping
+     * @return whether the quote is infinity
+     */
+    private static boolean isQuoteInfinity(Entry<@NonNull ShoppingList, @NonNull Market> slByMkt) {
+        Trader supplier = slByMkt.getKey().getSupplier();
+        return  supplier == null || !supplier.getState().isActive()
+                || !slByMkt.getValue().getBasket().isSatisfiedBy(supplier.getBasketSold());
+    }
     /**
      * Run placement algorithm until the convergence criteria are satisfied.
      * If the placement has been running for more than the maximum number of placements
