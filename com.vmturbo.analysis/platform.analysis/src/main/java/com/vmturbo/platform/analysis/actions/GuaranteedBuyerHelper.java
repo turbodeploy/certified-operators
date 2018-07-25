@@ -321,7 +321,7 @@ public final class GuaranteedBuyerHelper {
             for (Map.Entry<ShoppingList, Market> entry :
                     deactivate.getEconomy().getMarketsAsBuyer(deactivate.getTarget()).entrySet()) {
                 @Nullable Trader trader = entry.getKey().getSupplier();
-                if (trader.getState().isActive()) {
+                if (trader != null && trader.getState().isActive()) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("Suspending {} because {} has providerMustClone",
                                 entry.getKey().getSupplier().getDebugInfoNeverUseInCode(),
