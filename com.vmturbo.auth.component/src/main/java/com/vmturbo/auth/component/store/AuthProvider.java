@@ -44,7 +44,7 @@ import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
+import com.vmturbo.auth.api.usermgmt.GroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -73,6 +73,8 @@ public class AuthProvider {
      * The KV AD prefix.
      */
     private static final String PREFIX_AD = "ad/info";
+
+    private static final String PREFIX_GROUP = "groups/";
 
     /**
      * The key location property
@@ -104,7 +106,7 @@ public class AuthProvider {
      */
     private static final int TOKEN_EXPIRATION_MIN = 10;
     public static final String UNABLE_TO_AUTHORIZE_THE_USER = "Unable to authorize the user: ";
-    public static final String WITH_GROUP = "with group: ";
+    public static final String WITH_GROUP = " with group: ";
     public static final String AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER =
             "AUDIT::SUCCESS: Success authenticating user: ";
 
@@ -151,7 +153,7 @@ public class AuthProvider {
     private final @Nonnull SsoUtil ssoUtil;
 
     /**
-     * The transient AD group-based users.
+     * The transient SSO group-based users.
      */
     private final Map<String, String> ssoUsersToUuid_ =
             Collections.synchronizedMap(new HashMap<>());
@@ -273,6 +275,16 @@ public class AuthProvider {
     private String composeUserInfoKey(final @Nonnull AuthUserDTO.PROVIDER provider,
                                       final @Nonnull String userName) {
         return PREFIX + provider.name() + "/" + userName.toUpperCase();
+    }
+
+    /**
+     * Retrieves the Group object in JSON form from the KV store.
+     *
+     * @param group The user name.
+     * @return The key for the Group object in JSON form.
+     */
+    private String composeGroupInfoKey(final @Nonnull String group) {
+        return PREFIX_GROUP + group.toUpperCase();
     }
 
     /**
@@ -441,7 +453,7 @@ public class AuthProvider {
      * @param userName The user name.
      * @param password The password.
      * @return The JWTAuthorizationToken if successful.
-     * @throws AuthenticationException In case we failed to authenticate user against AD group.
+     * @throws AuthenticationException In case we failed to authenticate user against SSO group.
      */
     private @Nonnull JWTAuthorizationToken authenticateADGroup(final @Nonnull String userName,
                                                                final @Nonnull String password)
@@ -473,7 +485,7 @@ public class AuthProvider {
      * @param userName The user name.
      * @param groupName The group name.
      * @return The JWTAuthorizationToken if successful.
-     * @throws AuthenticationException In case we failed to authenticate user against AD group.
+     * @throws AuthenticationException In case we failed to authenticate user against group.
      */
     private @Nonnull JWTAuthorizationToken authorizeSAMLGroup(final @Nonnull String userName,
                                                                final @Nonnull String groupName,
@@ -837,8 +849,7 @@ public class AuthProvider {
      * @throws SecurityException In case of an error deleting the user.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public boolean remove(final @Nonnull String uuid)
-            throws SecurityException {
+    public boolean remove(final @Nonnull String uuid) throws SecurityException {
         // Look for the correct user.
         Map<String, String> users;
         synchronized (storeLock_) {
@@ -884,8 +895,7 @@ public class AuthProvider {
      * @throws SecurityException In case of an error locking the user.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public boolean lock(final @Nonnull AuthUserDTO dto)
-            throws SecurityException {
+    public boolean lock(final @Nonnull AuthUserDTO dto) throws SecurityException {
         return setUserLockStatus(dto, true);
     }
 
@@ -897,8 +907,7 @@ public class AuthProvider {
      * @throws SecurityException In case of an error unlocking the user.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public boolean unlock(final @Nonnull AuthUserDTO dto)
-            throws SecurityException {
+    public boolean unlock(final @Nonnull AuthUserDTO dto) throws SecurityException {
         return setUserLockStatus(dto, false);
     }
 
@@ -954,17 +963,23 @@ public class AuthProvider {
      */
     private void reloadSSOConfiguration() throws SecurityException {
         Optional<String> json = getKVValue(PREFIX_AD);
-        if (!json.isPresent()) {
+        boolean isAdAvailable = json.isPresent();
+        List <GroupDTO> groups = getGroups();
+        if (!isAdAvailable && groups.size() == 0) {
             return;
         }
-
-        ActiveDirectoryDTO result = GSON.fromJson(json.get(), ActiveDirectoryDTO.class);
+        // only reset when it's required.
         ssoUtil.reset();
-        ssoUtil.setDomainName(result.getDomainName());
-        ssoUtil.setSecureLoginProvider(result.isSecure());
-        ssoUtil.setLoginProviderURI(result.getLoginProviderURI());
-        for (ActiveDirectoryGroupDTO group : result.getGroups()) {
+        // always load group, since it's shared by AD and SAML
+        groups.forEach(group -> {
             ssoUtil.putGroup(group.getDisplayName(), group.getRoleName());
+        });
+        if (isAdAvailable) {
+            ActiveDirectoryDTO result = GSON.fromJson(json.get(), ActiveDirectoryDTO.class);
+
+            ssoUtil.setDomainName(result.getDomainName());
+            ssoUtil.setSecureLoginProvider(result.isSecure());
+            ssoUtil.setLoginProviderURI(result.getLoginProviderURI());
         }
     }
 
@@ -977,7 +992,8 @@ public class AuthProvider {
      * @throws SecurityException In case we couldn't retrieve the list of the active directories.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public @Nonnull List<ActiveDirectoryDTO> getActiveDirectories() throws SecurityException {
+    public @Nonnull
+    List<ActiveDirectoryDTO> getActiveDirectories() throws SecurityException {
         Optional<String> json = getKVValue(PREFIX_AD);
         if (!json.isPresent()) {
             return Collections.emptyList();
@@ -1000,8 +1016,7 @@ public class AuthProvider {
      * @return The Active Directory DTO.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public @Nonnull ActiveDirectoryDTO createActiveDirectory(
-            final @Nonnull ActiveDirectoryDTO inputDTO) {
+    public @Nonnull ActiveDirectoryDTO createActiveDirectory(final @Nonnull ActiveDirectoryDTO inputDTO) {
         String domain = inputDTO.getDomainName() == null ? "" : inputDTO.getDomainName();
         String url = inputDTO.getLoginProviderURI() == null ? "" : inputDTO.getLoginProviderURI();
         // In case the provider URL is empty, we use domain for AD servers lookup.
@@ -1027,66 +1042,52 @@ public class AuthProvider {
     }
 
     /**
-     * Returns the list of AD group objects.
+     * Returns the list of SSO group objects.
      *
-     * @return The list of AD group objects.
+     * @return The list of SSO group objects.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public @Nonnull List<ActiveDirectoryGroupDTO> getActiveDirectoryGroups() {
-        Optional<String> json = getKVValue(PREFIX_AD);
-        if (!json.isPresent()) {
-            return Collections.emptyList();
+    public @Nonnull List<GroupDTO> getGroups() {
+        Map<String, String> groups;
+        synchronized (storeLock_) {
+            groups = keyValueStore_.getByPrefix(PREFIX_GROUP);
         }
 
-        try {
-            ActiveDirectoryDTO result = GSON.fromJson(json.get(), ActiveDirectoryDTO.class);
-            return result.getGroups();
-        } catch (Exception e) {
-            throw new SecurityException("Error retrieving active directory groups");
+        List<GroupDTO> list = new ArrayList<>();
+        for (String jsonData : groups.values()) {
+            GroupDTO info = GSON.fromJson(jsonData, GroupDTO.class);
+            list.add(info);
         }
+        return list;
     }
 
     /**
      * Creates an Active Directory group.
      *
-     * @param adGroupInputDto The description of an Active Directory group to be created.
-     * @return The {@link ActiveDirectoryGroupDTO} object.
+     * @param adGroupInputDto The description of an SSO group to be created.
+     * @return The {@link GroupDTO} object.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public @Nullable ActiveDirectoryGroupDTO createActiveDirectoryGroup(
-            final @Nonnull ActiveDirectoryGroupDTO adGroupInputDto) {
-        Optional<String> json = getKVValue(PREFIX_AD);
-        if (!json.isPresent()) {
-            throw new SecurityException("No Active Directory has been configured");
-        }
-
+    public @Nullable
+    GroupDTO createGroup(
+            final @Nonnull GroupDTO adGroupInputDto) {
+        Optional<String> json = getKVValue(composeGroupInfoKey(adGroupInputDto.getDisplayName()));
         try {
-            ActiveDirectoryDTO ad = GSON.fromJson(json.get(), ActiveDirectoryDTO.class);
-            ActiveDirectoryGroupDTO existing = null;
-            List<ActiveDirectoryGroupDTO> groups = ad.getGroups();
-            for (ActiveDirectoryGroupDTO group : groups) {
-                if (group.getDisplayName().equals(adGroupInputDto.getDisplayName())) {
-                    existing = group;
-                    break;
-                }
-            }
-            // We haven't found the group, need to create new one
-            if (existing == null) {
-                ssoUtil.putGroup(adGroupInputDto.getDisplayName(),
-                                 adGroupInputDto.getRoleName());
-                ActiveDirectoryGroupDTO g =
-                        new ActiveDirectoryGroupDTO(adGroupInputDto.getDisplayName(),
+
+            if (!json.isPresent()) {
+                ssoUtil.putGroup(adGroupInputDto.getDisplayName(), adGroupInputDto.getRoleName());
+                GroupDTO g =
+                        new GroupDTO(adGroupInputDto.getDisplayName(),
                                                     adGroupInputDto.getType(),
                                                     adGroupInputDto.getRoleName());
-                groups.add(g);
-                ad.setGroups(groups);
-                putKVValue(PREFIX_AD, GSON.toJson(ad));
+                putKVValue(composeGroupInfoKey(adGroupInputDto.getDisplayName()), GSON.toJson(g));
                 return g;
             } else {
+                GroupDTO g = GSON.fromJson(json.get(), GroupDTO.class);
                 // We are changing it.
-                existing.setRoleName(adGroupInputDto.getRoleName());
-                putKVValue(PREFIX_AD, GSON.toJson(ad));
-                return existing;
+                g.setRoleName(adGroupInputDto.getRoleName());
+                putKVValue(composeGroupInfoKey(adGroupInputDto.getDisplayName()), GSON.toJson(g));
+                return g;
             }
         } catch (Exception e) {
             throw new SecurityException("Error creating or changing active directory group");
@@ -1097,11 +1098,11 @@ public class AuthProvider {
      * Changes the Active Directory group.
      *
      * @param adGroupInputDto The Active Directory group creation request.
-     * @return The {@link ActiveDirectoryGroupDTO} indicating success.
+     * @return The {@link GroupDTO} indicating success.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public @Nullable ActiveDirectoryGroupDTO changeActiveDirectoryGroup(
-            final @Nonnull ActiveDirectoryGroupDTO adGroupInputDto) {
+    public @Nullable
+    GroupDTO changeActiveDirectoryGroup(final @Nonnull GroupDTO adGroupInputDto) {
         // This method is not invoked, as the API layer method that should invoke it, does not
         // get invoked by the UI.
         return null;
@@ -1114,28 +1115,18 @@ public class AuthProvider {
      * @return {@code true} iff the group existed before this call.
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
-    public @Nonnull Boolean deleteActiveDirectoryGroup(final @Nonnull String groupName) {
-        Optional<String> json = getKVValue(PREFIX_AD);
+    public @Nonnull Boolean deleteGroup(final @Nonnull String groupName) {
+        Optional<String> json = getKVValue(composeGroupInfoKey(groupName));
         if (!json.isPresent()) {
-            throw new SecurityException("Error retrieving active directories");
+            throw new SecurityException("Error retrieving external group.");
         }
 
         try {
-            ActiveDirectoryDTO ad = GSON.fromJson(json.get(), ActiveDirectoryDTO.class);
-            List<ActiveDirectoryGroupDTO> groups = ad.getGroups();
-            List<ActiveDirectoryGroupDTO> newGroups = new ArrayList<>();
-            for (ActiveDirectoryGroupDTO group : groups) {
-                if (!group.getDisplayName().equals(groupName)) {
-                    newGroups.add(group);
-                }
-            }
-            // We need to add one.
-            ad.setGroups(newGroups);
-            putKVValue(PREFIX_AD, GSON.toJson(ad));
+            removeKVKey(composeGroupInfoKey(groupName));
             ssoUtil.deleteGroup(groupName);
-            return groups.size() != newGroups.size();
+            return true;
         } catch (Exception e) {
-            throw new SecurityException("Error retrieving active directories");
+            throw new SecurityException("Error retrieving group");
         }
     }
 

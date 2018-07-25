@@ -3,11 +3,11 @@ package com.vmturbo.auth.api.usermgmt;
 import javax.annotation.Nonnull;
 
 /**
- * An ActiveDirectoryGroupDTO represents a Active Directory group and associated roles.
- * Any AD user that is authenticated using an AD group will inherit the roles specified in that
+ * An GroupDTO represents a SSO group and associated roles.
+ * Any SSO user that is authenticated using an SSO group will inherit the roles specified in that
  * group.
  */
-public class ActiveDirectoryGroupDTO {
+public class GroupDTO {
     /**
      * The display name.
      */
@@ -28,7 +28,7 @@ public class ActiveDirectoryGroupDTO {
      * We need this constructor for the the JSON deserialization.
      * We do not wish this constructor to be publicly accessible.
      */
-    private ActiveDirectoryGroupDTO() {
+    private GroupDTO() {
     }
 
     /**
@@ -38,8 +38,8 @@ public class ActiveDirectoryGroupDTO {
      * @param type        The type.
      * @param roleName    The role name.
      */
-    public ActiveDirectoryGroupDTO(final @Nonnull String displayName, final @Nonnull String type,
-                                   final @Nonnull String roleName) {
+    public GroupDTO(final @Nonnull String displayName, final @Nonnull String type,
+                    final @Nonnull String roleName) {
         this.displayName = displayName;
         this.type = type;
         this.roleName = roleName;

@@ -45,7 +45,7 @@ import com.vmturbo.api.serviceinterfaces.IUsersService;
 import com.vmturbo.auth.api.Base64CodecUtils;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
+import com.vmturbo.auth.api.usermgmt.GroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
@@ -408,7 +408,7 @@ public class UsersService implements IUsersService {
                 new ActiveDirectoryDTO(adDTO.getDomainName(), adDTO.getLoginProviderURI(),
                                        ensureNonNull(adDTO.getIsSecure()));
         if (adDTO.getGroups() != null) {
-            List<ActiveDirectoryGroupDTO> groups = new ArrayList<>();
+            List<GroupDTO> groups = new ArrayList<>();
             for (ActiveDirectoryGroupApiDTO grp : adDTO.getGroups()) {
                 groups.add(convertGroupInfoToAuth(grp));
             }
@@ -432,13 +432,9 @@ public class UsersService implements IUsersService {
         dto.setLoginProviderURI(adDTO.getLoginProviderURI());
         dto.setIsSecure(adDTO.isSecure());
 
-        if (adDTO.getGroups() != null) {
-            List<ActiveDirectoryGroupApiDTO> groupsApi = new ArrayList<>();
-            for (ActiveDirectoryGroupDTO grp : adDTO.getGroups()) {
-                groupsApi.add(convertGroupInfoFromAuth(grp));
-            }
-            dto.setGroups(groupsApi);
-        }
+        // External group is independent entity which is shared by AD and SAML
+        List<ActiveDirectoryGroupApiDTO> groupsApi = getActiveDirectoryGroups();
+        dto.setGroups(groupsApi);
         return dto;
     }
 
@@ -451,7 +447,7 @@ public class UsersService implements IUsersService {
      * @return The API format DTO.
      */
     private @Nonnull ActiveDirectoryGroupApiDTO convertGroupInfoFromAuth(
-            final @Nonnull ActiveDirectoryGroupDTO dto) {
+            final @Nonnull GroupDTO dto) {
         ActiveDirectoryGroupApiDTO gad = new ActiveDirectoryGroupApiDTO();
         gad.setType(dto.getType());
         gad.setRoleName(dto.getRoleName());
@@ -467,9 +463,10 @@ public class UsersService implements IUsersService {
      * @param dto The API format DTO.
      * @return The internal format DTO.
      */
-    private @Nonnull ActiveDirectoryGroupDTO convertGroupInfoToAuth(
+    private @Nonnull
+    GroupDTO convertGroupInfoToAuth(
             final @Nonnull ActiveDirectoryGroupApiDTO dto) {
-        return new ActiveDirectoryGroupDTO(dto.getDisplayName(), dto.getType(), dto.getRoleName());
+        return new GroupDTO(dto.getDisplayName(), dto.getType(), dto.getRoleName());
     }
 
     /**
@@ -486,6 +483,13 @@ public class UsersService implements IUsersService {
         List<ActiveDirectoryApiDTO> list = new ArrayList<>();
         for (Object o : result.getBody()) {
             list.add(convertADInfoFromAuth(parse(o, ActiveDirectoryDTO.class)));
+        }
+        // currently UI is getting the external group from LDAP, unless UI is updated, we need to
+        // add groups to empty LDAP as in Legacy.
+        if (list.size() == 0) {
+            ActiveDirectoryApiDTO activeDirectoryApiDTO = new ActiveDirectoryApiDTO();
+            activeDirectoryApiDTO.setGroups(getActiveDirectoryGroups());
+            list.add(activeDirectoryApiDTO);
         }
         return list;
     }
@@ -521,7 +525,7 @@ public class UsersService implements IUsersService {
                                         List.class);
         List<ActiveDirectoryGroupApiDTO> list = new ArrayList<>();
         for (Object o : result.getBody()) {
-            list.add(convertGroupInfoFromAuth(parse(o, ActiveDirectoryGroupDTO.class)));
+            list.add(convertGroupInfoFromAuth(parse(o, GroupDTO.class)));
         }
         return list;
     }
@@ -540,9 +544,9 @@ public class UsersService implements IUsersService {
         UriComponentsBuilder builder = baseRequest().path("/users/ad/groups");
         String request = builder.build().toUriString();
         HttpHeaders headers = composeHttpHeaders();
-        HttpEntity<ActiveDirectoryGroupDTO> entity;
+        HttpEntity<GroupDTO> entity;
         entity = new HttpEntity<>(convertGroupInfoToAuth(adGroupInputDto), headers);
-        Class<ActiveDirectoryGroupDTO> clazz = ActiveDirectoryGroupDTO.class;
+        Class<GroupDTO> clazz = GroupDTO.class;
         return convertGroupInfoFromAuth(restTemplate_.exchange(request, HttpMethod.POST,
                                                                entity, clazz).getBody());
     }

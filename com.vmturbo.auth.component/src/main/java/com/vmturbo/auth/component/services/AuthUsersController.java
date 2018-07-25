@@ -5,7 +5,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
+import com.vmturbo.auth.api.usermgmt.GroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.component.store.AuthProvider;
@@ -379,8 +379,8 @@ public class AuthUsersController {
     @RequestMapping(value = "ad/groups", method = RequestMethod.GET,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public List<ActiveDirectoryGroupDTO> getActiveDirectoryGroups() throws Exception {
-        return targetStore_.getActiveDirectoryGroups();
+    public List<GroupDTO> getActiveDirectoryGroups() throws Exception {
+        return targetStore_.getGroups();
     }
 
     /**
@@ -392,10 +392,10 @@ public class AuthUsersController {
     @RequestMapping(value = "ad/groups", method = RequestMethod.POST,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public ActiveDirectoryGroupDTO createActiveDirectoryGroup(
+    public GroupDTO createSSOGroup(
             @ApiParam(value = "Properties to create an Active Directory group", required = true)
-            @RequestBody ActiveDirectoryGroupDTO adGroupInputDto) throws Exception {
-        return targetStore_.createActiveDirectoryGroup(adGroupInputDto);
+            @RequestBody GroupDTO adGroupInputDto) throws Exception {
+        return targetStore_.createGroup(adGroupInputDto);
     }
 
     /**
@@ -407,10 +407,10 @@ public class AuthUsersController {
     @RequestMapping(value = "ad/groups", method = RequestMethod.PUT,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public ActiveDirectoryGroupDTO changeActiveDirectoryGroup(
+    public GroupDTO changeActiveDirectoryGroup(
             @ApiParam(value = "New properties for an existing Active Directory group",
                       required = false)
-            @RequestBody ActiveDirectoryGroupDTO adGroupInputDto) throws Exception {
+            @RequestBody GroupDTO adGroupInputDto) throws Exception {
         return targetStore_.changeActiveDirectoryGroup(adGroupInputDto);
     }
 
@@ -424,9 +424,9 @@ public class AuthUsersController {
     @RequestMapping(value = "ad/groups/{groupName}", method = RequestMethod.DELETE,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
-    public Boolean deleteActiveDirectoryGroup(
+    public Boolean deleteSSOGroup(
             @ApiParam(value = "The name of Active Directory group", required = true)
             @PathVariable("groupName") String groupName) throws Exception {
-        return targetStore_.deleteActiveDirectoryGroup(groupName);
+        return targetStore_.deleteGroup(groupName);
     }
 }

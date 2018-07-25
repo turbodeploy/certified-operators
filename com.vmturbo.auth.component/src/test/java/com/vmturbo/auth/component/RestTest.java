@@ -71,7 +71,7 @@ import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.authorization.spring.SpringMethodSecurityExpressionHandler;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
+import com.vmturbo.auth.api.usermgmt.GroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
@@ -278,10 +278,10 @@ public class RestTest {
 
     private MockHttpServletRequestBuilder postAddSSOGroup() {
 
-        ActiveDirectoryGroupDTO activeDirectoryGroupDTO = new ActiveDirectoryGroupDTO("group",
+        GroupDTO activeDirectoryGroupDTO = new GroupDTO("group",
                 "group",
                 "administrator");
-        String jsonGroup = GSON.toJson(activeDirectoryGroupDTO, ActiveDirectoryGroupDTO.class);
+        String jsonGroup = GSON.toJson(activeDirectoryGroupDTO, GroupDTO.class);
 
         return post("/users/ad/groups")
                 .content(jsonGroup)

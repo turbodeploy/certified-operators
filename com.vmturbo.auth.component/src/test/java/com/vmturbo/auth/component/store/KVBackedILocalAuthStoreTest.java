@@ -16,8 +16,7 @@ import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
-import com.vmturbo.auth.api.usermgmt.ActiveDirectoryGroupDTO;
+import com.vmturbo.auth.api.usermgmt.GroupDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.components.crypto.CryptoFacility;
@@ -195,15 +194,10 @@ public class KVBackedILocalAuthStoreTest {
     public void testAuthorizationWithExternalGroup() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore);
-        ActiveDirectoryGroupDTO activeDirectoryGroupDTO = new ActiveDirectoryGroupDTO("group",
+        GroupDTO groupDTO = new GroupDTO("group",
                 "group",
                 "administrator");
-        ActiveDirectoryDTO activeDirectoryDTO = new ActiveDirectoryDTO("corp.vmturbo.com",
-                "dell1.corp.vmturbo.com",
-                false);
-        store.createActiveDirectory(activeDirectoryDTO);
-        store.createActiveDirectoryGroup(activeDirectoryGroupDTO);
-
+        store.createGroup(groupDTO);
         Assert.assertNotNull(store.authorize("user1", "group", "10.10.10.1"));
     }
 
@@ -211,14 +205,10 @@ public class KVBackedILocalAuthStoreTest {
     public void testAuthorizationWithInvalidExternalGroup() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
         AuthProvider store = new AuthProvider(keyValueStore);
-        ActiveDirectoryGroupDTO activeDirectoryGroupDTO = new ActiveDirectoryGroupDTO("group",
+        GroupDTO groupDTO = new GroupDTO("group",
                 "group",
                 "administrator");
-        ActiveDirectoryDTO activeDirectoryDTO = new ActiveDirectoryDTO("corp.vmturbo.com",
-                "dell1.corp.vmturbo.com",
-                false);
-        store.createActiveDirectory(activeDirectoryDTO);
-        store.createActiveDirectoryGroup(activeDirectoryGroupDTO);
+        store.createGroup(groupDTO);
         // group1 is not a valid group
         Assert.assertNotNull(store.authorize("user1", "group1", "10.10.10.1"));
     }
