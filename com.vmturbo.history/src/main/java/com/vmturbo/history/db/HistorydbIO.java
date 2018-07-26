@@ -15,6 +15,7 @@ import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
 import static com.vmturbo.history.schema.StringConstants.PRICE_INDEX;
 import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
 import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.schema.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.history.schema.StringConstants.RELATION;
 import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
@@ -596,6 +597,11 @@ public class HistorydbIO extends BasedbIO {
         final List<Condition> conditions = new ArrayList<>();
         conditions.add(timestamp(dField(table, SNAPSHOT_TIME)).eq(timestamp));
         conditions.add(str(dField(table, PROPERTY_TYPE)).eq(paginationParams.getSortCommodity()));
+        if (!paginationParams.getSortCommodity().equals(PRICE_INDEX)) {
+            // For "regular" commodities (e.g. CPU, Mem), we want to make sure to sort by the used
+            // value.
+            conditions.add(str(dField(table, PROPERTY_SUBTYPE)).eq(PROPERTY_SUBTYPE_USED));
+        }
 
         // This call adds the seek pagination parameters to the list of conditions.
         seekPaginationCursor.toCondition(table, paginationParams.isAscending()).ifPresent(conditions::add);
