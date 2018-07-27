@@ -2,11 +2,15 @@ package com.vmturbo.platform.analysis.ede;
 
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
@@ -23,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.IncomeStatement;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.ledger.Ledger.MostExpensiveCommodityDetails;
+import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 
 /*
  * This class is contains the implementation for generating the provision actions on an economy
@@ -49,7 +54,7 @@ public class Provision {
         CommoditySpecification mostProfitableComm_;
 
         public MostProfitableBundle(Trader mostProfitableTrader, double mostProfitableCommRev,
-                        CommoditySpecification mostProfitableComm) {
+                                    CommoditySpecification mostProfitableComm) {
             super();
             mostProfitableTrader_ = mostProfitableTrader;
             mostProfitableCommRev_ = mostProfitableCommRev;
@@ -82,14 +87,13 @@ public class Provision {
      *                  in the desired state
      * @param ledger - the class that contains exp/rev about all the traders and commodities in
      *                  the ecomomy
-     * @param isShopTogether - flag specifies if we want to use SNM or normal placement between
-     *                  provisions
+     * @param ede - the Economic decision engine
      *
      * @return list of provision and move actions
      */
     public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy
-                                                                    , @NonNull Ledger ledger
-                                                                    , Ede ede) {
+            , @NonNull Ledger ledger
+            , Ede ede) {
 
         List<@NonNull Action> allActions = new ArrayList<>();
         if (economy.getSettings().isEstimatesEnabled()) {
@@ -97,7 +101,7 @@ public class Provision {
 
             allActions.addAll(es.getActions());
             allActions.addAll(Placement.runPlacementsTillConverge(economy, ledger,
-                            EconomyConstants.PROVISION_PHASE));
+                    EconomyConstants.PROVISION_PHASE));
         }
         // copy the markets from economy and use the copy to iterate, because in
         // the provision logic, we may add new basket which result in new market
@@ -116,7 +120,7 @@ public class Provision {
 
                 // run placement on the current buyers
                 allActions.addAll(Placement.prefPlacementDecisions(economy,
-                                new ArrayList<ShoppingList>(market.getBuyers())));
+                        new ArrayList<ShoppingList>(market.getBuyers())));
 
                 ledger.calculateExpAndRevForSellersInMarket(economy, market);
                 // break if there is no seller that is eligible for cloning in the market
@@ -127,12 +131,12 @@ public class Provision {
                 }
                 boolean isDebugMostProfitableTrader = mostProfitableTrader.isDebugEnabled();
                 String mostProfitableTraderDebugInfo =
-                                                mostProfitableTrader.getDebugInfoNeverUseInCode();
+                        mostProfitableTrader.getDebugInfoNeverUseInCode();
                 Action provisionAction = null;
                 double origRoI = ledger.getTraderIncomeStatements().get(
-                                mostProfitableTrader.getEconomyIndex()).getROI();
+                        mostProfitableTrader.getEconomyIndex()).getROI();
                 double oldRevenue = ledger.getTraderIncomeStatements().get(
-                                mostProfitableTrader.getEconomyIndex()).getRevenues();
+                        mostProfitableTrader.getEconomyIndex()).getRevenues();
 
                 Trader provisionedTrader = null;
                 boolean isDebugProvisionedTrader = false;
@@ -142,47 +146,49 @@ public class Provision {
                     // reactivate a suspended seller
                     List<Trader> copiedInactiveSellers = new ArrayList<>(market.getInactiveSellers());
                     for (Trader seller : copiedInactiveSellers) {
-                        provisionAction = new Activate(economy, seller, market,
-                                        mostProfitableTrader,
-                                        pb.getMostProfitableCommoditySpecification());
-                        actions.add(provisionAction.take());
-                        provisionedTrader = ((Activate)provisionAction).getTarget();
-                        isDebugProvisionedTrader = provisionedTrader.isDebugEnabled();
-                        String provisionedTraderDebugInfo =
-                                                    provisionedTrader.getDebugInfoNeverUseInCode();
+                        if (isEligibleForActivation(seller, mostProfitableTrader, economy)) {
+                            provisionAction = new Activate(economy, seller, market,
+                                    mostProfitableTrader,
+                                    pb.getMostProfitableCommoditySpecification());
+                            actions.add(provisionAction.take());
+                            provisionedTrader = ((Activate)provisionAction).getTarget();
+                            isDebugProvisionedTrader = provisionedTrader.isDebugEnabled();
+                            String provisionedTraderDebugInfo =
+                                    provisionedTrader.getDebugInfoNeverUseInCode();
 
-                        if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
-                            logger.info("Activate " + provisionedTraderDebugInfo
-                                    + " to reduce ROI of " + mostProfitableTraderDebugInfo
-                                    + ". Its original ROI is " + origRoI
-                                    + " and its max desired ROI is "
-                                    + ledger.getTraderIncomeStatements()
-                                    .get(mostProfitableTrader.getEconomyIndex())
-                                    .getMaxDesiredROI() + ".");
-                        }
-
-                        actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
-
-                        if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
-                                        provisionedTrader, pb.getMostProfitableCommRev())) {
                             if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
-                                logger.info("Roll back activation of " + provisionedTraderDebugInfo
-                                        + ", because it does not reduce ROI of "
-                                        + mostProfitableTraderDebugInfo + ".");
+                                logger.info("Activate " + provisionedTraderDebugInfo
+                                        + " to reduce ROI of " + mostProfitableTraderDebugInfo
+                                        + ". Its original ROI is " + origRoI
+                                        + " and its max desired ROI is "
+                                        + ledger.getTraderIncomeStatements()
+                                        .get(mostProfitableTrader.getEconomyIndex())
+                                        .getMaxDesiredROI() + ".");
                             }
-                            // remove IncomeStatement from ledger and rollback actions
-                            rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
-                            actions.clear();
-                            continue;
+
+                            actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
+
+                            if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
+                                    provisionedTrader, pb.getMostProfitableCommRev())) {
+                                if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
+                                    logger.info("Roll back activation of " + provisionedTraderDebugInfo
+                                            + ", because it does not reduce ROI of "
+                                            + mostProfitableTraderDebugInfo + ".");
+                                }
+                                // remove IncomeStatement from ledger and rollback actions
+                                rollBackActionAndUpdateLedger(ledger, provisionedTrader, actions, provisionAction);
+                                actions.clear();
+                                continue;
+                            }
+                            successfulEvaluation = true;
+                            break;
                         }
-                        successfulEvaluation = true;
-                        break;
                     }
                 }
                 if (!successfulEvaluation) {
                     // provision a new trader
                     provisionAction = new ProvisionBySupply(economy,
-                                    mostProfitableTrader, pb.getMostProfitableCommoditySpecification());
+                            mostProfitableTrader, pb.getMostProfitableCommoditySpecification());
                     actions.add(provisionAction.take());
                     provisionedTrader = ((ProvisionBySupply)provisionAction).getProvisionedSeller();
                     isDebugProvisionedTrader = provisionedTrader.isDebugEnabled();
@@ -200,22 +206,22 @@ public class Provision {
                     }
 
                     List<Action> subActions = ((ProvisionBySupply)provisionAction)
-                                    .getSubsequentActions();
+                            .getSubsequentActions();
                     actions.addAll(subActions);
                     ledger.addTraderIncomeStatement(provisionedTrader);
                     subActions.forEach(action -> {
                         if (action instanceof ProvisionBySupply) {
                             ledger.addTraderIncomeStatement(((ProvisionBySupply)action)
-                                                            .getProvisionedSeller());
+                                    .getProvisionedSeller());
                         } else if (action instanceof ProvisionByDemand) {
                             ledger.addTraderIncomeStatement(((ProvisionByDemand)action)
-                                                            .getProvisionedSeller());
+                                    .getProvisionedSeller());
                         }
                     });
 
                     actions.addAll(placementAfterProvisionAction(economy, market, mostProfitableTrader));
                     if (!evaluateAcceptanceCriteria(economy, ledger, origRoI, mostProfitableTrader,
-                                    provisionedTrader, pb.getMostProfitableCommRev())) {
+                            provisionedTrader, pb.getMostProfitableCommRev())) {
                         if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
                             logger.info("Roll back provision of " + provisionedTraderDebugInfo
                                     + ", because it does not reduce ROI of "
@@ -234,14 +240,14 @@ public class Provision {
                         + " due to commodity : "
                         + pb.getMostProfitableCommoditySpecification().getDebugInfoNeverUseInCode());
                 ((ActionImpl)provisionAction).setImportance(oldRevenue - ledger
-                                .getTraderIncomeStatements().get(mostProfitableTrader
-                                                .getEconomyIndex()).getRevenues());
+                        .getTraderIncomeStatements().get(mostProfitableTrader
+                                .getEconomyIndex()).getRevenues());
 
                 if (logger.isTraceEnabled() || isDebugMostProfitableTrader || isDebugProvisionedTrader) {
                     logger.info("New ROI of " + mostProfitableTraderDebugInfo + " is "
-                                + ledger.getTraderIncomeStatements()
-                                .get(mostProfitableTrader.getEconomyIndex()).getMaxDesiredROI()
-                                + ".");
+                            + ledger.getTraderIncomeStatements()
+                            .get(mostProfitableTrader.getEconomyIndex()).getMaxDesiredROI()
+                            + ".");
                 }
 
                 allActions.addAll(actions);
@@ -261,11 +267,11 @@ public class Provision {
      * @return list of move actions
      */
     public static @NonNull List<@NonNull Action> placementAfterProvisionAction(@NonNull Economy economy
-                    , @NonNull Market market
-                    , @NonNull Trader mostProfitableTrader) {
+            , @NonNull Market market
+            , @NonNull Trader mostProfitableTrader) {
         List<@NonNull Action> actions = new ArrayList<>();
         actions.addAll(Placement.prefPlacementDecisions(economy,
-                        new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers())));
+                new ArrayList<ShoppingList>(mostProfitableTrader.getCustomers())));
         // Allow all buyers in markets where mostProfitableTrader is a seller place again so they
         // can re-balance with the added resources in case these buyers are not part of the
         // current market.
@@ -302,7 +308,7 @@ public class Provision {
         // if none of the buyers in this market are movable and the immovable buyer is not a
         // guaranteedbuyer, provisioning a seller is not beneficial
         if (buyers.stream().allMatch(shoppingList -> !shoppingList.isMovable()
-                                     && !shoppingList.getBuyer().getSettings().isGuaranteedBuyer())) {
+                && !shoppingList.getBuyer().getSettings().isGuaranteedBuyer())) {
             return false;
         }
 
@@ -335,21 +341,32 @@ public class Provision {
             MostExpensiveCommodityDetails mostExpensiveCommodity = ledger.calculateExpRevForTraderAndGetTopRevenue(economy, seller);
             if (seller.getSettings().isCloneable()) {
                 IncomeStatement traderIS = ledger.getTraderIncomeStatements().get(seller
-                                .getEconomyIndex());
+                        .getEconomyIndex());
                 // return the most profitable trader
                 double roiOfTrader = traderIS.getROI();
                 if (logger.isTraceEnabled() || isDebugTrader) {
                     logger.info("{" + traderDebugInfo + "} trader ROI: " + roiOfTrader
                             + ", max desired ROI: " + traderIS.getMaxDesiredROI() + ".");
                 }
-
+                // The seller should have at least 1 customer which is participating in the market
+                // so that this customer can be moved out when processing this market.
+                // This seller should also have at least 2 customers. If it has only one customer,
+                // then we might end up moving out this single customer and this seller will become
+                // empty which might lead to suspension
+                // of original host (and activation/provision of new host)
+                Set<ShoppingList> sellerCustomers = new HashSet<>(seller.getCustomers());
+                Set<ShoppingList> marketBuyers = new HashSet<>(market.getBuyers());
+                sellerCustomers.retainAll(marketBuyers);
                 // TODO: evaluate if checking for movable customers earlier is beneficial
                 // clone candidate should either have at least one customer is movable or
                 // all customers that are from guaranteed buyer
-                if ((roiOfTrader > traderIS.getMaxDesiredROI()) && (roiOfTrader > roiOfRichestTrader)
-                                && (seller.getCustomers().stream().anyMatch(sl -> sl.isMovable())
-                                                || (seller.getCustomers().stream().allMatch(sl ->
-                                                sl.getBuyer().getSettings().isGuaranteedBuyer())))) {
+                if (seller.getCustomers().size() > 1
+                        && sellerCustomers.size() > 0
+                        && (roiOfTrader > traderIS.getMaxDesiredROI())
+                        && (roiOfTrader > roiOfRichestTrader)
+                        && (seller.getCustomers().stream().anyMatch(sl -> sl.isMovable())
+                        || (seller.getCustomers().stream().allMatch(sl ->
+                        sl.getBuyer().getSettings().isGuaranteedBuyer())))) {
                     mostProfitableTrader = seller;
                     roiOfRichestTrader = roiOfTrader;
                     mostProfitableCommRev = mostExpensiveCommodity.getRevenues();
@@ -407,18 +424,18 @@ public class Provision {
      *
      */
     public static boolean evaluateAcceptanceCriteria(Economy economy, Ledger ledger, double origRoI
-                                                                , Trader mostProfitableTrader
-                                                                , Trader provisionedTrader
-                                                                , double origMostProfitableCommRev) {
+            , Trader mostProfitableTrader
+            , Trader provisionedTrader
+            , double origMostProfitableCommRev) {
 
         double newMostProfitableCommRev = ledger
-                        .calculateExpRevForTraderAndGetTopRevenue(economy, mostProfitableTrader)
-                        .getRevenues();
+                .calculateExpRevForTraderAndGetTopRevenue(economy, mostProfitableTrader)
+                .getRevenues();
         // check if the RoI of the mostProfitableTrader after cloning is less than before cloning
         // and that at least one nonGuaranteedBuyer has moved into the new host
         return ledger.getTraderIncomeStatements().get(mostProfitableTrader.getEconomyIndex())
-                        .getROI() < origRoI && !provisionedTrader.getCustomers().isEmpty() &&
-                        origMostProfitableCommRev > newMostProfitableCommRev;
+                .getROI() < origRoI && !provisionedTrader.getCustomers().isEmpty() &&
+                origMostProfitableCommRev > newMostProfitableCommRev;
     }
 
     /**
@@ -431,7 +448,7 @@ public class Provision {
      *
      */
     public static void rollBackActionAndUpdateLedger(Ledger ledger,
-                    Trader provisionedTrader, List<@NonNull Action> actions, Action provisionAction) {
+                                                     Trader provisionedTrader, List<@NonNull Action> actions, Action provisionAction) {
         // remove IncomeStatement from ledger and rollback actions
         if (provisionAction instanceof ProvisionBySupply) {
             Lists.reverse(((ProvisionBySupply)provisionAction).getSubsequentActions()).forEach(action -> {
@@ -444,5 +461,48 @@ public class Provision {
             ledger.removeTraderIncomeStatement(provisionedTrader);
         }
         Lists.reverse(actions).forEach(axn -> axn.rollback());
+    }
+
+    /**
+     * Checks if the trader is eligible for activation. It checks if any of the traders on the
+     * mostProfitableTrader satisfies 2 conditions:
+     * 1. does it have cliques in common with inactive trader and
+     * 2. can it fit in the inactive trader
+     * If yes, then the inactiveTrader is eligible for activation
+     *
+     * @param inactiveTrader the inactive trader which is a candidate for activation
+     * @param mostProfitableTrader the mostProfitableTrader
+     * @param economy the economy
+     * @return true if the trader is eligible for activation, false otherwise
+     */
+    @VisibleForTesting
+    protected static boolean isEligibleForActivation(
+            Trader inactiveTrader, Trader mostProfitableTrader, Economy economy) {
+        List<ShoppingList> slsOnMostProfitableTrader = mostProfitableTrader.getCustomers();
+        for (ShoppingList sl : slsOnMostProfitableTrader) {
+            Trader customerOnMostProfitableTrader = sl.getBuyer();
+            if ((!customerOnMostProfitableTrader.getSettings().isShopTogether() ||
+                    doBuyerAndSellerShareCliques(customerOnMostProfitableTrader, inactiveTrader, economy))
+                    && ProvisionUtils.canBuyerFitInSeller(sl, inactiveTrader, economy)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks if the buyer's common cliques and seller's cliques have anything in common.
+     *
+     * @param buyer the Trader which is a buyer
+     * @param seller the Trader which is a seller
+     * @param economy the economy
+     * @return true if buyer's common cliques and seller's cliques have anything in common.
+     */
+    private static boolean doBuyerAndSellerShareCliques (
+            Trader buyer, Trader seller , Economy economy) {
+        Set<Long> commonCliquesOfCustomer = new HashSet<>(economy.getCommonCliques(buyer));
+        Set<Long> inactiveTraderCliques = new HashSet<>(seller.getCliques());
+        commonCliquesOfCustomer.retainAll(inactiveTraderCliques);
+        return !commonCliquesOfCustomer.isEmpty();
     }
 }
