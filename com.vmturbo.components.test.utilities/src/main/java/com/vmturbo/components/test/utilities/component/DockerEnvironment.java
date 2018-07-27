@@ -133,7 +133,7 @@ public class DockerEnvironment {
             .put("MEDIATION_OPENSTACK_DEBUG_PORT", "8000")
             .put("MEDIATION_UCSDIRECTOR_PORT", "8080")
             .put("MEDIATION_UCSDIRECTOR_DEBUG_PORT", "8000")
-            .put("MEDIATION_AWS_PORT", "8000")
+            .put("MEDIATION_AWS_PORT", "8080")
             .put("MEDIATION_AWS_DEBUG_PORT", "8000")
             // MEMORY LIMITS and XMX Settings
             .put("DB_MEM_LIMIT_MB", "2048")
