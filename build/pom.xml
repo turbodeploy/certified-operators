@@ -236,6 +236,15 @@
         </profile>
 
         <profile>
+            <id>cost</id>
+            <modules>
+                <module>../com.vmturbo.common.protobuf</module>
+                <module>../com.vmturbo.cost.component</module>
+                <module>../com.vmturbo.cost.component.api</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>api</id>
             <modules>
                 <module>../com.vmturbo.api.component</module>
@@ -477,6 +486,8 @@
                 <module>../com.vmturbo.reports.api</module>
                 <module>../com.vmturbo.reports.component</module>
                 <module>../com.vmturbo.reports.templates</module>
+                <module>../com.vmturbo.cost.component.api</module>
+                <module>../com.vmturbo.cost.component</module>
 
                 <!-- Probe components. This should only include the probes
                      that we currently support in XL. -->
@@ -580,6 +591,8 @@
                 <module>../com.vmturbo.reports.api</module>
                 <module>../com.vmturbo.reports.component</module>
                 <module>../com.vmturbo.reports.templates</module>
+                <module>../com.vmturbo.cost.component.api</module>
+                <module>../com.vmturbo.cost.component</module>
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.client</module>
@@ -1248,6 +1261,16 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.delegatingprobe</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>cost</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>cost-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

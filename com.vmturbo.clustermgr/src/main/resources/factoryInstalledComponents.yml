@@ -228,6 +228,17 @@ auth:
   identityGeneratorPrefix: 7
   <<: *repository_conn_info
 
+cost:
+  <<: *baseVmtComponentSettings
+  grpcPingIntervalSeconds: 300
+
+  # START - database-related properties.
+  <<: *db_conn_info
+  # This should be in sync with the schema in the component's pom.xml
+  dbSchemaName: 'cost'
+  mariadbHealthCheckIntervalSeconds: 60
+  # END - database-related properties
+  <<: *auth_conn_info
 
 mediation-vcenter:
   <<: *baseVmtComponentSettings

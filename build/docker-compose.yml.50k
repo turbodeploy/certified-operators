@@ -33,6 +33,7 @@ volumes:
   group: *localdriver
   history: *localdriver
   plan-orchestrator: *localdriver
+  cost: *localdriver
   reporting: *localdriver
   mediation-vcenter: *localdriver
   mediation-hyperv: *localdriver
@@ -233,6 +234,19 @@ services:
     depends_on:
       - db
       - clustermgr
+      - auth
+
+  cost:
+    extends:
+      file: prod-services.yml
+      service: cost-prod
+    environment:
+      JAVA_OPTS: "-Xmx512M"
+    mem_limit: 1024M
+    depends_on:
+      - db
+      - clustermgr
+      - kafka1
       - auth
 
   mediation-vcenter:

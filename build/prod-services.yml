@@ -278,6 +278,20 @@ services:
       report.files.output.dir: /home/turbonomic/data
     restart: always
 
+  cost-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/cost
+    volumes:
+      - cost:/home/turbonomic/data
+    environment:
+      consul_host: consul
+      component_type: cost
+      instance_id: cost-1
+      kafkaServers: kafka1:9092
+    restart: always
+
   mediation-vcenter-prod:
     extends:
       file: common-services.yml
