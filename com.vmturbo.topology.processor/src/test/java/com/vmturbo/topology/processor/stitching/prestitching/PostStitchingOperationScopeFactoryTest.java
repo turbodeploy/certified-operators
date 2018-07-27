@@ -21,6 +21,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -184,5 +185,21 @@ public class PostStitchingOperationScopeFactoryTest {
             ProbeCategory.HYPERCONVERGED, EntityType.PHYSICAL_MACHINE).entities()
             .map(TopologyEntity::getOid)
             .collect(Collectors.toList()), contains(4L));
+    }
+
+    @Test
+    public void testContainsAllEntityTypesScope() {
+        assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
+                EntityType.VIRTUAL_MACHINE)).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
+        assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
+                EntityType.VIRTUAL_MACHINE, EntityType.PHYSICAL_MACHINE)).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L));
+        assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
+                EntityType.VIRTUAL_MACHINE, EntityType.STORAGE_VOLUME)).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList()), is(empty()));
     }
 }

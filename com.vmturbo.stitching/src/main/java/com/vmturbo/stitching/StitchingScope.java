@@ -74,6 +74,18 @@ public interface StitchingScope<ENTITY> {
 
         /**
          * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * of the given entity types. Calculations with this scope will be fed all entities which match
+         * the list of the the given {@link EntityType}s regardless of which target or probe discovered
+         * those entities. Entities must exist for all provided {@link EntityType}s, if no entities
+         * for any {@link EntityType}, it will return empty scope.
+         *
+         * @param entityTypes List of entity type of the entities
+         * @return An entity type {@link StitchingScope}.
+         */
+        StitchingScope<ENTITY> containsAllEntityTypesScope(@Nonnull final List<EntityType> entityTypes);
+
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
          * of a given {@link EntityType} discovered by a specific type of probe.
          *
          * @param probeTypeName The name of the type of probe whose entities should be fed to the calculation.

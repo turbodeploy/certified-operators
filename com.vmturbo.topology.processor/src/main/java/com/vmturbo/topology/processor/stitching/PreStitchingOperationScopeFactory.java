@@ -79,6 +79,11 @@ public class PreStitchingOperationScopeFactory implements StitchingScopeFactory<
         return new MultiEntityTypesStitchingScope(stitchingContext, entityTypes);
     }
 
+    @Override
+    public StitchingScope<StitchingEntity> containsAllEntityTypesScope(@Nonnull final List<EntityType> entityTypes) {
+        return new ContainsAllEntityTypesStitchingScope(stitchingContext, entityTypes);
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -215,10 +220,36 @@ public class PreStitchingOperationScopeFactory implements StitchingScopeFactory<
         @Nonnull
         @Override
         public Stream<StitchingEntity> entities() {
-            Stream<StitchingEntity> entityStreams = Stream.empty();
             return entityTypes
                     .stream()
                     .flatMap(entityType -> getStitchingContext().getEntitiesOfType(entityType));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation globally to entities of a specific {@link EntityType}.
+     */
+    private static class ContainsAllEntityTypesStitchingScope extends BaseStitchingScope {
+
+        private final List<EntityType> entityTypes;
+
+        public ContainsAllEntityTypesStitchingScope(@Nonnull StitchingContext stitchingContext,
+                @Nonnull final List<EntityType> entityTypes) {
+            super(stitchingContext);
+            this.entityTypes = Objects.requireNonNull(entityTypes);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<StitchingEntity> entities() {
+            // return empty stream if entities for any EntityType are not available
+            if (entityTypes.stream().anyMatch(entityType -> !getStitchingContext()
+                    .getEntitiesOfType(entityType).findAny().isPresent())) {
+                return Stream.empty();
+            }
+
+            return entityTypes.stream().flatMap(entityType ->
+                    getStitchingContext().getEntitiesOfType(entityType));
         }
     }
 

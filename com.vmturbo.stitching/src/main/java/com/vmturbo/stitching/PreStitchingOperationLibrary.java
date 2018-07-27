@@ -9,6 +9,7 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.stitching.prestitching.MergeSharedDatacentersPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.RemoveNonMarketEntitiesPreStitchingOperation;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
+import com.vmturbo.stitching.prestitching.StorageVolumePreStitchingOperation;
 
 /**
  * A library of {@link PreStitchingOperation}s. Maintains the known topology preStitching operations
@@ -27,7 +28,8 @@ public class PreStitchingOperationLibrary {
         preStitchingOperations = ImmutableList.of(
                 new RemoveNonMarketEntitiesPreStitchingOperation(),
                 new SharedStoragePreStitchingOperation(),
-                new MergeSharedDatacentersPreStitchingOperation()
+                new MergeSharedDatacentersPreStitchingOperation(),
+                new StorageVolumePreStitchingOperation()
         );
     }
 

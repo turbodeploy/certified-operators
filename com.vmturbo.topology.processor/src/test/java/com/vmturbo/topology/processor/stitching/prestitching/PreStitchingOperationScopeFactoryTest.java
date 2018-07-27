@@ -21,19 +21,18 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.PreStitchingOperationScopeFactory;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingContext.Builder;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
-import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -175,5 +174,21 @@ public class PreStitchingOperationScopeFactoryTest {
             ProbeCategory.HYPERVISOR, EntityType.PHYSICAL_MACHINE).entities()
             .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), containsInAnyOrder("4"));
+    }
+
+    @Test
+    public void testContainsAllEntityTypesScope() {
+        assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
+                EntityType.VIRTUAL_MACHINE)).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3"));
+        assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
+                EntityType.VIRTUAL_MACHINE, EntityType.PHYSICAL_MACHINE)).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3", "4"));
+        assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
+                EntityType.VIRTUAL_MACHINE, EntityType.STORAGE_VOLUME)).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), is(empty()));
     }
 }

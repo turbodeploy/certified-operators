@@ -85,6 +85,14 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
      * {@inheritDoc}
      */
     @Override
+    public StitchingScope<TopologyEntity> containsAllEntityTypesScope(@Nonnull final List<EntityType> entityTypes) {
+        return new ContainsAllEntityTypesStitchingScope(topologyGraph, entityTypes);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public StitchingScope<TopologyEntity> probeEntityTypeScope(@Nonnull final String probeTypeName,
                                                  @Nonnull final EntityType entityType) {
         return new ProbeEntityTypeStitchingScope(topologyGraph, probeTypeName, entityType,
@@ -222,10 +230,36 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         @Nonnull
         @Override
         public Stream<TopologyEntity> entities() {
-            Stream<TopologyEntity> entityStreams = Stream.empty();
             return entityTypes
                     .stream()
                     .flatMap(entityType -> getTopologyGraph().entitiesOfType(entityType));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation globally to entities of a specific {@link EntityType}.
+     */
+    private static class ContainsAllEntityTypesStitchingScope extends BaseStitchingScope {
+
+        private final List<EntityType> entityTypes;
+
+        public ContainsAllEntityTypesStitchingScope(@Nonnull TopologyGraph topologyGraph,
+                @Nonnull final List<EntityType> entityTypes) {
+            super(topologyGraph);
+            this.entityTypes = Objects.requireNonNull(entityTypes);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<TopologyEntity> entities() {
+            // return empty stream if entities for any EntityType are not available
+            if (entityTypes.stream().anyMatch(entityType -> !getTopologyGraph()
+                    .entitiesOfType(entityType).findAny().isPresent())) {
+                return Stream.empty();
+            }
+
+            return entityTypes.stream().flatMap(entityType ->
+                    getTopologyGraph().entitiesOfType(entityType));
         }
     }
 
