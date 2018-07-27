@@ -49,6 +49,7 @@ volumes:
   mediation-vplex: *localdriver
   mediation-rhv: *localdriver
   mediation-ucsdirector: *localdriver
+  mediation-aws: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -386,6 +387,15 @@ services:
     extends:
       file: prod-services.yml
       service: mediation-ucsdirector-prod
+    environment:
+      JAVA_OPTS: "-Xmx3072M"
+    mem_limit: 4096M
+    depends_on: *clustermgrdep
+
+  mediation-aws:
+    extends:
+      file: prod-services.yml
+      service: mediation-aws-prod
     environment:
       JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M

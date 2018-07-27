@@ -313,6 +313,10 @@ mediation-ucsdirector:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
+mediation-aws:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info
