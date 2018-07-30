@@ -37,7 +37,6 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -49,17 +48,20 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.CommodityBoughtMetaData;
-import com.vmturbo.stitching.DTOFieldSpec;
-import com.vmturbo.stitching.ListStringMatchingProperty;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.stitching.ListStringToListStringDataDrivenStitchingOperation;
 import com.vmturbo.stitching.ListStringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.MatchingField;
-import com.vmturbo.stitching.MatchingPropertyOrField;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.StitchingMatchingMetaData;
+import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.ListStringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.TopologyEntity;
@@ -176,64 +178,32 @@ public class StitchingIntegrationTest {
                     CommodityType.STORAGE_ACCESS,
                     CommodityType.EXTENT);
 
-    private static Collection<CommodityBoughtMetaData> storageBoughtCommodityData =
-            ImmutableList.of(new CommodityBoughtMetaData(EntityType.DISK_ARRAY, EntityType.DISK_ARRAY,
-                    boughtDataFromDiskArrayToStorage),
-                    new CommodityBoughtMetaData(EntityType.LOGICAL_POOL, EntityType.DISK_ARRAY,
-                            boughtDataFromDiskArrayToStorage));
-
-    private class StorageStitchingMetaData implements
-            StitchingMatchingMetaData<List<String>, List<String>> {
-        @Override
-        public EntityType getInternalEntityType() {
-            return EntityType.STORAGE;
-        }
-
-        @Override
-        public Collection<DTOFieldSpec> getAttributesToPatch() {
-            return Lists.newArrayList();
-        }
-
-        @Override
-        public List<MatchingPropertyOrField<List<String>>> getInternalMatchingData() {
-            return Lists.newArrayList(new MatchingField<>(Lists.newArrayList("storage_data",
-                    "externalName")));
-        }
-
-        public EntityType getExternalEntityType() {
-            return EntityType.STORAGE;
-        }
-
-        @Override
-        public List<MatchingPropertyOrField<List<String>>> getExternalMatchingData() {
-            return Lists.newArrayList(new MatchingField<>(Lists.newArrayList("storage_data",
-                    "externalName")));
-        }
-
-        @Override
-        public Collection<String> getPropertiesToPatch() {
-            return Lists.newArrayList();
-        }
-
-        @Override
-        public Collection<CommodityType> getCommoditiesSoldToPatch() {
-            return Lists.newArrayList();
-        }
-
-        @Override
-        public Collection<CommodityBoughtMetaData> getCommoditiesBoughtToPatch() {
-            return storageBoughtCommodityData;
-        }
-
-        @Override
-        public boolean getKeepStandalone() {
-            return true;
-        }
-
-    }
+    private static Collection<CommodityBoughtMetadata> storageBoughtCommodityData =
+            ImmutableList.of(CommodityBoughtMetadata.newBuilder()
+                    .addAllCommodityMetadata(boughtDataFromDiskArrayToStorage)
+                    .setProviderType(EntityType.DISK_ARRAY)
+                    .setReplacesProvider(EntityType.DISK_ARRAY).build(),
+                    CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(boughtDataFromDiskArrayToStorage)
+                            .setProviderType(EntityType.LOGICAL_POOL)
+                            .setReplacesProvider(EntityType.DISK_ARRAY).build());
 
     private StitchingOperation getDataDrivenStorageStitchingOperation() {
-        return new ListStringToListStringDataDrivenStitchingOperation(new StorageStitchingMetaData());
+        EntityField externalNames = EntityField.newBuilder().addMessagePath("storage_data")
+                .setFieldName("externalName").build();
+        MatchingData storageMatchingData = MatchingData.newBuilder()
+                .setMatchingField(externalNames).build();
+        MatchingMetadata storageMatchingMetadata = MatchingMetadata.newBuilder()
+                .addMatchingData(storageMatchingData).setReturnType(ReturnType.LIST_STRING)
+                .addExternalEntityMatchingProperty(storageMatchingData)
+                .setExternalEntityReturnType(ReturnType.LIST_STRING).build();
+        final MergedEntityMetadata storageMergeEntityMetadata =
+                MergedEntityMetadata.newBuilder().mergeMatchingMetadata(storageMatchingMetadata)
+                        .addAllCommoditiesBought(storageBoughtCommodityData)
+                        .build();
+        return new ListStringToListStringDataDrivenStitchingOperation(
+                new ListStringToListStringStitchingMatchingMetaDataImpl(EntityType.STORAGE,
+                        storageMergeEntityMetadata));
     }
 
     @Test
@@ -360,65 +330,21 @@ public class StitchingIntegrationTest {
                     CommodityType.COOLING,
                     CommodityType.DATACENTER);
 
-    private static Collection<CommodityBoughtMetaData> pmBoughtCommodityData =
-            ImmutableList.of(new CommodityBoughtMetaData(EntityType.CHASSIS, EntityType.DATACENTER,
-                            boughtDataFromChassisToPM),
-                    new CommodityBoughtMetaData(EntityType.DATACENTER, EntityType.DATACENTER,
-                            boughtDataFromChassisToPM),
-                    new CommodityBoughtMetaData(EntityType.IO_MODULE,
-                            ImmutableList.of(CommodityType.NET_THROUGHPUT)),
-                    new CommodityBoughtMetaData(EntityType.SWITCH,
-                            ImmutableList.of(CommodityType.NET_THROUGHPUT))
-                    );
-
-    private class FabricStitchingMetaData implements
-            StitchingMatchingMetaData<List<String>, String> {
-        @Override
-        public EntityType getInternalEntityType() {
-            return EntityType.PHYSICAL_MACHINE;
-        }
-
-        @Override
-        public List<MatchingPropertyOrField<List<String>>> getInternalMatchingData() {
-            return Lists.newArrayList(
-                    new ListStringMatchingProperty("PM_UUID", ","));
-        }
-
-        public EntityType getExternalEntityType() {
-            return EntityType.PHYSICAL_MACHINE;
-        }
-
-        @Override
-        public List<MatchingPropertyOrField<String>> getExternalMatchingData() {
-            return Lists.newArrayList(new MatchingField<>(ImmutableList.of("id")));
-        }
-
-        @Override
-        public Collection<String> getPropertiesToPatch() {
-            return Lists.newArrayList();
-        }
-
-        @Override
-        public Collection<DTOFieldSpec> getAttributesToPatch() {
-            return Lists.newArrayList();
-        }
-
-        @Override
-        public Collection<CommodityType> getCommoditiesSoldToPatch() {
-            return Lists.newArrayList();
-        }
-
-        @Override
-        public Collection<CommodityBoughtMetaData> getCommoditiesBoughtToPatch() {
-            return pmBoughtCommodityData;
-        }
-
-        @Override
-        public boolean getKeepStandalone() {
-            return false;
-        }
-
-    }
+    private static Collection<CommodityBoughtMetadata> pmBoughtCommodityData =
+            ImmutableList.of(CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(boughtDataFromChassisToPM)
+                            .setProviderType(EntityType.CHASSIS)
+                            .setReplacesProvider(EntityType.DATACENTER).build(),
+                    CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(boughtDataFromChassisToPM)
+                            .setProviderType(EntityType.DATACENTER)
+                            .setReplacesProvider(EntityType.DATACENTER).build(),
+                    CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(ImmutableList.of(CommodityType.NET_THROUGHPUT))
+                            .setProviderType(EntityType.SWITCH).build(),
+                    CommodityBoughtMetadata.newBuilder()
+                            .addAllCommodityMetadata(ImmutableList.of(CommodityType.NET_THROUGHPUT))
+                            .setProviderType(EntityType.IO_MODULE).build());
 
     @Test
     public void testUCSStitchingWithStandardOperations() throws Exception {
@@ -428,9 +354,30 @@ public class StitchingIntegrationTest {
 
     @Test
     public void testUCSStitchingWithGenericOperations() throws Exception {
-        testUCSStitching(ImmutableList.of(
-                new ListStringToStringDataDrivenStitchingOperation(new FabricStitchingMetaData())));
+        testUCSStitching(ImmutableList.of(getDataDrivenFabricStitchingOperation()));
     }
+
+    private StitchingOperation getDataDrivenFabricStitchingOperation() {
+        EntityPropertyName pmuuidProperty = EntityPropertyName.newBuilder()
+                .setPropertyName("PM_UUID").build();
+        EntityField idField = EntityField.newBuilder().setFieldName("id").build();
+        MatchingData fabricMatchingData = MatchingData.newBuilder()
+                .setMatchingProperty(pmuuidProperty).setDelimiter(",").build();
+        MatchingData fabricExternalMatchingData = MatchingData.newBuilder()
+                .setMatchingField(idField).build();
+        MatchingMetadata fabricMatchingMetadata = MatchingMetadata.newBuilder()
+                .addMatchingData(fabricMatchingData).setReturnType(ReturnType.LIST_STRING)
+                .addExternalEntityMatchingProperty(fabricExternalMatchingData)
+                .setExternalEntityReturnType(ReturnType.STRING).build();
+        final MergedEntityMetadata fabricMergeEntityMetadata =
+                MergedEntityMetadata.newBuilder().mergeMatchingMetadata(fabricMatchingMetadata)
+                        .addAllCommoditiesBought(pmBoughtCommodityData)
+                        .build();
+        return new ListStringToStringDataDrivenStitchingOperation(
+                new ListStringToStringStitchingMatchingMetaDataImpl(EntityType.PHYSICAL_MACHINE,
+                        fabricMergeEntityMetadata));
+    }
+
 
     private void testUCSStitching(List<StitchingOperation<?, ?>> fabricStitchingOperationsToTest)
             throws Exception {

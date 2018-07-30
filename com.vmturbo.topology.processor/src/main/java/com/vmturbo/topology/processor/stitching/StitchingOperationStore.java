@@ -18,11 +18,22 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
+import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.stitching.ListStringToListStringDataDrivenStitchingOperation;
+import com.vmturbo.stitching.ListStringToStringDataDrivenStitchingOperation;
+import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.ListStringToStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.StringToListStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary.StitchingUnknownProbeException;
+import com.vmturbo.stitching.StringToListStringDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringToStringDataDrivenStitchingOperation;
 import com.vmturbo.stitching.journal.JournalableOperation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 
@@ -64,8 +75,12 @@ public class StitchingOperationStore {
     public void setOperationsForProbe(long probeId, @Nonnull final ProbeInfo probeInfo) throws ProbeException {
         try {
             final ProbeCategory category = ProbeCategory.create(probeInfo.getProbeCategory());
-            final List<StitchingOperation<?, ?>> operations =
-                stitchingOperationLibrary.stitchingOperationsFor(probeInfo.getProbeType(), category);
+            List<StitchingOperation<?, ?>> operations =
+                    createStitchingOperationsFromProbeInfo(probeInfo);
+            if (operations.isEmpty()) {
+                operations = stitchingOperationLibrary.stitchingOperationsFor(
+                        probeInfo.getProbeType(), category);
+            }
             setOperationsForProbe(probeId, operations);
 
             logger.info("Selected {} stitching operations for probe {} ({}) in category {}.",
@@ -77,6 +92,42 @@ public class StitchingOperationStore {
                 probeInfo.getProbeCategory());
         } catch (StitchingUnknownProbeException e) {
             throw new ProbeException("Error looking up probe stitching operations", e);
+        }
+    }
+
+    private List<StitchingOperation<?, ?>> createStitchingOperationsFromProbeInfo(
+            @Nonnull final ProbeInfo probeInfo) {
+        return probeInfo.getSupplyChainDefinitionSetList().stream()
+                .filter(TemplateDTO::hasMergedEntityMetaData)
+                .map(tDTO -> createStitchingOperation(tDTO))
+                .collect(Collectors.toList());
+    }
+
+    private StitchingOperation<?, ?> createStitchingOperation(
+            @Nonnull final TemplateDTO templateDTO) {
+        MergedEntityMetadata memd = templateDTO.getMergedEntityMetaData();
+        if (memd.getMatchingMetadata().getReturnType() == ReturnType.STRING) {
+            if (memd.getMatchingMetadata().getExternalEntityReturnType() == ReturnType.STRING) {
+                return new StringToStringDataDrivenStitchingOperation(
+                        new StringToStringStitchingMatchingMetaDataImpl(
+                                templateDTO.getTemplateClass(), memd));
+            } else {
+                return new StringToListStringDataDrivenStitchingOperation(
+                        new StringToListStringStitchingMatchingMetaDataImpl(
+                                templateDTO.getTemplateClass(), memd));
+
+            }
+        } else {
+            if (memd.getMatchingMetadata().getExternalEntityReturnType() == ReturnType.STRING) {
+                return new ListStringToStringDataDrivenStitchingOperation(
+                        new ListStringToStringStitchingMatchingMetaDataImpl(
+                                templateDTO.getTemplateClass(), memd));
+            } else {
+                return new ListStringToListStringDataDrivenStitchingOperation(
+                        new ListStringToListStringStitchingMatchingMetaDataImpl(
+                                templateDTO.getTemplateClass(), memd));
+            }
+
         }
     }
 

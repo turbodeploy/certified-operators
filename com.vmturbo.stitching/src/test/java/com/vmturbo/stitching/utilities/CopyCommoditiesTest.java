@@ -25,7 +25,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.CommodityBoughtMetaData;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.stitching.StitchingEntity;
 
 /**
@@ -94,9 +94,10 @@ public class CopyCommoditiesTest {
         final Collection<CommodityType> commodityBoughtTypeList = ImmutableList.of(
                 CommodityType.VCPU,
                 CommodityType.BALLOONING);
-        final Collection<CommodityBoughtMetaData> boughtFilter =
-                ImmutableList.of(new CommodityBoughtMetaData(EntityType.PHYSICAL_MACHINE,
-                        commodityBoughtTypeList));
+        final Collection<CommodityBoughtMetadata> boughtFilter =
+                ImmutableList.of(CommodityBoughtMetadata.newBuilder()
+                        .setProviderType(EntityType.PHYSICAL_MACHINE)
+                        .addAllCommodityMetadata(commodityBoughtTypeList).build());
 
         final List<CommodityDTO.Builder> destProviderList = new ArrayList<>();
         destProviderList.add(vCpuMHz().build().toBuilder());

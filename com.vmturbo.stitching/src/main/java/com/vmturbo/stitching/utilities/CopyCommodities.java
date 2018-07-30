@@ -1,6 +1,5 @@
 package com.vmturbo.stitching.utilities;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -25,9 +24,7 @@ import com.vmturbo.platform.common.builders.CommodityBuilderIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.stitching.CommodityBoughtMetaData;
-import com.vmturbo.stitching.DTOFieldSpec;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.stitching.StitchingEntity;
 
 /**
@@ -49,13 +46,13 @@ public class CopyCommodities {
      */
     public static class CopyCommoditiesBoughtStart {
 
-        private Collection<CommodityBoughtMetaData> boughtMetaData;
+        private Collection<CommodityBoughtMetadata> boughtMetaData;
 
         private CopyCommoditiesBoughtStart() {
             boughtMetaData = null;
         }
 
-        private CopyCommoditiesBoughtStart(@Nonnull final Collection<CommodityBoughtMetaData>
+        private CopyCommoditiesBoughtStart(@Nonnull final Collection<CommodityBoughtMetadata>
                                                    metaData) {
             boughtMetaData = metaData;
         }
@@ -74,10 +71,11 @@ public class CopyCommodities {
      */
     public static class CopyCommoditiesBoughtWithSource {
         private final StitchingEntity source;
-        private final Collection<CommodityBoughtMetaData> boughtMetaData;
+        private final Collection<CommodityBoughtMetadata> boughtMetaData;
 
         CopyCommoditiesBoughtWithSource(@Nonnull final StitchingEntity source,
-                                        @Nullable final Collection<CommodityBoughtMetaData> boughtMetaData) {
+                                        @Nullable final Collection<CommodityBoughtMetadata>
+                                                boughtMetaData) {
             this.source = Objects.requireNonNull(source);
             this.boughtMetaData = boughtMetaData;
         }
@@ -92,10 +90,10 @@ public class CopyCommodities {
      */
     public static class CopyCommoditiesWithDestination {
         private final StitchingEntity destination;
-        private final Collection<CommodityBoughtMetaData> boughtMetaData;
+        private final Collection<CommodityBoughtMetadata> boughtMetaData;
 
         CopyCommoditiesWithDestination(@Nonnull final StitchingEntity destination,
-                                       @Nullable Collection<CommodityBoughtMetaData> boughtMetaData) {
+                                       @Nullable Collection<CommodityBoughtMetadata> boughtMetaData) {
             this.destination = Objects.requireNonNull(destination);
             this.boughtMetaData = boughtMetaData;
         }
@@ -118,36 +116,9 @@ public class CopyCommodities {
         return new CopyCommoditiesBoughtStart();
     }
 
-    public static CopyCommoditiesBoughtStart copyCommodities(@Nonnull final Collection<CommodityBoughtMetaData>
+    public static CopyCommoditiesBoughtStart copyCommodities(@Nonnull final Collection<CommodityBoughtMetadata>
                                                                      metaData) {
         return new CopyCommoditiesBoughtStart(metaData);
-    }
-
-    /**
-     * Take a list of all commodities from the provider and pare it down to only those that are
-     * specified by the boughtMetaData.
-     *
-     * @param provider Provider related to the CommoditiesBought.
-     * @param commodities Set of commodities that are bought.
-     * @param boughtMetaData Metadata specifying which commodities should be transferred from proxy.
-     * @return set of commodities that should be transferred from proxy to real entity.
-     */
-    private static List<CommodityDTO.Builder> verifyCommoditiesBought(@Nonnull StitchingEntity provider,
-                                           @Nonnull List<CommodityDTO.Builder> commodities,
-                                           @Nullable Collection<CommodityBoughtMetaData> boughtMetaData) {
-        if (boughtMetaData == null) {
-            return commodities;
-        }
-        Optional<Collection<CommodityType>> commodityTransferList =
-                boughtMetaData.stream().filter(b -> provider.getEntityType().equals(b.getProviderType()))
-                .findAny().map(CommodityBoughtMetaData::getCommodities);
-        if (commodityTransferList.isPresent()) {
-            Set<CommodityType> keepCommodities = Sets.newHashSet(commodityTransferList.get());
-            return commodities.stream().filter(comm -> keepCommodities.contains(comm.getCommodityType()))
-                    .collect(Collectors.toList());
-
-        }
-        else return new ArrayList<>();
     }
 
     /**
@@ -160,7 +131,7 @@ public class CopyCommodities {
      */
     private static void copyCommoditiesBought(@Nonnull final StitchingEntity source,
                                               @Nonnull final StitchingEntity destination,
-                                              @Nullable Collection<CommodityBoughtMetaData>
+                                              @Nullable Collection<CommodityBoughtMetadata>
                                                       commBoughtMetaData)
     {
         final Map<StitchingEntity, List<CommodityDTO.Builder>> destinationBought =
@@ -180,7 +151,7 @@ public class CopyCommodities {
                                 : commBoughtMetaData.stream()
                                 .filter(m -> m.getProviderType() == provider.getEntityType())
                                 .findFirst()
-                                .map(CommodityBoughtMetaData::getCommodities)
+                                .map(CommodityBoughtMetadata::getCommodityMetadataList)
                         ,
                         commBoughtMetaData != null)));
     }

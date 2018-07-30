@@ -1,7 +1,6 @@
 package com.vmturbo.stitching;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -20,10 +19,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
-import com.vmturbo.stitching.utilities.DeleteCommodities;
 import com.vmturbo.stitching.utilities.EntityFieldMergers;
 import com.vmturbo.stitching.utilities.MergeEntities;
 import com.vmturbo.stitching.utilities.MergeEntities.MergeCommoditySoldStrategy;
@@ -73,12 +72,11 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
      */
     private void initReplacementEntityMap() {
         replacementEntityMap = Maps.newHashMap();
-        for (CommodityBoughtMetaData commBoughtData :
+        for (CommodityBoughtMetadata commBoughtData :
                 matchingInformation.getCommoditiesBoughtToPatch()) {
-            Optional<EntityType> replacedEntityType = commBoughtData.getReplacedEntityType();
-            if (replacedEntityType.isPresent()){
+            if (commBoughtData.hasReplacesProvider()){
                 replacementEntityMap.put(commBoughtData.getProviderType(),
-                        replacedEntityType.get());
+                        commBoughtData.getReplacesProvider());
             }
         }
     }
@@ -234,7 +232,7 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
         }
 
         // iterate over bought meta data finding providers that need to be replaced
-        for (CommodityBoughtMetaData boughtData : matchingInformation.getCommoditiesBoughtToPatch()) {
+        for (CommodityBoughtMetadata boughtData : matchingInformation.getCommoditiesBoughtToPatch()) {
             // see if there is a provider related to the internalEntity for this set of
             // commodities bought
             Optional<StitchingEntity> internalProvider = internalEntity.getProviders().stream()

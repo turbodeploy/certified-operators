@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 
 /**
  * A class that encapsulates the meta data that is needed to stitch a particular entity type for
@@ -33,7 +34,7 @@ public interface StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIG
     // a list of commodities sold to patch
     Collection<CommodityType> getCommoditiesSoldToPatch();
     // a list of commodities bought to patch along with their providers
-    Collection<CommodityBoughtMetaData> getCommoditiesBoughtToPatch();
+    Collection<CommodityBoughtMetadata> getCommoditiesBoughtToPatch();
     // whether or not to keep probe side entities that do not match
     boolean getKeepStandalone();
 }
