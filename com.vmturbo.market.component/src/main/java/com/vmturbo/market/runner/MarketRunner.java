@@ -20,17 +20,17 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
+import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**
@@ -42,9 +42,10 @@ public class MarketRunner {
     private final Logger logger = LogManager.getLogger();
     private final ExecutorService runnerThreadPool;
     private final MarketNotificationSender serverApi;
+    private final GroupServiceBlockingStub groupServiceClient;
     private final SettingServiceBlockingStub settingServiceClient;
     private final AnalysisFactory analysisFactory;
-    private float alleviatePressureQuoteFactor;
+    private final MarketRunnerConfigWrapper config;
 
     private final Optional<MarketDebugRpcService> marketDebugRpcService;
 
@@ -60,15 +61,17 @@ public class MarketRunner {
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
             @Nonnull final MarketNotificationSender serverApi,
             @Nonnull final AnalysisFactory analysisFactory,
+            @Nonnull final GroupServiceBlockingStub groupServiceClient,
             @Nonnull final SettingServiceBlockingStub settingServiceClient,
             @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
-            float alleviatePressureQuoteFactor) {
+            @Nonnull final MarketRunnerConfigWrapper marketRunnerConfigWrapper) {
         this.runnerThreadPool = runnerThreadPool;
         this.serverApi = serverApi;
+        this.groupServiceClient = groupServiceClient;
         this.settingServiceClient = settingServiceClient;
         this.marketDebugRpcService = marketDebugRpcService;
         this.analysisFactory = analysisFactory;
-        this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
+        this.config = marketRunnerConfigWrapper;
     }
 
     /**
@@ -112,11 +115,12 @@ public class MarketRunner {
                     .setTopologyDTOs(topologyDTOs)
                     .setIncludeVDC(includeVDC)
                     .setSettingsMap(retrieveSettings())
+                    .setGroupServiceClient(groupServiceClient)
                     .setClock(Clock.systemUTC())
                     .setMaxPlacementsOverride(maxPlacementsOverride)
                     .setRightsizeLowerWatermark(rightsizeLowerWatermark)
                     .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                    .setQuoteFactor(getQuoteFactor(topologyInfo))
+                    .setMarketRunnerConfig(config)
                     .build();
             analysisMap.put(topologyContextId, analysis);
         }
@@ -171,15 +175,6 @@ public class MarketRunner {
      */
     public Collection<Analysis> getRuns() {
         return analysisMap.values();
-    }
-
-    private float getQuoteFactor(TopologyInfo topologyInfo) {
-        if (topologyInfo.hasPlanInfo()) {
-            if (topologyInfo.getPlanInfo().getPlanType().equals("ALLEVIATE_PRESSURE")) {
-                return alleviatePressureQuoteFactor;
-            }
-        }
-        return AnalysisUtil.QUOTE_FACTOR;
     }
 
     /**

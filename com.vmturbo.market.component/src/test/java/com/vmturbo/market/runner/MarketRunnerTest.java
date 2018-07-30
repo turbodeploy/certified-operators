@@ -24,8 +24,9 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Sets;
-
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -42,6 +43,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
+import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
 
 /**
  * Unit tests for the {@link MarketRunner}.
@@ -62,9 +64,13 @@ public class MarketRunnerTest {
     private final SettingServiceMole testSettingService =
                  spy(new SettingServiceMole());
     private SettingServiceBlockingStub settingServiceClient;
+    private GroupServiceBlockingStub groupServiceClient;
     private Optional<Integer> maxPlacementsOverride = Optional.empty();
     private final static float rightsizeLowerWatermark = 0.1f;
     private final static float rightsizeUpperWatermark = 0.7f;
+    private MarketRunnerConfig config = new MarketRunnerConfig();
+    MarketRunnerConfig.MarketRunnerConfigWrapper configWrapper = config
+            .new MarketRunnerConfigWrapper(0.75f,  false);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
@@ -84,7 +90,9 @@ public class MarketRunnerTest {
         AnalysisFactory analysisFactory = new AnalysisFactory();
         settingServiceClient =
             SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        runner = new MarketRunner(threadPool, serverApi, analysisFactory, settingServiceClient, Optional.empty(), 0.75f);
+        groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        runner = new MarketRunner(threadPool, serverApi, analysisFactory, groupServiceClient,
+                settingServiceClient, Optional.empty(), configWrapper);
 
         topologyContextId += 100;
     }

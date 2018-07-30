@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -78,6 +79,7 @@ public class TopologyEntitiesListener implements EntitiesListener {
             logger.info("Thread interrupted receiving topology " + topologyId + " with for " +
                     "context " + topologyContextId, e);
         }
-        marketRunner.scheduleAnalysis(topologyInfo, entities, false, maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
+        marketRunner.scheduleAnalysis(topologyInfo, entities, false, maxPlacementsOverride,
+                rightsizeLowerWatermark, rightsizeUpperWatermark);
     }
 }

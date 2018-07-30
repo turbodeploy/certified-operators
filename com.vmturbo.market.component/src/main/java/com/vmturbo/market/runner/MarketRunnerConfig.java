@@ -11,13 +11,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.api.MarketApiConfig;
 import com.vmturbo.market.rpc.MarketRpcConfig;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
  * Configuration for market runner in the market component.
@@ -40,6 +42,9 @@ public class MarketRunnerConfig {
     @Value("${alleviatePressureQuoteFactor}")
     private float alleviatePressureQuoteFactor;
 
+    @Value("${suspensionThrottlingPerCluster}")
+    private boolean suspensionThrottlingPerCluster;
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService marketRunnerThreadPool() {
         final ThreadFactory threadFactory =
@@ -53,9 +58,11 @@ public class MarketRunnerConfig {
                 marketRunnerThreadPool(),
                 apiConfig.marketApi(),
                 analysisFactory(),
+                groupServiceClient(),
                 settingServiceClient(),
                 marketRpcConfig.marketDebugRpcService(),
-                alleviatePressureQuoteFactor);
+                new MarketRunnerConfigWrapper(alleviatePressureQuoteFactor,
+                                              suspensionThrottlingPerCluster));
     }
 
     @Bean
@@ -64,7 +71,28 @@ public class MarketRunnerConfig {
     }
 
     @Bean
+    public GroupServiceBlockingStub groupServiceClient() {
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+    @Bean
     public AnalysisFactory analysisFactory() {
         return new AnalysisFactory();
+    }
+
+    public class MarketRunnerConfigWrapper{
+        private final float alleviatePressureQuoteFactor;
+        private final SuspensionsThrottlingConfig suspensionsThrottlingConfig;
+        public MarketRunnerConfigWrapper(float alleviatePressureQuoteFactor,
+                                  boolean suspensionThrottlingPerCluster) {
+            this.alleviatePressureQuoteFactor = alleviatePressureQuoteFactor;
+            this.suspensionsThrottlingConfig = suspensionThrottlingPerCluster
+                            ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT;
+        }
+        public float getAlleviatePressureQuoteFactor() {
+            return alleviatePressureQuoteFactor;
+        }
+        public SuspensionsThrottlingConfig getSuspensionsThrottlingConfig() {
+            return suspensionsThrottlingConfig;
+        }
     }
 }

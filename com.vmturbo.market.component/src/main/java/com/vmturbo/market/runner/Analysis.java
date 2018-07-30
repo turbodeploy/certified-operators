@@ -3,11 +3,14 @@ package com.vmturbo.market.runner;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
@@ -27,19 +30,33 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -72,6 +89,10 @@ public class Analysis {
     private final Logger logger = LogManager.getLogger();
 
     private final TopologyInfo topologyInfo;
+
+    private static final String STORAGE_CLUSTER_WITH_GROUP = "group";
+    private static final String STORAGE_CLUSTER_ISO = "iso-";
+    private static final String FREE_STORAGE_CLUSTER = "free_storage_cluster";
 
     private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
         .withName("mkt_economy_scoping_duration_seconds")
@@ -113,12 +134,15 @@ public class Analysis {
 
     private final Map<String, Setting> globalSettingsMap;
 
+    private final GroupServiceBlockingStub groupServiceClient;
+
     private final Optional<Integer> maxPlacementsOverride;
 
     private final float rightsizeLowerWatermark;
 
     private final float rightsizeUpperWatermark;
 
+    private final MarketRunnerConfigWrapper config;
     /**
      * The quote factor controls the aggressiveness with which the market suggests moves.
      *
@@ -140,6 +164,7 @@ public class Analysis {
      * @param includeVDC specify whether guaranteed buyers (VDC, VPod, DPod) are included in the
      *                     market analysis
      * @param globalSettingsMap Used to look up settings to control the behavior of market analysis.
+     * @param groupServiceClient Used to look up groups to support suspension throttling
      * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
      *                              by the market during analysis.
      * @param clock The clock used to time market analysis.
@@ -147,17 +172,18 @@ public class Analysis {
      *                                it, Market could generate resize down actions.
      * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
      *                                it, Market could generate resize up actions.
-     * @param quoteFactor to be used. See {@link Analysis#quoteFactor}.
+     * @param config configurations for market read from consul
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
                     final boolean includeVDC,
                     @Nonnull final Map<String, Setting> globalSettingsMap,
+                    @Nonnull final GroupServiceBlockingStub groupServiceClient,
                     @Nonnull final Optional<Integer> maxPlacementsOverride,
                     @Nonnull final Clock clock,
                     final float rightsizeLowerWatermark,
                     final float rightsizeUpperWatermark,
-                    final float quoteFactor) {
+                    final MarketRunnerConfigWrapper config) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -168,14 +194,24 @@ public class Analysis {
             topologyInfo.getTopologyId() + " : ";
         this.projectedTopologyId = IdentityGenerator.next();
         this.globalSettingsMap = globalSettingsMap;
+        this.groupServiceClient = groupServiceClient;
         this.clock = Objects.requireNonNull(clock);
         this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
         this.rightsizeLowerWatermark = rightsizeLowerWatermark;
         this.rightsizeUpperWatermark = rightsizeUpperWatermark;
+        this.quoteFactor = getQuoteFactor(topologyInfo, config);
         this.converter = new TopologyConverter(topologyInfo, includeVDC, quoteFactor);
-        this.quoteFactor = quoteFactor;
+        this.config = config;
     }
 
+    private float getQuoteFactor(TopologyInfo topologyInfo, MarketRunnerConfigWrapper config) {
+        if (topologyInfo.hasPlanInfo()) {
+            if (topologyInfo.getPlanInfo().getPlanType().equals("ALLEVIATE_PRESSURE")) {
+                return config.getAlleviatePressureQuoteFactor();
+            }
+        }
+        return AnalysisUtil.QUOTE_FACTOR;
+    }
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
             .withName("mkt_process_result_duration_seconds")
             .withHelp("Time to process the analysis results.")
@@ -205,7 +241,24 @@ public class Analysis {
         try {
 
             final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
+            final boolean enableThrottling = (config.getSuspensionsThrottlingConfig()
+                    == SuspensionsThrottlingConfig.CLUSTER);
+            // construct fake entities which can be used to form markets based on cluster/storage cluster
+            Map<Long, TopologyEntityDTO> fakeEntityDTOs = new HashMap<>();
+            if (enableThrottling) {
+                fakeEntityDTOs = createFakeTopologyEntityDTOsForSuspensionThrottling();
+                fakeEntityDTOs.entrySet().forEach(entry -> topologyDTOs.put(entry.getKey(), entry.getValue()));
+            }
             Set<TraderTO> traderTOs = converter.convertToMarket(topologyDTOs);
+            // cache the traderTOs converted from fake TopologyEntityDTOs
+            Set<TraderTO> fakeTraderTOs = new HashSet<>();
+            if (enableThrottling) {
+                for (TraderTO dto : traderTOs) {
+                    if (fakeEntityDTOs.containsKey(dto.getOid())) {
+                        fakeTraderTOs.add(dto);
+                    }
+                }
+            }
             conversionTimer.observe();
 
             // if a scope 'seed' entity OID list is specified, then scope the topology starting with
@@ -214,6 +267,9 @@ public class Analysis {
                 try (final DataMetricTimer scopingTimer = TOPOLOGY_SCOPING_SUMMARY.startTimer()) {
                     traderTOs = scopeTopology(traderTOs,
                         ImmutableSet.copyOf(topologyInfo.getScopeSeedOidsList()));
+                    // add back fake traderTOs for suspension throttling as it may be removed due
+                    // to scoping
+                    traderTOs.addAll(fakeTraderTOs);
                 }
 
                 // save the scoped topology for later broadcast
@@ -254,16 +310,34 @@ public class Analysis {
 
             final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                 topologyInfo, globalSettingsMap, maxPlacementsOverride, rightsizeLowerWatermark,
-                rightsizeUpperWatermark);
+                rightsizeUpperWatermark, config.getSuspensionsThrottlingConfig());
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
             converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
             logger.info(logPrefix + "Done performing analysis");
 
+            List<TraderTO> projectedTraderDTO = new ArrayList<>();
             try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
+                Map<Long, TopologyEntityDTO> realTopologyDTOs = new HashMap<>();
+                if (enableThrottling) {
+                    // remove the fake entities used in suspension throttling from projected topology
+                    for (Entry<Long, TopologyEntityDTO> entry : topologyDTOs.entrySet()) {
+                        if (!fakeEntityDTOs.containsKey(entry.getKey())) {
+                            realTopologyDTOs.put(entry.getKey(), entry.getValue());
+                        }
+                    }
+                    for(TraderTO projectedDTO : results.getProjectedTopoEntityTOList()) {
+                        if (!fakeEntityDTOs.containsKey(projectedDTO.getOid())) {
+                            projectedTraderDTO.add(projectedDTO);
+                        }
+                    }
+                } else {
+                    realTopologyDTOs = topologyDTOs;
+                    projectedTraderDTO = results.getProjectedTopoEntityTOList();
+                }
                 projectedEntities = converter.convertFromMarket(
-                    results.getProjectedTopoEntityTOList(),
-                    topologyDTOs,
+                    projectedTraderDTO,
+                    realTopologyDTOs,
                     results.getPriceIndexMsg());
             }
 
@@ -281,7 +355,7 @@ public class Analysis {
             // We look through the projected traders directly instead of the projected entities
             // because iterating through the projected entities will actually convert all the
             // traders (it's a lazy-transforming list at the time of this writing - Mar 20 2018).
-            final Map<Long, Integer> entityIdToType = results.getProjectedTopoEntityTOList().stream()
+            final Map<Long, Integer> entityIdToType = projectedTraderDTO.stream()
                     .collect(Collectors.toMap(TraderTO::getOid, TraderTO::getType));
             results.getActionsList().stream()
                     .map(action -> converter.interpretAction(action, entityIdToType))
@@ -306,6 +380,105 @@ public class Analysis {
                 + startTime.until(completionTime, ChronoUnit.SECONDS) + " seconds");
         completed = true;
         return true;
+    }
+
+    /**
+     * Construct fake buying TopologyEntityDTOS to help form markets with sellers bundled by cluster/storage
+     * cluster.
+     * <p>
+     * This is to ensure each cluster/storage cluster will form a unique market regardless of
+     * segmentation constraint which may divided the cluster/storage cluster.
+     * </p>
+     * @return a set of fake TopologyEntityDTOS with only cluster/storage cluster commodity in the
+     * commodity bought list
+     */
+    protected Map<Long, TopologyEntityDTO> createFakeTopologyEntityDTOsForSuspensionThrottling() {
+        // create fake entities to help construct markets in which sellers of a compute
+        // or a storage cluster serve as market sellers
+        Set<TopologyEntityDTO> fakeEntityDTOs = new HashSet<>();
+        Set<TopologyEntityDTO> pmEntityDTOs = getEntityDTOsInCluster(ClusterInfo.Type.COMPUTE);
+        Set<TopologyEntityDTO> dsEntityDTOs = getEntityDTOsInCluster(ClusterInfo.Type.STORAGE);
+        Set<String> clusterCommKeySet = new HashSet<>();
+        Set<String> dsClusterCommKeySet = new HashSet<>();
+        pmEntityDTOs.forEach(dto -> dto.getCommoditySoldListList().forEach(comm ->
+                {
+                    if (comm.getCommodityType().getType() == CommodityType.CLUSTER_VALUE) {
+                        clusterCommKeySet.add(comm.getCommodityType().getKey());
+                    }
+                }));
+        dsEntityDTOs.forEach(dto -> dto.getCommoditySoldListList().forEach(comm ->
+                {
+                    if (comm.getCommodityType().getType() == CommodityType.STORAGE_CLUSTER_VALUE
+                            && isRealStorageClusterCommodity(comm)) {
+                        dsClusterCommKeySet.add(comm.getCommodityType().getKey());
+                    }
+                }));
+        clusterCommKeySet.forEach(key -> fakeEntityDTOs
+                .add(creatFakeDTOs(CommodityType.CLUSTER_VALUE, key)));
+        dsClusterCommKeySet.forEach(key -> fakeEntityDTOs
+                .add(creatFakeDTOs(CommodityType.STORAGE_CLUSTER_VALUE, key)));
+
+        return fakeEntityDTOs.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid,
+                        Function.identity()));
+    }
+
+    /**
+     * Create fake VM TopologyEntityDTOs to buy cluster/storage cluster commodity only.
+     *
+     * @param clusterValue cluster or storage cluster
+     * @param key the commodity's key
+     * @return a VM TopologyEntityDTO
+     */
+    private TopologyEntityDTO creatFakeDTOs(int clusterValue, String key) {
+        final CommodityBoughtDTO clusterCommBought = CommodityBoughtDTO.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
+                        .setType(clusterValue).setKey(key).build())
+                .build();
+        return TopologyEntityDTO.newBuilder()
+               .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+               .setOid(IdentityGenerator.next())
+               .setDisplayName("Fake-" + clusterValue + key)
+               .setEntityState(EntityState.POWERED_ON)
+               .setAnalysisSettings(AnalysisSettings.newBuilder().setControllable(false).build())
+               .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                       .addCommodityBought(clusterCommBought).build())
+               .build();
+    }
+
+    protected Set<TopologyEntityDTO> getEntityDTOsInCluster(ClusterInfo.Type clusterInfo) {
+        Set<TopologyEntityDTO> entityDTOs = new HashSet<>();
+        groupServiceClient.getGroups(GetGroupsRequest.newBuilder().setTypeFilter(Type.CLUSTER)
+                .setClusterFilter(ClusterFilter.newBuilder()
+                        .setTypeFilter(clusterInfo).build())
+                .build())
+        .forEachRemaining(grp -> {
+            for (long i : grp.getCluster().getMembers().getStaticMemberOidsList()) {
+                if (topologyDTOs.containsKey(i)) {
+                    entityDTOs.add(topologyDTOs.get(i));
+                }
+            }
+        });
+        return entityDTOs;
+    }
+
+    /**
+     * Check if the commoditySoldDTO is a storage cluster commodity for real storage cluster.
+     * <p>
+     * Real storage cluster is a storage cluster that is physically exits in the data center.
+     * </p>
+     * @param comm commoditySoldDTO
+     * @return true if it is for real cluster
+     */
+    private boolean isRealStorageClusterCommodity(TopologyDTO.CommoditySoldDTO comm) {
+        if (comm.getCommodityType()
+                        .getType() == CommodityType.STORAGE_CLUSTER_VALUE) {
+            return !comm.getCommodityType().getKey().toLowerCase()
+                    .startsWith(STORAGE_CLUSTER_WITH_GROUP) && !comm.getCommodityType().getKey()
+                    .toLowerCase().startsWith(STORAGE_CLUSTER_ISO) && !comm.getCommodityType()
+                    .getKey().toLowerCase().equals(FREE_STORAGE_CLUSTER);
+        }
+        return false;
     }
 
     /**
@@ -716,14 +889,16 @@ public class Analysis {
         private Optional<Integer> maxPlacementsOverride = Optional.empty();
         private Map<String, Setting> settingsMap = Collections.emptyMap();
 
+        private GroupServiceBlockingStub groupServiceClient = null;
+
         // The minimum utilization threshold, if entity's utilization is below threshold,
         // Market could generate resize down action.
         private float rightsizeLowerWatermark;
         // The maximum utilization threshold, if entity's utilization is above threshold,
         // Market could generate resize up action.
         private float rightsizeUpperWatermark;
-        // quoteFactor to be used by move recommendations.
-        private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
+        // configuration read from consul
+        private MarketRunnerConfigWrapper config;
 
         /**
          * Capture the {@link TopologyInfo} describing this Analysis, including the IDs, type,
@@ -766,6 +941,17 @@ public class Analysis {
          */
         public AnalysisBuilder setSettingsMap(@Nonnull final Map<String, Setting> settingsMap) {
             this.settingsMap = settingsMap;
+            return this;
+        }
+
+        /**
+         * Configure the Group client to get the groups.
+         *
+         * @param groupServiceClient Group Service client
+         * @return this Builder to support flow style
+         */
+        public AnalysisBuilder setGroupServiceClient(GroupServiceBlockingStub groupServiceClient) {
+            this.groupServiceClient  = groupServiceClient;
             return this;
         }
 
@@ -821,8 +1007,8 @@ public class Analysis {
          * @param quoteFactor The quote factor to be used in market analysis.
          * @return this Builder to support flow style
          */
-        public AnalysisBuilder setQuoteFactor(final float quoteFactor) {
-            this.quoteFactor = quoteFactor;
+        public AnalysisBuilder setMarketRunnerConfig(final MarketRunnerConfigWrapper config) {
+            this.config = config;
             return this;
         }
 
@@ -832,8 +1018,8 @@ public class Analysis {
          * @return the newly build Analysis object initialized from the Builder fields.
          */
         public Analysis build() {
-            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsMap,
-                maxPlacementsOverride, clock, rightsizeLowerWatermark, rightsizeUpperWatermark, quoteFactor);
+            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsMap,  groupServiceClient,
+                maxPlacementsOverride, clock, rightsizeLowerWatermark, rightsizeUpperWatermark, config);
         }
     }
 

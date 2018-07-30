@@ -35,8 +35,9 @@ import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
@@ -53,6 +54,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.MarketNotificationSender;
+import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
@@ -84,9 +86,13 @@ public class ScopedTopologyTest {
     private final SettingServiceMole testSettingService =
                  spy(new SettingServiceMole());
     private SettingServiceBlockingStub settingServiceClient;
+    private GroupServiceBlockingStub groupServiceClient;
     private Optional<Integer> maxPlacementsOverride;
     private final float rightsizeLowerWatermark = 0.1f;
     private final float rightsizeUpperWatermark = 0.7f;
+    private MarketRunnerConfig config = new MarketRunnerConfig();
+    MarketRunnerConfig.MarketRunnerConfigWrapper configWrapper = config
+            .new MarketRunnerConfigWrapper(0.75f,  false);
     Analysis testAnalysis;
 
     @Rule
@@ -109,6 +115,7 @@ public class ScopedTopologyTest {
                 .setIncludeVDC(INCLUDE_VDC)
                 .build();
         settingServiceClient = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
     /**
@@ -218,7 +225,8 @@ public class ScopedTopologyTest {
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
         Analysis.AnalysisFactory analysisFactory = new Analysis.AnalysisFactory();
         MarketRunner runner =
-            new MarketRunner(threadPool, serverApi, analysisFactory, settingServiceClient, Optional.empty(), 0.75f);
+                new MarketRunner(threadPool, serverApi, analysisFactory, groupServiceClient,
+                        settingServiceClient, Optional.empty(), configWrapper);
 
         long topologyContextId = 1000;
         long topologyId = 2000;

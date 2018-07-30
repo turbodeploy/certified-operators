@@ -45,6 +45,7 @@ import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.Analysis.AnalysisBuilder;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
+import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -96,6 +97,9 @@ public class AnalysisDebuggingTest {
     private static final Predicate<EntityAnalysis> DIFF_MEM_USAGE_NO_ACTIONS =
             ORIGINAL_AND_PROJECTED.and(HAS_ACTIONS.negate()).and(entityAnalysis ->
                     !commoditiesEquivalent(entityAnalysis, CommodityType.MEM));
+    private MarketRunnerConfig config = new MarketRunnerConfig();
+    MarketRunnerConfig.MarketRunnerConfigWrapper configWrapper = config
+            .new MarketRunnerConfigWrapper(0.75f,  false);
 
     /**
      * Returns a predicate matching the specified entities.
@@ -222,7 +226,7 @@ public class AnalysisDebuggingTest {
                 .setRightsizeLowerWatermark(analysisInput.getRightSizeLowerWatermark())
                 .setRightsizeUpperWatermark(analysisInput.getRightSizeUpperWatermark())
                 .setClock(Clock.systemUTC())
-                .setQuoteFactor(analysisInput.getQuoteFactor());
+                .setMarketRunnerConfig(configWrapper);
         if (analysisInput.hasMaxPlacementsOverride()) {
             analysisBuilder.setMaxPlacementsOverride(Optional.of(analysisInput.getMaxPlacementsOverride()));
         }

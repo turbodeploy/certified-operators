@@ -49,6 +49,7 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -349,7 +350,7 @@ public class TopologyEntitiesHandlerTest {
         AnalysisResults results =
             TopologyEntitiesHandler.performAnalysis(
                 economyDTOs, topologyInfo, Collections.emptyMap(), maxPlacementIterations,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark);
+                    rightsizeLowerWatermark, rightsizeUpperWatermark, SuspensionsThrottlingConfig.DEFAULT);
         return results.getActionsList();
     }
 

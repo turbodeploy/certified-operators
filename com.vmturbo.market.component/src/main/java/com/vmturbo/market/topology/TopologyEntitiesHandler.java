@@ -108,7 +108,8 @@ public class TopologyEntitiesHandler {
                                                   @Nonnull final Map<String, Setting> settingsMap,
                                                   @Nonnull final Optional<Integer> maxPlacementsOverride,
                                                   final float rightsizeLowerWatermark,
-                                                  final float rightsizeUpperWatermark) {
+                                                  final float rightsizeUpperWatermark,
+                                                  final SuspensionsThrottlingConfig suspensionThrottlingConfig) {
         logger.info("Received TOs from marketComponent. Starting economy creation on {} traders",
                 traderTOs.size());
         final long start = System.nanoTime();
@@ -176,8 +177,10 @@ public class TopologyEntitiesHandler {
             final String marketId = topologyInfo.getTopologyType() + "-"
                     + Long.toString(topologyInfo.getTopologyContextId()) + "-"
                     + Long.toString(topologyInfo.getTopologyId());
+            // trigger suspension throttling in XL
             actions = ede.generateActions(economy, true,
-                    true, true, true, true, marketId, isRealtime, SuspensionsThrottlingConfig.DEFAULT);
+                    true, true, true, true, marketId, isRealtime, isRealtime ? suspensionThrottlingConfig
+                                    : SuspensionsThrottlingConfig.DEFAULT);
             final long stop = System.nanoTime();
 
             results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),
