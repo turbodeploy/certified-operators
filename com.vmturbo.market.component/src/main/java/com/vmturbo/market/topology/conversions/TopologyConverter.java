@@ -586,7 +586,7 @@ public class TopologyConverter {
             final boolean isGuranteedBuyer = guaranteedBuyer(topologyDTO);
             final EconomyDTOs.TraderSettingsTO settings = EconomyDTOs.TraderSettingsTO.newBuilder()
                     .setClonable(clonable && topologyDTO.getAnalysisSettings().getControllable())
-                    .setSuspendable(suspendable && topologyDTO.getAnalysisSettings().getControllable())
+                    .setSuspendable(suspendable)
                     .setMinDesiredUtilization(getMinDesiredUtilization(topologyDTO))
                     .setMaxDesiredUtilization(getMaxDesiredUtilization(topologyDTO))
                     .setGuaranteedBuyer(isGuranteedBuyer)

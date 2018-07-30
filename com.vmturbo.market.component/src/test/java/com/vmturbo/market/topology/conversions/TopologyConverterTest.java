@@ -930,7 +930,7 @@ public class TopologyConverterTest {
             } else if (t.getType() == pmEntityDTO.getEntityType()) {
                 assertFalse(t.getSettings().getCanAcceptNewCustomers());
                 assertFalse(t.getSettings().getClonable());
-                assertFalse(t.getSettings().getSuspendable());
+                assertTrue(t.getSettings().getSuspendable());
                 assertFalse(t.getShoppingLists(0).getMovable());
             }
         }
