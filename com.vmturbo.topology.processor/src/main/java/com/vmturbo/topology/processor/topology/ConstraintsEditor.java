@@ -13,6 +13,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -23,6 +24,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -48,6 +50,10 @@ public class ConstraintsEditor {
             "StorageClusterCommodity", CommodityType.STORAGE_CLUSTER.getValue(),
             "NetworkCommodity", CommodityType.NETWORK.getValue()
     );
+
+    private static final Set<Integer> IGNORED_COMMODITIES_FOR_PRESSURE_PLAN = Sets.newHashSet(
+            CommodityType.NETWORK.getValue(), CommodityType.STORAGE_CLUSTER.getValue(),
+            CommodityType.DATACENTER.getValue());
 
     public ConstraintsEditor(@Nonnull GroupResolver groupResolver,
             @Nonnull GroupServiceBlockingStub groupService) {
@@ -101,7 +107,10 @@ public class ConstraintsEditor {
                    // that may stop them from being moved. In an alleviate pressure plan,
                    // we need to ignore these constraints on VM consumers of the hot cluster members
                    // so that the market can simulate moves of these VMs to the cold cluster(s).
-                    groupMembersOids.addAll(getVMCustomers(groupMembersOids, graph));
+                   // Also, update commodities sold for PMs of hot cluster s.t there are no moves to
+                   // hot cluster from cold cluster.
+                    groupMembersOids.addAll(
+                        updateCommoditiesSoldForHostAndGetVMCustomers(groupMembersOids, graph));
                 }
                 final Set<String> commoditiesOfGroup = ignoredCommodities.stream()
                         .filter(commodity -> commodity.getGroupUuid() == group.getId())
@@ -117,16 +126,36 @@ public class ConstraintsEditor {
         return entitesToIgnoredCommodities;
     }
 
-    private Collection<Long> getVMCustomers(Set<Long> groupMembersOids,
+    /**
+     * For given Oids, update commodities sold for PMs and find VM customers.
+     * @param groupMembersOids Oids to iterate over.
+     * @param graph to find entities from.
+     * @return set of original Oids with VM customers.
+     */
+    private Set<Long> updateCommoditiesSoldForHostAndGetVMCustomers(Set<Long> groupMembersOids,
                     TopologyGraph graph) {
         return groupMembersOids.stream()
             .map(oid -> graph.getEntity(oid))
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .flatMap(entity -> entity.getConsumers().stream())
+            .flatMap(entity -> {
+                deactivateCommoditiesSoldForPM(entity);
+                return entity.getConsumers().stream();
+            })
             .filter(customer -> customer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
             .map(TopologyEntity::getOid)
             .collect(Collectors.toSet());
+    }
+
+    private void deactivateCommoditiesSoldForPM(TopologyEntity entity) {
+        if (entity.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE) {
+            return;
+        }
+        final TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+        entityBuilder.getCommoditySoldListBuilderList().stream()
+            .filter(commSoldBldr -> IGNORED_COMMODITIES_FOR_PRESSURE_PLAN
+                            .contains(commSoldBldr.getCommodityType().getType()))
+            .forEach(commSoldBldr -> commSoldBldr.setActive(false));
     }
 
     @Nonnull

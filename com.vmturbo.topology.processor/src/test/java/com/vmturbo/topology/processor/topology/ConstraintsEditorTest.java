@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
@@ -77,15 +78,30 @@ public class ConstraintsEditorTest {
             ));
     }
 
-    private TopologyEntity.Builder buildTopologyEntity(long oid, int type, int entityType) {
+    private TopologyEntity.Builder buildTopologyEntityWithCommBought(long oid, int commType, int entityType, long provider) {
         return TopologyEntityUtils.topologyEntityBuilder(
-                        TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(
-                            CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
-                                CommodityBoughtDTO.newBuilder().setCommodityType(
-                                    CommodityType.newBuilder().setType(type).setKey("").build()
-                                ).setActive(true)
-                            ).setProviderId(1L)
-                        ).setEntityType(entityType));
+                    TopologyEntityDTO.newBuilder().setOid(oid).addCommoditiesBoughtFromProviders(
+                        CommoditiesBoughtFromProvider.newBuilder().addCommodityBought(
+                            CommodityBoughtDTO.newBuilder().setCommodityType(
+                                CommodityType.newBuilder().setType(commType).setKey("").build())
+                            .setActive(true))
+                        .setProviderId(provider))
+                    .setEntityType(entityType));
+    }
+
+    private TopologyEntity.Builder buildTopologyEntityWithCommSold(long oid, int commType, int entityType) {
+        final ImmutableList.Builder<CommoditySoldDTO> commSoldList =
+                        ImmutableList.builder();
+        commSoldList.add(
+            CommoditySoldDTO.newBuilder()
+                .setCommodityType(CommodityType.newBuilder()
+                    .setType(commType).setKey("").build())
+                .setActive(true)
+                .build());
+        return TopologyEntityUtils.topologyEntityBuilder(
+                        TopologyEntityDTO.newBuilder().setOid(oid)
+                        .addAllCommoditySoldList(commSoldList.build())
+                        .setEntityType(entityType));
     }
 
     @Test
@@ -138,18 +154,31 @@ public class ConstraintsEditorTest {
 
     @Test
     public void testEditConstraintsForAlleviatePressurePlan() throws IOException {
-        final List<Group> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L)));
+        final List<Group> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 3L, 4L, 5L, 6L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
         testServer.start();
         groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
+
+        // Set entities with commodities bought.
+        topology.put(1L, buildTopologyEntityWithCommBought(1L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
+                        EntityType.PHYSICAL_MACHINE_VALUE, 1L));
+        topology.put(2L, buildTopologyEntityWithCommBought(2L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1L));
+
+        // Set entities with commodities sold.
+        topology.put(3L, buildTopologyEntityWithCommSold(3L, CommodityDTO.CommodityType.NETWORK.getNumber(),
                         EntityType.PHYSICAL_MACHINE_VALUE));
-        topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.CLUSTER.getNumber(),
-                        EntityType.VIRTUAL_MACHINE_VALUE));
-        topology.put(3L, buildTopologyEntity(3L, CommodityDTO.CommodityType.NETWORK.getNumber()));
+        topology.put(4L, buildTopologyEntityWithCommSold(4L, CommodityDTO.CommodityType.STORAGE_CLUSTER.getNumber(),
+                        EntityType.PHYSICAL_MACHINE_VALUE));
+        topology.put(5L, buildTopologyEntityWithCommSold(5L, CommodityDTO.CommodityType.CPU.getNumber(),
+                        EntityType.PHYSICAL_MACHINE_VALUE));
+        topology.put(6L, buildTopologyEntityWithCommSold(6L, CommodityDTO.CommodityType.DATACENTER.getNumber(),
+                        EntityType.PHYSICAL_MACHINE_VALUE));
+
+        // Set scenario change
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
                         IgnoreConstraint.newBuilder().setCommodityType("ClusterCommodity")
@@ -157,12 +186,20 @@ public class ConstraintsEditorTest {
                 )).build());
         final TopologyGraph graph = TopologyGraph.newGraph(topology);
 
+        // Pressure plan : disabled
         constraintsEditor.editConstraints(graph, changes, false);
-        Assert.assertEquals(2, getActiveCommodities(graph).count());
-
-        // For alleviate pressure plan, VM's commodity should be disabled too.
-        constraintsEditor.editConstraints(graph, changes, true);
+        // Only PM's bought cluster commodity is disabled due to ScenarioChange.
         Assert.assertEquals(1, getActiveCommodities(graph).count());
+        // All sold commodities are active.
+        Assert.assertEquals(4, getActiveCommoditiesSold(graph).count());
+
+        // Pressure plan : disabled
+        // For alleviate pressure plan, VM's bought Cluster commodity should be disabled too.
+        constraintsEditor.editConstraints(graph, changes, true);
+        Assert.assertEquals(0, getActiveCommodities(graph).count());
+        // And PM's : NETWORK, DATACENTER, STORAGE_CLUSTER sold is disabled because it is
+        // required by pressure plan. Only CPU sold is active in this case.
+        Assert.assertEquals(1, getActiveCommoditiesSold(graph).count());
     }
 
     private ScenarioChange buildScenarioChange(@Nonnull String commodityType, long uuid) {
@@ -181,6 +218,14 @@ public class ConstraintsEditorTest {
                     .map(CommoditiesBoughtFromProvider::getCommodityBoughtList)
                     .flatMap(List::stream)
                     .filter(CommodityBoughtDTO::getActive);
+    }
+
+    private Stream<CommoditySoldDTO> getActiveCommoditiesSold(TopologyGraph editedGraph) {
+        return editedGraph.entities()
+                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                    .map(Builder::getCommoditySoldListList)
+                    .flatMap(List::stream)
+                    .filter(CommoditySoldDTO::getActive);
     }
 
     /**
