@@ -55,6 +55,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
@@ -86,6 +87,7 @@ public class OperationManagerTest {
     private final EntityStore entityStore = Mockito.mock(EntityStore.class);
 
     private final DiscoveredGroupUploader discoveredGroupUploader = Mockito.mock(DiscoveredGroupUploader.class);
+    private final DiscoveredWorkflowUploader discoveredWorkflowUploader = Mockito.mock(DiscoveredWorkflowUploader.class);
 
     private TrackingOperationListener operationListener = Mockito.spy(new TrackingOperationListener());
 
@@ -96,7 +98,8 @@ public class OperationManagerTest {
     private final OperationManager operationManager = new OperationManager(
             identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener,
-            entityStore, discoveredGroupUploader, discoveredTemplatesUploader, entityActionDao,
+            entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
+            discoveredTemplatesUploader, entityActionDao,
             10, 10, 10);
 
     private long probeId;

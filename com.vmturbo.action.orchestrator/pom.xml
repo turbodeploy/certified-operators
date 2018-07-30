@@ -38,6 +38,7 @@
                             <locations>
                                 <location>com.vmturbo.action</location>
                                 <location>com.vmturbo.common.protobuf.action</location>
+                                <location>com.vmturbo.common.protobuf.workflow</location>
                                 <location>com.vmturbo.components.common</location>
                             </locations>
                         </apiSource>
@@ -241,23 +242,7 @@
             <artifactId>sql-utils</artifactId>
         </dependency>
 
-        <!-- todo (Michelle 2017-12-1): get rid of com.vmturbo.api dependency in OM-27380  -->
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.api</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.group.api</artifactId>
-        </dependency>
-
         <!-- test dependencies -->
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>components-api-test</artifactId>
-            <scope>test</scope>
-        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>auth-test</artifactId>

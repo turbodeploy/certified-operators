@@ -44,6 +44,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
@@ -72,6 +73,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisiti
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 
 public class StagesTest {
@@ -90,6 +92,15 @@ public class StagesTest {
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
         stage.passthrough(topology);
         verify(uploader).uploadDiscoveredGroups();
+    }
+
+    @Test
+    public void testUploadWorkflowsStage() {
+        final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(7L, topologyEntityBuilder(entity));
+        final DiscoveredWorkflowUploader uploader = mock(DiscoveredWorkflowUploader.class);
+        final UploadWorkflowsStage stage = new UploadWorkflowsStage(uploader);
+        stage.passthrough(topology);
+        verify(uploader).uploadDiscoveredWorkflows();
     }
 
     @Test

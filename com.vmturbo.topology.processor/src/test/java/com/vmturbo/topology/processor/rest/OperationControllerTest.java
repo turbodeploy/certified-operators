@@ -63,6 +63,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.IdentityService;
@@ -152,6 +153,11 @@ public class OperationControllerTest {
         }
 
         @Bean
+        DiscoveredWorkflowUploader workflowRecorder() {
+            return Mockito.mock(DiscoveredWorkflowUploader.class);
+        }
+
+        @Bean
         DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader() {
             return Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
         }
@@ -174,7 +180,10 @@ public class OperationControllerTest {
                 mockRemoteMediation(),
                 operationListener(),
                 entityRepository(),
-                groupRecorder(), discoveredTemplatesUploader(), controllableDao(),
+                groupRecorder(),
+                    workflowRecorder(),
+                    discoveredTemplatesUploader(),
+                    controllableDao(),
                 10, 10, 10
             );
         }

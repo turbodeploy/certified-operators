@@ -17,6 +17,7 @@ import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTOREST.DiscoveredWorkflowServiceController;
 
 @Configuration
 @Import({ActionStoreConfig.class, ActionExecutionConfig.class})
@@ -72,6 +73,16 @@ public class RpcConfig {
     public EntitySeverityRpcService entitySeverityRpcService() {
         return new EntitySeverityRpcService(actionStoreConfig.actionStorehouse(),
                 actionPaginationDefaultLimit, actionPaginationMaxLimit);
+    }
+
+    @Bean
+    public DiscoveredWorkflowRpcService discoveredWorkflowRpcService() {
+        return new DiscoveredWorkflowRpcService();
+    }
+
+    @Bean
+    public DiscoveredWorkflowServiceController discoveredWorkflowRpcServiceController() {
+        return new DiscoveredWorkflowServiceController(discoveredWorkflowRpcService());
     }
 
     @Bean

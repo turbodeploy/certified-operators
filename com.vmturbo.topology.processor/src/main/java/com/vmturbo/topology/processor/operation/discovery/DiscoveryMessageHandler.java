@@ -41,6 +41,8 @@ public class DiscoveryMessageHandler extends OperationMessageHandler<Discovery> 
                                 DiscoveryResponse.Builder::addAllMetadataDTO)
                         .addRepeatedField(DiscoveryResponse::getDerivedTargetList,
                                 DiscoveryResponse.Builder::addAllDerivedTarget)
+                        .addRepeatedField(DiscoveryResponse::getNonMarketEntityDTOList,
+                                DiscoveryResponse.Builder::addAllNonMarketEntityDTO)
                         .build();
     }
 

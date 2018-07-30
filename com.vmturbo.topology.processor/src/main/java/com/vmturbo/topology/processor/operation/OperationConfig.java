@@ -15,6 +15,7 @@ import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
+import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
 /**
  * Configuration for the Operation package.
@@ -30,7 +31,8 @@ import com.vmturbo.topology.processor.plan.PlanConfig;
     IdentityProviderConfig.class,
     TopologyProcessorApiConfig.class,
     PlanConfig.class,
-    ControllableConfig.class
+    ControllableConfig.class,
+    WorkflowConfig.class
 })
 public class OperationConfig {
 
@@ -59,6 +61,9 @@ public class OperationConfig {
     private ControllableConfig controllableConfig;
 
     @Autowired
+    private WorkflowConfig workflowConfig;
+
+    @Autowired
     private PlanConfig discoveredTemplateDeploymentProfileConfig;
 
     @Value("${discoveryTimeoutSeconds}")
@@ -79,6 +84,7 @@ public class OperationConfig {
             apiConfig.topologyProcessorNotificationSender(),
             entityConfig.entityStore(),
             groupConfig.discoveredGroupUploader(),
+            workflowConfig.discoveredWorkflowUploader(),
             discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
             controllableConfig.entityActionDaoImp(),
             discoveryTimeoutSeconds,

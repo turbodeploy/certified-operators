@@ -48,6 +48,7 @@ import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
@@ -147,6 +148,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         .withHelp("The number of service entities in a discovery.")
         .build()
         .register();
+    private DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
     public OperationManager(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
@@ -155,6 +157,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final OperationListener operationListener,
                             @Nonnull final EntityStore entityStore,
                             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
+                            @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
                             final long discoveryTimeoutSeconds,
@@ -167,6 +170,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.operationListener = Objects.requireNonNull(operationListener);
         this.entityStore = Objects.requireNonNull(entityStore);
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
+        this.discoveredWorkflowUploader = Objects.requireNonNull(discoveredWorkflowUploader);
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
         this.discoveredTemplateDeploymentProfileNotifier = Objects.requireNonNull(discoveredTemplateDeploymentProfileNotifier);
         this.discoveryTimeoutMs = TimeUnit.MILLISECONDS.convert(discoveryTimeoutSeconds, TimeUnit.SECONDS);
@@ -601,6 +605,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * Also cancel the pending discovery for the target if one exists.
      * Also upload the newly emptied group list for this target, effectively deleting any previously
      * discovered groups for that target.
+     * Also cancel the upload of any discovered 'workflow' NonMarketEntities for this target.
      *
      * @param target The target that was removed from the {@link TargetStore}.
      */
@@ -621,6 +626,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         lastCompletedTargetDiscoveries.remove(targetId);
         discoveredGroupUploader.targetRemoved(targetId);
         discoveredTemplateDeploymentProfileNotifier.deleteTemplateDeploymentProfileByTarget(targetId);
+        discoveredWorkflowUploader.targetRemoved(targetId);
     }
 
     /**
@@ -672,6 +678,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
                 discoveredTemplateDeploymentProfileNotifier.setTargetsTemplateDeploymentProfile(targetId,
                     response.getEntityProfileList(), response.getDeploymentProfileList());
+                discoveredWorkflowUploader.setTargetWorkflows(targetId,
+                        response.getNonMarketEntityDTOList());
                 DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOList().size());
             }
             operationComplete(discovery, success, response.getErrorDTOList());

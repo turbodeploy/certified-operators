@@ -23,6 +23,7 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
+import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
 /**
  * Configuration for the Topology package in TopologyProcessor.
@@ -42,7 +43,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
     ReservationConfig.class,
     ProbeConfig.class,
     TargetConfig.class,
-    ControllableConfig.class
+    ControllableConfig.class,
+    WorkflowConfig.class
 })
 public class TopologyConfig {
 
@@ -88,6 +90,9 @@ public class TopologyConfig {
     @Autowired
     private ControllableConfig controllableConfig;
 
+    @Autowired
+    private WorkflowConfig workflowConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -126,6 +131,7 @@ public class TopologyConfig {
                 stitchingConfig.stitchingManager(),
                 planConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
+                workflowConfig.discoveredWorkflowUploader(),
                 groupConfig.settingsManager(),
                 groupConfig.entitySettingsApplicator(),
                 topologyEditor(),

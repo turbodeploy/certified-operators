@@ -81,6 +81,7 @@ topology-processor:
   topologyBroadcastIntervalMinutes: 10
   actionTimeoutSeconds: 30
   groupHost: 'group'
+  actionOrchestratorHost: 'action-orchestrator'
   historyHost: 'history'
   planOrchestratorHost: 'plan-orchestrator'
   <<: *repository_conn_info

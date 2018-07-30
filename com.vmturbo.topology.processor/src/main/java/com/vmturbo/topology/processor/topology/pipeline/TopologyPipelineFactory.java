@@ -21,6 +21,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -57,6 +58,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisiti
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
 
 /**
  * A factory class for properly configured {@link TopologyPipeline} objects.
@@ -76,6 +78,8 @@ public class TopologyPipelineFactory {
     private final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier;
 
     private final DiscoveredGroupUploader discoveredGroupUploader;
+
+    private final DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
     private final EntitySettingsApplicator settingsApplicator;
 
@@ -108,6 +112,7 @@ public class TopologyPipelineFactory {
                                    @Nonnull final StitchingManager stitchingManager,
                                    @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                                    @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
+                                   @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                                    @Nonnull final EntitySettingsResolver entitySettingsResolver,
                                    @Nonnull final EntitySettingsApplicator settingsApplicator,
                                    @Nonnull final TopologyEditor topologyEditor,
@@ -126,6 +131,7 @@ public class TopologyPipelineFactory {
         this.stitchingManager = stitchingManager;
         this.discoveredTemplateDeploymentProfileNotifier = discoveredTemplateDeploymentProfileNotifier;
         this.discoveredGroupUploader = discoveredGroupUploader;
+        this.discoveredWorkflowUploader = discoveredWorkflowUploader;
         this.settingsApplicator = Objects.requireNonNull(settingsApplicator);
         this.entitySettingsResolver = entitySettingsResolver;
         this.topologyEditor = Objects.requireNonNull(topologyEditor);
@@ -176,6 +182,7 @@ public class TopologyPipelineFactory {
                     discoveredGroupUploader))
                 .addStage(new AddDatacenterPrefixToClustersStage(discoveredGroupUploader))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
+                .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
                 .addStage(new ReservationStage(reservationManager))
                 .addStage(new ControllableStage(controllableManager))

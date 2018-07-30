@@ -1,0 +1,56 @@
+syntax = "proto2";
+package workflow;
+
+option java_package = "com.vmturbo.common.protobuf.workflow";
+
+// A 'Workflow' represents an executable unit provided by an Orchestration target. The Workflow
+// is discovered and recorded in Action Executor. Later, the Workflow may be associated with
+// an Automation Policy which, when applied, will contact the Orchestration target to effect
+// the action execution.
+// the message 'Workflow', containing a WorkflowInfo, will be defined in the next story.
+
+// A WorkflowInfo captures the information discovered from an Orchestration target.
+message WorkflowInfo {
+    // The internal name of the workflow discovered from the target.
+    optional string name = 1;
+
+    // The user-facing name of the workflow discovered from the target.
+    optional string displayName = 2;
+
+    // The ID of the target that discovered the workflow.
+    // This field will always be set.
+    optional int64 target_id = 3;
+
+    // Data to define the parameters which this workflow expects as defined using the target's ui.
+    repeated WorkflowParameter workflow_param = 4;
+
+    // defined in the NonMarketEntity.WorkflowData but not used by the server (and ignored for now):
+    //    - repeated Property property = 2;
+    //    - optional EntityDTO.EntityType entityType = 3;
+}
+
+// A descriptor for an input parameter to a workflow as specified by the workflow author.
+// Note that, in the current Turbonomic implementation, only a fixed dictionary of parameters for
+// certain EntityTypes and Action Types are defined and populated (see WorkflowExecutor).
+// It is up to the workflow author to be aware of these parameters and make appropriate use of them.
+message WorkflowParameter {
+    // The name of the input parameter.
+    required string name = 1;
+    // A human-readable description of the function of this input parameter.
+    optional string description = 2;
+    // The datatype of the input parameter - the set of legal datatype string values isn't known.
+    required string type = 3 [default = "String"];
+    // Is this parameter mandatory?
+    optional bool mandatory = 4 [default = true];
+}
+
+
+message StoreDiscoveredWorkflowsRequest {
+    repeated WorkflowInfo discovered_workflow = 2;
+}
+
+message StoreDiscoveredWorkflowsResponse {}
+
+service DiscoveredWorkflowService {
+    rpc StoreDiscoveredWorkflows(StoreDiscoveredWorkflowsRequest) returns (StoreDiscoveredWorkflowsResponse);
+}

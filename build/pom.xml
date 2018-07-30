@@ -352,6 +352,13 @@
         </profile>
 
         <profile>
+            <id>mediation-ucsdirector</id>
+            <modules>
+                <module>../com.vmturbo.mediation.ucsdirector.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-vmm</id>
             <modules>
                 <module>../com.vmturbo.mediation.vmm.component</module>
@@ -418,13 +425,6 @@
             <id>mediation-openstack</id>
             <modules>
                 <module>../com.vmturbo.mediation.openstack.component</module>
-            </modules>
-        </profile>
-
-        <profile>
-            <id>mediation-ucsdirector</id>
-            <modules>
-                <module>../com.vmturbo.mediation.ucsdirector.component</module>
             </modules>
         </profile>
 

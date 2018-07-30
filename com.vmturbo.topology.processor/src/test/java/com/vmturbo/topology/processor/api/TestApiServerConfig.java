@@ -30,6 +30,7 @@ import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.IdentityService;
@@ -172,6 +173,10 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public DiscoveredGroupUploader groupRecorder() {
         return Mockito.mock(DiscoveredGroupUploader.class);
     }
+    @Bean
+    public DiscoveredWorkflowUploader workflowRecorder() {
+        return Mockito.mock(DiscoveredWorkflowUploader.class);
+    }
 
     @Bean
     public DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader() {
@@ -187,7 +192,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public OperationManager operationManager() {
         return new OperationManager(identityProvider(), targetStore(), probeStore(),
                 remoteMediation(), topologyProcessorNotificationSender(),
-                entityRepository(), groupRecorder(), discoveredTemplatesUploader(), controllableDao(),
+                entityRepository(), groupRecorder(), workflowRecorder(), discoveredTemplatesUploader(), controllableDao(),
             1L, 1L, 1L);
     }
 

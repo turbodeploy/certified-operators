@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -19,9 +20,9 @@ import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
-import com.vmturbo.topology.processor.group.policy.ReservationPolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
+import com.vmturbo.topology.processor.group.policy.ReservationPolicyFactory;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
 import com.vmturbo.topology.processor.plan.PlanConfig;
@@ -30,7 +31,8 @@ import com.vmturbo.topology.processor.plan.PlanConfig;
  * The configuration for dealing with groups.
  */
 @Configuration
-@Import({EntityConfig.class, GroupClientConfig.class, PlanConfig.class})
+@Import({EntityConfig.class, GroupClientConfig.class, PlanConfig.class,
+        ActionOrchestratorClientConfig.class})
 public class GroupConfig {
 
     @Autowired
@@ -41,6 +43,9 @@ public class GroupConfig {
 
     @Autowired
     private PlanConfig planConfig;
+
+    @Autowired
+    private ActionOrchestratorClientConfig actionOrchestratorClientConfig;
 
     @Value("${discoveredGroupUploadIntervalSeconds}")
     private long discoveredGroupUploadIntervalSeconds;

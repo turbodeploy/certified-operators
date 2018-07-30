@@ -53,6 +53,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
@@ -101,6 +102,26 @@ public class Stages {
         }
     }
 
+    /**
+     * This stage uploads discovered Workflows to the action-orchestrator component.
+     */
+    public static class UploadWorkflowsStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
+
+        private static final Logger logger = LogManager.getLogger();
+
+        private final DiscoveredWorkflowUploader discoveredWorkflowUploader;
+
+        public UploadWorkflowsStage(@Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader) {
+            logger.info("instantiate UploadWorkflowsStage");
+            this.discoveredWorkflowUploader = discoveredWorkflowUploader;
+        }
+
+        @Nonnull
+        @Override
+        public void passthrough(final Map<Long, TopologyEntity.Builder> input) {
+            discoveredWorkflowUploader.uploadDiscoveredWorkflows();
+        }
+    }
 
     /**
      * This stage adds datacenter name prefix to names of clusters for UI displaying.
