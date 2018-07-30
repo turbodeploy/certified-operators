@@ -33,7 +33,16 @@ message TopologyEntityDTO {
     // to come from DIFFERENT providers, it just happens that at this moment in time they are coming
     // from the same "host1" provider. So if the market were to decide to have this entity buy BAR
     // from "host2", it could continue to buy FOO from "host1" without issue.
-    // In the third expressions, the entity want to but QUX, but it doesn't have a particular supplider.
+    // In the third expressions, the entity want to but QUX, but it doesn't have a particular supplier.
+    //
+    // Note also that this message defines a market-related type of relationship between 2 entities.
+    // This relationship is unidirectional and the semantic is consumer -> provider:
+    // the entity defined in this TopologyEntityDTO is a consumer that buys a set of commodities
+    // from the specified provider.
+    // If the 2 entities only have a market-related type of relationship, then having this message
+    // is enough, and you don't need to use the below "connected_entity_list" field (unless you have
+    // other connections with other different entities, where a consumer->provider semantic is not
+    // needed).
     message CommoditiesBoughtFromProvider {
         // id of provider, it could be empty when the entity is currently unplaced, or not have a
         // supplier for a particular set of commodities that it is buying
@@ -184,6 +193,55 @@ message TopologyEntityDTO {
     message Replaced {
         required int64 plan_id = 1; // the plan calling for the entity's replacement
     }
+
+    // List of entities that are topologically connected with the entity that this probuf defines.
+    repeated ConnectedEntity connected_entity_list = 12;
+
+    // This message defines a topological connection between 2 entities.
+    // This relationship is unidirectional, the semantic depends on the ConnectionType itself.
+    // This message needs to be used only to represent a topological relationship where the 2
+    // entities are connected to each other, but they are not trading any resources between them;
+    // for relationship where there is a consumer->provider semantic need, you need to use the above
+    // "commodities_bought_from_providers" field.
+    message ConnectedEntity {
+
+        // Id of the entity on the other side of the connection
+        optional int64 connected_entity_id = 1;
+
+        // Type of the entity on the other side of the connection
+        optional int32 connected_entity_type = 2;
+
+        // Type of connection that this message is representing. different types means different
+        // semantics
+        optional ConnectionType connection_type = 3;
+
+        // Type of connection that this message is representing. different types means different
+        // semantics
+        enum ConnectionType {
+
+            // Normal connection is a basic topology connection, where 2 entities are physically or
+            // virtually connected. This means that from each one of those entities we should be able to
+            // see the connection and navigate to the other one.
+            // There is no well-defined direction in this connection, but given that we want to represent
+            // only unidirectional connections, this means that the direction to be used here is a
+            // convention decided by the author/code that will generate this dto (but it should be
+            // consistent across the topology).
+            // Example: the connection from pm to storage can be defined in both directions, but
+            // we decided that will always be from pm -> storage.
+            NORMAL_CONNECTION = 1;
+
+            // Owns connection is used where 2 entities not only are topologically connected, but
+            // in addition, the entity defined in this protobuf is the owner of the entity at the other
+            // side of the connection.
+            // This relationship is unidirectional and the semantic is owner -> owned (or master -> slave).
+            // This relationship can in the future drive behaviors like:
+            // - when the master is deleted, delete also all the slaves
+            // - group all the slaves by master
+            // - aggregate slaves stats/metrics by master
+            OWNS_CONNECTION = 2;
+        }
+    }
+
 }
 
 // Message to hold original topology broadcast message.
