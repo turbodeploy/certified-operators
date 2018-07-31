@@ -320,6 +320,10 @@ mediation-aws:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
+mediation-awsbilling:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

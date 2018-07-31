@@ -272,6 +272,7 @@
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
+                <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -322,6 +323,14 @@
                 <module>../com.vmturbo.mediation.aix.component</module>
             </modules>
         </profile>
+
+        <profile>
+            <id>mediation-aws-billing</id>
+            <modules>
+                <module>../com.vmturbo.mediation.aws.billing.component</module>
+            </modules>
+        </profile>
+
 
         <profile>
             <id>mediation-vmax</id>
@@ -622,6 +631,7 @@
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
+                <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>

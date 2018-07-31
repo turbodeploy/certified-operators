@@ -50,6 +50,7 @@ volumes:
   mediation-rhv: *localdriver
   mediation-ucsdirector: *localdriver
   mediation-aws: *localdriver
+  mediation-awsbilling: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -399,4 +400,13 @@ services:
     environment:
       JAVA_OPTS: "-Xmx3072M"
     mem_limit: 4096M
+    depends_on: *clustermgrdep
+
+  mediation-awsbilling:
+    extends:
+      file: prod-services.yml
+      service: mediation-awsbilling-prod
+    environment:
+      JAVA_OPTS: "-Xmx1024M"
+    mem_limit: 1200M
     depends_on: *clustermgrdep
