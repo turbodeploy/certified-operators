@@ -1,0 +1,86 @@
+syntax = "proto2";
+package cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+import "common/Pagination.proto";
+
+// Top down Cloud account expense discovered by the billing probe, associated with a specific account
+message AccountExpenses {
+    // The associated account oid
+    optional int64 associated_account_id = 1;
+
+    // Account service expense, e.g. AWSLambda
+    repeated ServiceExpenses service_expenses = 2;
+
+    // Account tier expense, e.g. i3.large.
+    repeated TierExpenses tier_expenses = 3;
+
+    message ServiceExpenses {
+        optional int64 associated_service_id = 1;
+
+        optional float expenses = 2;
+    }
+
+    message TierExpenses {
+        optional int64 associated_tier_id = 1;
+
+        optional float expenses = 2;
+    }
+
+    // The timestamp at which the expense is received by Cost component.
+    // Note: It should be the timestamp that the expenses were generated.
+    // But currently probe doesn't have this information in it's DTO.
+    // The time is in "system time" and not necessarily UTC.
+    optional int64 expense_received_timestamp = 4;
+}
+
+// A message used to retrieve account expenses.
+message ExpenseRequest {
+    // A filter to be applied to the account expense retrieved. If no filter is supplied
+    // all account expenses are returned.
+    optional ExpenseQueryFilter filter = 1;
+
+    // The pagination parameters for the request.
+    // If not set, the service will use the default sort order and limit.
+    optional common.PaginationParameters pagination_params = 2;
+}
+
+// Response to the expense request
+message ExpenseResponse {
+    // The list of account expense.
+    // The length of this list will not exceed the limit set in the request pagination parameters.
+    // The account expense will be ordered according to the order in the request pagination parameters.
+    repeated AccountExpenses account_expense = 1;
+
+    // The response message containing pagination-related response parameters.
+    optional common.PaginationResponse pagination_response = 2;
+}
+
+// A filter to be supplied with expense queries.
+// The conditions in the query filter will be AND-ed together, so only
+// expenses that match all of them will be returned.
+message ExpenseQueryFilter {
+    // There are two types of filters.
+    // - Account filter: used to filter account
+    // - Cloud service filter: used to filter Cloud service
+
+    // Include only expenses in the given accounts. It's optional and return all expenses if empty.
+    repeated int64 associated_account_id = 1;
+
+    // Include only expenses in the given Cloud service. It's optional and return all expenses if empty.
+    repeated int64 associated_cloud_service_id = 2;
+
+    // date range for the request; dates are epoch longs, e.g. Unix Timestamp
+    // We currently require both start_date and end_date to be not null.
+    optional int64 start_date = 3;
+
+    optional int64 end_date = 4;
+}
+
+// A service responsible for getting information about cost information in Cloud.
+service CostService {
+    // Get information about account expense
+    rpc GetAccountExpense (ExpenseRequest) returns (ExpenseResponse);
+}
+
