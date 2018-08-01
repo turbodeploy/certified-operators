@@ -319,6 +319,7 @@ mediation-ucsdirector:
 mediation-aws:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
+  turbonomic.aws.persistent.path: /home/turbonomic/data/
 
 mediation-awsbilling:
   <<: *baseVmtComponentSettings
