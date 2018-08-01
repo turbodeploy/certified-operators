@@ -63,6 +63,7 @@
         "usedIncrement_VCPU",
         "usedIncrement_VMEM",
         "usedIncrement_VStorage",
+        "usedIncrement_StAmt",
         "RATE_OF_RESIZE"
       ]
     },
