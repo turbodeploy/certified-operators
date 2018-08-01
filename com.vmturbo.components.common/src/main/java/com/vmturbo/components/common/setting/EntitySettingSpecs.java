@@ -220,7 +220,16 @@ public enum EntitySettingSpecs {
             Arrays.asList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true);
+            numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true),
+
+    /**
+     * Storage Increment.
+     */
+    StorageIncrement("usedIncrement_StAmt", "Increment constant for Storage Amount [GB]",
+            Arrays.asList("resizeRecommendationsConstants"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true);
 
     /**
      * Setting name to setting enumeration value map for fast access.
