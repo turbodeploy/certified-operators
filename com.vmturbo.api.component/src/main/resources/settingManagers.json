@@ -120,6 +120,19 @@
         "maxConcurrentPlanInstances",
         "maxPlanInstancesPerPlan"
       ]
+    },
+    "reservedinstancemanager": {
+      "displayName": "",
+      "defaultCategory": "RI Purchase Profile",
+      "settings": [
+        "preferredOfferingClass",
+        "preferredTerm",
+        "preferredPaymentOption",
+        "recurrencePattern",
+        "preferredCurrentWeight",
+        "preferredCoverage",
+        "riCoverageOverride"
+      ]
     }
   }
 }

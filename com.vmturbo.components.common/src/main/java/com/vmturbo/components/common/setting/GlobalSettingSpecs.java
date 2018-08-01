@@ -34,39 +34,39 @@ public enum GlobalSettingSpecs {
 
     SmtpServer("smtpServer", "SMTP Server",
             new StringSettingDataType("", "*"),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     SmtpPort("smtpPort", "SMTP Port",
             numeric(1f/*min*/, 99999f/*max*/, 25f/*default*/),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     SmtpFromAddress("fromAddress", "'From' Address",
             new StringSettingDataType("", "*"),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     SmtpUsername("smtpUsername", "Username",
             new StringSettingDataType("", "*"),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     SmtpPassword("smtpPassword", "Password",
             new StringSettingDataType("", "*"),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     SmtpEncription("smtpEncryption", "Encryption",
             new EnumSettingDataType(EncryptionType.NONE),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     VmContent("VMContent", "Email content format - VM notifications",
             new StringSettingDataType("{6}: {5} \\nHost: {8}\\nDatastores: {9}\\nTarget: {7}\\nEvent: {0} - {4}\\nCategory: {1}\\nSeverity: {2}\\nState: {3}", "*"),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     PmContent("PMContent", "Email content format - PM notifications",
             new StringSettingDataType("{6}: {5} \\nDatastores: {10}\\nTarget: {7}\\nEvent: {0} - {4}\\nCategory: {1}\\nSeverity: {2}\\nState: {3}", "*"),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     StContent("StContent", "Email content format - Storage notifications",
             new StringSettingDataType("{6}: {5} \\nTarget: {7}\\nEvent: {0} - {4}\\nCategory: {1}\\nSeverity: {2}\\nState: {3}", "*"),
-            new ArrayList<>()),
+            Collections.emptyList()),
 
     StatsRetentionHours("numRetainedHours", "Hourly saved statistics [Hours]",
             numeric(24f/*min*/, 720f/*max*/, 72f/*default*/),
@@ -98,6 +98,35 @@ public enum GlobalSettingSpecs {
 
     MaxPlanInstancesPerPlan("maxPlanInstancesPerPlan", "Maximum Number of Plan Instances Per Plan",
             numeric(1f/*min*/, 10000f/*max*/, 10f/*default*/),
+            Collections.emptyList()),
+
+    // RI related settings
+    PreferredOfferingClass("preferredOfferingClass", "Type",
+            new EnumSettingDataType(RISettingsEnum.PreferredOfferingClass.STANDARD),
+            Collections.emptyList()),
+
+    PreferredTerm("preferredTerm", "Term",
+            new EnumSettingDataType(RISettingsEnum.PreferredTerm.YEARS_1),
+            Collections.emptyList()),
+
+    PreferredPaymentOption("preferredPaymentOption", "Payment",
+            new EnumSettingDataType(RISettingsEnum.PreferredPaymentOption.ALL_UPFRONT),
+            Collections.emptyList()),
+
+    RecurrencePattern("recurrencePattern", "Recurrence Pattern",
+            new StringSettingDataType("value: FREQ=WEEKLY;INTERVAL=2;BYHOUR=1", "*"),
+            Collections.emptyList()),
+
+    PreferredCurrentWeight("preferredCurrentWeight", "Weight",
+            numeric(0.0f/*min*/, 1.0f/*max*/, 0.6f/*default*/),
+            Collections.emptyList()),
+
+    PreferredCoverage("preferredCoverage", "Coverage",
+            numeric(0f/*min*/, 100f/*max*/, 80f/*default*/),
+            Collections.emptyList()),
+
+    RICoverageOverride("riCoverageOverride", "RI Coverage Override",
+            new BooleanSettingDataType(false),
             Collections.emptyList());
 
     /**
