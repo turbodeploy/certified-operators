@@ -25,21 +25,16 @@ public class ProvisionUtils {
      */
     public static boolean canBuyerFitInSeller(ShoppingList buyerShoppingList, Trader modelSeller,
                                               Economy economy) {
+
         Basket basket = buyerShoppingList.getBasket();
-        Basket basketSold = modelSeller.getBasketSold();
         for (int boughtIndex = 0, soldIndex = 0; boughtIndex < basket.size();
              boughtIndex++, soldIndex++) {
-            if (soldIndex >= basketSold.size()) {
-                return false;
-            }
             CommoditySpecification basketCommSpec = basket.get(boughtIndex);
+
             // Find corresponding commodity sold. Commodities sold are ordered the same way as the
             // basket commodities, so iterate once (O(N)) as opposed to searching each time (O(NLog(N))
-            while (!basketCommSpec.isSatisfiedBy(basketSold.get(soldIndex))) {
+            while (!basketCommSpec.isSatisfiedBy(modelSeller.getBasketSold().get(soldIndex))) {
                 soldIndex++;
-                if (soldIndex >= basketSold.size()) {
-                    return false;
-                }
             }
             CommoditySold commSold = modelSeller.getCommoditiesSold().get(soldIndex);
             double overHead = 0;
@@ -60,13 +55,13 @@ public class ProvisionUtils {
                 if (overHead < 0) {
                     logger.warn("overHead is less than 0 for seller "
                             + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
-                            + basketSold.get(soldIndex).getDebugInfoNeverUseInCode());
+                            + modelSeller.getBasketSold().get(soldIndex).getDebugInfoNeverUseInCode());
                     overHead = 0;
                 }
                 if (overHeadPeak < 0) {
                     logger.debug("overHeadPeak is less than 0 for seller "
                             + modelSeller.getDebugInfoNeverUseInCode() + " commodity "
-                            + basketSold.get(soldIndex).getDebugInfoNeverUseInCode());
+                            + modelSeller.getBasketSold().get(soldIndex).getDebugInfoNeverUseInCode());
                     overHeadPeak = 0;
                 }
             }
