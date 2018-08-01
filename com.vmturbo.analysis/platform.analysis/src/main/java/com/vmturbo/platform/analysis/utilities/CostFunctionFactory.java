@@ -9,6 +9,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -254,7 +255,8 @@ public class CostFunctionFactory {
      * @return true if the validation passes, otherwise false
      */
     private static boolean validateDependentCommodityAmount(@NonNull ShoppingList sl,
-                    @NonNull Trader seller, @NonNull List<DependentResourcePair> dependencyList) {
+                                                            @NonNull Trader seller, @NonNull List<DependentResourcePair> dependencyList,
+                                                            @Nonnull Map<CommoditySpecification, CapacityLimitation> commCapacity) {
         // check if the dependent commodity requested amount is more than the
         // max ratio * base commodity requested amount
         for (DependentResourcePair dependency : dependencyList) {
@@ -268,8 +270,9 @@ public class CostFunctionFactory {
             if (baseIndex == -1 || depIndex == -1) {
                 continue;
             }
-            if (sl.getQuantities()[baseIndex]
-                            * dependency.maxRatio_ < sl.getQuantities()[depIndex]) {
+            double dependentCommodityLowerBoundCapacity = commCapacity.get(dependency.getDependentCommodity()).getMinCapacity();
+            if (Math.max(sl.getQuantities()[baseIndex]
+                            * dependency.maxRatio_, dependentCommodityLowerBoundCapacity) < sl.getQuantities()[depIndex]) {
                 return false;
             }
         }
@@ -639,7 +642,7 @@ public class CostFunctionFactory {
                             if (!validateRequestedAmountWithinMaxCapacity(buyer, commCapacity)) {
                                 return Double.POSITIVE_INFINITY;
                             }
-                            if (!validateDependentCommodityAmount(buyer, seller, dependencyList)) {
+                            if (!validateDependentCommodityAmount(buyer, seller, dependencyList, commCapacity)) {
                                 return Double.POSITIVE_INFINITY;
                             }
                             return calculateStorageCost(priceDataMap, commCapacity, buyer);

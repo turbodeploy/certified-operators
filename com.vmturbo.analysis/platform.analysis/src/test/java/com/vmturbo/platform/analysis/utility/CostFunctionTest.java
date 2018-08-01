@@ -45,6 +45,37 @@ public class CostFunctionTest {
     }
 
     /**
+     * Case: AWS GP2 storage tier as a seller. Storage amount unit price is 0.1.
+     * VM asks for 5GB, 120 IOPS, VM2 asks for 5GB, 80IOPS.
+     * Expected result:
+     * VM infinity cost because IOPS is more than 5 * maxRatio and more than minIops(100)
+     * VM2 cost is (5 * 0.01) because 80 is less than minIops of GP2 so gp2 is actually qualified,
+     * though 80 is greater than 5 * 3.
+     */
+    @Test
+    public void testCostFunction_CalculateCost_AWSGP2CostFunction() {
+        Economy economy = new Economy();
+        Trader gp2 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
+        CostFunction gp2Function = TestUtils.setUpGP2CostFunction();
+        gp2.getSettings().setCostFunction(gp2Function);
+
+        // create VM2 and get its cost from io1
+        Trader vm = TestUtils.createVM(economy);
+        ShoppingList sl = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm, new double[] {5, 120},
+                null);
+        assertTrue(Double.isInfinite(gp2Function.calculateCost(sl, gp2, true, economy)));
+
+        // create VM3 and get its cost from io1
+        Trader vm3 = TestUtils.createVM(economy);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm3,
+                new double[] {5, 80}, null);
+        assertEquals((5 * 0.1),
+                gp2Function.calculateCost(sl2, gp2, true, economy), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
      * Case: Azure premium managed storage tier as a seller. Storage amount price is 5.28 if 0~32GB,
      * 10.21 if 32~64 GB
      * VM1 asks for 0.5GB,  VM2 asks for 64GB
