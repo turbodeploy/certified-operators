@@ -10,7 +10,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.history.schema.CommodityTypes;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.stats.StatsAccumulator;
 
@@ -50,7 +50,7 @@ abstract class AccumulatedCommodity {
         builder.setCurrentValue((float)used.getAvg());
 
 
-        final CommodityTypes commodityType = CommodityTypes.fromString(commodityName);
+        final CommodityTypeUnits commodityType = CommodityTypeUnits.fromString(commodityName);
         if (commodityType != null) {
             builder.setUnits(commodityType.getUnits());
         }
