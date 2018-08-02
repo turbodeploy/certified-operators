@@ -37,12 +37,12 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.SchemaUtil;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.history.schema.abstraction.tables.AppStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.ChStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.CntStatsLatest;
@@ -128,16 +128,16 @@ public class LiveStatsDBTest {
         TopologySnapshotRegistry topologySnapshotRegistry =
                 Mockito.mock(TopologySnapshotRegistry.class);
         int writeTopologyChunkSize = 10;
-        List<CommodityTypeUnits> excludedCommodities = Arrays.asList(
-                CommodityTypeUnits.APPLICATION,
-                CommodityTypeUnits.CLUSTER,
-                CommodityTypeUnits.DATACENTER,
-                CommodityTypeUnits.DATASTORE,
-                CommodityTypeUnits.DSPM_ACCESS,
-                CommodityTypeUnits.NETWORK);
+        List<CommodityTypes> excludedCommodities = Arrays.asList(
+                CommodityTypes.APPLICATION,
+                CommodityTypes.CLUSTER,
+                CommodityTypes.DATACENTER,
+                CommodityTypes.DATASTORE,
+                CommodityTypes.DSPM_ACCESS,
+                CommodityTypes.NETWORK);
         ImmutableList<String> commoditiesToExclude = ImmutableList.copyOf(
                 excludedCommodities.stream()
-                        .map(CommodityTypeUnits::getMixedCase)
+                        .map(CommodityTypes::getMixedCase)
                         .collect(Collectors.toList()));
         LiveStatsWriter writerUnderTest = new LiveStatsWriter(topologySnapshotRegistry,
                 historydbIO, writeTopologyChunkSize, commoditiesToExclude);

@@ -108,13 +108,13 @@ public class ClassicEnumMapper {
             .put("Power",                       CommodityType.POWER)
             .put("Space",                       CommodityType.SPACE)
             .put("Ballooning",                  CommodityType.BALLOONING)
-            .put("Q1VCPU",                      CommodityType.Q1_VCPU)
-            .put("Q2VCPU",                      CommodityType.Q2_VCPU)
-            .put("Q4VCPU",                      CommodityType.Q4_VCPU)
-            .put("Q8VCPU",                      CommodityType.Q8_VCPU)
-            .put("Q16VCPU",                     CommodityType.Q16_VCPU)
-            .put("Q32VCPU",                     CommodityType.Q32_VCPU)
-            .put("Q64VCPU",                     CommodityType.Q64_VCPU)
+            .put("Q1_VCPU",                     CommodityType.Q1_VCPU)
+            .put("Q2_VCPU",                     CommodityType.Q2_VCPU)
+            .put("Q4_VCPU",                     CommodityType.Q4_VCPU)
+            .put("Q8_VCPU",                     CommodityType.Q8_VCPU)
+            .put("Q16_VCPU",                    CommodityType.Q16_VCPU)
+            .put("Q32_VCPU",                    CommodityType.Q32_VCPU)
+            .put("Q64_VCPU",                    CommodityType.Q64_VCPU)
             .put("Flow",                        CommodityType.FLOW)
             .put("Swapping",                    CommodityType.SWAPPING)
             .put("VCPU",                        CommodityType.VCPU)
@@ -181,7 +181,7 @@ public class ClassicEnumMapper {
         CPU_PROVISIONED("CPUProvisioned", "MHz"),
         EXTENT("Extent", ""),
         FLOW("Flow", "Bytes"),
-        FLOW_ALLOCATION("FlowAllocation", "Bytes"),
+        FLOWALLOCATION("FlowAllocation", "Bytes"),
         IO_THROUGHPUT("IOThroughput", "KByte/sec"),
         MEM("Mem", "KB"),
         MEM_ALLOCATION("MemAllocation", "KB"),
@@ -198,21 +198,18 @@ public class ClassicEnumMapper {
         STORAGE_PROVISIONED("StorageProvisioned", "MB"),
         STORAGE_ACCESS("StorageAccess", "IOPS"),
         STORAGE_LATENCY("StorageLatency", "msec"),
-        Q1_VCPU("Q1VCPU", "msec"),
-        Q2_VCPU("Q2VCPU", "msec"),
-        Q4_VCPU("Q4VCPU", "msec"),
-        Q8_VCPU("Q8VCPU", "msec"),
-        Q16_VCPU("Q16VCPU", "msec"),
-        Q32_VCPU("Q32VCPU", "msec"),
-        Q64_VCPU("Q64VCPU", "msec"),
-        STORAGE_ALLOCATION("StorageAllocation", "MB"),
-        SLA_COMMODITY("SLACommodity", ""),
+        Q1VCPU("Q1VCPU", "msec"),
+        Q2VCPU("Q2VCPU", "msec"),
+        Q4VCPU("Q4VCPU", "msec"),
+        Q8VCPU("Q8VCPU", "msec"),
+        STORAGEALLOCATION("StorageAllocation", "MB"),
+        SLACOMMODITY("SLACommodity", ""),
         SWAPPING("Swapping", "Byte/sec"),
         TRANSACTION("Transaction", "TPS"),
         VCPU("VCPU", "MHz"),
-        VCPU_ALLOCATION("VCPUAllocation", "MHz"),
+        VCPUALLOCATION("VCPUAllocation", "MHz"),
         VMEM("VMem", "KB"),
-        VMEM_ALLOCATION("VMemAllocation", "MB"),
+        VMEMALLOCATION("VMemAllocation", "MB"),
         VSTORAGE("VStorage", "MB"),
         // Access Commodities
         CLUSTER("ClusterCommodity", ""),
@@ -240,7 +237,7 @@ public class ClassicEnumMapper {
             this.units = units;
         }
 
-        public String getMixedCase() {
+        private String getMixedCase() {
             return mixedCase;
         }
 

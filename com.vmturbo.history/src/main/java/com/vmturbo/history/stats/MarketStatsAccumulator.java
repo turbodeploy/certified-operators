@@ -1,8 +1,8 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_CPUS;
-import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_SOCKETS;
-import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
+import static com.vmturbo.history.schema.CommodityTypes.NUM_CPUS;
+import static com.vmturbo.history.schema.CommodityTypes.NUM_SOCKETS;
+import static com.vmturbo.history.schema.CommodityTypes.PRODUCES;
 import static com.vmturbo.history.schema.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
@@ -31,12 +31,12 @@ import com.google.common.collect.Multimap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.history.utils.TopologyOrganizer;
@@ -127,10 +127,10 @@ public class MarketStatsAccumulator {
     /**
      * This map lists properties of entities which are to be persisted as stats.
      * If an entity property with the given property key is found, the value of that property
-     * is persisted as the corresponding {@link ClassicEnumMapper.CommodityTypeUnits} using the mixedCase name.
+     * is persisted as the corresponding {@link CommodityTypes} using the mixedCase name.
      */
-    private static final Map<String, CommodityTypeUnits> PERSISTED_ATTRIBUTE_MAP
-            = new ImmutableMap.Builder<String, CommodityTypeUnits>()
+    private static final Map<String, CommodityTypes> PERSISTED_ATTRIBUTE_MAP
+            = new ImmutableMap.Builder<String, CommodityTypes>()
             .put(NUM_CPU_CORES, NUM_CPUS)
             .put(NUM_CPU_SOCKETS, NUM_SOCKETS)
             .build();

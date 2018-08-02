@@ -7,7 +7,7 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 
@@ -127,7 +127,7 @@ public interface StatRecordBuilder {
             }
 
             // units
-            CommodityTypeUnits commodityType = CommodityTypeUnits.fromString(propertyType);
+            CommodityTypes commodityType = CommodityTypes.fromString(propertyType);
             if (commodityType != null) {
                 statRecordBuilder.setUnits(commodityType.getUnits());
             }

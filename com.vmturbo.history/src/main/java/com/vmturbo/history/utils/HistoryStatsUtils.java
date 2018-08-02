@@ -41,9 +41,9 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.TimeFrame;
+import com.vmturbo.history.schema.CommodityTypes;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -191,10 +191,13 @@ public class HistoryStatsUtils {
 
     /**
      * Convert an int commodityType value, as defined in {@link CommodityType} - in the SDK -
-     * into a mixed-case name using {@link CommodityTypeUnits} - with
+     * into a mixed-case name using {@link CommodityTypes} - in com.vmturbo.reports - with
      * an optional prefix.
      *
      * <p>For example, the int value for SWAPPING is 33;  and is mapped to "Swapping".
+     *
+     * <p>TODO: The mixed case mapping is handled here by {@link CommodityTypes}, but should probably
+     * be centralized into {@link CommodityType} instead.
      *
      * <p>If the prefix is supplied, then the first character of the mixed
      * case name is upcased.
@@ -223,7 +226,7 @@ public class HistoryStatsUtils {
         final String upcaseCommodityName = commodityType.name();
         String mixedCaseName;
         try {
-            mixedCaseName = CommodityTypeUnits.valueOf(upcaseCommodityName).getMixedCase();
+            mixedCaseName = CommodityTypes.valueOf(upcaseCommodityName).getMixedCase();
         } catch (IllegalArgumentException e) {
             // if this happens there are commodities for which the Enum value is missing
             mixedCaseName = upcaseCommodityName;
