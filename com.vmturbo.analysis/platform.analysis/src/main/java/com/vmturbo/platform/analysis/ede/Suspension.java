@@ -217,8 +217,6 @@ public class Suspension {
         if (!suspendTrader(economy, market, trader, suspendActions)) {
             return suspendActions;
         }
-        // reset threshold
-        adjustUtilThreshold(economy, true);
 
         if (logger.isTraceEnabled() || isDebugTrader) {
             logger.info("Suspending trader " + traderDebugInfo
