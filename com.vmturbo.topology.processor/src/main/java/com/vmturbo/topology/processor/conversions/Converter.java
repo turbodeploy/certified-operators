@@ -18,6 +18,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -402,7 +403,7 @@ public class Converter {
      * @return the uuid part of the key
      */
     public static String keyToUuid(String key) {
-        return key.split("::",2)[1];
+        return key.split(ActionDTOUtil.COMMODITY_KEY_SEPARATOR,2)[1];
     }
 
     /**

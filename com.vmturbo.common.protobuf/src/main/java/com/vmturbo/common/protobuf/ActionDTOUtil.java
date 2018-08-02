@@ -40,6 +40,11 @@ public class ActionDTOUtil {
     public static final double MINOR_SEVERITY_THRESHOLD = Integer.getInteger("importance.minor", 0).doubleValue();
     public static final double MAJOR_SEVERITY_THRESHOLD = Integer.getInteger("importance.major", 200).doubleValue();
 
+    // string used in the commodity key, in order to separate references to different objs or classes
+    // FIXME Embed semantics in the commodity key string is an hack. We need to have a better way to
+    // express those relations
+    public static final String COMMODITY_KEY_SEPARATOR = "::";
+
     private ActionDTOUtil() {}
 
     /**
@@ -244,7 +249,11 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Gets the display name of the commodity from the {@link CommodityType}
+     * Gets the display name of the commodity from the {@link CommodityType}.
+     * The display name usually is the pretty print version of the Commodity type.
+     * Example: STORAGE_PROVISION -> Storage Provision.
+     * There can be commodities that have special cases, like Network, where we want to show more
+     * information to the customer (like the network name itself also).
      *
      * @param commType the {@link CommodityType} for which the displayName is to be retrieved
      * @return display name string of the commodity
@@ -252,13 +261,36 @@ public class ActionDTOUtil {
     public static String getCommodityDisplayName(@Nonnull TopologyDTO.CommodityType commType) {
         CommodityDTO.CommodityType commodity = CommodityDTO.CommodityType.forNumber(
                 commType.getType());
-        // If the commodity type is network, we need to append the name of the name of the network.
+
+        final String commodityName = commodity.name();
+
+        String commodityDisplayName = getSpaceSeparatedWordsFromCamelCaseString(
+                CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, commodityName));
+
+        // If the commodity type is network, we need to append the name of the network.
         // The name of the network is stored in the key currently. So we append the key.
         // TODO: But, this is a hack. We need to come up with a framework for showing display names
         // of commodities.
-        return getSpaceSeparatedWordsFromCamelCaseString(
-                CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL, commodity.name())) +
-                (commodity == CommodityDTO.CommodityType.NETWORK ? " "+ commType.getKey() : "");
+        // Example:
+        // a network commodity with key "Network::testNetwork2" should show in the explanation as
+        // Network testNetwork2 and not Network Network::testNetwork2
+        if (commodity == CommodityDTO.CommodityType.NETWORK) {
+            String commKey = commType.getKey();
+
+            // normalize the prefixes to everything lower case
+            String commKeyPrefixExpected = commodityName.toLowerCase() + COMMODITY_KEY_SEPARATOR;
+            String commKeyPrefix = commKey.substring(0, commKeyPrefixExpected.length()).toLowerCase();
+            // and check if the key has the prefix, and remove it.
+            if (commKeyPrefix.startsWith(commKeyPrefixExpected)) {
+                commKey = commKey.substring(commKeyPrefixExpected.length(), commKey.length());
+            }
+
+            // append the modified key to the display name.
+            // This will show the specific network name in it.
+            commodityDisplayName += " " + commKey;
+        }
+
+        return commodityDisplayName;
     }
 
     /**

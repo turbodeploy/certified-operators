@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static com.vmturbo.common.protobuf.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Test;
@@ -38,6 +39,17 @@ public class ExplanationComposerTest {
             .setKey("testNetwork1")
             .build();
 
+    // sometimes we are creating the key in a particular way: by having a prefix with the name of the
+    // commodity type, a separation, and the name of the network itself
+    // in the explanation we want to show the name of the network to the user
+    private static final String NETWORK_KEY_PREFIX = CommodityDTO.CommodityType.NETWORK.name()
+            + COMMODITY_KEY_SEPARATOR;
+
+    private static final CommodityType NETWORK_WITH_PREFIX_IN_KEY = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.NETWORK_VALUE)
+            .setKey(NETWORK_KEY_PREFIX + "testNetwork2")
+            .build();
+
     @Test
     public void testMoveExplanation() throws Exception {
         Explanation compliance = Explanation.newBuilder()
@@ -63,9 +75,21 @@ public class ExplanationComposerTest {
                         .build())
                 .build();
 
+        Explanation reconfigureWithPrefix =
+                Explanation.newBuilder()
+                        .setReconfigure(ReconfigureExplanation.newBuilder()
+                                .addReconfigureCommodity(SEGMENTATION)
+                                .addReconfigureCommodity(NETWORK_WITH_PREFIX_IN_KEY)
+                                .build())
+                        .build();
+
         assertEquals("Enable supplier to offer requested resource(s) Segmentation, Network " +
                         "testNetwork1",
             ExplanationComposer.composeExplanation(reconfigure));
+
+        assertEquals("Enable supplier to offer requested resource(s) Segmentation, Network " +
+                        "testNetwork2",
+                ExplanationComposer.composeExplanation(reconfigureWithPrefix));
     }
 
     @Test
