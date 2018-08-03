@@ -41,6 +41,8 @@ public class RepoObjectType {
         CHASSIS("Chassis"),
         NETWORK("Network"),
         LOGICALPOOL("LogicalPool"),
+        DATABASE_SERVER("DatabaseServer"),
+        LOAD_BALANCER("LoadBalancer"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -96,6 +98,8 @@ public class RepoObjectType {
             .put(EntityType.CHASSIS,                RepoEntityType.CHASSIS)
             .put(EntityType.NETWORK,                RepoEntityType.NETWORK)
             .put(EntityType.LOGICAL_POOL,           RepoEntityType.LOGICALPOOL)
+            .put(EntityType.DATABASE_SERVER,        RepoEntityType.DATABASE_SERVER)
+            .put(EntityType.LOAD_BALANCER,          RepoEntityType.LOAD_BALANCER)
             .put(EntityType.UNKNOWN,                RepoEntityType.UNKNOWN)
             .build();
 

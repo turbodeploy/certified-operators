@@ -35,6 +35,8 @@ public class ServiceEntityMapper {
         CHASSIS("Chassis"),
         NETWORK("Network"),
         LOGICALPOOL("LogicalPool"),
+        DATABASE_SERVER("DatabaseServer"),
+        LOAD_BALANCER("LoadBalancer"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -89,6 +91,8 @@ public class ServiceEntityMapper {
             .put(EntityType.CHASSIS.getNumber(),                UIEntityType.CHASSIS)
             .put(EntityType.NETWORK.getNumber(),                UIEntityType.NETWORK)
             .put(EntityType.LOGICAL_POOL.getNumber(),           UIEntityType.LOGICALPOOL)
+            .put(EntityType.DATABASE_SERVER.getNumber(),        UIEntityType.DATABASE_SERVER)
+            .put(EntityType.LOAD_BALANCER.getNumber(),          UIEntityType.LOAD_BALANCER)
             .put(EntityType.UNKNOWN.getNumber(),                UIEntityType.UNKNOWN)
             .build();
 
