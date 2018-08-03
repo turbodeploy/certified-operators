@@ -10,6 +10,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyObject;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -63,6 +64,7 @@ import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
@@ -247,7 +249,35 @@ public class SearchServiceTest {
         // we should get the members of cluster 1 in the static regex
         StringFilter stringFilter = resolvedParams.getSearchFilter(0).getPropertyFilter().getStringFilter();
         assertEquals("^1$|^2$", stringFilter.getStringPropertyRegex());
+    }
 
+    /**
+     * For search by cluster filter, make sure resolveClusterFilters method is invoked.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testSearchFilterByClusters() throws Exception {
+        GroupApiDTO cluster1 = new GroupApiDTO();
+        cluster1.setCriteriaList(Collections.emptyList());
+        final SearchPaginationRequest paginationRequest =
+                new SearchPaginationRequest("0", 10, true, SearchOrderBy.SEVERITY.name());
+        SearchParameters params = SearchParameters.newBuilder()
+                .addSearchFilter(SearchFilter.newBuilder()
+                        .setClusterMembershipFilter(ClusterMembershipFilter.newBuilder()
+                                .setClusterSpecifier(PropertyFilter.newBuilder()
+                                        .setStringFilter(StringFilter.newBuilder()
+                                                .setStringPropertyRegex("Cluster1"))
+                                        .setPropertyName("displayName"))))
+                .build();
+        when(groupMapper.convertToSearchParameters(any(), anyString(), anyString()))
+                .thenReturn(Lists.newArrayList(params));
+        searchService.getMembersBasedOnFilter("", cluster1, paginationRequest);
+        SearchParameters resolvedParams = searchService.resolveClusterFilters(params);
+        final SearchEntityOidsRequest request = SearchEntityOidsRequest.newBuilder()
+                .addSearchParameters(resolvedParams)
+                .build();
+        Mockito.verify(searchServiceSpy).searchEntityOids(request);
     }
 
     @Test

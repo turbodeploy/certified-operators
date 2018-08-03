@@ -322,6 +322,12 @@ public class SearchService implements ISearchService {
         List<SearchParameters> searchParameters =
             groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), nameQuery);
 
+        // Convert any ClusterMemberFilters to static member filters
+        Search.SearchEntityOidsRequest.Builder searchRequestBuilder = Search.SearchEntityOidsRequest.newBuilder();
+        for (SearchParameters params : searchParameters) {
+            searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
+        }
+
         // match only the entity uuids which are part of the group or cluster
         // defined in the scope
         final Set<String> scopeList = Optional.ofNullable(inputDTO.getScope())
@@ -333,8 +339,7 @@ public class SearchService implements ISearchService {
         if (!expandedIds.isEmpty() && !isGlobalScope) {
             allEntityOids.addAll(expandedIds);
         }
-        final SearchEntityOidsRequest searchRequest = SearchEntityOidsRequest.newBuilder()
-                .addAllSearchParameters(searchParameters)
+        final SearchEntityOidsRequest searchRequest = searchRequestBuilder
                 .addAllEntityOid(allEntityOids)
                 .build();
         if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
