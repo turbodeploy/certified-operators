@@ -55,8 +55,8 @@ public class QuoteFunctionFactory {
                     quote[2] += tempQuote[2];
                 }
             }
-            if (logger.isTraceEnabled() ||
-                            (seller.isDebugEnabled() && buyer.getSupplier() == seller && Double.isInfinite(quote[0]))) {
+            if ((logger.isTraceEnabled() || seller.isDebugEnabled())
+                            && buyer.getSupplier() == seller && Double.isInfinite(quote[0])) {
                 CommoditySpecification basketCommSpec = basket.get(boughtIndex - 1);
                 logger.info("{" + buyer.getBuyer().getDebugInfoNeverUseInCode()
                             + "} The commodity causing the infinite quote is : "
