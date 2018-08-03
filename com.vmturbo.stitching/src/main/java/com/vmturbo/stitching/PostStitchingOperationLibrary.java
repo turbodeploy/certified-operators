@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.poststitching.ComputedQxVcpuUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.ComputedUsedValuePostStitchingOperation;
 import com.vmturbo.stitching.poststitching.CpuCapacityPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.OverprovisionCapacityPostStitchingOperation.VmmPmMemoryAllocationPostStitchingOperation;
@@ -91,7 +92,8 @@ public class PostStitchingOperationLibrary {
             new StorageEntityAccessCapacityPostStitchingOperation(),
             new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig),
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation(),
-            new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock)
+            new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
+            new ComputedQxVcpuUsedValuePostStitchingOperation()
         );
     }
 
