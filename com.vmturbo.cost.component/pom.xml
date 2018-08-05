@@ -11,7 +11,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>cost-component</artifactId>
+    <artifactId>com.vmturbo.cost.component</artifactId>
     <properties>
         <swagger.component.name>Cost Component</swagger.component.name>
 
