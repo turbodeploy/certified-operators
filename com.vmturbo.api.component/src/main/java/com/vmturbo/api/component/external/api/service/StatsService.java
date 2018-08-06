@@ -5,7 +5,6 @@ import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.toServiceEntityApiDTO;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -21,6 +20,7 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -95,12 +95,10 @@ public class StatsService implements IStatsService {
 
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
-    // the +/- threshold (relative to the current time) in which a stats request specifying a time
-    // window will be treated as a request for the latest live stats, rather than as a historical or
-    // projected stats request. As an example, if the threshold is 60 seconds, all stats with start
-    // or end time falling within server now +/- 60 seconds will be treated as requesting the
-    // "current" stats.
-    private final Duration liveStatsRetrievalWindow;
+    // the threshold (relative to the current time in milliseconds) under which a stats request
+    // start date will be treated as a request for the latest live stats, rather than as a strict
+    // start date.
+    private static final int LATEST_LIVE_STATS_RETRIEVAL_START_DATE_THRESHOLD_MS = 60000;
 
     private final StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub statsServiceRpc;
 
@@ -162,8 +160,7 @@ public class StatsService implements IStatsService {
                  @Nonnull final GroupExpander groupExpander,
                  @Nonnull final Clock clock,
                  @Nonnull final TargetsService targetsService,
-                 @Nonnull final GroupServiceBlockingStub groupServiceRpc,
-                 @Nonnull final Duration liveStatsRetrievalWindow) {
+                 @Nonnull final GroupServiceBlockingStub groupServiceRpc) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -173,8 +170,6 @@ public class StatsService implements IStatsService {
         this.groupExpander = groupExpander;
         this.targetsService = Objects.requireNonNull(targetsService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
-        this.liveStatsRetrievalWindow = liveStatsRetrievalWindow;
-        logger.debug("Live Stats Retrieval Window is {}sec", liveStatsRetrievalWindow.getSeconds());
         this.statsMapper = Objects.requireNonNull(statsMapper);
     }
 
@@ -297,14 +292,8 @@ public class StatsService implements IStatsService {
                 }
             }
 
-            // OM-37484: give the startTime a +/- 60 second window for delineating between "current"
-            // and "projected" stats requests. Without this window, the stats retrieval is too
-            // sensitive to clock skew issues between the browser and the server, leading to incorrect
-            // results in the UI.
-            long currentStatsTimeWindowStart = clockTimeNow - liveStatsRetrievalWindow.toMillis();
-            long currentStatsTimeWindowEnd = clockTimeNow + liveStatsRetrievalWindow.toMillis();
             if (inputDto.getEndDate() != null
-                    && DateTimeUtil.parseTime(inputDto.getEndDate()) > currentStatsTimeWindowEnd) {
+                    && DateTimeUtil.parseTime(inputDto.getEndDate()) > clockTimeNow) {
                 ProjectedStatsResponse response =
                         statsServiceRpc.getProjectedStats(statsMapper.toProjectedStatsRequest(entityStatOids,
                                 inputDto));
@@ -320,7 +309,7 @@ public class StatsService implements IStatsService {
             // if the startDate is in the past, read from the history (and combine with projected, if any)
             Long startTime = null;
             if (inputDto.getStartDate() == null
-                    || (startTime = DateTimeUtil.parseTime(inputDto.getStartDate())) < currentStatsTimeWindowEnd) {
+                    || (startTime = DateTimeUtil.parseTime(inputDto.getStartDate())) < clockTimeNow) {
                 // Because of issues like https://vmturbo.atlassian.net/browse/OM-36537, where a UI
                 // request expecting stats between "now" and "future" fails to get "now" results
                 // because the specified start time is often (but not always) later than the latest
@@ -329,7 +318,7 @@ public class StatsService implements IStatsService {
                 // request for the latest available live topology stats.
                 //
                 // A "now" request is identified as one with a start date falling within
-                // (LATEST_LIVE_STATS_RETRIEVAL_TIME_THRESHOLD_MS) of the current system time.
+                // (LATEST_LIVE_STATS_RETRIEVAL_START_DATE_THRESHOLD_MS) of the current system time.
                 //
                 // The "special request" is handled by adjusting the historical stat request to have
                 // neither a start nor end date set. This triggers a special case in the History
@@ -341,7 +330,7 @@ public class StatsService implements IStatsService {
                 // a small change we are making so we can avoid also having to change the stats API,
                 // UI code and classic API to support a new param or special value.
                 if (startTime != null
-                    && (startTime >= currentStatsTimeWindowStart)) {
+                    && (startTime > clockTimeNow - LATEST_LIVE_STATS_RETRIEVAL_START_DATE_THRESHOLD_MS)) {
                     logger.trace("Clearing start and end date since start time is {}ms ago.", (clockTimeNow - startTime));
                     inputDto.setStartDate(null);
                     inputDto.setEndDate(null);

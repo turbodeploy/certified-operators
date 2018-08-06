@@ -72,9 +72,6 @@ public class ServiceConfig {
     @Value("${supplyChainFetcherTimeoutSeconds}")
     private Long supplyChainFetcherTimeoutSeconds;
 
-    @Value("${liveStatsRetrievalWindowSeconds}")
-    private long liveStatsRetrievalWindowSeconds;
-
     @Value("${samlEnabled:false}")
     private boolean samlEnabled;
 
@@ -325,8 +322,7 @@ public class ServiceConfig {
                 communicationConfig.groupExpander(),
                 Clock.systemUTC(),
                 targetService(),
-                communicationConfig.groupRpcService(),
-                Duration.ofSeconds(liveStatsRetrievalWindowSeconds));
+                communicationConfig.groupRpcService());
     }
 
     @Bean
