@@ -10,13 +10,13 @@
     <packaging>pom</packaging>
 
     <properties>
-        <market.version>3.2.0-SNAPSHOT</market.version>
+        <market.version>3.3.0-SNAPSHOT</market.version>
         <java.version>1.8</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>6.2.0-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>6.3.0-SNAPSHOT</vmturbo.mt.branch.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
