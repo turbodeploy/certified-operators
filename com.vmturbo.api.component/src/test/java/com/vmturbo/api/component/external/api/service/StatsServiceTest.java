@@ -26,6 +26,7 @@ import static org.mockito.internal.verification.VerificationModeFactory.times;
 import java.io.IOException;
 import java.rmi.activation.UnknownObjectException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -178,7 +179,7 @@ public class StatsServiceTest {
 
         statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
                 repositoryRpcService, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
-                targetsService, groupService);
+                targetsService, groupService, Duration.ofSeconds(60));
 
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
@@ -468,8 +469,8 @@ public class StatsServiceTest {
     public void testGetProjectedStatsByEntityQuery() throws Exception {
         // arrange
         // request is in the future
-        final StatPeriodApiInputDTO inputDto = buildStatPeriodApiInputDTO(2000L, "2500",
-                "2500", "a");
+        final StatPeriodApiInputDTO inputDto = buildStatPeriodApiInputDTO(100000L, "162000",
+                "162000", "a");
 
         when(groupExpander.getGroup(anyObject())).thenReturn(Optional.empty());
         // just a simple SE, not group or cluster; expanded list is just the input OID
