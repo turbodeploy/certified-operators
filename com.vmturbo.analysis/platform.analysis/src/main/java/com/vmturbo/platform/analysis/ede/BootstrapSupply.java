@@ -372,6 +372,8 @@ public class BootstrapSupply {
         if (movableSlByMarket.isEmpty()) {
             return provisionedRelatedActions;
         }
+        List<Trader> traderList = new ArrayList<>();
+        List<ShoppingList> slList = new ArrayList<>();
         // movableSlByMarket is the map for a buying trader
         for (Entry<ShoppingList, Market> entry : movableSlByMarket) {
             ShoppingList sl = entry.getKey();
@@ -392,7 +394,7 @@ public class BootstrapSupply {
                         //
                         // E.g. Let's consider a scenario where there is a buyer
                         // with 2 Storage SLs of equal size and they both can't
-                        // be placed on any exisiting Storages. The 1st SL will cause
+                        // be placed on any existing Storages. The 1st SL will cause
                         // a provision(byDemand) of a new storage to fit this SL.
                         // Since we don't place the 1st SL in this function,
                         // the 2nd SL will get a finite best quote(due to
@@ -402,7 +404,7 @@ public class BootstrapSupply {
                         // these SLs will go unplaced as the 2nd SL will get
                         // infinite quote. To fix this problem, we need to provision
                         // a new storage for the 2nd SL too. By ignoring the previously
-                        // provisoned storage as a potential seller, we force the
+                        // provisioned storage as a potential seller, we force the
                         // provisioning of a new storage.
                         .filter(trader -> !newSuppliersToIgnore.contains(trader))
                         .collect(Collectors.toList());
@@ -472,12 +474,14 @@ public class BootstrapSupply {
                         newSuppliersToIgnore.add(newSeller);
                     }
                 }
+            } else {
+                // if the VM is able to fit in the provider, place on it
+                traderList.add(minimizer.getBestSeller());
+                slList.add(sl);
             }
         }
         if (!newSuppliers.isEmpty()) {
             // do a compoundMove
-            List<ShoppingList> slList = new ArrayList<>();
-            List<Trader> traderList = new ArrayList<>();
             // iterate map entry to ensure the order of slList and traderList are the same,
             // as there is no guarantee for order using map.keySet and map.values
             newSuppliers.entrySet().forEach(e -> {
