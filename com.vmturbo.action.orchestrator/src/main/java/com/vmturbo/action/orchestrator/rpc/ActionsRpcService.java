@@ -138,11 +138,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         }
 
         final ActionStore store = optionalStore.get();
-        final Optional<String> userUuidOptional = Optional.ofNullable(SecurityConstant.USER_UUID_KEY.get());
+        final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
         AcceptActionResponse response = store.getAction(request.getActionId())
             .map(action -> {
                 AcceptActionResponse attemptResponse = attemptAcceptAndExecute(action,
-                        userUuidOptional.orElse("")); //TODO instead of "", return component/system uuid
+                        userNameAndUuid);
                 if (!action.isReady()) {
                     store.getEntitySeverityCache()
                         .refresh(action.getRecommendation(), store);

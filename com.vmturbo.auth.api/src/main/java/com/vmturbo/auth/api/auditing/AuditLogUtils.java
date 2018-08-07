@@ -27,6 +27,10 @@ public final class AuditLogUtils {
     private static final String RESULT_FAILURE = "result=Failure";
     private static final String RESULT_SUCCESS = "result=Success";
     private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    public static final String LEFT_BRACKET = "(";
+    public static final String RIGHT_BRACKET = ")";
+    public static final String EMPTY_STRING = "";
+
     private static final org.apache.log4j.Logger logger = org.apache.log4j.Logger
             .getLogger(AuditLogUtils.class);
     private static final Logger auditLogger = LogManager.getLogger("com.vmturbo.platform.audit");
@@ -112,5 +116,20 @@ public final class AuditLogUtils {
         } catch (UnknownHostException e) {
             return LOOPBACK;
         }
+    }
+
+
+    /**
+     * Get user name and UUID from gRPC security context, and combine them.
+     * E.g.: administrator(2173090650448).
+     * Note: only UUID is unique to user, so it will support changing user name scenario.
+     * @return Combined user name and UUID
+     */
+    public static String getUserNameAndUuidFromGrpcSecurityContext() {
+        final String userName = SecurityConstant.USER_ID_CTX_KEY.get();
+        final String userUuid = SecurityConstant.USER_UUID_KEY.get();
+        //TODO instead of EMPTY_STRING, return component/system uuid
+        return (userName != null && userUuid != null) ?
+                userName + LEFT_BRACKET + userUuid + RIGHT_BRACKET : EMPTY_STRING;
     }
 }

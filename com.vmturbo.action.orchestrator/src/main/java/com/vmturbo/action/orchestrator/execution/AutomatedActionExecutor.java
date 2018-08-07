@@ -26,6 +26,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
@@ -183,13 +184,11 @@ public class AutomatedActionExecutor {
             actionEntityIdMap.remove(id);
             actionEntityMapMap.remove(id);
         });
-        final Optional<String> policyCreatingUserUuidOptional =
-                Optional.ofNullable(SecurityConstant.USER_UUID_KEY.get());
+        final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
         actionsByTarget.forEach((targetId, actionSet) -> {
             actionSet.forEach(actionId -> {
                 Action action = autoActions.get(actionId);
-                action.receive(new AutomaticAcceptanceEvent(policyCreatingUserUuidOptional
-                        .orElse(""), targetId));//TODO instead of "", return component/system uuid
+                action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
                 // We don't need to refresh severity cache because we will refresh it
                 // in the ActionStorehouse after calling this method.
                 executionService.submit(() -> {
