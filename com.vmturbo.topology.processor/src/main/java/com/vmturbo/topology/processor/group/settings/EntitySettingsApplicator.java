@@ -498,17 +498,28 @@ public class EntitySettingsApplicator {
         public void apply(@Nonnull Builder entity, @Nonnull Setting setting) {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                 final float settingValue = setting.getNumericSettingValue().getValue();
-                entity.getCommoditySoldListBuilderList()
-                        .stream()
-                        .filter(commodity -> commodity.getCommodityType().getType() ==
-                                commodityType.getNumber())
-                        .forEach(commodityBuilder -> {
-                            commodityBuilder.setCapacityIncrement(
-                                settingValue * conversionFactor.getOrDefault(
-                                    commodityBuilder.getCommodityType().getType(), 1.0f));
-                            logger.debug("Apply Resize Increment for commodity: {} , value={}",
-                                commodityType.getNumber(), commodityBuilder.getCapacityIncrement());
-                        });
+                entity.getCommoditySoldListBuilderList().stream()
+                    .filter(commodity -> commodity.getCommodityType().getType() ==
+                            commodityType.getNumber())
+                    .forEach(commodityBuilder -> {
+                        final float userRequestedIncrement =
+                            settingValue * conversionFactor.getOrDefault(
+                                commodityBuilder.getCommodityType().getType(), 1.0f);
+                        final float probeProvidedIncrement = commodityBuilder.hasCapacityIncrement() ?
+                            commodityBuilder.getCapacityIncrement() : 1.0f;
+                        // We round the user-requested increment to the probe-provided increment
+                        // here, so that the increment is set properly in the outgoing topology.
+                        //
+                        // There is the small possibility that the resize increment that comes
+                        // out of stitching is retrieved from a different probe than the one
+                        // that will be chosen to execute the action. Realistically, that
+                        // shouldn't happen for resize actions.
+                        commodityBuilder.setCapacityIncrement(
+                            ResizeIncrementAdjustor.roundToProbeIncrement(
+                                    userRequestedIncrement, probeProvidedIncrement));
+                        logger.debug("Apply Resize Increment for commodity: {} , value={}",
+                            commodityType.getNumber(), commodityBuilder.getCapacityIncrement());
+                    });
             }
         }
     }

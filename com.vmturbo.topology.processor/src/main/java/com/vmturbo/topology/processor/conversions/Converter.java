@@ -352,6 +352,10 @@ public class Converter {
             retCommSoldBuilder.setEffectiveCapacityPercentage(commDTO.getUtilizationThresholdPct());
         }
 
+        if (commDTO.hasUsedIncrement()) {
+            retCommSoldBuilder.setCapacityIncrement((float)commDTO.getUsedIncrement());
+        }
+
         return retCommSoldBuilder;
     }
 
