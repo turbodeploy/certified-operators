@@ -1,4 +1,4 @@
-#!/bin/dumb-init /bin/sh
+#!/bin/bash
 set -e
 
 # rsyslog
@@ -59,49 +59,50 @@ rm -f /consul/data/serf/* >/dev/null 2>&1
 # The first argument is used to decide which mode we are running in. All the
 # remaining arguments are passed along to Consul (or the executable if one of
 # the Consul modes isn't selected).
+exec > >(logger --tag consul -u /tmp/log.sock) 2>&1
 MODE=${1:-vmt-server}
 if [ "$MODE" = 'dev' ]; then
     shift
-        consul agent \
+        exec consul agent \
          -dev \
          -config-dir="$CONSUL_CONFIG_DIR/local" \
          $CONSUL_BIND \
-         "$@" 2>&1 | logger --tag consul -u /tmp/log.sock
+         "$@"
 elif [ "$MODE" = 'client' ]; then
     shift
-        consul agent \
+        exec consul agent \
          -data-dir="$CONSUL_DATA_DIR" \
          -config-dir="$CONSUL_CONFIG_DIR/client" \
          -config-dir="$CONSUL_CONFIG_DIR/local" \
          $CONSUL_BIND \
-         "$@" 2>&1 | logger --tag consul -u /tmp/log.sock
+         "$@"
 elif [ "$MODE" = 'server' ]; then
     shift
-        consul agent \
+        exec consul agent \
          -server \
          -data-dir="$CONSUL_DATA_DIR" \
          -config-dir="$CONSUL_CONFIG_DIR/server" \
          -config-dir="$CONSUL_CONFIG_DIR/local" \
          $CONSUL_CLIENT $CONSUL_BIND \
-         "$@" 2>&1 | logger --tag consul -u /tmp/log.sock
+         "$@"
 elif [ "$MODE" = 'vmt-server' ]; then
     shift
-        consul agent \
+        exec consul agent \
          -bootstrap-expect 1 \
          -config-dir="$CONSUL_CONFIG_DIR/server" \
          -config-dir="$CONSUL_CONFIG_DIR/local" \
          -data-dir="$CONSUL_DATA_DIR" \
          $CONSUL_CLIENT $CONSUL_BIND \
-         "$@" 2>&1 | logger --tag consul -u /tmp/log.sock
+         "$@"
 elif [ "$MODE" = 'vmt-client' ]; then
     shift
-        consul agent \
+        exec consul agent \
          -config-dir="$CONSUL_CONFIG_DIR/client" \
          -config-dir="$CONSUL_CONFIG_DIR/local" \
          -data-dir="$CONSUL_DATA_DIR" \
          $CONSUL_CLIENT $CONSUL_BIND \
-         "$@" 2>&1 | logger --tag consul -u /tmp/log.sock
+         "$@"
 else
-    exec "$@" 2>&1 | logger --tag consul -u /tmp/log.sock
+    exec "$@"
 fi
 

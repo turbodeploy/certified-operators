@@ -43,7 +43,7 @@ fi
 
 start_nginx() {
     echo "Starting nginx" 2>&1 | ${LOGGER_COMMAND}
-    nginx
+    exec nginx > >($LOGGER_COMMAND) 2>&1
 }
 
-start_nginx 2>&1 | $LOGGER_COMMAND
+start_nginx

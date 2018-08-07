@@ -67,4 +67,4 @@ fi
 /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
 echo "Executing startup command: \"$STARTUP_COMMAND\"" 2>&1 | ${LOGGER_COMMAND}
-exec $STARTUP_COMMAND 2>&1 | ${LOGGER_COMMAND}
+exec $STARTUP_COMMAND > >($LOGGER_COMMAND) 2>&1

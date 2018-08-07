@@ -16,20 +16,26 @@ if [ "${1:0:1}" = '-' ]; then
 	set -- arangod --configuration $ARANGO_CONF "$@"
 fi
 
+if [[ -z ${LOG_TO_STDOUT} ]]; then
+  export LOGGER_COMMAND="logger --tag arangodb -u /tmp/log.sock"
+else
+  export LOGGER_COMMAND="eval tee >(logger --tag arangodb -u /tmp/log.sock)"
+fi
+
 # Remove the lock. We will not be running multiple instances on the same Docker host
 if [[ -f "/var/lib/arangodb3/LOCK" ]]; then
-    echo "Warning: Removing the lock" 2>&1 | logger --tag arangodb -u /tmp/log.sock
+    echo "Warning: Removing the lock" 2>&1 | $LOGGER_COMMAND
     rm -f /var/lib/arangodb3/LOCK
 fi
 
 if [ "$1" = 'arangod' ]; then
 	if [ -f /tmp/init_007 ]; then
 	    rm -f /tmp/init_007
-        echo "Initializing database...Hang on..." 2>&1 | logger --tag arangodb -u /tmp/log.sock
+        echo "Initializing database...Hang on..." 2>&1 | $LOGGER_COMMAND
         arangod --server.endpoint unix:///tmp/arangodb-tmp.sock \
                 --server.authentication false \
-        	    --log.file /tmp/init-log \
-		        --log.foreground-tty false &
+                --log.file /tmp/init-log \
+                --log.foreground-tty false &
 		pid="$!"
 
 		counter=0
@@ -40,8 +46,8 @@ if [ "$1" = 'arangod' ]; then
 		    fi
 
 		    if [ "$counter" -gt 100 ];then
-			    echo "ArangoDB didn't start correctly during init" 2>&1 | logger --tag arangodb -u /tmp/log.sock
-			    cat /tmp/init-log
+			    echo "ArangoDB didn't start correctly during init" 2>&1 | $LOGGER_COMMAND
+			    cat /tmp/init-log | $LOGGER_COMMAND
 			    exit 1
 		    fi
 		        let counter=counter+1
@@ -50,11 +56,11 @@ if [ "$1" = 'arangod' ]; then
 		done
 
 		if ! kill -s TERM "$pid" || ! wait "$pid"; then
-            echo 'ArangoDB Init failed.' 2>&1 | logger --tag arangodb -u /tmp/log.sock
+            echo 'ArangoDB Init failed.' 2>&1 | $LOGGER_COMMAND
             exit 1
 		fi
 
-        echo "Database initialized...Starting System..." 2>&1 | logger --tag arangodb -u /tmp/log.sock
+        echo "Database initialized...Starting System..." 2>&1 | $LOGGER_COMMAND
 	fi
 
 	# if we really want to start arangod and not bash or any other thing
@@ -65,8 +71,8 @@ if [ "$1" = 'arangod' ]; then
 fi
 
 if [ ! -f $ARANGO_CONF ]; then
-    echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF" | logger --tag arangodb -u /tmp/log.sock
-    cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | logger --tag arangodb -u /tmp/log.sock
+    echo "Copying default arangodb config file from $DEFAULT_ARANGO_CONF to $ARANGO_CONF" | $LOGGER_COMMAND
+    cp $DEFAULT_ARANGO_CONF $ARANGO_CONF 2>&1 | $LOGGER_COMMAND
 fi
 
-exec "$@" 2>&1 | logger --tag arangodb -u /tmp/log.sock
+exec "$@" > >($LOGGER_COMMAND) 2>&1

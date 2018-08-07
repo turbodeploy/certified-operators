@@ -112,7 +112,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     public static final String METRICS_URL = "/metrics";
 
-    private static Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     private ExecutionStatus status = ExecutionStatus.NEW;
     private final AtomicBoolean startFired = new AtomicBoolean(false);
@@ -250,6 +250,13 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      */
     @Override
     public final void startComponent() {
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+        @Override
+            public void run() {
+                logger.info("Shutting down {} component.", getComponentName());
+                stopComponent();
+            }
+        });
         setStatus(ExecutionStatus.STARTING);
         DefaultExports.initialize();
         // start up the default scheduled metrics too
