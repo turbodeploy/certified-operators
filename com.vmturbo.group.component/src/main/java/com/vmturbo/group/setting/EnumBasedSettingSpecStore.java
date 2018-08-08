@@ -28,7 +28,7 @@ public class EnumBasedSettingSpecStore implements SettingSpecStore {
 
         Map<String, SettingSpec> specs = new HashMap<>();
         for (EntitySettingSpecs setting : EntitySettingSpecs.values()) {
-            specs.put(setting.getSettingName(), setting.createSettingSpec());
+            specs.put(setting.getSettingName(), setting.getSettingSpec());
         }
         for (GlobalSettingSpecs setting : GlobalSettingSpecs.values()) {
             specs.put(setting.getSettingName(), setting.createSettingSpec());

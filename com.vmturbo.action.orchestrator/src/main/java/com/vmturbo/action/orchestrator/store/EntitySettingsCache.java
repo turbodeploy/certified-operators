@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -49,7 +50,7 @@ public class EntitySettingsCache {
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 
     @GuardedBy("cacheLock")
-    private final Map<Long, List<Setting>> settingsByEntity = new HashMap<>();
+    private final Map<Long, Map<String, Setting>> settingsByEntityAndSpecName = new HashMap<>();
 
     private final ReadWriteLock cacheLock = new ReentrantReadWriteLock();
 
@@ -75,38 +76,38 @@ public class EntitySettingsCache {
                        final long topologyContextId,
                        final long topologyId) {
         logger.info("Refreshing entity settings cache...");
-        final Map<Long, List<Setting>> newSettings = retrieveEntityToSettingListMap(entities,
+        final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
                 topologyContextId, topologyId);
         cacheLock.writeLock().lock();
         try {
-            settingsByEntity.clear();
-            settingsByEntity.putAll(newSettings);
+            settingsByEntityAndSpecName.clear();
+            settingsByEntityAndSpecName.putAll(newSettings);
         } finally {
             cacheLock.writeLock().unlock();
         }
         logger.info("Refreshed entity settings cache. It now contains settings for {} entities.",
-                settingsByEntity.size());
+                settingsByEntityAndSpecName.size());
     }
 
     /**
      * Get the list of action-orchestrator related settings associated with an entity.
      *
      * @param entityId The ID of the entity.
-     * @return A list of settings associated with the entity. This may be empty,
-     * but will not be null.
+     * @return A map of (setting spec name, setting) for the settings associated with the entity.
+     *         This may be empty, but will not be null.
      */
     @Nonnull
-    public List<Setting> getSettingsForEntity(final long entityId) {
+    public Map<String, Setting> getSettingsForEntity(final long entityId) {
         cacheLock.readLock().lock();
         try {
-            return settingsByEntity.getOrDefault(entityId, Collections.emptyList());
+            return settingsByEntityAndSpecName.getOrDefault(entityId, Collections.emptyMap());
         } finally {
             cacheLock.readLock().unlock();
         }
     }
 
     @Nonnull
-    private Map<Long, List<Setting>> retrieveEntityToSettingListMap(final Set<Long> entities,
+    private Map<Long, Map<String, Setting>> retrieveEntityToSettingListMap(final Set<Long> entities,
                                                                     final long topologyContextId,
                                                                     final long topologyId) {
         try {
@@ -120,11 +121,23 @@ public class EntitySettingsCache {
             final GetEntitySettingsResponse response =
                     settingPolicyService.getEntitySettings(request);
             return Collections.unmodifiableMap(
-                    response.getSettingsList().stream()
-                            .filter(settings -> settings.getSettingsCount() > 0)
-                            .collect(Collectors.toMap(SettingsForEntity::getEntityId,
-                                    settings -> Collections.unmodifiableList(
-                                            settings.getSettingsList()))));
+                response.getSettingsList().stream()
+                    .filter(settings -> settings.getSettingsCount() > 0)
+                    .collect(Collectors.toMap(SettingsForEntity::getEntityId,
+                        settings -> Collections.unmodifiableMap(settings.getSettingsList().stream()
+                            .collect(Collectors.toMap(
+                                Setting::getSettingSpecName,
+                                Function.identity(),
+                                (v1, v2) -> {
+                                    // This shouldn't happen, because conflict resolution
+                                    // gets done before entity settings are uploaded and made
+                                    // available to clients.
+                                    logger.error("Settings service returned two setting values for" +
+                                        " entity {}.\nFirst: \n{}\nSecond:\n{}. Choosing first.",
+                                        settings.getEntityId(), v1, v2);
+                                    return v1;
+                                }))
+                        ))));
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve entity settings due to error: " + e.getMessage());
             return Collections.emptyMap();

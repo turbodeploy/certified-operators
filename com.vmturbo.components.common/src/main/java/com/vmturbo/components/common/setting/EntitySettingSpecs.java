@@ -244,6 +244,11 @@ public enum EntitySettingSpecs {
     private final List<String> categoryPath;
     private final boolean allowGlobalDefault;
 
+    /**
+     * The protobuf representation of this setting spec.
+     */
+    private final SettingSpec settingSpec;
+
     static {
         final EntitySettingSpecs[] settings = EntitySettingSpecs.values();
         final Map<String, EntitySettingSpecs> result = new HashMap<>(settings.length);
@@ -264,6 +269,7 @@ public enum EntitySettingSpecs {
         this.entityTypeScope = Objects.requireNonNull(entityTypeScope);
         this.dataStructure = Objects.requireNonNull(dataStructure);
         this.allowGlobalDefault = allowGlobalDefault;
+        this.settingSpec = createSettingSpec();
     }
 
     /**
@@ -290,12 +296,22 @@ public enum EntitySettingSpecs {
     }
 
     /**
+     * Get the protobuf representation of this {@link EntitySettingSpecs}.
+     *
+     * @return A {@link SettingSpec} protobuf.
+     */
+    @Nonnull
+    public SettingSpec getSettingSpec() {
+        return settingSpec;
+    }
+
+    /**
      * Constructs Protobuf representation of setting specification.
      *
      * @return Protobuf representation
      */
     @Nonnull
-    public SettingSpec createSettingSpec() {
+    private SettingSpec createSettingSpec() {
         final EntitySettingScope.Builder scopeBuilder = EntitySettingScope.newBuilder();
         if (entityTypeScope.isEmpty()) {
             scopeBuilder.setAllEntityType(AllEntityType.getDefaultInstance());

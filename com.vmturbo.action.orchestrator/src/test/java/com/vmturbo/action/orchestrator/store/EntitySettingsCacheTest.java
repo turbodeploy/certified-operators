@@ -1,7 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -101,8 +102,9 @@ public class EntitySettingsCacheTest {
 
         entitySettingsCache.update(Collections.singleton(ENTITY_ID), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
-        final List<Setting> newSettings = entitySettingsCache.getSettingsForEntity(ENTITY_ID);
-        assertThat(newSettings, containsInAnyOrder(setting));
+        final Map<String, Setting> newSettings = entitySettingsCache.getSettingsForEntity(ENTITY_ID);
+        assertTrue(newSettings.containsKey(setting.getSettingSpecName()));
+        assertThat(newSettings.get(setting.getSettingSpecName()), is(setting));
     }
 
     @Test

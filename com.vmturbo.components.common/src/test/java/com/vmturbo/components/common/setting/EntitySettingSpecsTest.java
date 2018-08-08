@@ -73,7 +73,7 @@ public class EntitySettingSpecsTest {
     @Test
     public void testLegalTypeSpecificDefaults() {
         for (EntitySettingSpecs setting : EntitySettingSpecs.values()) {
-            final SettingSpec spec = setting.createSettingSpec();
+            final SettingSpec spec = setting.getSettingSpec();
             switch (spec.getSettingValueTypeCase()) {
                 case BOOLEAN_SETTING_VALUE_TYPE: {
                     final BooleanSettingValueType valueType = spec.getBooleanSettingValueType();

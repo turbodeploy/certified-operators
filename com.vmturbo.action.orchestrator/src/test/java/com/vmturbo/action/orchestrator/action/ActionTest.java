@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -8,13 +10,14 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
@@ -77,7 +80,7 @@ public class ActionTest {
         reconfigureRecommendation = makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SUPPORTED).build();
 
         when(entitySettingsCache.getSettingsForEntity(anyLong()))
-            .thenReturn(Collections.emptyList());
+            .thenReturn(Collections.emptyMap());
 
 
         moveAction = new Action(moveRecommendation, entitySettingsCache, actionPlanId);
@@ -121,7 +124,7 @@ public class ActionTest {
     public void testExecutionCreatesExecutionStep() throws Exception {
         final long targetId = 7;
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-            .thenReturn(Collections.singletonList(makeSetting("move", ActionMode.MANUAL)));
+            .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
         moveAction.receive(new ManualAcceptanceEvent("0", targetId));
         Assert.assertTrue(moveAction.getExecutableStep().isPresent());
         Assert.assertEquals(targetId, moveAction.getExecutableStep().get().getTargetId());
@@ -131,7 +134,7 @@ public class ActionTest {
     public void testBeginExecutionEventStartsExecute() throws Exception {
         final long targetId = 7;
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-                .thenReturn(Collections.singletonList(makeSetting("move", ActionMode.MANUAL)));
+                .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
 
         moveAction.receive(new ManualAcceptanceEvent("0", targetId));
         moveAction.receive(new BeginExecutionEvent());
@@ -145,7 +148,7 @@ public class ActionTest {
     @Test
     public void testDetermineExecutabilityInProgress() {
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-                .thenReturn(Collections.singletonList(makeSetting("move", ActionMode.MANUAL)));
+                .thenReturn(ImmutableMap.of("move", makeSetting("move", ActionMode.MANUAL)));
 
         moveAction.receive(new ManualAcceptanceEvent("0", 24L));
 
@@ -162,56 +165,14 @@ public class ActionTest {
     }
 
     @Test
-    public void testReconfigureActionNotAutomatable() {
-        List<Setting> settingsList1 =
-                Collections.singletonList(makeSetting("reconfigure", ActionMode.AUTOMATIC));
-        List<Setting> settingsList2 =
-                Collections.singletonList(makeSetting("reconfigure", ActionMode.MANUAL));
-
-        when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(settingsList1);
-        assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
-        when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(settingsList2);
-        assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
-    }
-
-    @Test
-    public void testGetModeChoosesStrictestValidSetting() {
-        //if an entity has multiple settings, the strictest applicable settings are chosen
-        //THIS SHOULD NEVER HAPPEN
-        //(but if it does, this is how we deal with it)
-        List<Setting> settingsList = Arrays.asList(
-                makeSetting("storageMove", ActionMode.AUTOMATIC),
-                makeSetting("storageMove", ActionMode.RECOMMEND),
-                makeSetting("resize", ActionMode.RECOMMEND),
-                makeSetting("resize", ActionMode.DISABLED),
-                makeSetting("activate", ActionMode.MANUAL),
-                makeSetting("activate", ActionMode.AUTOMATIC),
-                makeSetting("suspend", ActionMode.AUTOMATIC),
-                makeSetting("suspend", ActionMode.DISABLED),
-                makeSetting("reconfigure", ActionMode.DISABLED),
-                makeSetting("reconfigure", ActionMode.RECOMMEND),
-                makeSetting("move", ActionMode.MANUAL),
-                makeSetting("move", ActionMode.RECOMMEND)
-        );
-        when(entitySettingsCache.getSettingsForEntity(eq(11L))).thenReturn(settingsList);
-
-        assertEquals(moveAction.getMode(), ActionMode.RECOMMEND);
-        assertEquals(resizeAction.getMode(), ActionMode.DISABLED);
-        assertEquals(deactivateAction.getMode(), ActionMode.DISABLED);
-        assertEquals(activateAction.getMode(), ActionMode.MANUAL);
-        assertEquals(storageMoveAction.getMode(), ActionMode.RECOMMEND);
-        assertEquals(reconfigureAction.getMode(), ActionMode.DISABLED);
-    }
-
-    @Test
     public void testGetModeDefault() {
         //default is MANUAL
-        assertEquals(moveAction.getMode(), ActionMode.MANUAL);
-        assertEquals(resizeAction.getMode(), ActionMode.MANUAL);
-        assertEquals(activateAction.getMode(), ActionMode.MANUAL);
-        assertEquals(deactivateAction.getMode(), ActionMode.MANUAL);
-        assertEquals(storageMoveAction.getMode(), ActionMode.MANUAL);
-        assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
+        assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
+        assertThat(resizeAction.getMode(), is(ActionMode.MANUAL));
+        assertThat(activateAction.getMode(), is(ActionMode.MANUAL));
+        assertThat(deactivateAction.getMode(), is(ActionMode.MANUAL));
+        assertThat(storageMoveAction.getMode(), is(ActionMode.MANUAL));
+        assertThat(reconfigureAction.getMode(), is(ActionMode.RECOMMEND));
     }
 
     @Test
@@ -237,17 +198,17 @@ public class ActionTest {
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SHOW_ONLY).build();
         reconfigureAction = new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
 
-        List<Setting> settingsList = Arrays.asList(
-                makeSetting("resize", ActionMode.AUTOMATIC),
-                makeSetting("move", ActionMode.AUTOMATIC),
-                makeSetting("storageMove", ActionMode.AUTOMATIC),
-                makeSetting("activate", ActionMode.AUTOMATIC),
-                makeSetting("reconfigure", ActionMode.RECOMMEND),
-                makeSetting("suspend", ActionMode.AUTOMATIC)
-        );
+        Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
+                .put("resize", makeSetting("resize", ActionMode.AUTOMATIC))
+                .put("move", makeSetting("move", ActionMode.AUTOMATIC))
+                .put("storageMove", makeSetting("storageMove", ActionMode.AUTOMATIC))
+                .put("activate", makeSetting("activate", ActionMode.AUTOMATIC))
+                .put("reconfigure", makeSetting("reconfigure", ActionMode.RECOMMEND))
+                .put("suspend", makeSetting("suspend", ActionMode.AUTOMATIC))
+                .build();
 
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-                .thenReturn(settingsList);
+                .thenReturn(settings);
         assertEquals(moveAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(resizeAction.getMode(), ActionMode.RECOMMEND);
         assertEquals(activateAction.getMode(), ActionMode.RECOMMEND);
@@ -279,17 +240,17 @@ public class ActionTest {
         reconfigureAction =
                 new Action(reconfigureRecommendation, entitySettingsCache, actionPlanId);
 
-        List<Setting> settingsList = Arrays.asList(
-                makeSetting("resize", ActionMode.RECOMMEND),
-                makeSetting("move", ActionMode.RECOMMEND),
-                makeSetting("storageMove", ActionMode.RECOMMEND),
-                makeSetting("activate", ActionMode.RECOMMEND),
-                makeSetting("reconfigure", ActionMode.RECOMMEND),
-                makeSetting("suspend", ActionMode.RECOMMEND)
-        );
+        Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
+                .put("resize", makeSetting("resize", ActionMode.RECOMMEND))
+                .put("move", makeSetting("move", ActionMode.RECOMMEND))
+                .put("storageMove", makeSetting("storageMove", ActionMode.RECOMMEND))
+                .put("activate", makeSetting("activate", ActionMode.RECOMMEND))
+                .put("reconfigure", makeSetting("reconfigure", ActionMode.RECOMMEND))
+                .put("suspend", makeSetting("suspend", ActionMode.RECOMMEND))
+                .build();
 
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-                .thenReturn(settingsList);
+                .thenReturn(settings);
         assertEquals(moveAction.getMode(), ActionMode.DISABLED);
         assertEquals(resizeAction.getMode(), ActionMode.DISABLED);
         assertEquals(activateAction.getMode(), ActionMode.DISABLED);
@@ -302,17 +263,17 @@ public class ActionTest {
     public void testGetModeSupportLevelSupported() {
         //SUPPORTED support level - all modes work
 
-        List<Setting> settingsList = Arrays.asList(
-            makeSetting("resize", ActionMode.AUTOMATIC),
-            makeSetting("move", ActionMode.AUTOMATIC),
-            makeSetting("storageMove", ActionMode.AUTOMATIC),
-            makeSetting("activate", ActionMode.AUTOMATIC),
-            makeSetting("reconfigure", ActionMode.RECOMMEND),
-            makeSetting("suspend", ActionMode.AUTOMATIC)
-        );
+        Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
+            .put("resize", makeSetting("resize", ActionMode.AUTOMATIC))
+            .put("move", makeSetting("move", ActionMode.AUTOMATIC))
+            .put("storageMove", makeSetting("storageMove", ActionMode.AUTOMATIC))
+            .put("activate", makeSetting("activate", ActionMode.AUTOMATIC))
+            .put("reconfigure", makeSetting("reconfigure", ActionMode.RECOMMEND))
+            .put("suspend", makeSetting("suspend", ActionMode.AUTOMATIC))
+            .build();
 
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
-                .thenReturn(settingsList);
+                .thenReturn(settings);
 
         assertEquals(resizeAction.getMode(), ActionMode.AUTOMATIC);
         assertEquals(activateAction.getMode(), ActionMode.AUTOMATIC);

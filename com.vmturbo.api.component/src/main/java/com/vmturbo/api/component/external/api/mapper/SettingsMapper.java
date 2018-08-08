@@ -969,7 +969,7 @@ public class SettingsMapper {
         Optional<EntitySettingSpecs> entitySpec =
             EntitySettingSpecs.getSettingByName(settingSpecName);
         if (entitySpec.isPresent()) {
-            return Optional.of(entitySpec.get().createSettingSpec());
+            return Optional.of(entitySpec.get().getSettingSpec());
         }
 
         Optional<GlobalSettingSpecs> globalSpec =

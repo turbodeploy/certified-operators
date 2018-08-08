@@ -90,6 +90,35 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Get the ID of the "main" entity targetted by a specific action.
+     * This will be one of the entities involved in the action.
+     *
+     * @param action The action in question.
+     * @return The ID of the entity targetted by the action.
+     * @throws UnsupportedActionException If the type of the action is not supported.
+     */
+    public static long getTargetEntityId(@Nonnull final Action action) throws UnsupportedActionException {
+        final ActionInfo actionInfo = action.getInfo();
+
+        switch (actionInfo.getActionTypeCase()) {
+            case MOVE:
+                return actionInfo.getMove().getTarget().getId();
+            case RECONFIGURE:
+                return actionInfo.getReconfigure().getTarget().getId();
+            case PROVISION:
+                return actionInfo.getProvision().getEntityToClone().getId();
+            case RESIZE:
+                return actionInfo.getResize().getTarget().getId();
+            case ACTIVATE:
+                return actionInfo.getActivate().getTarget().getId();
+            case DEACTIVATE:
+                return actionInfo.getDeactivate().getTarget().getId();
+            default:
+                throw new UnsupportedActionException(action.getId(), actionInfo);
+        }
+    }
+
+    /**
      * The equivalent of {@link ActionDTOUtil#getInvolvedEntities(Action)} for
      * a collection of actions. Returns the union of involved entities for every
      * action in the collection.

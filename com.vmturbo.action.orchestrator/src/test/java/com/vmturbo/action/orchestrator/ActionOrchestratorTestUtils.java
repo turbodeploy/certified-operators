@@ -1,12 +1,13 @@
 package com.vmturbo.action.orchestrator;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nonnull;
 
 import org.junit.Assert;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionTest;
@@ -141,8 +142,8 @@ public class ActionOrchestratorTestUtils {
                 .setIsExecutable(true);
     }
 
-    public static List<Setting> makeActionModeSetting(ActionMode mode) {
-        return Collections.singletonList(Setting.newBuilder()
+    public static Map<String, Setting> makeActionModeSetting(ActionMode mode) {
+        return ImmutableMap.of("move", Setting.newBuilder()
                 .setSettingSpecName("move")
                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(mode.toString()).build())
