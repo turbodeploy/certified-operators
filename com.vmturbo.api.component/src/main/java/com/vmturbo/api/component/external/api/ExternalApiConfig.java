@@ -50,8 +50,9 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
     public static final List<String> BASE_URL_MAPPINGS = ImmutableList.of(
             // This is the base currently used in the new UX.
             "/vmturbo/rest/*",
-            // This should be the future, to align with the V1 API which is at /api/
-            "/vmturbo/api/v2/*",
+            // This is the versioned name of the REST API, and should be preferred going forward
+            // It is aligned with the V1 API in OpsManager, which has a base URL of /api/v1
+            "/api/v2/*",
             // for SAML filters, see ApiSecurityConfig#samlFilter
             "/vmturbo/saml/*",
             // We are also supporting /api as of OM-32218
