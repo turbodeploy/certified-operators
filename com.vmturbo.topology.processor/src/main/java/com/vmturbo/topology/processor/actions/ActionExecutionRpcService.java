@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.actions;
 
 import static com.vmturbo.common.protobuf.ActionDTOUtil.getProviderEntityIdsFromMoveAction;
 
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -116,6 +118,12 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     final long actionId,
                     @Nonnull final ActionDTO.Activate activateAction)
                                     throws ActionExecutionException {
+        try {
+            // insert activate actions to action record table
+            entityActionDao.insertAction(actionId, ActionDTO.ActionType.ACTIVATE, new HashSet<>(Arrays.asList(targetId)));
+        } catch (DataAccessException e) {
+            logger.error("Failed to create queued activate action records for action: {}", actionId);
+        }
         final PerTargetInfo targetInfo =
                         getPerTargetInfo(targetId, activateAction.getTarget().getId(), "target");
 
@@ -193,7 +201,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
         final Set<Long> entityIds = getProviderEntityIdsFromMoveAction(moveAction);
         try {
             // insert records to controllable table which have "queued" status.
-            entityActionDao.insertAction(actionId, entityIds);
+            entityActionDao.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
         } catch (DataAccessException e) {
             logger.error("Failed to create queued controllable records for action: {}", actionId);
         }

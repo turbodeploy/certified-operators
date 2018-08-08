@@ -17,7 +17,9 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
+import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 
 public class EntityActionDaoImp implements EntityActionDao {
@@ -25,27 +27,34 @@ public class EntityActionDaoImp implements EntityActionDao {
 
     private final DSLContext dsl;
 
-    // For "in progress" or 'queued' entity action records. if their last update time is older than this
+    // For "in progress" or 'queued' move action records. if their last update time is older than this
     // time threshold, they will be deleted from entity action tables. This try to handle the case that
     // if Probe is down and can not send back action progress notification, they will be considered
     // as time out actions and be cleaned up.
-    private final int controllableSucceedRecordExpiredSeconds;
+    private final int moveSucceedRecordExpiredSeconds;
 
-    // For "succeed" entity action records, if their last update time is older than this time threshold,
+    // For "succeed" move action records, if their last update time is older than this time threshold,
     // they will be deleted from entity action table. This makes succeed entities will not participate
     // Market analysis immediately, it will have some default cool down time.
-    private final int controllableInProgressExpiredSeconds;
+    private final int activateOrMoveInProgressExpiredSeconds;
+
+    // For "succeed" activate action records, if their last update time is older than this time threshold,
+    // they will be deleted from entity action table. This immediately allow succeed entities suspendable.
+    private final int activateSucceedExpiredSeconds;
 
     public EntityActionDaoImp(@Nonnull final DSLContext dsl,
-                              final int controllableSucceedRecordExpiredSeconds,
-                              final int controllableInProgressExpiredSeconds) {
+                              final int moveSucceedRecordExpiredSeconds,
+                              final int activateOrMoveInProgressExpiredSeconds,
+                              final int activateSucceedExpiredSeconds) {
         this.dsl = Objects.requireNonNull(dsl);
-        this.controllableSucceedRecordExpiredSeconds = controllableSucceedRecordExpiredSeconds;
-        this.controllableInProgressExpiredSeconds = controllableInProgressExpiredSeconds;
+        this.moveSucceedRecordExpiredSeconds = moveSucceedRecordExpiredSeconds;
+        this.activateOrMoveInProgressExpiredSeconds = activateOrMoveInProgressExpiredSeconds;
+        this.activateSucceedExpiredSeconds = activateSucceedExpiredSeconds;
     }
 
     @Override
-    public void insertAction(final long actionId, @Nonnull final Set<Long> entityIds) {
+    public void insertAction(final long actionId, final ActionType actionType, @Nonnull final Set<Long> entityIds) 
+            throws IllegalArgumentException {
         if (entityIds.isEmpty()) {
             return;
         }
@@ -56,12 +65,28 @@ public class EntityActionDaoImp implements EntityActionDao {
                 transactionDsl.insertInto(ENTITY_ACTION)
                         .set(ENTITY_ACTION.ACTION_ID, actionId)
                         .set(ENTITY_ACTION.ENTITY_ID, entityId)
+                        .set(ENTITY_ACTION.ACTION_TYPE, getActionType(actionType))
                         .set(ENTITY_ACTION.STATUS, EntityActionStatus.queued)
                         .set(ENTITY_ACTION.UPDATE_TIME, now)
                         .execute();
             }
         });
 
+    }
+
+    /**
+     * Get EntityActionActionType from action DTO's action type
+     * @param actionType action type from action DTO
+     * @return EntityActionActionType
+     */
+    private EntityActionActionType getActionType(final ActionType actionType) {
+        if (actionType == ActionType.ACTIVATE) {
+            return EntityActionActionType.activate;
+        } else if (actionType == ActionType.MOVE) {
+            return EntityActionActionType.move;
+        } else {
+            throw new IllegalArgumentException("Inserting an action with type " + actionType);
+        }
     }
 
     @Override
@@ -89,14 +114,14 @@ public class EntityActionDaoImp implements EntityActionDao {
     }
 
     /**
-     * First it will delete all expired records from controllable tables. For 'failed' status records,
+     * It will delete all expired MOVE action records from controllable tables. For 'failed' status records,
      * it will delete all of them. For 'queued' and 'in progress' status records, it has a
      * configured {@link #controllableInProgressExpiredSeconds} which stores the timeout threshold
      * about when they should be considered as expired. For 'succeed' status records, it has a
      * configured {@link #controllableSucceedRecordExpiredSeconds} which has a different timeout
-     * threshold to determine when to delete. After delete expired records, it will get all entity
-     * ids which status is 'in progress' and 'succeed', those entity ids are the all not controllable
-     * entities.
+     * threshold to determine when to delete. After delete expired MOVE action records, it will get
+     * from MOVE action records all entity ids which status is 'in progress' and 'succeed', those entity
+     * ids are the not controllable entities.
      */
     @Override
     public Set<Long> getNonControllableEntityIds() {
@@ -104,38 +129,86 @@ public class EntityActionDaoImp implements EntityActionDao {
             LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
             final DSLContext transactionDsl = DSL.using(configuration);
             final LocalDateTime expiredInProgressThresholdTime =
-                    now.minusSeconds(controllableInProgressExpiredSeconds);
+                    now.minusSeconds(activateOrMoveInProgressExpiredSeconds);
             final LocalDateTime expiredSucceedThresholdTime =
-                    now.minusSeconds(controllableSucceedRecordExpiredSeconds);
+                    now.minusSeconds(moveSucceedRecordExpiredSeconds);
             final long deletedQueuedOrInProgressControllableCount = transactionDsl.deleteFrom(ENTITY_ACTION)
                     .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
                                 .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued)))
+                            .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
                             .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredInProgressThresholdTime)))
                     .execute();
             if (deletedQueuedOrInProgressControllableCount > 0) {
-                logger.warn("Deleted {} rows out of date in progress controllable records which update " +
+                logger.warn("Deleted {} rows out of date in progress move action records which update " +
                                 "time is less than {}",
                         deletedQueuedOrInProgressControllableCount, expiredInProgressThresholdTime);
             }
-            // delete all failed entity action records.
+            // delete all failed move entity action records.
             transactionDsl.deleteFrom(ENTITY_ACTION)
-                    .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed))
+                    .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed)
+                            .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
                     .execute();
             // delete all expired succeed records.
             transactionDsl.deleteFrom(ENTITY_ACTION)
                     .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)
-                            .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime)))
+                            .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime))
+                            .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
                     .execute();
             // after deleted expired records, the rest of 'succeed' or 'in progress' status records
             // are the entities not controllable. And for 'queued' records, it means its action is not
             // be executed by probes yet, so it is still controllable.
             return transactionDsl.selectFrom(ENTITY_ACTION)
-                    .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
+                    .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
                             .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)))
+                           .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
                     .fetchSet(ENTITY_ACTION.ENTITY_ID);
         });
     }
 
+    @Override
+    public Set<Long> getNonSuspendableEntityIds() {
+        return dsl.transactionResult(configuration -> {
+            LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+            final DSLContext transactionDsl = DSL.using(configuration);
+            final LocalDateTime expiredInProgressThresholdTime =
+                    now.minusSeconds(activateOrMoveInProgressExpiredSeconds);
+            final LocalDateTime expiredSucceedThresholdTime =
+                    now.minusSeconds(activateSucceedExpiredSeconds);
+            final long deletedQueuedOrInProgressActionCount = transactionDsl.deleteFrom(ENTITY_ACTION)
+                    .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
+                                .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued)))
+                            .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
+                            .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredInProgressThresholdTime)))
+                    .execute();
+            if (deletedQueuedOrInProgressActionCount > 0) {
+                logger.warn("Deleted {} rows out of date in progress activate action records which update " +
+                                "time is less than {}",
+                        deletedQueuedOrInProgressActionCount, expiredInProgressThresholdTime);
+            }
+            // delete all failed activate entity action records.
+            transactionDsl.deleteFrom(ENTITY_ACTION)
+                    .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed)
+                            .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate)))
+                    .execute();
+            // delete all expired successful records.
+            transactionDsl.deleteFrom(ENTITY_ACTION)
+                    .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)
+                            .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
+                            .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime)))
+                    .execute();
+            // after deleted expired records, the rest of 'succeed', 'queued' or 'in progress' status records
+            // are the entities not suspendable. It is important to notice that for entity with activate action
+            // in 'queued' or 'in progress' state, it remain as inactive so it will not be considered for
+            // suspension. For those entities, either suspendable true or false does not make a difference.
+            // For simplicity, we make those entities suspendable false.
+            return transactionDsl.selectFrom(ENTITY_ACTION)
+                    .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
+                            .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed))
+                            .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued)))
+                           .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate)))
+                    .fetchSet(ENTITY_ACTION.ENTITY_ID);
+        });
+    }
     private List<EntityActionRecord> getInProgressRecordsByActionId(final DSLContext transactionDsl,
                                                                     final long actionId)
             throws ControllableRecordNotFoundException {

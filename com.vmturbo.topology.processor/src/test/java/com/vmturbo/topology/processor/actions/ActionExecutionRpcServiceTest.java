@@ -116,7 +116,8 @@ public class ActionExecutionRpcServiceTest {
 
         Mockito.verify(operationManager).requestActions(Mockito.eq(request.getActionId()),
                 Mockito.eq(targetId), actionItemDTOCaptor.capture());
-        Mockito.verify(entityActionDao).insertAction(0, Sets.newHashSet(2L,3L,4L,5L));
+        Mockito.verify(entityActionDao).insertAction(0, ActionDTO.ActionType.MOVE,
+                Sets.newHashSet(2L,3L,4L,5L));
 
         final List<ActionItemDTO> dtos = actionItemDTOCaptor.getValue();
 

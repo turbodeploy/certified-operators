@@ -11,19 +11,22 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Configuration
 @Import(SQLDatabaseConfig.class)
 public class ControllableConfig {
-    @Value("${controllableInProgressRecordExpiredSeconds}")
-    private int controllableInProgressExpiredSeconds;
+    @Value("${activateOrMoveInProgressRecordExpiredSeconds}")
+    private int activateOrMoveInProgressRecordExpiredSeconds;
 
-    @Value("${controllableSucceedRecordExpiredSeconds}")
-    private int controllableSucceedRecordExpiredSeconds;
+    @Value("${moveSucceedRecordExpiredSeconds}")
+    private int moveSucceedRecordExpiredSeconds;
+
+    @Value("${activateSucceedRecordExpiredSeconds}")
+    private int activateSucceedRecordExpiredSeconds;
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
 
     @Bean
     public EntityActionDaoImp entityActionDaoImp() {
-        return new EntityActionDaoImp(databaseConfig.dsl(), controllableSucceedRecordExpiredSeconds,
-                controllableInProgressExpiredSeconds);
+        return new EntityActionDaoImp(databaseConfig.dsl(), moveSucceedRecordExpiredSeconds,
+                activateOrMoveInProgressRecordExpiredSeconds, activateSucceedRecordExpiredSeconds);
     }
 
     @Bean

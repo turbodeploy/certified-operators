@@ -42,4 +42,22 @@ public class ControllableManager {
                 .forEach(entityBuilder ->
                         entityBuilder.getAnalysisSettingsBuilder().setControllable(false));
     }
+
+    /**
+     * If entity has an activate action in the table, it means the entity is about or
+     * has been activated. It should not be suspendable in analysis.
+     *
+     * @param topology a Map contains all topology entities, and which key is entity Id, and value is
+     *                 {@link TopologyEntity.Builder}.
+     */
+    public void applySuspendable(@Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        final Set<Long> entityIdsNotSuspendable =
+                entityActionDao.getNonSuspendableEntityIds();
+        entityIdsNotSuspendable.stream()
+                .filter(topology::containsKey)
+                .map(topology::get)
+                .map(TopologyEntity.Builder::getEntityBuilder)
+                .forEach(entityBuilder ->
+                        entityBuilder.getAnalysisSettingsBuilder().setSuspendable(false));
+    }
 }

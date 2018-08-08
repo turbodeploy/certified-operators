@@ -458,6 +458,7 @@ public class Stages {
         @Override
         public void passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             controllableManager.applyControllable(input);
+            controllableManager.applySuspendable(input);
         }
     }
 
