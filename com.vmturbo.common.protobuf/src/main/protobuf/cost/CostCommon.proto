@@ -1,0 +1,91 @@
+syntax = "proto2";
+package cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+// This file contains general cost/price-related protobuf messages that are shared across multiple
+// aspecs of cost/price.
+
+// The tenancy of an instance defines what hardware the instance is running on.
+enum Tenancy {
+    // Instance runs on shared/default hardware.
+    // This is typically the cheapest option.
+    DEFAULT = 1;
+
+    // Instance runs on single-tenant hardware.
+    // That means your instance runs on a host that's separate from other customers,
+    // but the host details are abstracted away, and you're not paying for the whole host.
+    DEDICATED = 2;
+
+    // Instance runs on a dedicated Host.
+    // This means your instance runs on a specific host, and you are paying for the full host and
+    // are responsible for managing it.
+    HOST = 3;
+}
+
+// The supported operating systems.
+enum OSType {
+    UNKNOWN_OS = 0;
+
+    // Unix OS.
+    LINUX = 2;
+    SUSE = 3;
+    RHEL = 4;
+
+    // Windows OS.
+    WINDOWS = 20;
+    WINDOWS_WITH_SQL_STANDARD = 21;
+    WINDOWS_WITH_SQL_WEB = 22;
+    WINDOWS_WITH_SQL_ENTERPRISE = 23;
+    WINDOWS_BYOL = 24;
+}
+
+// The engine for a database tier.
+// This is an enum to save on space - and also because
+// the list of supported engines across cloud providers is pretty small.
+enum DatabaseEngine {
+    UNKNOWN = 0;
+    MYSQL = 1;
+    MARIADB = 2;
+    POSTGRESQL = 3;
+    ORACLE = 4;
+    SQL_SERVER = 5;
+    AURORA = 6;
+}
+
+// The edition of a database engine.
+// The edition enum is closely related to the DatabaseEngine enum, and in the future it may be
+// worth it to have a separate "database identifier" message that forbids illegal
+// engine-edition combinations. For now, there are only two database engines with editions,
+// so this seems manageable.
+enum DatabaseEdition {
+    NONE = 0;
+
+    // The available database editions when DatabaseEngine is ORACLE.
+    // These values are meaningless with any other engine.
+    ORACLE_ENTERPRISE = 1;
+    ORACLE_STANDARD = 2;
+    ORACLE_STANDARD_1 = 3;
+    ORACLE_STANDARD_2 = 4;
+
+    // The available database editions when DatabaseEngine is SQL_SERVER.
+    // These values are meaningless with any other engine.
+    SQL_SERVER_ENTERPRISE = 10;
+    SQL_SERVER_STANDARD = 11;
+    SQL_SERVER_WEB = 12;
+}
+
+// An amount of money, expressed in some currency.
+message CurrencyAmount {
+    // The currency in which the amount is expressed.
+    // This is the ISO 4217 numeric code.
+    // The default (840) is the USD currency code.
+    //
+    // We use the ISO 4217 standard so that in the future it would be easier to integrate
+    // with JSR 354: Money and Currency API.
+    optional int32 currency = 1 [default = 840];
+
+    // The value, in the currency.
+    // This should be non-negative, with 0 representing "free".
+    optional double amount = 2;
+}

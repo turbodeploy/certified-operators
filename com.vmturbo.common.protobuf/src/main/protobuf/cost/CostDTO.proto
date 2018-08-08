@@ -4,6 +4,7 @@ package cost;
 option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "common/Pagination.proto";
+import "cost/CostCommon.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -19,13 +20,13 @@ message AccountExpenses {
     message ServiceExpenses {
         optional int64 associated_service_id = 1;
 
-        optional float expenses = 2;
+        optional CurrencyAmount expenses = 2;
     }
 
     message TierExpenses {
         optional int64 associated_tier_id = 1;
 
-        optional float expenses = 2;
+        optional CurrencyAmount expenses = 2;
     }
 
     // The timestamp at which the expense is received by Cost component.
