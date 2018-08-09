@@ -25,6 +25,8 @@ import io.grpc.stub.StreamObserver;
 import tec.units.ri.unit.MetricPrefix;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -76,7 +78,7 @@ public class MarketPerformanceTest {
                         .withMemLimit(4, MetricPrefix.GIGA)
                         .logsToLogger(logger)))
         .withStubs(ComponentStubHost.newBuilder()
-            .withGrpcServices(new GlobalSettingsStub()))
+            .withGrpcServices(new GlobalSettingsStub(), new GetGroupsStub()))
         .scrapeClusterAndLocalMetricsToInflux();
 
     private MarketComponent marketComponent;
@@ -268,6 +270,14 @@ public class MarketPerformanceTest {
                         SettingDTOUtil.createNumericSettingValue(2.0f)))
                 .build());
             responseObserver.onCompleted();
+        }
+    }
+
+    public class GetGroupsStub extends GroupServiceImplBase {
+        @Override
+        public void getGroups(GroupDTO.GetGroupsRequest request,
+                              StreamObserver<GroupDTO.Group> responseObserver) {
+            responseObserver.onCompleted(); // Don't return any groups
         }
     }
 }
