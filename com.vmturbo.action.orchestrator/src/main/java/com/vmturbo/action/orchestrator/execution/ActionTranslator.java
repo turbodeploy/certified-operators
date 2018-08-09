@@ -18,13 +18,13 @@ import com.google.common.collect.Lists;
 
 import io.grpc.Channel;
 
-import com.vmturbo.action.orchestrator.action.ActionCategoryExtractor;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExplanationComposer;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoRequest;
@@ -141,7 +141,23 @@ public class ActionTranslator {
     @Nonnull
     public Stream<ActionSpec> translateToSpecs(@Nonnull final Stream<ActionView> actionStream) {
         return translate(actionStream)
+            .filter(this::isVcpuResizeTranslationSuccessful)
             .map(this::toSpec);
+    }
+
+    /**
+     * Filter out VCPU resize actions with same "from" and "to" values. Since it doesn't make sense
+     * to generate same values VCPU resize actions.
+     * TODO: refactor it to be more genaric, probably a predicate?
+     * @param actionView action view
+     * @return false if it's VCPU resize action and translation is failed.
+     */
+    private boolean isVcpuResizeTranslationSuccessful(@Nonnull final ActionView actionView) {
+        final ActionDTO.ActionInfo actionInfo = actionView.getRecommendation().getInfo();
+        // not resize action || not VCPU resize || VCPU resize translation is successful
+        return !actionInfo.getActionTypeCase().equals(ActionTypeCase.RESIZE)
+                || actionInfo.getResize().getCommodityType().getType() != CommodityType.VCPU_VALUE
+                || actionView.getActionTranslation().getTranslatedRecommendation().isPresent();
     }
 
     /**
@@ -409,6 +425,23 @@ public class ActionTranslator {
                     final Resize newResize =
                         translateVcpuResizeInfo(action.getRecommendation().getInfo().getResize(), hostInfo);
 
+                    // Float comparision should apply epsilon. But in this case both capacities are
+                    // result of Math.round and Math.ceil (see translateVcpuResizeInfo method),
+                    // so the values are actually integers.
+                    if (Float.compare(newResize.getOldCapacity(), newResize.getNewCapacity()) == 0) {
+                        action.getActionTranslation().setTranslationFailure();
+                        logger.warn("VCPU resize has same from and to value, " +
+                                        "from: {}, " +
+                                        "to: {}. " +
+                                        "From {} to {} for host with info {}" +
+                                        "Skipping translation",
+                                newResize.getOldCapacity(),
+                                newResize.getNewCapacity(),
+                                action.getRecommendation().getInfo().getResize(),
+                                newResize,
+                                hostInfo);
+                        return action;
+                    }
                     // Resize explanation does not need to be translated because the explanation is in terms
                     // of utilization which is normalized so translating units will not affect the values.
 
@@ -431,7 +464,7 @@ public class ActionTranslator {
         private Resize translateVcpuResizeInfo(@Nonnull final Resize originalResize,
                                                @Nonnull final HostInfo hostInfo) {
             final Resize newResize = originalResize.toBuilder()
-                .setOldCapacity((float)Math.ceil(originalResize.getOldCapacity() / hostInfo.getCpuCoreMhz()))
+                .setOldCapacity(Math.round(originalResize.getOldCapacity() / hostInfo.getCpuCoreMhz()))
                 .setNewCapacity((float)Math.ceil(originalResize.getNewCapacity() / hostInfo.getCpuCoreMhz()))
                 .build();
 

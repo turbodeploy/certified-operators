@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.rpc;
 
+import static com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils.createActionEntity;
 import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -48,6 +49,8 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
@@ -59,6 +62,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
@@ -66,6 +70,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -75,6 +80,8 @@ public class ActionQueryRpcTest {
 
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
+    private ActionsServiceBlockingStub actionOrchestratorServiceClientForFailedTranslation;
+
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
     private final ActionTranslator actionTranslator = new ActionTranslator(actionStream ->
@@ -82,6 +89,12 @@ public class ActionQueryRpcTest {
             action.getActionTranslation().setPassthroughTranslationSuccess();
             return action;
         }));
+
+    private final ActionTranslator actionTranslatorWithFailedTranslation = new ActionTranslator(actionStream ->
+            actionStream.map(action -> {
+                action.getActionTranslation().setTranslationFailure();
+                return action;
+            }));
 
     private final ActionPaginatorFactory paginatorFactory =
             Mockito.spy(new DefaultActionPaginatorFactory(1000, 1000));
@@ -93,16 +106,26 @@ public class ActionQueryRpcTest {
             actionStorehouse, Mockito.mock(ActionExecutor.class),
             actionTranslator, paginatorFactory);
 
+    private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
+            actionStorehouse, Mockito.mock(ActionExecutor.class),
+            actionTranslatorWithFailedTranslation, paginatorFactory);
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
 
+    @Rule
+    public GrpcTestServer grpcServerForFailedTranslation = GrpcTestServer.newServer(actionsRpcServiceWithFailedTranslator);
+
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
+        actionOrchestratorServiceClientForFailedTranslation =
+                ActionsServiceGrpc.newBlockingStub(grpcServerForFailedTranslation.getChannel());
 
         when(actionStorehouse.getStore(topologyContextId)).thenReturn(Optional.of(actionStore));
     }
@@ -191,6 +214,70 @@ public class ActionQueryRpcTest {
                 .map(ActionOrchestratorAction::getActionSpec)
                 .collect(Collectors.toList());
         assertThat(actionSpecs, containsInAnyOrder(spec(visibleAction), spec(disabledAction)));
+    }
+
+    /**
+     * Verify filtering out VCPU resize actions with same "from" and "to" values.
+     * Since it doesn't make sense to generate same values VCPU resize actions.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetAllActionWithResizeActionWithFailedTranslation() throws Exception {
+        ActionView resizeAction = new Action(ActionOrchestratorTestUtils
+                .createResizeRecommendation(1, 11l,
+                        CommodityType.VCPU, 4000, 2500), actionPlanId);
+        resizeAction.getActionTranslation().setTranslationFailure();
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                resizeAction.getId(), resizeAction               );
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+        FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .build();
+
+        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClientForFailedTranslation.getAllActions(actionRequest)
+                .getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList());
+        assertEquals(0, actionSpecs.size());
+    }
+
+    /**
+     * Verify, we are NOT filtering out VCPU resize actions with different "from" and "to" values.
+     * @throws Exception
+     */
+    @Test
+    public void testGetAllActionWithResizeActionWithTranslation() throws Exception {
+        final long id = 11l;
+        ActionView resizeAction = new Action(ActionOrchestratorTestUtils
+                .createResizeRecommendation(1, id, CommodityType.VCPU, 5000,
+                        2500), actionPlanId);
+        final Resize newResize = ActionDTO.Resize.newBuilder()
+                .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU.getNumber()))
+                .setOldCapacity((float)5)
+                .setNewCapacity((float)2.5)
+                .setTarget(createActionEntity(id)).build();
+        resizeAction.getActionTranslation().setTranslationSuccess(
+                resizeAction.getRecommendation().toBuilder().setInfo(
+                        ActionInfo.newBuilder(resizeAction.getRecommendation().getInfo())
+                                .setResize(newResize).build())
+                        .build());
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                resizeAction.getId(), resizeAction               );
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(PlanActionStore.VISIBILITY_PREDICATE);
+
+        FilteredActionRequest actionRequest = FilteredActionRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .build();
+
+        final List<ActionSpec> actionSpecs = actionOrchestratorServiceClient.getAllActions(actionRequest)
+                .getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                .collect(Collectors.toList());
+        assertEquals(1, actionSpecs.size());
     }
 
     @Test

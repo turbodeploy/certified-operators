@@ -138,6 +138,14 @@ public class ActionTranslatorTest {
     }
 
     @Test
+    public void testTranslateResizeActionTypesWithSameVcpuValue() throws Exception {
+        final Action resize = setupDefaultResizeActionNegativeScenario();
+        assertEquals(1, translator.translate(Stream.of(resize)).count());
+        assertFalse("the recommendation should not present",
+                resize.getActionTranslation().getTranslatedRecommendation().isPresent());
+    }
+
+    @Test
     public void testAlreadyTranslatedDoesNotCallService() throws Exception {
         final Action resize = setupDefaultResizeAction();
         final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId);
@@ -218,6 +226,27 @@ public class ActionTranslatorTest {
         return new Action(ActionOrchestratorTestUtils
             .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VPCU_MHZ),
             actionPlanId);
+    }
+
+    /* Host CPU 2k (MHZ)
+       Market generated VCPU size down action:
+            old_capacity: 4k
+            new_capacity: 2.5k
+       VCPU from value is 2.0 (Math.round(originalResize.getOldCapacity() / hostInfo.getCpuCoreMhz()))
+            to value is 2.0 ((float)Math.ceil(originalResize.getNewCapacity() / hostInfo.getCpuCoreMhz()))
+     */
+    private Action setupDefaultResizeActionNegativeScenario() {
+        when(entityServiceSpy.getHostsInfo(eq(GetHostInfoRequest.newBuilder()
+                .addVirtualMachineIds(VM_TARGET_ID)
+                .build())))
+                .thenReturn(Collections.singletonList(GetHostInfoResponse.newBuilder()
+                        .setVirtualMachineId(VM_TARGET_ID)
+                        .setHostInfo(hostInfo(CPU_SPEED_MHZ, 1234))
+                        .build()));
+
+        return new Action(ActionOrchestratorTestUtils
+                .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, 4000, 2500),
+                actionPlanId);
     }
 
     private void verifyDefaultTranslatedResize(ActionDTO.Action translatedResize) {
