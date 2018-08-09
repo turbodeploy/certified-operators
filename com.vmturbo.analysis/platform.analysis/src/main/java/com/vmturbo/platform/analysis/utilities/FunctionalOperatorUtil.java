@@ -166,8 +166,9 @@ public class FunctionalOperatorUtil {
 
                             double discountedCost = 0;
                             double discountCoefficient = 0;
+                            double allocatedCoupons = 0;
                             if (availableCoupons > 0) {
-                                double allocatedCoupons = Math.min(requestedCoupons, availableCoupons);
+                                allocatedCoupons = Math.min(requestedCoupons, availableCoupons);
                                 buyer.setQuantity(boughtIndex, allocatedCoupons);
                                 discountCoefficient = allocatedCoupons / requestedCoupons;
                                 discountedCost = ((1 - discountCoefficient) * templateCost) + (discountCoefficient
@@ -175,16 +176,23 @@ public class FunctionalOperatorUtil {
                             }
                             // The cost of vm placed on a cbtp is the discounted cost
                             buyer.setCost(discountedCost);
-                            if (logger.isTraceEnabled()) {
-                                logger.trace(buyer.getBuyer().getDebugInfoNeverUseInCode() + " migrated to CBTP "
+                            if (logger.isTraceEnabled() || buyer.getBuyer().isDebugEnabled()) {
+                                logger.info(buyer.getBuyer().getDebugInfoNeverUseInCode() + " migrated to CBTP "
                                              + seller.getDebugInfoNeverUseInCode() + " offering a dicount of "
                                              + cbtpResourceBundle.getDiscountPercentage() + " on TP "
                                              + matchingTP.getDebugInfoNeverUseInCode() + " at a discountCoeff of"
                                              + discountCoefficient + " with a final discount of "
-                                             + discountedCost);
+                                             + discountedCost + " requests " + requestedCoupons + " coupons, allowed "
+                                             + allocatedCoupons + " coupons");
                             }
-                            // Increase the used value of coupon commodity sold by cbtp accordingly
-                            return new double[]{(commSold.getQuantity() + requestedCoupons), 0};
+                            /** Increase the used value of coupon commodity sold by cbtp accordingly.
+                             * Increase the value by what was allocated to the buyer and not
+                             * how much the buyer requested. This is important when we rollback the action.
+                             * During rollback, we are only subtracting what buyer is buying (quantity).
+                             * This was changed few lines above to what is allocated and not to what was
+                             * requested by buyer.
+                             */
+                            return new double[]{(commSold.getQuantity() + allocatedCoupons), 0};
                         };
                         return UPDATE_COUPON_COMM;
     }
