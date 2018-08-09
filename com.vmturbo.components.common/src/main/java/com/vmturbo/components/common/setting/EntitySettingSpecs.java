@@ -151,7 +151,7 @@ public enum EntitySettingSpecs {
      */
     StorageOverprovisionedPercentage("storageOverprovisionedPercentage",
             "Storage Overprovisioned Percentage",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
             numeric(1f, 1000f, 200f), true),
     /**
@@ -175,7 +175,7 @@ public enum EntitySettingSpecs {
      * IOPS capacity to set on the entity.
      */
     IOPSCapacity("iopsCapacity", "IOPS Capacity",
-            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
                 EntityType.STORAGE_CONTROLLER, EntityType.STORAGE),
             new NumericSettingDataType(20f, 1000000, 5000,
