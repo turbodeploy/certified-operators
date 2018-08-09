@@ -18,9 +18,9 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -92,6 +92,7 @@ public class EntitySettingsApplicator {
      */
     private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo) {
         return ImmutableList.of(new MoveApplicator(),
+                new VMShopTogetherApplicator(),
                 new SuspendApplicator(),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
@@ -200,6 +201,39 @@ public class EntitySettingsApplicator {
         }
     }
 
+    /**
+     * Set shop together on a virtual machine{@link TopologyEntityDTO.Builder} based on the "move"
+     * and "storage move" settings. In particular, if the "move" and "storage move"
+     * action settings are both in Manual, or both in Automatic state, shop together can be enabled.
+     * Otherwise, set the shop together to false because user has to explicitly change the settings
+     * to turn on bundled moves on compute and storage resources.
+     */
+    private static class VMShopTogetherApplicator implements SettingApplicator {
+
+        @Override
+        public void apply(Builder entity, Map<EntitySettingSpecs, Setting> settings) {
+            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                            && settings.containsKey(EntitySettingSpecs.Move)
+                            && settings.containsKey(EntitySettingSpecs.StorageMove)) {
+                final String computeMoveSetting = settings.get(EntitySettingSpecs.Move)
+                        .getEnumSettingValue().getValue();
+                final String storageMoveSetting = settings.get(EntitySettingSpecs.StorageMove)
+                        .getEnumSettingValue().getValue();
+                boolean isAutomateOrManual = computeMoveSetting.equals(ActionMode.AUTOMATIC.name())
+                                || computeMoveSetting.equals(ActionMode.MANUAL.name());
+                // Note: if a VM does not support shop together execution, even when move and storage
+                // move sets to Manual or Automatic, dont enable shop together.
+                if (!computeMoveSetting.equals(storageMoveSetting) || !isAutomateOrManual) {
+                    // user has to change default VM action settings to explicitly indicate they
+                    // want to have compound move actions generated considering best placements in
+                    // terms of both storage and compute resources. Usually user ask for shop together
+                    // moves so as to take the actions to move VM across networks, thus Manual and
+                    // Automatic has to be chosen to execute the actions.
+                    entity.getAnalysisSettingsBuilder().setShopTogether(false);
+                }
+            }
+        }
+    }
     /**
      * For move setting, it supports both VM and Storage entities. For VM entity, it only controls
      * moves between hosts, because moves between storage is controlled by storage setting.

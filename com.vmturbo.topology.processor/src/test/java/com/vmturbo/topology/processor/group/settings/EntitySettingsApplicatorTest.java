@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -51,6 +52,26 @@ public class EntitySettingsApplicatorTest {
             .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
             .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
             .build();
+
+    private static final Setting MOVE_MANUAL_SETTING = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
+                    .build();
+
+    private static final Setting STORAGE_MOVE_MANUAL_SETTING = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
+                    .build();
+
+    private static final Setting MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
+                    .build();
+
+    private static final Setting STORAGE_MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
+                    .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
+                    .build();
 
     private static final Setting STORAGE_MOVE_DISABLED_SETTING = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
@@ -131,6 +152,69 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    @Test
+    public void testShopTogetherApplicator() {
+        final TopologyEntityDTO.Builder pmSNMNotSupport = TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(false))
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(PARENT_ID)
+                                .setProviderEntityType(EntityType.DATACENTER_VALUE)
+                                .setMovable(true));
+        applySettings(TOPOLOGY_INFO, pmSNMNotSupport, MOVE_MANUAL_SETTING);
+        assertThat(pmSNMNotSupport.getAnalysisSettings().getShopTogether(), is(false));
+
+        final TopologyEntityDTO.Builder pmSNMSupport = TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(PARENT_ID)
+                                .setProviderEntityType(EntityType.DATACENTER_VALUE)
+                                .setMovable(true));
+        applySettings(TOPOLOGY_INFO, pmSNMSupport, MOVE_MANUAL_SETTING);
+        assertThat(pmSNMSupport.getAnalysisSettings().getShopTogether(), is(true));
+
+        final TopologyEntityDTO.Builder vmSNMNotSupported = TopologyEntityDTO.newBuilder()
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(false))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setMovable(true));
+        applySettings(TOPOLOGY_INFO, vmSNMNotSupported, MOVE_MANUAL_SETTING, STORAGE_MOVE_MANUAL_SETTING);
+        assertThat(vmSNMNotSupported.getAnalysisSettings().getShopTogether(), is(false));
+
+        final TopologyEntityDTO.Builder vmSNMSupported = TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(PARENT_ID)
+                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                .setMovable(true));
+        applySettings(TOPOLOGY_INFO, vmSNMSupported, MOVE_AUTOMATIC_SETTING, STORAGE_MOVE_AUTOMATIC_SETTING);
+        assertThat(vmSNMSupported.getAnalysisSettings().getShopTogether(), is(true));
+
+        final TopologyEntityDTO.Builder vmSNMSupported2 = TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(PARENT_ID)
+                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                .setMovable(true));
+        applySettings(TOPOLOGY_INFO, vmSNMSupported2, MOVE_MANUAL_SETTING, STORAGE_MOVE_AUTOMATIC_SETTING);
+        assertThat(vmSNMSupported2.getAnalysisSettings().getShopTogether(), is(false));
+
+        final TopologyEntityDTO.Builder vmSNMSupported3 = TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(PARENT_ID)
+                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                .setMovable(true));
+                applySettings(TOPOLOGY_INFO, vmSNMSupported3, MOVE_MANUAL_SETTING, STORAGE_MOVE_MANUAL_SETTING);
+                assertThat(vmSNMSupported3.getAnalysisSettings().getShopTogether(), is(true));
     }
 
     /**
