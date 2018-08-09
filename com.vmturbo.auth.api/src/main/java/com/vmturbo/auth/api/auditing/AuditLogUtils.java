@@ -23,13 +23,12 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 public final class AuditLogUtils {
 
     private static final String LOOPBACK = "127.0.0.1"; // assume it's IPv4 for now
-    private static final String SYSTEM = "SYSTEM";
+    public static final String SYSTEM = "SYSTEM";
     private static final String RESULT_FAILURE = "result=Failure";
     private static final String RESULT_SUCCESS = "result=Success";
     private static final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
     public static final String LEFT_BRACKET = "(";
     public static final String RIGHT_BRACKET = ")";
-    public static final String EMPTY_STRING = "";
 
     private static final org.apache.log4j.Logger logger = org.apache.log4j.Logger
             .getLogger(AuditLogUtils.class);
@@ -128,8 +127,10 @@ public final class AuditLogUtils {
     public static String getUserNameAndUuidFromGrpcSecurityContext() {
         final String userName = SecurityConstant.USER_ID_CTX_KEY.get();
         final String userUuid = SecurityConstant.USER_UUID_KEY.get();
-        //TODO instead of EMPTY_STRING, return component/system uuid
+        // Automated actions will have SYSTEM as user.
+        // TODO: when all component gRPC requests have component name and uuid, throw security exception
+        // instead of returning "SYSTEM".
         return (userName != null && userUuid != null) ?
-                userName + LEFT_BRACKET + userUuid + RIGHT_BRACKET : EMPTY_STRING;
+                userName + LEFT_BRACKET + userUuid + RIGHT_BRACKET : SYSTEM;
     }
 }

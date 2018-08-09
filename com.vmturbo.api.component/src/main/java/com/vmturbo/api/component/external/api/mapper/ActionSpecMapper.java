@@ -42,6 +42,7 @@ import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -358,10 +359,27 @@ public class ActionSpecMapper {
                         decision.getExecutionDecision();
                 final String decisionUserUUid = executionDecision.getUserUuid();
                 actionApiDTO.setUserName(decisionUserUUid);
+                // update actionMode based on decision uer id
+                // TODO: move it to Action Orchestrator (see OM-37935)
+                updateActionMode(actionApiDTO, decisionUserUUid);
             }
         }
 
         return actionApiDTO;
+    }
+
+    /**
+     * Update action mode based on decision user id.
+     * Rule: if the decision user id is "SYSTEM", set the action mode to "automatic".
+     *
+     * @param actionApiDTO action API DTO
+     * @param decisionUserUUid decision user id
+     */
+    private void updateActionMode(@Nonnull final ActionApiDTO actionApiDTO,
+                                  @Nullable final String decisionUserUUid) {
+        if (AuditLogUtils.SYSTEM.equals(decisionUserUUid)) {
+            actionApiDTO.setActionMode(ActionMode.AUTOMATIC);
+        }
     }
 
     @Nonnull
