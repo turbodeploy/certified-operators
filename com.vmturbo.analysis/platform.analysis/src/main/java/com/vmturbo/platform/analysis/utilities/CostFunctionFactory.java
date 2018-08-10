@@ -439,25 +439,32 @@ public class CostFunctionFactory {
     /**
      * Calculates the cost of template that a shopping list has matched to
      *
-     * @param seller {@link Trader} that the buyer matched to
      * @param sl is the {@link ShoppingList} that is requesting price
      * @param costDTO is the resourceBundle associated with this templateProvider
      * @param costMap is the license based cost map where the key is the commType and the value is the cost
      *
      * @return the cost given by {@link CostFunction}
      */
-    public static double calculateComputeCost(Trader seller, ShoppingList sl,
-                                              ComputeResourceBundleCostDTO costDTO,
-                                              Map<Integer, Double> costMap) {
-        int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(costDTO.getLicenseBaseType());
+    private static double calculateComputeCost(ShoppingList sl,
+                                               ComputeResourceBundleCostDTO costDTO,
+                                               Map<Integer, Double> costMap) {
+        final int licenseBaseType = costDTO.getLicenseBaseType();
+        int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
         if (licenseCommBoughtIndex == -1) {
-            // buyer doesnt shop for license
+            // buyer doesn't shop for license
             return costDTO.getCostWithoutLicense();
-        } else {
-            // if the commodity exists in the basketBought, get the type of that commodity and
-            // and lookup the costMap for that license type
-            return costMap.get(sl.getBasket().get(licenseCommBoughtIndex).getType());
         }
+
+        // if the commodity exists in the basketBought, get the type of that commodity
+        // and lookup the costMap for that license type
+        final Integer type = sl.getBasket().get(licenseCommBoughtIndex).getType();
+        final Double cost = costMap.get(type);
+        if (cost == null) {
+            logger.error("Cannot find type {} in costMap, license base type: {}", type,
+                    licenseBaseType);
+            return costDTO.getCostWithoutLicense();
+        }
+        return cost;
     }
 
     /**
@@ -663,7 +670,7 @@ public class CostFunctionFactory {
                         -> {
                             if (!validate) {
                                 // seller is the currentSupplier. Just return cost
-                                return calculateComputeCost(seller, buyer, costDTO, costMap);
+                                return calculateComputeCost(buyer, costDTO, costMap);
                             }
                             if (!validateRequestedAmountWithinSellerCapacity(buyer, seller)) {
                                 return Double.POSITIVE_INFINITY;
@@ -674,7 +681,7 @@ public class CostFunctionFactory {
                                                                            costDTO.getComm2Type())) {
                                 return Double.POSITIVE_INFINITY;
                             }
-                            return calculateComputeCost(seller, buyer, costDTO, costMap);
+                            return calculateComputeCost(buyer, costDTO, costMap);
                         };
         return costFunction;
     }
