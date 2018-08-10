@@ -331,6 +331,12 @@ mediation-aws:
 mediation-awsbilling:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
+  turbonomic.aws.persistent.path: /home/turbonomic/data/
+
+mediation-awscost:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+  turbonomic.aws.persistent.path: /home/turbonomic/data/
 
 plan-orchestrator:
   <<: *baseVmtComponentSettings

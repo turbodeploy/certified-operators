@@ -62,6 +62,7 @@ volumes:
   mediation-ucsdirector: *localdriver
   mediation-aws: *localdriver
   mediation-awsbilling: *localdriver
+  mediation-awscost: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -893,3 +894,20 @@ services:
     volumes:
       - mediation-awsbilling:/home/turbonomic/data
     mem_limit: ${MEDIATION_AWSBILLING_MEM_LIMIT_MB}M
+
+  mediation-awscost:
+      extends:
+        file: common-services.yml
+        service: dev-component
+      image: turbonomic/com.vmturbo.mediation.aws.cost.component
+      depends_on: *clustermgrdep
+      ports:
+        - "${MEDIATION_AWSCOST_PORT}"
+        - "${MEDIATION_AWSCOST_DEBUG_PORT}"
+      environment:
+        component_type: mediation-awscost
+        instance_id: mediation-awscost-1
+        JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_AWSCOST_XMX_MB}M ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES}"
+      volumes:
+        - mediation-awscost:/home/turbonomic/data
+      mem_limit: ${MEDIATION_AWSCOST_MEM_LIMIT_MB}M
