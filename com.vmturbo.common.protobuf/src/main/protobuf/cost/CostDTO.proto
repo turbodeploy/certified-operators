@@ -79,6 +79,44 @@ message ExpenseQueryFilter {
     optional int64 end_date = 4;
 }
 
+// Discount associated with a specific business account.
+// Customers negotiate discounts with Cloud Vendors:
+// * Enterprise Program Discount [AWS]
+// * Enterprise Agreement [Azure]
+// Entity costs in Turbonomic should reflect what the customer actually pays
+// All discounts to be entered by user [Cannot be discovered]
+message Discount {
+    // The oid for the discount
+    optional int64 id = 1;
+
+    // The associated business account oid
+    optional int64 associated_account_id = 2;
+
+    // Global level account discount, e.g. 10.0 % on Account A
+    optional AccountLevelDiscount account_level_discount = 3;
+
+    // Service level discount, e.g. 10.0 % on all EC2 for Account A
+    optional ServiceLevelDiscount service_level_discount = 4;
+
+    // Tier/Template level discount, e.g. 10.0 % on all t2.small for Account A
+    optional TierLevelDiscount tier_level_discount = 5;
+
+    message AccountLevelDiscount {
+        // The global level discount, e.g. 10.0
+        optional double discount_percentage = 1;
+    }
+
+    message ServiceLevelDiscount {
+        // The service level discount, arranged by service ID, e.g. 111111 -> 10.0
+        map<int64, double> discount_percentage_by_service_id = 1;
+    }
+
+    message TierLevelDiscount {
+        // The Tier/Template level discount, arranged by tier ID, e.g. 2222222 -> 10.0
+        map<int64, double> discount_percentage_by_tier_id = 1;
+    }
+}
+
 // A service responsible for getting information about cost information in Cloud.
 service CostService {
     // Get information about account expense
