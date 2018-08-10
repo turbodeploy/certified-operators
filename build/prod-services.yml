@@ -282,7 +282,7 @@ services:
     extends:
       file: common-services.yml
       service: prod-component
-    image: turbonomic/com.vmturbo.cost.component
+    image: turbonomic/cost
     volumes:
       - cost:/home/turbonomic/data
     environment:
