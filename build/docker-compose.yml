@@ -474,7 +474,7 @@ services:
       extends:
         file: common-services.yml
         service: dev-component
-      image: turbonomic/cost
+      image: turbonomic/com.vmturbo.cost.component
       ports:
         - "${COST_PORT}"
         - "${COST_DEBUG_PORT}"
