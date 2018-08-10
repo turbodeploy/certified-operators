@@ -10,11 +10,9 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
-import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.api.handler.GlobalExceptionHandler;
-import com.vmturbo.api.interceptors.TelemetryInterceptor;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
 
@@ -48,16 +46,6 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
         converters.add(msgConverter);
     }
 
-    /**
-     * Register a {@link TelemetryInterceptor} to collect metrics about API usage.
-     *
-     * @param registry The registry to which we will add interceptors.
-     */
-    @Override
-    public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(telemetryInterceptor()).addPathPatterns("/**");
-    }
-
     @Bean
     public IdentityInitializer identityInitializer() {
         return new IdentityInitializer(identityGeneratorPrefix);
@@ -68,14 +56,5 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
         return new GlobalExceptionHandler();
     }
 
-    /**
-     * Create a telemetry interceptor to collect REST API usage and latency metrics.
-     *
-     * @return A {@link TelemetryInterceptor} instance.
-     */
-    @Bean
-    public TelemetryInterceptor telemetryInterceptor() {
-        return new TelemetryInterceptor();
-    }
 }
 

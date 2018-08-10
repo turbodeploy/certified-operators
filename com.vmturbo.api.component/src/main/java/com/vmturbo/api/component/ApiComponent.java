@@ -1,6 +1,8 @@
 package com.vmturbo.api.component;
 
 import java.util.EnumSet;
+import java.util.Optional;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -14,6 +16,7 @@ import org.eclipse.jetty.servlet.FilterHolder;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -23,13 +26,14 @@ import org.springframework.web.filter.DelegatingFilterProxy;
 import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.api.component.controller.DBAdminController;
-import com.vmturbo.api.component.diagnostics.ApiDiagnosticsConfig;
 import com.vmturbo.api.component.external.api.ExternalApiConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherControllerConfig;
 import com.vmturbo.api.component.external.api.dispatcher.DispatcherValidatorConfig;
+import com.vmturbo.api.component.external.api.service.AdminService;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.swagger.SwaggerConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
+import com.vmturbo.api.dto.admin.ProductVersionDTO;
 import com.vmturbo.components.common.BaseVmtComponent;
 
 /**
@@ -45,8 +49,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
     ExternalApiConfig.class,
     SwaggerConfig.class,
     DBAdminController.class,
-    ServiceConfig.class,
-    ApiDiagnosticsConfig.class
+    ServiceConfig.class
 })
 public class ApiComponent extends BaseVmtComponent {
 
@@ -55,7 +58,7 @@ public class ApiComponent extends BaseVmtComponent {
     public static final String VERSION_FILE_NAME = "turbonomic_cluster_version.txt";
 
     @Autowired
-    private ApiDiagnosticsConfig diagnosticsConfig;
+    private ServiceConfig serviceConfig;
 
     // env vars
     static private String ENV_UPLOAD_MAX_FILE_SIZE_KB = "multipartConfigMaxFileSizeKb";
@@ -139,7 +142,13 @@ public class ApiComponent extends BaseVmtComponent {
     @Override
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
         try {
-            diagnosticsConfig.diagsHandler().dump(diagnosticZip);
+            diagnosticZip.putNextEntry(new ZipEntry(VERSION_FILE_NAME));
+            final ProductVersionDTO versionDTO = serviceConfig.adminService().getVersionInfo(true);
+
+            diagnosticZip.write((versionDTO.getVersionInfo() + "\n\n").getBytes());
+            diagnosticZip.write(("Updates: " + versionDTO.getUpdates() + "\n").getBytes());
+            diagnosticZip.write(("Market version: " + versionDTO.getMarketVersion() + "\n").getBytes());
+            diagnosticZip.closeEntry();
         } catch (Exception e) {
             logger.error("Unable to capture diagnostics due to error: ", e);
         }
