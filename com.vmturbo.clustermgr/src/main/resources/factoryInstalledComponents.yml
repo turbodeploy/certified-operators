@@ -189,6 +189,7 @@ group:
   mariadbHealthCheckIntervalSeconds: 60
   # END - database-related properties
   <<: *auth_conn_info
+  actionOrchestratorHost: 'action-orchestrator'
 
 api:
   <<: *baseVmtComponentSettings

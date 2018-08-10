@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.execution;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -24,6 +26,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -134,9 +137,9 @@ public class AutomatedActionExecutor {
      * ^* subject to queueing and/or throttling
      * @param store ActionStore containing all actions
      */
-    public void executeAutomatedFromStore(ActionStore store) {
+    public List<ActionExecutionTask> executeAutomatedFromStore(ActionStore store) {
         if (!store.allowsExecution()) {
-            return;
+            return Collections.emptyList();
         }
         Map<Long, Action> autoActions = store.getActions().entrySet().stream()
                 .filter(entry -> entry.getValue().getMode().equals(ActionMode.AUTOMATIC))
@@ -184,6 +187,8 @@ public class AutomatedActionExecutor {
             actionEntityIdMap.remove(id);
             actionEntityMapMap.remove(id);
         });
+
+        List<ActionExecutionTask> actionsToBeExecuted = new ArrayList<>();
         final String userNameAndUuid = AuditLogUtils.getUserNameAndUuidFromGrpcSecurityContext();
         actionsByTarget.forEach((targetId, actionSet) -> {
             actionSet.forEach(actionId -> {
@@ -191,7 +196,7 @@ public class AutomatedActionExecutor {
                 action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
                 // We don't need to refresh severity cache because we will refresh it
                 // in the ActionStorehouse after calling this method.
-                executionService.submit(() -> {
+                Future<Action> actionFuture = executionService.submit(() -> {
 
                     action.receive(new BeginExecutionEvent());
                     actionTranslator.translate(action);
@@ -222,8 +227,30 @@ public class AutomatedActionExecutor {
                         logger.error(errorMsg);
                         action.receive(new FailureEvent(errorMsg));
                     }
+                    return action;
                 });
+                actionsToBeExecuted.add(new ActionExecutionTask(action, actionFuture));
             });
         });
+        return actionsToBeExecuted;
+    }
+
+    public static class ActionExecutionTask {
+
+        private final Action action;
+        private final Future<Action> future;
+
+        public ActionExecutionTask(Action action, Future<Action> future) {
+            this.action = action;
+            this.future = future;
+        }
+
+        public Action getAction() {
+            return action;
+        }
+
+        public Future<Action> getFuture() {
+            return future;
+        }
     }
 }

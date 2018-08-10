@@ -57,6 +57,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
+import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
@@ -406,6 +408,19 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             addAllActionProbePrioritiesToResponse(responseBuilder);
         }
         responseObserver.onNext(responseBuilder.build());
+        responseObserver.onCompleted();
+    }
+
+    @Override
+    public void cancelQueuedActions(
+            CancelQueuedActionsRequest request,
+            StreamObserver<CancelQueuedActionsResponse> responseObserver) {
+
+        responseObserver.onNext(
+                CancelQueuedActionsResponse.newBuilder()
+                    .setCancelledCount(
+                            actionStorehouse.cancelQueuedActions())
+                    .build());
         responseObserver.onCompleted();
     }
 

@@ -12,8 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
@@ -34,6 +37,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
@@ -58,12 +62,16 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
     private final EntitySettingStore entitySettingStore;
 
+    private final ActionsServiceBlockingStub actionsServiceClient;
+
     public SettingPolicyRpcService(@Nonnull final SettingStore settingStore,
                                    @Nonnull final SettingSpecStore settingSpecStore,
-                                   @Nonnull final EntitySettingStore entitySettingStore) {
+                                   @Nonnull final EntitySettingStore entitySettingStore,
+                                   @Nonnull final ActionsServiceBlockingStub actionsServiceClient) {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.entitySettingStore = Objects.requireNonNull(entitySettingStore);
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
+        this.actionsServiceClient = actionsServiceClient;
     }
 
     /**
@@ -110,6 +118,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         try {
             final SettingPolicy policy =
                     settingStore.updateSettingPolicy(request.getId(), request.getNewInfo());
+            cancelAutomationActions(policy);
             responseObserver.onNext(UpdateSettingPolicyResponse.newBuilder()
                 .setSettingPolicy(policy)
                 .build());
@@ -139,6 +148,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         try {
             final SettingPolicy policy =
                     settingStore.resetSettingPolicy(request.getSettingPolicyId());
+            cancelAutomationActions(policy);
             responseObserver.onNext(ResetSettingPolicyResponse.newBuilder()
                     .setSettingPolicy(policy)
                     .build());
@@ -167,8 +177,9 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         try {
             logger.info("Attempting to delete setting policy {}...", request.getId());
-            settingStore.deleteUserSettingPolicy(request.getId());
+            SettingPolicy deletedSettingPolicy = settingStore.deleteUserSettingPolicy(request.getId());
             logger.info("Deleted setting policy: {}", request.getId());
+            cancelAutomationActions(deletedSettingPolicy);
             responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (SettingPolicyNotFoundException e) {
@@ -178,6 +189,29 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage()).asException());
         }
+    }
+
+    /**
+     * If user is changing Automation Settings, send message to ActionOrchestrator
+     * to purge the outstanding actions which are in the execution queue.
+     */
+    private void cancelAutomationActions(SettingPolicy policy) {
+        if (hasAutomationSetting(policy))
+            try {
+                actionsServiceClient.cancelQueuedActions(
+                        CancelQueuedActionsRequest.getDefaultInstance());
+            } catch (StatusRuntimeException e) {
+                // Exception is fine as it is a best-effort call.
+                logger.warn("Failed to cancel outstanding automation actions", e);
+            }
+    }
+
+    private boolean hasAutomationSetting(final SettingPolicy settingPolicy) {
+        return (settingPolicy!=null &&
+                settingPolicy.getInfo().getSettingsList().stream()
+                        .anyMatch(setting ->
+                                EntitySettingSpecs.isAutomationSetting(
+                                        setting.getSettingSpecName())));
     }
 
     /**

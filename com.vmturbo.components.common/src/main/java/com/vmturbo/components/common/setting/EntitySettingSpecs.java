@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
@@ -231,6 +233,17 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true);
 
+
+    private static final ImmutableSet<String> AUTOMATION_SETTINGS =
+        ImmutableSet.of(
+            EntitySettingSpecs.Activate.name,
+            EntitySettingSpecs.Move.name,
+            EntitySettingSpecs.Provision.name,
+            EntitySettingSpecs.Reconfigure.name,
+            EntitySettingSpecs.Resize.name,
+            EntitySettingSpecs.StorageMove.name,
+            EntitySettingSpecs.Suspend.name);
+
     /**
      * Setting name to setting enumeration value map for fast access.
      */
@@ -333,6 +346,16 @@ public enum EntitySettingSpecs {
         }
         dataStructure.build(builder);
         return builder.build();
+    }
+
+    /**
+     *  Check if the given setting spec name is an automation setting.
+     *
+     * @param specName Name of the setting spec.
+     * @return Return true if the setting is an automation setting else return false.
+     */
+    public static boolean isAutomationSetting(@Nonnull String specName) {
+        return (specName!=null && AUTOMATION_SETTINGS.contains(specName));
     }
 
     /**

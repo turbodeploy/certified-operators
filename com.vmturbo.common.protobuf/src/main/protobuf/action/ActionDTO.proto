@@ -821,6 +821,14 @@ message ActionProbePriorities {
     repeated string probe_category = 2;
 }
 
+message CancelQueuedActionsRequest {
+}
+
+message CancelQueuedActionsResponse {
+    // Number of actions that were cancelled from execution.
+    optional int32 cancelled_count = 1;
+}
+
 // A service responsible for getting information about accepting actions and getting action information.
 service ActionsService {
     // Accepts an action, queueing it for execution.
@@ -870,4 +878,11 @@ service ActionsService {
     // Get probe priorities for some specific action type (if request provides action type)
     // or for all action types.
     rpc GetActionPriorities(GetActionPrioritiesRequest) returns (GetActionPrioritiesResponse);
+
+    // Cancel the execution of outstanding actions i.e. actions which are queued
+    // but not yet executed.
+    // If the automation settings are changed by the user, the queued automation
+    // actions are no longer valid as their execution state has changed. So we need to
+    // cancel such actions.
+    rpc CancelQueuedActions(CancelQueuedActionsRequest) returns (CancelQueuedActionsResponse);
 }

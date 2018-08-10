@@ -1,8 +1,25 @@
 package com.vmturbo.action.orchestrator.store;
 
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -11,22 +28,15 @@ import org.junit.rules.ExpectedException;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
+import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link ActionStorehouse}.
@@ -242,5 +252,53 @@ public class ActionStorehouseTest {
     @Test
     public void testDeleteNonExistingStore() throws Exception {
         assertEquals(Optional.empty(), actionStorehouse.deleteStore(topologyContextId));
+    }
+
+    @Test
+    public void testCancelQueuedActions() {
+        com.vmturbo.action.orchestrator.action.Action action =
+                mock(com.vmturbo.action.orchestrator.action.Action.class);
+        List<ActionExecutionTask> actionExecutionTaskList = new ArrayList<>();
+        actionExecutionTaskList.add(new AutomatedActionExecutor.ActionExecutionTask(action,
+                new FutureMock<com.vmturbo.action.orchestrator.action.Action>(action)));
+        when(action.getState()).thenReturn(ActionState.QUEUED);
+        when(executor.executeAutomatedFromStore(any()))
+            .thenReturn(actionExecutionTaskList);
+        actionStorehouse.storeActions(actionPlan);
+        assertThat(actionStorehouse.cancelQueuedActions(), is(1));
+    }
+
+    private class FutureMock<V> implements Future<V> {
+
+        V result;
+
+        public FutureMock(V result){
+            this.result = result;
+        }
+
+        @Override
+        public boolean isDone() {
+            return true;
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return false;
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            return true;
+        }
+
+        @Override
+        public V get() {
+            return result;
+        }
+
+        @Override
+        public V get(long timeout, TimeUnit unit) {
+            return result;
+        }
     }
 }

@@ -1,8 +1,11 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -13,9 +16,16 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionStateMachine;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
+import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.topology.ActionExecution;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -26,10 +36,14 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  */
 @ThreadSafe
 public class ActionStorehouse {
+
+    private static final Logger logger = LogManager.getLogger();
+
     private final IActionStoreFactory actionStoreFactory;
     private final Map<Long, ActionStore> storehouse;
     private final AutomatedActionExecutor automatedExecutor;
-    private static final Logger logger = LogManager.getLogger();
+    // Stores the task futures/promises of the actions which have been submitted for execution.
+    private final List<ActionExecutionTask> actionExecutionFutures = new ArrayList<>();
 
     private static final DataMetricSummary STORE_POPULATION_SUMMARY = DataMetricSummary.builder()
         .withName("ao_populate_store_duration_seconds")
@@ -97,7 +111,11 @@ public class ActionStorehouse {
 
         if (store.allowsExecution()) {
             try {
-                automatedExecutor.executeAutomatedFromStore(store);
+                actionExecutionFutures.removeIf(actionExecutionTask ->
+                        actionExecutionTask.getFuture().isDone() ||
+                            actionExecutionTask.getAction().getState()==ActionState.FAILED ||
+                            actionExecutionTask.getAction().getState() == ActionState.SUCCEEDED);
+                actionExecutionFutures.addAll(automatedExecutor.executeAutomatedFromStore(store));
             } catch (RuntimeException e) {
                 logger.info("Unable to execute automated actions: ", e);
             }
@@ -182,6 +200,31 @@ public class ActionStorehouse {
         } else {
             return removeStore(topologyContextId);
         }
+    }
+
+    /**
+     * Cancel actions which are waiting in the queue to be executed.
+     *
+     * @return The number of actions which were cancelled and removed from the queue.
+     */
+    public synchronized int cancelQueuedActions() {
+        // Don't cancel actions in progress. Cancel only those tasks which are yet to be executed.
+        logger.info("Cancelling all pending automated actions which are waiting to be executed");
+        int cancelledCount = actionExecutionFutures.stream()
+                .filter(actionTask -> actionTask.getAction().getState() == ActionState.QUEUED)
+                .map(actionTask-> {
+                    actionTask.getFuture().cancel(false);
+                    actionTask.getAction().receive(new FailureEvent("Cancelling action execution."));
+                    return 1;
+                })
+                .reduce(Integer::sum)
+                .orElse(0);
+
+        logger.info("Cancelled execution of {} queued automated actions. Total automated actions: {}",
+                cancelledCount, actionExecutionFutures.size());
+        actionExecutionFutures.clear();
+
+        return cancelledCount;
     }
 
     /**

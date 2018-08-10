@@ -132,8 +132,7 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
      * PUT /settingspolicies/{uuid}
      *
      * @param uuid          policy setting uuid
-     * @param setDefault    flag if policy setting needs to be reset to default
-     *                      Currently unsupported.
+     * @param setDefault    flag if policy setting needs to be reset to default.
      * @param settingPolicy setting policy to be used to edito
      * @return updated SettingsPolicyApiDTO
      * @throws Exception
