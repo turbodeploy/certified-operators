@@ -278,17 +278,33 @@ public final class Market implements Serializable {
      *
      * @param newBuyer The new trader to add to the market as a buyer. He must be active.
      *                 If his economy index is incorrect, the results are undefined.
+     * @param existingShoppingList An existing shopping list to use when adding the buyer.
+     * @return The existing shopping list for the buyer that was passed in.
+     */
+    @NonNull ShoppingList addBuyer(@NonNull TraderWithSettings newBuyer,
+                                   @NonNull ShoppingList existingShoppingList) {
+        if (newBuyer.getState().isActive()) {
+            buyers_.add(existingShoppingList);
+        }
+        newBuyer.getMarketsAsBuyer().put(existingShoppingList, this);
+        return existingShoppingList;
+    }
+
+    /**
+     * Adds a new buyer to {@code this} market or an existing one again.
+     *
+     * <p>
+     *  This will make the trader buy {@code this} market's basket if he wasn't, or buy it again
+     *  if he was. That implies modification of his {@link TraderWithSettings#getMarketsAsBuyer()
+     *  markets as buyer} map.
+     * </p>
+     *
+     * @param newBuyer The new trader to add to the market as a buyer. He must be active.
+     *                 If his economy index is incorrect, the results are undefined.
      * @return The shopping list that was created for the buyer.
      */
     @NonNull ShoppingList addBuyer(@NonNull TraderWithSettings newBuyer) {
-        ShoppingList newShoppingList = new ShoppingList(newBuyer, basket_);
-
-        if (newBuyer.getState().isActive()) {
-            buyers_.add(newShoppingList);
-        }
-        newBuyer.getMarketsAsBuyer().put(newShoppingList, this);
-
-        return newShoppingList;
+        return addBuyer(newBuyer, new ShoppingList(newBuyer, basket_));
     }
 
     /**

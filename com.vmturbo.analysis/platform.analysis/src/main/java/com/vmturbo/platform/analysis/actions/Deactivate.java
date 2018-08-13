@@ -99,7 +99,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                         slsBetweenGuaranteedBuyersAndSuspendedTrader);
         GuaranteedBuyerHelper.addNewSlAndAdjustExistingSls(getEconomy(),
                 slsBetweenGuaranteedBuyersAndSuspendedTrader, slsSponsoredByGuaranteedBuyer,
-                getTarget());
+                getTarget(), true);
         removedShoppingLists.clear();
         return this;
     }

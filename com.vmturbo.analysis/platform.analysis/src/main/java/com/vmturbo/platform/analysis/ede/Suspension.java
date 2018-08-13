@@ -353,7 +353,8 @@ public class Suspension {
                                                                         .getSettings()
                                                                         .isGuaranteedBuyer()))) {
                     soleProviders.add(trader);
-            } else if (trader.getSettings().isGuaranteedBuyer()) {
+            }
+            if (trader.getSettings().isGuaranteedBuyer()) {
                 // This identifies sole providers of guaranteed buyers.  We do not want to suspend the
                 // last supplier of a guaranteed buyer.
                 final List<Trader> activeTraders = economy.getMarketsAsBuyer(trader)

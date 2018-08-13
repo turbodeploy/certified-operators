@@ -41,13 +41,17 @@ public final class GuaranteedBuyerHelper {
      * @param slsSponsoredByGuaranteedBuyer a map to keep a guaranteed buyer to all of its shopping
      *  lists
      * @param newSupplier the {@link Trader} which would be a seller for the guaranteed buyers
+     * @param reuseShoppingList When true new shopping list will be created when adding the basket
+     *                          bought.  When false, the existing shopping list in the basket will
+     *                          be reused.
      */
     public static void addNewSlAndAdjustExistingSls(Economy economy,
                                                     List<ShoppingList>
                                                         guaranteedBuyerSlsOnModelSeller,
                                                     Map<Trader, Set<ShoppingList>>
                                                         slsSponsoredByGuaranteedBuyer,
-                                                    Trader newSupplier) {
+                                                    Trader newSupplier,
+                                                    boolean reuseShoppingList) {
         for (ShoppingList sl : guaranteedBuyerSlsOnModelSeller) {
             Trader guaranteedBuyer = sl.getBuyer();
             // a set of shopping list sponsored by guaranteed buyer, we create a new set to keep
@@ -57,7 +61,8 @@ public final class GuaranteedBuyerHelper {
             // we assume the basket sold by the new clone is not changed, thus new sl between
             // guaranteedbuyer and the new clone will shop in an existing market
             Basket newBasket = sl.getBasket();
-            ShoppingList newSl = economy.addBasketBought(guaranteedBuyer, newBasket);
+            ShoppingList newSl = economy.addBasketBought(guaranteedBuyer, newBasket,
+                    reuseShoppingList? sl : null);
             newSl.move(newSupplier);
             newSl.setMovable(sl.isMovable());
             for (int boughtIndex = 0; boughtIndex < newBasket.size(); ++boughtIndex) {
@@ -66,7 +71,11 @@ public final class GuaranteedBuyerHelper {
                 // between guaranteed buyer and the new clone, the quantity and peak quantity
                 // needs to be re-averaged to include the new shopping list. We assume that all
                 // the sl sponsored by a guaranteed buyer should have the same quantity and peak
-                // quantity
+                // quantity.
+                // If are reusing the shopping lists that we previously removed, we need to clear
+                // the original quantities on newSupplier.  The adjustCommodity call below will
+                // redistribute the existing quantities across all existing shopping lists into the
+                // new one.
                 // TODO: check with cloud native's team to see if we can assume each supplier of
                 // the guaranteed buyer has the same quantity bought
                 double updatedQuantity = sl.getQuantity(boughtIndex) * slsNeedsUpdate.size() /
@@ -80,10 +89,8 @@ public final class GuaranteedBuyerHelper {
                 // so commSoldOnClone.getQuantity is only overhead
                 CommoditySold commSoldOnClone =
                                 newSupplier.getCommoditySold(newBasket.get(boughtIndex));
-                commSoldOnClone.setQuantity(commSoldOnClone.getQuantity() +
-                                            newSl.getQuantity(boughtIndex));
-                commSoldOnClone.setPeakQuantity(commSoldOnClone.getPeakQuantity() +
-                                                newSl.getPeakQuantity(boughtIndex));
+                commSoldOnClone.setQuantity(newSl.getQuantity(boughtIndex));
+                commSoldOnClone.setPeakQuantity(newSl.getPeakQuantity(boughtIndex));
                 for (ShoppingList spList : slsNeedsUpdate) {
                     adjustCommodity(boughtIndex, updatedQuantity, updatedPeakQuantity, spList);
                 }
@@ -272,12 +279,11 @@ public final class GuaranteedBuyerHelper {
      * by the newly provisioned clones and bought by the guaranteedBuyers are added.
      * @param guaranteedBuyerInfo a list of guaranteed buyer info to be processed
      */
-
     public static void processGuaranteedbuyerInfo (Economy economy,
                                                    List<BuyerInfo> guaranteedBuyerInfo) {
         for (BuyerInfo info : guaranteedBuyerInfo) {
             addNewSlAndAdjustExistingSls(economy, info.getSLs(), info.getGuaranteedBuyerSls(),
-                    info.getNewSupplier());
+                    info.getNewSupplier(), false);
         }
     }
 

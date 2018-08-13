@@ -491,10 +491,14 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      *
      * @param buyer The trader that should start buying the new basket.
      * @param basketBought The basket that the buyer should start buying.
-     * @return The new shopping list of the buyer in the market corresponding to the
-     *         basketBought.
+     * @param shoppingList An existing shopping list to use when adding the buyer.  Can be null.
+     *                     If null, a new shopping list will be created.
+     * @return The shopping list of the buyer in the market corresponding to the
+     *         basketBought.  If an existing shopping list was passed in, that will be returned.
      */
-    public @NonNull ShoppingList addBasketBought(@NonNull Trader buyer, @NonNull @ReadOnly Basket basketBought) {
+    public @NonNull ShoppingList addBasketBought(@NonNull Trader buyer,
+                                                 @NonNull @ReadOnly Basket basketBought,
+                                                 ShoppingList shoppingList) {
         // create a market if it doesn't already exist.
         Market market = markets_.get(basketBought);
         if (market == null) {
@@ -504,7 +508,30 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         }
 
         // add the buyer to the correct market.
-        return market.addBuyer((@NonNull TraderWithSettings)buyer);
+        if (shoppingList != null) {
+            return market.addBuyer((@NonNull TraderWithSettings) buyer, shoppingList);
+        } else {
+            return market.addBuyer((@NonNull TraderWithSettings)buyer);
+        }
+    }
+
+    /**
+     * Makes a {@link Trader buyer} start buying a new {@link Basket basket}, or an old one one more
+     * time.
+     *
+     * <p>
+     *  The buyer's {@link #getMarketsAsBuyer(Trader) market-to-buyer-participation map} and the
+     *  economy's markets are updated accordingly.
+     * </p>
+     *
+     * @param buyer The trader that should start buying the new basket.
+     * @param basketBought The basket that the buyer should start buying.
+     * @return The new shopping list of the buyer in the market corresponding to the
+     *         basketBought.
+     */
+    public @NonNull ShoppingList addBasketBought(@NonNull Trader buyer,
+                                                 @NonNull @ReadOnly Basket basketBought) {
+        return addBasketBought(buyer, basketBought, null);
     }
 
     /**
