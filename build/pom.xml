@@ -498,6 +498,7 @@
                 <module>../com.vmturbo.history</module>
                 <module>../com.vmturbo.history.schema</module>
                 <module>../com.vmturbo.history.component.api</module>
+                <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
@@ -603,6 +604,7 @@
                 <module>../com.vmturbo.history</module>
                 <module>../com.vmturbo.history.schema</module>
                 <module>../com.vmturbo.history.component.api</module>
+                <module>../com.vmturbo.identity</module>
                 <module>../com.vmturbo.plan.orchestrator</module>
                 <module>../com.vmturbo.plan.orchestrator.api</module>
                 <module>../com.vmturbo.reports.api</module>
@@ -1156,6 +1158,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.history.schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.identity</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- We keep versions of dependencies in the root pom.xml so that all
