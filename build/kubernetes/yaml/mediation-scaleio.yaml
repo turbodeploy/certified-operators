@@ -1,0 +1,103 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: mediation-scaleio
+  name: mediation-scaleio
+  namespace: turbonomic
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+status: {}
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f ../../prod-services.yml
+    kompose.version: 1.12.0 ()
+  creationTimestamp: null
+  labels:
+    io.kompose.service: mediation-scaleio
+  name: mediation-scaleio
+  namespace: turbonomic
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        io.kompose.service: mediation-scaleio
+    spec:
+      containers:
+      - env:
+        - name: clustermgr_host
+          value: clustermgr
+        - name: clustermgr_port
+          value: "8080"
+        - name: clustermgr_retry_delay_sec
+          value: "10"
+        - name: component_type
+          value: mediation-scaleio
+        - name: consul_host
+          value: consul
+        - name: instance_id
+          value: mediation-scaleio-1
+        image: localhost:5000/turbonomic/com.vmturbo.mediation.scaleio.component:1.0.0
+        imagePullPolicy: Always
+        name: mediation-scaleio
+        ports:
+        - containerPort: 8080
+          name: scaleio-port
+        resources: {}
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /home/turbonomic/data
+          name: mediation-scaleio
+        - mountPath: /tmp
+          name: mediation-scaleio-tmpfs0
+      imagePullSecrets:
+      - name: turbocred
+      restartPolicy: Always
+      volumes:
+      - name: mediation-scaleio
+        persistentVolumeClaim:
+          claimName: mediation-scaleio
+      - emptyDir:
+          medium: Memory
+        name: mediation-scaleio-tmpfs0
+status: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert -f docker-compose.yml
+    kompose.version: 1.12.0 ()
+  creationTimestamp: null
+  labels:
+    io.kompose.service: mediation-scaleio
+  name: mediation-scaleio
+  namespace: turbonomic
+spec:
+  ports:
+  - name: "scaleio-port"
+    port: 8080
+    targetPort: 8080
+  - name: "20123"
+    port: 20123
+    targetPort: 8000
+  selector:
+    io.kompose.service: mediation-scaleio
+status:
+  loadBalancer: {}
