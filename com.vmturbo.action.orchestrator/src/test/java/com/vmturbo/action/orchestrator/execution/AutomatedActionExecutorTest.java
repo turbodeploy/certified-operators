@@ -1,10 +1,13 @@
 package com.vmturbo.action.orchestrator.execution;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
@@ -13,10 +16,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.After;
@@ -36,13 +43,18 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionTest;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
+import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
 import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 
 public class AutomatedActionExecutorTest {
 
@@ -425,10 +437,66 @@ public class AutomatedActionExecutorTest {
 
     }
 
+    @Test
+    // Verify that only actions which are in READY state and which
+    // have the executable flag set are submitted for execution.
+    public void testexecuteAutomatedFromStoreExecutableActions() {
+        ExecutorService testExecutor = mock(ExecutorService.class);
+        ActionExecutor testActionExecutor = mock(ActionExecutor.class);
+        final AutomatedActionExecutor automatedActionExecutor =
+                new AutomatedActionExecutor(testActionExecutor, testExecutor, actionTranslator);
+        long actionId = 1L;
+        Callable<Action> mockCallable = new Callable<Action>() {
+            @Override
+            public Action call() throws Exception {
+                return null;
+            }
+        };
+        ActionDTO.Action testRecommendation =
+                makeRec(ActionTest.makeMoveInfo(targetId1, entityId1, entityType1, entityId2, entityType2),
+                        1, true, SupportLevel.SUPPORTED).build();
+        Map<Long, EntityInfo> testEntityMap = new HashMap<>();
+        testEntityMap.put(entityId1, entityInfo1);
+        testEntityMap.put(entityId2, entityInfo2);
+        testEntityMap.put(targetId1, entityInfo3);
+        when(testExecutor.submit(mockCallable)).thenReturn(
+                new FutureTask<Action>(new Callable<Action>() {
+                    @Override
+                    public Action call() throws Exception {
+                        return null;
+                    }
+                }));
+
+        Map<Long, Action> testActionMap = new HashMap<>();
+        Action testAction  = mock(Action.class);
+        testActionMap.put(actionId, testAction);
+        when(actionStore.getActions()).thenReturn(testActionMap);
+        Mockito.doReturn(testEntityMap).when(testActionExecutor).getEntityInfo(any());
+        when(testActionExecutor.getEntitiesTarget(any(), any())).thenReturn(Optional.of(targetId1));
+        // Case 1: when the action is executable and is in READY state.
+        when(testAction.getId()).thenReturn(actionId);
+        when(testAction.getState()).thenReturn(ActionState.READY);
+        when(testAction.getMode()).thenReturn(ActionMode.AUTOMATIC);
+        when(testAction.getRecommendation()).thenReturn(testRecommendation);
+        when(testAction.determineExecutability()).thenReturn(true);
+        List<ActionExecutionTask> actionFutures =
+                automatedActionExecutor.executeAutomatedFromStore(actionStore);
+        assertThat(actionFutures.size(), is(1));
+
+        // Case 2: if action not executable, then no action should be submitted
+        when(testAction.getState()).thenReturn(ActionState.QUEUED);
+        when(testAction.determineExecutability()).thenReturn(false);
+        actionFutures =
+                automatedActionExecutor.executeAutomatedFromStore(actionStore);
+        assertThat(actionFutures.size(), is(0));
+        Mockito.verify(testExecutor, never()).submit(mockCallable);
+    }
+
     private ActionDTO.Action makeActionRec(long actionId, ActionInfo info) {
         return ActionDTO.Action.newBuilder()
             .setId(actionId)
             .setImportance(0)
+            .setExecutable(true)
             .setExplanation(Explanation.newBuilder()
                 .setMove(Explanation.MoveExplanation.newBuilder()
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -458,6 +526,18 @@ public class AutomatedActionExecutorTest {
         when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
         when(action.getId()).thenReturn(id);
         when(action.getRecommendation()).thenReturn(rec);
+        when(action.determineExecutability()).thenReturn(true);
     }
 
+    private ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
+                                             long id,
+                                             boolean isExecutable,
+                                             final SupportLevel supportLevel) {
+        return ActionDTO.Action.newBuilder()
+                .setId(id)
+                .setImportance(0)
+                .setExecutable(isExecutable)
+                .setSupportingLevel(supportLevel)
+                .setInfo(infoBuilder).setExplanation(Explanation.newBuilder().build());
+    }
 }

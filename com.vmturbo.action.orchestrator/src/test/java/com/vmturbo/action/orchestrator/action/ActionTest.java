@@ -283,7 +283,7 @@ public class ActionTest {
         assertEquals(reconfigureAction.getMode(), ActionMode.RECOMMEND);
     }
 
-    private ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
+    public static ActionDTO.Action.Builder makeRec(ActionInfo.Builder infoBuilder,
                                              final SupportLevel supportLevel) {
         return ActionDTO.Action.newBuilder()
                 .setId(IdentityGenerator.next())

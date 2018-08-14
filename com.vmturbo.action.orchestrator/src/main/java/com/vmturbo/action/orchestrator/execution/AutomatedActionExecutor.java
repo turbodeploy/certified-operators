@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -26,11 +27,10 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
+import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
-import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -62,8 +62,8 @@ public class AutomatedActionExecutor {
                                    @Nonnull final ExecutorService executorService,
                                    @Nonnull final ActionTranslator translator) {
         this.actionExecutor = Objects.requireNonNull(executor);
-        this.actionTranslator = Objects.requireNonNull(translator);
         this.executionService = Objects.requireNonNull(executorService);
+        this.actionTranslator = Objects.requireNonNull(translator);
     }
 
     /**
@@ -142,7 +142,8 @@ public class AutomatedActionExecutor {
             return Collections.emptyList();
         }
         Map<Long, Action> autoActions = store.getActions().entrySet().stream()
-                .filter(entry -> entry.getValue().getMode().equals(ActionMode.AUTOMATIC))
+                .filter(entry -> entry.getValue().getMode().equals(ActionMode.AUTOMATIC)
+                            && entry.getValue().determineExecutability())
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         Map<Long, Set<Long>> actionEntityIdMap = mapActionsToInvolvedEntities(autoActions);
@@ -193,45 +194,56 @@ public class AutomatedActionExecutor {
         actionsByTarget.forEach((targetId, actionSet) -> {
             actionSet.forEach(actionId -> {
                 Action action = autoActions.get(actionId);
-                action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
+                try {
+                    action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
+                } catch (UnexpectedEventException ex) {
+                    // log the error and continue with the execution of next action.
+                    logger.error("Illegal state transition for action {}", action, ex);
+                    return;
+                }
                 // We don't need to refresh severity cache because we will refresh it
                 // in the ActionStorehouse after calling this method.
-                Future<Action> actionFuture = executionService.submit(() -> {
+                try {
+                    Future<Action> actionFuture = executionService.submit(() -> {
 
-                    action.receive(new BeginExecutionEvent());
-                    actionTranslator.translate(action);
-                    Optional<ActionDTO.Action> translated =
-                            action.getActionTranslation().getTranslatedRecommendation();
-                    if (translated.isPresent()) {
-                        try {
-                            logger.info("Automated action " + actionId + " attempting to execute.");
-                            actionExecutor.executeSynchronously(targetId, translated.get());
-                        } catch (ExecutionStartException e) {
-                            final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
-                            logger.error(errorMsg, e);
+                        action.receive(new BeginExecutionEvent());
+                        actionTranslator.translate(action);
+                        Optional<ActionDTO.Action> translated =
+                                action.getActionTranslation().getTranslatedRecommendation();
+                        if (translated.isPresent()) {
+                            try {
+                                logger.info("Attempting to execute action {}", actionId);
+                                actionExecutor.executeSynchronously(targetId, translated.get());
+                            } catch (ExecutionStartException e) {
+                                final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
+                                logger.error(errorMsg, e);
+                                action.receive(new FailureEvent(errorMsg));
+                            } catch (SynchronousExecutionException e) {
+                                logger.error(e.getFailure().getErrorDescription(), e);
+                                // We don't need fail the action here because ActionStateUpdater will
+                                // do it for us.
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                logger.error("Automated action execution interrupted", e);
+                                // We don't need fail the action here because we don't know if it
+                                // actually failed or not. ActionStateUpdater will still change the
+                                // action state if and when the action completes.
+                            }
+                        } else {
+                            final String errorMsg = String.format(FAILED_TRANSFORM_MSG, actionId);
+                            logger.error(errorMsg);
                             action.receive(new FailureEvent(errorMsg));
-                        } catch (SynchronousExecutionException e) {
-                            logger.error(e.getFailure().getErrorDescription(), e);
-                            // We don't need fail the action here because ActionStateUpdater will
-                            // do it for us.
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            logger.error("Automated action execution interrupted: {}",
-                                    e.getMessage());
-                            // We don't need fail the action here because we don't know if it
-                            // actually failed or not. ActionStateUpdater will still change the
-                            // action state if and when the action completes.
                         }
-                    } else {
-                        final String errorMsg = String.format(FAILED_TRANSFORM_MSG, actionId);
-                        logger.error(errorMsg);
-                        action.receive(new FailureEvent(errorMsg));
-                    }
-                    return action;
-                });
-                actionsToBeExecuted.add(new ActionExecutionTask(action, actionFuture));
+                        return action;
+                    });
+                    actionsToBeExecuted.add(new ActionExecutionTask(action, actionFuture));
+                } catch (RejectedExecutionException ex) {
+                    logger.error("Failed to submit action {} to executor.", actionId, ex);
+                }
             });
         });
+        logger.info("TotalExecutableActions={}, SubmittedActionsCount={}",
+                    autoActions, actionsToBeExecuted);
         return actionsToBeExecuted;
     }
 
