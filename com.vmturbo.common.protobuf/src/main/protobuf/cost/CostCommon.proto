@@ -75,30 +75,6 @@ enum DatabaseEdition {
     SQL_SERVER_WEB = 12;
 }
 
-// Cost type represents the possible breakdown of an entity cost into separate components
-// like Compute, Network, Storage, licensing and so on.
-// As we increase support for more breakdowns this enum will be extended to support them.
-// It's closly matched with the legacy definition in
-// com.vmturbo.platform.VMTRoot.ManagedEntities.Abstraction.CostType class.
-// Note: the RI_COMPUTE type is covered by ReservedInstance.proto
-enum CostType {
-    // Represents the compute cost associated with an entity.
-    // For example the cost of a cloud template or for the CPU and memory resources
-    COMPUTE = 0;
-
-    // Represents the storage cost associated with an entity.
-    // For example the cost of a cloud 100 GB storage
-    STORAGE = 1;
-
-    // Represents the additional IP address related costs associated with an entity.
-    // For example cost of a static IP.
-    IP = 2;
-
-    // Represents the licensing related costs associated with an entity.
-    // For example OS pricing, application licensing, DB licenses and so on.
-    LICENSE = 3;
-}
-
 // An amount of money, expressed in some currency.
 message CurrencyAmount {
     // The currency in which the amount is expressed.
