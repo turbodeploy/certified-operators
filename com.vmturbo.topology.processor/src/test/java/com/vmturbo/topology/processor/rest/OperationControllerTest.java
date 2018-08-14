@@ -42,7 +42,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.kvstore.MapKeyValueStore;
@@ -63,7 +62,6 @@ import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
-import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.IdentityService;
@@ -80,10 +78,12 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
  * Testing the Operation REST API.
@@ -167,6 +167,11 @@ public class OperationControllerTest {
             return Mockito.mock(EntityActionDao.class);
         }
 
+        @Bean
+        DerivedTargetParser derivedTargetParser() {
+            return Mockito.mock(DerivedTargetParser.class);
+        }
+
         @SuppressWarnings("unchecked")
         OperationListener operationListener() {
             return Mockito.mock(OperationListener.class);
@@ -181,9 +186,10 @@ public class OperationControllerTest {
                 operationListener(),
                 entityRepository(),
                 groupRecorder(),
-                    workflowRecorder(),
-                    discoveredTemplatesUploader(),
-                    controllableDao(),
+                workflowRecorder(),
+                discoveredTemplatesUploader(),
+                controllableDao(),
+                derivedTargetParser(),
                 10, 10, 10
             );
         }
@@ -216,7 +222,7 @@ public class OperationControllerTest {
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
-            (ITransport<MediationServerMessage, MediationClientMessage>)Mockito.mock(ITransport.class);
+            Mockito.mock(ITransport.class);
 
     @Autowired
     private WebApplicationContext wac;

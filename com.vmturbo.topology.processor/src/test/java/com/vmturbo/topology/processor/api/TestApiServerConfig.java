@@ -17,7 +17,6 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.SenderReceiverPair;
@@ -30,7 +29,6 @@ import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
-import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.identity.IdentityService;
@@ -43,9 +41,11 @@ import com.vmturbo.topology.processor.rest.OperationController;
 import com.vmturbo.topology.processor.rest.ProbeController;
 import com.vmturbo.topology.processor.rest.TargetController;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
  * API server-side Spring configuration.
@@ -189,10 +189,16 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public DerivedTargetParser derivedTargetParser() {
+        return Mockito.mock(DerivedTargetParser.class);
+    }
+
+    @Bean
     public OperationManager operationManager() {
         return new OperationManager(identityProvider(), targetStore(), probeStore(),
                 remoteMediation(), topologyProcessorNotificationSender(),
-                entityRepository(), groupRecorder(), workflowRecorder(), discoveredTemplatesUploader(), controllableDao(),
+                entityRepository(), groupRecorder(), workflowRecorder(), discoveredTemplatesUploader(),
+                controllableDao(), derivedTargetParser(),
             1L, 1L, 1L);
     }
 

@@ -22,7 +22,6 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 @Import({
     OperationConfig.class,
     TopologyConfig.class,
-    TopologyConfig.class,
     StitchingConfig.class,
     KVConfig.class
 })

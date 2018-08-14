@@ -50,7 +50,6 @@ import org.springframework.web.util.NestedServletException;
 
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
-
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -604,8 +603,8 @@ public class TargetControllerTest {
         ProbeInfo goneProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type1").build();
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> goneTransport =
-                        (ITransport<MediationServerMessage, MediationClientMessage>)Mockito
-                                        .mock(ITransport.class);
+                        Mockito
+                        .mock(ITransport.class);
         probeStore.registerNewProbe(goneProbe, goneTransport);
 
         ProbeInfo registeredProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type2").build();
@@ -647,7 +646,7 @@ public class TargetControllerTest {
                         .setKey(mandatoryAccountDef.getCustomDefinition().getName())
                         .setStringValue(id).build();
         final TopologyProcessorDTO.TargetSpec spec = TopologyProcessorDTO.TargetSpec.newBuilder().setProbeId(probeId)
-                        .addAccountValue(account).build();
+                        .addAccountValue(account).setIsHidden(false).build();
         return spec;
     }
 

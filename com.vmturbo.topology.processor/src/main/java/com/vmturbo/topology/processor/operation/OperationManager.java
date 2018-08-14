@@ -20,7 +20,6 @@ import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.ImmutableList;
-
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
@@ -48,7 +47,6 @@ import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
-import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
@@ -64,10 +62,12 @@ import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileNo
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.ProbeStoreListener;
+import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.targets.TargetStoreListener;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
  * Responsible for managing all operations.
@@ -136,6 +136,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
     private final EntityActionDao entityActionDao;
 
+    private final DerivedTargetParser derivedTargetParser;
+
     private static final DataMetricGauge ONGOING_OPERATION_GAUGE = DataMetricGauge.builder()
         .withName("tp_ongoing_operation_total")
         .withHelp("Total number of ongoing operations in the topology processor.")
@@ -160,6 +162,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
+                            @Nonnull final DerivedTargetParser derivedTargetParser,
                             final long discoveryTimeoutSeconds,
                             final long validationTimeoutSeconds,
                             final long actionTimeoutSeconds) {
@@ -172,6 +175,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.discoveredGroupUploader = Objects.requireNonNull(discoveredGroupUploader);
         this.discoveredWorkflowUploader = Objects.requireNonNull(discoveredWorkflowUploader);
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
+        this.derivedTargetParser = Objects.requireNonNull(derivedTargetParser);
         this.discoveredTemplateDeploymentProfileNotifier = Objects.requireNonNull(discoveredTemplateDeploymentProfileNotifier);
         this.discoveryTimeoutMs = TimeUnit.MILLISECONDS.convert(discoveryTimeoutSeconds, TimeUnit.SECONDS);
         this.validationTimeoutMs = TimeUnit.MILLISECONDS.convert(validationTimeoutSeconds, TimeUnit.SECONDS);
@@ -413,6 +417,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         return getInProgress(id, Validation.class);
     }
 
+    @Override
     @Nonnull
     public Optional<Validation> getInProgressValidationForTarget(final long targetId) {
         final Validation lastValidation = currentTargetValidations.get(targetId);
@@ -637,14 +642,17 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         remoteMediationServer.checkForExpiredHandlers();
     }
 
+    @Override
     public long getDiscoveryTimeoutMs() {
         return discoveryTimeoutMs;
     }
 
+    @Override
     public long getValidationTimeoutMs() {
         return validationTimeoutMs;
     }
 
+    @Override
     public long getActionTimeoutMs() {
         return actionTimeoutMs;
     }
@@ -681,6 +689,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 discoveredWorkflowUploader.setTargetWorkflows(targetId,
                         response.getNonMarketEntityDTOList());
                 DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOList().size());
+
+                derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
             }
             operationComplete(discovery, success, response.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |

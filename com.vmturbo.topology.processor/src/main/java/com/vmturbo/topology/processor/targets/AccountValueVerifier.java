@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.targets;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -142,23 +143,32 @@ public class AccountValueVerifier {
                                         TopologyProcessorDTO.AccountValue::getKey, Function.identity()));
         final Map<Discovery.AccountDefEntry, AccountDefEntry> entries =
                         info.get().getAccountDefinitionList().stream().collect(Collectors.toMap(
-                                        Function.identity(), ad -> AccountValueAdaptor.wrap(ad)));
+                                        Function.identity(), AccountValueAdaptor::wrap));
 
-        final Set<String> acceptedAccountFields = entries.values().stream().map(av -> av.getName())
+        final Set<String> acceptedAccountFields = entries.values().stream().map(AccountDefEntry::getName)
                         .collect(Collectors.toSet());
 
-        // Check for input fields that the probe doesn't recognize.
-        final List<String> fieldErrors = inputFields.keySet().stream()
-                        .filter(name -> !acceptedAccountFields.contains(name))
-                        .map(name -> "Unknown field: " + name).collect(Collectors.toList());
+        final Set<String> secretFields = info.get().getAccountDefinitionList().stream()
+                        .map(AccountValueAdaptor::wrap)
+                        .filter(AccountDefEntry::isSecret)
+                        .map(AccountDefEntry::getName)
+                        .collect(Collectors.toSet());
 
-        // Check that the input fields that the probe DOES recognize
-        // are valid and well-formed.
-        entries.entrySet().stream()
+        final List<String> fieldErrors = new ArrayList<>();
+        // Check for input fields that the probe doesn't recognize.
+        fieldErrors.addAll(inputFields.keySet().stream()
+                        .filter(name -> !acceptedAccountFields.contains(name))
+                        .map(name -> "Unknown field: " + name).collect(Collectors.toList()));
+        // Check for secret fields that the input fields doesn't contain.
+        fieldErrors.addAll(secretFields.stream()
+                        .filter(secretField -> !inputFields.keySet().contains(secretField))
+                        .map(name -> "Unknown secret field: " + name).collect(Collectors.toList()));
+        // Check that the input fields that the probe DOES recognize are valid and well-formed.
+        fieldErrors.addAll(entries.entrySet().stream()
                         .map(entry -> validateAccountEntry(
                                         inputFields.get(entry.getValue().getName()),
                                         entry.getValue(), entry.getKey()))
-                        .filter(Objects::nonNull).forEach(fieldErrors::add);
+                        .filter(Objects::nonNull).collect(Collectors.toList()));
         if (!fieldErrors.isEmpty()) {
             throw new InvalidTargetException(fieldErrors);
         }

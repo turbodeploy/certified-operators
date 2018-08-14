@@ -26,7 +26,6 @@ import org.junit.rules.TemporaryFolder;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Lists;
-
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
@@ -55,7 +54,6 @@ import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
-import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
@@ -64,10 +62,12 @@ import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
 import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
  * Testing the {@link OperationManager} functionality.
@@ -95,11 +95,13 @@ public class OperationManagerTest {
 
     private EntityActionDao entityActionDao = Mockito.mock(EntityActionDao.class);
 
+    private DerivedTargetParser derivedTargetParser = Mockito.mock(DerivedTargetParser.class);
+
     private final OperationManager operationManager = new OperationManager(
             identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener,
             entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
-            discoveredTemplatesUploader, entityActionDao,
+            discoveredTemplatesUploader, entityActionDao, derivedTargetParser,
             10, 10, 10);
 
     private long probeId;
@@ -107,7 +109,7 @@ public class OperationManagerTest {
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
-            (ITransport<MediationServerMessage, MediationClientMessage>)Mockito.mock(ITransport.class);
+            Mockito.mock(ITransport.class);
 
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();

@@ -12,9 +12,9 @@ import com.vmturbo.topology.processor.controllable.ControllableConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
+import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
-import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
 /**
@@ -87,6 +87,7 @@ public class OperationConfig {
             workflowConfig.discoveredWorkflowUploader(),
             discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
             controllableConfig.entityActionDaoImp(),
+            targetConfig.derivedTargetParser(),
             discoveryTimeoutSeconds,
             validationTimeoutSeconds,
             actionTimeoutSeconds

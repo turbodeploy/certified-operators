@@ -22,7 +22,8 @@ public interface TargetStore {
      * @param targetId OID of the target to look for.
      * @return The target information, or an empty optional if none found.
      */
-    @Nonnull Optional<Target> getTarget(final long targetId);
+    @Nonnull
+    Optional<Target> getTarget(final long targetId);
 
     /**
      * Get the name of a target if it exists.
@@ -30,14 +31,16 @@ public interface TargetStore {
      * @param targetId OID of the target to look for.
      * @return The name of the target, or an empty optional if the target is not found or has no name.
      */
-    @Nonnull Optional<String> getTargetAddress(final long targetId);
+    @Nonnull
+    Optional<String> getTargetAddress(final long targetId);
 
     /**
      * Retrieve all stored targets.
      *
      * @return A list of all targets registered in the store.
      */
-    @Nonnull List<Target> getAll();
+    @Nonnull
+    List<Target> getAll();
 
     /**
      * Stores the information for a new target.
@@ -48,16 +51,27 @@ public interface TargetStore {
      * @return The newly created target.
      * @throws InvalidTargetException If the spec is invalid.
      */
-    @Nonnull Target createTarget(@Nonnull final TargetSpec spec) throws InvalidTargetException;
+    @Nonnull
+    Target createTarget(@Nonnull final TargetSpec spec) throws InvalidTargetException;
 
     /**
      * Stores the information for a new target. Does not validate account values.
+     *
      * @param targetId the target identifier
      * @param spec Target information
      * @return The newly created target
      * @throws InvalidTargetException If the target spec is invalid.
      */
-    @Nonnull Target createTarget(long targetId, @Nonnull final TargetSpec spec) throws InvalidTargetException;
+    @Nonnull
+    Target createTarget(long targetId, @Nonnull final TargetSpec spec) throws InvalidTargetException;
+
+    /**
+     * Creates or updates derived targets based on the target specs. If the target has already exist, we just
+     * update the current one with non-identifier fields data, or create new derived target.
+     *
+     * @param targetSpecs List of target information.
+     */
+    void createOrUpdateDerivedTargets(@Nonnull final List<TargetSpec> targetSpecs);
 
     /**
      * Get all targets associated with a probe.
@@ -65,7 +79,8 @@ public interface TargetStore {
      * @param probeId OID of the probe to look for.
      * @return Targets associated with the probe.
      */
-    @Nonnull List<Target> getProbeTargets(final long probeId);
+    @Nonnull
+    List<Target> getProbeTargets(final long probeId);
 
     /**
      * Updates existing target with the newly specified target spec.
@@ -113,4 +128,13 @@ public interface TargetStore {
      * @return True if the listener was successfully removed, false otherwise.
      */
     boolean removeListener(@Nonnull TargetStoreListener listener);
+
+    /**
+     * Get all derived targets which belong to the specific target.
+     *
+     * @param parentTargetId The parent target id.
+     * @return The list of derived targets which belong to the parent target.
+     */
+    @Nonnull
+    List<Target> getDerivedTargets(long parentTargetId);
 }

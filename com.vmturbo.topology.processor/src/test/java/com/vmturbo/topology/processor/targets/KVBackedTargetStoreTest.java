@@ -6,9 +6,11 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -29,7 +31,6 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
-
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
@@ -94,7 +95,6 @@ public class KVBackedTargetStoreTest {
         keyValueStore = Mockito.mock(KeyValueStore.class);
         identityProvider = Mockito.mock(IdentityProvider.class);
         probeStore = Mockito.mock(ProbeStore.class);
-
         targetStore = new KVBackedTargetStore(keyValueStore, identityProvider, probeStore);
     }
 
@@ -427,7 +427,7 @@ public class KVBackedTargetStoreTest {
         Mockito.when(identityProvider.getTargetId(Mockito.any())).thenReturn(0L);
     }
 
-    private TargetSpec createTargetSpec(int probeId, int fieldValue) throws Exception {
+    private TargetSpec createTargetSpec(long probeId, int fieldValue) throws Exception {
         final TargetSpec.Builder builder = TargetSpec.newBuilder().setProbeId(probeId);
         builder.addAllAccountValue(createAccountValue(fieldValue));
         return builder.build();
@@ -558,10 +558,78 @@ public class KVBackedTargetStoreTest {
      * @throws Exception on exceptions occur
      */
     @Test
-    public void testRemoveNonExistirngTarget() throws Exception {
+    public void testRemoveNonExistingTarget() throws Exception {
         prepareInitialProbe();
         expectedException.expect(TargetNotFoundException.class);
         expectedException.expectMessage("does not exist");
         targetStore.removeTargetAndBroadcastTopology(-1, topologyHandler, scheduler);
+    }
+
+    /**
+     * Tests derived targets deletion. If the derived target is dependent on a parent target, then we need
+     * to remove the derived target after the parent target is deleted.
+     */
+    @Test
+    public void testDerivedTargetsDeletion() throws Exception {
+        prepareInitialProbe();
+        final long parentTargetId = 0L;
+        final long derivedTargetId1 = 100L;
+        final long derivedTargetId2 = 200L;
+        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
+                .setProbeId(1L)
+                .addAllAccountValue(createAccountValue(555))
+                .build();
+        final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
+                .setProbeId(1L)
+                .addAllAccountValue(createAccountValue(2333))
+                .setParentId(parentTargetId)
+                .setIsHidden(true)
+                .build();
+
+        Mockito.when(identityProvider.getTargetId(Mockito.any())).thenReturn(parentTargetId);
+        targetStore.createTarget(createTargetSpec(0L, 666));
+        // Derived target 1 is not dependent on parent target.
+        Mockito.when(identityProvider.getTargetId(Mockito.any())).thenReturn(derivedTargetId1);
+        targetStore.createTarget(derivedTargetSpec1);
+        // Derived target 2 is dependent on parent target.
+        Mockito.when(identityProvider.getTargetId(Mockito.any())).thenReturn(derivedTargetId2);
+        targetStore.createTarget(derivedTargetSpec2);
+        Assert.assertEquals(3, targetStore.getAll().size());
+
+        targetStore.removeTargetAndBroadcastTopology(parentTargetId, topologyHandler, scheduler);
+        Assert.assertTrue(targetStore.getTarget(derivedTargetId1).isPresent());
+        Assert.assertFalse(targetStore.getTarget(derivedTargetId2).isPresent());
+        Assert.assertEquals(1, targetStore.getAll().size());
+    }
+
+    /**
+     * Tests the function isTargetExist. Two targets are regard as same if the values of their identifier
+     * fields are exactly same.
+     */
+    @Test
+    public void testTargetExist() throws Exception {
+        prepareInitialProbe();
+        final long parentTargetId = 0L;
+        final long derivedTargetId1 = 100L;
+        final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
+                .setProbeId(1L)
+                .addAllAccountValue(createAccountValue(2333))
+                .setParentId(parentTargetId)
+                .build();
+        final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
+                .setProbeId(1L)
+                .addAllAccountValue(createAccountValue(2333))
+                .build();
+        final List<Target> existingTargets = new ArrayList<>();
+        final List<String> targetIdentifierFields = Arrays.asList(FIELD_NAME);
+
+        Mockito.when(identityProvider.getTargetId(Mockito.any())).thenReturn(parentTargetId);
+        existingTargets.add(targetStore.createTarget(createTargetSpec(0L, 666)));
+        Mockito.when(identityProvider.getTargetId(Mockito.any())).thenReturn(derivedTargetId1);
+        existingTargets.add(targetStore.createTarget(derivedTargetSpec1));
+
+        final Optional<Target> existTarget = targetStore.getExistingTarget(derivedTargetSpec2, existingTargets,
+                targetIdentifierFields);
+        Assert.assertTrue(existTarget.isPresent());
     }
 }

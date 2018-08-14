@@ -23,11 +23,11 @@ import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonWriter;
 import com.google.protobuf.util.JsonFormat;
-
 import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue.PropertyValueList;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -49,8 +49,7 @@ public class Target {
     private final long probeId;
 
     /**
-     * Account values given by the user when adding
-     * this target.
+     * Account values given by the user when adding this target.
      */
     private final List<AccountValue> mediationAccountVals;
 
@@ -72,8 +71,7 @@ public class Target {
         this.probeId = info.targetInfo.getSpec().getProbeId();
 
         noSecretDto = removeSecretAccountVals(info.targetInfo, info.secretFields);
-        noSecretAnonymousDto = removeSecretAnonymousAccountVals(info.targetInfo,
-                                                                info.secretFields);
+        noSecretAnonymousDto = removeSecretAnonymousAccountVals(info.targetInfo, info.secretFields);
 
         final ImmutableList.Builder<AccountValue> accountValBuilder = new ImmutableList.Builder<>();
         info.targetInfo.getSpec().getAccountValueList().stream()
@@ -105,8 +103,7 @@ public class Target {
         Objects.requireNonNull(probeStore);
         Objects.requireNonNull(inputSpec);
 
-        // Validate the spec first, before doing more
-        // extra work.
+        // Validate the spec first, before doing more extra work.
         if (validateAccountValues) {
             AccountValueVerifier.validate(inputSpec, probeStore);
         }
@@ -121,12 +118,14 @@ public class Target {
 
         mediationAccountVals = accountValBuilder.build();
 
-        final TargetInfo targetInfo = TargetInfo.newBuilder()
-                .setId(id)
-                .setSpec(TargetSpec.newBuilder()
-                    .setProbeId(probeId)
-                    .addAllAccountValue(inputSpec.getAccountValueList()))
-                .build();
+        final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
+                .addAllAccountValue(inputSpec.getAccountValueList());
+        if (inputSpec.hasParentId()) {
+            targetSpec.setParentId(inputSpec.getParentId());
+        }
+        targetSpec.setIsHidden(inputSpec.getIsHidden());
+
+        final TargetInfo targetInfo = TargetInfo.newBuilder().setId(id).setSpec(targetSpec).build();
 
         final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
 
@@ -135,15 +134,14 @@ public class Target {
             probeInfo.getAccountDefinitionList()
                             .stream()
                             .map(AccountValueAdaptor::wrap)
-                            .filter(ad -> ad.isSecret())
-                            .map(ad -> ad.getName())
+                            .filter(AccountDefEntry::isSecret)
+                            .map(AccountDefEntry::getName)
                             .forEach(secretFieldBuilder::add);
         }
         final Set<String> secretFields = secretFieldBuilder.build();
 
         noSecretDto = removeSecretAccountVals(targetInfo, secretFields);
-        noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo,
-                                                                secretFields);
+        noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);
 
         info = new InternalTargetInfo(targetInfo, secretFields);
     }
@@ -162,12 +160,14 @@ public class Target {
         throws InvalidTargetException {
         TargetInfo targetInfo = info.targetInfo;
 
-        final TargetSpec newSpec = TargetSpec.newBuilder().setProbeId(probeId)
+        final TargetSpec.Builder newSpec = TargetSpec.newBuilder().setProbeId(probeId)
             .addAllAccountValue(
-                mergeUpdatedAccountValues(targetInfo.getSpec().getAccountValueList(), updatedFields))
-            .build();
-
-        return new Target(getId(), probeStore, newSpec, true);
+                mergeUpdatedAccountValues(targetInfo.getSpec().getAccountValueList(), updatedFields));
+        if (targetInfo.getSpec().hasParentId()) {
+            newSpec.setParentId(targetInfo.getSpec().getParentId());
+        }
+        newSpec.setIsHidden(targetInfo.getSpec().getIsHidden());
+        return new Target(getId(), probeStore, newSpec.build(), true);
     }
 
     public com.vmturbo.topology.processor.api.TargetInfo createTargetInfo() {
@@ -213,15 +213,15 @@ public class Target {
 
     private TargetInfo removeSecretAccountVals(@Nonnull final TargetInfo info,
                                                @Nonnull final Set<String> secretVals) {
-        return TargetInfo.newBuilder()
-                .setId(info.getId())
-                .setSpec(TargetSpec.newBuilder()
-                    .setProbeId(info.getSpec().getProbeId())
-                    .addAllAccountValue(
-                        info.getSpec().getAccountValueList().stream()
-                            .filter(val -> !secretVals.contains(val.getKey()))
-                            .collect(Collectors.toList())))
-                .build();
+        final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(info.getSpec().getProbeId())
+                .addAllAccountValue(info.getSpec().getAccountValueList().stream()
+                        .filter(val -> !secretVals.contains(val.getKey()))
+                        .collect(Collectors.toList()));
+        if (info.getSpec().hasParentId()) {
+            targetSpec.setParentId(info.getSpec().getParentId());
+        }
+        targetSpec.setIsHidden(info.getSpec().getIsHidden());
+        return TargetInfo.newBuilder().setId(info.getId()).setSpec(targetSpec).build();
     }
 
     /**
@@ -247,11 +247,14 @@ public class Target {
                 accountValues.add(val);
             }
         }
-        return TargetInfo.newBuilder()
-                         .setId(info.getId())
-                         .setSpec(TargetSpec.newBuilder().setProbeId(info.getSpec().getProbeId())
-                                            .addAllAccountValue(accountValues))
-                         .build();
+
+        final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(info.getSpec().getProbeId())
+                .addAllAccountValue(accountValues);
+        if (info.getSpec().hasParentId()) {
+            targetSpec.setParentId(info.getSpec().getParentId());
+        }
+        targetSpec.setIsHidden(info.getSpec().getIsHidden());
+        return TargetInfo.newBuilder().setId(info.getId()).setSpec(targetSpec).build();
     }
 
     /**
@@ -342,10 +345,14 @@ public class Target {
                     values.add(av);
                 }
             });
-            return TargetInfo.newBuilder().setId(targetInfo.getId())
-                             .setSpec(TargetSpec.newBuilder()
-                                                .setProbeId(targetInfo.getSpec().getProbeId())
-                                                .addAllAccountValue(values)).build();
+            final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
+                    .setProbeId(targetInfo.getSpec().getProbeId())
+                    .addAllAccountValue(values);
+            if (targetInfo.getSpec().hasParentId()) {
+                targetSpec.setParentId(targetInfo.getSpec().getParentId());
+            }
+            targetSpec.setIsHidden(targetInfo.getSpec().getIsHidden());
+            return TargetInfo.newBuilder().setId(targetInfo.getId()).setSpec(targetSpec).build();
         }
 
         /**
@@ -366,10 +373,14 @@ public class Target {
                     values.add(av);
                 }
             });
-            return TargetInfo.newBuilder().setId(targetInfo.getId())
-                             .setSpec(TargetSpec.newBuilder()
-                                                .setProbeId(targetInfo.getSpec().getProbeId())
-                                                .addAllAccountValue(values)).build();
+            final TargetSpec.Builder targetSpec = TargetSpec.newBuilder()
+                    .setProbeId(targetInfo.getSpec().getProbeId())
+                    .addAllAccountValue(values);
+            if (targetInfo.getSpec().hasParentId()) {
+                targetSpec.setParentId(targetInfo.getSpec().getParentId());
+            }
+            targetSpec.setIsHidden(targetInfo.getSpec().getIsHidden());
+            return TargetInfo.newBuilder().setId(targetInfo.getId()).setSpec(targetSpec).build();
         }
 
         @Nonnull

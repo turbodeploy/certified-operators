@@ -32,4 +32,9 @@ public class TargetConfig {
                 identityProviderConfig.identityProvider(),
                 probeConfig.probeStore());
     }
+
+    @Bean
+    public DerivedTargetParser derivedTargetParser() {
+        return new DerivedTargetParser(probeConfig.probeStore(), targetStore());
+    }
 }
