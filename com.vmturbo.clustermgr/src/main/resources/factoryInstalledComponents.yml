@@ -319,14 +319,6 @@ mediation-openstack:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
-mediation-aws:
-  <<: *baseVmtComponentSettings
-  <<: *commonMediationComponentSettings
-
-mediation-aws-billing:
-  <<: *baseVmtComponentSettings
-  <<: *commonMediationComponentSettings
-
 mediation-ucsdirector:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings

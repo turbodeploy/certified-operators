@@ -535,7 +535,6 @@
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
-                <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>

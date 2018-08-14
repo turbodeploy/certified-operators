@@ -499,32 +499,6 @@ services:
     volumes:
       - mediation-openstack:/home/turbonomic/data
 
-  mediation-aws-prod:
-    extends:
-      file: common-services.yml
-      service: prod-component
-    image: turbonomic/com.vmturbo.mediation.aws.component
-    environment:
-      consul_host: consul
-      component_type: mediation-aws
-      instance_id: mediation-aws-1
-    volumes:
-      - mediation-aws:/home/turbonomic/data
-    restart: always
-
-  mediation-aws-billing-prod:
-    extends:
-      file: common-services.yml
-      service: prod-component
-    image: turbonomic/com.vmturbo.mediation.aws.billing.component
-    environment:
-      consul_host: consul
-      component_type: mediation-aws-billing
-      instance_id: mediation-aws-billing-1
-    volumes:
-      - mediation-aws-billing:/home/turbonomic/data
-    restart: always
-
   mediation-ucsdirector-prod:
     extends:
       file: common-services.yml
