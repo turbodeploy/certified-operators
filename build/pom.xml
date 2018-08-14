@@ -273,6 +273,7 @@
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -445,6 +446,13 @@
         </profile>
 
         <profile>
+            <id>mediation-vcenter-browsing</id>
+            <modules>
+                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-stressprobe</id>
             <modules>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -511,6 +519,7 @@
                      that we currently support in XL. -->
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
@@ -526,6 +535,7 @@
                 <module>../com.vmturbo.mediation.vplex.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
+                <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -616,6 +626,7 @@
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
+                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.openstack.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
                 <module>../com.vmturbo.mediation.ucsdirector.component</module>

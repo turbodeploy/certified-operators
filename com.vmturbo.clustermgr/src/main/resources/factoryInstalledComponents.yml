@@ -259,6 +259,10 @@ mediation-vcenter:
     grpcPingIntervalSeconds: 300
     websocket.pong.timeout: 30000
 
+mediation-vcenter-browsing:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 mediation-hyperv:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
@@ -312,6 +316,14 @@ mediation-rhv:
   <<: *commonMediationComponentSettings
 
 mediation-openstack:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
+mediation-aws:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
+mediation-aws-billing:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 

@@ -36,6 +36,7 @@ volumes:
   cost: *localdriver
   reporting: *localdriver
   mediation-vcenter: *localdriver
+  mediation-vcenter-browsing: *localdriver
   mediation-hyperv: *localdriver
   mediation-netapp: *localdriver
   mediation-ucs: *localdriver
@@ -258,6 +259,15 @@ services:
     environment:
       JAVA_OPTS: "-Xmx1536M"
     mem_limit: 2048M
+    depends_on: *clustermgrdep
+
+  mediation-vcenter-browsing:
+    extends:
+      file: prod-services.yml
+      service: mediation-vcenter-browsing-prod
+    environment:
+      JAVA_OPTS: "-Xmx512M"
+    mem_limit: 700M
     depends_on: *clustermgrdep
 
   mediation-hyperv:

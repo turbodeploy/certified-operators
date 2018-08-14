@@ -41,6 +41,7 @@ volumes:
   reporting: *localdriver
   cost: *localdriver
   mediation-vcenter: *localdriver
+  mediation-vcenter-browsing: *localdriver
   mediation-stressprobe: *localdriver
   mediation-storagestressprobe: *localdriver
   mediation-hyperv: *localdriver
@@ -509,6 +510,23 @@ services:
     volumes:
       - mediation-vcenter:/home/turbonomic/data
     mem_limit: ${MEDIATION_VCENTER_MEM_LIMIT_MB}M
+
+  mediation-vcenter-browsing:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.vcenter.browsing.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_VCENTER_BROWSING_PORT}"
+      - "${MEDIATION_VCENTER_BROWSING_DEBUG_PORT}"
+    environment:
+      component_type: mediation-vcenter-browsing
+      instance_id: mediation-vcenter-browsing-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCENTER_BROWSING_XMX_MB}M ${MEDIATION_VCENTER_BROWSING_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-vcenter-browsing:/home/turbonomic/data
+    mem_limit: ${MEDIATION_VCENTER_BROWSING_MEM_LIMIT_MB}M
 
   mediation-stressprobe:
     extends:

@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.docker.compose.connection.DockerMachine;
 import com.palantir.docker.compose.connection.DockerMachine.LocalBuilder;
 import com.palantir.docker.compose.connection.DockerMachine.RemoteBuilder;
-
 import com.vmturbo.components.test.utilities.component.ComponentCluster.Component;
 
 /**
@@ -96,6 +95,8 @@ public class DockerEnvironment {
             .put("COST_DEBUG_PORT", "8000")
             .put("MEDIATION_VCENTER_PORT", "8080")
             .put("MEDIATION_VCENTER_DEBUG_PORT", "8000")
+            .put("MEDIATION_VCENTER_BROWSING_PORT", "8080")
+            .put("MEDIATION_VCENTER_BROWSING_DEBUG_PORT", "8000")
             .put("MEDIATION_STRESSPROBE_PORT", "8080")
             .put("MEDIATION_STRESSPROBE_DEBUG_PORT", "8000")
             .put("MEDIATION_STORAGESTRESSPROBE_PORT", "8080")
@@ -169,6 +170,8 @@ public class DockerEnvironment {
             .put("REPORTING_MEM_LIMIT_MB", "512")
             .put("MEDIATION_VCENTER_XMX_MB", "384")
             .put("MEDIATION_VCENTER_MEM_LIMIT_MB", "512")
+            .put("MEDIATION_VCENTER_BROWSING_XMX_MB", "384")
+            .put("MEDIATION_VCENTER_BROWSING_MEM_LIMIT_MB", "512")
             .put("MEDIATION_HYPERV_XMX_MB", "384")
             .put("MEDIATION_HYPERV_MEM_LIMIT_MB", "512")
             .put("MEDIATION_NETAPP_XMX_MB", "384")
@@ -239,6 +242,7 @@ public class DockerEnvironment {
             .put("REPORTING_SYSTEM_PROPERTIES", "")
             .put("COST_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_VCENTER_SYSTEM_PROPERTIES", "")
+            .put("MEDIATION_VCENTER_BROWSING_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_HYPERV_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_NETAPP_SYSTEM_PROPERTIES", "")
             .put("MEDIATION_UCS_SYSTEM_PROPERTIES", "")
