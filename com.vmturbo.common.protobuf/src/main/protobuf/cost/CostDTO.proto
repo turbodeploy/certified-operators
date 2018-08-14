@@ -117,6 +117,30 @@ message Discount {
     }
 }
 
+// The Cloud entity cost. It can store calcuated and predicted (from Market to Cost component)
+// entity cost, help persist to DB, and help calculate cost from REST API reqeusts.
+message EntityCost {
+    // The associated entity oid for the Cloud entity.
+    optional int64 associated_entity_id = 1;
+
+    // list of component costs, e.g. Compute and Storage costs.
+    repeated ComponentCost component_cost = 2;
+
+    // A pre-calcuate hourly total entity cost for speeding up calculation.
+    // It's the summation of the list of component costs.
+    optional CurrencyAmount total_amount = 3;
+
+    message ComponentCost {
+        // Cost type represents the possible breakdown of an entity cost into separate components
+        // Like Compute, Storage, licensing and so on.
+        optional CostType cost_type = 1;
+
+        // Hourly rate for Cloud entity
+        optional CurrencyAmount amount = 2;
+    }
+}
+
+
 // A service responsible for getting information about cost information in Cloud.
 service CostService {
     // Get information about account expense
