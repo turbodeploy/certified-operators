@@ -1,0 +1,15 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: registrydata
+  namespace: turbonomic
+  labels:
+    kubernetes.io/cluster-service: "true"
+spec:
+  storageClassName: gluster-heketi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+status: {}
