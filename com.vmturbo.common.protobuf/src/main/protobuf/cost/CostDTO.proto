@@ -1,0 +1,149 @@
+syntax = "proto2";
+package cost;
+
+option java_package = "com.vmturbo.common.protobuf.cost";
+
+import "common/Pagination.proto";
+import "cost/CostCommon.proto";
+
+// Top down Cloud account expense discovered by the billing probe, associated with a specific account
+message AccountExpenses {
+    // The associated account oid
+    optional int64 associated_account_id = 1;
+
+    // Account service expense, e.g. AWSLambda
+    repeated ServiceExpenses service_expenses = 2;
+
+    // Account tier expense, e.g. i3.large.
+    repeated TierExpenses tier_expenses = 3;
+
+    message ServiceExpenses {
+        optional int64 associated_service_id = 1;
+
+        optional CurrencyAmount expenses = 2;
+    }
+
+    message TierExpenses {
+        optional int64 associated_tier_id = 1;
+
+        optional CurrencyAmount expenses = 2;
+    }
+
+    // The timestamp at which the expense is received by Cost component.
+    // Note: It should be the timestamp that the expenses were generated.
+    // But currently probe doesn't have this information in it's DTO.
+    // The time is in "system time" and not necessarily UTC.
+    optional int64 expense_received_timestamp = 4;
+}
+
+// A message used to retrieve account expenses.
+message ExpenseRequest {
+    // A filter to be applied to the account expense retrieved. If no filter is supplied
+    // all account expenses are returned.
+    optional ExpenseQueryFilter filter = 1;
+
+    // The pagination parameters for the request.
+    // If not set, the service will use the default sort order and limit.
+    optional common.PaginationParameters pagination_params = 2;
+}
+
+// Response to the expense request
+message ExpenseResponse {
+    // The list of account expense.
+    // The length of this list will not exceed the limit set in the request pagination parameters.
+    // The account expense will be ordered according to the order in the request pagination parameters.
+    repeated AccountExpenses account_expense = 1;
+
+    // The response message containing pagination-related response parameters.
+    optional common.PaginationResponse pagination_response = 2;
+}
+
+// A filter to be supplied with expense queries.
+// The conditions in the query filter will be AND-ed together, so only
+// expenses that match all of them will be returned.
+message ExpenseQueryFilter {
+    // There are two types of filters.
+    // - Account filter: used to filter account
+    // - Cloud service filter: used to filter Cloud service
+
+    // Include only expenses in the given accounts. It's optional and return all expenses if empty.
+    repeated int64 associated_account_id = 1;
+
+    // Include only expenses in the given Cloud service. It's optional and return all expenses if empty.
+    repeated int64 associated_cloud_service_id = 2;
+
+    // date range for the request; dates are epoch longs, e.g. Unix Timestamp
+    // We currently require both start_date and end_date to be not null.
+    optional int64 start_date = 3;
+
+    optional int64 end_date = 4;
+}
+
+// Discount associated with a specific business account.
+// Customers negotiate discounts with Cloud Vendors:
+// * Enterprise Program Discount [AWS]
+// * Enterprise Agreement [Azure]
+// Entity costs in Turbonomic should reflect what the customer actually pays
+// All discounts to be entered by user [Cannot be discovered]
+message Discount {
+    // The oid for the discount
+    optional int64 id = 1;
+
+    // The associated business account oid
+    optional int64 associated_account_id = 2;
+
+    // Global level account discount, e.g. 10.0 % on Account A
+    optional AccountLevelDiscount account_level_discount = 3;
+
+    // Service level discount, e.g. 10.0 % on all EC2 for Account A
+    optional ServiceLevelDiscount service_level_discount = 4;
+
+    // Tier/Template level discount, e.g. 10.0 % on all t2.small for Account A
+    optional TierLevelDiscount tier_level_discount = 5;
+
+    message AccountLevelDiscount {
+        // The global level discount, e.g. 10.0
+        optional double discount_percentage = 1;
+    }
+
+    message ServiceLevelDiscount {
+        // The service level discount, arranged by service ID, e.g. 111111 -> 10.0
+        map<int64, double> discount_percentage_by_service_id = 1;
+    }
+
+    message TierLevelDiscount {
+        // The Tier/Template level discount, arranged by tier ID, e.g. 2222222 -> 10.0
+        map<int64, double> discount_percentage_by_tier_id = 1;
+    }
+}
+
+// The Cloud entity cost. It can store calcuated and predicted (from Market to Cost component)
+// entity cost, help persist to DB, and help calculate cost from REST API reqeusts.
+message EntityCost {
+    // The associated entity oid for the Cloud entity.
+    optional int64 associated_entity_id = 1;
+
+    // list of component costs, e.g. Compute and Storage costs.
+    repeated ComponentCost component_cost = 2;
+
+    // A pre-calcuate hourly total entity cost for speeding up calculation.
+    // It's the summation of the list of component costs.
+    optional CurrencyAmount total_amount = 3;
+
+    message ComponentCost {
+        // Cost type represents the possible breakdown of an entity cost into separate components
+        // Like Compute, Storage, licensing and so on.
+        optional CostType cost_type = 1;
+
+        // Hourly rate for Cloud entity
+        optional CurrencyAmount amount = 2;
+    }
+}
+
+
+// A service responsible for getting information about cost information in Cloud.
+service CostService {
+    // Get information about account expense
+    rpc GetAccountExpense (ExpenseRequest) returns (ExpenseResponse);
+}
+
