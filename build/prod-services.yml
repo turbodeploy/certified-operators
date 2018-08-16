@@ -537,16 +537,3 @@ services:
     volumes:
       - mediation-awsbilling:/home/turbonomic/data
     restart: always
-
-  mediation-awscost-prod:
-    extends:
-      file: common-services.yml
-      service: prod-component
-    image: turbonomic/com.vmturbo.mediation.aws.cost.component
-    environment:
-      consul_host: consul
-      component_type: mediation-awscost
-      instance_id: mediation-awscost-1
-    volumes:
-      - mediation-awscost:/home/turbonomic/data
-    restart: always

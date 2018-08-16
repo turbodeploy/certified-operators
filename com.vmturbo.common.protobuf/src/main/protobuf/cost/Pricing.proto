@@ -1,9 +1,10 @@
 syntax = "proto2";
+
 package cost;
 
 option java_package = "com.vmturbo.common.protobuf.cost";
 
-import "PricingDTO.proto";
+import "cost/CostCommon.proto";
 
 // The price table is used to help calculate costs for entities in the
 // topology that use cloud services, or to evaluate the effects of cloud-related moves/provisions
@@ -38,7 +39,7 @@ message PriceTable {
 
     // A list of license prices, arranged by license ID.
     // License IDs are derived from the OS the license is for.
-    map<int64, common_dto.LicensePriceList> license_price_by_id = 20;
+    map<int64, LicensePriceList> license_price_by_id = 20;
 }
 
 // The pricing information for reserved instances.
@@ -51,6 +52,178 @@ message ReservedInstancePrice {
     optional ReservedInstancePriceTable pricing_table = 1;
 }
 
+// The pricing table for on-demand instances within a particular region.
+//
+// On-demand instances are the "default" pay-per-use option for all cloud providers.
+message OnDemandPriceTable {
+
+    // The list of prices for a particular compute tier. In the cloud, a compute tier is
+    // the seller of CPU/memory (but not storage) to a VM. It is commonly referred to as an
+    // "instance" (e.g. Compute Instance in AWS). We use the tier terminology to be consistent
+    // across compute and storage, and because you can think of the compute instances as
+    // different available "tiers" of the Compute service.
+    //
+    // A single compute tier may have different available prices depending on other
+    // configuration option (for example, whether it's shared or a dedicated).
+    message ComputeTierPriceList {
+        // The price for a particular configuration of a compute tier.
+        message ComputeTierConfigPrice {
+            // The region also affects the price, but all on demand pricing tables are
+            // indexed by region ID, so we don't represent that here.
+
+            // The name of the tier affects the price, but the ComputeTierPriceList is for
+            // a particular ID, which is derived from the name, so we don't represent that here.
+
+            // The guest operating system.
+            optional OSType guest_os_type = 1;
+
+            // The tenancy for this configuration of the tier.
+            // A single tier may have different tenancy options that will be priced differently
+            // (e.g. dedicated tenancy is more expensive than shared).
+            optional Tenancy tenancy = 2;
+
+            // The available prices for this configuration of the tier. There may be multiple
+            // prices (e.g. an hourly price and a monthly price).
+            repeated Price prices = 10;
+        }
+
+        // The base price is the price of the default - and usually cheapest - configuration.
+        // For example, in AWS this would be a shared Linux machine (which has no extra license
+        // or tenancy costs).
+        optional ComputeTierConfigPrice base_price = 1;
+
+        // There are the other configurations available for the tier, and the
+        // prices for those configurations ON TOP of the base price. We track it this way
+        // so that we can easily separate the compute cost from the license/tenancy cost.
+        //
+        // For example, if the base price is for a Linux machine that costs $1/hr, and a Windows OS
+        // machine costs $1.50/hr, there would be a price adjustment for a Windows OS with price
+        // "0.50/hr". To get the full price for a Windows insance you would need to find the
+        // appropriate price adjustment, and add it to the base price.
+        //
+        // The configuration from the base price should not appear in this list.
+        repeated ComputeTierConfigPrice per_configuration_price_adjustments = 2;
+    }
+
+    // The list of prices for a particular database tier. In the cloud, a database tier is
+    // a managed database solution (e.g. RDS in AWS). It is commonly referred to as an
+    // "instance" (e.g. Database Instance in AWS). We use the tier terminology to be consistent
+    // with compute and storage, and because you can think of the database instances as
+    // different available "tiers" of databases.
+    //
+    // A single database tier may have different available prices depending on other
+    // configuration options (for example, the database engine).
+    message DatabaseTierPriceList {
+        // The price for a particular configuration of a database tier.
+        message DatabaseTierConfigPrice {
+            // The region also affects the price, but all on demand pricing tables are
+            // indexed by region ID, so we don't represent that here.
+
+            // The name of the tier (e.g. db.m4.large) affects the price, but the
+            // DatabaseTierPriceList is for a particular ID, which is derived from the name,
+            // so we don't represent that here.
+
+            // The database engine to use for this configuration of the tier.
+            // Should be set.
+            optional DatabaseEngine db_engine = 1;
+
+            // The edition of the engine to use for this configuration of the tier. Not to be confused
+            // with "version", which doesn't affect the price.
+            //
+            // May be unset, because open-source database engines often don't have editions.
+            optional DatabaseEdition db_edition = 2;
+
+            // The available prices for this configuration of the database tier.
+            // There may be different prices (e.g. an hourly price and a monthly price).
+            repeated Price prices = 20;
+        }
+
+        // The base price is the price of the default - and usually cheapest - configuration.
+        // For example, in AWS this would be a shared Linux machine (which has no extra license
+        // or tenancy costs).
+        optional DatabaseTierConfigPrice base_price = 1;
+
+        // There are the other configurations available for the database instance, and the
+        // prices for those configurations ON TOP of the base price. We track it this way
+        // so that we can easily separate the compute cost from the license/tenancy cost.
+        //
+        // For example, if the base price is for a PostgreSQL machine that costs $1/hr, and an Oracle
+        // machine costs $1.50/hr, there would be a price adjustment for Oracle with price
+        // "0.50/hr". To get the full price for an Oracle insance you would need to find the
+        // appropriate price adjustment, and add it to the base price.
+        //
+        // The configuration from the base price should not appear in this list.
+        repeated DatabaseTierConfigPrice configuration_price_adjustments = 2;
+    }
+
+    // The list of prices for a particular IP.
+    //
+    // TODO (roman, July 31 2018): It's unclear at the time of this writing what different kinds
+    // of IPs are available within a region, and whether this model is the best way to represent
+    // them.
+    //
+    // Also, the cost probes currently (July 31 2018) use the same name for all IP Addresses,
+    // meaning there will only be one IpPriceList per region if we dedupe based on name alone.
+    //
+    // However, in AWS there are different IP Address entries within a region. These have different
+    // group types - charges for IP remaps, charges for IPs attached to a running instance,
+    // charges for IPs NOT attached to a running instance - represented by different product SKU's.
+    // Right now the IP Price List is not flexible enough to express all of those options.
+    message IpPriceList {
+        // The price for a particular IP configuration.
+        message IpConfigPrice {
+            // The region also affects the price, but all on demand pricing tables are
+            // indexed by region ID, so we don't represent that here.
+
+            // The name affects the price, but the IpPriceList is for a particular IP ID,
+            // which is derived from the name, so we don't represent that here.
+
+            // The number of IPs you get for free for an instance.
+            // This seems to only be relevant in AWS.
+            optional int32 free_ip_count = 2;
+
+            // The prices available for this IP Price. There may be different prices (e.g. an hourly
+            // price and a monthly price).
+            repeated Price prices = 10;
+        }
+
+        // The list of IP prices.
+        repeated IpConfigPrice ip_price = 1;
+    }
+
+    // The list of storage prices for a particular cloud storage tier.
+    message StorageTierPriceList {
+        message StorageTierPrice {
+            // The region also affects the price, but all on demand pricing tables are
+            // indexed by region ID, so we don't represent that here.
+
+            // The storage tier affects the price, but the CloudStoragePriceList is
+            // for a particular tier, so we don't represent that here.
+
+            repeated Price prices = 10;
+        }
+
+        // The list of prices.
+        //
+        // Note: Right now this could be replaced by "repeated Price", but using an extra
+        // wrapper is more consistent with the other price lists, and more easily extensible
+        // later down the road.
+        repeated StorageTierPrice cloud_storage_price = 1;
+    }
+
+    // The prices for compute tiers in this region, arranged by tier ID.
+    map<int64, ComputeTierPriceList> compute_prices_by_tier_id = 1;
+
+    // The prices for database instances in this region, arranged by instance ID.
+    map<int64, DatabaseTierPriceList> db_prices_by_instance_id = 2;
+
+    // The prices for IPs in this region, arranged by ID.
+    map<int64, IpPriceList> ip_prices_by_id = 3;
+
+    // The prices for cloud storage in this region, arranged by tier ID.
+    map<int64, StorageTierPriceList> cloud_storage_prices_by_tier_id = 4;
+}
+
 // The pricing table for reserved instances. This pricing table is GLOBAL, because
 // region ID is factored into the reserved instance spec.
 //
@@ -61,29 +234,33 @@ message ReservedInstancePrice {
 // Note: AWS and Azure have reserved instance, and Google has a similar
 // concept called "Committed Use Discounts".
 message ReservedInstancePriceTable {
+    message ReservedInstancePrice {
+        // The total upfront price. May not be set if the payment option for the reserved
+        // instance is NO_UPFRONT.
+        //
+        // TODO (roman, July 31 2019): This may need to be a list, to allow
+        // different pricing options. For example, a different hourly vs monthly price.
+        optional Price upfront_price = 10;
+
+        // The recurring price. This is the amount you have to pay regularly for the instance.
+        //
+        // TODO (roman, July 31 2019): This may need to be a list, to allow
+        // different pricing options. For example, a different hourly vs monthly price.
+        optional Price recurring_price = 11;
+
+        // This captures other costs for using the instance - for example, license costs.
+        // May not be set, depending on the instance configuration (e.g. a Linux instance
+        // will have no license costs).
+        //
+        // TODO (roman, July 31 2019): This may need to be a list, to allow
+        // different pricing options. For example, a different hourly vs monthly price.
+        optional Price usage_price = 12;
+    }
 
     // The prices for reserved instances, arranged by the ID of the reserved instance spec.
     // The spec is made up of all the configurable fields that affect the price of the instance,
     // so each spec resolves to exactly one price.
-    map<int64, common_dto.ReservedInstancePrice> ri_prices_by_spec_id = 1;
-}
-
-// The pricing table for on-demand instances within a particular region.
-//
-// On-demand instances are the "default" pay-per-use option for all cloud providers.
-message OnDemandPriceTable {
-
-    // The prices for compute tiers in this region, arranged by tier ID.
-    map<int64, common_dto.ComputeTierPriceList> compute_prices_by_tier_id = 1;
-
-    // The prices for database instances in this region, arranged by instance ID.
-    map<int64, common_dto.DatabaseTierPriceList> db_prices_by_instance_id = 2;
-
-    // The prices for IPs in this region, arranged by ID.
-    map<int64, common_dto.IpPriceList> ip_prices_by_id = 3;
-
-    // The prices for cloud storage in this region, arranged by tier ID.
-    map<int64, common_dto.StorageTierPriceList> cloud_storage_prices_by_tier_id = 4;
+    map<int64, ReservedInstancePrice> ri_prices_by_spec_id = 1;
 }
 
 // The pricing table for spot instances.
@@ -97,5 +274,76 @@ message OnDemandPriceTable {
 message SpotInstancePriceTable {
     // At the time of this writing the spot price is always hourly, and
     // is set per-region-per-instance.
-    map<int64, common_dto.Price> spot_price_by_instance_id = 1;
+    map<int64, Price> spot_price_by_instance_id = 1;
+}
+
+// The list of prices associated with licensing a particular Operating System.
+// Not all service-providers have license price lists. In particular, AWS does not.
+message LicensePriceList {
+    message LicensePrice {
+        // The name affects the price, but the LicensePriceList is for
+        // a particular ID, which is derived from the OS, so we don't represent that here.
+
+        // The number of cores may affect the license price for a particular OS.
+        optional int32 number_of_cores = 1;
+
+        // The prices for the license. It's a list, because the prices may have dimensions/tiers
+        // (e.g. one price for the first 10, another price for the next 10).
+        // It's not clear whether these multi-tiered prices actually happen right now.
+        //
+        // Should be non-empty.
+        repeated Price prices = 10;
+    }
+
+    // The list of prices.
+    repeated LicensePrice license_price = 1;
+}
+
+// The price of a particular instance or cloud entity.
+message Price {
+    // The unit for the price.
+    // The unit affects how to use the price to calculate the cost for an entity,
+    // and is also useful when displaying information for UI purposes.
+    //
+    // TODO (roman, Jul 31 2018): Not all units are relevant for all types of cloud entities.
+    // In the future it may be worth it to have each type of cloud entity have its own unit,
+    // to avoid confusion.
+    enum Unit {
+        // The price is calculated on an hourly basis.
+        // One unit = one hour.
+        HOURS = 1;
+
+        // The price is calculated on a daily basis.
+        // One unit = one day.
+        DAYS = 2;
+
+        // The price is calculated on a monthly basis.
+        // One unit = one month.
+        MONTH = 3;
+
+        // The price is a total one-time cost.
+        TOTAL = 10;
+
+        // The price is calculated on a per-IOPS rate.
+        // One unit = one million iops.
+        MILLION_IOPS = 20;
+
+        // The price is calculated on a GB-month.
+        // One unit = one GB-month.
+        // A GB-month is gigabytes averaged over the month. For example, if you store 30 GB
+        // for 15 days of a 30-day month, that would add up to 15 GB-month.
+        GB_MONTH = 21;
+    }
+
+    // The unit in which the price is measured.
+    // Not all units are valid for all types of cloud entities.
+    optional Unit unit = 1;
+
+    // The end range - in units. If not set, assume "infinite".
+    // For example, if the price is $0 for the first 10 X, and $10 for the next 10 X, then
+    // there should be two Prices, with an end_range of 10 for the first one, and
+    // an end_range of 20 for the second. The end is inclusive.
+    optional int64 end_range_in_units = 6;
+
+    optional CurrencyAmount price_amount = 22;
 }
