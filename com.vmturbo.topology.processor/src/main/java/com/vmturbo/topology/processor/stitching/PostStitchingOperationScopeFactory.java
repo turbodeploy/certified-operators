@@ -119,6 +119,17 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
             probeStore, targetStore);
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public StitchingScope<TopologyEntity> multiProbeCategoryEntityTypeScope(
+            @Nonnull final Set<ProbeCategory> probeCategories,
+            @Nonnull final EntityType entityType) {
+        return new MultiProbeCategoryEntityTypeStitchingScope(topologyGraph, probeCategories,
+                entityType, probeStore, targetStore);
+    }
+
     public TopologyGraph getTopologyGraph() {
         return topologyGraph;
     }
@@ -399,14 +410,53 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         @Override
         public Stream<TopologyEntity> entities() {
             final Set<Long> probeCategoryTargetIds = probeStore.getProbeIdsForCategory(probeCategory).stream()
-                .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream()
-                    .map(Target::getId))
-                .collect(Collectors.toSet());
+                 .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream()
+                     .map(Target::getId))
+                 .collect(Collectors.toSet());
 
             return getTopologyGraph().entitiesOfType(entityType)
                 .filter(TopologyEntity::hasDiscoveryOrigin)
                 .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
                     .anyMatch(probeCategoryTargetIds::contains));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation to entities discovered by a probe category
+     * with a specific {@link EntityType}.
+     */
+    private static class MultiProbeCategoryEntityTypeStitchingScope extends BaseStitchingScope {
+
+        private final Set<ProbeCategory> probeCategories;
+        private final EntityType entityType;
+        private final ProbeStore probeStore;
+        private final TargetStore targetStore;
+
+        public MultiProbeCategoryEntityTypeStitchingScope(@Nonnull TopologyGraph topologyGraph,
+                                                     @Nonnull final Set<ProbeCategory> probeCategories,
+                                                     @Nonnull final EntityType entityType,
+                                                     @Nonnull final ProbeStore probeStore,
+                                                     @Nonnull final TargetStore targetStore) {
+            super(topologyGraph);
+            this.probeCategories = Objects.requireNonNull(probeCategories);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.probeStore = Objects.requireNonNull(probeStore);
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<TopologyEntity> entities() {
+            final Set<Long> probeCategoryTargetIds = probeCategories.stream().flatMap(category ->
+                    probeStore.getProbeIdsForCategory(category).stream())
+                    .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream()
+                            .map(Target::getId))
+                    .collect(Collectors.toSet());
+
+            return getTopologyGraph().entitiesOfType(entityType)
+                    .filter(TopologyEntity::hasDiscoveryOrigin)
+                    .filter(entity -> entity.getDiscoveryOrigin().get().getDiscoveringTargetIdsList().stream()
+                            .anyMatch(probeCategoryTargetIds::contains));
         }
     }
 }

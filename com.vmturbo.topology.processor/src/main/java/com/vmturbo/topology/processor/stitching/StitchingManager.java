@@ -29,11 +29,13 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
+import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingPhase;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
+import com.vmturbo.topology.processor.probes.ProbeOrdering;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalTargetEntrySupplier;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -168,14 +170,14 @@ public class StitchingManager {
     @Nonnull
     public StitchingContext stitch(@Nonnull final StitchingContext stitchingContext,
                                    @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal) {
-        final PreStitchingOperationScopeFactory scopeFactory = new PreStitchingOperationScopeFactory(
+        final PreStitchingOperationScopeFactory preStitchScopeFactory = new PreStitchingOperationScopeFactory(
             stitchingContext, probeStore, targetStore);
 
         stitchingJournal.recordTargets(
             new StitchingJournalTargetEntrySupplier(targetStore, probeStore, stitchingContext)::getTargetEntries);
 
-        preStitch(scopeFactory, stitchingJournal);
-        mainStitch(stitchingContext, stitchingJournal);
+        preStitch(preStitchScopeFactory, stitchingJournal);
+        mainStitch(preStitchScopeFactory, stitchingJournal);
 
         return stitchingContext;
     }
@@ -231,22 +233,24 @@ public class StitchingManager {
     /**
      * Apply the stitching phase to the entities in the stitching context.
      *
-     * @param stitchingContext The context containing the entities to be stitched.
+     * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
+     *                     of entities that the stitching operation should operate on.
      * @param stitchingJournal The stitching journal used to track changes.
      */
     @VisibleForTesting
-    void mainStitch(@Nonnull final StitchingContext stitchingContext,
+    void mainStitch(@Nonnull final PreStitchingOperationScopeFactory scopeFactory,
                     @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal) {
         logger.info("Applying {} stitching operations for {} probes.",
-            stitchingOperationStore.operationCount(), stitchingOperationStore.probeCount());
+                stitchingOperationStore.operationCount(), stitchingOperationStore.probeCount());
 
         stitchingJournal.markPhase(StitchingPhase.MAIN_STITCHING);
         final DataMetricTimer executionTimer = STITCHING_EXECUTION_DURATION_SUMMARY.startTimer();
         stitchingOperationStore.getAllOperations().stream()
-            .forEach(probeOperation ->
-                targetStore.getProbeTargets(probeOperation.probeId).forEach(
-                    target -> applyOperationForTarget(probeOperation.stitchingOperation,
-                        stitchingContext, stitchingJournal, target.getId())));
+                .sorted(probeStore.getProbeOrdering())
+                .forEach(probeOperation ->
+                        targetStore.getProbeTargets(probeOperation.probeId).forEach(
+                                target -> applyOperationForTarget(probeOperation.stitchingOperation,
+                                        scopeFactory, stitchingJournal, target.getId())));
         executionTimer.observe();
     }
 
@@ -321,22 +325,21 @@ public class StitchingManager {
      * for this operation-target pair are abandoned.
      *
      * @param operation The operation to apply.
-     * @param stitchingContext The stitching context containing the data necessary for stitching.
+     * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
+     *                     of entities that the stitching operation should operate on.
      * @param stitchingJournal The stitching journal used to track changes.
      * @param targetId The id of the target that is being stitched via the operation.
      */
     private void applyOperationForTarget(@Nonnull final StitchingOperation<?, ?> operation,
-                                         @Nonnull final StitchingContext stitchingContext,
+                                         @Nonnull final PreStitchingOperationScopeFactory scopeFactory,
                                          @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal,
                                          final long targetId) {
         try {
             Optional<EntityType> externalType = operation.getExternalEntityType();
             stitchingJournal.recordOperationBeginning(operation);
-
-            final TopologicalChangelog<StitchingEntity> results = externalType.isPresent() ?
-                applyStitchWithExternalEntitiesOperation(operation, stitchingContext, targetId, externalType.get()) :
-                applyStitchAloneOperation(operation, stitchingContext, targetId);
-
+            final TopologicalChangelog<StitchingEntity> results = externalType.map(extType ->
+                    applyStitchWithExternalEntitiesOperation(operation, scopeFactory, targetId, extType))
+                    .orElseGet(() -> applyStitchAloneOperation(operation, scopeFactory, targetId));
             results.getChanges().forEach(change -> change.applyChange(stitchingJournal));
         } catch (RuntimeException e) {
             logger.error("Unable to apply stitching operation " + operation.getClass().getSimpleName() +
@@ -353,8 +356,8 @@ public class StitchingManager {
      * with external entities. Instead, process each internal entity alone.
      *
      * @param operation The stitching operation to apply.
-     * @param stitchingContext The stitching context containing acceleration structures for looking
-     *                         up entities during stitching.
+     * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
+     *                     of entities that the stitching operation should operate on.
      * @param targetId The id of the target for which this stitching operation is being applied.
      * @return The results generated by the stitching operation. These results will
      *         be applied to mutate the {@link StitchingContext} and its associated
@@ -362,16 +365,26 @@ public class StitchingManager {
      */
     private TopologicalChangelog applyStitchAloneOperation(
         @Nonnull final StitchingOperation<?, ?> operation,
-        @Nonnull final StitchingContext stitchingContext,
+        @Nonnull final PreStitchingOperationScopeFactory scopeFactory,
         final long targetId) {
 
         final EntityType internalEntityType = operation.getInternalEntityType();
-        final List<StitchingPoint> stitchingPoints = stitchingContext.internalEntities(internalEntityType, targetId)
-            .filter(internalEntity -> operation.getInternalSignature(internalEntity).isPresent())
-            .map(StitchingPoint::new)
-            .collect(Collectors.toList());
+        // if a scope is provided, create a stream of stitching entities from the scope, otherwise
+        // use the internal entities from the stitching context of the correct entity type with this
+        // targetId
+        Stream<? extends StitchingEntity> scopeEntities = operation.getScope(scopeFactory)
+                .map(scope -> scope.entities()
+                        .filter(stitchEntity -> stitchEntity.getTargetId() == targetId))
+                .orElseGet(() -> scopeFactory.getStitchingContext()
+                        .internalEntities(internalEntityType, targetId)
+                        .map(StitchingEntity.class::cast));
+        final List<StitchingPoint> stitchingPoints = scopeEntities
+                .filter(internalEntity -> operation.getInternalSignature(internalEntity).isPresent())
+                .map(StitchingPoint::new)
+                .collect(Collectors.toList());
 
-        final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(stitchingContext);
+        final StitchingResultBuilder resultBuilder =
+                new StitchingResultBuilder(scopeFactory.getStitchingContext());
         return operation.stitch(stitchingPoints, resultBuilder);
     }
 
@@ -379,8 +392,8 @@ public class StitchingManager {
      * Apply a stitching operation for a target that matches internal and external entities.
      *
      * @param operation The operation for stitching.
-     * @param stitchingContext The stitching context containing acceleration structures for looking
-     *                         up entities during stitching.
+     * @param scopeFactory The factory for use in generating the scopes to be used to create the scope
+     *                     of entities that the stitching operation should operate on.
      * @param targetId The id of the target for which this stitching operation is being applied.
      * @param externalEntityType The {@link EntityType} of the external entities to be stitched with
      *                           the internal entities discovered by the target with the given targetId.
@@ -393,7 +406,7 @@ public class StitchingManager {
     private <INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
     TopologicalChangelog<StitchingEntity> applyStitchWithExternalEntitiesOperation(
         @Nonnull final StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> operation,
-        @Nonnull final StitchingContext stitchingContext,
+        @Nonnull final PreStitchingOperationScopeFactory scopeFactory,
         final long targetId,
         @Nonnull final EntityType externalEntityType) {
 
@@ -401,14 +414,15 @@ public class StitchingManager {
         // We will use this map later to look up the internal entities by their signature.
         // Be sure to use an identity hash map because it is important that signatures that are equal
         // by their equals method map to different keys for lookup purposes here.
-        final IdentityHashMap<INTERNAL_SIGNATURE_TYPE, TopologyStitchingEntity> signaturesToEntities =
+        final IdentityHashMap<INTERNAL_SIGNATURE_TYPE, StitchingEntity> signaturesToEntities =
             new IdentityHashMap<>();
         final EntityType internalEntityType = operation.getInternalEntityType();
 
-        stitchingContext
-            .internalEntities(internalEntityType, targetId)
-            .forEach(internalEntity -> operation.getInternalSignature(internalEntity)
-                .ifPresent(internalSignature -> signaturesToEntities.put(internalSignature, internalEntity)));
+        scopeFactory.getStitchingContext()
+                .internalEntities(internalEntityType, targetId)
+                .forEach(internalEntity -> operation.getInternalSignature(internalEntity)
+                        .ifPresent(internalSignature ->
+                                signaturesToEntities.put(internalSignature, internalEntity)));
 
         // Now construct an index that can quickly calculate which internal signatures that an
         // external signature matches. Note that the internal implementation of the index are
@@ -421,16 +435,22 @@ public class StitchingManager {
 
         // Compute a map of all internal entities to their matching external entities using
         // the index provided by the operation.
-        final Stream<TopologyStitchingEntity> externalEntities =
-            stitchingContext.externalEntities(externalEntityType, targetId);
+        final Stream<? extends StitchingEntity> externalEntities =
+                operation.getScope(scopeFactory)
+                        .map(StitchingScope::entities)
+                        .orElseGet(() -> scopeFactory.getStitchingContext()
+                                .externalEntities(externalEntityType, targetId)
+                                .map(StitchingEntity.class::cast));
         final MatchMap matchMap = new MatchMap(signaturesToEntities.size());
         externalEntities.forEach(externalEntity -> operation.getExternalSignature(externalEntity)
             .ifPresent(externalSignature -> stitchingIndex.findMatches(externalSignature)
                 .forEach(internalSignature ->
-                    matchMap.addMatch(signaturesToEntities.get(internalSignature), externalEntity))));
+                    matchMap.addMatch(signaturesToEntities.get(internalSignature),
+                            externalEntity))));
 
         // Process the matches.
-        final StitchingResultBuilder resultBuilder = new StitchingResultBuilder(stitchingContext);
+        final StitchingResultBuilder resultBuilder =
+                new StitchingResultBuilder(scopeFactory.getStitchingContext());
         return operation.stitch(matchMap.createStitchingPoints(), resultBuilder);
     }
 
@@ -441,7 +461,7 @@ public class StitchingManager {
      * Unused by stitch alone operations because external entities are ignored in such operations.
      */
     private static class MatchMap {
-        private final Map<TopologyStitchingEntity, List<TopologyStitchingEntity>> matches;
+        private final Map<StitchingEntity, List<StitchingEntity>> matches;
 
         public MatchMap(final int expectedSize) {
             matches = new IdentityHashMap<>(expectedSize);
@@ -454,9 +474,9 @@ public class StitchingManager {
          * @param internalEntity The internal entity part of the match.
          * @param externalEntity The external entity part of the match.
          */
-        public void addMatch(@Nonnull final TopologyStitchingEntity internalEntity,
-                             @Nonnull final TopologyStitchingEntity externalEntity) {
-            final List<TopologyStitchingEntity> matchList =
+        public void addMatch(@Nonnull final StitchingEntity internalEntity,
+                             @Nonnull final StitchingEntity externalEntity) {
+            final List<StitchingEntity> matchList =
                 matches.computeIfAbsent(internalEntity, key -> new ArrayList<>());
 
             matchList.add(externalEntity);

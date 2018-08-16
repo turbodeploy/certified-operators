@@ -3,12 +3,15 @@ package com.vmturbo.stitching;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 /**
  * A stitching operations for stitching on matching data that returns a {@link List<String>} for
@@ -18,8 +21,9 @@ public class ListStringToListStringDataDrivenStitchingOperation extends
         DataDrivenStitchingOperation<List<String>, List<String>> {
 
     public ListStringToListStringDataDrivenStitchingOperation(
-            @Nonnull StitchingMatchingMetaData<List<String>, List<String>> matchingMetaData) {
-        super(matchingMetaData);
+            @Nonnull StitchingMatchingMetaData<List<String>, List<String>> matchingMetaData,
+            @Nonnull final Set<ProbeCategory> stitchingScope) {
+        super(matchingMetaData, stitchingScope);
     }
 
     @Nonnull

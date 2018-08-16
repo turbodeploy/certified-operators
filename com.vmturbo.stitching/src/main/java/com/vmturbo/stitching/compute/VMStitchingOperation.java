@@ -6,6 +6,8 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.stitching.StitchingScope;
+import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,6 +31,13 @@ import com.vmturbo.stitching.utilities.MergeEntities;
 
 public class VMStitchingOperation implements StitchingOperation<String,String> {
     private static final Logger logger = LogManager.getLogger();
+
+    @Nonnull
+    @Override
+    public Optional<StitchingScope<StitchingEntity>> getScope(
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+        return Optional.empty();
+    }
 
     @Nonnull
     @Override

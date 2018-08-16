@@ -48,13 +48,15 @@ public class PostStitchingOperationScopeFactoryTest {
         discoveredBy(3L).lastUpdatedAt(33L), Collections.emptyList());
     private final TopologyEntity.Builder pm = topologyEntityBuilder(4L, EntityType.PHYSICAL_MACHINE,
         discoveredBy(1L).withMergeFromTargetIds(4L).lastUpdatedAt(11L), Collections.emptyList());
+    private final TopologyEntity.Builder vm4 = topologyEntityBuilder(5L, EntityType.VIRTUAL_MACHINE,
+            discoveredBy(4L).lastUpdatedAt(44L), Collections.emptyList());
 
     private final Target target1 = mock(Target.class);
     private final Target target2 = mock(Target.class);
     private final Target target3 = mock(Target.class);
     private final Target target4 = mock(Target.class);
 
-    private TopologyGraph topologyGraph = topologyGraphOf(vm1, vm2, vm3, pm);
+    private TopologyGraph topologyGraph = topologyGraphOf(vm1, vm2, vm3, vm4, pm);
 
     @BeforeClass
     public static void initIdentityGenerator() {
@@ -89,7 +91,7 @@ public class PostStitchingOperationScopeFactoryTest {
     public void testGlobalScope() throws Exception {
         assertThat(scopeFactory.globalScope().entities()
             .map(TopologyEntity::getOid)
-            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L));
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L, 5L));
     }
 
     @Test
@@ -115,7 +117,7 @@ public class PostStitchingOperationScopeFactoryTest {
     public void testEntityTypeScope() throws Exception {
         assertThat(scopeFactory.entityTypeScope(EntityType.VIRTUAL_MACHINE).entities()
             .map(TopologyEntity::getOid)
-            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
+            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 5L));
         assertThat(scopeFactory.entityTypeScope(EntityType.PHYSICAL_MACHINE).entities()
             .map(TopologyEntity::getOid)
             .collect(Collectors.toList()), contains(4L));
@@ -192,13 +194,27 @@ public class PostStitchingOperationScopeFactoryTest {
         assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
                 EntityType.VIRTUAL_MACHINE)).entities()
                 .map(TopologyEntity::getOid)
-                .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L));
+                .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 5L));
         assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
                 EntityType.VIRTUAL_MACHINE, EntityType.PHYSICAL_MACHINE)).entities()
                 .map(TopologyEntity::getOid)
-                .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L));
+                .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 4L, 5L));
         assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
                 EntityType.VIRTUAL_MACHINE, EntityType.STORAGE_VOLUME)).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList()), is(empty()));
+    }
+
+    @Test
+    public void testMultiProbeCategoryEntityTypeScope() throws Exception {
+        assertThat(scopeFactory.multiProbeCategoryEntityTypeScope(
+                ImmutableSet.of(ProbeCategory.HYPERVISOR, ProbeCategory.HYPERCONVERGED),
+                EntityType.VIRTUAL_MACHINE).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toList()), containsInAnyOrder(1L, 2L, 3L, 5L));
+        assertThat(scopeFactory.multiProbeCategoryEntityTypeScope(
+                ImmutableSet.of(ProbeCategory.HYPERVISOR, ProbeCategory.STORAGE),
+                EntityType.STORAGE).entities()
                 .map(TopologyEntity::getOid)
                 .collect(Collectors.toList()), is(empty()));
     }

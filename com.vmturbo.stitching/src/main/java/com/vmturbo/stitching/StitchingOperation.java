@@ -6,6 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.journal.JournalableOperation;
 
@@ -42,6 +43,26 @@ import com.vmturbo.stitching.journal.JournalableOperation;
  */
 public interface StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
     extends JournalableOperation {
+    /**
+     * Get the scope for this {@link StitchingOperation}. The {@link StitchingScope} returned determines
+     * which entities are provided as input to the {@link #stitch(Collection, StitchingChangesBuilder)}
+     * method for this {@link StitchingOperation}. For example, imagine you have a storage probe that
+     * wants to stitch with hypervisor storages but not some other storages (say from a datastore
+     * browsing probe) that may just be proxy storages.  The scope is applied by StitchingManager when
+     * generating candidates for stitching.  After the StitchingIndex is build for internal entities,
+     * only external entities in the scope are considered for creating StitchingPoints.
+     * See {@link StitchingScopeFactory} for further details.
+     *
+     * @param stitchingScopeFactory The factory to use to construct the {@link StitchingScope} for this
+     *                                {@link StitchingOperation}.
+     * @return The {@link StitchingScope} to use for this {@link StitchingOperation}.  Returning
+     * Optional.empty indicates no scope is set and candidates for matching can come from all
+     * external probe targets.
+     */
+    @Nonnull
+    Optional<StitchingScope<StitchingEntity>> getScope(
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory);
+
     /**
      * The {@link EntityType} of the internal entities to be stitched.
      * Operations are specific to pairs of entity types (internal and external).

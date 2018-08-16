@@ -5,16 +5,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 public class StringToListStringDataDrivenStitchingOperation extends
         DataDrivenStitchingOperation<String, List<String>> {
 
     public StringToListStringDataDrivenStitchingOperation(
-            @Nonnull StitchingMatchingMetaData<String, List<String>> matchingMetaData) {
-        super(matchingMetaData);
+            @Nonnull StitchingMatchingMetaData<String, List<String>> matchingMetaData,
+            @Nonnull final Set<ProbeCategory> stitchingScope) {
+        super(matchingMetaData, stitchingScope);
     }
 
     /**

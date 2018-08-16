@@ -30,7 +30,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.sdk.server.common.ProbeInfoComparator;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 
@@ -81,6 +80,8 @@ public class RemoteProbeStore implements ProbeStore {
 
     private final ProbeInfoCompatibilityChecker compatibilityChecker;
 
+    private final ProbeOrdering probeOrdering;
+
     public RemoteProbeStore(@Nonnull final KeyValueStore keyValueStore,
                             @Nonnull IdentityProvider identityProvider,
                             @Nonnull final StitchingOperationStore stitchingOperationStore,
@@ -107,6 +108,7 @@ public class RemoteProbeStore implements ProbeStore {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toConcurrentMap(
                     identityProvider_::getProbeId, Function.identity()));
+        this.probeOrdering = new StandardProbeOrdering(this);
     }
 
     /**
@@ -130,7 +132,7 @@ public class RemoteProbeStore implements ProbeStore {
             } else {
                 logger.debug("Adding endpoint to probe type map: " + transport + " " + probeInfo.getProbeType());
                 final boolean probeExists = probes.containsKey(probeId);
-                stitchingOperationStore.setOperationsForProbe(probeId, probeInfo);
+                stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
 
                 probes.put(probeId, transport);
                 // If we passed the compatibility check, it is safe to replace the old registration
@@ -294,5 +296,10 @@ public class RemoteProbeStore implements ProbeStore {
     @Override
     public boolean isProbeConnected(@Nonnull final Long probeId) {
         return probes.containsKey(probeId);
+    }
+
+    @Override
+    public ProbeOrdering getProbeOrdering() {
+        return probeOrdering;
     }
 }

@@ -1,0 +1,29 @@
+package com.vmturbo.topology.processor.probes;
+
+import java.util.Comparator;
+import java.util.Set;
+
+import javax.annotation.Nonnull;
+
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
+
+/**
+ * Interface implemented by classes that impose an ordering on probes for stitching purposes.
+ * The interface is a Comparator of probe IDs for purposes of imposing an order on probe stitching.
+ * It also returns a set of probe categories for a probe ID which indicates categories of probes
+ * that have a dependency with a probe of the given ID and therefore may be used as the scope for
+ * stitching with that probe.
+ */
+public interface ProbeOrdering extends Comparator<ProbeStitchingOperation>{
+
+    /**
+     * Return the set of categories that a probe should stitch with.
+     *
+     * @param probeId the ID of the probe.
+     * @return Set of Strings with the categories of probe data that the identified probe should
+     * stitch with.
+     */
+    Set<ProbeCategory> getCategoriesForProbeToStitchWith(@Nonnull Long probeId);
+
+}

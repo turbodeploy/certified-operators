@@ -1,16 +1,12 @@
 package com.vmturbo.stitching;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 /**
  * A stitching operation for matching an internal signature that is a {@link String} with an
@@ -21,8 +17,9 @@ public class StringToStringDataDrivenStitchingOperation extends
         DataDrivenStitchingOperation<String, String> {
 
     public StringToStringDataDrivenStitchingOperation(
-            @Nonnull StitchingMatchingMetaData<String, String> matchingMetaData) {
-        super(matchingMetaData);
+            @Nonnull StitchingMatchingMetaData<String, String> matchingMetaData,
+            @Nonnull final Set<ProbeCategory> stitchingScope) {
+        super(matchingMetaData, stitchingScope);
     }
 
     /**

@@ -50,11 +50,14 @@ public class PreStitchingOperationScopeFactoryTest {
         Collections.emptyList()).forTarget(3L);
     private final StitchingEntityData pm = stitchingData("4", EntityType.PHYSICAL_MACHINE,
         Collections.emptyList()).forTarget(1L);
+    private final StitchingEntityData vm4 = stitchingData("5", EntityType.VIRTUAL_MACHINE,
+            Collections.emptyList()).forTarget(4L);
     private final Map<String, StitchingEntityData> targetGraph = topologyMapOf(vm1, vm2, pm);
 
     private final Target target1 = mock(Target.class);
     private final Target target2 = mock(Target.class);
     private final Target target3 = mock(Target.class);
+    private final Target target4 = mock(Target.class);
 
     @BeforeClass
     public static void initIdentityGenerator() {
@@ -63,11 +66,12 @@ public class PreStitchingOperationScopeFactoryTest {
 
     @Before
     public void setup() {
-        final Builder contextBuilder = StitchingContext.newBuilder(3);
+        final Builder contextBuilder = StitchingContext.newBuilder(5);
         contextBuilder.addEntity(vm1, targetGraph);
         contextBuilder.addEntity(vm2, targetGraph);
         contextBuilder.addEntity(vm3, targetGraph);
         contextBuilder.addEntity(pm, targetGraph);
+        contextBuilder.addEntity(vm4, targetGraph);
 
         scopeFactory = new PreStitchingOperationScopeFactory(contextBuilder.build(),
             probeStore, targetStore);
@@ -77,20 +81,24 @@ public class PreStitchingOperationScopeFactoryTest {
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR)).thenReturn(
             Arrays.asList(111L, 222L));
         when(probeStore.getProbeIdsForCategory(ProbeCategory.STORAGE)).thenReturn(Collections.emptyList());
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERCONVERGED)).thenReturn(
+                Arrays.asList(444L));
 
         when(target1.getId()).thenReturn(1L);
         when(target2.getId()).thenReturn(2L);
         when(target3.getId()).thenReturn(3L);
+        when(target4.getId()).thenReturn(4L);
 
         when(targetStore.getProbeTargets(eq(111L))).thenReturn(Arrays.asList(target1, target3));
         when(targetStore.getProbeTargets(eq(222L))).thenReturn(Collections.singletonList(target2));
+        when(targetStore.getProbeTargets(eq(444L))).thenReturn(Collections.singletonList(target4));
     }
 
     @Test
     public void testGlobalScope() throws Exception {
         assertThat(scopeFactory.globalScope().entities()
             .map(StitchingEntity::getLocalId)
-            .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3", "4"));
+            .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3", "4", "5"));
     }
 
     @Test
@@ -116,7 +124,7 @@ public class PreStitchingOperationScopeFactoryTest {
     public void testEntityTypeScope() throws Exception {
         assertThat(scopeFactory.entityTypeScope(EntityType.VIRTUAL_MACHINE).entities()
             .map(StitchingEntity::getLocalId)
-            .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3"));
+            .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3", "5"));
         assertThat(scopeFactory.entityTypeScope(EntityType.PHYSICAL_MACHINE).entities()
             .map(StitchingEntity::getLocalId)
             .collect(Collectors.toList()), containsInAnyOrder("4"));
@@ -163,9 +171,13 @@ public class PreStitchingOperationScopeFactoryTest {
     @Test
     public void testProbeCategoryEntityTypeScope() throws Exception {
         assertThat(scopeFactory.probeCategoryEntityTypeScope(
-            ProbeCategory.HYPERVISOR, EntityType.VIRTUAL_MACHINE).entities()
-            .map(StitchingEntity::getLocalId)
-            .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3"));
+                ProbeCategory.HYPERVISOR, EntityType.VIRTUAL_MACHINE).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3"));
+        assertThat(scopeFactory.probeCategoryEntityTypeScope(
+                ProbeCategory.HYPERCONVERGED, EntityType.VIRTUAL_MACHINE).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), containsInAnyOrder("5"));
         assertThat(scopeFactory.probeCategoryEntityTypeScope(
             ProbeCategory.STORAGE, EntityType.VIRTUAL_MACHINE).entities()
             .map(StitchingEntity::getLocalId)
@@ -181,13 +193,27 @@ public class PreStitchingOperationScopeFactoryTest {
         assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
                 EntityType.VIRTUAL_MACHINE)).entities()
                 .map(StitchingEntity::getLocalId)
-                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3"));
+                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3", "5"));
         assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
                 EntityType.VIRTUAL_MACHINE, EntityType.PHYSICAL_MACHINE)).entities()
                 .map(StitchingEntity::getLocalId)
-                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3", "4"));
+                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3", "4", "5"));
         assertThat(scopeFactory.containsAllEntityTypesScope(ImmutableList.of(
                 EntityType.VIRTUAL_MACHINE, EntityType.STORAGE_VOLUME)).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), is(empty()));
+    }
+
+    @Test
+    public void testMultiProbeCategoryEntityTypeScope() throws Exception {
+        assertThat(scopeFactory.multiProbeCategoryEntityTypeScope(
+                ImmutableSet.of(ProbeCategory.HYPERVISOR, ProbeCategory.HYPERCONVERGED),
+                EntityType.VIRTUAL_MACHINE).entities()
+                .map(StitchingEntity::getLocalId)
+                .collect(Collectors.toList()), containsInAnyOrder("1", "2", "3", "5"));
+        assertThat(scopeFactory.multiProbeCategoryEntityTypeScope(
+                ImmutableSet.of(ProbeCategory.HYPERVISOR, ProbeCategory.STORAGE),
+                EntityType.STORAGE).entities()
                 .map(StitchingEntity::getLocalId)
                 .collect(Collectors.toList()), is(empty()));
     }

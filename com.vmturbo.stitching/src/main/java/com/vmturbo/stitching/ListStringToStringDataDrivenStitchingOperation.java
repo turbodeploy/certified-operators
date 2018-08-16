@@ -4,13 +4,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 
 /**
  * A stitching operation for matching an internal signature that is a {@link List<String>} with an
@@ -21,8 +23,9 @@ public class ListStringToStringDataDrivenStitchingOperation extends
         DataDrivenStitchingOperation<List<String>, String> {
 
     public ListStringToStringDataDrivenStitchingOperation(
-            @Nonnull StitchingMatchingMetaData<List<String>, String> matchingMetaData) {
-        super(matchingMetaData);
+            @Nonnull StitchingMatchingMetaData<List<String>, String> matchingMetaData,
+            @Nonnull final Set<ProbeCategory> stitchingScope) {
+        super(matchingMetaData, stitchingScope);
     }
 
     /**

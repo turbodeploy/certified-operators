@@ -122,5 +122,21 @@ public interface StitchingScope<ENTITY> {
          */
         StitchingScope<ENTITY> probeCategoryEntityTypeScope(@Nonnull final ProbeCategory probeCategory,
                                                             @Nonnull final EntityType entityType);
+
+        /**
+         * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
+         * of a given {@link EntityType} discovered by a specific type of probe category.
+         *
+         * @param probeCategories The set of categories of probes whose entities should be fed to
+         *                        the calculation.
+         *                        Example: {HYPERVISOR, STORAGE}
+         * @param entityType The entity type of the entities
+         * @return A {@link StitchingScope} used for retrieving entities of a given type discovered by a given
+         *         set of categories of probes.
+         */
+        StitchingScope<ENTITY> multiProbeCategoryEntityTypeScope(
+                @Nonnull final Set<ProbeCategory> probeCategories,
+                @Nonnull final EntityType entityType);
+
     }
 }

@@ -19,6 +19,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
+import com.google.common.collect.Sets;
+
 import jersey.repackaged.com.google.common.collect.Lists;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -63,7 +65,7 @@ public class StitchingOperationStoreTest {
             .setProbeType("some-hypervisor-probe")
             .build();
 
-        store.setOperationsForProbe(1234L, probeInfo);
+        store.setOperationsForProbe(1234L, probeInfo, Sets.newHashSet());
 
         assertEquals(1, store.probeCount());
         assertEquals(Collections.singletonList(firstOperation), store.getOperationsForProbe(1234L).get());
@@ -81,7 +83,7 @@ public class StitchingOperationStoreTest {
             .build();
 
         expectedException.expect(ProbeException.class);
-        store.setOperationsForProbe(1234L, probeInfo);
+        store.setOperationsForProbe(1234L, probeInfo, Sets.newHashSet());
     }
 
     @Test
@@ -170,10 +172,10 @@ public class StitchingOperationStoreTest {
                 createTemplateDTO(ReturnType.STRING, ReturnType.STRING,
                         EntityType.STORAGE));
 
-        store.setOperationsForProbe(4321, probe1Info);
-        store.setOperationsForProbe(5432, probe2Info);
-        store.setOperationsForProbe(6543, probe3Info);
-        store.setOperationsForProbe(7654, probe4Info);
+        store.setOperationsForProbe(4321, probe1Info, Sets.newHashSet());
+        store.setOperationsForProbe(5432, probe2Info, Sets.newHashSet());
+        store.setOperationsForProbe(6543, probe3Info, Sets.newHashSet());
+        store.setOperationsForProbe(7654, probe4Info, Sets.newHashSet());
         assertTrue(store.getOperationsForProbe(4321).get().get(0)
                 instanceof ListStringToListStringDataDrivenStitchingOperation);
         assertTrue(store.getOperationsForProbe(5432).get().get(0)
@@ -191,7 +193,7 @@ public class StitchingOperationStoreTest {
                         EntityType.STORAGE),
                 createTemplateDTO(ReturnType.STRING, ReturnType.STRING,
                         EntityType.DISK_ARRAY));
-        store.setOperationsForProbe(2468, probe1Info);
+        store.setOperationsForProbe(2468, probe1Info, Sets.newHashSet());
         List<StitchingOperation<?, ?>> stitchingOperations =
                 store.getOperationsForProbe(2468).get();
         assertEquals(2, stitchingOperations.size());

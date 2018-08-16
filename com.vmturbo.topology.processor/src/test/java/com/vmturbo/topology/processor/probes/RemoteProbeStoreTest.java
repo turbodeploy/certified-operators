@@ -9,6 +9,8 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Set;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -16,13 +18,18 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.stitching.storage.StorageStitchingOperation;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
+import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -59,7 +66,7 @@ public class RemoteProbeStoreTest {
         when(idProvider.getProbeId(probeInfo)).thenReturn(1234L);
         assertFalse(store.registerNewProbe(probeInfo, transport));
 
-        verify(stitchingOperationStore).setOperationsForProbe(eq(1234L), eq(probeInfo));
+        verify(stitchingOperationStore).setOperationsForProbe(eq(1234L), eq(probeInfo), eq(store.getProbeOrdering()));
     }
 
     @Test
@@ -223,6 +230,51 @@ public class RemoteProbeStoreTest {
         store.registerNewProbe(probe2, transport2);
         assertEquals(probe2, store.getProbe(probeId).get());
 
+    }
+
+    /**
+     * Tests that we can properly compare the relative stitching order of 2 probes and that we get
+     * the correct set of probe categories that a particular probe type is dependent on for
+     * stitching.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testCompareProbeStitchingOrder() throws Exception {
+        final ProbeInfo storageProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-1")
+                .setProbeCategory("Storage").addTargetIdentifierField("targetId").build();
+        final ProbeInfo hypervisorProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-2")
+                .setProbeCategory("HYPERVISOR").addTargetIdentifierField("targetId").build();
+        final ProbeInfo fabricProbe = ProbeInfo.newBuilder().setProbeType("probe-type-stitching-order-3")
+                .setProbeCategory("Fabric").addTargetIdentifierField("targetId").build();
+        final long storageProbeId = 2345L;
+        final long hypervisorProbeId = 3456L;
+        final long fabricProbeId = 4567L;
+        when(compatibilityChecker.areCompatible(any(ProbeInfo.class), any(ProbeInfo.class)))
+                .thenReturn(true);
+        Mockito.when(idProvider.getProbeId(storageProbe)).thenReturn(storageProbeId);
+        Mockito.when(idProvider.getProbeId(hypervisorProbe)).thenReturn(hypervisorProbeId);
+        Mockito.when(idProvider.getProbeId(fabricProbe)).thenReturn(fabricProbeId);
+        store.registerNewProbe(storageProbe, transport);
+        assertEquals(storageProbe, store.getProbe(storageProbeId).get());
+        store.registerNewProbe(hypervisorProbe, transport);
+        assertEquals(hypervisorProbe, store.getProbe(hypervisorProbeId).get());
+        store.registerNewProbe(fabricProbe, transport);
+        ProbeStitchingOperation storageOp = new ProbeStitchingOperation(storageProbeId,
+                new StorageStitchingOperation());
+        ProbeStitchingOperation hyperVisorOp = new ProbeStitchingOperation(hypervisorProbeId,
+                new StorageStitchingOperation());
+        ProbeStitchingOperation fabricOp = new ProbeStitchingOperation(fabricProbeId,
+                new StorageStitchingOperation());
+        assertEquals(fabricProbe, store.getProbe(fabricProbeId).get());
+        assertEquals(-1, store.getProbeOrdering().compare(hyperVisorOp,
+                storageOp));
+        assertEquals(1, store.getProbeOrdering().compare(storageOp, hyperVisorOp));
+        assertEquals(0, store.getProbeOrdering().compare(storageOp, fabricOp));
+        Set<ProbeCategory> storageStitchWith =
+                store.getProbeOrdering().getCategoriesForProbeToStitchWith(storageProbeId);
+        assertEquals(1, storageStitchWith.size());
+        assertTrue(storageStitchWith.contains(ProbeCategory.HYPERVISOR));
     }
 
     @SuppressWarnings("unchecked")

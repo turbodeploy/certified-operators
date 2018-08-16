@@ -3,6 +3,7 @@ package com.vmturbo.stitching;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -20,6 +21,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
@@ -49,6 +52,9 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
     private final StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
             matchingInformation;
 
+    // Set of ProbeCategory identifying the categories of probe who we want to stitch with
+    private final Set<ProbeCategory> categoriesToStitchWith;
+
     // A map of provider entity type to the entity type of the provider it is
     // replacing.  For example, in the case of a logical pool provider for a proxy Storage, it
     // replaces a provider of entity type disk array.
@@ -59,11 +65,26 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
      * behavior.
      *
      * @param matchingInfo {@link StitchingMatchingMetaData} defining the storage behavior.
+     * @param categoriesToStitchWith {@link Set} of {@link ProbeCategory} giving the probe categories that
+     *                                  this stitching operation can stitch with.
      */
     public DataDrivenStitchingOperation(@Nonnull StitchingMatchingMetaData<INTERNAL_SIGNATURE_TYPE,
-            EXTERNAL_SIGNATURE_TYPE> matchingInfo) {
-        this.matchingInformation = matchingInfo;
+            EXTERNAL_SIGNATURE_TYPE> matchingInfo,
+                                        @Nonnull final Set<ProbeCategory> categoriesToStitchWith) {
+        this.matchingInformation = Objects.requireNonNull(matchingInfo);
+        this.categoriesToStitchWith = Objects.requireNonNull(categoriesToStitchWith);
         initReplacementEntityMap();
+    }
+
+    @Nonnull
+    @Override
+    public Optional<StitchingScope<StitchingEntity>> getScope(
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+        if (categoriesToStitchWith.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(stitchingScopeFactory
+                .multiProbeCategoryEntityTypeScope(categoriesToStitchWith, getExternalEntityType().get()));
     }
 
     /**

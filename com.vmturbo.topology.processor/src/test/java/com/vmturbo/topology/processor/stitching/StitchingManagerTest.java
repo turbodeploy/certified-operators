@@ -55,6 +55,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore.ProbeStitchingOperation;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
@@ -113,6 +114,7 @@ public class StitchingManagerTest {
         when(target.getId()).thenReturn(firstTargetId);
         when(targetStore.getProbeTargets(eq(probeId)))
             .thenReturn(Collections.singletonList(target));
+        when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
     }
 
     @Test
@@ -250,6 +252,12 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
+        public Optional<StitchingScope<StitchingEntity>> getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            return Optional.empty();
+        }
+
+        @Nonnull
+        @Override
         public EntityType getInternalEntityType() {
             return EntityType.VIRTUAL_MACHINE;
         }
@@ -288,6 +296,12 @@ public class StitchingManagerTest {
     }
 
     public static class StitchVmsByGuestName implements StitchingOperation<String, String> {
+        @Nonnull
+        @Override
+        public Optional<StitchingScope<StitchingEntity>> getScope(@Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+            return Optional.empty();
+        }
+
         @Nonnull
         @Override
         public EntityType getInternalEntityType() {

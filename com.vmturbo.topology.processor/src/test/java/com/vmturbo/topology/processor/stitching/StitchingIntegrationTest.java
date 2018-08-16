@@ -13,6 +13,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +38,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -49,19 +51,20 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.ListStringToListStringDataDrivenStitchingOperation;
+import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.ListStringToStringDataDrivenStitchingOperation;
+import com.vmturbo.stitching.ListStringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingEntity;
-import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
-import com.vmturbo.stitching.ListStringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.TopologyEntity;
@@ -80,6 +83,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory.ConfigurableStitchingJournalFactory;
@@ -103,9 +107,11 @@ public class StitchingIntegrationTest {
 
     private final long netAppProbeId = 1234L;
     private final long netAppTargetId = 1111L;
+    private final long vcTargetId = 2222L;
     private final long ucsProbeId = 2468L;
     private final long ciscoVcenterProbeId = 2345L;
     private final long ucsTargetId = 2121L;
+    private final long ciscoVcenterTargetId = 3131L;
     private final long vcProbeId = 5678L;
 
     private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
@@ -131,6 +137,8 @@ public class StitchingIntegrationTest {
                                 statsServiceClient, 30, 10),  //meaningless values
                         diskCapacityCalculator, clock, 0);
         when(probeStore.getProbeIdForType(anyString())).thenReturn(Optional.<Long>empty());
+        when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
+        when(probeStore.getProbe(ucsProbeId)).thenReturn(Optional.empty());
     }
 
     @Test
@@ -203,7 +211,7 @@ public class StitchingIntegrationTest {
                         .build();
         return new ListStringToListStringDataDrivenStitchingOperation(
                 new ListStringToListStringStitchingMatchingMetaDataImpl(EntityType.STORAGE,
-                        storageMergeEntityMetadata));
+                        storageMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
     }
 
     @Test
@@ -251,7 +259,7 @@ public class StitchingIntegrationTest {
                 sdkDtosFromFile(getClass(), "protobuf/messages/vcenter_data.json.zip", storageEntities.size() + 1L);
 
         addEntities(storageEntities, netAppTargetId);
-        addEntities(hypervisorEntities, 2222L);
+        addEntities(hypervisorEntities, vcTargetId);
 
         stitchingOperationStore.setOperationsForProbe(netAppProbeId,
                 Collections.singletonList(storageStitchingOperationToTest));
@@ -264,6 +272,16 @@ public class StitchingIntegrationTest {
 
         when(targetStore.getProbeTargets(netAppProbeId))
                 .thenReturn(Collections.singletonList(netAppTarget));
+        final Target vcTarget = Mockito.mock(Target.class);
+        when(vcTarget.getId()).thenReturn(vcTargetId);
+
+        when(targetStore.getProbeTargets(vcProbeId))
+                .thenReturn(Collections.singletonList(vcTarget));
+
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.STORAGE))
+                .thenReturn(Collections.singletonList(netAppProbeId));
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
+                .thenReturn(Collections.singletonList(vcProbeId));
 
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
@@ -375,7 +393,7 @@ public class StitchingIntegrationTest {
                         .build();
         return new ListStringToStringDataDrivenStitchingOperation(
                 new ListStringToStringStitchingMatchingMetaDataImpl(EntityType.PHYSICAL_MACHINE,
-                        fabricMergeEntityMetadata));
+                        fabricMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
     }
 
 
@@ -389,7 +407,7 @@ public class StitchingIntegrationTest {
                         ucsEntities.size() + 1L);
 
         addEntities(ucsEntities, ucsTargetId);
-        addEntities(hypervisorEntities, ciscoVcenterProbeId);
+        addEntities(hypervisorEntities, ciscoVcenterTargetId);
 
         stitchingOperationStore.setOperationsForProbe(ucsProbeId,
                 fabricStitchingOperationsToTest);
@@ -399,9 +417,19 @@ public class StitchingIntegrationTest {
                 preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
         final Target ucsTarget = Mockito.mock(Target.class);
         when(ucsTarget.getId()).thenReturn(ucsTargetId);
+        final Target ucsVcenterTarget = Mockito.mock(Target.class);
+        when(ucsVcenterTarget.getId()).thenReturn(ciscoVcenterTargetId);
 
         when(targetStore.getProbeTargets(ucsProbeId))
                 .thenReturn(Collections.singletonList(ucsTarget));
+
+        when(targetStore.getProbeTargets(ciscoVcenterProbeId))
+                .thenReturn(Collections.singletonList(ucsVcenterTarget));
+
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.FABRIC))
+                .thenReturn(Collections.singletonList(ucsProbeId));
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
+                .thenReturn(Collections.singletonList(ciscoVcenterProbeId));
 
         final StringBuilder journalStringBuilder = new StringBuilder(2048);
         final StitchingContext stitchingContext = entityStore.constructStitchingContext();

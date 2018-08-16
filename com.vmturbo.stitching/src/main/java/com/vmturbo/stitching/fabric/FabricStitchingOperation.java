@@ -23,6 +23,8 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingIndex;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
+import com.vmturbo.stitching.StitchingScope;
+import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
 
@@ -41,6 +43,13 @@ import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
  */
 public abstract class FabricStitchingOperation implements StitchingOperation<List<String>, String> {
     protected static final Logger logger = LogManager.getLogger();
+
+    @Nonnull
+    @Override
+    public Optional<StitchingScope<StitchingEntity>> getScope(
+            @Nonnull final StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
+        return Optional.empty();
+    }
 
     @Nonnull
     @Override

@@ -49,6 +49,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
@@ -108,6 +109,7 @@ public class SharedStorageIntegrationTest {
                 diskCapacityCalculator, clock, 0);
         when(targetA.getId()).thenReturn(targetAId);
         when(targetB.getId()).thenReturn(targetBId);
+        when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
     }
 
     /**
