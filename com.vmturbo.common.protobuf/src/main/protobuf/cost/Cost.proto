@@ -38,17 +38,17 @@ message AccountExpenses {
 
 // A reserved instance is a reservation of resources and capacity and it provides a significant
 // discount compared to on-demand instances. And it is reserved instance bought by user account.
-message ReservedInstance {
+message ReservedInstanceBought {
     // The id of the reserved instance.
     optional int64 id = 1;
 
     // The properties describe the reserved instance. Set the field tag to 10, in case of we need to
     // add more properties later.
-    optional ReservedInstanceInfo reserved_instance_info = 10;
+    optional ReservedInstanceBoughtInfo reserved_instance_bought_info = 10;
 
     // Information describing the reserved instance. And it is not editable by the user, all the
     // reserved instance information are discovered by cloud probe.
-    message ReservedInstanceInfo {
+    message ReservedInstanceBoughtInfo {
         // The business account id of the reserved instance.
         optional int64 business_account_id = 1;
 
@@ -72,12 +72,12 @@ message ReservedInstance {
 
         // The cost of the reserved instance. It is the cost that user account payed when user bought this
         // reserved instance, it might be different from the current reserved instance cost.
-        optional ReservedInstanceCost reserved_instance_cost = 7;
+        optional ReservedInstanceBoughtCost reserved_instance_bought_cost = 7;
 
         // The coupons information of the reserved instance.
-        optional ReservedInstanceCoupons reserved_instance_coupons = 8;
+        optional ReservedInstanceBoughtCoupons reserved_instance_bought_coupons = 8;
 
-        message ReservedInstanceCost {
+        message ReservedInstanceBoughtCost {
             // The upfront one-time cost of the Reserved Instance.
             optional common_dto.CurrencyAmount fixed_cost = 1;
 
@@ -95,7 +95,7 @@ message ReservedInstance {
         // unit is 1. And for reserved instances, it will sell coupons, and other service entity can
         // buy coupons from reserved instances, in this way, we can solve instance size flexibility
         // for reserved instances.
-        message ReservedInstanceCoupons {
+        message ReservedInstanceBoughtCoupons {
             // The total couponse of the reserved instance. And it is equal to
             // number of instances bought * number of coupons per instance. For each instance type,
             // its coupons is equal to its NFU * 4.

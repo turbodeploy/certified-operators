@@ -128,6 +128,26 @@
                                     <inputSchema>${db.schema}</inputSchema>
                                 </schema>
                             </schemata>
+                            <customTypes>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
+                                    <converter>com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtInfoConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo</name>
+                                    <converter>com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecInfoConverter</converter>
+                                </customType>
+                            </customTypes>
+                            <forcedTypes>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
+                                    <expression>.*\.reserved_instance_bought\.reserved_instance_bought_info</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo</name>
+                                    <expression>.*\.reserved_instance_spec\.reserved_instance_spec_info</expression>
+                                </forcedType>
+                            </forcedTypes>
                         </database>
                         <generate>
                             <pojos>true</pojos>
@@ -167,6 +187,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>components-api-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.sdk.server.common</artifactId>
         </dependency>
     </dependencies>
 
