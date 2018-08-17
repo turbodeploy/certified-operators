@@ -106,8 +106,6 @@ public class StatsService implements IStatsService {
 
     private final PlanServiceBlockingStub planRpcService;
 
-    private final StatPeriodApiInputDTO DEFAULT_STAT_API_INPUT_DTO = new StatPeriodApiInputDTO();
-
     private final Clock clock;
 
     private final RepositoryApi repositoryApi;
@@ -194,6 +192,15 @@ public class StatsService implements IStatsService {
     }
 
     /**
+     * Provides a default stat period, to be used if no period is specified in a request
+     * This default stat period includes "current" stats, i.e. no historical stats and no projections
+     * @return a default stat period
+     */
+    private static final StatPeriodApiInputDTO getDefaultStatPeriodApiInputDto() {
+        return new StatPeriodApiInputDTO();
+    }
+
+    /**
      * Return stats for an Entity (ServiceEntity or Group) and a uuencoded
      * {@link StatPeriodApiInputDTO} query parameter which modifies the stats search. A group is
      * expanded and the stats averaged over the group contents.
@@ -215,7 +222,7 @@ public class StatsService implements IStatsService {
             ObjectMapper jsonMapper = new ObjectMapper();
             inputDto = jsonMapper.readValue(jsonObject, StatPeriodApiInputDTO.class);
         } else {
-            inputDto = DEFAULT_STAT_API_INPUT_DTO;
+            inputDto = getDefaultStatPeriodApiInputDto();
         }
 
         return getStatsByEntityQuery(uuid, inputDto);
@@ -254,6 +261,11 @@ public class StatsService implements IStatsService {
             throws Exception {
 
         logger.debug("fetch stats for {} requestInfo: {}", uuid, inputDto);
+
+        // Create a default Stat period, if one is not specified in the request
+        if (inputDto == null) {
+            inputDto = getDefaultStatPeriodApiInputDto();
+        }
 
         // choose LinkedList to make appending more efficient. This list will only be read once.
         final List<StatSnapshotApiDTO> stats = Lists.newLinkedList();
@@ -687,12 +699,22 @@ public class StatsService implements IStatsService {
         final Optional<Pagination.PaginationResponse> paginationResponseOpt;
 
         final long clockTimeNow = clock.millis();
-        // is the startDate in the past?
-        final boolean historicalStatsRequest = inputDto.getPeriod().getStartDate() == null ||
-                DateTimeUtil.parseTime(inputDto.getPeriod().getStartDate()) < clockTimeNow;
-        // is the endDate in the future?
-        final boolean projectedStatsRequest = inputDto.getPeriod().getEndDate() != null &&
-                DateTimeUtil.parseTime(inputDto.getPeriod().getEndDate()) > clockTimeNow;
+
+        // Is the startDate in the past?
+        // If so (or if no startDate is provided), historical stats will be retrieved
+        final Optional<StatPeriodApiInputDTO> period = Optional.ofNullable(inputDto.getPeriod());
+        final boolean historicalStatsRequest = period
+                .map(StatPeriodApiInputDTO::getStartDate)
+                .map(startDate -> DateTimeUtil.parseTime(startDate) < clockTimeNow)
+                .orElse(true);
+
+        // Is the endDate in the future?
+        // If so (and if historical stats are not being retrieved), projections will be retrieved
+        // If no end date is provided, projections will not be retrieved under any circumstances
+        final boolean projectedStatsRequest = period
+                .map(StatPeriodApiInputDTO::getEndDate)
+                .map(endDate -> DateTimeUtil.parseTime(endDate) > clockTimeNow)
+                .orElse(false);
 
         if (historicalStatsRequest) {
             // For historical requests, we use the EntityStatsScope object
@@ -780,13 +802,15 @@ public class StatsService implements IStatsService {
      * with the commodities values filled in
      */
     @Override
-    public EntityStatsPaginationResponse getStatsByUuidsQuery(StatScopesApiInputDTO inputDto,
+    public EntityStatsPaginationResponse getStatsByUuidsQuery(@Nonnull StatScopesApiInputDTO inputDto,
                                                   EntityStatsPaginationRequest paginationRequest)
             throws Exception {
         final Optional<PlanInstance> planInstance = getRequestedPlanInstance(inputDto);
         if (planInstance.isPresent()) {
             return getPlanEntityStats(planInstance.get(), inputDto, paginationRequest);
-        } else if (containsAnyClusterStats(inputDto.getPeriod().getStatistics())) {
+        } else if (containsAnyClusterStats(Optional.ofNullable(inputDto.getPeriod())
+                                            .map(StatPeriodApiInputDTO::getStatistics)
+                                            .orElse(Collections.emptyList()))) {
             return getClusterEntityStats(inputDto, paginationRequest);
         } else {
             return getLiveEntityStats(inputDto, paginationRequest);
@@ -821,7 +845,7 @@ public class StatsService implements IStatsService {
     private EntityStatsApiDTO constructEntityStatsDto(ServiceEntityApiDTO serviceEntity,
                                                       final boolean projectedStatsRequest,
                                                       final EntityStats entityStats,
-                                                      final StatScopesApiInputDTO inputDto) {
+                                                      @Nonnull final StatScopesApiInputDTO inputDto) {
         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
         entityStatsApiDTO.setUuid(serviceEntity.getUuid());
         entityStatsApiDTO.setClassName(serviceEntity.getClassName());
@@ -841,7 +865,10 @@ public class StatsService implements IStatsService {
                     .map(statsMapper::toStatSnapshotApiDTO)
                     .map(statApiDto -> {
                         // set the time of the snapshot to "future" using the "endDate" of the request
-                        statApiDto.setDate(inputDto.getPeriod().getEndDate());
+                        // in the
+                        Optional.ofNullable(inputDto.getPeriod())
+                                .map(StatPeriodApiInputDTO::getEndDate)
+                                .ifPresent(statApiDto::setDate);
                         return statApiDto;
                     })
                     .ifPresent(statApiDto -> entityStatsApiDTO.getStats().add(statApiDto));

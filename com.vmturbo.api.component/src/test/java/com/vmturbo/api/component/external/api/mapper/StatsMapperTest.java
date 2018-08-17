@@ -236,6 +236,33 @@ public class StatsMapperTest {
         assertThat(filter.getCommodityAttributesCount(), equalTo(0));
     }
 
+    @Test
+    public void testToEntityStatsRequestDefaultsWithNullPeriod() {
+        // Arrange
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                        .addEntities(1L))
+                .build();
+
+        final EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
+        when(paginationMapper.toProtoParams(paginationRequest))
+                .thenReturn(PaginationParameters.getDefaultInstance());
+
+        // Act
+        GetEntityStatsRequest requestProtobuf = statsMapper.toEntityStatsRequest(scope,
+                null, paginationRequest);
+
+        // Assert
+        assertThat(requestProtobuf.getScope(), equalTo(scope));
+        assertTrue(requestProtobuf.hasFilter());
+        final Stats.StatsFilter filter = requestProtobuf.getFilter();
+        assertFalse(filter.hasStartDate());
+        assertFalse(filter.hasEndDate());
+        assertThat(filter.getCommodityRequestsCount(), equalTo(0));
+        assertThat(filter.getCommodityRequestsCount(), equalTo(0));
+        assertThat(filter.getCommodityAttributesCount(), equalTo(0));
+    }
+
     private static final PlanInstance PLAN_INSTANCE = PlanInstance.newBuilder()
             .setPlanId(7L)
             .setProjectedTopologyId(77L)
@@ -361,6 +388,16 @@ public class StatsMapperTest {
     }
 
     @Test
+    public void testClusterStatsRequestWithNullPeriod() {
+        final StatPeriodApiInputDTO period = null;
+        when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
+        final ClusterStatsRequest clusterStatsRequest =
+                statsMapper.toClusterStatsRequest("7", period);
+        assertThat(clusterStatsRequest.getClusterId(), is(7L));
+        assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
+    }
+
+    @Test
     public void testAveragedEntityStatsRequestNoTempGroupType() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
         when(statsMapper.newPeriodStatsFilter(period, Optional.empty())).thenReturn(STATS_FILTER);
@@ -388,12 +425,35 @@ public class StatsMapperTest {
     }
 
     @Test
+    public void testAveragedEntityStatsRequestWithNullPeriod() {
+        final Optional<Integer> tempGroupType = Optional.of(1284);
+        when(statsMapper.newPeriodStatsFilter(null, tempGroupType)).thenReturn(STATS_FILTER);
+
+        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
+
+        final GetAveragedEntityStatsRequest request =
+                statsMapper.toAveragedEntityStatsRequest(uuids, null, tempGroupType);
+        assertTrue(request.getEntitiesList().isEmpty());
+        assertThat(request.getFilter(), is(STATS_FILTER));
+    }
+
+    @Test
     public void testProjectedEntityStatsRequestIdsAndPaginationParams() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
         final Set<Long> uuids = Sets.newHashSet(1L, 2L);
 
         final ProjectedEntityStatsRequest request =
                 statsMapper.toProjectedEntityStatsRequest(uuids, period, ENTITY_PAGINATION_REQUEST);
+        assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
+        assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
+    }
+
+    @Test
+    public void testProjectedEntityStatsRequestWithNullPeriod() {
+        final Set<Long> uuids = Sets.newHashSet(1L, 2L);
+
+        final ProjectedEntityStatsRequest request =
+                statsMapper.toProjectedEntityStatsRequest(uuids, null, ENTITY_PAGINATION_REQUEST);
         assertThat(request.getEntitiesList(), containsInAnyOrder(uuids.toArray()));
         assertThat(request.getPaginationParams(), is(MAPPED_PAGINATION_PARAMS));
     }

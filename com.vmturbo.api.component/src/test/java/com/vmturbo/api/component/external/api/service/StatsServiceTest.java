@@ -6,6 +6,7 @@ import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.typeCompatibleWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -224,6 +225,45 @@ public class StatsServiceTest {
     }
 
     /**
+     * A null period should be treated the same way as a default period, i.e. retrieve the current stats
+     * @throws Exception
+     */
+    @Test
+    public void testGetStatsByEntityQueryWithFilteringAndNullPeriod() throws Exception {
+        final StatPeriodApiInputDTO inputDto = null;
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.getDefaultInstance();
+        // Match on 'any' StatPeriodApiInputDTO because the service may replace null with an empty DTO
+        when(statsMapper.toAveragedEntityStatsRequest(eq(expandedOidList),
+                any(StatPeriodApiInputDTO.class),
+                eq(Optional.empty())))
+                    .thenReturn(request);
+
+        when(statsHistoryServiceSpy.getAveragedEntityStats(request))
+                .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
+        apiDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(apiDto);
+
+        final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid1, inputDto);
+
+        // Match on 'any' StatPeriodApiInputDTO because the service may replace null with an empty DTO
+        verify(statsMapper).toAveragedEntityStatsRequest(eq(expandedOidList),
+                any(StatPeriodApiInputDTO.class),
+                eq(Optional.empty()));
+        verify(statsHistoryServiceSpy).getAveragedEntityStats(request);
+        verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+        // Should have called targets service to get a list of targets.
+        verify(targetsService).getTargets(null);
+
+        assertThat(resp, containsInAnyOrder(apiDto));
+    }
+
+    /**
      * Test that the uid "Market" is accepted without error.
      *
      * @throws Exception not expected
@@ -254,6 +294,20 @@ public class StatsServiceTest {
 
         assertEquals(1, resp.size());
         assertThat(resp, containsInAnyOrder(dto));
+    }
+
+    /**
+     * A null period should be treated the same way as a default period, i.e. retrieve the current stats
+     * @throws Exception
+     */
+    @Test
+    public void testGetStatsByEntityQueryWithAllFilteredAndNullPeriod() throws Exception {
+        StatPeriodApiInputDTO inputDto = null;
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(oid2, inputDto);
+
+        // The returned stats will be all filtered out.
+        assertEquals(0, resp.size());
     }
 
     @Test
@@ -974,6 +1028,22 @@ public class StatsServiceTest {
         // Arrange
         StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setPeriod(new StatPeriodApiInputDTO());
+        inputDto.setScopes(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
+
+        // Act
+        getStatsByUuidsQuery(statsService, inputDto);
+    }
+
+    /**
+     * Test that the 'relatedType' argument is required if the scope is "Market"
+     * This should behave equivalently to the same call with a default period object
+     * @throws Exception as expected, with IllegalArgumentException since no 'relatedType'
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testFullMarketStatsNoRelatedTypeWithNullPeriod() throws Exception {
+        // Arrange
+        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setPeriod(null);
         inputDto.setScopes(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
 
         // Act

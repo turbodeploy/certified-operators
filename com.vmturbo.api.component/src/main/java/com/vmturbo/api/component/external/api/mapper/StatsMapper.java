@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -251,7 +252,7 @@ public class StatsMapper {
     @Nonnull
     public GetAveragedEntityStatsRequest toAveragedEntityStatsRequest(
                 final Set<Long> entityIds,
-                @Nonnull final StatPeriodApiInputDTO statApiInput,
+                @Nullable final StatPeriodApiInputDTO statApiInput,
                 @Nonnull final Optional<Integer> tempGroupEntityType) {
         final GetAveragedEntityStatsRequest.Builder entityStatsRequest =
             GetAveragedEntityStatsRequest.newBuilder()
@@ -278,7 +279,7 @@ public class StatsMapper {
     @Nonnull
     public GetEntityStatsRequest toEntityStatsRequest(
             @Nonnull final EntityStatsScope entityStatsScope,
-            @Nonnull final StatPeriodApiInputDTO statApiInput,
+            @Nullable final StatPeriodApiInputDTO statApiInput,
             @Nonnull final EntityStatsPaginationRequest paginationRequest) {
         return GetEntityStatsRequest.newBuilder()
                 .setFilter(newPeriodStatsFilter(statApiInput, Optional.empty()))
@@ -299,19 +300,20 @@ public class StatsMapper {
     @Nonnull
     public ProjectedEntityStatsRequest toProjectedEntityStatsRequest(
             @Nonnull final Set<Long> entityIds,
-            @Nonnull final StatPeriodApiInputDTO statApiInput,
+            @Nullable final StatPeriodApiInputDTO statApiInput,
             @Nonnull final EntityStatsPaginationRequest paginationRequest) {
         // fetch the projected stats for each of the given entities
         final ProjectedEntityStatsRequest.Builder requestBuilder =
                 ProjectedEntityStatsRequest.newBuilder()
                         .addAllEntities(entityIds)
                         .setPaginationParams(paginationMapper.toProtoParams(paginationRequest));
-        if (CollectionUtils.isNotEmpty(statApiInput.getStatistics())) {
-            statApiInput.getStatistics().stream()
-                    .filter(statApiInputDto -> statApiInputDto.getName() != null)
-                    .map(StatApiInputDTO::getName)
-                    .forEach(requestBuilder::addCommodityName);
-        }
+        Optional.ofNullable(statApiInput)
+                .map(input -> input.getStatistics())
+                .orElse(Collections.emptyList())
+                .stream()
+                .filter(statApiInputDto -> statApiInputDto.getName() != null)
+                .map(StatApiInputDTO::getName)
+                .forEach(requestBuilder::addCommodityName);
         return requestBuilder.build();
     }
 
@@ -332,52 +334,57 @@ public class StatsMapper {
      */
     @Nonnull
     public StatsFilter newPeriodStatsFilter(
-            @Nonnull final StatPeriodApiInputDTO statApiInput,
+            @Nullable final StatPeriodApiInputDTO statApiInput,
             @Nonnull final Optional<Integer> globalTempGroupEntityType) {
         final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder();
-        final String inputStartDate = statApiInput.getStartDate();
-        if (inputStartDate != null) {
-            final Long aLong = Long.valueOf(inputStartDate);
-            filterRequestBuilder.setStartDate(aLong);
-        }
-        if (statApiInput.getEndDate() != null) {
-            final Long aLong = Long.valueOf(statApiInput.getEndDate());
-            filterRequestBuilder.setEndDate(aLong);
-        }
-        if (statApiInput.getStatistics() != null) {
-            for (StatApiInputDTO stat : statApiInput.getStatistics()) {
-                if (stat.getName() != null) {
-                    CommodityRequest.Builder commodityRequestBuilder = CommodityRequest.newBuilder();
-                    commodityRequestBuilder.setCommodityName(stat.getName());
-                    // Pass filters, relatedEntityType, and groupBy as part of the request
-                    if (stat.getFilters() != null && !stat.getFilters().isEmpty()) {
-                        stat.getFilters().forEach(statFilterApiDto ->
-                            commodityRequestBuilder.addPropertyValueFilter(
-                                    StatsFilter.PropertyValueFilter.newBuilder()
-                                            .setProperty(statFilterApiDto.getType())
-                                            .setValue(statFilterApiDto.getValue())
-                                            .build()));
-                    }
-                    if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
-                        commodityRequestBuilder.addAllGroupBy(stat.getGroupBy());
-                    }
-                    if (globalTempGroupEntityType.isPresent()) {
-                                commodityRequestBuilder.setRelatedEntityType(
-                                        ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
-                    } else if (stat.getRelatedEntityType() != null) {
-                        if (globalTempGroupEntityType.isPresent() &&
-                                !ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get())
-                                        .equals(stat.getRelatedEntityType())) {
-                            logger.error("Api input related entity type: {} is not consistent with " +
-                                            "group entity type: {}", stat.getRelatedEntityType(),
-                                    ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
-                            throw new IllegalArgumentException("Related entity type is not same as group entity type");
+        if (statApiInput != null) {
+
+            final String inputStartDate = statApiInput.getStartDate();
+            if (inputStartDate != null) {
+                final Long aLong = Long.valueOf(inputStartDate);
+                filterRequestBuilder.setStartDate(aLong);
+            }
+
+            final String inputEndDate = statApiInput.getEndDate();
+            if (inputEndDate != null) {
+                final Long aLong = Long.valueOf(inputEndDate);
+                filterRequestBuilder.setEndDate(aLong);
+            }
+            if (statApiInput.getStatistics() != null) {
+                for (StatApiInputDTO stat : statApiInput.getStatistics()) {
+                    if (stat.getName() != null) {
+                        CommodityRequest.Builder commodityRequestBuilder = CommodityRequest.newBuilder();
+                        commodityRequestBuilder.setCommodityName(stat.getName());
+                        // Pass filters, relatedEntityType, and groupBy as part of the request
+                        if (stat.getFilters() != null && !stat.getFilters().isEmpty()) {
+                            stat.getFilters().forEach(statFilterApiDto ->
+                                    commodityRequestBuilder.addPropertyValueFilter(
+                                            StatsFilter.PropertyValueFilter.newBuilder()
+                                                    .setProperty(statFilterApiDto.getType())
+                                                    .setValue(statFilterApiDto.getValue())
+                                                    .build()));
                         }
-                        commodityRequestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
+                        if (stat.getGroupBy() != null && !stat.getGroupBy().isEmpty()) {
+                            commodityRequestBuilder.addAllGroupBy(stat.getGroupBy());
+                        }
+                        if (globalTempGroupEntityType.isPresent()) {
+                            commodityRequestBuilder.setRelatedEntityType(
+                                    ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
+                        } else if (stat.getRelatedEntityType() != null) {
+                            if (globalTempGroupEntityType.isPresent() &&
+                                    !ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get())
+                                            .equals(stat.getRelatedEntityType())) {
+                                logger.error("Api input related entity type: {} is not consistent with " +
+                                                "group entity type: {}", stat.getRelatedEntityType(),
+                                        ServiceEntityMapper.toUIEntityType(globalTempGroupEntityType.get()));
+                                throw new IllegalArgumentException("Related entity type is not same as group entity type");
+                            }
+                            commodityRequestBuilder.setRelatedEntityType(stat.getRelatedEntityType());
+                        }
+                        filterRequestBuilder.addCommodityRequests(commodityRequestBuilder.build());
+                    } else {
+                        logger.warn("null stat name in request: ", stat);
                     }
-                    filterRequestBuilder.addCommodityRequests(commodityRequestBuilder.build());
-                } else {
-                    logger.warn("null stat name in request: ", stat);
                 }
             }
         }
@@ -418,15 +425,18 @@ public class StatsMapper {
     @Nonnull
     public ProjectedStatsRequest toProjectedStatsRequest(
             @Nonnull final Set<Long> uuid,
-            @Nonnull final StatPeriodApiInputDTO inputDto) {
+            @Nullable final StatPeriodApiInputDTO inputDto) {
         ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder().addAllEntities(uuid);
-        inputDto.getStatistics().forEach(statApiInputDTO -> {
-            // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
-            // and extend the Projected Stats API to serve the additional functionality.
-            if (statApiInputDTO.getName() != null) {
-                builder.addCommodityName(statApiInputDTO.getName());
-            }
-        });
+        Optional.ofNullable(inputDto)
+                .map(StatPeriodApiInputDTO::getStatistics)
+                .orElse(Collections.emptyList())
+                .forEach(statApiInputDTO -> {
+                    // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
+                    // and extend the Projected Stats API to serve the additional functionality.
+                    if (statApiInputDTO.getName() != null) {
+                        builder.addCommodityName(statApiInputDTO.getName());
+                    }
+                });
         return builder.build();
     }
 
@@ -440,7 +450,7 @@ public class StatsMapper {
     @Nonnull
     public ClusterStatsRequest toClusterStatsRequest(
             @Nonnull final String uuid,
-            @Nonnull final StatPeriodApiInputDTO inputDto) {
+            @Nullable final StatPeriodApiInputDTO inputDto) {
         return ClusterStatsRequest.newBuilder()
                 .setClusterId(Long.parseLong(uuid))
                 .setStats(newPeriodStatsFilter(inputDto, Optional.empty()))
