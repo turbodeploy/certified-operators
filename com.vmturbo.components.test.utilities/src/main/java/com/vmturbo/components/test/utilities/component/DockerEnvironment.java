@@ -139,6 +139,7 @@ public class DockerEnvironment {
             .put("MEDIATION_AWSBILLING_PORT", "8080")
             .put("MEDIATION_AWSBILLING_DEBUG_PORT", "8000")
             .put("MEDIATION_AWSCOST_DEBUG_PORT", "8000")
+            .put("MEDIATION_AWSCOST_PORT", "8080")
             // MEMORY LIMITS and XMX Settings
             .put("DB_MEM_LIMIT_MB", "2048")
             .put("DB_MEM_PCT_FOR_BUFFER_POOL", "80")
