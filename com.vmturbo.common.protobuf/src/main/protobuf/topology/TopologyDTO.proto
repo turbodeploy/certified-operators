@@ -242,6 +242,12 @@ message TopologyEntityDTO {
         }
     }
 
+    // Entity tags
+    map<string, TagValuesDTO> tags = 13;
+
+    message TagValuesDTO {
+        repeated string values = 1;
+    }
 }
 
 // Message to hold original topology broadcast message.

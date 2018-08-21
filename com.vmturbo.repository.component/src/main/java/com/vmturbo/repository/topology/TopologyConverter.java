@@ -1,6 +1,7 @@
 package com.vmturbo.repository.topology;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -14,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
@@ -47,6 +49,11 @@ public class TopologyConverter {
             topologyEntityBuilder.setEntityType(mapEntityType(serviceEntityDTO.getEntityType()));
             topologyEntityBuilder.setEntityState(
                     EntityState.forNumber(mapEntityState(serviceEntityDTO.getState())));
+            serviceEntityDTO.getTags().entrySet().forEach(
+                    t ->
+                            topologyEntityBuilder.putTags(
+                                    t.getKey(),
+                                    TagValuesDTO.newBuilder().addAllValues(t.getValue()).build()));
             topologyEntityBuilder.addAllCommoditySoldList(
                     serviceEntityDTO.getCommoditySoldList().stream()
                             .map(CommodityMapper::convert)
@@ -77,6 +84,9 @@ public class TopologyConverter {
             se.setEntityType(mapEntityType(t.getEntityType()));
             se.setUuid(String.valueOf(t.getOid()));
             se.setState(mapEntityState(t.getEntityState()));
+            se.setTags(new HashMap<>());
+            t.getTagsMap().entrySet().forEach(
+                    tag -> se.getTags().put(tag.getKey(), tag.getValue().getValuesList()));
 
             // Commodities bought list
             List<CommoditiesBoughtRepoFromProviderDTO> commoditiesBoughtRepoFromProviderDTOList = Lists.newArrayList();

@@ -2,6 +2,19 @@
   "entityType": 10,
   "oid": 100,
   "displayName": "cirros1",
+  "tags": {
+    "key1": {
+      "values": [
+        "value1",
+        "value2"
+      ]
+    },
+    "key2": {
+      "values": [
+        "value1"
+      ]
+    }
+  },
   "commoditySoldList": [
     {
       "commodityType": {

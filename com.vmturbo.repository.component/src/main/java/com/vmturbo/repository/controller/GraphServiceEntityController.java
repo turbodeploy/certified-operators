@@ -58,7 +58,8 @@ public class GraphServiceEntityController {
     @ResponseBody
     public ResponseEntity<Collection<ServiceEntityApiDTO>> searchServiceEntities(
             @ApiParam(value = "The display name to search for.")
-            @RequestParam(name = "q") final String displayName) {
+            @RequestParam(value = "q")
+            final String displayName) {
 
         LOGGER.info("Searching service entity by name with query '{}'", displayName);
 

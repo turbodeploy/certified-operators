@@ -43,6 +43,7 @@ public class ResultsConverter {
         serviceEntityApiDTO.setUuid(repoDTO.getUuid());
         serviceEntityApiDTO.setClassName(repoDTO.getEntityType());
         serviceEntityApiDTO.setState(repoDTO.getState());
+        serviceEntityApiDTO.setTags(repoDTO.getTags());
 
         return serviceEntityApiDTO;
     }

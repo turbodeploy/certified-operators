@@ -1,6 +1,7 @@
 package com.vmturbo.repository.dto;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class ServiceEntityRepoDTO {
@@ -19,6 +20,8 @@ public class ServiceEntityRepoDTO {
     private String severity;
 
     private String oid;
+
+    private Map<String, List<String>> tags;
 
     private List<String> providers;
 
@@ -98,6 +101,14 @@ public class ServiceEntityRepoDTO {
         this.providers = providers;
     }
 
+    public Map<String, List<String>> getTags() {
+        return tags;
+    }
+
+    public void setTags(Map<String, List<String>> tags) {
+        this.tags = tags;
+    }
+
     public List<CommoditiesBoughtRepoFromProviderDTO> getCommoditiesBoughtRepoFromProviderDTOList() {
         return commoditiesBoughtRepoFromProviderDTOList;
     }
@@ -118,7 +129,7 @@ public class ServiceEntityRepoDTO {
     public int hashCode() {
         return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
                             entityType, oid, priceIndex, priceIndexProjected, providers, severity,
-                            state, uuid);
+                            state, uuid, tags);
     }
 
     @Override
@@ -140,7 +151,8 @@ public class ServiceEntityRepoDTO {
                Objects.equals(providers, that.providers) &&
                Objects.equals(severity, that.severity) &&
                Objects.equals(state, that.state) &&
-               Objects.equals(uuid, that.uuid);
+               Objects.equals(uuid, that.uuid) &&
+               Objects.equals(tags, that.tags);
     }
 
     @Override

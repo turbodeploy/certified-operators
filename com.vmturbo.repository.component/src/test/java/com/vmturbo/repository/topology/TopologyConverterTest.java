@@ -5,7 +5,9 @@ import static org.junit.Assert.assertNotNull;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -59,6 +61,10 @@ public class TopologyConverterTest {
         vmServiceEntity.setUuid("111");
         vmServiceEntity.setEntityType(RepoObjectType.mapEntityType(EntityType.VIRTUAL_MACHINE_VALUE));
         vmServiceEntity.setState(RepoObjectState.toRepoEntityState(TopologyDTO.EntityState.POWERED_ON));
+        final Map<String, List<String>> tagsMap = new HashMap<>();
+        tagsMap.put("key1", Arrays.asList("value1", "value2"));
+        tagsMap.put("key2", Arrays.asList("value1"));
+        vmServiceEntity.setTags(tagsMap);
         final CommoditySoldRepoDTO commoditySoldRepoDTO = new CommoditySoldRepoDTO();
         commoditySoldRepoDTO.setCapacity(123);
         commoditySoldRepoDTO.setKey("test-sold-key");
@@ -192,6 +198,14 @@ public class TopologyConverterTest {
         assertEquals(expectedType, seRepoDTO.getEntityType());
         assertEquals(String.valueOf(seTopoDTO.getOid()), seRepoDTO.getUuid());
         assertEquals(expectedState, seRepoDTO.getState());
+
+        // compare tags
+        assertEquals(seRepoDTO.getTags().size(), seTopoDTO.getTagsMap().size());
+        seRepoDTO.getTags().entrySet().forEach(
+                t ->
+                    assertEquals(
+                            t.getValue(),
+                            seTopoDTO.getTagsMap().get(t.getKey()).getValuesList()));
     }
 
     private static void verifyCommodityBought(
