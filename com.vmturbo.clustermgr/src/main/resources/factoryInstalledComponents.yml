@@ -236,7 +236,9 @@ auth:
 
 cost:
   <<: *baseVmtComponentSettings
+  <<: *topologyProcessorClient
   grpcPingIntervalSeconds: 300
+  realtimeTopologyContextId: 777777
 
   # START - database-related properties.
   <<: *db_conn_info

@@ -19,14 +19,16 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
  * The main cost component.
  */
 @Configuration("theComponent")
-@Import({SQLDatabaseConfig.class,
-        SpringSecurityConfig.class})
+@Import({TopologyListenerConfig.class,
+        SpringSecurityConfig.class,
+        SQLDatabaseConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.

@@ -181,6 +181,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>topology-processor-api</artifactId>
+        </dependency>
 
             <!-- test dependencies -->
         <dependency>

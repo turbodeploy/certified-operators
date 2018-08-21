@@ -400,7 +400,7 @@ services:
   mediation-ucsdirector:
     extends:
       file: prod-services.yml
-      service: mediation-ucsdirectork-prod
+      service: mediation-ucsdirector-prod
     environment:
       JAVA_OPTS: "-Xmx1536M"
     mem_limit: 2048M
