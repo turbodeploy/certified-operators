@@ -146,7 +146,7 @@ public class Provision {
                     // reactivate a suspended seller
                     List<Trader> copiedInactiveSellers = new ArrayList<>(market.getInactiveSellers());
                     for (Trader seller : copiedInactiveSellers) {
-                        if (isEligibleForActivation(seller, mostProfitableTrader, economy)) {
+                        if (isEligibleForActivation(seller, mostProfitableTrader, economy, market)) {
                             provisionAction = new Activate(economy, seller, market,
                                     mostProfitableTrader,
                                     pb.getMostProfitableCommoditySpecification());
@@ -350,18 +350,11 @@ public class Provision {
                 }
                 // The seller should have at least 1 customer which is participating in the market
                 // so that this customer can be moved out when processing this market.
-                // This seller should also have at least 2 customers. If it has only one customer,
-                // then we might end up moving out this single customer and this seller will become
-                // empty which might lead to suspension
-                // of original host (and activation/provision of new host)
-                Set<ShoppingList> sellerCustomers = new HashSet<>(seller.getCustomers());
-                Set<ShoppingList> marketBuyers = new HashSet<>(market.getBuyers());
-                sellerCustomers.retainAll(marketBuyers);
+                Set<ShoppingList> sellerCustomersInCurrentMarket = seller.getCustomers(market);
                 // TODO: evaluate if checking for movable customers earlier is beneficial
                 // clone candidate should either have at least one customer is movable or
                 // all customers that are from guaranteed buyer
-                if (seller.getCustomers().size() > 1
-                        && sellerCustomers.size() > 0
+                if (sellerCustomersInCurrentMarket.size() > 0
                         && (roiOfTrader > traderIS.getMaxDesiredROI())
                         && (roiOfTrader > roiOfRichestTrader)
                         && (seller.getCustomers().stream().anyMatch(sl -> sl.isMovable())
@@ -473,12 +466,13 @@ public class Provision {
      * @param inactiveTrader the inactive trader which is a candidate for activation
      * @param mostProfitableTrader the mostProfitableTrader
      * @param economy the economy
+     * @param m the market under process
      * @return true if the trader is eligible for activation, false otherwise
      */
     @VisibleForTesting
     protected static boolean isEligibleForActivation(
-            Trader inactiveTrader, Trader mostProfitableTrader, Economy economy) {
-        List<ShoppingList> slsOnMostProfitableTrader = mostProfitableTrader.getCustomers();
+            Trader inactiveTrader, Trader mostProfitableTrader, Economy economy, Market m) {
+        Set<ShoppingList> slsOnMostProfitableTrader = mostProfitableTrader.getCustomers(m);
         for (ShoppingList sl : slsOnMostProfitableTrader) {
             Trader customerOnMostProfitableTrader = sl.getBuyer();
             if ((!customerOnMostProfitableTrader.getSettings().isShopTogether() ||
@@ -486,6 +480,11 @@ public class Provision {
                     && ProvisionUtils.canBuyerFitInSeller(sl, inactiveTrader, economy)) {
                 return true;
             }
+        }
+        if (logger.isTraceEnabled() || inactiveTrader.isDebugEnabled()) {
+            logger.debug(inactiveTrader.getDebugInfoNeverUseInCode() + " is not eligible for " +
+                    "activation because none of the customers of " +
+                    mostProfitableTrader.getDebugInfoNeverUseInCode() + " can be placed on it.");
         }
         return false;
     }

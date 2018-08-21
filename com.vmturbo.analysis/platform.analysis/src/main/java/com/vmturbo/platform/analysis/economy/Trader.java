@@ -234,6 +234,23 @@ public abstract class Trader implements Serializable {
     }
 
     /**
+     * Returns a a modifiable set of {@code this} trader's customers which are buyers in market m.
+     *
+     * <p>
+     *  A trader is a customer of another trader, iff the former is active and currently buying at
+     *  least one commodity the latter is selling.
+     * </p>
+     */
+    @Pure
+    public @NonNull @PolyRead Set<@NonNull ShoppingList> getCustomers(
+            @ReadOnly Trader this, @ReadOnly Market m) {
+        @NonNull Set<@NonNull @ReadOnly ShoppingList> customersInMarket = new HashSet<>(
+                unmodifiableCustomers_);
+        customersInMarket.retainAll(new HashSet<>(m.getBuyers()));
+        return customersInMarket;
+    }
+
+    /**
      * Returns a modifiable list of {@code this} trader's customers.
      *
      * <p>

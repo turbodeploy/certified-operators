@@ -6,6 +6,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 
 import java.util.HashSet;
+import java.util.Set;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
@@ -255,6 +256,29 @@ public final class TraderWithSettingsTest {
     }
 
     @Test
+    public final void testGetCustomersOfMarket() {
+        Basket b = new Basket();
+        TraderWithSettings t1 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl1 = new ShoppingList(t1, b);
+        TraderWithSettings t2 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl2 = new ShoppingList(t2, b);
+        TraderWithSettings t3 = new TraderWithSettings(0, 0, TraderState.ACTIVE, b);
+        ShoppingList sl3 = new ShoppingList(t3, b);
+        // Sl1 and Sl2 are buyers in Market
+        Market m = new Market(new Basket());
+        m.addBuyer(t1, sl1);
+        m.addBuyer(t2, sl2);
+        // Sl1 and Sl3 are customers of fixture
+        fixture_.getModifiableCustomers().add(sl1);
+        fixture_.getModifiableCustomers().add(sl3);
+
+        Set<ShoppingList> customersInMarket = fixture_.getCustomers(m);
+
+        assertEquals(1, customersInMarket.size());
+        assertEquals(sl1, customersInMarket.iterator().next());
+    }
+
+    @Test
     public final void testGetModifiableCustomers() {
         ListTests.verifyModifiable(fixture_.getModifiableCustomers(), new ShoppingList(fixture_,EMPTY));
     }
@@ -378,5 +402,4 @@ public final class TraderWithSettingsTest {
         fixture_.setMaxDesiredUtil(maxDesiredUtilization);
         fixture_.setMinDesiredUtil(minDesiredUtilization);
     }
-
 } // end class TraderWithSettingsTest
