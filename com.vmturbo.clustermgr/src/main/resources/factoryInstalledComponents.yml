@@ -341,6 +341,10 @@ mediation-awscost:
   <<: *commonMediationComponentSettings
   turbonomic.aws.persistent.path: /home/turbonomic/data/
 
+mediation-azure:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

@@ -274,6 +274,7 @@
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
@@ -454,6 +455,13 @@
         </profile>
 
         <profile>
+            <id>mediation-azure</id>
+            <modules>
+                <module>../com.vmturbo.mediation.azure.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-vcenter-browsing</id>
             <modules>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
@@ -527,7 +535,6 @@
                      that we currently support in XL. -->
                 <module>../com.vmturbo.mediation.client</module>
                 <module>../com.vmturbo.mediation.vcenter.component</module>
-                <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
                 <module>../com.vmturbo.mediation.vmax.component</module>
                 <module>../com.vmturbo.mediation.vmm.component</module>
                 <module>../com.vmturbo.mediation.ucs.component</module>
@@ -653,6 +660,7 @@
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
+                <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
