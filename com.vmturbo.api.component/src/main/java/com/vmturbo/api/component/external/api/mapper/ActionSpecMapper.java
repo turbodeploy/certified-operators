@@ -342,9 +342,8 @@ public class ActionSpecMapper {
         }
 
         // record the times for this action
-        actionApiDTO.setCreateTime(LocalDateTime.ofInstant(
-            Instant.ofEpochMilli(actionSpec.getRecommendationTime()), ZoneOffset.systemDefault())
-                .toString());
+        final String createTime = DateTimeUtil.toString(actionSpec.getRecommendationTime());
+        actionApiDTO.setCreateTime(createTime);
 
         if (actionSpec.hasDecision()) {
             final ActionDecision decision = actionSpec.getDecision();
