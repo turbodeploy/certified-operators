@@ -148,7 +148,8 @@ public class AccountValueVerifier {
         final Set<String> acceptedAccountFields = entries.values().stream().map(AccountDefEntry::getName)
                         .collect(Collectors.toSet());
 
-        final Set<String> secretFields = info.get().getAccountDefinitionList().stream()
+        final Set<String> mandatorySecretFields = info.get().getAccountDefinitionList().stream()
+                        .filter(Discovery.AccountDefEntry::getMandatory)
                         .map(AccountValueAdaptor::wrap)
                         .filter(AccountDefEntry::isSecret)
                         .map(AccountDefEntry::getName)
@@ -159,8 +160,8 @@ public class AccountValueVerifier {
         fieldErrors.addAll(inputFields.keySet().stream()
                         .filter(name -> !acceptedAccountFields.contains(name))
                         .map(name -> "Unknown field: " + name).collect(Collectors.toList()));
-        // Check for secret fields that the input fields doesn't contain.
-        fieldErrors.addAll(secretFields.stream()
+        // Check for mandatory secret fields that the input fields doesn't contain.
+        fieldErrors.addAll(mandatorySecretFields.stream()
                         .filter(secretField -> !inputFields.keySet().contains(secretField))
                         .map(name -> "Unknown secret field: " + name).collect(Collectors.toList()));
         // Check that the input fields that the probe DOES recognize are valid and well-formed.
