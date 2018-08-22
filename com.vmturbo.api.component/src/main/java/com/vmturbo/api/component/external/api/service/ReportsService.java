@@ -320,7 +320,7 @@ public class ReportsService implements IReportsService {
         scope.setDisplayName(getScopeDisplayName(scopeOid));
 
         final ReportScheduleApiDTO apiDTO = new ReportScheduleApiDTO();
-        apiDTO.setSubcriptionId(scheduleDTO.getId());
+        apiDTO.setSubscriptionId(scheduleDTO.getId());
         apiDTO.setScope(scope);
         if (info.hasDayOfWeek()) {
             apiDTO.setDayOfWeek(DayOfWeek.valueOf(info.getDayOfWeek()));
