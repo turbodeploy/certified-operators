@@ -3,14 +3,13 @@ package com.vmturbo.api.component.external.api.service;
 import static org.mockito.Matchers.any;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
 
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import com.google.common.collect.Lists;
 
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -57,7 +56,7 @@ public class PaginationTestUtil {
                 types,
                 scopes,
                 state,
-                Lists.newArrayList(groupType),
+                Collections.singletonList(groupType),
                 envType,
                 null,
                 paginationRequest,

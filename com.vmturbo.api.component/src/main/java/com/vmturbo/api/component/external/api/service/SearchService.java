@@ -170,6 +170,13 @@ public class SearchService implements ISearchService {
         return repositoryApi.getServiceEntityForUuid(Long.valueOf(uuidString));
     }
 
+    /**
+     * Note: Recent ISearchService changes:
+     * - String groupType -> List <String> groupTypes
+     * - add a new parameter: List <String> entityTypes
+     * The new logic will be implemented in XL by JIRA items mentioned on OM-38355.
+     * {@inheritDoc}
+     */
     @Override
     public SearchPaginationResponse getSearchResults(String query,
                                                      List<String> types,
@@ -183,10 +190,8 @@ public class SearchService implements ISearchService {
                                                      List <String> entityTypes)
             throws Exception {
         // temporally hack to accommodate signature changes.
-        String groupType = "";
-        if (groupTypes != null && groupTypes.size() >0) {
-            groupType = groupTypes.get(0);
-        }
+        final String groupType = (groupTypes != null && groupTypes.size() > 0) ? groupTypes.get(0) : null;
+
 
         List<BaseApiDTO> result = null;
         // Determine which of many (many) types of searches is requested.
@@ -198,9 +203,8 @@ public class SearchService implements ISearchService {
             // if 'groupType' is specified, this MUST be a search over GROUPs
 
             final List<GroupApiDTO> groups = groupsService.getGroups();
-            final String tempGroupType = groupType;
             return paginationRequest.allResultsResponse(groups.stream()
-                .filter(g -> tempGroupType.equals(g.getGroupType()))
+                .filter(g -> groupType.equals(g.getGroupType()))
                 .collect(Collectors.toList()));
         } else if (types != null) {
             // Check for a type that requires a query to a specific service, vs. Repository search.
