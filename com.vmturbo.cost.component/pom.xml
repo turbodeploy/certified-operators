@@ -137,6 +137,10 @@
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo</name>
                                     <converter>com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecInfoConverter</converter>
                                 </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.DiscountInfo</name>
+                                    <converter>com.vmturbo.cost.component.discount.DiscountInfoConverter</converter>
+                                </customType>
                             </customTypes>
                             <forcedTypes>
                                 <forcedType>
@@ -146,6 +150,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo</name>
                                     <expression>.*\.reserved_instance_spec\.reserved_instance_spec_info</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.DiscountInfo</name>
+                                    <expression>.*\.discount\.discount_info</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

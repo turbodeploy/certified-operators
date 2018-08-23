@@ -209,23 +209,31 @@ message ExpenseQueryFilter {
 // Customers negotiate discounts with Cloud Vendors:
 // * Enterprise Program Discount [AWS]
 // * Enterprise Agreement [Azure]
-// Entity costs in Turbonomic should reflect what the customer actually pays
-// All discounts to be entered by user [Cannot be discovered]
+// Entity costs in Turbonomic should reflect what the customer actually pays.
+// All discounts to be entered by user [Cannot be discovered].
+// It's one to one mapping between busniess account and discount.
+// Discount is assumed on global region basis. We could extend it to support tier-level if needed.
 message Discount {
     // The oid for the discount
     optional int64 id = 1;
 
-    // The associated business account oid
+    // The associated business account oid, it is immutable after creation.
     optional int64 associated_account_id = 2;
 
+    // All supported discount levels, it's editable.
+    optional DiscountInfo discount_info = 3;
+}
+
+// Each discount info could have account-level, service-levels, and tier-levels.
+message DiscountInfo {
     // Global level account discount, e.g. 10.0 % on Account A
-    optional AccountLevelDiscount account_level_discount = 3;
+    optional AccountLevelDiscount account_level_discount = 1;
 
     // Service level discount, e.g. 10.0 % on all EC2 for Account A
-    optional ServiceLevelDiscount service_level_discount = 4;
+    optional ServiceLevelDiscount service_level_discount = 2;
 
     // Tier/Template level discount, e.g. 10.0 % on all t2.small for Account A
-    optional TierLevelDiscount tier_level_discount = 5;
+    optional TierLevelDiscount tier_level_discount = 3;
 
     message AccountLevelDiscount {
         // The global level discount, e.g. 10.0
