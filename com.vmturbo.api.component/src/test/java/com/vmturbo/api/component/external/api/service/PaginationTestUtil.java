@@ -10,6 +10,8 @@ import javax.annotation.Nonnull;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.google.common.collect.Lists;
+
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -50,7 +52,16 @@ public class PaginationTestUtil {
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
         Mockito.when(paginationRequest.allResultsResponse(any()))
                 .thenReturn(Mockito.mock(SearchPaginationResponse.class));
-        searchService.getSearchResults(query, types, scopes, state, groupType, envType, null, paginationRequest);
+        searchService.getSearchResults(
+                query,
+                types,
+                scopes,
+                state,
+                Lists.newArrayList(groupType),
+                envType,
+                null,
+                paginationRequest,
+                null);
         Mockito.verify(paginationRequest).allResultsResponse(resultCaptor.capture());
         return resultCaptor.getValue();
     }

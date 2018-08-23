@@ -175,12 +175,19 @@ public class SearchService implements ISearchService {
                                                      List<String> types,
                                                      List<String> scopes,
                                                      String state,
-                                                     String groupType,
+                                                     List <String> groupTypes,
                                                      EnvironmentType environmentType,
                                                      // Ignored for now.
                                                      @Nullable EntityDetailType entityDetailType,
-                                                     SearchPaginationRequest paginationRequest)
+                                                     SearchPaginationRequest paginationRequest,
+                                                     List <String> entityTypes)
             throws Exception {
+        // temporally hack to accommodate signature changes.
+        String groupType = "";
+        if (groupTypes != null && groupTypes.size() >0) {
+            groupType = groupTypes.get(0);
+        }
+
         List<BaseApiDTO> result = null;
         // Determine which of many (many) types of searches is requested.
         // NB: this method is heavily overloaded.  The REST endpoint to be redefined
@@ -191,8 +198,9 @@ public class SearchService implements ISearchService {
             // if 'groupType' is specified, this MUST be a search over GROUPs
 
             final List<GroupApiDTO> groups = groupsService.getGroups();
+            final String tempGroupType = groupType;
             return paginationRequest.allResultsResponse(groups.stream()
-                .filter(g -> groupType.equals(g.getGroupType()))
+                .filter(g -> tempGroupType.equals(g.getGroupType()))
                 .collect(Collectors.toList()));
         } else if (types != null) {
             // Check for a type that requires a query to a specific service, vs. Repository search.
