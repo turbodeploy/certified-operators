@@ -21,6 +21,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Sets;
+
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.EntityProfileToDeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.SetDiscoveredTemplateDeploymentProfileRequest;
@@ -31,8 +34,6 @@ import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.topology.processor.deployment.profile.DeploymentProfileMapper;
 import com.vmturbo.topology.processor.entity.EntityStore;
-
-import io.grpc.StatusRuntimeException;
 
 /**
  * Object is used to send newly available templates and deployment profile data to be stored in plan orchestrator.
@@ -245,12 +246,7 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         @Nonnull Collection<EntityProfileDTO> entityProfileDTOs,
         @Nonnull Collection<DeploymentProfileDTO> deploymentProfileDTOs) {
         final Map<String, EntityProfileDTO> templateIdMap = Sets.newHashSet(entityProfileDTOs).stream()
-            .collect(Collectors.toMap(EntityProfileDTO::getId, Function.identity(),
-                    (profile1, profile2) -> {
-                logger.warn("Duplicate entity profile id {} in discovery response of target {}! "
-                        + "Choosing the first encountered one.", profile1.getId(), targetId);
-                return profile1;
-        }));
+            .collect(Collectors.toMap(EntityProfileDTO::getId, Function.identity()));
         final Map<EntityProfileDTO, Set<DeploymentProfileDTO>> templateToDeploymentProfileDTOMap =
             buildDefaultEntityProfileMap(entityProfileDTOs);
         // Build map of template to list of attached deployment profile
