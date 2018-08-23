@@ -389,7 +389,6 @@ services:
       - "${GROUP_PORT}"
       - "${GROUP_DEBUG_PORT}"
     depends_on:
-      - arangodb
       - clustermgr
       - db
       - auth

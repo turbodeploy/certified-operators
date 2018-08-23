@@ -170,10 +170,6 @@ group:
   <<: *baseVmtComponentSettings
   <<: *repository_conn_info
   # TODO: Remove from source control and instead get these values from the auth component.
-  arangodbPort: 8529
-  arangodbHost: arangodb
-  arangodbUser: root
-  arangodbHealthCheckIntervalSeconds: 60
   mariadbHealthCheckIntervalSeconds: 60
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 4

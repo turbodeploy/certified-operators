@@ -198,7 +198,6 @@ services:
       JAVA_OPTS: "-Xmx512M"
     mem_limit: 768M
     depends_on:
-      - arangodb
       - clustermgr
       - db
       - auth
