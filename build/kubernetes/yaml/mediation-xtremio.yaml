@@ -4,6 +4,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: mediation-xtremio
   name: mediation-xtremio
   namespace: turbonomic
@@ -23,6 +24,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: mediation-xtremio
   name: mediation-xtremio
   namespace: turbonomic
@@ -34,6 +36,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
+    zone: secure
         io.kompose.service: mediation-xtremio
     spec:
       containers:
@@ -86,6 +89,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: mediation-xtremio
   name: mediation-xtremio
   namespace: turbonomic

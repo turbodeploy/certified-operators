@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: mysqldata
   name: mysqldata
   namespace: turbonomic
@@ -19,6 +20,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: mysql-log
   name: mysql-log
   namespace: turbonomic
@@ -35,6 +37,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: mysql-var
   name: mysql-var
   namespace: turbonomic
@@ -54,6 +57,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: db
   name: db
   namespace: turbonomic
@@ -65,6 +69,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
+    zone: secure
         io.kompose.service: db
     spec:
       #securityContext:
@@ -119,6 +124,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: db
   name: db
   namespace: turbonomic

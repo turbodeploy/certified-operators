@@ -4,6 +4,7 @@ metadata:
   name: registrydata
   namespace: turbonomic
   labels:
+    zone: internal
     kubernetes.io/cluster-service: "true"
 spec:
   accessModes:
@@ -19,6 +20,7 @@ metadata:
   name: turbo-registry
   namespace: turbonomic
   labels:
+    zone: internal
     k8s-app: turbo-registry-upstream
     version: v0
     kubernetes.io/cluster-service: "true"
@@ -30,6 +32,7 @@ spec:
   template:
     metadata:
       labels:
+    zone: internal
         k8s-app: turbo-registry-upstream
         version: v0
         kubernetes.io/cluster-service: "true"
@@ -64,6 +67,7 @@ metadata:
   name: registry
   namespace: turbonomic
   labels:
+    zone: internal
     k8s-app: turbo-registry-upstream
     kubernetes.io/cluster-service: "true"
     kubernetes.io/name: "TurboRegistry"
@@ -81,6 +85,7 @@ metadata:
   name: turbo-registry-proxy
   namespace: turbonomic
   labels:
+    zone: internal
     k8s-app: turbo-registry-proxy
     kubernetes.io/cluster-service: "true"
     version: v0.4
@@ -88,6 +93,7 @@ spec:
   template:
     metadata:
       labels:
+    zone: internal
         k8s-app: turbo-registry-proxy
         kubernetes.io/name: "turbo-registry-proxy"
         kubernetes.io/cluster-service: "true"

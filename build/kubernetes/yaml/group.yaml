@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: internal
     io.kompose.service: group
   name: group
   namespace: turbonomic
@@ -22,6 +23,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: internal
     io.kompose.service: group
   name: group
   namespace: turbonomic
@@ -33,6 +35,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
+    zone: internal
         io.kompose.service: group
     spec:
       containers:
@@ -90,6 +93,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: internal
     io.kompose.service: group
   name: group
   namespace: turbonomic

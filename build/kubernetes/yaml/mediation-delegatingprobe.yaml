@@ -6,6 +6,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: secure
     io.kompose.service: mediation-delegatingprobe
   name: mediation-delegatingprobe
   namespace: turbonomic

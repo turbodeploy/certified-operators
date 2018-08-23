@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: internal
     io.kompose.service: rsyslog-auditlogdata
   name: rsyslog-auditlogdata
   namespace: turbonomic
@@ -19,6 +20,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: internal
     io.kompose.service: rsyslog-syslogdata
   name: rsyslog-syslogdata
   namespace: turbonomic
@@ -38,6 +40,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: internal
     io.kompose.service: rsyslog
   name: rsyslog
   namespace: turbonomic
@@ -52,6 +55,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
+    zone: internal
         io.kompose.service: rsyslog
     spec:
       containers:
@@ -94,6 +98,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: internal
     io.kompose.service: rsyslog
   name: rsyslog
   namespace: turbonomic

@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: dmz
     io.kompose.service: api-claim1
   name: api-claim1
   namespace: turbonomic
@@ -19,6 +20,7 @@ kind: PersistentVolumeClaim
 metadata:
   creationTimestamp: null
   labels:
+    zone: dmz
     io.kompose.service: api
   name: api
   namespace: turbonomic
@@ -38,6 +40,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: dmz
     io.kompose.service: api
   name: api
   namespace: turbonomic
@@ -49,6 +52,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
+    zone: dmz
         io.kompose.service: api
     spec:
       containers:
@@ -116,6 +120,7 @@ metadata:
     kompose.version: 1.12.0 ()
   creationTimestamp: null
   labels:
+    zone: dmz
     io.kompose.service: api
   name: api
   namespace: turbonomic

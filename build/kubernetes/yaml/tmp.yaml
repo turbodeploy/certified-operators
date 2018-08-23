@@ -4,6 +4,7 @@ metadata:
   name: registrydata
   namespace: turbonomic
   labels:
+    zone: internal
     kubernetes.io/cluster-service: "true"
 spec:
   storageClassName: gluster-heketi
