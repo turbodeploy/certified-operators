@@ -36,7 +36,7 @@
                     <apiSources>
                         <apiSource>
                             <locations>
-                                <location>com.vmturbo.cost</location>
+                                <location>com.vmturbo.cost.component</location>
                                 <location>com.vmturbo.common.protobuf.cost</location>
                                 <location>com.vmturbo.components.common</location>
                             </locations>

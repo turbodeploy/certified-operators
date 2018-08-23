@@ -99,3 +99,43 @@ message SpotInstancePriceTable {
     // is set per-region-per-instance.
     map<int64, common_dto.Price> spot_price_by_instance_id = 1;
 }
+
+message GetPriceTableRequest {
+}
+
+message GetPriceTableResponse {
+    // The global price table is a merging of all the per-target price tables.
+    // We can merge all of them safely because the individual tiers have globally unique IDs.
+    optional PriceTable global_price_table = 1;
+}
+
+message UploadPriceTableRequest {
+    // The type of the probe that discovered this price table.
+    // We expect the listed prices for each probe type (e.g. AWS, Azure, and so on) to be the
+    // same across all targets, so there is no point of supporting per-target price tables.
+    //
+    // The main purpose of uploading per-probe-type price tables is to have a mechanism to discard
+    // old/expired prices. For example, if a particular tier or configuration is deprecated and
+    // no longer has a price, we want to delete it.
+    optional string probe_type = 1;
+
+    // The price table discovered for the target.
+    // This price table will completely overwrite the previously-uploaded price table for the
+    // target.
+    optional PriceTable price_table = 10;
+}
+
+message UploadPriceTableResponse {
+}
+
+// The pricing service is the interface to upload and retrieve pricing data from the cost
+// component.
+service PricingService {
+    // Get the current "global" price table.
+    rpc GetPriceTable(GetPriceTableRequest) returns (GetPriceTableResponse);
+
+    // Upload the most recent price table discovered by a particular cost probe.
+    //
+    // Returns INVALID_ARGUMENT if the request is missing fields.
+    rpc UploadPriceTable(UploadPriceTableRequest) returns (UploadPriceTableResponse);
+}

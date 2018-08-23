@@ -55,4 +55,4 @@ CREATE TABLE reserved_instance_bought (
     FOREIGN  KEY (reserved_instance_spec_id) REFERENCES reserved_instance_spec(id) ON DELETE CASCADE,
 
     PRIMARY KEY (id)
-)
+);

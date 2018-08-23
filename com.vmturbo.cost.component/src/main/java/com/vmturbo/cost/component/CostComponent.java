@@ -19,6 +19,7 @@ import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
@@ -28,7 +29,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Configuration("theComponent")
 @Import({TopologyListenerConfig.class,
         SpringSecurityConfig.class,
-        SQLDatabaseConfig.class})
+        SQLDatabaseConfig.class,
+        PricingConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -37,6 +39,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private SQLDatabaseConfig dbConfig;
+
+    @Autowired
+    private PricingConfig pricingConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -70,6 +75,7 @@ public class CostComponent extends BaseVmtComponent {
         // gRPC JWT token interceptor
         final JwtServerInterceptor jwtInterceptor =
                 new JwtServerInterceptor(securityConfig.apiAuthKVStore());
+        builder.addService(pricingConfig.pricingRpcService());
         return Optional.of(builder.build());
     }
 }
