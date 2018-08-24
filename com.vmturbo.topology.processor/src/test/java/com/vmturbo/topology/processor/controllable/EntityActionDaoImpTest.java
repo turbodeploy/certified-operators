@@ -158,7 +158,7 @@ public class EntityActionDaoImpTest {
     @Test
     public void testGetEntityIdsAfterDeleteExpired() {
         final long newActionId = 456L;
-        final Set<Long> newEntityIds = Sets.newHashSet(3L, 4L);
+        final Set<Long> newEntityIds = Sets.newHashSet(3L, 4L, 5L);
         controllableDaoImp.insertAction(actionId, ActionDTO.ActionType.MOVE, entityIds);
         controllableDaoImp.insertAction(newActionId, ActionDTO.ActionType.MOVE, newEntityIds);
         final LocalDateTime currentTime = LocalDateTime.now(ZoneOffset.UTC);
@@ -188,8 +188,14 @@ public class EntityActionDaoImpTest {
                 .set(ENTITY_ACTION.STATUS, EntityActionStatus.failed)
                 .where(ENTITY_ACTION.ENTITY_ID.eq(4L))
                 .execute();
+        // update entity 5 status to queued and change its update time to current time.
+        dsl.update(ENTITY_ACTION)
+                .set(ENTITY_ACTION.UPDATE_TIME, currentTime)
+                .set(ENTITY_ACTION.STATUS, EntityActionStatus.queued)
+                .where(ENTITY_ACTION.ENTITY_ID.eq(5L))
+                .execute();
         final Set<Long> results = controllableDaoImp.getNonControllableEntityIds();
-        assertEquals(1L, results.size());
+        assertEquals(2L, results.size());
         assertTrue(results.contains(3L));
     }
 

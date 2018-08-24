@@ -71,7 +71,7 @@ public class EntityActionDaoImp implements EntityActionDao {
                         .execute();
             }
         });
-
+        logger.info("Queued action {} into controllable table", actionId);
     }
 
     /**
@@ -103,6 +103,7 @@ public class EntityActionDaoImp implements EntityActionDao {
                     record.setUpdateTime(now);
                 }
                 transactionDsl.batchUpdate(records).execute();
+                logger.info("Update action {} status to {} in controllable table", actionId, newState.name());
             });
         } catch (DataAccessException e) {
             if (e.getCause() instanceof ControllableRecordNotFoundException) {
@@ -116,9 +117,9 @@ public class EntityActionDaoImp implements EntityActionDao {
     /**
      * It will delete all expired MOVE action records from controllable tables. For 'failed' status records,
      * it will delete all of them. For 'queued' and 'in progress' status records, it has a
-     * configured {@link #controllableInProgressExpiredSeconds} which stores the timeout threshold
+     * configured {@link #activateOrMoveInProgressExpiredSeconds} which stores the timeout threshold
      * about when they should be considered as expired. For 'succeed' status records, it has a
-     * configured {@link #controllableSucceedRecordExpiredSeconds} which has a different timeout
+     * configured {@link #moveSucceedRecordExpiredSeconds} which has a different timeout
      * threshold to determine when to delete. After delete expired MOVE action records, it will get
      * from MOVE action records all entity ids which status is 'in progress' and 'succeed', those entity
      * ids are the not controllable entities.
@@ -154,11 +155,12 @@ public class EntityActionDaoImp implements EntityActionDao {
                             .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime))
                             .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
                     .execute();
-            // after deleted expired records, the rest of 'succeed' or 'in progress' status records
-            // are the entities not controllable. And for 'queued' records, it means its action is not
-            // be executed by probes yet, so it is still controllable.
+            // after deleted expired records, the rest of 'succeed' or 'in progress' or 'queued' status
+            // records are the entities not controllable.
             return transactionDsl.selectFrom(ENTITY_ACTION)
                     .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
+                            // 'queued' status is also consider as non-controllable.
+                            .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued))
                             .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)))
                            .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
                     .fetchSet(ENTITY_ACTION.ENTITY_ID);

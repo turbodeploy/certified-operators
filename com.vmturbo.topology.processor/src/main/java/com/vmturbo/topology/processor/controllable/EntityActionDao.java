@@ -13,7 +13,7 @@ import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.NotSupport
  * Data access object for creating, updating, deleting MOVE or ACTIVATE actions record tables.
  * There are three status for each action record: 'queued', 'in progress', 'succeed'.
  * 1: when topology processor receives an action execution request, it will insert records into tables,
- * and its status is 'queued'.
+ * and its status is 'queued'. And 'queued' status will also be considered as non-controllable.
  * 2: when topology processor receives an action "in progress" notification from probes, it will update
  * related action record status to 'in progress'.
  * 3: when topology processor receives an action succeed notification from probes, it will update related
