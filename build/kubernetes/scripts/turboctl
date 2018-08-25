@@ -1,0 +1,97 @@
+#!/bin/bash
+
+# turbo script to get kubernetes information 
+
+# Get value from the  command line
+action=${1}
+component=${2}
+extra=${3}
+
+# Functions used throughout the script
+usage()
+{
+        echo
+        echo "Useage: `basename $0` logs <optional> component 20 -> Get logs from syslog container.
+                                              Specify component and last x amount of lines"
+        echo "Useage: `basename $0` create component             -> Create various pods to bring up the system.
+                                              create <namespace, registry, base, services, probes, non-prod"
+        echo "Useage: `basename $0` pod                          -> Get status of pods"
+        echo "Useage: `basename $0` svc                          -> Get services"
+        echo "Useage: `basename $0` deps                         -> Get deployments"
+        echo "Useage: `basename $0` bulk all version   -> push all tagged version into kube private registry"
+        echo
+        exit -1
+}
+
+# Test variables are not empty.
+[ -z "${action}" ] && usage
+
+
+export kubeCommand="/usr/local/bin/kubectl"
+export rsyslogPodName=$(kubectl get pods -o go-template --template '{{range .items}}{{.metadata.name}}{{"\n"}}{{end}}' | grep rsyslog)
+export xlYamlDir="/opt/xl/kubernetes/yaml/"
+
+# Get Logs
+if [ "${action}" == "logs" ]
+then
+  if [ -z "${extra}" ]
+  then
+    ${kubeCommand} logs ${rsyslogPodName} | grep ^${component}
+  else
+  [ -z "${component}" ] && usage
+  [ -z "${extra}" ] && usage
+  ${kubeCommand} logs ${rsyslogPodName} | grep ^${component} | tail -n${extra}
+  fi
+fi
+
+# Start Components
+if [ "${action}" == "create" ]
+then
+  [ -z "${component}" ] && usage
+  case $component in
+     namespace)
+          ${kubeCommand} create -f ${xlYamlDir}/turbo-ns.yaml
+          ${kubeCommand} config set-context turbo --namespace=turbonomic
+          ${kubeCommand} config use-context turbo
+          ;;
+     registry)
+          ${kubeCommand} create -f ${xlYamlDir}/registry/
+          ;;
+     base)
+          ${kubeCommand} create -f ${xlYamlDir}/base/
+          ;;
+     services)
+          ${kubeCommand} create -f ${xlYamlDir}/services/
+          ;;
+     probes)
+          ${kubeCommand} create -f ${xlYamlDir}/probes/
+          ;;
+     non-prod)
+          ${kubeCommand} create -f ${xlYamlDir}/non-prod/
+          ;;
+     *)
+	  individual=$(find /opt/xl/kubernetes/yaml -name ${component}.yaml) 
+          ${kubeCommand} create -f ${individual}
+          ;;
+  esac
+fi
+
+
+
+# Show pod status
+if [ "${action}" == "pod" ]
+then
+  ${kubeCommand} get pods
+fi
+
+# Show services 
+if [ "${action}" == "svc" ]
+then
+  ${kubeCommand} get svc
+fi
+# Show deployments 
+if [ "${action}" == "deps" ]
+then
+  ${kubeCommand} get deployment
+fi
+
