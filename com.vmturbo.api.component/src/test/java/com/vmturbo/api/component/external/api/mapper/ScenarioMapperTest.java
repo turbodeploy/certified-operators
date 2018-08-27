@@ -405,6 +405,17 @@ public class ScenarioMapperTest {
     }
 
     @Test
+    public void testToScenarioInfoBaselineChanges() {
+        final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
+        long testbaselineDate = 123456789;
+        loadChanges.setBaselineDate(String.valueOf(testbaselineDate));
+        final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
+        final long baselineDate = scenarioInfo.getChangesList().get(0)
+            .getPlanChanges().getHistoricalBaseline().getBaselineDate();
+        Assert.assertEquals(testbaselineDate, baselineDate);
+    }
+
+    @Test
     public void testToScenarioInfoUtilizationLevelEmptyLoadChanges() {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);

@@ -69,6 +69,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -554,6 +555,27 @@ public class Stages {
         @Override
         public TopologyGraph execute(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             return TopologyGraph.newGraph(input);
+        }
+    }
+
+    /**
+     * Stage to apply changes to commodities values like used,peak etc.
+     */
+    public static class CommoditiesEditStage extends PassthroughStage<TopologyGraph> {
+
+        private final List<ScenarioChange> changes;
+
+        private final CommoditiesEditor commoditiesEditor;
+
+
+        public CommoditiesEditStage(@Nonnull CommoditiesEditor commoditiesEditor, @Nonnull List<ScenarioChange> changes) {
+            this.changes = Objects.requireNonNull(changes);
+            this.commoditiesEditor = commoditiesEditor;
+        }
+
+        @Override
+        public void passthrough(@Nonnull TopologyGraph graph) throws PipelineStageException {
+            commoditiesEditor.editCommoditiesForBaselineChanges(graph, changes, getContext().getTopologyInfo());
         }
     }
 

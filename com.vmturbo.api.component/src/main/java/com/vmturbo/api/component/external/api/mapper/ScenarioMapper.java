@@ -19,6 +19,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -55,6 +56,7 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -69,6 +71,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.UtilizationLevel;
@@ -282,13 +285,39 @@ public class ScenarioMapper {
 
     @Nonnull
     private Iterable<ScenarioChange> getLoadChanges(@Nonnull LoadChangesApiDTO loadChangesApiDTO) {
+        List<ScenarioChange> changes = new ArrayList<>();
+
         if (loadChangesApiDTO == null) {
-            return Collections.emptyList();
+            return changes;
         }
-        final List<UtilizationApiDTO> utilizationList = loadChangesApiDTO.getUtilizationList();
-        if (CollectionUtils.isEmpty(utilizationList)) {
-            return Collections.emptyList();
+
+        // Set utilization changes.
+        List<UtilizationApiDTO> utilizationList = loadChangesApiDTO.getUtilizationList();
+        if (!CollectionUtils.isEmpty(utilizationList)) {
+            changes.add(getUtilizationChanges(utilizationList));
         }
+
+        // Set baseline changes
+        String baselineDate = loadChangesApiDTO.getBaselineDate();
+        if (!StringUtils.isEmpty(baselineDate)) {
+            changes.add(getHistoricalBaselineChanges(baselineDate));
+        }
+
+        return changes;
+    }
+
+    @Nonnull
+    private ScenarioChange getHistoricalBaselineChanges(@Nonnull String baselineDate) {
+        final ScenarioChange change = ScenarioChange.newBuilder()
+                   .setPlanChanges(PlanChanges.newBuilder()
+                       .setHistoricalBaseline(HistoricalBaseline.newBuilder()
+                           .setBaselineDate(DateTimeUtil.parseTime(baselineDate))))
+                   .build();
+        return change;
+    }
+
+    @Nonnull
+    private ScenarioChange getUtilizationChanges(@Nonnull final List<UtilizationApiDTO> utilizationList) {
         /* Utilization comes from UI as list of utilizations but there is always one value in list
          because in UI we cannot choose type of entity for setting - it's always for VMs.
          So actually utilization should be single value instead of list.
@@ -301,7 +330,7 @@ public class ScenarioMapper {
                 .setPlanChanges(PlanChanges.newBuilder()
                     .setUtilizationLevel(utilizationLevel))
                 .build();
-        return Collections.singletonList(change);
+        return change;
     }
 
     /**

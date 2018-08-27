@@ -32,11 +32,13 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
+import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.AddDatacenterPrefixToClustersStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ControllableStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
@@ -107,6 +109,8 @@ public class TopologyPipelineFactory {
 
     private final ControllableManager controllableManager;
 
+    private final CommoditiesEditor commoditiesEditor;
+
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -125,7 +129,8 @@ public class TopologyPipelineFactory {
                                    @Nonnull final EntityValidator entityValidator,
                                    @Nonnull final SupplyChainValidator supplyChainValidator,
                                    @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
-                                   @Nonnull final ControllableManager controllableManager) {
+                                   @Nonnull final ControllableManager controllableManager,
+                                   @Nonnull final CommoditiesEditor commoditiesEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -145,6 +150,7 @@ public class TopologyPipelineFactory {
         this.entityValidator = Objects.requireNonNull(entityValidator);
         this.supplyChainValidator = Objects.requireNonNull(supplyChainValidator);
         this.controllableManager = Objects.requireNonNull(controllableManager);
+        this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
     }
 
     /**
@@ -244,6 +250,7 @@ public class TopologyPipelineFactory {
                         groupServiceClient, changes))
                 .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
+                .addStage(new CommoditiesEditStage(commoditiesEditor, changes))
                 .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
@@ -275,6 +282,7 @@ public class TopologyPipelineFactory {
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
+                .addStage(new CommoditiesEditStage(commoditiesEditor, changes))
                 // TODO (roman, Nov 2017): We need to do policy and setting application for
                 // plan-over-plan as well. However, the topology we get from the repository
                 // already has some policies and settings applied to it. In order to run those

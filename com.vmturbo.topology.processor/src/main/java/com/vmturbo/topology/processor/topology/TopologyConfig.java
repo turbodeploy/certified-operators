@@ -6,6 +6,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
@@ -44,7 +47,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     ProbeConfig.class,
     TargetConfig.class,
     ControllableConfig.class,
-    WorkflowConfig.class
+    WorkflowConfig.class,
+    HistoryClientConfig.class
 })
 public class TopologyConfig {
 
@@ -92,6 +96,9 @@ public class TopologyConfig {
 
     @Autowired
     private WorkflowConfig workflowConfig;
+
+    @Autowired
+    private HistoryClientConfig historyClientConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -144,7 +151,9 @@ public class TopologyConfig {
                 entityConfig.entityValidator(),
                 supplyChainValidationConfig.supplyChainValidator(),
                 groupConfig.discoveredClusterConstraintCache(),
-                controllableConfig.controllableManager());
+                controllableConfig.controllableManager(),
+                commoditiesEditor()
+               );
     }
 
     /**
@@ -154,5 +163,15 @@ public class TopologyConfig {
      */
     public long realtimeTopologyContextId() {
         return realtimeTopologyContextId;
+    }
+
+    @Bean
+    public StatsHistoryServiceBlockingStub historyClient() {
+        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
+    }
+
+    @Bean
+    public CommoditiesEditor commoditiesEditor() {
+        return  new CommoditiesEditor(historyClient());
     }
 }
