@@ -60,11 +60,7 @@ public enum EntitySettingSpecs {
      * Reconfigure action automation mode (not executable).
      */
     Reconfigure("reconfigure", "Reconfigure", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE,
-                EntityType.PHYSICAL_MACHINE,
-                EntityType.VIRTUAL_MACHINE,
-                EntityType.DISK_ARRAY,
-                EntityType.LOGICAL_POOL), nonExecutableActionMode(), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), nonExecutableActionMode(), true),
     /**
      * Activate action automation mode.
      */
