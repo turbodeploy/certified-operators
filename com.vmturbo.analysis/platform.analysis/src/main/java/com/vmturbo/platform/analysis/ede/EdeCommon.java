@@ -92,21 +92,21 @@ public final class EdeCommon {
                         Math.max(0, newPeakQuantity - newQuantity)
                                         / (effectiveCapacity - utilUpperBound * newQuantity),
                         shoppingList, seller, commSold, economy);
-
         // calculate quote
         // TODO: decide what to do if peakQuantity is less than quantity
-        costCurrentMinMax[0] = ((boughtQnty*priceUsed) + (excessQuantity > 0 ?
-                        excessQuantity*pricePeak : 0)) / effectiveCapacity;
+        double quoteUsed = (boughtQnty / effectiveCapacity) * priceUsed;
+        double quotePeak = excessQuantity > 0 ?
+                (excessQuantity / effectiveCapacity) * pricePeak : 0;
+        costCurrentMinMax[0] = quoteUsed + quotePeak;
 
         if (forTraderIncomeStmt && costCurrentMinMax[0] != 0) {
             costCurrentMinMax[1] = pf.unitPrice(seller.getSettings().getMinDesiredUtil(), shoppingList, seller
-                                                , commSold, economy)*boughtQnty / effectiveCapacity;
+                                                , commSold, economy)*(boughtQnty / effectiveCapacity);
             costCurrentMinMax[2] = pf.unitPrice(seller.getSettings().getMaxDesiredUtil(), shoppingList, seller
-                                                , commSold, economy)*boughtQnty / effectiveCapacity;
+                                                , commSold, economy)*(boughtQnty / effectiveCapacity);
         } else {
             costCurrentMinMax[1] = costCurrentMinMax[2] = 0;
         }
-
         return costCurrentMinMax;
 
     }

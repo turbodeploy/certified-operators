@@ -848,8 +848,8 @@ public final class AnalysisToProtobuf {
                                         (effectiveCapacity - commSold.getSettings()
                                                         .getUtilizationUpperBound()*startQuantity)
                                                         , sl, seller, commSold, economy);
-
-        return ((quantityBought == 0 ? 0 : quantityBought * usedPrice) +
-                        (excessQuantity > 0 ? excessQuantity * peakPrice : 0)) / effectiveCapacity;
+        double quoteUsed = quantityBought != 0 ? (quantityBought / effectiveCapacity) * usedPrice : 0;
+        double quotePeak = excessQuantity > 0 ? (excessQuantity / effectiveCapacity) * peakPrice : 0;
+        return quoteUsed + quotePeak;
     }
 } // end AnalysisToProtobuf class
