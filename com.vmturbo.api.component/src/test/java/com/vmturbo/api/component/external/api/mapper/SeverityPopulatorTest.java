@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -17,6 +16,8 @@ import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
 
@@ -118,6 +119,62 @@ public class SeverityPopulatorTest {
         Assert.assertEquals("Normal", vmInstances.get("2").getSeverity());
         Assert.assertEquals("Critical", pmInstances.get("9999").getSeverity());
     }
+
+
+    @Test
+    public void testCalculateSeverityWithMixedSeverities1() {
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
+                severityBuilder(1L).setSeverity(Severity.MAJOR).build(),
+                severityBuilder(2L).build(),
+                severityBuilder(3L).setSeverity(Severity.NORMAL).build(),
+                severityBuilder(9999L).setSeverity(Severity.CRITICAL).build()
+        ));
+        Optional<Severity> severity = SeverityPopulator
+                .calculateSeverity(entitySeverityRpc,
+                        realtimeTopologyContextId,
+                        Sets.newHashSet(1L, 2L, 3L, 9999L));
+        Assert.assertEquals("CRITICAL", severity.get().name());
+    }
+
+    @Test
+    public void testCalculateSeverityWithMixedSeverities2() {
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
+                severityBuilder(1L).setSeverity(Severity.MAJOR).build(),
+                severityBuilder(2L).build(),
+                severityBuilder(3L).setSeverity(Severity.NORMAL).build(),
+                severityBuilder(9999L).setSeverity(Severity.MINOR).build()
+        ));
+        Optional<Severity> severity = SeverityPopulator
+                .calculateSeverity(entitySeverityRpc,
+                        realtimeTopologyContextId,
+                        Sets.newHashSet(1L, 2L, 3L, 9999L));
+        Assert.assertEquals("MAJOR", severity.get().name());
+    }
+
+    @Test
+    public void testCalculateSeverityWithoutOid() {
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of());
+        Optional<Severity> severity = SeverityPopulator
+                .calculateSeverity(entitySeverityRpc,
+                        realtimeTopologyContextId,
+                        ImmutableSet.of());
+        Assert.assertEquals("NORMAL", severity.get().name());
+    }
+
+    @Test
+    public void testCalculateSeverityWithAllNormalSeverity() {
+        actionOrchestratorImpl.setSeveritySupplier(() -> ImmutableList.of(
+                severityBuilder(1L).setSeverity(Severity.NORMAL).build(),
+                severityBuilder(2L).build(),
+                severityBuilder(3L).setSeverity(Severity.NORMAL).build()
+        ));
+        Optional<Severity> severity = SeverityPopulator
+                .calculateSeverity(entitySeverityRpc,
+                        realtimeTopologyContextId,
+                        Sets.newHashSet(1L, 2L, 3L));
+        Assert.assertEquals("NORMAL", severity.get().name());
+    }
+
 
     private EntitySeverity.Builder severityBuilder(final long id) {
         return EntitySeverity.newBuilder()

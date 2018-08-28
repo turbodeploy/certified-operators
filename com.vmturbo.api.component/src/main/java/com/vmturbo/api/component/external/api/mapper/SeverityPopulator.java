@@ -92,6 +92,39 @@ public class SeverityPopulator {
     }
 
     /**
+     * Calculate the highest severity for the passed in entity OIDs.
+     * TODO: to improve performance, move the calculation to Group component, and cache results.
+     *
+     * @param entitySeverityRpc The action orchestrator to use to retrieve severities.
+     * @param topologyContextId The ID of the topology context from which to retrieve the severity.
+     * @param entityOids        The set of entity OIDs.
+     * @return calculated highest severity
+     */
+    @Nonnull
+    public static Optional<Severity> calculateSeverity(@Nonnull final EntitySeverityServiceBlockingStub entitySeverityRpc,
+                                                       final long topologyContextId,
+                                                       @Nonnull final Set<Long> entityOids) {
+        try {
+            List<EntitySeverity> severitiesList = entitySeverityRpc.getEntitySeverities(
+                    MultiEntityRequest.newBuilder()
+                            .setTopologyContextId(topologyContextId)
+                            .addAllEntityIds(entityOids)
+                            .build())
+                    .getEntitySeverityList();
+
+            // Calculate the highest severity based on enum value: NORMAL(1), MINOR(2), MAJOR(3), CRITICAL(4)
+            return Optional.ofNullable(severitiesList
+                    .stream()
+                    .map(entitySeverity -> entitySeverity.getSeverity())
+                    .reduce(Severity.NORMAL, (first, second)
+                            -> first.getNumber() > second.getNumber() ? first : second));
+        } catch (RuntimeException e) {
+            logger.error("Error requesting severity from action orchestrator: {}", e);
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Populate a map of entity ids to their corresponding optional ServiceEntityApiDTOs.
      * If the AO has no action information for an entity, its severity will be set to NORMAL.
      * If the ActionOrchestrator is unreachable, the severity will not be populated.

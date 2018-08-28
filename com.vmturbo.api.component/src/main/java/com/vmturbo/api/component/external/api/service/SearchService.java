@@ -210,15 +210,15 @@ public class SearchService implements ISearchService {
             // Check for a type that requires a query to a specific service, vs. Repository search.
             if (types.contains(GroupMapper.GROUP)) {
                 final Collection<GroupApiDTO> groups = groupsService.getGroups();
-                result = Lists.newArrayList(groups);
+                result = populateSeverity(groups);
             } else if (types.contains(CLUSTER)) {
                 final Collection<GroupApiDTO> groups = groupsService.getComputeClusters(
                     Lists.newArrayList());
-                result = Lists.newArrayList(groups);
+                result = populateSeverity(groups);
             } else if (types.contains(GroupMapper.STORAGE_CLUSTER)) {
                 final Collection<GroupApiDTO> groups = groupsService.getStorageClusters(
                     Lists.newArrayList());
-                result = Lists.newArrayList(groups);
+                result = populateSeverity(groups);
             } else if (types.contains(MarketMapper.MARKET)) {
                 final Collection<MarketApiDTO> markets = marketsService.getMarkets(scopes);
                 result = Lists.newArrayList(markets);
@@ -269,6 +269,14 @@ public class SearchService implements ISearchService {
         return paginationRequest.allResultsResponse(result);
     }
 
+    // Populate severity for group DTO.
+    private List<BaseApiDTO> populateSeverity(@Nonnull final Collection<GroupApiDTO> groups) {
+        return Lists.newArrayList(groups)
+                .stream()
+                .map(this::generateSeverity)
+                .collect(Collectors.toList());
+    }
+
     private static ExecutorService executor = Executors.newFixedThreadPool(3);
 
     private List<BaseApiDTO> searchAll() throws Exception {
@@ -316,6 +324,20 @@ public class SearchService implements ISearchService {
                         ? StringUtils.containsIgnoreCase(dto.getDisplayName(), query)
                         : true)
                 .collect(Collectors.toList()));
+    }
+
+    /**
+     * Generate severity field for a GroupApiDTO.
+     *
+     * @param groupApiDTO Group API DTO
+     * @return Group API DTO with severity filed populated
+     */
+    private GroupApiDTO generateSeverity(@Nonnull final GroupApiDTO groupApiDTO) {
+        final Set<Long> expandedOids = groupExpander.expandUuid(groupApiDTO.getUuid());
+        SeverityPopulator
+                .calculateSeverity(entitySeverityRpc, realtimeContextId, expandedOids)
+                .ifPresent(severity -> groupApiDTO.setSeverity(severity.name()));
+        return groupApiDTO;
     }
 
     /**
