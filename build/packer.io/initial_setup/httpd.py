@@ -10,6 +10,7 @@ import SimpleHTTPServer
 import ssl
 import thread
 import time
+import urllib
 
 class HTTP80RequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
     # Request handler for http requests on port 80
@@ -74,8 +75,18 @@ class CGIHTTPRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         # Unix -- fork as we should
         args = [script]
         queryargs = query.split("&")
-        args.append(queryargs[0].split("=")[1])
-        args.append(queryargs[1].split("=")[1])
+
+        # extract user and convert special escape chars into normal ones
+        encodedUser = queryargs[0].split("=")[1]
+        parsedUser = urllib.unquote(encodedUser).decode('utf8')
+
+        # extract password and convert special escape chars into normal ones
+        encodedPwd = queryargs[1].split("=")[1]
+        parsedPwd = urllib.unquote(encodedPwd).decode('utf8')
+
+        # add user and pwd as script arguments
+        args.append(parsedUser)
+        args.append(parsedPwd)
         self.rfile.flush() # Always flush before forking
         self.wfile.flush() # Always flush before forking
         pid = os.fork()
