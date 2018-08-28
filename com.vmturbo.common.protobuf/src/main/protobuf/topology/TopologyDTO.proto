@@ -4,20 +4,46 @@ package topology;
 option java_package = "com.vmturbo.common.protobuf.topology";
 
 import "plan/PlanDTO.proto";
+import "CloudCostDTO.proto";
+
+// Different entity types may have additional configuration options that get discovered by the
+// SDK. We could represent these options as part of the loose-form entity properties, but it
+// becomes difficult to work with and maintain - especially as the SDK changes.
+//
+// This message should contain all the type-specific configuration options we need to use in XL or
+// display in the UI.
+message TypeSpecificConfig {
+    message VirtualMachineConfig {
+        // The OS type.
+        optional .common_dto.OSType guest_os_type = 1 [default = LINUX];
+
+        // If set, the tenancy of the VM. This is only applicable
+        // in a cloud environment (in an on-prem environment you're always on a host).
+        optional .common_dto.Tenancy tenancy = 2;
+    }
+
+    oneof type {
+        // The field number is the index of the entity type.
+        VirtualMachineConfig virtual_machine_config = 10;
+    }
+}
 
 message TopologyEntityDTO {
 
     // type of entity
-    required int32 entityType = 1;
+    required int32 entity_type = 1;
+
+    // Type-specific configuration of the entity.
+    optional TypeSpecificConfig type_specific_info = 30;
 
     // object identifier
     required int64 oid = 2;
 
     // name to display in the UI
-    optional string displayName = 3;
+    optional string display_name = 3;
 
     // list of commodities sold
-    repeated CommoditySoldDTO commoditySoldList = 4;
+    repeated CommoditySoldDTO commodity_sold_list = 4;
 
     // list of commodities bought group
     repeated CommoditiesBoughtFromProvider commodities_bought_from_providers = 5;
@@ -64,10 +90,10 @@ message TopologyEntityDTO {
     }
 
     // entity state
-    optional EntityState entityState = 6 [default = POWERED_ON];
+    optional EntityState entity_state = 6 [default = POWERED_ON];
 
     // entity properties in free (string <-> string) form, used for probe-defined values.
-    map<string, string> entityPropertyMap = 7;
+    map<string, string> entity_property_map = 7;
 
     // Contains all settings for market analysis purpose.
     optional AnalysisSettings analysis_settings = 8;
