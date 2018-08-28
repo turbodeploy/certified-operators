@@ -11,29 +11,42 @@ message AccountExpenses {
     // The associated account oid
     optional int64 associated_account_id = 1;
 
-    // Account service expense, e.g. AWSLambda
-    repeated ServiceExpenses service_expenses = 2;
-
-    // Account tier expense, e.g. i3.large.
-    repeated TierExpenses tier_expenses = 3;
-
-    message ServiceExpenses {
-        optional int64 associated_service_id = 1;
-
-        optional common_dto.CurrencyAmount expenses = 2;
-    }
-
-    message TierExpenses {
-        optional int64 associated_tier_id = 1;
-
-        optional common_dto.CurrencyAmount expenses = 2;
-    }
+    // account expenses info to store service and tier expenses
+    optional AccountExpensesInfo account_expenses_info = 2;
 
     // The timestamp at which the expense is received by Cost component.
     // Note: It should be the timestamp that the expenses were generated.
     // But currently probe doesn't have this information in it's DTO.
     // The time is in "system time" and not necessarily UTC.
-    optional int64 expense_received_timestamp = 4;
+    optional int64 expense_received_timestamp = 3;
+
+    // Service and tier level account expense information. An account could have many service
+    // and tier level expenses.
+    message AccountExpensesInfo {
+        // Account service expense, e.g. AWSLambda
+        repeated ServiceExpenses service_expenses = 1;
+
+        // Account tier expense, e.g. i3.large.
+        repeated TierExpenses tier_expenses = 2;
+
+        // Service level expense entry
+        message ServiceExpenses {
+            // Service id
+            optional int64 associated_service_id = 1;
+
+            // Service expenses, dollars per hour.
+            optional common_dto.CurrencyAmount expenses = 2;
+        }
+
+        // Tier level expense entry.
+        message TierExpenses {
+            // Tier id
+            optional int64 associated_tier_id = 1;
+
+            // Tier expenses, dollars per hour
+            optional common_dto.CurrencyAmount expenses = 2;
+        }
+    }
 }
 
 // A reserved instance is a reservation of resources and capacity and it provides a significant

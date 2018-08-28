@@ -130,6 +130,13 @@
                             </schemata>
                             <customTypes>
                                 <customType>
+                                    <!-- Specify the fully-qualified class name of your custom type -->
+                                    <name>java.time.LocalDateTime</name>
+                                    <!-- Associate that custom type with your converter. Note, a
+                                         custom type can only have one converter in jOOQ -->
+                                    <converter>com.vmturbo.sql.utils.LocalDateTimeConverter</converter>
+                                </customType>
+                                <customType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
                                     <converter>com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtInfoConverter</converter>
                                 </customType>
@@ -141,8 +148,19 @@
                                     <name>com.vmturbo.common.protobuf.cost.Cost.DiscountInfo</name>
                                     <converter>com.vmturbo.cost.component.discount.DiscountInfoConverter</converter>
                                 </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo</name>
+                                    <converter>com.vmturbo.cost.component.expenses.AccountExpensesInfoConverter</converter>
+                                </customType>
                             </customTypes>
                             <forcedTypes>
+                                <!-- Automatically convert timestamp fields to Java LocalDateTime-->
+                                <forcedType>
+                                    <!-- Specify again he fully-qualified class name of your custom type -->
+                                    <name>java.time.LocalDateTime</name>
+                                    <!-- Add a list of comma-separated regular expressions matching columns -->
+                                    <expression>.*\..*_time</expression>
+                                </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo</name>
                                     <expression>.*\.reserved_instance_bought\.reserved_instance_bought_info</expression>
@@ -154,6 +172,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.DiscountInfo</name>
                                     <expression>.*\.discount\.discount_info</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo</name>
+                                    <expression>.*\.account_expenses\.account_expenses_info</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>
