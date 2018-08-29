@@ -35,7 +35,6 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.IStitchingJournal.StitchingPhase;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
-import com.vmturbo.topology.processor.probes.ProbeOrdering;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalTargetEntrySupplier;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -170,7 +169,7 @@ public class StitchingManager {
     @Nonnull
     public StitchingContext stitch(@Nonnull final StitchingContext stitchingContext,
                                    @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal) {
-        final PreStitchingOperationScopeFactory preStitchScopeFactory = new PreStitchingOperationScopeFactory(
+        final StitchingOperationScopeFactory preStitchScopeFactory = new StitchingOperationScopeFactory(
             stitchingContext, probeStore, targetStore);
 
         stitchingJournal.recordTargets(
@@ -216,7 +215,7 @@ public class StitchingManager {
      * @param stitchingJournal The stitching journal used to track changes.
      */
     @VisibleForTesting
-    void preStitch(@Nonnull final PreStitchingOperationScopeFactory scopeFactory,
+    void preStitch(@Nonnull final StitchingOperationScopeFactory scopeFactory,
                    @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal) {
         logger.info("Applying {} pre-stitching operations.",
             preStitchingOperationLibrary.getPreStitchingOperations().size());
@@ -238,7 +237,7 @@ public class StitchingManager {
      * @param stitchingJournal The stitching journal used to track changes.
      */
     @VisibleForTesting
-    void mainStitch(@Nonnull final PreStitchingOperationScopeFactory scopeFactory,
+    void mainStitch(@Nonnull final StitchingOperationScopeFactory scopeFactory,
                     @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal) {
         logger.info("Applying {} stitching operations for {} probes.",
                 stitchingOperationStore.operationCount(), stitchingOperationStore.probeCount());
@@ -263,7 +262,7 @@ public class StitchingManager {
      * @param stitchingJournal The stitching journal used to track changes.
      */
     private void applyPreStitchingOperation(@Nonnull final PreStitchingOperation preStitchingOperation,
-                                            @Nonnull final PreStitchingOperationScopeFactory scopeFactory,
+                                            @Nonnull final StitchingOperationScopeFactory scopeFactory,
                                             @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal) {
         try {
             final Stream<StitchingEntity> entities =
@@ -331,7 +330,7 @@ public class StitchingManager {
      * @param targetId The id of the target that is being stitched via the operation.
      */
     private void applyOperationForTarget(@Nonnull final StitchingOperation<?, ?> operation,
-                                         @Nonnull final PreStitchingOperationScopeFactory scopeFactory,
+                                         @Nonnull final StitchingOperationScopeFactory scopeFactory,
                                          @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal,
                                          final long targetId) {
         try {
@@ -365,14 +364,14 @@ public class StitchingManager {
      */
     private TopologicalChangelog applyStitchAloneOperation(
         @Nonnull final StitchingOperation<?, ?> operation,
-        @Nonnull final PreStitchingOperationScopeFactory scopeFactory,
+        @Nonnull final StitchingOperationScopeFactory scopeFactory,
         final long targetId) {
 
         final EntityType internalEntityType = operation.getInternalEntityType();
         // if a scope is provided, create a stream of stitching entities from the scope, otherwise
         // use the internal entities from the stitching context of the correct entity type with this
         // targetId
-        Stream<? extends StitchingEntity> scopeEntities = operation.getScope(scopeFactory)
+        Stream<StitchingEntity> scopeEntities = operation.getScope(scopeFactory)
                 .map(scope -> scope.entities()
                         .filter(stitchEntity -> stitchEntity.getTargetId() == targetId))
                 .orElseGet(() -> scopeFactory.getStitchingContext()
@@ -406,7 +405,7 @@ public class StitchingManager {
     private <INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE>
     TopologicalChangelog<StitchingEntity> applyStitchWithExternalEntitiesOperation(
         @Nonnull final StitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGNATURE_TYPE> operation,
-        @Nonnull final PreStitchingOperationScopeFactory scopeFactory,
+        @Nonnull final StitchingOperationScopeFactory scopeFactory,
         final long targetId,
         @Nonnull final EntityType externalEntityType) {
 
@@ -435,7 +434,7 @@ public class StitchingManager {
 
         // Compute a map of all internal entities to their matching external entities using
         // the index provided by the operation.
-        final Stream<? extends StitchingEntity> externalEntities =
+        final Stream<StitchingEntity> externalEntities =
                 operation.getScope(scopeFactory)
                         .map(StitchingScope::entities)
                         .orElseGet(() -> scopeFactory.getStitchingContext()

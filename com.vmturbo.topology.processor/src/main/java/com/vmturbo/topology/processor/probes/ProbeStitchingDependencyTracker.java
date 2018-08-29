@@ -40,8 +40,34 @@ public class ProbeStitchingDependencyTracker {
                 .forEach(nextEntry -> stitchBeforeMap
                         .computeIfAbsent(nextEntry.getKey(), key -> Sets.newHashSet())
                         .addAll(nextEntry.getValue().getStitchAfter()));
+        stitchBeforeMap.keySet().forEach(key -> stitchBeforeMap.put(key, getTransitiveClosure(key)));
     }
 
+    /**
+     * Compute the transitive closure of a ProbeCategory in stitchBeforeMap.  The transitive closure
+     * of a vertex in a graph is the set of all vertices reachable from that vertex.  See
+     * https://en.wikipedia.org/wiki/Transitive_closure#In_graph_theory. For example, if
+     * Storage has a map entry of Hypervisor, Hyper_Converged and Hyper_Converged has an entry of
+     * Hypervisor, Cloud_Management, then the transitive closure for Storage would be Hypervisor,
+     * Hyper_Converged, Cloud_Management meaning Storage must stitch after all those categories are
+     * stitched.  Note that we take advantage of the fact that stitchBeforeMap has no cycles in it.
+     *
+     * @param probeCategory The {@link ProbeCategory} to compute the transitive closure of.
+     * @return {@link Set} giving the ProbeCategory objects in the transitive closure.
+     */
+    private Set<ProbeCategory> getTransitiveClosure(ProbeCategory probeCategory) {
+        Set<ProbeCategory> retVal = Sets.newHashSet();
+        Set<ProbeCategory> categoriesToAdd = stitchBeforeMap.get(probeCategory);
+        logger.trace("ProbeCategory {} has categories {}", probeCategory, categoriesToAdd);
+        if (categoriesToAdd != null) {
+            categoriesToAdd.stream()
+                    .forEach(probeCat -> retVal.addAll(getTransitiveClosure(probeCat)));
+            retVal.addAll(categoriesToAdd);
+        }
+        logger.trace("getTransitiveClosure for {} returning {}", probeCategory, retVal);
+        return retVal;
+
+    }
     /**
      * Return the set of probeCategories that must stitch before this one.
      *
@@ -49,8 +75,10 @@ public class ProbeStitchingDependencyTracker {
      * @return Set of probeCategories that must stitch before this one.
      */
     public Set<ProbeCategory> getProbeCategoriesThatStitchBefore(ProbeCategory probeCategory) {
-        return stitchBeforeMap.get(probeCategory) == null ? Sets.newHashSet()
-                : stitchBeforeMap.get(probeCategory);
+        if (!stitchBeforeMap.keySet().contains(probeCategory)) {
+            return Sets.newHashSet();
+        }
+        return stitchBeforeMap.get(probeCategory);
     }
 
     /**
@@ -180,7 +208,7 @@ public class ProbeStitchingDependencyTracker {
         }
     }
 
-    private static class CategoryEntry {
+    public static class CategoryEntry {
 
         private final Builder builder;
 

@@ -1,4 +1,4 @@
-package com.vmturbo.topology.processor.stitching.prestitching;
+package com.vmturbo.topology.processor.stitching;
 
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.stitchingData;
 import static com.vmturbo.topology.processor.stitching.StitchingTestUtils.topologyMapOf;
@@ -29,18 +29,18 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.stitching.PreStitchingOperationScopeFactory;
+import com.vmturbo.topology.processor.stitching.StitchingOperationScopeFactory;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingContext.Builder;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
-public class PreStitchingOperationScopeFactoryTest {
+public class StitchingOperationScopeFactoryTest {
 
     private final ProbeStore probeStore = mock(ProbeStore.class);
     private final TargetStore targetStore = mock(TargetStore.class);
-    private PreStitchingOperationScopeFactory scopeFactory;
+    private StitchingOperationScopeFactory scopeFactory;
 
     private final StitchingEntityData vm1 = stitchingData("1", EntityType.VIRTUAL_MACHINE,
         Collections.emptyList()).forTarget(1L);
@@ -73,7 +73,7 @@ public class PreStitchingOperationScopeFactoryTest {
         contextBuilder.addEntity(pm, targetGraph);
         contextBuilder.addEntity(vm4, targetGraph);
 
-        scopeFactory = new PreStitchingOperationScopeFactory(contextBuilder.build(),
+        scopeFactory = new StitchingOperationScopeFactory(contextBuilder.build(),
             probeStore, targetStore);
 
         when(probeStore.getProbeIdForType("111")).thenReturn(Optional.of(111L));

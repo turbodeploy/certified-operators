@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -26,22 +27,23 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
  * A Factory for constructing concrete {@link StitchingScope}s for use in
- * {@link PreStitchingOperation}s.
+ * {@link PreStitchingOperation}s and {@link com.vmturbo.stitching.StitchingOperation}s.
  *
  * These scopes determine which entities in the {@link StitchingContext} are fed to the
- * {@link PreStitchingOperation#performOperation(Stream, StitchingChangesBuilder)}
- * method.
+ * {@link PreStitchingOperation#performOperation(Stream, StitchingChangesBuilder)} and
+ * {@link com.vmturbo.stitching.StitchingOperation#stitch(Collection, StitchingChangesBuilder)}
+ * methods.
  */
-public class PreStitchingOperationScopeFactory implements StitchingScopeFactory<StitchingEntity> {
+public class StitchingOperationScopeFactory implements StitchingScopeFactory<StitchingEntity> {
 
     private static final Logger logger = LogManager.getLogger();
     private final StitchingContext stitchingContext;
     private final ProbeStore probeStore;
     private final TargetStore targetStore;
 
-    public PreStitchingOperationScopeFactory(@Nonnull final StitchingContext stitchingContext,
-                                             @Nonnull final ProbeStore probeStore,
-                                             @Nonnull final TargetStore targetStore) {
+    public StitchingOperationScopeFactory(@Nonnull final StitchingContext stitchingContext,
+                                          @Nonnull final ProbeStore probeStore,
+                                          @Nonnull final TargetStore targetStore) {
         this.stitchingContext = Objects.requireNonNull(stitchingContext);
         this.probeStore = Objects.requireNonNull(probeStore);
         this.targetStore = Objects.requireNonNull(targetStore);
