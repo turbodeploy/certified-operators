@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.conversions;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -23,15 +25,18 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PMState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -46,6 +51,11 @@ public class Converter {
     public static Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
                     Sets.newHashSet(CommodityDTO.CommodityType.DSPM_ACCESS, CommodityDTO.CommodityType.DATASTORE);
 
+    // TODO: this string constant should change, because the feature of entity tags is not VC-specific
+    // The property should just be "TAGS".  We should create a task for this.
+    // All probes using tags should be modified
+    public static final String TAG_NAMESPACE = "VCTAGS";
+
     private Converter() {}
 
     private static int type(CommonDTO.EntityDTOOrBuilder dto) {
@@ -58,8 +68,9 @@ public class Converter {
 
     /**
      * Convert probe entity DTOs to topology entity DTOs.
+     *
      * @param entityDTOs Map of probe entity DTOs keyed by oid (already obtained from the identity service}).
-     * @return a list of topology entity DTOs
+     * @return a list of topology entity DTOs.
      */
     public static List<TopologyDTO.TopologyEntityDTO.Builder> convert(Map<Long, CommonDTO.EntityDTO> entityDTOs) {
         // Map from provider ID to OID, to handle forward references in the list of DTOs
@@ -72,6 +83,12 @@ public class Converter {
         return builder.build();
     }
 
+    /**
+     * Convert one probe entity DTO to one topology entity DTO.
+     *
+     * @param entity probe entity DTO.
+     * @return topology entity DTOs.
+     */
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
         @Nonnull final TopologyStitchingEntity entity) {
         final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
@@ -81,6 +98,7 @@ public class Converter {
         final TopologyDTO.EntityState entityState = entityState(dto);
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether = dto.getConsumerPolicy().getShopsTogether();
+        final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
         List<TopologyDTO.CommoditySoldDTO> soldList = entity.getTopologyCommoditiesSold().stream()
             .map(commoditySold -> {
@@ -148,12 +166,21 @@ public class Converter {
             providerTypeMap,
             entityState,
             entityPropertyMap,
+            entityTags,
             availableAsProvider,
             isShopTogether,
             calculateSuspendabilityWithStitchingEntity(entity)
         );
     }
 
+    /**
+     * Convert one probe entity DTO to one topology entity DTO.
+     *
+     * @param dto probe entity DTO.
+     * @param oid oid obtained by the identity service.
+     * @param providerOIDs map from provider ID to OID, to handle forward references in the list of DTOs.
+     * @return topology entity DTOs.
+     */
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(CommonDTO.EntityDTOOrBuilder dto,
                                                                              long oid,
                                                                              Map<String, Long> providerOIDs) {
@@ -163,6 +190,7 @@ public class Converter {
         final TopologyDTO.EntityState entityState = entityState(dto);
         final boolean availableAsProvider = dto.getProviderPolicy().getAvailableForPlacement();
         final boolean isShopTogether =  dto.getConsumerPolicy().getShopsTogether();
+        final Map<String, TagValuesDTO> entityTags = extractTags(dto);
 
         List<TopologyDTO.CommoditySoldDTO> soldList = Lists.newArrayList();
         dto.getCommoditiesSoldList()
@@ -246,6 +274,7 @@ public class Converter {
                 providerTypeMap,
                 entityState,
                 entityPropertyMap,
+                entityTags,
                 availableAsProvider,
                 isShopTogether,
                 calculateSuspendability(dto)
@@ -261,6 +290,7 @@ public class Converter {
             Map<Long, Integer> providerTypeMap,
             TopologyDTO.EntityState entityState,
             Map<String, String> entityPropertyMap,
+            Map<String, TagValuesDTO> entityTags,
             boolean availableAsProvider,
             boolean isShopTogether,
             Optional<Boolean> suspendable
@@ -288,6 +318,7 @@ public class Converter {
             .setEntityState(entityState)
             .setAnalysisSettings(analysisSettingsBuilder)
             .putAllEntityPropertyMap(entityPropertyMap)
+            .putAllTags(entityTags)
             .addAllCommoditySoldList(soldList)
             .addAllCommoditiesBoughtFromProviders(commodityBoughtGroups);
     }
@@ -476,5 +507,55 @@ public class Converter {
         return entity.getConsumers().stream()
                 .filter(providerEntity -> providerEntity.getEntityType() == EntityType.PHYSICAL_MACHINE)
                 .count() == 1;
+    }
+
+    /**
+     * Extract entity tags from an {@link EntityDTO} message to a map that will be inserted into a
+     * {@link TopologyEntityDTO} message.
+     *
+     * An entity tag is a key/value pair associated with an entity.  A key may be associated with multiple
+     * values within the tags of an entity, which is why the tags of an entity can be thought of as a map
+     * from strings (key) to lists of strings (values).  The exact implementation is a map that maps
+     * each string key to a {@link TagValuesDTO} object, which is a wrapper protobuf message that contains
+     * a list of strings.
+     *
+     * In the {@link EntityDTO} message, entity tags are the following:
+     * <ul>
+     *  <li> for any triplet (namespace, key, value) that appears under entity_properties, the pair (key, value)
+     *   is a tag iff the namespace is equal to the string constant TAG_NAMESPACE.</li>
+     *  <li> if the entity is a VM, then all annotation notes are also tags.</li>
+     * </ul>
+     *
+     * @param dto the {@link EntityDTO} message.
+     * @return a map from string keys to {@link TagValuesDTO} objects.
+     */
+    @Nonnull
+    private static Map<String, TagValuesDTO> extractTags(@Nonnull CommonDTO.EntityDTOOrBuilder dto) {
+        final Map<String, TagValuesDTO.Builder> entityTags = new HashMap<>();
+
+        // find tags under entity_properties
+        // note that the namespace is used only to distinguish which properties are tags
+        // and does not appear in the output
+        dto.getEntityPropertiesList()
+                .stream()
+                .filter(entityProperty -> TAG_NAMESPACE.equals(entityProperty.getNamespace()))
+                .forEach(entityProperty -> {
+                    // insert new tag
+                    entityTags.computeIfAbsent(entityProperty.getName(), k -> TagValuesDTO.newBuilder())
+                        .addValues(entityProperty.getValue());
+                });
+
+        // find VM annotations
+        if (dto.hasVirtualMachineData()) {
+            dto.getVirtualMachineData().getAnnotationNoteList().forEach(
+                annotation ->
+                    // insert annotation as tag
+                    entityTags.computeIfAbsent(annotation.getKey(), k -> TagValuesDTO.newBuilder())
+                        .addValues(annotation.getValue()));
+        }
+
+        // call build on all TagValuesDTO builders
+        return entityTags.entrySet().stream()
+                .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().build()));
     }
 }

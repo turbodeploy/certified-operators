@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -73,6 +74,21 @@ public class ConverterTest {
         assertEquals(vmProbeDTO.getDisplayName(), vmTopologyDTO.getDisplayName());
         assertEquals(3, vmTopologyDTO.getCommoditySoldListCount()); // 2xVCPU, 1xVMem
         assertEquals(2, vmTopologyDTO.getCommoditiesBoughtFromProvidersCount()); // buying from two providers
+
+        // check tags of the VM
+        final Map<String, TagValuesDTO> vmTags = vmTopologyDTO.getTagsMap();
+        assertEquals(3, vmTags.size());
+        final List<String> valuesForKey1 = vmTags.get("key1").getValuesList();
+        final List<String> valuesForKey2 = vmTags.get("key2").getValuesList();
+        final List<String> valuesForKey3 = vmTags.get("key3").getValuesList();
+        assertEquals(4, valuesForKey1.size());
+        for (int i = 1; i <= 4; i++) {
+            assertTrue(valuesForKey1.contains("value" + i));
+        }
+        assertEquals(1, valuesForKey2.size());
+        assertEquals("value3", valuesForKey2.get(0));
+        assertEquals(1, valuesForKey3.size());
+        assertEquals("value5", valuesForKey3.get(0));
 
         CommoditiesBoughtFromProvider vmCommBoughtGrouping = vmTopologyDTO.getCommoditiesBoughtFromProvidersList().stream()
             .filter(commodityBoughtGrouping -> commodityBoughtGrouping.getProviderId() == PM_POWEREDON_OID)
