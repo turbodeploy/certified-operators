@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -33,6 +34,8 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
+import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -140,6 +143,16 @@ public class LiveActionStore implements ActionStore {
             actions.add(action);
         }
 
+        /**
+         *  Remove and return the action which matches the given
+         *  ActionInfo.
+         *
+         * @param info ActionInfo
+         * @return Action which has the ActionInfo info
+         *
+         * If the action exists, it is removed from the queue
+         * and returned to the caller.
+         */
         Optional<Action> take(@Nonnull final ActionInfo info) {
             Queue<Action> actions = recommendations.get(info);
             if (actions == null) {
@@ -237,6 +250,7 @@ public class LiveActionStore implements ActionStore {
      */
     @Override
     public boolean populateRecommendedActions(@Nonnull final ActionPlan actionPlan) {
+        // RecommendationTracker to accelerate lookups of recommendations.
         RecommendationTracker recommendations = new RecommendationTracker();
 
         // Apply addition and removal to the internal store atomically.
@@ -244,25 +258,33 @@ public class LiveActionStore implements ActionStore {
         // to the purpose of locking because of the possibility of deadlock, but
         // SynchronizedCollections are an exception to this rule.
         synchronized (actions) {
-            // Build a RecommendationTracker to accelerate lookups of recommendations.
-            actions.values().forEach(recommendations::add);
 
-            // re-add all QUEUED and IN_PROGRESS actions.
-            List<Action> acceptedIncompleteActions = actions.values().stream()
-                .filter(this::isAcceptedAndIncomplete)
-                .collect(Collectors.toList());
-            actions.clear();
-            acceptedIncompleteActions.forEach(action -> actions.put(action.getId(), action));
+            // Only retain IN-PROGRESS, QUEUED and READY actions which are re-recommended.
+            List<Long> actionsToRemove = new ArrayList<>();
+            actions.values().forEach(action -> {
+                switch (action.getState()) {
+                    case IN_PROGRESS:
+                    case QUEUED:
+                        recommendations.add(action);
+                        break;
+                    case READY:
+                        recommendations.add(action);
+                        actionsToRemove.add(action.getId());
+                        break;
+                    default:
+                        actionsToRemove.add(action.getId());
+                }
+            });
 
-            /**
-             * For a list of rules, refer to {@link ActionStore#populateRecommendedActions(ActionPlan)}
-             */
+            actions.keySet().removeAll(actionsToRemove);
+
             final long planId = actionPlan.getId();
-
             final Set<Long> entitiesToRetrieve = new HashSet<>();
             actionPlan.getActionList().forEach(recommendedAction -> {
-                final ActionInfo info = recommendedAction.getInfo();
-                final Action action = recommendations.take(info)
+                ActionInfo actionInfo = recommendedAction.getInfo();
+                // If the new action has not been recommended previously, add it to the action
+                // store.
+                final Action action = recommendations.take(actionInfo)
                     .orElse(actionFactory.newAction(recommendedAction, entitySettingsCache, planId));
                 if (action.getState() == ActionState.READY) {
                     try {
@@ -279,10 +301,12 @@ public class LiveActionStore implements ActionStore {
 
             filterActionsByCapabilityForUiDisplaying();
 
-            // Clear READY actions that were not re-recommended (if they were re-recommended they would
-            // have been removed from the RecommendationTracker above).
+            // Clear READY or QUEUED actions that were not re-recommended. If they were
+            // re-recommended, they would have been removed from the RecommendationTracker
+            // above.
             StreamSupport.stream(recommendations.spliterator(), false)
-                .filter(Action::isReady)
+                .filter(action -> (action.getState() == ActionState.READY
+                            || action.getState() == ActionState.QUEUED))
                 .forEach(action -> action.receive(new NotRecommendedEvent(planId)));
 
             actions.values().stream()
@@ -452,11 +476,6 @@ public class LiveActionStore implements ActionStore {
     @Nonnull
     public String getStoreTypeName() {
         return STORE_TYPE_NAME;
-    }
-
-    private boolean isAcceptedAndIncomplete(@Nonnull final Action action) {
-        final ActionState state = action.getState();
-        return (state == ActionState.QUEUED || state == ActionState.IN_PROGRESS);
     }
 
     private boolean isSucceededorFailed(@Nonnull final Action action) {

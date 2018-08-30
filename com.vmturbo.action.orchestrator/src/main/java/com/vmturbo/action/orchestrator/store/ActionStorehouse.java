@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -18,14 +17,12 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
-import com.vmturbo.action.orchestrator.action.ActionStateMachine;
+import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionExecutionTask;
-import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.topology.ActionExecution;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -213,8 +210,9 @@ public class ActionStorehouse {
         int cancelledCount = actionExecutionFutures.stream()
                 .filter(actionTask -> actionTask.getAction().getState() == ActionState.QUEUED)
                 .map(actionTask-> {
+                    Action action = actionTask.getAction();
                     actionTask.getFuture().cancel(false);
-                    actionTask.getAction().receive(new FailureEvent("Cancelling action execution."));
+                    action.receive(new NotRecommendedEvent(action.getId()));
                     return 1;
                 })
                 .reduce(Integer::sum)

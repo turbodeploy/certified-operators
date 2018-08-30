@@ -1,6 +1,8 @@
 package com.vmturbo.action.orchestrator.action;
 
 import static junit.framework.TestCase.assertEquals;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -59,14 +61,6 @@ public class ActionStateMachineTest {
         assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
 
         Assert.assertEquals(ActionState.QUEUED, action.getState());
-        Assert.assertEquals(
-            ExecutionDecision.Reason.MANUALLY_ACCEPTED,
-            action.getDecision().get().getExecutionDecision().getReason()
-        );
-        Assert.assertEquals(
-                userUuid,
-            action.getDecision().get().getExecutionDecision().getUserUuid()
-        );
         verifyQueuedExecutionStep(action.getExecutableStep().get());
     }
 
@@ -77,25 +71,42 @@ public class ActionStateMachineTest {
         Action action = new Action(move, entitySettingsCache, actionPlanId);
         assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
 
-        Assert.assertEquals(ActionState.QUEUED, action.getState());
-        Assert.assertEquals(
-            ExecutionDecision.Reason.AUTOMATICALLY_ACCEPTED,
-            action.getDecision().get().getExecutionDecision().getReason()
-        );
-        Assert.assertEquals(
-                userUuid,
-            action.getDecision().get().getExecutionDecision().getUserUuid()
-        );
+        assertEquals(ActionState.QUEUED, action.getState());
         verifyQueuedExecutionStep(action.getExecutableStep().get());
     }
 
     @Test
-    public void testBeginExecution() {
+    public void testBeginExecutionAutomaticAction() {
         when(entitySettingsCache.getSettingsForEntity(eq(1L)))
                 .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.AUTOMATIC));
         Action action = new Action(move, entitySettingsCache, actionPlanId);
         assertEquals(ActionState.QUEUED, action.receive(new AutomaticAcceptanceEvent(userUuid, targetId)).getAfterState());
         assertEquals(ActionState.IN_PROGRESS, action.receive(new BeginExecutionEvent()).getAfterState());
+        assertEquals(
+                ExecutionDecision.Reason.AUTOMATICALLY_ACCEPTED,
+                action.getDecision().get().getExecutionDecision().getReason()
+        );
+        assertEquals(userUuid,
+                action.getDecision().get().getExecutionDecision().getUserUuid()
+        );
+
+        Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
+    }
+
+    @Test
+    public void testBeginExecutionManualAction() {
+        when(entitySettingsCache.getSettingsForEntity(eq(1L)))
+                .thenReturn(ActionOrchestratorTestUtils.makeActionModeSetting(ActionMode.MANUAL));
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
+        assertEquals(ActionState.QUEUED, action.receive(new ManualAcceptanceEvent(userUuid, targetId)).getAfterState());
+        assertEquals(ActionState.IN_PROGRESS, action.receive(new BeginExecutionEvent()).getAfterState());
+        assertEquals(
+                ExecutionDecision.Reason.MANUALLY_ACCEPTED,
+                action.getDecision().get().getExecutionDecision().getReason()
+        );
+        assertEquals(userUuid,
+                action.getDecision().get().getExecutionDecision().getUserUuid()
+        );
 
         Assert.assertEquals(ActionState.IN_PROGRESS, action.getState());
     }
@@ -114,6 +125,17 @@ public class ActionStateMachineTest {
             clearingPlanId,
             action.getDecision().get().getClearingDecision().getActionPlanId()
         );
+    }
+
+
+    @Test
+    public void testQueuedToClearedActionStateChange() {
+        // Test the state transition from QUEUED to CLEARED state.
+        Action action = new Action(move, entitySettingsCache, actionPlanId);
+        action.receive(new AutomaticAcceptanceEvent(userUuid, targetId));
+        assertEquals(ActionState.QUEUED, action.getState());
+        assertEquals(ActionState.CLEARED,
+                action.receive(new NotRecommendedEvent(clearingPlanId)).getAfterState());
     }
 
     @Test

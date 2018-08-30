@@ -104,6 +104,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
             action.receive(new SuccessEvent());
+            logger.info("Action executed successfully: {}", action);
             try {
                 notificationSender.notifyActionSuccess(actionSuccess);
             } catch (CommunicationException | InterruptedException e) {
@@ -131,6 +132,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
         if (storedAction.isPresent()) {
             Action action = storedAction.get();
             action.receive(new FailureEvent(actionFailure.getErrorDescription()));
+            logger.info("Action execution failed for action: {}", action);
             try {
                 notificationSender.notifyActionFailure(actionFailure);
             } catch (CommunicationException | InterruptedException e) {

@@ -33,9 +33,11 @@ public class ActionStateMachine {
      *
      * READY
      *   |-> CLEARED
-     *   |-> QUEUED ---------> IN_PROGRESS
-     *                             |-------> SUCCEEDED
-     *                             |-------> FAILED
+     *   |      ^
+     *   |      |
+     *   |-> QUEUED |---------> IN_PROGRESS
+     *                              |-------> SUCCEEDED
+     *                              |-------> FAILED
      *
      * Transitions from READY -> QUEUED are guarded by checks that verify the action
      * is in an appropriate mode that allows such a transition.
@@ -44,8 +46,10 @@ public class ActionStateMachine {
      * @param currentState The current state of the action.
      * @return A state machine for the action.
      */
-    public static StateMachine<ActionState, ActionEvent> newInstance(@Nonnull final Action action,
-                                                                     @Nonnull final ActionState currentState) {
+    public static StateMachine<ActionState, ActionEvent> newInstance(
+                                @Nonnull final Action action,
+                                @Nonnull final ActionState currentState) {
+
         Objects.requireNonNull(action);
         final long actionId = action.getId();
 
@@ -73,6 +77,9 @@ public class ActionStateMachine {
                 .addTransition(from(ActionState.QUEUED).to(ActionState.FAILED)
                         .onEvent(FailureEvent.class)
                         .after(action::onActionFailure))
+                .addTransition(from(ActionState.QUEUED).to(ActionState.CLEARED)
+                        .onEvent(NotRecommendedEvent.class)
+                        .after(action::onActionCleared))
 
                 .addTransition(from(ActionState.IN_PROGRESS).to(ActionState.IN_PROGRESS)
                         .onEvent(ProgressEvent.class)

@@ -212,7 +212,7 @@ public class AutomatedActionExecutor {
                                 action.getActionTranslation().getTranslatedRecommendation();
                         if (translated.isPresent()) {
                             try {
-                                logger.info("Attempting to execute action {}", actionId);
+                                logger.info("Attempting to execute action {}", action);
                                 actionExecutor.executeSynchronously(targetId, translated.get());
                             } catch (ExecutionStartException e) {
                                 final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
@@ -243,7 +243,7 @@ public class AutomatedActionExecutor {
             });
         });
         logger.info("TotalExecutableActions={}, SubmittedActionsCount={}",
-                    autoActions, actionsToBeExecuted);
+                    autoActions.size(), actionsToBeExecuted.size());
         return actionsToBeExecuted;
     }
 

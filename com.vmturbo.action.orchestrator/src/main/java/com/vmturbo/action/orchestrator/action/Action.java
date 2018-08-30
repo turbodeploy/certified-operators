@@ -24,6 +24,7 @@ import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
@@ -54,6 +55,11 @@ public class Action implements ActionView {
      * Once a decision is made, it cannot be overwritten.
      */
     private final Decision decision;
+
+    private ExecutionDecision.Reason acceptanceReason;
+
+    private String executionAuthorizerId;
+
 
     /**
      * The state of the action. The state of an action transitions due to certain system events.
@@ -201,8 +207,13 @@ public class Action implements ActionView {
 
     @Override
     public String toString() {
-        return "Action " + getId() + " " + recommendation.getInfo().getActionTypeCase() + " " +
-            getMode() + " " + getState();
+        StringBuffer buf = new StringBuffer();
+        buf.append("Action Id=").append(getId())
+           .append(", Type=").append(recommendation.getInfo().getActionTypeCase())
+           .append(", Mode=").append(getMode())
+           .append(", State=").append(getState())
+           .append(", Recommendation=").append(recommendation);
+        return buf.toString();
     }
 
     /**
@@ -379,7 +390,8 @@ public class Action implements ActionView {
      * @param event The event that caused the acceptance/queueing.
      */
     void onActionAccepted(@Nonnull final AcceptanceEvent event) {
-        decide(builder -> builder.setExecutionDecision(event.getDecision()));
+        acceptanceReason = event.getReason();
+        executionAuthorizerId = event.getAuthorizerUuid();
         createExecutionStep(event.getTargetId());
     }
 
@@ -389,6 +401,11 @@ public class Action implements ActionView {
      * @param event The event that caused the execution.
      */
     void onActionExecuted(@Nonnull final BeginExecutionEvent event) {
+        decide(builder -> builder.setExecutionDecision(
+                ExecutionDecision.newBuilder()
+                        .setUserUuid(executionAuthorizerId)
+                        .setReason(acceptanceReason)
+                        .build()));
         updateExecutionStatus(step -> {
                 step.execute();
                 IN_PROGRESS_ACTION_COUNTS_GAUGE

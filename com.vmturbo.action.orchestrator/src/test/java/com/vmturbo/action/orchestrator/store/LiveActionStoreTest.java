@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -203,7 +204,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testPopulateQueuedInProgressAreNotCleared() throws Exception {
+    public void testPopulateInProgressAreNotCleared() throws Exception {
         ActionDTO.Action.Builder queuedMove =
             move(vm1, hostA, vmType, hostB, vmType);
         ActionDTO.Action.Builder inProgressMove =
@@ -230,7 +231,7 @@ public class LiveActionStoreTest {
     }
 
     @Test
-    public void testPopulateQueuedInProgressNotDuplicated() throws Exception {
+    public void testPopulateInProgressNotDuplicated() throws Exception {
         ActionDTO.Action.Builder queuedMove =
             move(vm1, hostA, vmType, hostB, vmType);
         ActionDTO.Action.Builder inProgressMove =
@@ -261,8 +262,7 @@ public class LiveActionStoreTest {
         actionStore.populateRecommendedActions(secondPlan);
 
         assertEquals(2, actionStore.size());
-        assertTrue(actionStore.getActionView(queuedMove.getId()).isPresent());
-        assertTrue(actionStore.getActionView(inProgressMove.getId()).isPresent());
+        assertThat(actionStore.getActionView(inProgressMove.getId()).isPresent(), is(true));
     }
 
     @Test
