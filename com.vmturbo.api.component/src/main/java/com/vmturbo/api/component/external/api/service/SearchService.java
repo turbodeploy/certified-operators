@@ -271,9 +271,15 @@ public class SearchService implements ISearchService {
 
     // Populate severity for group DTO.
     private List<BaseApiDTO> populateSeverity(@Nonnull final Collection<GroupApiDTO> groups) {
-        return Lists.newArrayList(groups)
+        return groups
                 .stream()
-                .map(this::generateSeverity)
+                .map(group -> {
+                    final Set<Long> expandedOids = groupExpander.expandUuid(group.getUuid());
+                    SeverityPopulator
+                            .calculateSeverity(entitySeverityRpc, realtimeContextId, expandedOids)
+                            .ifPresent(severity -> group.setSeverity(severity.name()));
+                    return group;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -324,20 +330,6 @@ public class SearchService implements ISearchService {
                         ? StringUtils.containsIgnoreCase(dto.getDisplayName(), query)
                         : true)
                 .collect(Collectors.toList()));
-    }
-
-    /**
-     * Generate severity field for a GroupApiDTO.
-     *
-     * @param groupApiDTO Group API DTO
-     * @return Group API DTO with severity filed populated
-     */
-    private GroupApiDTO generateSeverity(@Nonnull final GroupApiDTO groupApiDTO) {
-        final Set<Long> expandedOids = groupExpander.expandUuid(groupApiDTO.getUuid());
-        SeverityPopulator
-                .calculateSeverity(entitySeverityRpc, realtimeContextId, expandedOids)
-                .ifPresent(severity -> groupApiDTO.setSeverity(severity.name()));
-        return groupApiDTO;
     }
 
     /**
