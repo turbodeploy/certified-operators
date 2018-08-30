@@ -27,7 +27,6 @@ import com.vmturbo.action.orchestrator.execution.notifications.NotificationsConf
 import com.vmturbo.action.orchestrator.market.MarketConfig;
 import com.vmturbo.action.orchestrator.rpc.RpcConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
-import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -48,8 +47,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         ApiSecurityConfig.class,
         ActionOrchestratorGlobalConfig.class,
         SQLDatabaseConfig.class,
-        SpringSecurityConfig.class,
-        WorkflowConfig.class})
+        SpringSecurityConfig.class})
 public class ActionOrchestratorComponent extends BaseVmtComponent {
 
     private Logger log = LogManager.getLogger();
@@ -65,9 +63,6 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
 
     @Autowired
     private ActionOrchestratorApiConfig actionOrchestratorApiConfig;
-
-    @Autowired
-    private WorkflowConfig workflowConfig;
 
     /**
      * JWT token verification and decoding.
@@ -105,7 +100,7 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
                 jwtInterceptor,
                 monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.entitySeverityRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(workflowConfig.discoveredWorkflowRpcService(), monitoringInterceptor));
+            .addService(ServerInterceptors.intercept(rpcConfig.discoveredWorkflowRpcService(), monitoringInterceptor));
         rpcConfig.actionsDebugRpcService().ifPresent(actionsDebugRpcService ->
             builder.addService(ServerInterceptors.intercept(actionsDebugRpcService, monitoringInterceptor)));
 

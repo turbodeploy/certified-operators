@@ -10,10 +10,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.identity.store.IdentityStoreException;
-
 /**
- * A simple set of com.vmturbo.identity.attributes, consisting of key/value pairs. Defines 'equals' to be
+ * A simple set of attributes, consisting of key/value pairs. Defines 'equals' to be
  * equals on the underlying sets.
  **/
 @Immutable
@@ -46,22 +44,12 @@ public class SimpleMatchingAttributes implements IdentityMatchingAttributes {
         return attributes;
     }
 
-    @Override
-    @Nonnull
-    public IdentityMatchingAttribute getMatchingAttribute(String attributeId)
-            throws IdentityStoreException {
-        return attributes.stream()
-                .filter(attribute -> attribute.getAttributeId().equals(attributeId))
-                .findFirst().orElseThrow(() -> new IdentityStoreException(
-                        "Get for IdentityMatchingAttribute not found:" + attributeId));
-    }
-
     /**
-     * The 'equals()' method uses the underlying 'com.vmturbo.identity.attributes' Set. This depends on 'equals()'
+     * The 'equals()' method uses the underlying 'attributes' Set. This depends on 'equals()'
      * being defined for the {@link IdentityMatchingAttribute} class.
      *
      * @param o the 'other' object to compare with this one
-     * @return true iff the 'com.vmturbo.identity.attributes' for this item equals the 'com.vmturbo.identity.attributes' for the other.
+     * @return true iff the 'attributes' for this item equals the 'attributes' for the other.
      */
     @Override
     public boolean equals(Object o) {
@@ -74,10 +62,10 @@ public class SimpleMatchingAttributes implements IdentityMatchingAttributes {
     }
 
     /**
-     * The 'hashCode()' method returns the hash of the 'com.vmturbo.identity.attributes' Set.
+     * The 'hashCode()' method returns the hash of the 'attributes' Set.
      * This depends on 'hashCode()' being defined for the {@link IdentityMatchingAttribute} class.
      *
-     * @return the hash computed over elements of the 'com.vmturbo.identity.attributes' Set
+     * @return the hash computed over elements of the 'attributes' Set
      */
     @Override
     public int hashCode() {
