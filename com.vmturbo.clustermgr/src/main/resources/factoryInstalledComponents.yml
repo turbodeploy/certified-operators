@@ -26,6 +26,7 @@ action-orchestrator:
   entityTypeRetryIntervalMillis: 1000
   entityTypeMaxRetries: 6
   maxLiveActionPlanAgeSeconds: 600
+  identityGeneratorPrefix: 9
   <<: &baseVmtComponentSettings
     consul_host: consul
     consul_port: 8500

@@ -32,6 +32,14 @@ public class IdentityMatchingAttribute {
         this.attributeValue = Objects.requireNonNull(attributeValue);
     }
 
+    public String getAttributeId() {
+        return attributeId;
+    }
+
+    public String getAttributeValue() {
+        return attributeValue;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -49,6 +57,7 @@ public class IdentityMatchingAttribute {
         // combine the has value of both the attributeId and attributeValue together
         return Objects.hash(attributeId, attributeValue);
     }
+
 }
 
 

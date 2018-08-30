@@ -1,4 +1,4 @@
-package attributes;
+package com.vmturbo.identity.attributes;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -7,17 +7,14 @@ import org.junit.Test;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.identity.attributes.IdentityMatchingAttribute;
-import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
-
 /**
- * Test the permutations of .equals() for a SimpleMatchingAttribute - a list of attributes that
+ * Test the permutations of .equals() for a SimpleMatchingAttribute - a list of com.vmturbo.identity.attributes that
  * must match to be equal.
  **/
 public class SimpleMatchingAttributesTest {
 
     /**
-     * Test that attributes with the same (single) key/value are equal
+     * Test that com.vmturbo.identity.attributes with the same (single) key/value are equal
      */
     @Test
     public void testItemAttributesEqual() {
@@ -90,7 +87,7 @@ public class SimpleMatchingAttributesTest {
     }
 
     /**
-     * Test that items with multiple matching attributes are equal, without regard to order added.
+     * Test that items with multiple matching com.vmturbo.identity.attributes are equal, without regard to order added.
      */
     @Test
     public void testItemMultipleAttributesEqual() {
