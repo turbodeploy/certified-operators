@@ -113,6 +113,7 @@ public class Stages {
         private final DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
         public UploadWorkflowsStage(@Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader) {
+            logger.info("instantiate UploadWorkflowsStage");
             this.discoveredWorkflowUploader = discoveredWorkflowUploader;
         }
 

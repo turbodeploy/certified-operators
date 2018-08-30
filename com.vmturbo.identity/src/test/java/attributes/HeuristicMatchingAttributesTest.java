@@ -1,7 +1,5 @@
-package com.vmturbo.identity.attributes;
+package attributes;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
@@ -9,7 +7,8 @@ import org.junit.Test;
 
 import com.google.common.collect.Sets;
 
-import com.vmturbo.identity.store.IdentityStoreException;
+import com.vmturbo.identity.attributes.HeuristicMatchingAttributes;
+import com.vmturbo.identity.attributes.IdentityMatchingAttribute;
 
 /**
  * Test the permutations of 'equals' conditions for HeuristicMatchingAttributes
@@ -96,7 +95,6 @@ public class HeuristicMatchingAttributesTest {
         // assert
         assertNotEquals(item1, item2);
     }
-
     @Test
     public void testItemVolatileHeuristicEqual() {
         // arrange
@@ -133,37 +131,6 @@ public class HeuristicMatchingAttributesTest {
     }
 
     @Test
-    public void testHeuristicAttributeFound() throws Exception {
-        // arrange
-        final IdentityMatchingAttribute expected3 = new IdentityMatchingAttribute("id3", "value3");
-        HeuristicMatchingAttributes item1 = HeuristicMatchingAttributes.newBuilder()
-                .setNonVolatileAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id1", "value1")))
-                .setVolatileAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id2", "value2")))
-                .setHeuristicAttributes(Sets.newHashSet(expected3))
-                .build();
-
-        // act
-        IdentityMatchingAttribute found = item1.getMatchingAttribute("id3");
-        // assert
-        assertThat(found, equalTo(expected3));
-    }
-
-    @Test(expected = IdentityStoreException.class)
-    public void tesItemAttributeNotFound() throws Exception {
-        // arrange
-        HeuristicMatchingAttributes item1 = HeuristicMatchingAttributes.newBuilder()
-                .setNonVolatileAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id1", "value1")))
-                .setVolatileAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id2", "value2")))
-                .setHeuristicAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id3", "value3")))
-                .build();
-        // act
-        item1.getMatchingAttribute("id-not-found");
-        // assert
-        // ... should never get here ...
-    }
-
-
-    @Test
     public void testItemVolatileHeuristicPctEqual() {
         // arrange
         HeuristicMatchingAttributes item1 = HeuristicMatchingAttributes.newBuilder()
@@ -174,7 +141,7 @@ public class HeuristicMatchingAttributesTest {
                         new IdentityMatchingAttribute("id5", "value5")))
                 .setHeuristicThreshold(0.5F)
                 .build();
-        // two of the three heuristic com.vmturbo.identity.attributes match - so with threshold 50% they are equal
+        // two of the three heuristic attributes match - so with threshold 50% they are equal
         HeuristicMatchingAttributes item2 = HeuristicMatchingAttributes.newBuilder()
                 .setNonVolatileAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id1", "value1")))
                 .setVolatileAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id2", "not-value2")))
@@ -198,7 +165,7 @@ public class HeuristicMatchingAttributesTest {
                         new IdentityMatchingAttribute("id5", "value5")))
                 .setHeuristicThreshold(0.75F)
                 .build();
-        // two of the three heuristic com.vmturbo.identity.attributes match - so with threshold 75% they are not equal
+        // two of the three heuristic attributes match - so with threshold 75% they are not equal
         HeuristicMatchingAttributes item2 = HeuristicMatchingAttributes.newBuilder()
                 .setNonVolatileAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id1", "value1")))
                 .setVolatileAttributes(Sets.newHashSet(new IdentityMatchingAttribute("id2", "not-value2")))

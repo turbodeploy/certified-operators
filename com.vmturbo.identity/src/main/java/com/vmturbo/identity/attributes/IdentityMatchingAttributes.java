@@ -4,8 +4,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.identity.store.IdentityStoreException;
-
 /**
  * Capture a {@link Set} of {@link IdentityMatchingAttribute} values. Used as a key during the
  * generation of OIDs for items of a given type. Items whose {@link IdentityMatchingAttributes}
@@ -20,8 +18,4 @@ public interface IdentityMatchingAttributes {
      */
     @Nonnull
     Set<IdentityMatchingAttribute> getMatchingAttributes();
-
-    @Nonnull
-    IdentityMatchingAttribute getMatchingAttribute(String attributeId)
-            throws IdentityStoreException;
 }
