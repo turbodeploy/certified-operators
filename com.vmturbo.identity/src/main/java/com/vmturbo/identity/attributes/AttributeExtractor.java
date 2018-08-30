@@ -3,21 +3,21 @@ package com.vmturbo.identity.attributes;
 import javax.annotation.Nonnull;
 
 /**
- * Given an item of type T, return the unique attributes that will be used in determing
+ * Given an item of type T, return the unique com.vmturbo.identity.attributes that will be used in determing
  * equality with a different item of type T.
  *
- * The particular attributes, and as well the accessors for those attributes, will be unique
+ * The particular com.vmturbo.identity.attributes, and as well the accessors for those com.vmturbo.identity.attributes, will be unique
  * to each implementation of this interface.
  *
- * @param <T> This is the type of item from which attributes will be extracted
+ * @param <T> This is the type of item from which com.vmturbo.identity.attributes will be extracted
  **/
 public interface AttributeExtractor<T> {
     /**
-     * Query the 'item' passed in, retrieving a set of key/value attributes and store those
+     * Query the 'item' passed in, retrieving a set of key/value com.vmturbo.identity.attributes and store those
      * in a newly created {@link IdentityMatchingAttributes}.
      *
-     * @param item the item whose attributes will be extracted
-     * @return a new {@link IdentityMatchingAttributes} populated with the desired attributes
+     * @param item the item whose com.vmturbo.identity.attributes will be extracted
+     * @return a new {@link IdentityMatchingAttributes} populated with the desired com.vmturbo.identity.attributes
      * extracted from the item
      */
     @Nonnull
