@@ -8,6 +8,10 @@ option java_package = "com.vmturbo.common.protobuf.workflow";
 // an Automation Policy which, when applied, will contact the Orchestration target to effect
 // the action execution.
 // the message 'Workflow', containing a WorkflowInfo, will be defined in the next story.
+message Workflow {
+    optional int64 id = 1;
+    optional WorkflowInfo workflowInfo = 2;
+}
 
 // A WorkflowInfo captures the information discovered from an Orchestration target.
 message WorkflowInfo {
@@ -35,7 +39,7 @@ message WorkflowInfo {
 // It is up to the workflow author to be aware of these parameters and make appropriate use of them.
 message WorkflowParameter {
     // The name of the input parameter.
-    required string name = 1;
+    optional string name = 1;
     // A human-readable description of the function of this input parameter.
     optional string description = 2;
     // The datatype of the input parameter - the set of legal datatype string values isn't known.
@@ -44,13 +48,20 @@ message WorkflowParameter {
     optional bool mandatory = 4 [default = true];
 }
 
-
+// A request to persist the workflows discovered from the given target_id. This request represents
+// all the Workflows to be associated with this target. In other words, any prior workflow
+// associated with this target should be discarded.
 message StoreDiscoveredWorkflowsRequest {
+    // the OID of the target from which these workflows were discovered
+    optional int64 target_id = 1;
+    // the workflows discovered from this target
     repeated WorkflowInfo discovered_workflow = 2;
 }
 
-message StoreDiscoveredWorkflowsResponse {}
+// The response to a request to store discovered workflows
+message StoreDiscoveredWorkflowsResponse { }
 
 service DiscoveredWorkflowService {
+    // Store workflows discovered from a single Orchestration target
     rpc StoreDiscoveredWorkflows(StoreDiscoveredWorkflowsRequest) returns (StoreDiscoveredWorkflowsResponse);
 }

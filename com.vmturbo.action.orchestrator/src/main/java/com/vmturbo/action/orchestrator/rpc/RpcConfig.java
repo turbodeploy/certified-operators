@@ -17,7 +17,6 @@ import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
-import com.vmturbo.common.protobuf.workflow.WorkflowDTOREST.DiscoveredWorkflowServiceController;
 
 @Configuration
 @Import({ActionStoreConfig.class, ActionExecutionConfig.class})
@@ -76,16 +75,6 @@ public class RpcConfig {
     }
 
     @Bean
-    public DiscoveredWorkflowRpcService discoveredWorkflowRpcService() {
-        return new DiscoveredWorkflowRpcService();
-    }
-
-    @Bean
-    public DiscoveredWorkflowServiceController discoveredWorkflowRpcServiceController() {
-        return new DiscoveredWorkflowServiceController(discoveredWorkflowRpcService());
-    }
-
-    @Bean
     public EntitySeverityServiceController entitySeverityServiceController() {
         return new EntitySeverityServiceController(entitySeverityRpcService());
     }
@@ -98,7 +87,7 @@ public class RpcConfig {
     }
 
     private boolean grpcDebugServicesEnabled() {
-        return Optional.ofNullable(Boolean.getBoolean("grpc.debug.services.enabled"))
-            .orElse(false);
+        // the default is 'false' if this environment variable is not defined
+        return Boolean.getBoolean("grpc.debug.services.enabled");
     }
 }
