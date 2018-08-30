@@ -149,10 +149,6 @@
                                     <name>com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep</name>
                                     <converter>com.vmturbo.action.orchestrator.store.ExecutionStepConverter</converter>
                                 </customType>
-                                <customType>
-                                    <name>com.vmturbo.common.protobuf.workflow.WorkflowDTO</name>
-                                    <converter>com.vmturbo.action.orchestrator.workflow.store.WorkflowInfoConverter</converter>
-                                </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
@@ -196,14 +192,9 @@
     </build>
 
     <dependencies>
-        <!-- vmturbo dependencies -->
         <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>auth-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>sql-utils</artifactId>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
@@ -214,8 +205,8 @@
             <artifactId>action-orchestrator-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>identity</artifactId>
+            <groupId>io.prometheus</groupId>
+            <artifactId>simpleclient</artifactId>
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
@@ -230,19 +221,6 @@
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>common-protobuf</artifactId>
-        </dependency>
-        <!-- 3rd party dependencies-->
-        <dependency>
-            <groupId>com.google.protobuf</groupId>
-            <artifactId>protobuf-java</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.prometheus</groupId>
-            <artifactId>simpleclient</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-websocket</artifactId>
         </dependency>
@@ -251,8 +229,17 @@
             <artifactId>spring-web</artifactId>
         </dependency>
         <dependency>
-            <groupId>javax.persistence</groupId>
-            <artifactId>javax.persistence-api</artifactId>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>common-protobuf</artifactId>
+        </dependency>
+        <!-- Verify and decode JWT token -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>auth-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-utils</artifactId>
         </dependency>
 
         <!-- test dependencies -->
@@ -261,6 +248,5 @@
             <artifactId>auth-test</artifactId>
             <scope>test</scope>
         </dependency>
-
     </dependencies>
 </project>

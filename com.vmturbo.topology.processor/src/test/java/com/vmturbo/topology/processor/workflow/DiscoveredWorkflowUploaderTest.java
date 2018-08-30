@@ -17,7 +17,9 @@ import org.junit.Test;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+
 import com.vmturbo.common.protobuf.workflow.DiscoveredWorkflowServiceGrpc.DiscoveredWorkflowServiceImplBase;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.StoreDiscoveredWorkflowsRequest;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.StoreDiscoveredWorkflowsResponse;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -53,9 +55,7 @@ public class DiscoveredWorkflowUploaderTest {
     public void uploadDiscoveredWorkflows() {
         // arrange
         recorderSpy.setTargetWorkflows(TARGET_ID, NME_WITH_WORKFLOWS);
-        StoreDiscoveredWorkflowsRequest expectedRequest = StoreDiscoveredWorkflowsRequest
-                .newBuilder()
-                .setTargetId(TARGET_ID)
+        StoreDiscoveredWorkflowsRequest expectedRequest = StoreDiscoveredWorkflowsRequest.newBuilder()
                 .build();
         when(converter.interpretWorkflowList(any(), anyLong())).thenReturn(EXPECTED_WORKFLOW_DTOS);
         // act

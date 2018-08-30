@@ -10,7 +10,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import io.grpc.Channel;
@@ -90,34 +89,21 @@ public class DiscoveredWorkflowUploader {
     }
 
     /**
-     * Upload the currently discovered Workflows to the Action Orchestrator.
-     * We build one upload request for each target from the current discovery cache and save the upload
-     * requests in a list; and then we reset the cache for next time.
-     *
-     * Finally, we send the update request for one target at a time.
-     *
-     * By a list of upload requests w minimizes the computation done in the synchronized() block.
-     *
-     * We could consider sending the upload requests in a single stream-parameter gRPC call down the road.
-     *
+     * Upload the currently discovered Workflows to the Action Orchestrator. We build the upload
+     * request from the current cache and then we reset the cache for next time.
      */
     public void uploadDiscoveredWorkflows() {
 
-        List<StoreDiscoveredWorkflowsRequest> requests = Lists.newArrayList();
+        StoreDiscoveredWorkflowsRequest.Builder storeDiscoveredWorkflowsRequest =
+                StoreDiscoveredWorkflowsRequest.newBuilder();
         synchronized (workflowByTarget) {
-            workflowByTarget.forEach((targetId, workflows) -> {
-                StoreDiscoveredWorkflowsRequest.Builder storeDiscoveredWorkflowsRequest =
-                        StoreDiscoveredWorkflowsRequest.newBuilder();
-                storeDiscoveredWorkflowsRequest.setTargetId(targetId);
-                storeDiscoveredWorkflowsRequest.addAllDiscoveredWorkflow(workflows);
-                log.info("upload discovered workflow for {} size: {}",
-                        storeDiscoveredWorkflowsRequest.getTargetId(),
-                        storeDiscoveredWorkflowsRequest.getDiscoveredWorkflowCount());
-                requests.add(storeDiscoveredWorkflowsRequest.build());
-            });
+            workflowByTarget.values().forEach(
+                    storeDiscoveredWorkflowsRequest::addAllDiscoveredWorkflow);
             workflowByTarget.clear();
         }
-        requests.forEach(uploadWorkflowsStub::storeDiscoveredWorkflows);
+        log.debug("upload discovered workflow size: {}", storeDiscoveredWorkflowsRequest
+                .getDiscoveredWorkflowCount());
+        uploadWorkflowsStub.storeDiscoveredWorkflows(storeDiscoveredWorkflowsRequest.build());
     }
 }
 

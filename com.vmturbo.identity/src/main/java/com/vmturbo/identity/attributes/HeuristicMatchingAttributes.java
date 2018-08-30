@@ -11,24 +11,23 @@ import javax.annotation.concurrent.NotThreadSafe;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
-import com.vmturbo.identity.store.IdentityStore;
-import com.vmturbo.identity.store.IdentityStoreException;
+import com.vmturbo.identity.store.IdentityLookup;
 
 /**
- * Capture the com.vmturbo.identity.attributes to implement a heuristics-based comparison for items
- * stored in an {@link IdentityStore}.
+ * Capture the attributes to implement a heuristics-based comparison for items stored in an
+ * {@link IdentityLookup}.
  *
- * The com.vmturbo.identity.attributes are partitioned into three categories:
+ * The attributes are partitioned into three categories:
  * <ul>
  *     <li>non-volatile - should never change
  *     <li>volatile - may change on rare occasion
- *     <li>heuristic - other com.vmturbo.identity.attributes that will resolve equality in case the non-volatile
- *     com.vmturbo.identity.attributes match and the volatile com.vmturbo.identity.attributes do not.
+ *     <li>heuristic - other attributes that will resolve equality in case the non-volatile
+ *     attributes match and the volatile attributes do not.
  * </ul>
  *
- * Note that for this class only the 'non-volatile' com.vmturbo.identity.attributes are included in the 'hashCode'
+ * Note that for this class only the 'non-volatile' attributes are included in the 'hashCode'
  * calculation, while the 'equals' implements the heuristic match which potentially involves
- * all three sets of com.vmturbo.identity.attributes. We guarantee that if two {@link HeuristicMatchingAttributes}
+ * all three sets of attributes. We guarantee that if two {@link HeuristicMatchingAttributes}
  * are 'equal()' then the 'hashCode()' values are also equal. This may increase the
  * number of collisions when stored in a HashMap, but is still corrrect.
  *
@@ -38,16 +37,16 @@ import com.vmturbo.identity.store.IdentityStoreException;
 public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
 
     /**
-     * these com.vmturbo.identity.attributes are key to the identity of the item; if they differ, the items differ
+     * these attributes are key to the identity of the item; if they differ, the items differ
      */
     private final Set<IdentityMatchingAttribute> nonVolatileAttributes;
     /**
-     * these com.vmturbo.identity.attributes are used to match but may change over time and then the 'heuristic' must be used
+     * these attributes are used to match but may change over time and then the 'heuristic' must be used
      */
     private final Set<IdentityMatchingAttribute> volatileAttributes;
 
     /**
-     * for heuristic matching, use these com.vmturbo.identity.attributes and the threshold pct to handle 'equals'
+     * for heuristic matching, use these attributes and the threshold pct to handle 'equals'
      * if the nonVolatileAttributes match but the volatileAttributes do not
      */
     private final Set<IdentityMatchingAttribute> heuristicAttributes;
@@ -62,13 +61,14 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
     private static final float HEURISTIC_THRESHOLD_DEFAULT = 0.75f;
 
     /**
-     * Capture the three sets of com.vmturbo.identity.attributes for this item and the heuristic threshold.
+     * Capture the three sets of attributes for this item and the heuristic threshold.
      * The constructor is private - use the Builder instead, please.
      *
-     * @param nonVolatileAttributes the com.vmturbo.identity.attributes that never change and must match to be equal
-     * @param volatileAttributes the com.vmturbo.identity.attributes that may change; if they do, then must use heuristics
-     * @param heuristicAttributes the com.vmturbo.identity.attributes for the heuristic match; match count must be > threshold
-     * @param heuristicThreshold the threshold, 0-1, compared to the fraction heuristic com.vmturbo.identity.attributes
+     * @param nonVolatileAttributes the attributes that never change and must match to be equal
+     * @param volatileAttributes the attributes that may change; if they do, then must use heuristics
+     * @param heuristicAttributes the attributes for the heuristic match; the fractional count of
+     *                            the attributes that match must be >= threshold to be 'equal()'
+     * @param heuristicThreshold the threshold, 0-1, compared to the fraction heuristic attributes
      *                           that match
      */
     private HeuristicMatchingAttributes(@Nonnull Set<IdentityMatchingAttribute> nonVolatileAttributes,
@@ -92,16 +92,6 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
         return allAttributes;
     }
 
-    @Nonnull
-    @Override
-    public IdentityMatchingAttribute getMatchingAttribute(String attributeId)
-            throws IdentityStoreException {
-        return allAttributes.stream()
-                .filter(attribute -> attribute.getAttributeId().equals(attributeId))
-                .findFirst().orElseThrow(() -> new IdentityStoreException(
-                        "Error fetching IdentityMatchingAttribute: " + attributeId));
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -110,9 +100,9 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
 
         HeuristicMatchingAttributes that = (HeuristicMatchingAttributes) o;
 
-        // note that 'equals' takes into account all the com.vmturbo.identity.attributes, but 'hashCode' only
-        // depends on the nonVolatile com.vmturbo.identity.attributes. The nonVolatile com.vmturbo.identity.attributes must match,
-        // and if the volatile com.vmturbo.identity.attributes don't match then the "heuristic" com.vmturbo.identity.attributes
+        // note that 'equals' takes into account all the attributes, but 'hashCode' only
+        // depends on the nonVolatile attributes. The nonVolatile attributes must match,
+        // and if the volatile attributes don't match then the "heuristic" attributes
         // come into play.
         return nonVolatileAttributes.equals(that.nonVolatileAttributes) &&
                 (volatileAttributes.equals(that.volatileAttributes) ||
@@ -120,10 +110,10 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
     }
 
     /**
-     * The "heuristicEquals" is invoked if the non-volatile com.vmturbo.identity.attributes match but the
-     * volatile com.vmturbo.identity.attributes do not. Two heuristicAttributes sets are "heuristicEquals"
+     * The "heuristicEquals" is invoked if the non-volatile attributes match but the
+     * volatile attributes do not. Two heuristicAttributes sets are "heuristicEquals"
      * if the heuristicThreshold of both entities are the same and the percentage of heuristics
-     * that match is greater that the heuristicThreshold.
+     * that match is greater than the heuristicThreshold.
      *
      * @param that the "other" HeuristicMatchingAttributes that is being tested for matching
      * @return true iff the heuristicThreshold values are equal and the percent of the two
@@ -140,9 +130,9 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
 
     @Override
     public int hashCode() {
-        // Note that the hashcode is based ONLY on the non-volatile com.vmturbo.identity.attributes. This will
+        // Note that the hashcode is based ONLY on the non-volatile attributes. This will
         // lead to more frequent hash collisions, because 'equals' takes into account the
-        // volatile and heuristic com.vmturbo.identity.attributes as well. Defining 'equals()' this way allows
+        // volatile and heuristic attributes as well. Defining 'equals()' this way allows
         // us to use hashmap, for example, with an HeuristicMatchingAttributes instance as a key.
         return Objects.hashCode(nonVolatileAttributes);
     }
@@ -170,10 +160,10 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
         private float heuristicThreshold = HEURISTIC_THRESHOLD_DEFAULT;
 
         /**
-         * Replace the primary matching com.vmturbo.identity.attributes with the given set of
+         * Replace the primary matching attributes with the given set of
          * {@link IdentityMatchingAttribute}.
          *
-         * @param nonVolatileAttributes the set of primary matchinging com.vmturbo.identity.attributes to store
+         * @param nonVolatileAttributes the set of primary matchinging attributes to store
          * @return this builder instance
          */
         public Builder setNonVolatileAttributes(Set<IdentityMatchingAttribute> nonVolatileAttributes) {
@@ -182,10 +172,10 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
         }
 
         /**
-         * Replace the secondary matching com.vmturbo.identity.attributes with the given set of
+         * Replace the secondary matching attributes with the given set of
          * {@link IdentityMatchingAttribute}.
          *
-         * @param volatileAttributes the set of secondary matchinging com.vmturbo.identity.attributes to store
+         * @param volatileAttributes the set of secondary matchinging attributes to store
          * @return this builder instance
          */
         public Builder setVolatileAttributes(Set<IdentityMatchingAttribute> volatileAttributes) {
@@ -194,11 +184,11 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
         }
 
         /**
-         * Replace the heuristic matching com.vmturbo.identity.attributes with the given set of
-         * {@link IdentityMatchingAttribute}, used if the nonVolatile com.vmturbo.identity.attributes match but the
-         * volatile com.vmturbo.identity.attributes do not match.
+         * Replace the heuristic matching attributes with the given set of
+         * {@link IdentityMatchingAttribute}, used if the nonVolatile attributes match but the
+         * volatile attributes do not match.
          *
-         * @param heuristicAttributes the set of heuristic matchinging com.vmturbo.identity.attributes to store
+         * @param heuristicAttributes the set of heuristic matchinging attributes to store
          * @return this builder instance
          */
         public Builder setHeuristicAttributes(Set<IdentityMatchingAttribute> heuristicAttributes) {
@@ -207,12 +197,12 @@ public class HeuristicMatchingAttributes implements IdentityMatchingAttributes {
         }
 
         /**
-         * A matching threshold used if the nonVolatile com.vmturbo.identity.attributes match but the volatile com.vmturbo.identity.attributes
-         * do not match. If the fraction of heuristic com.vmturbo.identity.attributes that match between two items
+         * A matching threshold used if the nonVolatile attributes match but the volatile attributes
+         * do not match. If the fraction of heuristic attributes that match between two items
          * is greater or equal to the heuristicThreshold, then the items are considered the same.
          *
          * @param heuristicThreshold the threshold value to use when comparing the fraction of
-         *                           matching heuristic com.vmturbo.identity.attributes between two items
+         *                           matching heuristic attributes between two items
          * @return this builder instance
          */
         public Builder setHeuristicThreshold(float heuristicThreshold) {
