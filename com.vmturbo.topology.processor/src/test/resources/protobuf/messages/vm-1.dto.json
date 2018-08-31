@@ -2,6 +2,28 @@
   "entityType": "VIRTUAL_MACHINE",
   "id": "52cc3b60-005e-40e6-a365-65ae34b29bbf",
   "displayName": "vm-1",
+  "entityProperties": [
+    {
+      "namespace": "DEFAULT",
+      "name": "key1",
+      "value": "value10"
+    },
+    {
+      "namespace": "VCTAGS",
+      "name": "key1",
+      "value": "value3"
+    },
+    {
+      "namespace": "VCTAGS",
+      "name": "key1",
+      "value": "value4"
+    },
+    {
+      "namespace": "VCTAGS",
+      "name": "key3",
+      "value": "value5"
+    }
+   ],
   "commoditiesSold": [
     {
       "commodityType": "VCPU",
@@ -69,6 +91,20 @@
   "virtual_machine_data": {
     "ipAddress": [
       "10.0.1.15"
+    ],
+    "annotationNote": [
+      {
+        "key": "key1",
+        "value": "value1"
+      },
+      {
+        "key": "key1",
+        "value": "value2"
+      },
+      {
+        "key": "key2",
+        "value": "value3"
+      }
     ],
     "vmState": {
       "connected": true
