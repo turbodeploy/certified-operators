@@ -297,7 +297,7 @@ public class StagesTest {
         stage.setContext(context);
         stage.execute(topologyGraph);
 
-        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph), any());
+        verify(entitySettingsResolver).resolveSettings(eq(groupResolver), eq(topologyGraph), any(), any());
     }
 
     @Test

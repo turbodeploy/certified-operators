@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -15,6 +16,8 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import com.google.common.collect.ImmutableSet;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
@@ -22,6 +25,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyResponse;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse.SettingsForEntity;
@@ -64,14 +68,24 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
     private final ActionsServiceBlockingStub actionsServiceClient;
 
+    private final long realtimeTopologyContextId;
+
+    private final static Set<String> IMMUTABLE_ACTION_SETTINGS = ImmutableSet.<String>builder()
+            .add(EntitySettingSpecs.Move.getSettingName()).add(EntitySettingSpecs.StorageMove.getSettingName())
+            .add(EntitySettingSpecs.Provision.getSettingName()).add(EntitySettingSpecs.Suspend.getSettingName())
+            .add(EntitySettingSpecs.Activate.getSettingName()).add(EntitySettingSpecs.Resize.getSettingName())
+            .add(EntitySettingSpecs.Reconfigure.getSettingName()).build();
+
     public SettingPolicyRpcService(@Nonnull final SettingStore settingStore,
                                    @Nonnull final SettingSpecStore settingSpecStore,
                                    @Nonnull final EntitySettingStore entitySettingStore,
-                                   @Nonnull final ActionsServiceBlockingStub actionsServiceClient) {
+                                   @Nonnull final ActionsServiceBlockingStub actionsServiceClient,
+                                   final long realtimeTopologyContextId) {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.entitySettingStore = Objects.requireNonNull(entitySettingStore);
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.actionsServiceClient = actionsServiceClient;
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
     /**
@@ -274,8 +288,29 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         if (request.hasTypeFilter()) {
             filterBuilder.withType(request.getTypeFilter());
         }
-        settingStore.getSettingPolicies(filterBuilder.build()).forEach(responseObserver::onNext);
-        responseObserver.onCompleted();
+        Stream<SettingPolicy> settingPolicies = settingStore.getSettingPolicies(filterBuilder.build());
+        if (request.hasContextId() && request.getContextId() != realtimeTopologyContextId) {
+            // we need to create new policies for plan, because plan has a different set of action settings
+            // as default. we assume all actions are in automatic mode in plan.
+            settingPolicies.forEach(p -> {
+                if (p.hasInfo()) {
+                    SettingPolicy.Builder newPolicyBuilder = p.toBuilder();
+                    for (Setting.Builder setting : newPolicyBuilder.getInfoBuilder().getSettingsBuilderList()) {
+                        if (IMMUTABLE_ACTION_SETTINGS.contains(setting.getSettingSpecName())) {
+                            setting.setEnumSettingValue(EnumSettingValue.newBuilder()
+                                    .setValue(ActionMode.AUTOMATIC.toString())
+                                    .build())
+                            .build();
+                        }
+                    }
+                    responseObserver.onNext(newPolicyBuilder.build());
+                }
+            });
+            responseObserver.onCompleted();
+        } else {
+            settingPolicies.forEach(responseObserver::onNext);
+            responseObserver.onCompleted();
+        }
     }
 
 
@@ -285,7 +320,6 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     @Override
     public void uploadEntitySettings(final UploadEntitySettingsRequest request,
             final StreamObserver<UploadEntitySettingsResponse> responseObserver) {
-
         if (!request.hasTopologyId() || !request.hasTopologyContextId()) {
             logger.error("Missing topologId {} or topologyContexId argument {}",
                 request.hasTopologyId(), request.hasTopologyContextId());

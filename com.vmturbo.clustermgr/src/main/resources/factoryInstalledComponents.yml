@@ -176,6 +176,7 @@ group:
   identityGeneratorPrefix: 4
   createDefaultSettingPolicyRetryIntervalSec: 30
   tempGroupExpirationTimeMins: 10
+  realtimeTopologyContextId: 777777
 
   # START - database-related properties.
   <<: *db_conn_info

@@ -41,10 +41,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -107,10 +105,11 @@ public class EntitySettingsResolver {
     public GraphWithSettings resolveSettings(
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final TopologyGraph topologyGraph,
-            @Nonnull final SettingOverrides settingOverrides) {
+            @Nonnull final SettingOverrides settingOverrides,
+            @Nonnull final TopologyInfo topologyInfo) {
 
         final List<SettingPolicy> allSettingPolicies =
-            getAllSettingPolicies(settingPolicyServiceClient);
+            getAllSettingPolicies(settingPolicyServiceClient, topologyInfo.getTopologyContextId());
 
         final List<SettingPolicy> userAndDiscoveredSettingPolicies =
             SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(allSettingPolicies);
@@ -444,12 +443,14 @@ public class EntitySettingsResolver {
      *
      */
     private List<SettingPolicy> getAllSettingPolicies(
-            SettingPolicyServiceBlockingStub settingPolicyServiceClient) {
+            SettingPolicyServiceBlockingStub settingPolicyServiceClient, long contextId) {
 
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
         settingPolicyServiceClient.listSettingPolicies(
-            ListSettingPoliciesRequest.getDefaultInstance())
-                .forEachRemaining(settingPolicies::add);
+                ListSettingPoliciesRequest.newBuilder()
+                       .setContextId(contextId)
+                       .build())
+                       .forEachRemaining(settingPolicies::add);
 
         return settingPolicies;
     }

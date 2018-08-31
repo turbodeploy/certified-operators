@@ -31,6 +31,7 @@ import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -49,7 +50,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRespons
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -76,6 +76,8 @@ import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
 
 public class SettingPolicyRpcServiceTest {
+
+    private long realtimeTopologyContextId = 777777;
 
     private SettingStore settingStore = mock(SettingStore.class);
 
@@ -106,7 +108,7 @@ public class SettingPolicyRpcServiceTest {
     private Setting automationSetting =
             Setting.newBuilder()
                     .setSettingSpecName(automationSettingSpec.getName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("VM").build())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.toString()).build())
                     .build();
 
     private SettingPolicyInfo automationSettingPolicyInfo = SettingPolicyInfo.newBuilder()
@@ -134,7 +136,8 @@ public class SettingPolicyRpcServiceTest {
     public void setup() {
         settingPolicyService =
                 new SettingPolicyRpcService(settingStore, settingSpecStore, entitySettingStore,
-                        ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+                        ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                        realtimeTopologyContextId);
     }
 
     @Test
@@ -598,6 +601,27 @@ public class SettingPolicyRpcServiceTest {
 
         verify(responseObserver, times(2)).onNext(eq(settingPolicy));
         verify(responseObserver).onCompleted();
+    }
+
+    @Test
+    public void testListPolicyForPlan() throws Exception {
+        final StreamObserver<SettingPolicy> responseObserver =
+                        (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
+        when(settingStore.getSettingPolicies(eq(SettingPolicyFilter.newBuilder()
+                .withType(Type.DEFAULT).build())))
+        // Just return the same one twice - that's fine for the purpose of the test.
+                .thenReturn(Stream.of(automationSettingPolicy));
+       settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
+                .setTypeFilter(Type.DEFAULT).setContextId(111).build(), responseObserver);
+
+       Setting newSetting = automationSettingPolicy.toBuilder().getInfoBuilder().getSettingsBuilder(0)
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.toString())
+                        .build()).build();
+       SettingPolicy newPolicy = SettingPolicy.newBuilder().setId(100L).setInfo(SettingPolicyInfo
+                .newBuilder().setName("automationSettingPolicy").addSettings(newSetting).build()).build();
+
+       verify(responseObserver, times(1)).onNext(eq(newPolicy));
+       verify(responseObserver).onCompleted();
     }
 
     @Test

@@ -405,4 +405,13 @@ public class EntitySettingStore {
             return settings;
         }
     }
+
+    /**
+     * Returns the {@link realtimeTopologyContextId}.
+     *
+     * @return realtimeTopologyContextId
+     */
+    public long getRealtimeTopologyContextId() {
+        return realtimeTopologyContextId;
+    }
 }

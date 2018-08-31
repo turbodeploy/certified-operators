@@ -515,6 +515,8 @@ message DeleteSettingPolicyResponse {
 message ListSettingPoliciesRequest {
     // Return only policies of the particular type.
     optional SettingPolicy.Type type_filter = 1;
+    // The type of the topology. is plan or not.
+    optional int64 context_Id = 2;
 }
 
 // Settings associated with an entity

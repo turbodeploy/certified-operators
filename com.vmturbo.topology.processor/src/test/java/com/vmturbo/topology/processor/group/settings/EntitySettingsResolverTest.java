@@ -38,7 +38,6 @@ import org.mockito.ArgumentCaptor;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -79,6 +78,8 @@ public class EntitySettingsResolverTest {
     private final GroupResolver groupResolver = mock(GroupResolver.class);
 
     private TopologyGraph topologyGraph = mock(TopologyGraph.class);
+
+    private TopologyInfo rtTopologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build();
 
     private GroupServiceBlockingStub groupServiceClient;
 
@@ -174,7 +175,7 @@ public class EntitySettingsResolverTest {
             .thenReturn(Collections.singletonList(group));
 
         GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
-                topologyGraph, settingOverrides);
+                topologyGraph, settingOverrides, rtTopologyInfo);
 
         verify(groupResolver, times(1)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -195,7 +196,7 @@ public class EntitySettingsResolverTest {
            .thenReturn(Collections.singletonList(settingPolicy3));
 
         GraphWithSettings entitiesSettings =
-            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph, settingOverrides);
+            entitySettingsResolver.resolveSettings(groupResolver, topologyGraph, settingOverrides, rtTopologyInfo);
 
         verify(groupResolver, never()).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -218,7 +219,7 @@ public class EntitySettingsResolverTest {
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides);
+                settingOverrides, rtTopologyInfo);
 
         verify(groupResolver, times(1)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
@@ -242,7 +243,7 @@ public class EntitySettingsResolverTest {
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides);
+                settingOverrides, rtTopologyInfo);
 
         // settingPolicy2 doesn't have groups or ids. So it should't be in the
         // final result
@@ -262,7 +263,7 @@ public class EntitySettingsResolverTest {
 
         GraphWithSettings entitiesSettings =
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
-                settingOverrides);
+                settingOverrides, rtTopologyInfo);
 
         assertThat(entitiesSettings.getEntitySettings().size(), is(1));
         List<EntitySettings> settings = new ArrayList<>(entitiesSettings.getEntitySettings());

@@ -665,7 +665,7 @@ public class Stages {
         public GraphWithSettings execute(@Nonnull final TopologyGraph topologyGraph) {
             try {
                 return entitySettingsResolver.resolveSettings(getContext().getGroupResolver(),
-                        topologyGraph, settingOverrides);
+                        topologyGraph, settingOverrides, getContext().getTopologyInfo());
             } catch (RuntimeException e) {
                 logger.error("Error resolving settings for graph", e);
                 return new GraphWithSettings(topologyGraph,

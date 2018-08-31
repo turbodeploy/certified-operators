@@ -92,7 +92,7 @@ public class EntitySettingsApplicator {
      */
     private static List<SettingApplicator> buildApplicators(@Nonnull final TopologyInfo topologyInfo) {
         return ImmutableList.of(new MoveApplicator(),
-                new VMShopTogetherApplicator(),
+                new VMShopTogetherApplicator(topologyInfo),
                 new SuspendApplicator(),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
@@ -209,12 +209,22 @@ public class EntitySettingsApplicator {
      * to turn on bundled moves on compute and storage resources.
      */
     private static class VMShopTogetherApplicator implements SettingApplicator {
+        // a flag to indicate if the shop together should be set to false based on action settings
+        private final boolean disableShopTogether;
+
+        public VMShopTogetherApplicator(TopologyInfo topologyInfo) {
+            super();
+            // In case of initial placement, the template VM shop together should always be true
+             // regardless of action settings.
+            disableShopTogether = topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo()
+                    .getPlanProjectType().equals(PlanProjectType.INITAL_PLACEMENT);
+        }
 
         @Override
         public void apply(Builder entity, Map<EntitySettingSpecs, Setting> settings) {
-            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
-                            && settings.containsKey(EntitySettingSpecs.Move)
-                            && settings.containsKey(EntitySettingSpecs.StorageMove)) {
+            if (!disableShopTogether && entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
+                    && settings.containsKey(EntitySettingSpecs.Move)
+                    && settings.containsKey(EntitySettingSpecs.StorageMove)) {
                 final String computeMoveSetting = settings.get(EntitySettingSpecs.Move)
                         .getEnumSettingValue().getValue();
                 final String storageMoveSetting = settings.get(EntitySettingSpecs.StorageMove)

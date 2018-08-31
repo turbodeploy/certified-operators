@@ -1,6 +1,7 @@
 package com.vmturbo.group.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -52,6 +53,9 @@ public class RpcConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
+
+    @Value("${realtimeTopologyContextId}")
+    private long realtimeTopologyContextId;
 
     @Bean
     public PolicyRpcService policyService() {
@@ -113,7 +117,7 @@ public class RpcConfig {
         return new SettingPolicyRpcService(settingConfig.settingStore(),
                 settingConfig.settingSpecsStore(),
                 settingConfig.entitySettingStore(),
-                actionsRpcService());
+                actionsRpcService(), realtimeTopologyContextId);
     }
 
     @Bean
