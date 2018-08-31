@@ -3,7 +3,9 @@ package com.vmturbo.components.common.setting;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -20,6 +22,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.Entit
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
@@ -32,6 +35,33 @@ public final class SettingDTOUtil {
 
 
     private SettingDTOUtil() {
+    }
+
+    /**
+     * Method constructs setting category path protobuf from the categoryPath variable.
+     *
+     * @return {@link SettingCategoryPath} object.
+     */
+    @Nonnull
+    public static SettingCategoryPath createSettingCategoryPath(@Nonnull List<String> categoryPath) {
+        Objects.requireNonNull(categoryPath);
+        final ListIterator<String> categoryIterator =
+                categoryPath.listIterator(categoryPath.size());
+        SettingCategoryPath.SettingCategoryPathNode childNode = null;
+        while (categoryIterator.hasPrevious()) {
+            final SettingCategoryPath.SettingCategoryPathNode.Builder nodeBuilder =
+                    SettingCategoryPath.SettingCategoryPathNode.newBuilder()
+                            .setNodeName(categoryIterator.previous());
+            if (childNode != null) {
+                nodeBuilder.setChildNode(childNode);
+            }
+            childNode = nodeBuilder.build();
+        }
+        final SettingCategoryPath.Builder builder = SettingCategoryPath.newBuilder();
+        if (childNode != null) {
+            builder.setRootPathNode(childNode);
+        }
+        return builder.build();
     }
 
     /**

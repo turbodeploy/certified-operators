@@ -115,6 +115,17 @@ public class EntitySettingSpecsTest {
     }
 
     /**
+     * Test that the Orchestration policies are defined.
+     */
+    @Test
+    public void testOrchestrationPoliciesDefined() {
+        Assert.assertTrue("Expect suspendActionWorkflow",
+                EntitySettingSpecs.getSettingByName("suspendActionWorkflow").isPresent());
+        Assert.assertTrue("Expect provisionActionWorkflow",
+                EntitySettingSpecs.getSettingByName("provisionActionWorkflow").isPresent());
+    }
+
+    /**
      * Asserts that the specified entity type is inside the policy setting scope.
      *
      * @param setting setting to examine (used for verbose output only)

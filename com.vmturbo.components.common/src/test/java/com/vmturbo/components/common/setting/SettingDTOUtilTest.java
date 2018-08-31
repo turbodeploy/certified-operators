@@ -2,6 +2,7 @@ package com.vmturbo.components.common.setting;
 
 import static junit.framework.TestCase.assertFalse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -18,6 +19,7 @@ import java.util.Set;
 
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -28,6 +30,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
@@ -230,6 +234,34 @@ public class SettingDTOUtilTest {
                 createEnumSettingValue("value1"),
                 createEnumSettingValue("value2"), type),
             lessThan(0));
+    }
+
+    /**
+     * Test using the utility method to create a SettingCategoryPath with three levels.
+     */
+    @Test
+    public void testCreateSettingCategoryPath() {
+        // arrange
+        final String PATH_ROOT = "a";
+        final String PATH_CHILD_1 = "b";
+        final String PATH_CHILD_2 = "c";
+        List<String> CATEGORY_PATHS = ImmutableList.of(PATH_ROOT, PATH_CHILD_1, PATH_CHILD_2);
+        SettingCategoryPath expectedCategoryPath = SettingCategoryPath.newBuilder()
+                .setRootPathNode(SettingCategoryPathNode.newBuilder()
+                        .setNodeName(PATH_ROOT)
+                        .setChildNode(SettingCategoryPathNode.newBuilder()
+                                .setNodeName(PATH_CHILD_1)
+                                .setChildNode(SettingCategoryPathNode.newBuilder()
+                                        .setNodeName(PATH_CHILD_2)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        // act
+        SettingCategoryPath categoryPath = SettingDTOUtil.createSettingCategoryPath(CATEGORY_PATHS);
+        // assert
+        assertThat(categoryPath, equalTo(expectedCategoryPath));
+
     }
 
     private EnumSettingValue createEnumSettingValue(String value) {

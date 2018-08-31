@@ -1,11 +1,12 @@
 package com.vmturbo.components.common.setting;
 
+import static com.vmturbo.components.common.setting.SettingDTOUtil.createSettingCategoryPath;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -21,8 +22,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.AllEntityType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -76,26 +75,26 @@ public enum EntitySettingSpecs {
      * CPU utilization threshold.
      */
     CpuUtilization("cpuUtilization", "CPU Utilization",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE_CONTROLLER),
             numeric(20f, 100f, 100f), true),
     /**
      * Memory utilization threshold.
      */
     MemoryUtilization("memoryUtilization", "Memory Utilization",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(1f, 100f, 100f), true),
     /**
      * IO throughput utilization threshold.
      */
     IoThroughput("ioThroughput", "IO Throughput",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(10f, 100f, 50f), true),
     /**
      * Network througput utilization threshold.
      */
     NetThroughput("netThroughput", "Net Throughput",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.SWITCH),
             new NumericSettingDataType(10f, 100f, 50f,
                     Collections.singletonMap(EntityType.SWITCH, 70f)), true),
@@ -103,45 +102,45 @@ public enum EntitySettingSpecs {
      * Swapping utilization threshold.
      */
     SwappingUtilization("swappingUtilization", "Swapping Utilization",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 20f), true),
     /**
      * Ready queu utilization threshold.
      */
     ReadyQueueUtilization("readyQueueUtilization", "Ready Queue Utilization",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 100f, 50f), true),
     /**
      * Storage utilization threshould.
      */
     StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER), numeric(0f, 100f, 90f),
             true),
     /**
      * IOPS utilization threshould.
      */
     IopsUtilization("iopsUtilization", "IOPS Utilization",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
     /**
      * Storage latency utilization threshold.
      */
     LatencyUtilization("latencyUtilization", "Latency Utilization",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE), numeric(0f, 100f, 100f), true),
     /**
      * CPU overprovisioned in percents.
      */
     CpuOverprovisionedPercentage("cpuOverprovisionedPercentage", "CPU Overprovisioned Percentage",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f), true),
     /**
      * Memory overprovisioned in percents.
      */
     MemoryOverprovisionedPercentage("memoryOverprovisionedPercentage",
             "Memory Overprovisioned Percentage",
-            Arrays.asList("utilizationThresholds"), SettingTiebreaker.SMALLER,
+            Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE), numeric(0f, 1000000f, 1000f), true),
 
     /**
@@ -197,7 +196,7 @@ public enum EntitySettingSpecs {
      * Virtual CPU Increment.
      */
     VcpuIncrement("usedIncrement_VCPU", "Increment constant for VCPU [MHz]",
-            Arrays.asList("resizeRecommendationsConstants"),
+            Collections.singletonList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1800.0f/*default*/), true),
@@ -206,7 +205,7 @@ public enum EntitySettingSpecs {
      * Virtual Memory Increment.
      */
     VmemIncrement("usedIncrement_VMEM", "Increment constant for VMem [MB]",
-            Arrays.asList("resizeRecommendationsConstants"),
+            Collections.singletonList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 1000000.0f/*max*/, 1024.0f/*default*/), true),
@@ -215,7 +214,7 @@ public enum EntitySettingSpecs {
      * Virtual Storage Increment.
      */
     VstorageIncrement("usedIncrement_VStorage", "Increment constant for VStorage [GB]",
-            Arrays.asList("resizeRecommendationsConstants"),
+            Collections.singletonList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true),
@@ -224,11 +223,30 @@ public enum EntitySettingSpecs {
      * Storage Increment.
      */
     StorageIncrement("usedIncrement_StAmt", "Increment constant for Storage Amount [GB]",
-            Arrays.asList("resizeRecommendationsConstants"),
+            Collections.singletonList("resizeRecommendationsConstants"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true);
+            numeric(0.0f/*min*/, 100000.0f/*max*/, 100.0f/*default*/), true),
 
+    /**
+     * Automation Policy for the Suspend Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a suspend action is generated and executed.
+     */
+    SuspendActionWorkflow("suspendActionWorkflow", "Suspend Workflow",
+            Collections.singletonList("automation"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE),
+            string(), true),
+
+    /**
+     * Automation Policy for the Provision Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a provision action is generated and executed.
+     */
+    ProvisionActionWorkflow("provisionActionWorkflow", "Provision Workflow",
+            Collections.singletonList("automation"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            string(), true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
         ImmutableSet.of(
@@ -239,6 +257,16 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.Resize.name,
             EntitySettingSpecs.StorageMove.name,
             EntitySettingSpecs.Suspend.name);
+
+    /**
+     * Default value for a String-type SettingDataStructure = empty String.
+     */
+    public static final String DEFAULT_STRING_VALUE = "";
+
+    /**
+     * Default regex for a String-type SettingDataStructure = matches anything.
+     */
+    public static final String MATCH_ANYTHING_REGEX = ".*";
 
     /**
      * Setting name to setting enumeration value map for fast access.
@@ -338,7 +366,7 @@ public enum EntitySettingSpecs {
                         .setEntitySettingScope(scopeBuilder)
                 .setAllowGlobalDefault(allowGlobalDefault));
         if (!categoryPath.isEmpty()) {
-            builder.setPath(createCategoryPath());
+            builder.setPath(createSettingCategoryPath(categoryPath));
         }
         dataStructure.build(builder);
         return builder.build();
@@ -351,32 +379,8 @@ public enum EntitySettingSpecs {
      * @return Return true if the setting is an automation setting else return false.
      */
     public static boolean isAutomationSetting(@Nonnull String specName) {
-        return (specName!=null && AUTOMATION_SETTINGS.contains(specName));
-    }
-
-    /**
-     * Method constructs setting category path object from the {@link #categoryPath} variable.
-     *
-     * @return {@link SettingCategoryPath} object.
-     */
-    @Nonnull
-    private SettingCategoryPath createCategoryPath() {
-        final ListIterator<String> categoryIterator =
-                categoryPath.listIterator(categoryPath.size());
-        SettingCategoryPathNode childNode = null;
-        while (categoryIterator.hasPrevious()) {
-            final SettingCategoryPathNode.Builder nodeBuilder =
-                    SettingCategoryPathNode.newBuilder().setNodeName(categoryIterator.previous());
-            if (childNode != null) {
-                nodeBuilder.setChildNode(childNode);
-            }
-            childNode = nodeBuilder.build();
-        }
-        final SettingCategoryPath.Builder builder = SettingCategoryPath.newBuilder();
-        if (childNode != null) {
-            builder.setRootPathNode(childNode);
-        }
-        return builder.build();
+        Objects.requireNonNull(specName);
+        return AUTOMATION_SETTINGS.contains(specName);
     }
 
     @Nonnull
@@ -392,6 +396,11 @@ public enum EntitySettingSpecs {
     @Nonnull
     private static SettingDataStructure<?> numeric(float min, float max, float defaultValue) {
         return new NumericSettingDataType(min, max, defaultValue);
+    }
+
+    @Nonnull
+    private static SettingDataStructure<?> string() {
+        return new StringSettingDataType(DEFAULT_STRING_VALUE, MATCH_ANYTHING_REGEX);
     }
 
 }

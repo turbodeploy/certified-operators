@@ -1,11 +1,10 @@
 package com.vmturbo.components.common.setting;
 
-import java.util.ArrayList;
-import java.util.Arrays;
+import static com.vmturbo.components.common.setting.SettingDTOUtil.createSettingCategoryPath;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -13,8 +12,6 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.common.mail.MailConfiguration.EncryptionType;
 
@@ -30,7 +27,7 @@ public enum GlobalSettingSpecs {
     RateOfResize("RATE_OF_RESIZE", "Rate of Resize",
             numeric(1.0f/*min*/, 3.0f/*max*/, 2.0f/*default*/),
             //path is needed for the UI to display this setting in a separate category
-            Arrays.asList("resizeRecommendationsConstants")),
+            Collections.singletonList("resizeRecommendationsConstants")),
 
     SmtpServer("smtpServer", "SMTP Server",
             new StringSettingDataType("", "*"),
@@ -194,7 +191,7 @@ public enum GlobalSettingSpecs {
                 .setGlobalSettingSpec(
                     GlobalSettingSpec.newBuilder().build());
         if (hasCategoryPath()) {
-            builder.setPath(createCategoryPath());
+            builder.setPath(createSettingCategoryPath(categoryPath));
         }
         value.build(builder);
         return builder.build();
@@ -202,31 +199,6 @@ public enum GlobalSettingSpecs {
 
     private boolean hasCategoryPath() {
         return (categoryPath != null && !categoryPath.isEmpty());
-    }
-
-    /**
-     * Method constructs setting category path object from the {@link #categoryPath} variable.
-     *
-     * @return {@link SettingCategoryPath} object.
-     */
-    @Nonnull
-    private SettingCategoryPath createCategoryPath() {
-        final ListIterator<String> categoryIterator =
-                categoryPath.listIterator(categoryPath.size());
-        SettingCategoryPathNode childNode = null;
-        while (categoryIterator.hasPrevious()) {
-            final SettingCategoryPathNode.Builder nodeBuilder =
-                    SettingCategoryPathNode.newBuilder().setNodeName(categoryIterator.previous());
-            if (childNode != null) {
-                nodeBuilder.setChildNode(childNode);
-            }
-            childNode = nodeBuilder.build();
-        }
-        final SettingCategoryPath.Builder builder = SettingCategoryPath.newBuilder();
-        if (childNode != null) {
-            builder.setRootPathNode(childNode);
-        }
-        return builder.build();
     }
 
     @Nonnull

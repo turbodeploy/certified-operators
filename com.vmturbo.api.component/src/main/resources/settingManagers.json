@@ -42,6 +42,14 @@
         }
       }
     },
+    "controlmanager": {
+      "displayName": "Action Workflow",
+      "defaultCategory": "Automation",
+      "settings": [
+        "suspendActionWorkflow",
+        "provisionActionWorkflow"
+      ]
+    },
     "marketsettingsmanager": {
       "displayName": "Operational Constraints",
       "defaultCategory": "Analysis",
