@@ -1,11 +1,18 @@
 package com.vmturbo.topology.processor.group.discovery;
 
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.COMPUTE_CLUSTER_INFO;
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.COMPUTE_CLUSTER_NAME;
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.COMPUTE_INTERPRETED_CLUSTER;
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.DC_NAME;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_CLUSTER_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_GROUP_INFO;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_CLUSTER;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.PLACEHOLDER_INTERPRETED_GROUP;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STATIC_MEMBER_DTO;
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STORAGE_CLUSTER_INFO;
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.STORAGE_INTERPRETED_CLUSTER;
 import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TARGET_ID;
+import static com.vmturbo.topology.processor.group.discovery.DiscoveredGroupConstants.TOPOLOGY;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -13,6 +20,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,10 +37,13 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
+
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceImplBase;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
@@ -57,6 +68,7 @@ public class DiscoveredGroupUploaderTest {
 
     private InterpretedGroup interpretedGroup = mock(InterpretedGroup.class);
 
+
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(uploadServiceSpy);
 
@@ -76,7 +88,7 @@ public class DiscoveredGroupUploaderTest {
 
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
 
-        recorderSpy.uploadDiscoveredGroups();
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
         verify(uploadServiceSpy).storeDiscoveredGroups(
                 eq(StoreDiscoveredGroupsRequest.newBuilder()
                     .setTargetId(TARGET_ID)
@@ -93,7 +105,7 @@ public class DiscoveredGroupUploaderTest {
         assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
 
         // Uploading discovered groups should not empty the discovered groups known by the uploader.
-        recorderSpy.uploadDiscoveredGroups();
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
         assertFalse(recorderSpy.getDiscoveredGroupInfoByTarget().isEmpty());
     }
 
@@ -118,7 +130,7 @@ public class DiscoveredGroupUploaderTest {
     @Test
     public void testProcessUnsuccessfulInterpretation() throws Exception {
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        recorderSpy.uploadDiscoveredGroups();
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         verify(uploadServiceSpy).storeDiscoveredGroups(
                 eq(StoreDiscoveredGroupsRequest.newBuilder()
@@ -132,7 +144,7 @@ public class DiscoveredGroupUploaderTest {
             .thenReturn(Collections.singletonList(PLACEHOLDER_INTERPRETED_CLUSTER));
         when(interpretedGroup.getDtoAsCluster()).thenReturn(Optional.of(PLACEHOLDER_CLUSTER_INFO.toBuilder()));
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
-        recorderSpy.uploadDiscoveredGroups();
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         verify(uploadServiceSpy).storeDiscoveredGroups(
             eq(StoreDiscoveredGroupsRequest.newBuilder()
@@ -148,13 +160,43 @@ public class DiscoveredGroupUploaderTest {
         when(interpretedGroup.getDtoAsGroup()).thenReturn(Optional.of(PLACEHOLDER_GROUP_INFO.toBuilder()));
         recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
 
-        recorderSpy.uploadDiscoveredGroups();
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         verify(uploadServiceSpy).storeDiscoveredGroups(
                 eq(StoreDiscoveredGroupsRequest.newBuilder()
                         .addDiscoveredGroup(PLACEHOLDER_GROUP_INFO)
                         .setTargetId(TARGET_ID)
                         .build()), any());
+    }
+
+    @Test
+    public void testAddDatacenterPrefixToCluster() throws Exception {
+
+        // trigger the group discovery from the target (mocking the response from the converter)
+        when(converter.interpretSdkGroupList(any(), eq(TARGET_ID)))
+                .thenReturn(ImmutableList.of(COMPUTE_INTERPRETED_CLUSTER, STORAGE_INTERPRETED_CLUSTER));
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, Collections.singletonList(STATIC_MEMBER_DTO));
+
+        // trigger the upload request creation multiple times
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
+
+        // generate the expected cluster info with the prefix name added
+        // note: even after triggering the upload multiple time, we need to make sure that a single
+        // prefix is added
+        ClusterInfo computeClusterInfoWithPrefix = ClusterInfo.newBuilder(COMPUTE_CLUSTER_INFO)
+                .setName(DC_NAME + "/" + COMPUTE_CLUSTER_NAME)
+                .build();
+
+        // check that the datadatacenter prefix has been applied correctly
+        StoreDiscoveredGroupsRequest expectedRequest = StoreDiscoveredGroupsRequest.newBuilder()
+                .addDiscoveredCluster(computeClusterInfoWithPrefix)
+                .addDiscoveredCluster(STORAGE_CLUSTER_INFO)
+                .setTargetId(TARGET_ID)
+                .build();
+
+        verify(uploadServiceSpy, times(2)).storeDiscoveredGroups(eq(expectedRequest), any());
+
     }
 
     @Test
@@ -181,7 +223,7 @@ public class DiscoveredGroupUploaderTest {
         when(graph.entities()).thenReturn(Stream.of(mergedEntity));
         fixer.fixupGroups(graph, recorderSpy.buildMemberCache());
 
-        recorderSpy.uploadDiscoveredGroups();
+        recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
 
         // Ensure that the group that got uploaded contained 12345L and not PLACEHOLDER_GROUP_MEMBER
         final GroupInfo modifiedGroup = PLACEHOLDER_GROUP_INFO.toBuilder()
@@ -202,7 +244,7 @@ public class DiscoveredGroupUploaderTest {
         uploadServiceSpy.enableError();
 
         try {
-            recorderSpy.uploadDiscoveredGroups();
+            recorderSpy.uploadDiscoveredGroups(TOPOLOGY);
             Assert.fail("Expected runtime exception.");
         } catch (RuntimeException e) {
             // Verify that discovered group info was not cleared by the exception

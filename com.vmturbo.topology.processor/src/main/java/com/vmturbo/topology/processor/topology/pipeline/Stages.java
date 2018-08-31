@@ -99,7 +99,7 @@ public class Stages {
         @Nonnull
         @Override
         public void passthrough(final Map<Long, TopologyEntity.Builder> input) {
-            discoveredGroupUploader.uploadDiscoveredGroups();
+            discoveredGroupUploader.uploadDiscoveredGroups(input);
         }
     }
 
@@ -120,84 +120,6 @@ public class Stages {
         @Override
         public void passthrough(final Map<Long, TopologyEntity.Builder> input) {
             discoveredWorkflowUploader.uploadDiscoveredWorkflows();
-        }
-    }
-
-    /**
-     * This stage adds datacenter name prefix to names of clusters for UI displaying.
-     */
-    public static class AddDatacenterPrefixToClustersStage extends PassthroughStage<Map<Long, TopologyEntity.Builder>> {
-
-        private final Logger logger = LogManager.getLogger();
-
-        private final DiscoveredGroupUploader discoveredGroupUploader;
-
-        public AddDatacenterPrefixToClustersStage(@Nonnull final DiscoveredGroupUploader discoveredGroupUploader) {
-            this.discoveredGroupUploader = discoveredGroupUploader;
-        }
-
-        /**
-         * Adds display name of datacenter to name of cluster as prefix.
-         * We need to do it only for UI displaying.
-         *
-         * @param input entities to search host and datacenter by oid
-         */
-        @Override
-        public void passthrough(@Nonnull Map<Long, TopologyEntity.Builder> input)
-                        throws PipelineStageException {
-            discoveredGroupUploader.createDeepCopiesOfGroups().values().stream()
-                            .flatMap(List::stream)
-                            .map(InterpretedGroup::getDtoAsCluster)
-                            .filter(Optional::isPresent)
-                            .map(Optional::get)
-                            .forEach(cluster -> addDatacenterPrefixToClusterName(input, cluster));
-        }
-
-        /**
-         * As all hosts of cluster are located at the same datacenter, we are getting any host of cluster,
-         * and looking for any commodity which it buys from datacenter to find datacenter by oid and
-         * add name of datacenter to name of cluster.
-         *
-         * @param topologyMap to search host and datacenter entity
-         * @param cluster to change name of it
-         */
-        private void addDatacenterPrefixToClusterName(@Nonnull Map<Long, TopologyEntity.Builder> topologyMap,
-                        @Nonnull GroupDTO.ClusterInfo.Builder cluster) {
-            final List<Long> memberOidsList = cluster.getMembers().getStaticMemberOidsList();
-            if (CollectionUtils.isEmpty(memberOidsList)) {
-                logger.warn("Cannot add the datacenter prefix to the cluster. Empty cluster provided {}", cluster);
-                return;
-            }
-            final TopologyEntity.Builder host = topologyMap.get(memberOidsList.get(0));
-            if (host == null) {
-                logger.error("Topology map doesn't contain host {}", memberOidsList.get(0));
-                return;
-            }
-            final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> datacenterCommodity =
-                            getDatacenterCommodityOfHost(host);
-            if (!datacenterCommodity.isPresent()) {
-                logger.error("Host {} has no commodities bought from datacenter", host);
-                return;
-            }
-            final TopologyEntity.Builder datacenter = topologyMap.get(datacenterCommodity.get().getProviderId());
-            if (datacenter == null) {
-                logger.error(String.format("Topology map doesn't contain datacenter with OID %s for host %s",
-                                datacenterCommodity.get().getProviderId(), host));
-                return;
-            }
-            cluster.setName(datacenter.getDisplayName() + "/" + cluster.getName());
-        }
-
-        private Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> getDatacenterCommodityOfHost(
-                        @Nonnull TopologyEntity.Builder host) {
-            return host.getEntityBuilder().getCommoditiesBoughtFromProvidersList()
-                            .stream()
-                            .filter(this::isProvidedByDatacenter)
-                            .findFirst();
-        }
-
-        private boolean isProvidedByDatacenter(@Nonnull TopologyEntityDTO.CommoditiesBoughtFromProvider commodity) {
-            return commodity.getProviderEntityType() == CommonDTO.EntityDTO.EntityType.DATACENTER_VALUE;
         }
     }
 

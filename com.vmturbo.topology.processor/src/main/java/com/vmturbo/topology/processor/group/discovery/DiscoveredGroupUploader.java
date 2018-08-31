@@ -12,7 +12,12 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
@@ -24,11 +29,16 @@ import io.grpc.Channel;
 
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.DiscoveredGroupServiceGrpc.DiscoveredGroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsRequest;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -43,7 +53,7 @@ import com.vmturbo.topology.processor.entity.EntityStore;
  * Uploading discovered groups does NOT clear the latest discovered groups, policies, and settings
  * for targets known to the uploader. Thus, if no new groups, policies, or settings are set for
  * a target since the last time that target's results were uploaded, the previous ones will
- * be re-uploaded the next time that {@link #uploadDiscoveredGroups()} is called.
+ * be re-uploaded the next time that {@link #uploadDiscoveredGroups(Map)} is called.
  *
  * TODO: (DavidBlinn 1/31/2018) There is a problem with how we presently handle
  * TODO: discovered groups/policies/settings/templates/deployment profiles etc.
@@ -57,6 +67,8 @@ import com.vmturbo.topology.processor.entity.EntityStore;
  */
 @ThreadSafe
 public class DiscoveredGroupUploader {
+
+    private final Logger logger = LogManager.getLogger();
 
     /**
      * Having this keyword in the group_name field of a GroupDTO coming from VCenter means
@@ -83,8 +95,6 @@ public class DiscoveredGroupUploader {
     private final Map<Long, List<DiscoveredPolicyInfo>> latestPoliciesByTarget = new HashMap<>();
     private final Multimap<Long, DiscoveredSettingPolicyInfo> latestSettingPoliciesByTarget =
         HashMultimap.create();
-
-    private final Map<Long, List<InterpretedGroup>> groupsToUploadByTarget = new HashMap<>();
 
     @VisibleForTesting
     DiscoveredGroupUploader(@Nonnull final Channel groupChannel,
@@ -193,14 +203,25 @@ public class DiscoveredGroupUploader {
         }
     }
 
-    public Map<Long, List<InterpretedGroup>> createDeepCopiesOfGroups() {
-        synchronized (latestGroupByTarget) {
-            groupsToUploadByTarget.clear();
-            latestGroupByTarget.forEach((targetId, targetGroups) -> groupsToUploadByTarget
-                            .put(targetId, targetGroups.stream().map(InterpretedGroup::deepCopy)
-                                            .collect(Collectors.toList())));
-        }
-        return groupsToUploadByTarget;
+    /**
+     * Creates a deep copy of the latestGroupByTarget map, so that it can be further manipulated
+     * without modifying the original one.
+     *
+     * Note: this method has to be called only when holding a lock on the latestGroupByTarget field.
+     *
+     * @return the copied map
+     */
+    @GuardedBy("latestGroupByTarget")
+    private Map<Long, List<InterpretedGroup>> createDeepCopiesOfGroups() {
+        Map<Long, List<InterpretedGroup>> groupCopyMap = new HashMap<>(latestGroupByTarget.size());
+
+        // copy every element in the new map
+        latestGroupByTarget.forEach((targetId, targetGroups) -> {
+            groupCopyMap.put(targetId, targetGroups.stream().map(InterpretedGroup::deepCopy)
+                    .collect(Collectors.toList()));
+        });
+
+        return groupCopyMap;
     }
 
     /**
@@ -237,17 +258,32 @@ public class DiscoveredGroupUploader {
      *
      * Uploading discovered groups does NOT clear the latest groups, policies, and settings known
      * to the group uploader.
+     *
+     * @param input topology entities indexed by oid
      */
-    public void uploadDiscoveredGroups() {
+    public void uploadDiscoveredGroups(@Nonnull Map<Long, TopologyEntity.Builder> input) {
         final List<StoreDiscoveredGroupsRequest> requests = new ArrayList<>();
 
         // Create requests in a synchronized block to guard against changes to discovered groups/settings/policies
         // while an upload is in progress so that the data structures for each type cannot be made to be
         // out of synch with each other.
         synchronized (latestGroupByTarget) {
-            if (groupsToUploadByTarget.isEmpty()) {
-                createDeepCopiesOfGroups();
-            }
+
+            // create a fresh copy of the groups that we are going to upload
+            Map<Long, List<InterpretedGroup>> groupsToUploadByTarget = createDeepCopiesOfGroups();
+
+            // then we are adding the datacenter prefix to the group name
+            // note: we are doing this modification only if the cluster is a compute cluster
+            // this is because we cannot easily associate a storage cluster to a datacenter
+            groupsToUploadByTarget.values().stream()
+                    .flatMap(List::stream)
+                    .map(InterpretedGroup::getDtoAsCluster)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .filter(cluster -> Type.COMPUTE == cluster.getClusterType())
+                    .forEach(cluster -> addDatacenterPrefixToComputeClusterName(input, cluster));
+
+            // create the upload requests
             groupsToUploadByTarget.forEach((targetId, groups) -> {
                 final StoreDiscoveredGroupsRequest.Builder req =
                     StoreDiscoveredGroupsRequest.newBuilder()
@@ -272,6 +308,54 @@ public class DiscoveredGroupUploader {
         // Upload the groups/policies/settings.
         // TODO: (DavidBlinn 1/29/18) upload these as a gRPC stream rather than in multiple requests.
         requests.forEach(uploadStub::storeDiscoveredGroups);
+    }
+
+    /**
+     * As all hosts of cluster are located at the same datacenter, we are getting any host of cluster,
+     * and looking for any commodity which it buys from datacenter to find datacenter by oid and
+     * add name of datacenter to name of cluster.
+     *
+     * @param topologyMap to search host and datacenter entity
+     * @param cluster to change name of it
+     */
+    private void addDatacenterPrefixToComputeClusterName(@Nonnull Map<Long, TopologyEntity.Builder> topologyMap,
+                                                         @Nonnull GroupDTO.ClusterInfo.Builder cluster) {
+        final List<Long> memberOidsList = cluster.getMembers().getStaticMemberOidsList();
+        if (CollectionUtils.isEmpty(memberOidsList)) {
+            logger.warn("Cannot add the datacenter prefix to the cluster. Empty cluster provided {}",
+                    cluster.getName());
+            return;
+        }
+        // here the assumption is that all the cluster members are hosts.
+        // cluster members from the SDK can be also VDC sometimes, but those are filtered before
+        // reaching this point
+        final TopologyEntity.Builder host = topologyMap.get(memberOidsList.get(0));
+        if (host == null) {
+            logger.error("Topology map doesn't contain host {}", memberOidsList.get(0));
+            return;
+        }
+        final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> datacenterCommodity =
+                getDatacenterCommodityOfHost(host);
+        if (!datacenterCommodity.isPresent()) {
+            logger.error("Host (oid:{},displayName:{}) has no commodities bought from datacenter",
+                    host.getOid(), host.getDisplayName());
+            return;
+        }
+        final TopologyEntity.Builder datacenter = topologyMap.get(datacenterCommodity.get().getProviderId());
+        if (datacenter == null) {
+            logger.error("Topology map doesn't contain datacenter with OID {} for host (oid:{},displayName:{})",
+                    datacenterCommodity.get().getProviderId(), host.getOid(), host.getDisplayName());
+            return;
+        }
+        cluster.setName(datacenter.getDisplayName() + "/" + cluster.getName());
+    }
+
+    private Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> getDatacenterCommodityOfHost(
+            @Nonnull TopologyEntity.Builder host) {
+        return host.getEntityBuilder().getCommoditiesBoughtFromProvidersList()
+                .stream()
+                .filter(commodityBundle -> commodityBundle.getProviderEntityType() == EntityType.DATACENTER_VALUE)
+                .findFirst();
     }
 
     /**

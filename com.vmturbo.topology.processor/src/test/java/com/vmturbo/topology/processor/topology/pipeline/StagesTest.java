@@ -91,7 +91,7 @@ public class StagesTest {
         final DiscoveredGroupUploader uploader = mock(DiscoveredGroupUploader.class);
         final UploadGroupsStage stage = new UploadGroupsStage(uploader);
         stage.passthrough(topology);
-        verify(uploader).uploadDiscoveredGroups();
+        verify(uploader).uploadDiscoveredGroups(topology);
     }
 
     @Test

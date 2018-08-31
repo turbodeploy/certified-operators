@@ -21,7 +21,6 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
-import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsApplicator;
@@ -35,7 +34,6 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.AddDatacenterPrefixToClustersStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditStage;
@@ -61,6 +59,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
  * A factory class for properly configured {@link TopologyPipeline} objects.
@@ -186,7 +185,6 @@ public class TopologyPipelineFactory {
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))
-                .addStage(new AddDatacenterPrefixToClustersStage(discoveredGroupUploader))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))
                 .addStage(new UploadWorkflowsStage(discoveredWorkflowUploader))
                 .addStage(new UploadTemplatesStage(discoveredTemplateDeploymentProfileNotifier))
