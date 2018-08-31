@@ -106,14 +106,16 @@ public class DiscoveredWorkflowUploader {
         List<StoreDiscoveredWorkflowsRequest> requests = Lists.newArrayList();
         synchronized (workflowByTarget) {
             workflowByTarget.forEach((targetId, workflows) -> {
-                StoreDiscoveredWorkflowsRequest.Builder storeDiscoveredWorkflowsRequest =
-                        StoreDiscoveredWorkflowsRequest.newBuilder();
-                storeDiscoveredWorkflowsRequest.setTargetId(targetId);
-                storeDiscoveredWorkflowsRequest.addAllDiscoveredWorkflow(workflows);
-                log.info("upload discovered workflow for {} size: {}",
-                        storeDiscoveredWorkflowsRequest.getTargetId(),
-                        storeDiscoveredWorkflowsRequest.getDiscoveredWorkflowCount());
-                requests.add(storeDiscoveredWorkflowsRequest.build());
+                if (!workflows.isEmpty()) {
+                    StoreDiscoveredWorkflowsRequest.Builder storeDiscoveredWorkflowsRequest =
+                            StoreDiscoveredWorkflowsRequest.newBuilder();
+                    storeDiscoveredWorkflowsRequest.setTargetId(targetId);
+                    storeDiscoveredWorkflowsRequest.addAllDiscoveredWorkflow(workflows);
+                    log.info("upload discovered workflow for {} size: {}",
+                            storeDiscoveredWorkflowsRequest.getTargetId(),
+                            storeDiscoveredWorkflowsRequest.getDiscoveredWorkflowCount());
+                    requests.add(storeDiscoveredWorkflowsRequest.build());
+                }
             });
             workflowByTarget.clear();
         }

@@ -10,6 +10,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
@@ -29,6 +32,8 @@ import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
  * @param <ITEM_TYPE> the type of item for which OIDs will be generated and cached by this class.
  **/
 public class CachingIdentityStore<ITEM_TYPE> implements IdentityStore<ITEM_TYPE> {
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * the persistent store for the ItemAttributes -> OID mapping
@@ -83,11 +88,9 @@ public class CachingIdentityStore<ITEM_TYPE> implements IdentityStore<ITEM_TYPE>
     public IdentityStoreUpdate fetchOrAssignItemOids(@Nonnull List<ITEM_TYPE> itemList)
             throws IdentityStoreException {
         synchronized (oidMap) {
-            if (!initialized) {
-                // initialize the in-memory cache from the persistent store
-                oidMap.putAll(persistentStore.fetchAllOidMappings());
-                initialized = true;
-            }
+            // Ensure the in-memory cache is initialized
+            initializeFromPersistentStore();
+
             // two way map from ITEM_TYPE to OID containing new OIDs generated in this call
             Map<ITEM_TYPE, IdentityMatchingAttributes> itemsToPersist = Maps.newHashMap();
 
@@ -145,8 +148,9 @@ public class CachingIdentityStore<ITEM_TYPE> implements IdentityStore<ITEM_TYPE>
      * {@link PersistentIdentityStore}
      */
     @Override
-    public void removeItemOids(@Nonnull List<Long> oidsToRemove) throws IdentityStoreException {
+    public void removeItemOids(@Nonnull Set<Long> oidsToRemove) throws IdentityStoreException {
         synchronized (oidMap) {
+            initializeFromPersistentStore();
             oidsToRemove.forEach(oid -> oidMap.inverse()
                     .remove(oid));
             persistentStore.removeOidMappings(oidsToRemove);
@@ -157,10 +161,24 @@ public class CachingIdentityStore<ITEM_TYPE> implements IdentityStore<ITEM_TYPE>
     @Override
     public Set<Long> filterItemOids(@Nonnull Predicate<IdentityMatchingAttributes> itemFilter) {
         synchronized (oidMap) {
+            initializeFromPersistentStore();
             return oidMap.entrySet().stream()
                     .filter(oidMapEntry -> itemFilter.test(oidMapEntry.getKey()))
                     .map(Map.Entry::getValue)
                     .collect(ImmutableSet.toImmutableSet());
+        }
+    }
+
+    /**
+     * Ensure that the in-memory cache is initialized. Only fetch from the persistent store
+     * once. Assumed to be called synchronized on 'oidMap'.
+     */
+    private synchronized void initializeFromPersistentStore() {
+        if (!initialized) {
+            // initialize the in-memory cache from the persistent store
+            oidMap.putAll(persistentStore.fetchAllOidMappings());
+            logger.info("CachingIdentityStore loaded, items: {}", oidMap.size());
+            initialized = true;
         }
     }
 }

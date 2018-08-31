@@ -20,6 +20,7 @@ import static org.junit.Assert.assertFalse;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -34,7 +35,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -133,7 +134,7 @@ public class PersistentWorkflowIdentityStoreTest {
         PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
         // arrange
         persistBothWorkflowOids();
-        List<Long> oidsToRemove = Lists.newArrayList(WORKFLOW_1_OID);
+        Set<Long> oidsToRemove = Sets.newHashSet(WORKFLOW_1_OID);
         // act
         testIdentityStore.removeOidMappings(oidsToRemove);
         // assert
@@ -174,7 +175,7 @@ public class PersistentWorkflowIdentityStoreTest {
         PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
 
         // act
-        testIdentityStore.removeOidMappings(Collections.singletonList(WORKFLOW_1_OID));
+        testIdentityStore.removeOidMappings(Collections.singleton(WORKFLOW_1_OID));
 
         // assert
         // fetch the remaining rows from the workflow_oid table

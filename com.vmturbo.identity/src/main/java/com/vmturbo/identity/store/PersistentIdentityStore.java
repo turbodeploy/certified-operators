@@ -1,8 +1,8 @@
 package com.vmturbo.identity.store;
 
 
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -48,5 +48,5 @@ public interface PersistentIdentityStore<ITEM_TYPE> {
      * @param oidsToRemove a list of the OIDs of records to remove from the PersistentIdentityStore.
      * @throws IdentityStoreException if there is an error removing these records
      */
-    void removeOidMappings(List<Long> oidsToRemove) throws IdentityStoreException;
+    void removeOidMappings(Set<Long> oidsToRemove) throws IdentityStoreException;
 }

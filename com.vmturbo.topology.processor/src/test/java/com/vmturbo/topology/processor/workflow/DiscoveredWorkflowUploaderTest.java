@@ -2,13 +2,11 @@ package com.vmturbo.topology.processor.workflow;
 
 import static com.vmturbo.topology.processor.workflow.DiscoveredWorkflowTestUtils.EXPECTED_WORKFLOW_DTOS;
 import static com.vmturbo.topology.processor.workflow.DiscoveredWorkflowTestUtils.NME_WITH_WORKFLOWS;
+import static com.vmturbo.topology.processor.workflow.DiscoveredWorkflowTestUtils.TARGET_ID;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -24,20 +22,19 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class DiscoveredWorkflowUploaderTest {
 
-    private static final long TARGET_ID = 1234L;
-
     private DiscoveredWorkflowUploader recorderSpy;
 
     private final TestDiscoveredWorkflowService uploadServiceSpy =
             spy(new TestDiscoveredWorkflowService());
 
-    private final DiscoveredWorkflowInterpreter converter = mock(DiscoveredWorkflowInterpreter.class);
+    public DiscoveredWorkflowInterpreter converter;
 
     @Rule
     public GrpcTestServer server = GrpcTestServer.newServer(uploadServiceSpy);
 
     @Before
     public void setup() {
+        converter = new DiscoveredWorkflowInterpreter();
         recorderSpy = spy(new DiscoveredWorkflowUploader(server.getChannel(), converter));
     }
 
@@ -56,8 +53,8 @@ public class DiscoveredWorkflowUploaderTest {
         StoreDiscoveredWorkflowsRequest expectedRequest = StoreDiscoveredWorkflowsRequest
                 .newBuilder()
                 .setTargetId(TARGET_ID)
+                .addAllDiscoveredWorkflow(EXPECTED_WORKFLOW_DTOS)
                 .build();
-        when(converter.interpretWorkflowList(any(), anyLong())).thenReturn(EXPECTED_WORKFLOW_DTOS);
         // act
         recorderSpy.uploadDiscoveredWorkflows();
         // assert

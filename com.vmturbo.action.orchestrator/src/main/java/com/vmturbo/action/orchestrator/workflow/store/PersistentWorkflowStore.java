@@ -16,14 +16,12 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
-import org.jooq.InsertOnDuplicateSetMoreStep;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
-import com.vmturbo.action.orchestrator.db.tables.records.WorkflowRecord;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.store.IdentityStore;
@@ -98,18 +96,15 @@ public class PersistentWorkflowStore implements WorkflowStore {
                     long oid = entry.getValue();
                     try {
                         //todo: batch these writes into a single 'execute()'
-                        InsertOnDuplicateSetMoreStep<WorkflowRecord> t = transactionDsl
+                        transactionDsl
                                 .insertInto(WORKFLOW)
                                 .set(WORKFLOW.ID, oid)
                                 .set(WORKFLOW.WORKFLOW_INFO, workflowInfo.toByteArray())
                                 .set(WORKFLOW.LAST_UPDATE_TIME, dateTimeNow)
                                 .onDuplicateKeyUpdate()
                                 .set(WORKFLOW.WORKFLOW_INFO, workflowInfo.toByteArray())
-                                .set(WORKFLOW.LAST_UPDATE_TIME, dateTimeNow);
-                        int updateCount = t.execute();
-                        if (updateCount != 1) {
-                            throw new DataAccessException("item not persisted " + workflowInfo);
-                        }
+                                .set(WORKFLOW.LAST_UPDATE_TIME, dateTimeNow)
+                                .execute();
                     } catch (DataAccessException e) {
                         throw new PersistWorkflowException(String.format("Error persisting workflow:"
                                 + " %s for target id %s", workflowInfo.getName(), targetId), e);
@@ -117,9 +112,12 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 }
 
                 // now remove all the OIDs that were present before but not in the batch being persisted
-                previousOidsForThisTarget.removeAll(workflowOids.values());
-                if (!previousOidsForThisTarget.isEmpty()) {
-                    identityStore.removeItemOids(Lists.newArrayList(previousOidsForThisTarget));
+                Set<Long> oidsToRemove = Sets.difference(previousOidsForThisTarget,
+                        Sets.newHashSet(workflowOids.values()));
+                // if any left, they are old; remove them
+                if (!oidsToRemove.isEmpty()) {
+                    logger.info("Previous workflows removed: {}", oidsToRemove.size());
+                    identityStore.removeItemOids(Sets.newHashSet(oidsToRemove));
                 }
             });
         } catch (DataAccessException e) {

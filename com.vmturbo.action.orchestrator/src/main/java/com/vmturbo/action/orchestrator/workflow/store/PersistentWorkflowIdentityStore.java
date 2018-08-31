@@ -4,15 +4,13 @@ import static com.vmturbo.action.orchestrator.db.tables.WorkflowOid.WORKFLOW_OID
 import static com.vmturbo.action.orchestrator.workflow.store.WorkflowAttributeExtractor.WORKFLOW_NAME;
 import static com.vmturbo.action.orchestrator.workflow.store.WorkflowAttributeExtractor.WORKFLOW_TARGET_ID;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.persistence.Column;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -29,8 +27,6 @@ import com.vmturbo.identity.store.PersistentIdentityStore;
 public class PersistentWorkflowIdentityStore implements PersistentIdentityStore<WorkflowInfo> {
 
     private final DSLContext dsl;
-
-    private static final Logger logger = LogManager.getLogger();
 
     public PersistentWorkflowIdentityStore(DSLContext dsl) {
         this.dsl = dsl;
@@ -90,7 +86,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore<
     }
 
     @Override
-    public void removeOidMappings(List<Long> oidsToRemove) throws IdentityStoreException {
+    public void removeOidMappings(Set<Long> oidsToRemove) throws IdentityStoreException {
         try {
             dsl.transaction(configuration -> {
                 DSLContext transactionDsl = DSL.using(configuration);
@@ -116,6 +112,7 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore<
         @Column(name = "EXTERNAL_NAME")
         public String externalName;
 
+        @SuppressWarnings("unused")
         public String getExternalName() {
             return externalName;
         }

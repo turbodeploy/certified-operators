@@ -37,7 +37,7 @@ public interface IdentityStore<ITEM_TYPE> {
      * @param oidsToRemove the oids for the workflow infos to be removed
      * @throws IdentityStoreException if there's an error removing the workflow infos
      */
-    void removeItemOids(@Nonnull List<Long> oidsToRemove) throws IdentityStoreException;
+    void removeItemOids(@Nonnull Set<Long> oidsToRemove) throws IdentityStoreException;
 
 
     /**
