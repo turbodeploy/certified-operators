@@ -36,7 +36,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: plan-orchestrator
     spec:
       containers:
@@ -59,7 +59,7 @@ spec:
           value: kafka:9092
         - name: realtimeTopologyContextId
           value: "777777"
-        image: localhost:5000/turbonomic/com.vmturbo.plan.orchestrator:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.plan.orchestrator:BRANCH
         imagePullPolicy: Always
         name: plan-orchestrator
         resources:

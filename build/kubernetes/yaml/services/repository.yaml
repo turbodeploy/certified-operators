@@ -36,7 +36,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: repository
     spec:
       containers:
@@ -61,7 +61,7 @@ spec:
           value: kafka:9092
         - name: realtimeTopologyContextId
           value: "777777"
-        image: localhost:5000/turbonomic/com.vmturbo.repository-component:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.repository-component:BRANCH
         imagePullPolicy: Always
         name: repository
         resources:

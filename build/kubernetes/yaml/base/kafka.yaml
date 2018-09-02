@@ -35,7 +35,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: kafka
     spec:
       containers:
@@ -66,9 +66,9 @@ spec:
           value: "10"
         - name: consul_host
           value: consul
-        image: localhost:5000/turbonomic/kafka:1.0.0
+        image: localhost:5000/turbonomic/kafka:BRANCH
         name: kafka
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 9092
         resources:

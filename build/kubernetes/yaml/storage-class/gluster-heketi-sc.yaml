@@ -7,7 +7,7 @@ metadata:
 parameters:
   gidMax: "50000"
   gidMin: "2000"
-  resturl: http://10.233.25.110:8080
+  resturl: http://10.0.2.15:8080
   restuser: "null"
   restuserkey: "null"
   volumetype: "none"

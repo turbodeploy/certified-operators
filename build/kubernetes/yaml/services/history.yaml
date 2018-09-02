@@ -35,7 +35,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: history
     spec:
       containers:
@@ -60,7 +60,7 @@ spec:
           value: info
         - name: realtimeTopologyContextId
           value: "777777"
-        image: localhost:5000/turbonomic/com.vmturbo.history:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.history:BRANCH
         imagePullPolicy: Always
         name: history
         resources:

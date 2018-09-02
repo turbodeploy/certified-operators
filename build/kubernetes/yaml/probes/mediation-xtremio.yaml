@@ -36,7 +36,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: secure
+        zone: secure
         io.kompose.service: mediation-xtremio
     spec:
       containers:
@@ -53,7 +53,7 @@ spec:
           value: consul
         - name: instance_id
           value: mediation-xtremio-1
-        image: localhost:5000/turbonomic/com.vmturbo.mediation.xtremio.component:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.mediation.xtremio.component:BRANCH
         imagePullPolicy: Always
         name: mediation-xtremio
         ports:

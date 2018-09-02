@@ -69,7 +69,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: secure
+        zone: secure
         io.kompose.service: db
     spec:
       #securityContext:
@@ -79,9 +79,9 @@ spec:
       - env:
         - name: DB_MEM_PCT_FOR_BUFFER_POOL
           value: "80"
-        image: localhost:5000/turbonomic/db:1.0.0
+        image: localhost:5000/turbonomic/db:BRANCH
         name: db
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3306
         resources:

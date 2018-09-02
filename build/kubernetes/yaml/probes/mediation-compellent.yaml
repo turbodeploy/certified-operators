@@ -36,7 +36,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: secure
+        zone: secure
         io.kompose.service: mediation-compellent
     spec:
       containers:

@@ -86,7 +86,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: public
+        zone: public
         io.kompose.service: nginx
     spec:
       containers:
@@ -103,9 +103,9 @@ spec:
           value: consul
         - name: instance_id
           value: nginx-1
-        image: localhost:5000/turbonomic/nginx:1.1.0
+        image: localhost:5000/turbonomic/nginx:BRANCH
         name: nginx
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8443
         - containerPort: 8000
@@ -171,6 +171,6 @@ spec:
     io.kompose.service: nginx
   type: LoadBalancer
   externalIPs:
-  - 10.10.168.56
+  - 10.0.2.15
 status:
   loadBalancer: {}

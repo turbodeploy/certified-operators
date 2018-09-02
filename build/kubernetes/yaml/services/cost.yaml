@@ -35,7 +35,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: cost
     spec:
       containers:
@@ -56,7 +56,7 @@ spec:
           value: cost-1
         - name: kafkaServers
           value: kafka1:9092
-        image: localhost:5000/turbonomic/com.vmturbo.cost.component:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.cost.component:BRANCH
         imagePullPolicy: Always
         name: cost
         resources:

@@ -55,12 +55,13 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: rsyslog
     spec:
       containers:
-      - image: localhost:5000/turbonomic/syslog:1.0.0
+      - image: localhost:5000/turbonomic/syslog:BRANCH
         name: rsyslog
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 2514
         resources: {}

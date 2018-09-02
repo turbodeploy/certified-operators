@@ -69,15 +69,15 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: secure
+        zone: secure
         io.kompose.service: arangodb
     spec:
       containers:
       - env:
         - name: ARANGO_ROOT_PASSWORD
           value: root
-        image: localhost:5000/turbonomic/arangodb:1.0.0
-        imagePullPolicy: Always
+        image: localhost:5000/turbonomic/arangodb:BRANCH
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8529
         name: arangodb
@@ -142,6 +142,6 @@ spec:
   selector:
     io.kompose.service: arangodb
   externalIPs:
-  - 10.10.168.56
+  - 10.0.2.15
 status:
   loadBalancer: {}

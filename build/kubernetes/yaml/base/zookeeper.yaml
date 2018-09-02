@@ -35,7 +35,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: zookeeper
     spec:
       containers:
@@ -54,11 +54,11 @@ spec:
           value: "10"
         - name: consul_host
           value: consul
-        image: localhost:5000/turbonomic/zookeeper:1.0.0
+        image: localhost:5000/turbonomic/zookeeper:BRANCH
         name: zoo
         ports:
         - containerPort: 2181
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         resources:
           limits:
             memory: "402653184"

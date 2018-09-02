@@ -36,7 +36,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: secure
+        zone: secure
         io.kompose.service: mediation-ucsdirector
     spec:
       containers:
@@ -55,7 +55,7 @@ spec:
           value: consul
         - name: instance_id
           value: mediation-ucsdirector-1
-        image: localhost:5000/turbonomic/com.vmturbo.mediation.ucsdirector.component:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.mediation.ucsdirector.component:BRANCH
         imagePullPolicy: Always
         name: mediation-ucsdirector
         resources:

@@ -52,7 +52,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: dmz
+        zone: dmz
         io.kompose.service: api
     spec:
       containers:
@@ -77,8 +77,8 @@ spec:
           value: "777777"
         - name: kafkaServers
           value: kafka:9092
-        image: localhost:5000/turbonomic/com.vmturbo.api.component:1.0.0
-        imagePullPolicy: Always
+        image: localhost:5000/turbonomic/com.vmturbo.api.component:BRANCH
+        imagePullPolicy: IfNotPresent
         name: api
         ports:
         - containerPort: 8080

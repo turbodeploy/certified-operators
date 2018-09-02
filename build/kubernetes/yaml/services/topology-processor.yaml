@@ -36,7 +36,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: topology-processor
     spec:
       containers:
@@ -61,7 +61,7 @@ spec:
           value: default
         - name: realtimeTopologyContextId
           value: "777777"
-        image: localhost:5000/turbonomic/topology-processor:1.0.0
+        image: localhost:5000/turbonomic/topology-processor:BRANCH
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -119,6 +119,6 @@ spec:
   selector:
     io.kompose.service: topology-processor
   externalIPs:
-  - 10.10.168.56
+  - 10.0.2.15
 status:
   loadBalancer: {}

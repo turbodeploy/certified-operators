@@ -35,7 +35,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: secure
+        zone: secure
         io.kompose.service: consul
     spec:
       containers:
@@ -48,9 +48,9 @@ spec:
           value: eth0
         - name: constraint
           value: node==/node-4/
-        image: localhost:5000/turbonomic/com.vmturbo.consul:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.consul:BRANCH
         name: consul
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8500
           name: ui-port
@@ -123,6 +123,6 @@ spec:
   selector:
     io.kompose.service: consul
   externalIPs:
-  - 10.10.168.56
+  - 10.0.2.15
 status:
   loadBalancer: {}

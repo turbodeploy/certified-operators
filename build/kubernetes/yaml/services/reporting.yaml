@@ -36,7 +36,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: reporting
     spec:
       containers:
@@ -59,7 +59,7 @@ spec:
           value: kafka:9092
         - name: report.files.output.dir
           value: /home/turbonomic/data
-        image: localhost:5000/turbonomic/com.vmturbo.reports.component:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.reports.component:BRANCH
         imagePullPolicy: Always
         name: reporting
         resources:

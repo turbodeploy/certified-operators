@@ -35,7 +35,7 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-    zone: internal
+        zone: internal
         io.kompose.service: market
     spec:
       containers:
@@ -56,7 +56,7 @@ spec:
           value: market-1
         - name: kafkaServers
           value: kafka:9092
-        image: localhost:5000/turbonomic/market-component:1.0.0
+        image: localhost:5000/turbonomic/market-component:BRANCH
         imagePullPolicy: Always
         name: market
         resources:
