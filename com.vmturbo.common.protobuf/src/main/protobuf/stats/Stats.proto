@@ -312,6 +312,84 @@ message GetEntityCommoditiesMaxValuesRequest {
     repeated int32 entityTypes = 1;
 }
 
+// Request for system load info.
+message SystemLoadInfoRequest {
+    // The ID of the cluster
+    optional int64 cluster_id = 1;
+}
+
+// Response for system load info.
+message SystemLoadInfoResponse {
+    // List of system load records.
+    repeated SystemLoadRecord record = 1;
+}
+
+// Info contained in each record of the table system_load.
+// This table contains information about the system load and the commodities
+// participating in the calculation of the system load.
+// The system load is a value indicating how much "load" exists in a system.
+// The related records are calculated and stored to the DB in history component.
+// This info are used in the nightly headroom plans to calculate the headroom.
+// There are 4 types of records stored in DB:
+// Type 1: Used values, peak values and capacities for commodities sold by VMs.
+// Type 2: Used values and peak values for commodities bought by VMs.
+// Type 3: Sum of capacities per slice for commodities sold by hosts and storages.
+// Type 4: System load per slice.
+message SystemLoadRecord {
+    // Type 1, 2, 3, 4: The id of the cluster.
+    optional int64 cluster_id = 1;
+
+    // Type 1, 2, 3, 4: The time of the system load snapshot saved in the DB.
+    optional int64 snapshotTime = 2;
+
+    // Type 1, 2: The id of the VM.
+    // Type 3, 4: null
+    optional int64 uuid = 3;
+
+    // Type 1, 3, 4: null
+    // Type 2: The id of the provider of the commodity to the VM.
+    optional int64 producer_uuid = 4;
+
+    // Type 1, 2, 3: The name of the type of the commodity.
+    // Type 4: "system_load"
+    optional string property_type = 5;
+
+    // Type 1, 2: "used"
+    // Type 3: "total_capacity"
+    // Type 4: The name of the type of the commodity.
+    optional string property_subtype = 6;
+
+    // Type 1: The capacity of the commodity.
+    // Type 2: null
+    // Type 3, 4: The sum of the capacities for the specific commodity type in cluster.
+    optional double capacity = 7;
+
+    // Type 1, 2: The used value of the commodity.
+    // Type 3: null
+    // Type 4: The sum of used values for the specific commodity type in cluster.
+    optional double avg_value = 8;
+
+    // Type 1, 2: The used value of the commodity.
+    // Type 3: null
+    // Type 4: The sum of used values for the specific commodity type in cluster.
+    optional double min_value = 9;
+
+    // Type 1, 2: The peak value of the commodity.
+    // Type 3: null
+    // Type 4: The sum of used values for the specific commodity type in cluster.
+    optional double max_value = 10;
+
+    // Type 1, 4: RelationType.COMMODITIES
+    // Type 2, 3: RelationType.COMMODITIESBOUGHT
+    optional int32 relation_type = 11;
+
+    // Type 1, 2: The key of the commodity type.
+    // Type 3, 4: null
+    optional string commodity_key = 12;
+}
+
+
+
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
 
@@ -363,4 +441,7 @@ service StatsHistoryService {
     // Get the historic max values(within the stats retention period) for all the non-access commodities
     // for all entities of the given entity type.
     rpc GetEntityCommoditiesMaxValues(GetEntityCommoditiesMaxValuesRequest) returns (stream EntityCommoditiesMaxValues);
+
+    // Get the system load information for a specific slice (cluster)
+    rpc GetSystemLoadInfo(SystemLoadInfoRequest) returns (SystemLoadInfoResponse);
 }

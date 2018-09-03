@@ -61,6 +61,8 @@ public class PlanProjectExecutorTest {
 
     private PlanDao planDao = mock(PlanDao.class);
 
+    private PlanProjectDao planProjectDao = mock(PlanProjectDao.class);
+
     private PlanProjectExecutor planProjectExecutor;
 
     private GroupDTOMoles.GroupServiceMole groupServiceMole = spy(new GroupDTOMoles.GroupServiceMole());
@@ -80,7 +82,7 @@ public class PlanProjectExecutorTest {
         Channel repositoryChannel = mock(Channel.class);
         Channel historyChannel = mock(Channel.class);
         PlanInstanceQueue planInstanceQueue = mock(PlanInstanceQueue.class);
-        planProjectExecutor = new PlanProjectExecutor(planDao, grpcServer.getChannel(),
+        planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
                 planRpcService, registry, repositoryChannel, templatesDao, historyChannel,
                 planInstanceQueue);
         when(templatesDao.getTemplatesByName("headroomVM"))

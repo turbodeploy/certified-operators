@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.Iterator;
 
 import javax.annotation.Nonnull;
 
@@ -24,6 +25,9 @@ import com.google.gson.JsonParseException;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -41,6 +45,9 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
 
     private final Logger logger = LoggerFactory.getLogger(PlanProjectDaoImpl.class);
 
+    private final StatsHistoryServiceBlockingStub historyClient;
+
+
     /**
      * Database access context.
      */
@@ -52,9 +59,11 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
      * @param dsl database access context
      */
     public PlanProjectDaoImpl(@Nonnull final DSLContext dsl,
-                              @Nonnull final IdentityInitializer identityInitializer) {
+                              @Nonnull final IdentityInitializer identityInitializer,
+                              final StatsHistoryServiceBlockingStub historyClient) {
         this.dsl = Objects.requireNonNull(dsl);
         Objects.requireNonNull(identityInitializer); // Ensure identity generator is initialized
+        this.historyClient = historyClient;
     }
 
     @Nonnull
@@ -274,5 +283,11 @@ public class PlanProjectDaoImpl implements PlanProjectDao {
         } catch (DataAccessException e) {
             return 0;
         }
+    }
+
+    @Override
+    public SystemLoadInfoResponse getSystemLoadInfo(SystemLoadInfoRequest request) {
+        SystemLoadInfoResponse systemLoadInfo = historyClient.getSystemLoadInfo(request);
+        return systemLoadInfo;
     }
 }

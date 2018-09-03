@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 
@@ -40,9 +41,10 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
@@ -52,6 +54,7 @@ import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanPostProcessor;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
 
+
 /**
  * This class executes a plan project
  */
@@ -59,6 +62,8 @@ public class PlanProjectExecutor {
     private final Logger logger = LogManager.getLogger();
 
     private final PlanDao planDao;
+
+    private final PlanProjectDao planProjectDao;
 
     private final PlanRpcService planService;
 
@@ -91,6 +96,7 @@ public class PlanProjectExecutor {
      * Constructor for {@link PlanProjectExecutor}
      *
      * @param planDao Plan DAO
+     * @param planProjectDao PlanProject DAO
      * @param groupChannel  Group service channel
      * @param planRpcService Plan RPC Service
      * @param projectPlanPostProcessorRegistry Registry for post processors of plans
@@ -99,6 +105,7 @@ public class PlanProjectExecutor {
      * @param historyChannel history channel
      */
     public PlanProjectExecutor(@Nonnull final PlanDao planDao,
+                               @Nonnull final PlanProjectDao planProjectDao,
                                @Nonnull final Channel groupChannel,
                                @Nonnull final PlanRpcService planRpcService,
                                @Nonnull final ProjectPlanPostProcessorRegistry projectPlanPostProcessorRegistry,
@@ -111,6 +118,7 @@ public class PlanProjectExecutor {
         this.projectPlanPostProcessorRegistry = Objects.requireNonNull(projectPlanPostProcessorRegistry);
         this.repositoryChannel = Objects.requireNonNull(repositoryChannel);
         this.planDao = Objects.requireNonNull(planDao);
+        this.planProjectDao = Objects.requireNonNull(planProjectDao);
         this.templatesDao = Objects.requireNonNull(templatesDao);
         this.historyChannel = Objects.requireNonNull(historyChannel);
         this.planInstanceQueue = Objects.requireNonNull(planInstanceQueue);
@@ -163,7 +171,6 @@ public class PlanProjectExecutor {
         clusters = restrictNumberOfClusters(clusters);
 
         logger.info("Running plan project on {} clusters.", clusters.size());
-
         // Create one plan project instance per cluster per Scenario.
         // Total number of plan project instance to be created equals number of clusters times
         // number of scenarios in the plan project.
@@ -275,7 +282,16 @@ public class PlanProjectExecutor {
         final ScenarioInfo.Builder scenarioInfoBuilder = ScenarioInfo.newBuilder()
                 .addAllChanges(planProjectScenario.getChangesList())
                 .setScope(planScope);
+
         if (type.equals(PlanProjectType.CLUSTER_HEADROOM)) {
+
+            // Start of code by mkalath
+            SystemLoadInfoRequest.Builder builder = SystemLoadInfoRequest.newBuilder();
+            SystemLoadInfoResponse response = planProjectDao.getSystemLoadInfo(builder.setClusterId(cluster.getId()).build());
+
+            // End of code by mkalath, the following has to be reconsidered and changed appropriately
+
+
             // TODO (roman, Dec 5 2017): Project-type-specific logic should not be in the main
             // executor class. We should refactor this to separate the general and type-specific
             // processing steps.

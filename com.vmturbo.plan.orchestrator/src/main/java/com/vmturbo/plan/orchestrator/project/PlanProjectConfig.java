@@ -6,7 +6,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanProjectServiceController;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
@@ -22,7 +25,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         HistoryClientConfig.class,
         GroupClientConfig.class,
         PlanConfig.class,
-        TemplatesConfig.class})
+        TemplatesConfig.class,
+        ActionOrchestratorClientConfig.class})
 public class PlanProjectConfig {
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -45,6 +49,9 @@ public class PlanProjectConfig {
     @Autowired
     private TemplatesConfig templatesConfig;
 
+    @Autowired
+    private ActionOrchestratorClientConfig aoClientConfig;
+
     @Value("${defaultHeadroomPlanProjectJsonFile:systemPlanProjects.json}")
     private String defaultHeadroomPlanProjectJsonFile;
 
@@ -55,7 +62,7 @@ public class PlanProjectConfig {
 
     @Bean
     public PlanProjectDao planProjectDao() {
-        return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer());
+        return new PlanProjectDaoImpl(databaseConfig.dsl(), globalConfig.identityInitializer(), historyRpcService());
     }
 
     @Bean
@@ -73,6 +80,7 @@ public class PlanProjectConfig {
     @Bean
     public PlanProjectExecutor planProjectExecutor() {
         return new PlanProjectExecutor(planConfig.planDao(),
+                planProjectDao(),
                 groupClientConfig.groupChannel(),
                 planConfig.planService(),
                 planProjectRuntime(),
@@ -81,4 +89,10 @@ public class PlanProjectConfig {
                 historyClientConfig.historyChannel(),
                 planConfig.planInstanceQueue());
     }
+
+    @Bean
+    public StatsHistoryServiceBlockingStub historyRpcService() {
+        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
+    }
+
 }

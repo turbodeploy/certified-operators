@@ -10,6 +10,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
@@ -19,6 +20,7 @@ import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.stats.live.LiveStatsWriter;
+import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.topology.processor.api.EntitiesListener;
 
@@ -34,15 +36,21 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     // the database access utility classes for the History-related RDB tables
     private final LiveStatsWriter liveStatsWriter;
     private final StatsAvailabilityTracker availabilityTracker;
+    private final GroupServiceBlockingStub groupServiceClient;
+    private final SystemLoadHelper systemLoadHelper;
 
     // keeps track of the live topologies being processed. Used to prevent processing more than the
     // expected amount.
     List<TopologyInfo> topologiesInProcess = new ArrayList<>();
 
     public LiveTopologyEntitiesListener(@Nonnull final LiveStatsWriter liveStatsWriter,
-                                    @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker) {
+                                        @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker,
+                                        final GroupServiceBlockingStub groupServiceClient,
+                                        final SystemLoadHelper systemLoadHelper) {
         this.liveStatsWriter = Objects.requireNonNull(liveStatsWriter);
         this.availabilityTracker = Objects.requireNonNull(statsAvailabilityTracker);
+        this.groupServiceClient = groupServiceClient;
+        this.systemLoadHelper = systemLoadHelper;
     }
 
     /**
@@ -107,7 +115,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         }
         TopologyOrganizer topologyOrganizer = new TopologyOrganizer(topologyContextId, topologyId, creationTime);
         try {
-            int numEntities = liveStatsWriter.processChunks(topologyOrganizer, dtosIterator);
+            int numEntities = liveStatsWriter.processChunks(topologyOrganizer, dtosIterator, groupServiceClient, systemLoadHelper);
             availabilityTracker.topologyAvailable(topologyContextId, TopologyContextType.LIVE);
 
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM

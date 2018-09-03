@@ -20,16 +20,8 @@
             {
               "settingOverride" : {
                 "setting" : {
-                  "settingSpecName" : "move",
-                  "enumSettingValue" : { "value" : "DISABLED" }
-                }
-              }
-            },
-            {
-              "settingOverride" : {
-                "setting" : {
                   "settingSpecName" : "provision",
-                  "enumSettingValue" : { "value" : "DISABLED" }
+                  "enumSettingValue" : { "value" : "ENABLED" }
                 }
               }
             },
@@ -37,8 +29,25 @@
               "settingOverride" : {
                 "setting" : {
                   "settingSpecName" : "suspend",
+                  "enumSettingValue" : { "value" : "ENABLED" }
+                }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "resize",
                   "enumSettingValue" : { "value" : "DISABLED" }
                 }
+              }
+            },
+            {
+              "settingOverride" : {
+                "setting" : {
+                  "settingSpecName" : "shop",
+                  "enumSettingValue" : { "value" : "ENABLED" }
+                },
+                "entity_type" : 2
               }
             }
           ]

@@ -66,6 +66,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
@@ -76,7 +78,10 @@ import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRe
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.live.SystemLoadReader;
+import com.vmturbo.history.stats.live.SystemLoadWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
+import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
 
 /**
  * Handles incoming RPC calls to History Component to return Stats information.
@@ -101,6 +106,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     private final StatSnapshotCreator statSnapshotCreator;
 
     private final StatRecordBuilder statRecordBuilder;
+
+    private final SystemLoadReader systemLoadReader;
+    private final SystemLoadWriter systemLoadWriter;
 
     private static final String CLUSTER_STATS_TYPE_HEADROOM_VMS = "headroomVMs";
     private static final String CLUSTER_STATS_TYPE_NUM_VMS = "numVMs";
@@ -127,7 +135,9 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                            @Nonnull final ProjectedStatsStore projectedStatsStore,
                            @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
                            @Nonnull final StatSnapshotCreator statSnapshotCreator,
-                           @Nonnull final StatRecordBuilder statRecordBuilder) {
+                           @Nonnull final StatRecordBuilder statRecordBuilder,
+                           @Nonnull final SystemLoadReader systemLoadReader,
+                           @Nonnull final SystemLoadWriter systemLoadWriter) {
         this.realtimeContextId = realtimeContextId;
         this.liveStatsReader = Objects.requireNonNull(liveStatsReader);
         this.planStatsReader = Objects.requireNonNull(planStatsReader);
@@ -138,6 +148,8 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
         this.statSnapshotCreator = Objects.requireNonNull(statSnapshotCreator);
         this.statRecordBuilder = Objects.requireNonNull(statRecordBuilder);
+        this.systemLoadReader = Objects.requireNonNull(systemLoadReader);
+        this.systemLoadWriter = Objects.requireNonNull(systemLoadWriter);
     }
 
     /**
@@ -777,5 +789,39 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             responseObserver.onError(
                 Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
+    }
+
+    /**
+     * The method reads all the system load related records for a slice.
+     *
+     * @param request It contains the id of the slice.
+     * @param responseObserver An indication that the request has completed.
+     */
+    public void getSystemLoadInfo(
+                    SystemLoadInfoRequest request,
+                    final StreamObserver<SystemLoadInfoResponse> responseObserver) {
+        final SystemLoadInfoResponse.Builder responseBuilder = SystemLoadInfoResponse.newBuilder();
+        final Stats.SystemLoadRecord.Builder recordBuilder = Stats.SystemLoadRecord.newBuilder();
+        SystemLoadInfoResponse response = null;
+
+        List<SystemLoadRecord> records = systemLoadReader.getSystemLoadInfo(Long.toString(request.getClusterId()));
+        for (SystemLoadRecord record : records) {
+            Stats.SystemLoadRecord statsRecord = recordBuilder
+                    .setClusterId(record.getSlice() != null ? Long.parseLong(record.getSlice()) : 0L)
+                    .setSnapshotTime(record.getSnapshotTime() != null ? record.getSnapshotTime().getTime() : -1)
+                    .setUuid(record.getUuid() != null ? Long.parseLong(record.getUuid()) : 0L)
+                    .setProducerUuid(record.getProducerUuid() != null ? Long.parseLong(record.getProducerUuid()) : 0L)
+                    .setPropertyType(record.getPropertyType() != null ? record.getPropertyType() : "")
+                    .setPropertySubtype(record.getPropertySubtype() != null ? record.getPropertySubtype() : "")
+                    .setCapacity(record.getCapacity() != null ? record.getCapacity() : -1.0)
+                    .setAvgValue(record.getAvgValue() != null ? record.getAvgValue() : -1.0)
+                    .setMinValue(record.getMinValue() != null ? record.getMinValue() : -1.0)
+                    .setMaxValue(record.getMaxValue() != null ? record.getMaxValue() : -1.0)
+                    .setRelationType(record.getRelation() != null ? record.getRelation().ordinal() : -1)
+                    .setCommodityKey(record.getCommodityKey() != null ? record.getCommodityKey() : "").build();
+            responseBuilder.addRecord(statsRecord);
+        }
+        responseObserver.onNext(responseBuilder.build());
+        responseObserver.onCompleted();
     }
 }

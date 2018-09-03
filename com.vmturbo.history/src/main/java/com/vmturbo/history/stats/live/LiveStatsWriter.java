@@ -18,6 +18,7 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -26,6 +27,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
+import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.history.utils.TopologyOrganizer;
 
 /**
@@ -39,9 +41,11 @@ public class LiveStatsWriter {
     // the number of entities for which stats are persisted in a single DB Insert operations
     private final int writeTopologyChunkSize;
 
-    // commodities in this list will not be pesisted to the DB; examples are Access Commodities
+    // commodities in this list will not be persisted to the DB; examples are Access Commodities
     // note that the list will be small so using a HashSet is not necessary.
     private final ImmutableList<String> commoditiesToExclude;
+
+    private final SystemLoadSnapshot snapshot = new SystemLoadSnapshot();
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -73,7 +77,9 @@ public class LiveStatsWriter {
 
     public int processChunks(
             @Nonnull TopologyOrganizer topologyOrganizer,
-            @Nonnull RemoteIterator<TopologyEntityDTO> dtosIterator
+            @Nonnull RemoteIterator<TopologyEntityDTO> dtosIterator,
+            GroupServiceBlockingStub groupServiceClient,
+            SystemLoadHelper systemLoadHelper
     ) throws CommunicationException, TimeoutException, InterruptedException, VmtDbException {
         // read all the DTO chunks before any processing
         Collection<TopologyEntityDTO> allTopologyDTOs = Lists.newArrayList();
@@ -128,6 +134,9 @@ public class LiveStatsWriter {
         logger.info("Done handling topology notification for realtime topology {} and context {}."
                         + " Number of entities: {}", topologyOrganizer.getTopologyId(),
                         topologyOrganizer.getTopologyContextId(), numberOfEntities);
+        if (groupServiceClient != null) {
+            snapshot.saveSnapshot(allTopologyDTOs, groupServiceClient, systemLoadHelper);
+        }
 
         return numberOfEntities;
     }

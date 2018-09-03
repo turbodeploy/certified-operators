@@ -34,6 +34,7 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.chunking.RemoteIterator;
@@ -60,9 +61,10 @@ import com.vmturbo.history.schema.abstraction.tables.VpodStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.StatsTestUtils;
-import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
+import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.history.utils.TopologyOrganizer;
+import com.vmturbo.history.topology.TopologyListenerConfig;
 //import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 //import com.vmturbo.history.util.IDGen;
@@ -149,6 +151,9 @@ public class LiveStatsDBTest {
         TopologyOrganizer topologyOrganizer = new TopologyOrganizer(REALTIME_TOPOLOGY_CONTEXT_ID,
                 TEST_TOPOLOGY_ID);
 
+        GroupServiceBlockingStub groupServiceClient = Mockito.mock(TopologyListenerConfig.class).groupServiceClient();
+        SystemLoadHelper systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
+
         RemoteIterator<TopologyEntityDTO> allDTOs = Mockito.mock(RemoteIterator.class);
         when(allDTOs.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);
         when(allDTOs.nextChunk())
@@ -156,7 +161,7 @@ public class LiveStatsDBTest {
             .thenReturn(allEntityDTOs.subList(listSize * 2 / 3, listSize));
 
         // Act
-        writerUnderTest.processChunks(topologyOrganizer, allDTOs);
+        writerUnderTest.processChunks(topologyOrganizer, allDTOs, groupServiceClient, systemLoadHelper);
 
         // Assert
         // expected row counts from the sample topology

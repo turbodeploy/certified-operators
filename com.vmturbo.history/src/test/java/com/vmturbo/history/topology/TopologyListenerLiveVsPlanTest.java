@@ -7,18 +7,21 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Matchers.any;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.stats.live.LiveStatsWriter;
 import com.vmturbo.history.stats.PlanStatsWriter;
+import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.history.utils.TopologyOrganizer;
 
 /**
@@ -36,6 +39,8 @@ public class TopologyListenerLiveVsPlanTest {
     private PlanStatsWriter planStatsWriter;
     private RemoteIterator<TopologyDTO.TopologyEntityDTO> testTopologyDTOs;
     private StatsAvailabilityTracker availabilityTracker;
+    private GroupServiceBlockingStub groupServiceClient;
+    private SystemLoadHelper systemLoadHelper;
 
     @Before
     public void setup() {
@@ -43,13 +48,17 @@ public class TopologyListenerLiveVsPlanTest {
         planStatsWriter = Mockito.mock(PlanStatsWriter.class);
         testTopologyDTOs = Mockito.mock(RemoteIterator.class);
         availabilityTracker = Mockito.mock(StatsAvailabilityTracker.class);
+        groupServiceClient = Mockito.mock(TopologyListenerConfig.class).groupServiceClient();
+        systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
     }
 
     @Test
     public void liveTopologyNotificationTest() throws Exception {
         final LiveTopologyEntitiesListener serviceUndertest = new LiveTopologyEntitiesListener(
                 liveStatsWriter,
-                availabilityTracker);
+                availabilityTracker,
+                groupServiceClient,
+                systemLoadHelper);
         // Arrange
         RemoteIterator<TopologyDTO.TopologyEntityDTO> iterator
                 = Mockito.mock(RemoteIterator.class);
@@ -66,7 +75,7 @@ public class TopologyListenerLiveVsPlanTest {
         // Assert
         ArgumentCaptor<TopologyOrganizer> organizerArgCaptor = ArgumentCaptor.forClass(TopologyOrganizer.class);
 
-        verify(liveStatsWriter).processChunks(organizerArgCaptor.capture(), Mockito.eq(iterator));
+        verify(liveStatsWriter).processChunks(organizerArgCaptor.capture(), Mockito.eq(iterator), any(), any());
         TopologyOrganizer capturedOrganizer = organizerArgCaptor.getValue();
         assertThat(capturedOrganizer.getTopologyContextId(), is(REALTIME_TOPOLOGY_ID));
         assertThat(capturedOrganizer.getTopologyId(), is(TEST_TOPOLOGY_ID));

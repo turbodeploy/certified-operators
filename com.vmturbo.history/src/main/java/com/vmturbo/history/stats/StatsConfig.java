@@ -19,6 +19,8 @@ import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 import com.vmturbo.history.stats.live.LiveStatsWriter;
+import com.vmturbo.history.stats.live.SystemLoadWriter;
+import com.vmturbo.history.stats.live.SystemLoadReader;
 import com.vmturbo.history.stats.live.StatsQueryFactory;
 import com.vmturbo.history.stats.live.StatsQueryFactory.DefaultStatsQueryFactory;
 import com.vmturbo.history.stats.live.TimeFrameCalculator;
@@ -26,6 +28,7 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory;
 import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRangeFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
+import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * Spring configuration for Stats RPC service related objects.
@@ -73,7 +76,8 @@ public class StatsConfig {
                 planStatsReader(), clusterStatsReader(), clusterStatsWriter(),
                 historyDbConfig.historyDbIO(),
                 projectedStatsStore(), paginationParamsFactory(),
-                statSnapshotCreator(), statRecordBuilder());
+                statSnapshotCreator(), statRecordBuilder(),
+                systemLoadReader(), systemLoadWriter());
     }
 
     @Bean
@@ -118,6 +122,24 @@ public class StatsConfig {
     public LiveStatsWriter liveStatsWriter() {
         return new LiveStatsWriter(topologySnapshotRegistry(), historyDbConfig.historyDbIO(),
                 writeTopologyChunkSize, excludedCommoditiesList());
+    }
+
+    @Bean
+    public SystemLoadWriter systemLoadWriter() {
+        SystemLoadWriter systemLoadWriter = new SystemLoadWriter(historyDbConfig.historyDbIO());
+        return systemLoadWriter;
+    }
+
+    @Bean
+    public SystemLoadReader systemLoadReader() {
+        SystemLoadReader systemLoadReader = new SystemLoadReader(historyDbConfig.historyDbIO());
+        return systemLoadReader;
+    }
+
+    @Bean
+    public SystemLoadHelper systemLoadHelper() {
+        SystemLoadHelper systemLoadUtils = new SystemLoadHelper(systemLoadReader(), systemLoadWriter());
+        return systemLoadUtils;
     }
 
     @Bean

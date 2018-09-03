@@ -9,6 +9,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProject;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectInfo;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.components.common.diagnostics.Diagnosable;
 
 /**
@@ -60,4 +62,6 @@ public interface PlanProjectDao extends Diagnosable {
      */
     @Nonnull
     Optional<PlanDTO.PlanProject> deletePlan(long id);
+
+    SystemLoadInfoResponse getSystemLoadInfo(SystemLoadInfoRequest request);
 }

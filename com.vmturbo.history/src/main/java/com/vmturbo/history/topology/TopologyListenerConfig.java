@@ -13,11 +13,15 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
 
+import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+
 /**
  * Set up a Listener for the Topology Processor feed.
  **/
 @Configuration
-@Import({HistoryApiConfig.class, TopologyProcessorClientConfig.class})
+@Import({HistoryApiConfig.class, TopologyProcessorClientConfig.class, GroupClientConfig.class})
 public class TopologyListenerConfig {
 
     @Autowired
@@ -29,11 +33,16 @@ public class TopologyListenerConfig {
     @Autowired
     private HistoryApiConfig historyApiConfig;
 
+    @Autowired
+    private GroupClientConfig groupClientConfig;
+
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         return new LiveTopologyEntitiesListener(
                 statsConfig.liveStatsWriter(),
-                historyApiConfig.statsAvailabilityTracker());
+                historyApiConfig.statsAvailabilityTracker(),
+                groupServiceClient(),
+                statsConfig.systemLoadHelper());
     }
 
     @Bean
@@ -43,4 +52,10 @@ public class TopologyListenerConfig {
         topologyProcessor.addLiveTopologyListener(liveTopologyEntitiesListener());
         return topologyProcessor;
     }
+
+    @Bean
+    public GroupServiceBlockingStub groupServiceClient() {
+        return GroupServiceGrpc.newBlockingStub(groupClientConfig.groupChannel());
+    }
+
 }

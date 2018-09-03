@@ -82,7 +82,7 @@ public class PlanProjectSchedulerTest {
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        planProjectDao = new PlanProjectDaoImpl(dbConfig.dsl(),new IdentityInitializer(0));
+        planProjectDao = new PlanProjectDaoImpl(dbConfig.dsl(),new IdentityInitializer(0), null);
         threadPoolTaskScheduler = new ThreadPoolTaskScheduler();
         threadPoolTaskScheduler.setPoolSize(1);
         threadPoolTaskScheduler.setThreadFactory(new ThreadFactoryBuilder()

@@ -25,14 +25,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
-import com.vmturbo.history.stats.live.LiveStatsWriter;
+import com.vmturbo.history.topology.TopologyListenerConfig;
 import com.vmturbo.history.topology.TopologySnapshotRegistry;
+import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
@@ -57,6 +59,8 @@ public class LiveStatsWriterTest {
     private HistorydbIO mockHistorydbIO;
     private TopologySnapshotRegistry topologySnapshotRegistry;
     private TopologyOrganizer topologyOrganizer;
+    private GroupServiceBlockingStub groupServiceClient;
+    private SystemLoadHelper systemLoadHelper;
     private DSLContext mockDSLContext;
     private Collection<TopologyEntityDTO> allEntities;
     @Captor
@@ -74,6 +78,9 @@ public class LiveStatsWriterTest {
                 buildEntityDTO(sdkEntityType, TEST_OID, displayName));
         topologySnapshotRegistry = Mockito.mock(TopologySnapshotRegistry.class);
         topologyOrganizer = Mockito.mock(TopologyOrganizer.class);
+
+        groupServiceClient = Mockito.mock(TopologyListenerConfig.class).groupServiceClient();
+        systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
 
         // mock bind values for counting inserted rows
         InsertSetMoreStep mockInsertStep = Mockito.mock(InsertSetMoreStep.class);
@@ -98,7 +105,7 @@ public class LiveStatsWriterTest {
         when(allDTOs.hasNext()).thenReturn(true).thenReturn(false);
         when(allDTOs.nextChunk()).thenReturn(allEntities);
 
-        testStatsWriter.processChunks(topologyOrganizer, allDTOs);
+        testStatsWriter.processChunks(topologyOrganizer, allDTOs, groupServiceClient, systemLoadHelper);
     }
 
     /**

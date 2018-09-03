@@ -91,6 +91,8 @@ import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
 import com.vmturbo.history.stats.StatSnapshotCreator.DefaultStatSnapshotCreator;
 import com.vmturbo.history.stats.live.LiveStatsReader;
 import com.vmturbo.history.stats.live.LiveStatsReader.StatRecordPage;
+import com.vmturbo.history.stats.live.SystemLoadReader;
+import com.vmturbo.history.stats.live.SystemLoadWriter;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore;
 
 /**
@@ -124,6 +126,10 @@ public class StatsHistoryRpcServiceTest {
 
     private StatSnapshotCreator statSnapshotCreatorSpy = spy(new DefaultStatSnapshotCreator(statRecordBuilderSpy));
 
+    private SystemLoadReader systemLoadReader = mock(SystemLoadReader.class);
+
+    private SystemLoadWriter systemLoadWriter = mock(SystemLoadWriter.class);
+
     private StatsHistoryRpcService statsHistoryRpcService =
             new StatsHistoryRpcService(REALTIME_CONTEXT_ID,
                      mockLivestatsreader, mockPlanStatsReader,
@@ -131,7 +137,8 @@ public class StatsHistoryRpcServiceTest {
                      historyDbio, mockProjectedStatsStore,
                     paginationParamsFactory,
                     statSnapshotCreatorSpy,
-                    statRecordBuilderSpy);
+                    statRecordBuilderSpy,
+                    systemLoadReader, systemLoadWriter);
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryRpcService);
