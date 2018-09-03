@@ -57,6 +57,7 @@ spec:
         - name: kafkaServers
           value: kafka:9092
         image: localhost:5000/turbonomic/auth:BRANCH
+        imagePullPolicy: IfNotPresent
         name: auth
         ports:
         - containerPort: 8080
