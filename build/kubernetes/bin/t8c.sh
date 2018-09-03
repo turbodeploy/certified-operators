@@ -60,13 +60,13 @@ fi
 # List the master nodes:
 echo
 echo
-echo "Master Nodes"
+echo "Master Node(s)"
 echo "++++++++++++"
 if (( ${tLen} > 1 ))
 then
   for ((i=0,j=1; i<2; i++,j++));
   do
-      echo node${j} ${node[i]}
+    echo node${j} ${node[i]}
   done
   echo
   echo
@@ -212,30 +212,33 @@ echo
 echo "************************* Deployments *****************************"
 kubectl get deployments
 echo "*******************************************************************"
-echo
-echo
-echo
 
-# Install pre-turbonomic environmental requirementes
-echo "######################################################################"
-echo "                 Prepare Turbonomic Appliance                         "
-echo "######################################################################"
-/opt/local/bin/turboEnv.sh
-echo
-echo
-echo
+if [ "x${node[0]}" != "x10.0.2.15" ]
+then
+  # Install pre-turbonomic environmental requirementes
+  echo
+  echo
+  echo
+  echo "######################################################################"
+  echo "                 Prepare Turbonomic Appliance                         "
+  echo "######################################################################"
+  /opt/local/bin/turboEnv.sh
+  echo
+  echo
+  echo
 
-# Install local registry if needed
-echo "######################################################################"
-echo "                 Setup Registry ${registry}                           "
-echo "######################################################################"
-/opt/local/bin/turboRegistry.sh
-echo
-echo
-echo
+  # Install local registry if needed
+  echo "######################################################################"
+  echo "                 Setup Registry ${registry}                           "
+  echo "######################################################################"
+  /opt/local/bin/turboRegistry.sh
+  echo
+  echo
+  echo
 
-# Install turbo components
-echo "######################################################################"
-echo "                 Start Turbonomic Deployment                          "
-echo "######################################################################"
-/opt/local/bin/turboServices.sh
+  # Install turbo components
+  echo "######################################################################"
+  echo "                 Start Turbonomic Deployment                          "
+  echo "######################################################################"
+  /opt/local/bin/turboServices.sh
+fi
