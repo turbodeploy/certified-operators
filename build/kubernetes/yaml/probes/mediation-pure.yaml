@@ -54,7 +54,7 @@ spec:
         - name: instance_id
           value: mediation-pure-1
         image: localhost:5000/turbonomic/com.vmturbo.mediation.pure.component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: mediation-pure
         resources: {}
         ports:

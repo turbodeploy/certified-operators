@@ -61,7 +61,7 @@ spec:
         - name: realtimeTopologyContextId
           value: "777777"
         image: localhost:5000/turbonomic/com.vmturbo.history:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: history
         resources:
           limits:

@@ -57,7 +57,7 @@ spec:
         - name: kafkaServers
           value: kafka:9092
         image: localhost:5000/turbonomic/market-component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: market
         resources:
           limits:

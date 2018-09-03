@@ -60,7 +60,7 @@ spec:
         - name: realtimeTopologyContextId
           value: "777777"
         image: localhost:5000/turbonomic/com.vmturbo.plan.orchestrator:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: plan-orchestrator
         resources:
           limits:

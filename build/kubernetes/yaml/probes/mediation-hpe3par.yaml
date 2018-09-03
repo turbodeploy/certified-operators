@@ -57,7 +57,7 @@ spec:
         - name: instance_id
           value: mediation-hpe3par-1
         image: localhost:5000/turbonomic/com.vmturbo.mediation.hpe3par.component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: mediation-hpe3par
         ports:
         - containerPort: 8080

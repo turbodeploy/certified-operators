@@ -56,7 +56,7 @@ spec:
         - name: instance_id
           value: mediation-openstack-1
         image: localhost:5000/turbonomic/com.vmturbo.mediation.openstack.component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: mediation-openstack
         resources:
           limits:

@@ -54,7 +54,7 @@ spec:
         - name: instance_id
           value: mediation-hds-1
         image: localhost:5000/turbonomic/com.vmturbo.mediation.hds.component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: mediation-hds
         ports:
         - containerPort: 8080

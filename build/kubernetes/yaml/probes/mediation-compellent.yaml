@@ -53,7 +53,8 @@ spec:
           value: consul
         - name: instance_id
           value: mediation-compellent-1
-        image: localhost:5000/turbonomic/com.vmturbo.mediation.compellent.component:1.0.0
+        image: localhost:5000/turbonomic/com.vmturbo.mediation.compellent.component:BRANCH
+        imagePullPolicy: IfNotPresent
         name: mediation-compellent
         ports:
         - containerPort: 8080

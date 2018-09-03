@@ -54,7 +54,7 @@ spec:
         - name: instance_id
           value: mediation-vplex-1
         image: localhost:5000/turbonomic/com.vmturbo.mediation.vplex.component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: mediation-vplex
         ports:
         - containerPort: 8080

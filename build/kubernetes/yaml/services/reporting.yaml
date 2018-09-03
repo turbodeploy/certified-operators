@@ -60,7 +60,7 @@ spec:
         - name: report.files.output.dir
           value: /home/turbonomic/data
         image: localhost:5000/turbonomic/com.vmturbo.reports.component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: reporting
         resources:
           limits:

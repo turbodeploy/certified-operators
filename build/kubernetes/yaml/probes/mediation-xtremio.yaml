@@ -54,7 +54,7 @@ spec:
         - name: instance_id
           value: mediation-xtremio-1
         image: localhost:5000/turbonomic/com.vmturbo.mediation.xtremio.component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: mediation-xtremio
         ports:
         - containerPort: 8080

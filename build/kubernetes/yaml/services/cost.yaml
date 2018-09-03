@@ -57,7 +57,7 @@ spec:
         - name: kafkaServers
           value: kafka1:9092
         image: localhost:5000/turbonomic/com.vmturbo.cost.component:BRANCH
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         name: cost
         resources:
           limits:
