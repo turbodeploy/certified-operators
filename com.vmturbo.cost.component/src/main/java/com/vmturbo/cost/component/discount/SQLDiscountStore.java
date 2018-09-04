@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.discount;
 
 import static com.vmturbo.cost.component.db.Tables.DISCOUNT;
 
-import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.List;
 import java.util.Objects;
 
@@ -11,13 +10,13 @@ import javax.annotation.Nonnull;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-import org.springframework.dao.DataIntegrityViolationException;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.cost.component.db.tables.pojos.Discount;
 import com.vmturbo.cost.component.db.tables.records.DiscountRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.sql.utils.DbException;
 
 /**
  * {@inheritDoc}
@@ -41,7 +40,7 @@ public class SQLDiscountStore implements DiscountStore {
     @Override
     public Cost.Discount persistDiscount(final long associatedAccountId,
                                          @Nonnull final DiscountInfo discountInfo)
-            throws DuplicateAccountIdException {
+            throws DuplicateAccountIdException, DbException {
         try {
             return dsl.transactionResult(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
@@ -61,7 +60,7 @@ public class SQLDiscountStore implements DiscountStore {
             if (e.getCause() instanceof DuplicateAccountIdException) {
                 throw (DuplicateAccountIdException) e.getCause();
             } else {
-                throw e;
+                throw new DbException(e.getMessage());
             }
         }
     }
@@ -72,13 +71,18 @@ public class SQLDiscountStore implements DiscountStore {
      */
     @Override
     public void updateDiscount(final long id,
-                               @Nonnull final DiscountInfo discountInfo) throws DiscountNotFoundException {
-        if (dsl.update(DISCOUNT)
-                .set(DISCOUNT.DISCOUNT_INFO, discountInfo)
-                .where(DISCOUNT.ID.eq(id))
-                .execute() != 1) {
-            throw new DiscountNotFoundException("Discount id " + id +
-                    " is not found. Could not update");
+                               @Nonnull final DiscountInfo discountInfo)
+            throws DiscountNotFoundException, DbException {
+        try {
+            if (dsl.update(DISCOUNT)
+                    .set(DISCOUNT.DISCOUNT_INFO, discountInfo)
+                    .where(DISCOUNT.ID.eq(id))
+                    .execute() != 1) {
+                throw new DiscountNotFoundException("Discount id " + id +
+                        " is not found. Could not update");
+            }
+        } catch (DataAccessException e) {
+            throw new DbException(e.getMessage());
         }
     }
 
@@ -87,10 +91,15 @@ public class SQLDiscountStore implements DiscountStore {
      */
     @Nonnull
     @Override
-    public List<Cost.Discount> getAllDiscount() {
-        return dsl.selectFrom(DISCOUNT)
-                .fetch()
-                .map(this::toDTO);
+    public List<Cost.Discount> getAllDiscount() throws DbException {
+
+        try {
+            return dsl.selectFrom(DISCOUNT)
+                    .fetch()
+                    .map(this::toDTO);
+        } catch (DataAccessException e) {
+            throw new DbException(e.getMessage());
+        }
     }
 
     /**
@@ -98,11 +107,15 @@ public class SQLDiscountStore implements DiscountStore {
      */
     @Nonnull
     @Override
-    public List<Cost.Discount> getDiscountByDiscountId(final long id) {
-        return dsl.selectFrom(DISCOUNT)
-                .where(DISCOUNT.ID.eq(id))
-                .fetch()
-                .map(this::toDTO);
+    public List<Cost.Discount> getDiscountByDiscountId(final long id) throws DbException {
+        try {
+            return dsl.selectFrom(DISCOUNT)
+                    .where(DISCOUNT.ID.eq(id))
+                    .fetch()
+                    .map(this::toDTO);
+        } catch (DataAccessException e) {
+            throw new DbException(e.getMessage());
+        }
     }
 
     /**
@@ -110,22 +123,31 @@ public class SQLDiscountStore implements DiscountStore {
      */
     @Nonnull
     @Override
-    public List<Cost.Discount> getDiscountByAssociatedAccountId(final long associatedAccountId) {
-        return dsl.selectFrom(DISCOUNT)
-                .where(DISCOUNT.ASSOCIATED_ACCOUNT_ID.eq(associatedAccountId))
-                .fetch()
-                .map(this::toDTO);
+    public List<Cost.Discount> getDiscountByAssociatedAccountId(final long associatedAccountId)
+            throws DbException {
+        try {
+            return dsl.selectFrom(DISCOUNT)
+                    .where(DISCOUNT.ASSOCIATED_ACCOUNT_ID.eq(associatedAccountId))
+                    .fetch()
+                    .map(this::toDTO);
+        } catch (DataAccessException e) {
+            throw new DbException(e.getMessage());
+        }
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public void deleteDiscountByDiscountId(final long id) throws DiscountNotFoundException {
-        if (dsl.deleteFrom(DISCOUNT).where(DISCOUNT.ID.eq(id))
-                .execute() != 1) {
-            throw new DiscountNotFoundException("Discount id " + id +
-                    " is not found. Could not delete");
+    public void deleteDiscountByDiscountId(final long id) throws DiscountNotFoundException, DbException {
+        try {
+            if (dsl.deleteFrom(DISCOUNT).where(DISCOUNT.ID.eq(id))
+                    .execute() != 1) {
+                throw new DiscountNotFoundException("Discount id " + id +
+                        " is not found. Could not delete");
+            }
+        } catch (DataAccessException e) {
+            throw new DbException(e.getMessage());
         }
     }
 

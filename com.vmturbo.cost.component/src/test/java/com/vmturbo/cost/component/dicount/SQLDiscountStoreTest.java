@@ -93,7 +93,7 @@ public class SQLDiscountStoreTest {
         assertEquals(0, discountDao.getAllDiscount().size());
     }
 
-    private Discount saveDiscount() throws DuplicateAccountIdException {
+    private Discount saveDiscount() throws DuplicateAccountIdException, DbException {
         // INSERT
         Discount discountDto = discountDao.persistDiscount(ASSOCIATED_ACCOUNT_ID, discountInfoAccountLevelOnly1);
         assertEquals(ASSOCIATED_ACCOUNT_ID, discountDto.getAssociatedAccountId());
@@ -106,7 +106,8 @@ public class SQLDiscountStoreTest {
 
     // It's not using junit expected exception to ensure cleaning up the db.
     @Test
-    public void testCreateDiscountWithExistingAccount() throws DiscountNotFoundException, DuplicateAccountIdException {
+    public void testCreateDiscountWithExistingAccount()
+            throws DuplicateAccountIdException, DbException, DiscountNotFoundException {
         Discount discountDto = saveDiscount();
         try {
             saveDiscount();
@@ -119,7 +120,7 @@ public class SQLDiscountStoreTest {
     }
 
     @Test(expected = DiscountNotFoundException.class)
-    public void testUpdateDiscountWithNotExistedAccount() throws DiscountNotFoundException {
+    public void testUpdateDiscountWithNotExistedAccount() throws DiscountNotFoundException, DbException {
         discountDao.updateDiscount(Long.MAX_VALUE, discountInfoAccountLevelOnly2);
     }
 }
