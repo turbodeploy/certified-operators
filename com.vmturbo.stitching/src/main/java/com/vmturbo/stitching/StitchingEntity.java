@@ -1,5 +1,6 @@
 package com.vmturbo.stitching;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -8,6 +9,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -63,6 +65,23 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
      * @return The {@link StitchingEntity}s buying commodities from this entity.
      */
     Set<StitchingEntity> getConsumers();
+
+    /**
+     * Get the set of {@link StitchingEntity}s that this entity is "connected to". This relationship
+     * was added to support cloud entities that are connected to other entities but do not buy or
+     * sell commodities. For example, a BusinessAccount may be connected to other BusinessAccounts,
+     * a VM may be connected to an AvailabilityZone, and so on.
+     * and may own Workload entities such as VMs, Databases, etc.
+     *
+     * @return the set of {@link StitchingEntity} instances that this entity is connected to.
+     */
+    default Set<StitchingEntity> getConnectedTo() {
+        return Collections.emptySet();
+    }
+
+    default Map<ConnectionType, Set<StitchingEntity>> getConnectedToByType() {
+        return Collections.emptyMap();
+    }
 
     /**
      * Get the {@link EntityType} of this {@link StitchingEntity}.

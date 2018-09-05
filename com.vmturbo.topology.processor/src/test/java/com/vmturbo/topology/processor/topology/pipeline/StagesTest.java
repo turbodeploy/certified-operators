@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -44,6 +45,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
@@ -127,6 +129,7 @@ public class StagesTest {
     public void testStitchingStage() {
         final StitchingManager stitchingManager = mock(StitchingManager.class);
         final EntityStore entityStore = mock(EntityStore.class);
+        final TargetStore targetStore = mock(TargetStore.class);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final StitchingJournalFactory journalFactory = mock(StitchingJournalFactory.class);
@@ -135,7 +138,8 @@ public class StagesTest {
         final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
 
         when(journalFactory.stitchingJournal(eq(stitchingContext))).thenReturn(journal);
-        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
+        when(entityStore.constructStitchingContext(targetStore, Collections.emptyMap())).thenReturn
+                (stitchingContext);
         when(stitchingManager.stitch(eq(stitchingContext), eq(journal))).thenReturn(stitchingContext);
         when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
         when(context.getStitchingJournalContainer()).thenReturn(container);
@@ -144,7 +148,8 @@ public class StagesTest {
         when(stitchingContext.getStitchingGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());
 
-        final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory);
+        final StitchingStage stitchingStage = new StitchingStage(stitchingManager, targetStore,
+                Collections.emptyMap(), journalFactory);
         stitchingStage.setContext(context);
         assertThat(stitchingStage.execute(entityStore).constructTopology(), is(Collections.emptyMap()));
         assertTrue(container.getMainStitchingJournal().isPresent());

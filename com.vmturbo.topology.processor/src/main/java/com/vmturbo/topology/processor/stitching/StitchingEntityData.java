@@ -5,6 +5,8 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * Bundles together a {@link EntityDTO.Builder} together with the targetID that discovered the
@@ -17,9 +19,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
  */
 public class StitchingEntityData {
     private final EntityDTO.Builder entityDtoBuilder;
+    private final EntityProfileDTO profileDTO;
+
     private final long targetId;
     private final long oid;
     private final long lastUpdatedTime;
+    private final SDKProbeType probeType;
 
     /**
      * Create a new {@link StitchingEntityData} object for constructing a {@link TopologyStitchingEntity}.
@@ -30,17 +35,41 @@ public class StitchingEntityData {
      * @param lastUpdatedTime The time at which the DTO was received from the probe.
      */
     protected StitchingEntityData(@Nonnull final EntityDTO.Builder entityDtoBuilder,
+                               final EntityProfileDTO profileDTO,
                                final long targetId,
                                final long oid,
-                               final long lastUpdatedTime) {
+                               final long lastUpdatedTime,
+                               final SDKProbeType probeType) {
         this.entityDtoBuilder = entityDtoBuilder;
+        this.profileDTO = profileDTO;
         this.targetId = targetId;
         this.oid = oid;
         this.lastUpdatedTime = lastUpdatedTime;
+        this.probeType = probeType;
+    }
+
+    protected StitchingEntityData(@Nonnull final EntityDTO.Builder entityDtoBuilder,
+            final long targetId,
+            final long oid,
+            final long lastUpdatedTime) {
+        this.entityDtoBuilder = entityDtoBuilder;
+        this.profileDTO = null;
+        this.targetId = targetId;
+        this.oid = oid;
+        this.lastUpdatedTime = lastUpdatedTime;
+        this.probeType = null;
     }
 
     public EntityDTO.Builder getEntityDtoBuilder() {
         return entityDtoBuilder;
+    }
+
+    public EntityProfileDTO getEntityProfileDto() {
+        return profileDTO;
+    }
+
+    public boolean hasEntityProfileDto() {
+        return profileDTO != null;
     }
 
     public long getTargetId() {
@@ -59,9 +88,13 @@ public class StitchingEntityData {
         return lastUpdatedTime;
     }
 
+    public SDKProbeType getProbeType() {
+        return probeType;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(entityDtoBuilder, targetId, targetId);
+        return Objects.hash(entityDtoBuilder, profileDTO, targetId, targetId, probeType);
     }
 
     /**
@@ -85,7 +118,9 @@ public class StitchingEntityData {
         final StitchingEntityData otherEntityData = (StitchingEntityData)other;
         return targetId == otherEntityData.targetId &&
             oid == otherEntityData.oid &&
-            entityDtoBuilder == otherEntityData.entityDtoBuilder;
+            entityDtoBuilder == otherEntityData.entityDtoBuilder &&
+                profileDTO == otherEntityData.profileDTO &&
+                probeType == otherEntityData.probeType;
     }
 
     /**
@@ -93,9 +128,12 @@ public class StitchingEntityData {
      */
     public static class Builder {
         private final EntityDTO.Builder entityDtoBuilder;
+
+        private EntityProfileDTO profileDTO;
         private long targetId;
         private long oid;
         private long lastUpdatedTime;
+        private SDKProbeType probeType;
 
         private Builder(@Nonnull final EntityDTO.Builder builder) {
             this.entityDtoBuilder = Objects.requireNonNull(builder);
@@ -134,12 +172,31 @@ public class StitchingEntityData {
             return this;
         }
 
+        /**
+         * Set the profile dto for this entity. Used by cloud entities like ComputeTier, which
+         * is converted from profile dto.
+         *
+         * @param profileDTO The profile dto, from which this entity is converted
+         * @return A reference to {@link this} to support method chaining.
+         */
+        public Builder profile(final EntityProfileDTO profileDTO) {
+            this.profileDTO = profileDTO;
+            return this;
+        }
+
+        public Builder probeType(final SDKProbeType probeType) {
+            this.probeType = probeType;
+            return this;
+        }
+
         public StitchingEntityData build() {
-            return new StitchingEntityData(entityDtoBuilder, targetId, oid, lastUpdatedTime);
+            return new StitchingEntityData(entityDtoBuilder, profileDTO, targetId, oid,
+                    lastUpdatedTime, probeType);
         }
     }
 
     public static Builder newBuilder(@Nonnull final EntityDTO.Builder entityDtoBuilder) {
         return new Builder(entityDtoBuilder);
     }
+
 }

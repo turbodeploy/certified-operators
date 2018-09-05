@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -420,6 +421,29 @@ public class KVBackedTargetStore implements TargetStore {
             // All identifier fields matched for the two targets, then return the existing target.
             if (matchedFields == targetIdentifierFields.size()) {
                 return Optional.of(target);
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<Long> getProbeIdForTarget(final long targetId) {
+        Optional<Target> optionalTarget = getTarget(targetId);
+        if (optionalTarget.isPresent()) {
+            long probeId = optionalTarget.get().getProbeId();
+            return Optional.of(probeId);
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<SDKProbeType> getProbeTypeForTarget(final long targetId) {
+        Optional<Target> optionalTarget = getTarget(targetId);
+        if (optionalTarget.isPresent()) {
+            long probeId = optionalTarget.get().getProbeId();
+            Optional<ProbeInfo> optionalProbeInfo = probeStore.getProbe(probeId);
+            if (optionalProbeInfo.isPresent()) {
+                return Optional.of(SDKProbeType.create(optionalProbeInfo.get().getProbeType()));
             }
         }
         return Optional.empty();

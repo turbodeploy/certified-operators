@@ -32,12 +32,14 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
@@ -120,11 +122,11 @@ public class StitchingManagerTest {
     @Test
     public void testStitchAloneOperation()  {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsAlone("foo", "bar");
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, null);
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = spy(contextBuilder.build());
-        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
+        when(entityStore.constructStitchingContext(targetStore, Collections.emptyMap())).thenReturn(stitchingContext);
 
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
@@ -144,11 +146,11 @@ public class StitchingManagerTest {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsByGuestName();
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, null);
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = spy(contextBuilder.build());
-        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
+        when(entityStore.constructStitchingContext(targetStore, Collections.emptyMap())).thenReturn(stitchingContext);
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
@@ -169,7 +171,7 @@ public class StitchingManagerTest {
     public void testPreStitching() {
         when(preStitchingOperationLibrary.getPreStitchingOperations()).thenReturn(
             Collections.singletonList(new EntityScopePreStitchingOperation()));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, null);
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = contextBuilder.build();

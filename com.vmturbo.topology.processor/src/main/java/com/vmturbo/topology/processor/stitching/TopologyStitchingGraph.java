@@ -11,10 +11,10 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
+import com.google.common.base.Preconditions;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.base.Preconditions;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -233,7 +233,7 @@ public class TopologyStitchingGraph {
      *                   or created.
      * @return The retrieved or newly created {@link TopologyStitchingEntity} for the entity.
      */
-    private TopologyStitchingEntity getOrCreateStitchingEntity(@Nonnull final StitchingEntityData entityData) {
+    public TopologyStitchingEntity getOrCreateStitchingEntity(@Nonnull final StitchingEntityData entityData) {
         return getEntity(entityData.getEntityDtoBuilder()).orElseGet(() -> {
             final TopologyStitchingEntity newStitchingEntity = new TopologyStitchingEntity(entityData);
             stitchingEntities.put(newStitchingEntity.getEntityBuilder(), newStitchingEntity);

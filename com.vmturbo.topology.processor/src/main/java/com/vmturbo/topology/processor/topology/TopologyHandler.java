@@ -14,7 +14,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
@@ -69,7 +68,7 @@ public class TopologyHandler {
                 .build();
 
         return topologyPipelineFactory.liveTopology(tinfo, Collections.emptyList(), journalFactory)
-            .run(entityStore);
+                .run(entityStore);
     }
 
 }

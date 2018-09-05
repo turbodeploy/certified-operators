@@ -43,6 +43,19 @@ public interface IdentityProvider extends Diagnosable {
     long getProbeId(@Nonnull ProbeInfo probeInfo);
 
     /**
+     * Get an entity ID for the entity discovered by a specific probe.
+     *
+     * @param probeId the probe id that discovered the entity.
+     * @param entityDTO the discovered entity
+     * @return
+     * @throws IdentityUninitializedException
+     * @throws IdentityMetadataMissingException
+     * @throws IdentityProviderException
+     */
+    Long getIdForEntity(long probeId, EntityDTO entityDTO)
+            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException;
+
+    /**
      * Get the entity ID for the entities discovered by a specific probe
      * and described by the given DTO.
      *

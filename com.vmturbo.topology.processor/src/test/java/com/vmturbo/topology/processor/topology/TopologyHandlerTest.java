@@ -16,7 +16,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineFactory;
 
@@ -63,7 +65,8 @@ public class TopologyHandlerTest {
                 (TopologyPipeline<EntityStore, TopologyBroadcastInfo>)mock(TopologyPipeline.class);
         TopologyBroadcastInfo broadcastInfo = mock(TopologyBroadcastInfo.class);
         when(pipeline.run(eq(entityStore))).thenReturn(broadcastInfo);
-        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo), eq(Collections.emptyList()), eq(journalFactory)))
+        when(pipelineFactory.liveTopology(eq(realtimeTopologyInfo), eq(Collections.emptyList()),
+                eq(journalFactory)))
             .thenReturn(pipeline);
 
         assertThat(topologyHandler.broadcastLatestTopology(journalFactory), is(broadcastInfo));

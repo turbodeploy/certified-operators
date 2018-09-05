@@ -98,7 +98,7 @@ public class StorageVolumePreStitchingOperationTest {
 
     @Before
     public void setup() {
-        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(4);
+        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(4, null);
 
         stitchingContextBuider.addEntity(storageEntity1,
                 ImmutableMap.of(storageEntity1.getLocalId(), storageEntity1));

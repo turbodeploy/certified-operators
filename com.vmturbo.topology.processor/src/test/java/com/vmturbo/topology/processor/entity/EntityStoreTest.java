@@ -14,7 +14,9 @@ import static org.junit.Assert.assertEquals;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -30,6 +32,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -126,11 +129,13 @@ public class EntityStoreTest {
 
         final Clock mockClock = Mockito.mock(Clock.class);
         Mockito.when(mockClock.millis()).thenReturn(12345L);
-
         entityStore = new EntityStore(targetStore, identityProvider, mockClock);
         addEntities(entities);
-        final TopologyStitchingGraph graph = entityStore.constructStitchingContext()
-            .getStitchingGraph();
+        // return non-cloud probe types so it gets treated as normal probes
+        Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(
+                Optional.of(SDKProbeType.VCENTER));
+        final TopologyStitchingGraph graph = entityStore.constructStitchingContext(targetStore,
+                Collections.emptyMap()).getStitchingGraph();
 
         final TopologyStitchingEntity foo = entityByLocalId(graph, "foo");
         assertEquals(12345L, foo.getLastUpdatedTime());
@@ -174,8 +179,12 @@ public class EntityStoreTest {
 
         addEntities(firstTargetEntities, target1Id, 0L);
         addEntities(secondTargetEntities, target2Id, 1L);
-        final TopologyStitchingGraph graph = entityStore.constructStitchingContext()
-            .getStitchingGraph();
+
+        // return non-cloud probe types so it gets treated as normal probes
+        Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(
+                Optional.of(SDKProbeType.VCENTER));
+        final TopologyStitchingGraph graph = entityStore.constructStitchingContext(targetStore,
+                Collections.emptyMap()).getStitchingGraph();
 
         assertEquals(6, graph.entityCount());
         assertThat(entityByLocalId(graph, "foo")

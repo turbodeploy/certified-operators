@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.identity;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -164,6 +165,21 @@ public class IdentityProviderImpl implements IdentityProvider {
             }
             return probeId;
         }
+    }
+
+    /**
+     * Get an id to use for an entity. If this entity (based on the entity matching data) already
+     * has had an oid assigned, reuse the one that was assigned. Otherwise, get a new one.
+     *
+     * @return the Long entity oid for the entity.
+     */
+    @Override
+    public Long getIdForEntity(final long probeId, EntityDTO entity)
+            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
+        // this may be a little wasteful, but for simplicity's sake, we will re-use the
+        // getIdsForEntities method.
+        Map<Long, EntityDTO> results = getIdsForEntities(probeId, Collections.singletonList(entity));
+        return results.keySet().iterator().next();
     }
 
     /** {@inheritDoc}

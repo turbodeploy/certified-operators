@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.conversions;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -122,6 +124,18 @@ public class Converter {
                     .add(topologyCommodityDTO));
         });
 
+        // create the list of connected-to entities
+        List<ConnectedEntity> connectedEntities = entity.getConnectedToByType().entrySet().stream()
+                .flatMap(entry -> entry.getValue().stream()
+                        .map(stitchingEntity ->
+                                // create a ConnectedEntity to represent this connection
+                                ConnectedEntity.newBuilder()
+                                        .setConnectedEntityId(stitchingEntity.getOid())
+                                        .setConnectedEntityType(stitchingEntity.getEntityType().getNumber())
+                                        .setConnectionType(entry.getKey())
+                                        .build()))
+                .collect(Collectors.toList());
+
         // Copy properties map from probe DTO to topology DTO
         // TODO: Support for namespaces and proper handling of duplicate properties (see
         // OM-20545 for description of probe expectations related to duplicate properties).
@@ -144,7 +158,9 @@ public class Converter {
             dto.getStorageData(),
             dto.getVirtualDatacenterData(),
             dto.getVirtualMachineData(),
-            dto.getVirtualMachineRelatedData()
+            dto.getVirtualMachineRelatedData(),
+            dto.getReservedInstanceData(),
+            dto.getBusinessAccountData()
         )
             .stream().forEach(
             data -> data.getAllFields().forEach(
@@ -164,6 +180,7 @@ public class Converter {
             soldList,
             boughtMap,
             providerTypeMap,
+            connectedEntities,
             entityState,
             entityPropertyMap,
             entityTags,
@@ -252,7 +269,9 @@ public class Converter {
                 dto.getStorageData(),
                 dto.getVirtualDatacenterData(),
                 dto.getVirtualMachineData(),
-                dto.getVirtualMachineRelatedData()
+                dto.getVirtualMachineRelatedData(),
+                dto.getReservedInstanceData(),
+                dto.getBusinessAccountData()
         )
         .stream().forEach(
                 data -> data.getAllFields().forEach(
@@ -272,6 +291,9 @@ public class Converter {
                 soldList,
                 boughtMap,
                 providerTypeMap,
+                // pass empty list since connection can not be retrieved from single EntityDTO
+                // and this is only used by existing tests for non-cloud topology
+                Collections.emptyList(),
                 entityState,
                 entityPropertyMap,
                 entityTags,
@@ -288,6 +310,7 @@ public class Converter {
             List<TopologyDTO.CommoditySoldDTO> soldList,
             Map<Long, List<TopologyDTO.CommodityBoughtDTO>> boughtMap,
             Map<Long, Integer> providerTypeMap,
+            List<ConnectedEntity> connectedToList,
             TopologyDTO.EntityState entityState,
             Map<String, String> entityPropertyMap,
             Map<String, TagValuesDTO> entityTags,
@@ -320,7 +343,8 @@ public class Converter {
             .putAllEntityPropertyMap(entityPropertyMap)
             .putAllTags(entityTags)
             .addAllCommoditySoldList(soldList)
-            .addAllCommoditiesBoughtFromProviders(commodityBoughtGroups);
+            .addAllCommoditiesBoughtFromProviders(commodityBoughtGroups)
+            .addAllConnectedEntityList(connectedToList);
     }
 
     private static TopologyDTO.EntityState entityState(EntityDTOOrBuilder entityDTO) {

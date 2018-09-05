@@ -5,6 +5,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingScope;
@@ -23,7 +24,9 @@ public class RemoveNonMarketEntitiesPreStitchingOperation implements PreStitchin
     public StitchingScope<StitchingEntity> getScope(
             @Nonnull StitchingScopeFactory<StitchingEntity> stitchingScopeFactory) {
         // get scope by business account entity type.
-        return stitchingScopeFactory.entityTypeScope(EntityType.BUSINESS_ACCOUNT);
+        // Business accounts are not supported for VMM targets.
+        return stitchingScopeFactory.probeEntityTypeScope(SDKProbeType.VMM.getProbeType(),
+                EntityType.BUSINESS_ACCOUNT);
     }
 
     @Nonnull

@@ -15,12 +15,12 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuild
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -53,7 +54,6 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredClusterConstraintCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
-import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
@@ -66,9 +66,10 @@ import com.vmturbo.topology.processor.reservation.ReservationManager;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
-import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
@@ -77,6 +78,7 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
+import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
  * A wrapper class for the various {@link Stage} and {@link PassthroughStage} implementations.
@@ -165,11 +167,19 @@ public class Stages {
 
         private final StitchingManager stitchingManager;
 
+        private final TargetStore targetStore;
+
         private final StitchingJournalFactory journalFactory;
 
+        private final Map<Long, Set<EntityProfileDTO>> entityProfilesByTarget;
+
         public StitchingStage(@Nonnull final StitchingManager stitchingManager,
+                              @Nonnull final TargetStore targetStore,
+                              @Nonnull final Map<Long, Set<EntityProfileDTO>> entityProfilesByTarget,
                               @Nonnull final StitchingJournalFactory journalFactory) {
             this.stitchingManager = stitchingManager;
+            this.targetStore = targetStore;
+            this.entityProfilesByTarget = entityProfilesByTarget;
             this.journalFactory = Objects.requireNonNull(journalFactory);
         }
 
@@ -177,7 +187,8 @@ public class Stages {
         @Override
         public StitchingContext execute(@Nonnull final EntityStore entityStore) {
             final DataMetricTimer preparationTimer = STITCHING_PREPARATION_DURATION_SUMMARY.startTimer();
-            final StitchingContext stitchingContext = entityStore.constructStitchingContext();
+            final StitchingContext stitchingContext = entityStore.constructStitchingContext(
+                    targetStore, entityProfilesByTarget);
             preparationTimer.observe();
 
             final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);

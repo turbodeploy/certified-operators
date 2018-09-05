@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
@@ -56,12 +57,13 @@ public class TopologyRpcServiceTest {
     private final TopologyPipelineFactory topologyPipelineFactory = mock(TopologyPipelineFactory.class);
     private final IdentityProvider identityProvider = mock(IdentityProvider.class);
     private final EntityStore entityStore = mock(EntityStore.class);
+    private final TargetStore targetStore = mock(TargetStore.class);
     private final long realtimeTopologyContextId = 1234567L;
     private final Clock clock = mock(Clock.class);
     private final Scheduler scheduler = mock(Scheduler.class);
 
     private TopologyRpcService topologyRpcServiceBackend = new TopologyRpcService(topologyHandler,
-        topologyPipelineFactory, identityProvider, entityStore, scheduler,
+        topologyPipelineFactory, identityProvider, entityStore, targetStore, scheduler,
         StitchingJournalFactory.emptyStitchingJournalFactory(), realtimeTopologyContextId, clock);
 
     @Rule
@@ -123,8 +125,7 @@ public class TopologyRpcServiceTest {
         };
 
         when(topologyPipelineFactory.liveTopology(any(TopologyInfo.class), any(),
-            any(StitchingJournalFactory.class)))
-            .thenAnswer(answer);
+                any(StitchingJournalFactory.class))).thenAnswer(answer);
 
         Iterable<Topology> topologyIter =
             () -> topologyRpcClient.broadcastAndReturnTopology(TopologyBroadcastRequest.newBuilder().build());
@@ -144,8 +145,7 @@ public class TopologyRpcServiceTest {
     @Test
     public void testBroadcastAndReturnTopologyException() throws Exception {
         when(topologyPipelineFactory.liveTopology(any(TopologyInfo.class), any(),
-            any(StitchingJournalFactory.class)))
-            .thenThrow(new RuntimeException("foo"));
+                any(StitchingJournalFactory.class))).thenThrow(new RuntimeException("foo"));
 
         try {
             Iterable<Topology> topologyIter =

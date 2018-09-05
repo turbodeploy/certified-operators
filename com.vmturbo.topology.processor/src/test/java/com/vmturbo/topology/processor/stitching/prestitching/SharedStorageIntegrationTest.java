@@ -55,6 +55,7 @@ import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity.CommoditySold;
+import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -139,10 +140,13 @@ public class SharedStorageIntegrationTest {
         when(probeStore.getProbeIdsForCategory(eq(ProbeCategory.HYPERVISOR)))
             .thenReturn(Collections.singletonList(5678L));
         when(probeStore.getProbeIdForType(SDKProbeType.HYPERV.getProbeType())).thenReturn(Optional.of(5678L));
+        when(probeStore.getProbeIdForType(SDKProbeType.VMM.getProbeType())).thenReturn(Optional.of(5679L));
         when(targetStore.getProbeTargets(eq(5678L))).thenReturn(Arrays.asList(targetA, targetB));
+        // return non-cloud probe types so it gets treated as normal probes
+        when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
 
         final StitchingJournal<StitchingEntity> journal = new StitchingJournal<>();
-        final StitchingContext beforeContext = entityStore.constructStitchingContext();
+        final StitchingContext beforeContext = entityStore.constructStitchingContext(targetStore, Collections.emptyMap());
         final int numEntitiesBefore = beforeContext.size();
         final StitchingEntity keepEntity = beforeContext.getStitchingGraph().entities()
             .filter(entity -> entity.getOid() == sharedStorageOid && entity.getTargetId() == targetBId)
@@ -154,7 +158,7 @@ public class SharedStorageIntegrationTest {
             .get();
         final int numCombinedConsumers = keepEntity.getConsumers().size() + removeEntity.getConsumers().size();
 
-        final StitchingContext afterContext = entityStore.constructStitchingContext();
+        final StitchingContext afterContext = entityStore.constructStitchingContext(targetStore, Collections.emptyMap());
         stitchingManager.stitch(afterContext, journal);
 
         // There should be 2 less entities in the topology after stitching because we removed the
@@ -213,14 +217,17 @@ public class SharedStorageIntegrationTest {
      * @throws Exception If something goes wrong.
      */
     private void writeMinimizedTopology() throws Exception {
-        final TopologyStitchingEntity startA = entityStore.constructStitchingContext()
+        // return non-cloud probe types so it gets treated as normal probes
+        when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
+
+        final TopologyStitchingEntity startA = entityStore.constructStitchingContext(targetStore, Collections.emptyMap())
             .getStitchingGraph()
             .entities()
             .filter(e -> e.getLocalId().equals("9bd4ee88-99c64661") && e.getTargetId() == targetAId)
             .findFirst()
             .get();
 
-        final TopologyStitchingEntity startB = entityStore.constructStitchingContext()
+        final TopologyStitchingEntity startB = entityStore.constructStitchingContext(targetStore, Collections.emptyMap())
             .getStitchingGraph()
             .entities()
             .filter(e -> e.getLocalId().equals("9bd4ee88-99c64661") && e.getTargetId() == targetBId)

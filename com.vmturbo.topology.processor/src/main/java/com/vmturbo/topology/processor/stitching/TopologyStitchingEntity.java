@@ -18,10 +18,12 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.topology.processor.stitching.journal.StitchingEntitySemanticDiffer;
@@ -39,6 +41,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
     private final long oid;
 
     private final long targetId;
+
+    // type of the probe this entity comes from, this is used to check if the entity comes from
+    // cloud probe and differentiate between AWS and Azure, so entity is treated differently
+    private final SDKProbeType probeType;
 
     private long lastUpdatedTime;
 
@@ -59,22 +65,34 @@ public class TopologyStitchingEntity implements StitchingEntity {
     private final Set<StitchingEntity> consumers = Sets.newIdentityHashSet();
     private final List<CommoditySold> commoditiesSold = new ArrayList<>();
 
+    private final Map<ConnectionType, Set<StitchingEntity>> connectedTo = new IdentityHashMap<>();
+
     public TopologyStitchingEntity(@Nonnull final StitchingEntityData stitchingEntityData) {
         this(stitchingEntityData.getEntityDtoBuilder(),
             stitchingEntityData.getOid(),
             stitchingEntityData.getTargetId(),
-            stitchingEntityData.getLastUpdatedTime());
+            stitchingEntityData.getLastUpdatedTime(),
+            stitchingEntityData.getProbeType());
     }
 
     public TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
                                    final long oid,
                                    final long targetId,
                                    final long lastUpdatedTime) {
+        this(entityBuilder, oid, targetId, lastUpdatedTime, null);
+    }
+
+    private TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
+                                   final long oid,
+                                   final long targetId,
+                                   final long lastUpdatedTime,
+                                   final SDKProbeType probeType) {
         this.entityBuilder = Objects.requireNonNull(entityBuilder);
         this.oid = oid;
         this.targetId = targetId;
         this.lastUpdatedTime = lastUpdatedTime;
         this.mergeInformation = null;
+        this.probeType = probeType;
     }
 
     @Nonnull
@@ -123,6 +141,9 @@ public class TopologyStitchingEntity implements StitchingEntity {
                 .map(Builder::clone)
                 .collect(Collectors.toList())));
 
+        // copy connectedTo
+        copy.connectedTo.putAll(connectedTo);
+
         // Copy merge information
         getMergeInformation().forEach(mergeInfo -> copy.addMergeInformation(
             new StitchingMergeInformation(mergeInfo.getOid(), mergeInfo.getTargetId())));
@@ -138,6 +159,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public long getLastUpdatedTime() {
         return lastUpdatedTime;
+    }
+
+    public SDKProbeType getProbeType() {
+        return probeType;
     }
 
     @Override
@@ -158,6 +183,16 @@ public class TopologyStitchingEntity implements StitchingEntity {
     @Override
     public Set<StitchingEntity> getConsumers() {
         return Collections.unmodifiableSet(consumers);
+    }
+
+    @Override
+    public Set<StitchingEntity> getConnectedTo() {
+        return Collections.unmodifiableSet(connectedTo.values().stream().flatMap(Set::stream)
+                .collect(Collectors.toSet()));
+    }
+
+    public Map<ConnectionType, Set<StitchingEntity>> getConnectedToByType() {
+        return connectedTo;
     }
 
     @Override
@@ -239,6 +274,18 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     public void clearProviders() {
         commoditiesBoughtByProvider.clear();
+    }
+
+    public void addConnectedTo(@Nonnull final  ConnectionType connectionType,
+            @Nonnull final StitchingEntity entity) {
+        Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
+        connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).add(
+                Objects.requireNonNull(entity));
+    }
+
+    public void setConnectedTo(@Nonnull final Map<ConnectionType, Set<StitchingEntity>> connectedTo) {
+        this.connectedTo.clear();
+        this.connectedTo.putAll(connectedTo);
     }
 
     @Override

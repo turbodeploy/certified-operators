@@ -230,6 +230,12 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         }
     }
 
+    @Override
+    public Map<Long, Set<EntityProfileDTO>> getTargetToEntityProfilesMap() {
+        return DiscoveredTemplateToDeploymentProfile.entrySet().stream().collect(Collectors.toMap(
+                entry -> entry.getKey(), entry -> entry.getValue().getEntityProfiles()));
+    }
+
     /**
      * Generate a Map which key is entity profile, and value is list of attached deployment profile.
      * This map will be sent to Plan component database and the relationship between templates with
@@ -341,6 +347,10 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
 
         public Set<Entry<EntityProfileDTO, Set<DeploymentProfileInfo>>> getEntrySet() {
             return entityProfileDTOSetMap.entrySet();
+        }
+
+        public Set<EntityProfileDTO> getEntityProfiles() {
+            return entityProfileDTOSetMap.keySet();
         }
     }
 

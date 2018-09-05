@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
@@ -137,4 +138,20 @@ public interface TargetStore {
      */
     @Nonnull
     List<Target> getDerivedTargets(long parentTargetId);
+
+    /**
+     * Given a target id, get the probe info for the probe associated with the target.
+     *
+     * @param targetId the target id to look up
+     * @return an Optional probe ID for the probe, if available.
+     */
+    Optional<Long> getProbeIdForTarget(long targetId);
+
+    /**
+     * Get the probe type for a given target id.
+     *
+     * @param targetId the id of the target to get probe type for
+     * @return SDKProbeType for the target if it exists
+     */
+    Optional<SDKProbeType> getProbeTypeForTarget(long targetId);
 }
