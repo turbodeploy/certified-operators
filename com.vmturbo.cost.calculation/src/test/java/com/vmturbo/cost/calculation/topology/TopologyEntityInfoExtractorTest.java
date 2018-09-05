@@ -8,8 +8,8 @@ import static org.junit.Assert.assertFalse;
 import java.util.Optional;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificConfig;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificConfig.VirtualMachineConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -24,8 +24,8 @@ public class TopologyEntityInfoExtractorTest {
             .setOid(7L)
             .setDisplayName("foo")
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                    .setVirtualMachine(VirtualMachineInfo.newBuilder()
+            .setTypeSpecificInfo(TypeSpecificConfig.newBuilder()
+                    .setVirtualMachineConfig(VirtualMachineConfig.newBuilder()
                             .setGuestOsType(OSType.LINUX)
                             .setTenancy(Tenancy.DEFAULT)))
             .build();
@@ -60,7 +60,7 @@ public class TopologyEntityInfoExtractorTest {
     }
 
     @Test
-    public void testExtractComputeConfigNoTypeSpecificInfo() {
+    public void testExtractComputeConfigNoTypeSpecificConfig() {
         Optional<ComputeConfig> computeConfigOptional = entityInfoExtractor.getComputeConfig(
                 TopologyEntityDTO.newBuilder()
                         .setOid(1L)

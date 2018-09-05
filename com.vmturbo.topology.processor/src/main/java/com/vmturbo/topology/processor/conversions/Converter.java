@@ -31,8 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Analys
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -40,10 +39,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
@@ -177,7 +173,7 @@ public class Converter {
             entityPropertyMap.put("origin", dto.getOrigin().toString()); // TODO: DISCOVERED/PROXY use number?
         }
 
-        TopologyEntityDTO.Builder retBuilder = newTopologyEntityDTO(
+        return newTopologyEntityDTO(
             entityType,
             entity.getOid(),
             displayName,
@@ -192,44 +188,6 @@ public class Converter {
             isShopTogether,
             calculateSuspendabilityWithStitchingEntity(entity)
         );
-
-        retBuilder.setTypeSpecificInfo(convertTypeSpecificInfo(dto));
-        return retBuilder;
-    }
-
-    /**
-     * Convert the entity-specific data contained in an {@link EntityDTO} to a
-     * {@link TypeSpecificInfo} object that can be embedded into a {@link TopologyEntityDTO}.
-     *
-     * @param sdkEntity The {@link EntityDTO} containing the entity-specific data.o
-     * @return The {@link TypeSpecificInfo} contained in the input {@link EntityDTO}.
-     */
-    @Nonnull
-    private static TypeSpecificInfo convertTypeSpecificInfo(@Nonnull final CommonDTO.EntityDTOOrBuilder sdkEntity) {
-        final TypeSpecificInfo.Builder retBuilder = TypeSpecificInfo.newBuilder();
-        switch (sdkEntity.getEntityDataCase()) {
-            case VIRTUAL_MACHINE_DATA:
-                final VirtualMachineData vmData = sdkEntity.getVirtualMachineData();
-                retBuilder.setVirtualMachine(VirtualMachineInfo.newBuilder()
-                        // We're not currently sending tenancy via the SDK
-                        .setTenancy(Tenancy.DEFAULT)
-                        .setGuestOsType(parseOsType(vmData.getGuestName()))
-                        .build());
-                break;
-        }
-        return retBuilder.build();
-    }
-
-    @Nonnull
-    private static OSType parseOsType(@Nonnull final String guestName) {
-        // These should come from the OSType enum in com.vmturbo.mediation.hybrid.cloud.utils.
-        // Really, the SDK should be setting the num.
-        final String upperCaseOsName = guestName.toUpperCase();
-        try {
-            return OSType.valueOf(upperCaseOsName);
-        } catch (IllegalArgumentException e) {
-            return OSType.UNKNOWN_OS;
-        }
     }
 
     /**

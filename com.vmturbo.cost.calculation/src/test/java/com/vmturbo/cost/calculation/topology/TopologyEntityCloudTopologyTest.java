@@ -13,8 +13,8 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificConfig;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificConfig.VirtualMachineConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -49,8 +49,8 @@ public class TopologyEntityCloudTopologyTest {
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                     .setProviderId(COMPUTE_TIER.getOid())
                     .setProviderEntityType(COMPUTE_TIER.getEntityType()))
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                    .setVirtualMachine(VirtualMachineInfo.newBuilder()
+            .setTypeSpecificInfo(TypeSpecificConfig.newBuilder()
+                    .setVirtualMachineConfig(VirtualMachineConfig.newBuilder()
                             .setGuestOsType(OSType.LINUX)
                             .setTenancy(Tenancy.DEFAULT)))
             .addConnectedEntityList(ConnectedEntity.newBuilder()
