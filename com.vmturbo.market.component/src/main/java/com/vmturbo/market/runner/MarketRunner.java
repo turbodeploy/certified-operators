@@ -31,6 +31,7 @@ import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
 import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
+import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**
@@ -46,6 +47,9 @@ public class MarketRunner {
     private final SettingServiceBlockingStub settingServiceClient;
     private final AnalysisFactory analysisFactory;
     private final MarketRunnerConfigWrapper config;
+    // This variable keeps track of actions to replay from last round of analysis.
+    // For real time analysis, this is passed to Analysis object created in this class.
+    private ReplayActions realtimeReplayActions = new ReplayActions();
 
     private final Optional<MarketDebugRpcService> marketDebugRpcService;
 
@@ -139,6 +143,11 @@ public class MarketRunner {
      * @param analysis the object on which to run the analysis.
      */
     private void runAnalysis(@Nonnull final Analysis analysis) {
+        boolean isPlan = analysis.getTopologyInfo().hasPlanInfo();
+        if (!isPlan) {
+            // Set replay actions from last succeeded market cycle.
+            analysis.setReplayActions(realtimeReplayActions);
+        }
         analysis.execute();
         analysisMap.remove(analysis.getContextId());
         if (analysis.isDone()) {
@@ -149,9 +158,12 @@ public class MarketRunner {
             if (analysis.getState() == AnalysisState.SUCCEEDED) {
                 try {
                     // if this was a plan topology, broadcast the plan analysis topology
-                    if (analysis.getTopologyInfo().hasPlanInfo()) {
+                    if (isPlan) {
                         serverApi.notifyPlanAnalysisTopology(analysis.getTopologyInfo(),
                                 analysis.getTopology().values());
+                    } else {
+                        // Update replay actions to contain actions from most recent analysis.
+                        realtimeReplayActions = analysis.getReplayActions();
                     }
                     // Send projected topology before recommended actions, because some recommended
                     // actions will have OIDs that are only present in the projected topology, and we
