@@ -47,7 +47,12 @@ kubectl patch storageclass gluster-heketi -p '{"metadata": {"annotations":{"stor
 kubectl create -f ${yamlBasePath}/network-policy
 
 # Get current image (this will have to be adjusted if we move to individual versioning
-currentVersion=$(grep "image:" ${yamlBasePath}/base/api.yaml | awk -F: '{print $3}')
+if [ x$registry == xlocalhost ]
+then
+  currentVersion=$(grep "image:" ${yamlBasePath}/base/api.yaml | awk -F: '{print $4}')
+else
+  currentVersion=$(grep "image:" ${yamlBasePath}/base/api.yaml | awk -F: '{print $3}')
+fi
 
 if [ x${currentVersion} != x${turboImage} ]
 then

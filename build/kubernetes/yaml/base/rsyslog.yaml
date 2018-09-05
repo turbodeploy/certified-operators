@@ -77,7 +77,7 @@ spec:
         - mountPath: /tmp
           name: rsyslog-tmpfs0
       imagePullSecrets:
-      #- name: turbocred
+      - name: turbocred
       restartPolicy: Always
       volumes:
       - name: rsyslog-syslogdata

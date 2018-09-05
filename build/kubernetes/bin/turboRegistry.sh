@@ -34,6 +34,6 @@ then
   echo "---------------------------------------------"
   /opt/local/bin/registryctl bulk all ${turboVersion}
 else
-  kubectl create secret docker-registry turbocred --docker-server=registry.turbonomic.com:443 --docker-username=${dockerUserName} --docker-password=${dockerPassword} --docker-email=${dockerEmail}
+  kubectl create secret docker-registry turbocred --docker-server=registry.turbonomic.com --docker-username=${dockerUserName} --docker-password=${dockerPassword} --docker-email=${dockerEmail}
   find ${yamlBasePath}/ -name *.yaml -exec sed -i "s/image: localhost:5000/image: registry.turbonomic.com/" {} \;
 fi
