@@ -29,6 +29,8 @@ public class ServiceEntityRepoDTO {
 
     private List<CommoditySoldRepoDTO> commoditySoldList;
 
+    private List<ConnectedEntityRepoDTO> connectedEntityList;
+
     public String getUuid() {
         return uuid;
     }
@@ -125,11 +127,19 @@ public class ServiceEntityRepoDTO {
         this.commoditySoldList = commoditySoldList;
     }
 
+    public List<ConnectedEntityRepoDTO> getConnectedEntityList() {
+        return connectedEntityList;
+    }
+
+    public void setConnectedEntityList(List<ConnectedEntityRepoDTO> connectedEntityList) {
+        this.connectedEntityList = connectedEntityList;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
                             entityType, oid, priceIndex, priceIndexProjected, providers, severity,
-                            state, uuid, tags);
+                            state, uuid, tags, connectedEntityList);
     }
 
     @Override
@@ -152,7 +162,8 @@ public class ServiceEntityRepoDTO {
                Objects.equals(severity, that.severity) &&
                Objects.equals(state, that.state) &&
                Objects.equals(uuid, that.uuid) &&
-               Objects.equals(tags, that.tags);
+               Objects.equals(tags, that.tags) &&
+               Objects.equals(connectedEntityList, that.connectedEntityList);
     }
 
     @Override
@@ -162,8 +173,9 @@ public class ServiceEntityRepoDTO {
                 + ", priceIndexProjected=" + priceIndexProjected
                 + ", state=" + state + ", severity=" + severity + ", oid=" + oid
                 + ", providers=" + providers + ", commoditiesBoughtRepoFromProviderDTOList="
-                + commoditiesBoughtRepoFromProviderDTOList + ", commoditySoldList=" + commoditySoldList + "]";
+                + commoditiesBoughtRepoFromProviderDTOList
+                + ", commoditySoldList=" + commoditySoldList
+                + ", connectedEntityList=" + connectedEntityList
+                + "]";
     }
-
-
 }

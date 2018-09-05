@@ -35,8 +35,16 @@ public class ServiceEntityMapper {
         CHASSIS("Chassis"),
         NETWORK("Network"),
         LOGICALPOOL("LogicalPool"),
+        DATABASE("Database"),
         DATABASE_SERVER("DatabaseServer"),
         LOAD_BALANCER("LoadBalancer"),
+        BUSINESS_ACCOUNT("BusinessAccount"),
+        CLOUD_SERVICE("CloudService"),
+        COMPUTE_TIER("ComputeTier"),
+        STORAGE_TIER("StorageTier"),
+        DATABASE_TIER("DatabaseTier"),
+        AVAILABILITY_ZONE("AvailabilityZone"),
+        REGION("Region"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -91,8 +99,16 @@ public class ServiceEntityMapper {
             .put(EntityType.CHASSIS.getNumber(),                UIEntityType.CHASSIS)
             .put(EntityType.NETWORK.getNumber(),                UIEntityType.NETWORK)
             .put(EntityType.LOGICAL_POOL.getNumber(),           UIEntityType.LOGICALPOOL)
+            .put(EntityType.DATABASE.getNumber(),               UIEntityType.DATABASE)
             .put(EntityType.DATABASE_SERVER.getNumber(),        UIEntityType.DATABASE_SERVER)
             .put(EntityType.LOAD_BALANCER.getNumber(),          UIEntityType.LOAD_BALANCER)
+            .put(EntityType.BUSINESS_ACCOUNT.getNumber(),       UIEntityType.BUSINESS_ACCOUNT)
+            .put(EntityType.CLOUD_SERVICE.getNumber(),          UIEntityType.CLOUD_SERVICE)
+            .put(EntityType.COMPUTE_TIER.getNumber(),           UIEntityType.COMPUTE_TIER)
+            .put(EntityType.STORAGE_TIER.getNumber(),           UIEntityType.STORAGE_TIER)
+            .put(EntityType.DATABASE_TIER.getNumber(),          UIEntityType.DATABASE_TIER)
+            .put(EntityType.AVAILABILITY_ZONE.getNumber(),      UIEntityType.AVAILABILITY_ZONE)
+            .put(EntityType.REGION.getNumber(),                 UIEntityType.REGION)
             .put(EntityType.UNKNOWN.getNumber(),                UIEntityType.UNKNOWN)
             .build();
 

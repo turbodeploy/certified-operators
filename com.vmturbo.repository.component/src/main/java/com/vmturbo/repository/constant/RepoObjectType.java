@@ -41,8 +41,16 @@ public class RepoObjectType {
         CHASSIS("Chassis"),
         NETWORK("Network"),
         LOGICALPOOL("LogicalPool"),
+        DATABASE("Database"),
         DATABASE_SERVER("DatabaseServer"),
         LOAD_BALANCER("LoadBalancer"),
+        BUSINESS_ACCOUNT("BusinessAccount"),
+        CLOUD_SERVICE("CloudService"),
+        COMPUTE_TIER("ComputeTier"),
+        STORAGE_TIER("StorageTier"),
+        DATABASE_TIER("DatabaseTier"),
+        AVAILABILITY_ZONE("AvailabilityZone"),
+        REGION("Region"),
         UNKNOWN("Unknown");
 
         private final String value;
@@ -98,8 +106,16 @@ public class RepoObjectType {
             .put(EntityType.CHASSIS,                RepoEntityType.CHASSIS)
             .put(EntityType.NETWORK,                RepoEntityType.NETWORK)
             .put(EntityType.LOGICAL_POOL,           RepoEntityType.LOGICALPOOL)
+            .put(EntityType.DATABASE,               RepoEntityType.DATABASE)
             .put(EntityType.DATABASE_SERVER,        RepoEntityType.DATABASE_SERVER)
             .put(EntityType.LOAD_BALANCER,          RepoEntityType.LOAD_BALANCER)
+            .put(EntityType.BUSINESS_ACCOUNT,       RepoEntityType.BUSINESS_ACCOUNT)
+            .put(EntityType.CLOUD_SERVICE,          RepoEntityType.CLOUD_SERVICE)
+            .put(EntityType.COMPUTE_TIER,           RepoEntityType.COMPUTE_TIER)
+            .put(EntityType.STORAGE_TIER,           RepoEntityType.STORAGE_TIER)
+            .put(EntityType.DATABASE_TIER,          RepoEntityType.DATABASE_TIER)
+            .put(EntityType.AVAILABILITY_ZONE,      RepoEntityType.AVAILABILITY_ZONE)
+            .put(EntityType.REGION,                 RepoEntityType.REGION)
             .put(EntityType.UNKNOWN,                RepoEntityType.UNKNOWN)
             .build();
 

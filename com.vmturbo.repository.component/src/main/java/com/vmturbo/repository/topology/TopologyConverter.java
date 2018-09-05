@@ -15,12 +15,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
+import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 
 /**
@@ -62,6 +65,10 @@ public class TopologyConverter {
                     serviceEntityDTO.getCommoditiesBoughtRepoFromProviderDTOList().stream()
                             .map(CommodityMapper::convert)
                             .collect(Collectors.toList()));
+            topologyEntityBuilder.addAllConnectedEntityList(
+                    serviceEntityDTO.getConnectedEntityList().stream()
+                            .map(ConnectedEntityMapper::convert)
+                            .collect(Collectors.toList()));
             return topologyEntityBuilder.build();
         }
 
@@ -96,6 +103,11 @@ public class TopologyConverter {
             });
 
             se.setCommoditiesBoughtRepoFromProviderDTOList(commoditiesBoughtRepoFromProviderDTOList);
+
+            // connected entity list
+            se.setConnectedEntityList(t.getConnectedEntityListList().stream()
+                    .map(ConnectedEntityMapper::convert)
+                    .collect(Collectors.toList()));
 
             // Only set the valid provider list
             se.setProviders(commoditiesBoughtRepoFromProviderDTOList.stream().filter(
@@ -253,6 +265,46 @@ public class TopologyConverter {
                         commoditiesBoughtRepoFromProviderDTO.getProviderEntityType());
             }
             return commodityBoughtFromProviderBuilder.build();
+        }
+    }
+
+    static class ConnectedEntityMapper {
+
+        private static ConnectedEntityRepoDTO convert(ConnectedEntity connectedEntity) {
+            ConnectedEntityRepoDTO connectedEntityRepoDTO = new ConnectedEntityRepoDTO();
+
+            if (connectedEntity.hasConnectedEntityId()) {
+                connectedEntityRepoDTO.setConnectedEntityId(connectedEntity.getConnectedEntityId());
+            }
+
+            if (connectedEntity.hasConnectedEntityType()) {
+                connectedEntityRepoDTO.setConnectedEntityType(connectedEntity.getConnectedEntityType());
+            }
+
+            if (connectedEntity.hasConnectionType()) {
+                connectedEntityRepoDTO.setConnectionType(connectedEntity.getConnectionType().getNumber());
+            }
+
+            return connectedEntityRepoDTO;
+        }
+
+        private static ConnectedEntity convert(ConnectedEntityRepoDTO connectedEntityRepoDTO) {
+            ConnectedEntity.Builder builder = ConnectedEntity.newBuilder();
+
+            if (connectedEntityRepoDTO.getConnectedEntityId() != null) {
+                builder.setConnectedEntityId(connectedEntityRepoDTO.getConnectedEntityId());
+            }
+
+            if (connectedEntityRepoDTO.getConnectedEntityType() != null) {
+                builder.setConnectedEntityType(connectedEntityRepoDTO.getConnectedEntityType());
+            }
+
+            if (connectedEntityRepoDTO.getConnectionType() != null) {
+                builder.setConnectionType(ConnectionType.forNumber(
+                        connectedEntityRepoDTO.getConnectionType()));
+            }
+
+            return builder.build();
         }
     }
 }

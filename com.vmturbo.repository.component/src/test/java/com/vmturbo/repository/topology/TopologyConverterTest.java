@@ -2,6 +2,7 @@ package com.vmturbo.repository.topology;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,6 +22,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.repository.constant.RepoObjectState;
@@ -28,6 +31,7 @@ import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
+import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
@@ -100,6 +104,12 @@ public class TopologyConverterTest {
                 Lists.newArrayList(commodityBoughtRepoDTO, commodityBoughtRepoDTOTwo));
         vmServiceEntity.setCommoditiesBoughtRepoFromProviderDTOList(
                 Lists.newArrayList(commoditiesBoughtRepoFromProviderDTO));
+        // set connected entity list
+        ConnectedEntityRepoDTO connectedEntityRepoDTO = new ConnectedEntityRepoDTO();
+        connectedEntityRepoDTO.setConnectionType(ConnectionType.NORMAL_CONNECTION.getNumber());
+        connectedEntityRepoDTO.setConnectedEntityType(EntityType.PHYSICAL_MACHINE.getNumber());
+        connectedEntityRepoDTO.setConnectedEntityId(pmTopoDTO.getOid());
+        vmServiceEntity.setConnectedEntityList(Lists.newArrayList(connectedEntityRepoDTO));
     }
 
     @Test
@@ -201,11 +211,20 @@ public class TopologyConverterTest {
 
         // compare tags
         assertEquals(seRepoDTO.getTags().size(), seTopoDTO.getTagsMap().size());
-        seRepoDTO.getTags().entrySet().forEach(
-                t ->
-                    assertEquals(
-                            t.getValue(),
-                            seTopoDTO.getTagsMap().get(t.getKey()).getValuesList()));
+        seRepoDTO.getTags().entrySet().forEach(t ->
+                assertEquals(t.getValue(), seTopoDTO.getTagsMap().get(t.getKey()).getValuesList()));
+
+        // check connected entity list
+        assertEquals(seRepoDTO.getConnectedEntityList().size(), seTopoDTO.getConnectedEntityListCount());
+        seRepoDTO.getConnectedEntityList().forEach(connectedEntityRepoDTO ->
+                assertTrue(seTopoDTO.getConnectedEntityListList().stream()
+                        .anyMatch(connectedEntity ->
+                                connectedEntity.getConnectionType().getNumber() ==
+                                        connectedEntityRepoDTO.getConnectionType() &&
+                                connectedEntity.getConnectedEntityType() ==
+                                        connectedEntityRepoDTO.getConnectedEntityType() &&
+                                connectedEntity.getConnectedEntityId() ==
+                                        connectedEntityRepoDTO.getConnectedEntityId())));
     }
 
     private static void verifyCommodityBought(

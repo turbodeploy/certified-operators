@@ -112,7 +112,9 @@ public class SearchMapperTest {
             "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray",
             "DataCenter", "VirtualDataCenter", "Application", "VirtualApplication",
             "Container", "ContainerPod", "StorageController", "IOModule", "Switch", "Chassis",
-            "Network", "LogicalPool", "DatabaseServer", "LoadBalancer");
+            "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
+            "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",
+            "AvailabilityZone", "Region");
         assertEquals(EXPECTED_TYPES, SearchMapper.SEARCH_ALL_TYPES);
     }
 }
