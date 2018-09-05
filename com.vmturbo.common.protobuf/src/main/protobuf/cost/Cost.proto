@@ -310,8 +310,8 @@ message DiscountInfo {
     }
 }
 
-// The Cloud entity cost. It can store calcuated and predicted (from Market to Cost component)
-// entity cost, help persist to DB, and help calculate cost from REST API reqeusts.
+// The Cloud entity cost. It can store calculated or predicted (from Market to Cost component)
+// entity cost, help persist to DB, and help calculate cost from REST API requests.
 message EntityCost {
     // The associated entity oid for the Cloud entity.
     optional int64 associated_entity_id = 1;
@@ -322,6 +322,9 @@ message EntityCost {
     // A pre-calcuate hourly total entity cost for speeding up calculation.
     // It's the summation of the list of component costs.
     optional common_dto.CurrencyAmount total_amount = 3;
+
+    // The associated entity type, e.g. vm, app
+    optional int32 associated_entity_type = 4;
 
     message ComponentCost {
         // Cost type represents the possible breakdown of an entity cost into separate components
