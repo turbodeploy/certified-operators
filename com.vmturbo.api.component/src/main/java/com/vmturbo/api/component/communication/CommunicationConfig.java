@@ -5,14 +5,14 @@ import java.time.Duration;
 
 import javax.annotation.Nonnull;
 
-import io.grpc.Channel;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.client.RestTemplate;
+
+import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.api.ReportNotificationDTO.ReportNotification;
@@ -29,6 +29,10 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -60,6 +64,7 @@ import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc.WidgetsetsServi
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
@@ -79,7 +84,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 @Import({TopologyProcessorClientConfig.class,
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
         GroupClientConfig.class, HistoryClientConfig.class, RepositoryClientConfig.class,
-        ReportingClientConfig.class, AuthClientConfig.class})
+        ReportingClientConfig.class, AuthClientConfig.class, CostClientConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -98,6 +103,8 @@ public class CommunicationConfig {
     private ReportingClientConfig reportingClientConfig;
     @Autowired
     private AuthClientConfig authClientConfig;
+    @Autowired
+    private CostClientConfig costClientConfig;
     @Value("${clustermgr_host}")
     private String clusterMgrHost;
     @Value("${clustermgr_port}")
@@ -251,6 +258,16 @@ public class CommunicationConfig {
     @Bean
     public TemplateSpecServiceBlockingStub templateSpecServiceBlockingStub() {
         return TemplateSpecServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
+    }
+
+    @Bean
+    public ReservedInstanceBoughtServiceBlockingStub reservedInstanceBoughtServiceBlockingStub() {
+        return ReservedInstanceBoughtServiceGrpc.newBlockingStub(costClientConfig.costChannel());
+    }
+
+    @Bean
+    public ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecServiceBlockingStub() {
+        return ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     @Bean

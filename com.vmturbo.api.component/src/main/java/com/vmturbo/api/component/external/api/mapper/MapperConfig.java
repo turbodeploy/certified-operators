@@ -118,6 +118,11 @@ public class MapperConfig {
     }
 
     @Bean
+    public ReservedInstanceMapper reservedInstanceMapper() {
+        return new ReservedInstanceMapper();
+    }
+
+    @Bean
     public TemplatesUtils templatesUtils() {
         return new TemplatesUtils(communicationConfig.templateServiceBlockingStub(),
                                   communicationConfig.templateSpecServiceBlockingStub(),

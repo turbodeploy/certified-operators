@@ -14,12 +14,15 @@ import org.springframework.context.annotation.Import;
 
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.ServerInterceptors;
+import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.cost.component.topology.TopologyListenerConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
@@ -30,7 +33,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({TopologyListenerConfig.class,
         SpringSecurityConfig.class,
         SQLDatabaseConfig.class,
-        PricingConfig.class})
+        PricingConfig.class,
+        ReservedInstanceConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -42,6 +46,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private PricingConfig pricingConfig;
+
+    @Autowired
+    private ReservedInstanceConfig reservedInstanceConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -75,7 +82,12 @@ public class CostComponent extends BaseVmtComponent {
         // gRPC JWT token interceptor
         final JwtServerInterceptor jwtInterceptor =
                 new JwtServerInterceptor(securityConfig.apiAuthKVStore());
-        builder.addService(pricingConfig.pricingRpcService());
+        // Monitor for server metrics with prometheus.
+        final MonitoringServerInterceptor monitoringInterceptor =
+                MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());
+        builder.addService(ServerInterceptors.intercept(pricingConfig.pricingRpcService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(reservedInstanceConfig.reservedInstanceBoughtRpcService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(reservedInstanceConfig.reservedInstanceSpecRpcService(), monitoringInterceptor));
         return Optional.of(builder.build());
     }
 }

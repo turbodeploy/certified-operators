@@ -381,3 +381,87 @@ service CostService {
     rpc UpdateDiscount(DiscountRequest) returns (UpdateDiscountResponse);
 }
 
+message RegionFilter {
+    // A list of region ids need to filter by.
+    repeated int64 filter_id = 1;
+}
+
+message AvailabilityZoneFilter {
+    // A list of availability zone ids need to filter by.
+    repeated int64 filter_id = 1;
+}
+
+message AccountFilter {
+    // A list of account ids need to filter by.
+    repeated int64 filter_id = 1;
+}
+
+// A request to get reserved instance bought by some filter condition. If provider more than one
+// different filter type, it will perform AND logic.
+message GetReservedInstanceBoughtByFilterRequest {
+    // get reserved instance bought filter by region ids.
+    optional RegionFilter region_filter = 1;
+
+    // get reserved instance bought filter by availability zone ids.
+    optional AvailabilityZoneFilter availability_zone_filter = 2;
+
+    // get reserved instance bought filter by account ids.
+    optional AccountFilter account_filter = 3;
+}
+
+// A response contains a list reserved instance bought.
+message GetReservedInstanceBoughtByFilterResponse {
+    // A list of reserved instance bought.
+    repeated ReservedInstanceBought reserved_instance_boughts = 1;
+}
+
+// A request to get reserved instance bought count map.
+message GetReservedInstanceBoughtCountRequest {
+    // get reserved instance bought filter by region ids.
+    optional RegionFilter region_filter = 1;
+
+    // get reserved instance bought filter by availability zone ids.
+    optional AvailabilityZoneFilter availability_zone_filter = 2;
+
+    // get reserved instance bought filter by account ids.
+    optional AccountFilter account_filter = 3;
+}
+
+// A response which contains the reserved instance count map.
+message GetReservedInstanceBoughtCountResponse {
+    // A map which key is computer tier id, the value is the count of reserved instance bought.
+    map<int64, int64> reserved_instance_count_map = 1;
+}
+
+// A service for getting reserved instance bought
+service ReservedInstanceBoughtService {
+    // Get reserved instance bought by some filter condition, such as filter by region, availability zones
+    // or account.
+    rpc GetReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
+        (GetReservedInstanceBoughtByFilterResponse);
+
+    // Get the reserved instance bought count map which key is computer tier id, value is the count of
+    // reserved instance bought.
+    rpc GetReservedInstanceBoughtCount(GetReservedInstanceBoughtCountRequest) returns
+        (GetReservedInstanceBoughtCountResponse);
+}
+
+// A request to get reserved instance specs
+message GetReservedInstanceSpecByIdsRequest {
+    // A list of reserved instance specs id need to retrieve.
+    // If provide a empty spec ids list, it will return empty results.
+    repeated int64 reserved_instance_spec_ids = 1;
+}
+
+// A response of a list of reserved instance specs.
+message GetReservedInstanceSpecByIdsResponse {
+    // A list of reserved instance spec.
+    repeated ReservedInstanceSpec reserved_instance_spec = 1;
+}
+
+// A service for getting reserved instance spec.
+service ReservedInstanceSpecService {
+    // Get the reserved instance spec by a list of spec id.
+    rpc GetReservedInstanceSpecByIds(GetReservedInstanceSpecByIdsRequest) returns (GetReservedInstanceSpecByIdsResponse);
+}
+

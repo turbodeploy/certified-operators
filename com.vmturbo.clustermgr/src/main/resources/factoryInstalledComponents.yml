@@ -199,6 +199,7 @@ api:
   groupHost: 'group'
   historyHost: 'history'
   reportingHost: 'reporting'
+  costHost: 'cost'
   identityGeneratorPrefix: 5
   keystoreFile: '/home/turbonomic/data/keystore.p12'
   keystoreType: 'PKCS12'

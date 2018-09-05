@@ -230,7 +230,12 @@ public class ServiceConfig {
 
     @Bean
     public ReservedInstancesService reservedInstancesService() {
-        return new ReservedInstancesService();
+        return new ReservedInstancesService(
+                communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
+                communicationConfig.reservedInstanceSpecServiceBlockingStub(),
+                mapperConfig.reservedInstanceMapper(),
+                communicationConfig.repositoryApi(),
+                communicationConfig.groupExpander());
     }
 
     @Bean

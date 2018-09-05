@@ -16,6 +16,8 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.cost.component.db.Tables;
@@ -145,5 +147,17 @@ public class ReservedInstanceSpecStoreTest {
         assertEquals(1, allReservedInstanceSpecs.stream()
                 .filter(spec -> spec.getReservedInstanceSpecInfo().getOs().equals(OSType.WINDOWS))
                 .count());
+    }
+
+    @Test
+    public void testGetReservedInstanceSpecByIds() {
+        final List<ReservedInstanceSpec> reservedInstanceSpecs = Arrays.asList(specOne, specTwo);
+        reservedInstanceSpecStore.updateReservedInstanceBoughtSpec(dsl, reservedInstanceSpecs);
+        final List<ReservedInstanceSpec> allReservedInstanceSpecs =
+                reservedInstanceSpecStore.getAllReservedInstanceSpec();
+        final Long specId = allReservedInstanceSpecs.get(0).getId();
+        final List<ReservedInstanceSpec> results =
+                reservedInstanceSpecStore.getReservedInstanceSpecByIds(Sets.newHashSet(specId));
+        assertEquals(1L, results.size());
     }
 }

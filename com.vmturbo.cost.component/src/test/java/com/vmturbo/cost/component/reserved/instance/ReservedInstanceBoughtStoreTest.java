@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.flywaydb.core.Flyway;
@@ -52,6 +53,7 @@ public class ReservedInstanceBoughtStoreTest {
             .setProbeReservedInstanceId("bar")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
+            .setNumBought(10)
             .build();
 
     final ReservedInstanceBoughtInfo riInfoTwo = ReservedInstanceBoughtInfo.newBuilder()
@@ -59,20 +61,23 @@ public class ReservedInstanceBoughtStoreTest {
             .setProbeReservedInstanceId("foo")
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
+            .setNumBought(20)
             .build();
 
     final ReservedInstanceBoughtInfo riInfoThree = ReservedInstanceBoughtInfo.newBuilder()
             .setBusinessAccountId(789)
             .setProbeReservedInstanceId("test")
             .setReservedInstanceSpec(99L)
-            .setAvailabilityZoneId(100L)
+            .setAvailabilityZoneId(50L)
+            .setNumBought(30)
             .build();
 
     final ReservedInstanceBoughtInfo riInfoFour = ReservedInstanceBoughtInfo.newBuilder()
             .setBusinessAccountId(789)
             .setProbeReservedInstanceId("qux")
             .setReservedInstanceSpec(100L)
-            .setAvailabilityZoneId(100L)
+            .setAvailabilityZoneId(50L)
+            .setNumBought(40)
             .build();
 
     @Before
@@ -195,6 +200,52 @@ public class ReservedInstanceBoughtStoreTest {
 
     }
 
+    @Test
+    public void testGetReservedInstanceCountMap() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos =
+                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
+                .build();
+        final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
+        final long countForSpecOne = riCountMap.get(88L);
+        final long countForSpecTwo = riCountMap.get(90L);
+
+        assertEquals(2, riCountMap.size());
+        assertEquals(60L, countForSpecOne);
+        assertEquals(40L, countForSpecTwo);
+    }
+
+    @Test
+    public void testGetReservedInstanceCountMapFilterByRegion() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos =
+                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
+                .addRegionId(77L)
+                .build();
+        final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
+        final long countForSpecOne = riCountMap.get(88L);
+
+        assertEquals(1, riCountMap.size());
+        assertEquals(60L, countForSpecOne);
+    }
+
+    @Test
+    public void testGetReservedInstanceCountMapFilterByAZ() {
+        final List<ReservedInstanceBoughtInfo> reservedInstanceInfos =
+                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree, riInfoFour);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstanceInfos);
+        final ReservedInstanceBoughtFilter filter = ReservedInstanceBoughtFilter.newBuilder()
+                .addAvailabilityZoneId(100L)
+                .build();
+        final Map<Long, Long> riCountMap = reservedInstanceBoughtStore.getReservedInstanceCountMap(filter);
+        final long countForSpecOne = riCountMap.get(88L);
+
+        assertEquals(1, riCountMap.size());
+        assertEquals(30L, countForSpecOne);
+    }
+
     private void insertDefaultReservedInstanceSpec() {
         final ReservedInstanceSpecRecord specRecordOne = dsl.newRecord(Tables.RESERVED_INSTANCE_SPEC,
                 new ReservedInstanceSpecRecord(99L,
@@ -213,7 +264,7 @@ public class ReservedInstanceBoughtStoreTest {
                         2,
                         Tenancy.HOST.getValue(),
                         OSType.LINUX.getValue(),
-                        88L,
+                        90L,
                         78L,
                         ReservedInstanceSpecInfo.getDefaultInstance()));
         dsl.batchInsert(Arrays.asList(specRecordOne, specRecordTwo)).execute();

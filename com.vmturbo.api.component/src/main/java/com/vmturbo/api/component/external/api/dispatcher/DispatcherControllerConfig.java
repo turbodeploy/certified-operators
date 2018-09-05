@@ -28,6 +28,7 @@ import com.vmturbo.api.controller.NotificationsController;
 import com.vmturbo.api.controller.PoliciesController;
 import com.vmturbo.api.controller.ReportsController;
 import com.vmturbo.api.controller.ReservationsController;
+import com.vmturbo.api.controller.ReservedInstancesController;
 import com.vmturbo.api.controller.RolesController;
 import com.vmturbo.api.controller.ScenariosController;
 import com.vmturbo.api.controller.SearchController;
@@ -132,6 +133,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public ReportsController reportsController() {
         return new ReportsController();
+    }
+
+    @Bean
+    public ReservedInstancesController reservedInstancesController() {
+        return new ReservedInstancesController();
     }
 
     @Bean

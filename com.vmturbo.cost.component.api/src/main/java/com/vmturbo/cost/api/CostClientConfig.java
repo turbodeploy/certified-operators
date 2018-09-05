@@ -29,7 +29,7 @@ public class CostClientConfig {
     private long grpcPingIntervalSeconds;
 
     @Bean
-    public Channel groupChannel() {
+    public Channel costChannel() {
         return GrpcChannelFactory.newChannelBuilder(costHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();

@@ -2,6 +2,7 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_BOUGHT;
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
+import static org.jooq.impl.DSL.sum;
 
 import java.util.List;
 import java.util.Map;
@@ -15,6 +16,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Record2;
+import org.jooq.Result;
 
 import com.google.common.collect.Sets;
 
@@ -36,6 +39,9 @@ public class ReservedInstanceBoughtStore {
 
     private final DSLContext dsl;
 
+    // A temporary column name used for query reserved instance count map.
+    private final static String RI_SUM_COUNT = "ri_sum_count";
+
     public ReservedInstanceBoughtStore(@Nonnull final DSLContext dsl,
                                        @Nonnull final IdentityProvider identityProvider) {
         this.identityProvider = Objects.requireNonNull(identityProvider);
@@ -53,6 +59,26 @@ public class ReservedInstanceBoughtStore {
         return internalGet(dsl, filter).stream()
                 .map(this::reservedInstancesToProto)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the sum count of reserved instance bought by different compute tier type.
+     *
+     * @param filter a {@link ReservedInstanceBoughtFilter} contains all filter condition of the request.
+     * @return a Map which key is compute tier id and value is the sum count of reserved instance bought
+     * which belong to this type computer tier.
+     */
+    public Map<Long, Long> getReservedInstanceCountMap(@Nonnull final ReservedInstanceBoughtFilter filter) {
+        final Result<Record2<Long, Long>> riCountMap = dsl.select(RESERVED_INSTANCE_SPEC.TIER_ID,
+                (sum(RESERVED_INSTANCE_BOUGHT.COUNT)).cast(Long.class).as(RI_SUM_COUNT))
+                .from(RESERVED_INSTANCE_BOUGHT)
+                .join(RESERVED_INSTANCE_SPEC)
+                .on(RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID.eq(RESERVED_INSTANCE_SPEC.ID))
+                .where(filter.getConditions())
+                .groupBy(RESERVED_INSTANCE_SPEC.TIER_ID)
+                .fetch();
+        return riCountMap.intoMap(riCountMap.field(RESERVED_INSTANCE_SPEC.TIER_ID),
+                (riCountMap.field(RI_SUM_COUNT)).cast(Long.class));
     }
 
     /**
@@ -186,7 +212,8 @@ public class ReservedInstanceBoughtStore {
                 reservedInstanceInfo.getProbeReservedInstanceId(),
                 reservedInstanceInfo.getReservedInstanceSpec(),
                 reservedInstanceInfo.getAvailabilityZoneId(),
-                reservedInstanceInfo));
+                reservedInstanceInfo,
+                reservedInstanceInfo.getNumBought()));
     }
 
     /**
