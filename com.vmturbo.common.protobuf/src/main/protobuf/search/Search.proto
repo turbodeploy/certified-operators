@@ -96,6 +96,7 @@ message PropertyFilter {
     oneof propertyType {
         StringFilter string_filter = 2;
         NumericFilter numeric_filter = 3;
+        MapFilter map_filter = 4;
     }
 
     message StringFilter {
@@ -113,6 +114,27 @@ message PropertyFilter {
 
         // Requested value for the numeric property filtering.
         optional int64 value = 2;
+    }
+
+    // this is a filter for properties whose value is a map from strings to strings
+    // for example, assume that the tags of an entity map key "user" to values { "peter", "paul" }.
+    // then, a map filter with key regex "user" and value regex "pe.*" will accept the entity.
+    // on the other hand, (key regex = "department", value regex = "paul") or
+    // (key regex = "user", value regex = "john") will reject the entity.
+    // currently only entity tags are properties of this type
+    message MapFilter {
+        // Regular expression used against the key
+        optional string key_property_regex = 1;
+
+        // Regular expression used against the value
+        optional string value_property_regex = 2;
+
+        // True iff this is a multimap (multiple values per key are possible)
+        optional bool is_multimap = 3 [default = true];
+
+        // If true, the regex should match.
+        // If false, the regex should NOT match.
+        optional bool match = 4 [default = true];
     }
 
 }

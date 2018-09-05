@@ -48,6 +48,7 @@ public class AQLReprFuser {
                     switch (filter.getType()) {
                         case PROPERTY_NUMERIC:
                         case PROPERTY_STRING:
+                        case PROPERTY_MAP:
                             final int idx = grouped.size() - 1;
                             final List<Filter<? extends AnyFilterType>> lastGroup = grouped.get(idx);
                             lastGroup.add(filter);

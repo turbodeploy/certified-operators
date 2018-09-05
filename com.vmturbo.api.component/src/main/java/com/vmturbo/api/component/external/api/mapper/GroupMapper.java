@@ -63,6 +63,7 @@ public class GroupMapper {
     public static final String STORAGE_CLUSTER = "StorageCluster";
 
     public static final String DISPLAY_NAME = "displayName";
+    public static final String TAGS = "tags";
 
     private static final String CONSUMES = "CONSUMES";
     private static final String PRODUCES = "PRODUCES";
@@ -77,25 +78,53 @@ public class GroupMapper {
 
     static {
         final TraversalFilterProcessor traversalFilterProcessor = new TraversalFilterProcessor();
-        FILTER_TYPES_TO_PROCESSORS = ImmutableMap.of(
-        DISPLAY_NAME, (context) -> {
-            final PropertyFilter propertyFilter = SearchMapper.nameFilter(context.getFilter().getExpVal(),
-                            context.getFilter().getExpType().equals(EQUAL));
-            return ImmutableList.of(SearchMapper.searchFilterProperty(propertyFilter));
-        },
-        STATE, (context) -> {
-            final PropertyFilter stateFilter = SearchMapper.stateFilter(context.getFilter().getExpVal(),
-                            context.getFilter().getExpType().equals(EQUAL));
-            return ImmutableList.of(SearchMapper.searchFilterProperty(stateFilter));
-        },
-        CLUSTER, (context) -> {
-            ClusterMembershipFilter clusterFilter = SearchMapper.clusterFilter(
-                            SearchMapper.nameFilter(context.getFilter().getExpVal(),
-                                            context.getFilter().getExpType().equals(EQUAL)));
-            return ImmutableList.of(SearchMapper.searchFilterCluster(clusterFilter));
-        },
-        CONSUMES, traversalFilterProcessor,
-        PRODUCES, traversalFilterProcessor);
+        final ImmutableMap.Builder<String, Function<SearchFilterContext, List<SearchFilter>>>
+                filterTypesToProcessors = new ImmutableMap.Builder<>();
+        filterTypesToProcessors.put(
+                DISPLAY_NAME,
+                context -> {
+                    final PropertyFilter propertyFilter =
+                            SearchMapper.nameFilter(
+                                context.getFilter().getExpVal(),
+                                context.getFilter().getExpType().equals(EQUAL));
+                    return ImmutableList.of(SearchMapper.searchFilterProperty(propertyFilter));
+                });
+        filterTypesToProcessors.put(
+                STATE,
+                context -> {
+                    final PropertyFilter stateFilter =
+                            SearchMapper.stateFilter(
+                                context.getFilter().getExpVal(),
+                                context.getFilter().getExpType().equals(EQUAL));
+                    return ImmutableList.of(SearchMapper.searchFilterProperty(stateFilter));
+                });
+        filterTypesToProcessors.put(
+                TAGS,
+                context -> {
+                    // this solution is temporary.  it assumes that only one string is obtained from
+                    // the UI and it partitions it using the equals sign
+                    // TODO: a solution based on two fields must be implemented (OM-38687)
+                    final String[] kv = context.getFilter().getExpVal().split("=");
+                    final String value = kv.length != 2 || kv[1].isEmpty() ? ".*" : kv[1];
+                    final String key = kv.length != 2 || kv[0].isEmpty() ? ".*" : kv[0];
+                    final PropertyFilter tagsFilter =
+                            SearchMapper.mapPropertyFilterForMultimaps(
+                                    TAGS, key, value, context.getFilter().getExpType().equals(EQUAL));
+                    return ImmutableList.of(SearchMapper.searchFilterProperty(tagsFilter));
+                });
+        filterTypesToProcessors.put(
+                CLUSTER,
+                context -> {
+                    ClusterMembershipFilter clusterFilter =
+                            SearchMapper.clusterFilter(
+                                SearchMapper.nameFilter(
+                                    context.getFilter().getExpVal(),
+                                    context.getFilter().getExpType().equals(EQUAL)));
+                    return ImmutableList.of(SearchMapper.searchFilterCluster(clusterFilter));
+                });
+        filterTypesToProcessors.put(CONSUMES, traversalFilterProcessor);
+        filterTypesToProcessors.put(PRODUCES, traversalFilterProcessor);
+        FILTER_TYPES_TO_PROCESSORS = filterTypesToProcessors.build();
     }
 
     private static StoppingCondition buildStoppingCondition(String currentToken) {

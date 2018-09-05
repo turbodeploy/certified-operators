@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.group.filter;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -11,6 +12,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.DiscoveryOriginBuilder;
 import com.vmturbo.stitching.TopologyEntity;
@@ -88,6 +90,7 @@ public class FilterUtils {
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;
     }
+
     /**
      * Create a minimal topology entity builder that was never discovered.
      *
@@ -130,6 +133,22 @@ public class FilterUtils {
 
         addCommodityBoughtMap(builder.getEntityBuilder(), producers);
         return builder;
+    }
+
+    /**
+     * Create a minimal topology entity with entity tags.
+     *
+     * @param oid The OID of the topology entity.
+     * @param entityType The entity type for the entity.
+     * @param tags The tags.
+     * @return A {@link TopologyEntityDTO} with the given properties.
+     */
+    public static TopologyEntity.Builder topologyEntityWithTags(
+            long oid, @Nonnull EntityType entityType, @Nonnull Map<String, TagValuesDTO> tags) {
+        return TopologyEntity.newBuilder(
+                TopologyEntityDTO.newBuilder()
+                    .setOid(oid)
+                    .setEntityType(entityType.getNumber()).putAllTags(tags));
     }
 
     /**

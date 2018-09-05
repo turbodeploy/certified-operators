@@ -15,7 +15,7 @@ import org.derive4j.Visibility;
 public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
 
     enum Type {
-        PROPERTY_STRING, PROPERTY_NUMERIC, TRAVERSAL_HOP, TRAVERSAL_COND
+        PROPERTY_STRING, PROPERTY_NUMERIC, PROPERTY_MAP, TRAVERSAL_HOP, TRAVERSAL_COND
     }
 
     enum StringOperator implements AQLConverter {
@@ -97,6 +97,8 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     interface Cases<R> {
         R StringPropertyFilter(String strPropName, StringOperator strOp, String strValue);
         R NumericPropertyFilter(String numPropName, NumericOperator numOp, Number numValue);
+        R MapPropertyFilter(
+                String mapPropName, StringOperator strOp, String keyRegex, String valRegex, boolean multi);
         R TraverseHopFilter(TraversalDirection direction, int hop);
         R TraverseCondFilter(TraversalDirection direction, Filter filter);
     }
@@ -113,6 +115,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
         return Filters.cases()
                 .StringPropertyFilter(Type.PROPERTY_STRING)
                 .NumericPropertyFilter(Type.PROPERTY_NUMERIC)
+                .MapPropertyFilter(Type.PROPERTY_MAP)
                 .TraverseHopFilter(Type.TRAVERSAL_HOP)
                 .TraverseCondFilter(Type.TRAVERSAL_COND)
                 .apply((Filter<Object>) this);
@@ -127,6 +130,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
         final Cases<Filter<? extends AnyFilterType>> cases = Filters.cases(
                 Filter::stringPropertyFilter,
                 Filter::numericPropertyFilter,
+                Filter::mapPropertyFilter,
                 Filter::traversalHopFilter,
                 Filter::traversalCondFilter);
         return this.match(cases);
@@ -150,11 +154,30 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
      */
     @Override
     public String toAQLString() {
+        // TODO (here and elsewhere): SANITIZE the input before inserting it into the query (OM-38634)
+        // TODO (here and elsewhere): translate the Java regex language to the ArangoDB regex language (OM-38634)
         return this.match(Filters.cases(
                 (pName, strOp, strVal) ->
-                        String.format("FILTER service_entity.%s %s \"%s\"", pName, strOp.toAQLString(), strVal),
+                    String.format("FILTER service_entity.%s %s \"%s\"", pName, strOp.toAQLString(), strVal),
                 (pName, numOp, numVal) ->
-                        String.format("FILTER service_entity.%s %s %s", pName, numOp.toAQLString(), numVal),
+                    String.format("FILTER service_entity.%s %s %s", pName, numOp.toAQLString(), numVal),
+                (pName, strOp, keyRegex, valRegex, multi) -> {
+                    // construct AQL filter for (multi)-map search
+                    // the value filter depends on whether this is a map or a multimap
+                    // the value in a map entry is a single string, while in multimap is an array
+                    final String valueFilterPattern =
+                            multi ? "FOR value in service_entity.%s[key] FILTER value %s \"%s\""
+                                  : "service_entity.tags[key] %s \"%s\"";
+                    final String valueFilter =
+                            String.format(valueFilterPattern, pName, strOp.toAQLString(), valRegex);
+
+                    // the full filter includes a search on the key
+                    // notice that the operator for keys is always =~ (i.e., Arango's regular expression map)
+                    // regardless of strOp
+                    return String.format(
+                            "FOR key in ATTRIBUTES(service_entity.%s) FILTER key =~ \"%s\" %s",
+                            pName, keyRegex, valueFilter);
+                },
                 (direction, hop) -> "",
                 (direction, filter) -> ""));
     }
@@ -173,6 +196,27 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                                                                   final StringOperator op,
                                                                   final String value) {
         return Filters.StringPropertyFilter0(propName, op, value);
+    }
+
+    /**
+     * Smart constructor for creating a multimap property filter.
+     *
+     * @param propName The property name.
+     * @param op The string operator.
+     * @param keyRegex The key regular expression.
+     * @param valueRegex The value regular expression.
+     * @param multi iff this is a multi-map.
+     *
+     * @return A {@link Filter<PropertyFilterType>}.
+     */
+    @ExportAsPublic
+    public static Filter<PropertyFilterType> mapPropertyFilter(
+            final String propName,
+            final StringOperator op,
+            final String keyRegex,
+            final String valueRegex,
+            final boolean multi) {
+        return Filters.MapPropertyFilter0(propName, op, keyRegex, valueRegex, multi);
     }
 
     /**

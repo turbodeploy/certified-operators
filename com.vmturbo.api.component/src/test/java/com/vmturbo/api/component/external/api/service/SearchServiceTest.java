@@ -25,6 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -77,6 +78,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Unit test for {@link SearchService}.
@@ -363,5 +365,22 @@ public class SearchServiceTest {
 
         assertThat(resultIds.size(), is(2));
         assertThat(resultIds, containsInAnyOrder(1L, 4L));
+    }
+
+    /**
+     * The options for the tags field should be an empty list, which means that there is no
+     * restriction on the inputs when a tags-related filter is created in the UI.
+     * TODO: this behavior should change with OM-38687.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testOptionsForTags() throws Exception {
+        Assert.assertTrue(
+                searchService.getCriteriaOptions(
+                    GroupMapper.TAGS, Collections.emptyList(),
+                    EntityType.VIRTUAL_MACHINE.toString(), EnvironmentType.CLOUD
+                ).isEmpty()
+        );
     }
 }

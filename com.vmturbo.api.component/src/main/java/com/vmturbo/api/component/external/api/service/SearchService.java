@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.CLUSTER;
+import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.GroupMapper.STORAGE_CLUSTER;
+import static com.vmturbo.api.component.external.api.mapper.GroupMapper.TAGS;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -649,12 +651,26 @@ public class SearchService implements ISearchService {
                                                          final String entityType,
                                                          final EnvironmentType envType) throws Exception {
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
-        Arrays.stream(EntityState.values())
-                        .forEach(option -> {
-                            final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
-                            optionApiDTO.setValue(option.name());
-                            optionApiDTOs.add(optionApiDTO);
-                        });
+
+        switch (criteriaKey) {
+            case STATE:
+                // options should be all possible states
+                Arrays.stream(EntityState.values())
+                    .forEach(option -> {
+                        final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+                        optionApiDTO.setValue(option.name());
+                        optionApiDTOs.add(optionApiDTO);
+                    });
+                break;
+
+            case TAGS:
+                // keep options list empty: any string can be input in the tags fields
+                break;
+
+            default:
+                throw new IllegalArgumentException("Unknown criterion key: " + criteriaKey);
+        }
+
         return optionApiDTOs;
     }
 }

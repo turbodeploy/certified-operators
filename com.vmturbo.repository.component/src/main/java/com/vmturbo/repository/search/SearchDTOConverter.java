@@ -175,6 +175,17 @@ public class SearchDTOConverter {
                 filter = Filter.stringPropertyFilter(propertyName, operator, regex);
                 break;
 
+            case MAP_FILTER:
+                filter =
+                        Filter.mapPropertyFilter(
+                                propertyName,
+                                propertyFilter.getStringFilter().getMatch() ?
+                                        StringOperator.REGEX : StringOperator.NEGATIVE_REGEX,
+                                propertyFilter.getMapFilter().getKeyPropertyRegex(),
+                                propertyFilter.getMapFilter().getValuePropertyRegex(),
+                                propertyFilter.getMapFilter().getIsMultimap());
+                break;
+
             case PROPERTYTYPE_NOT_SET:
             default:
                 return Either.left(

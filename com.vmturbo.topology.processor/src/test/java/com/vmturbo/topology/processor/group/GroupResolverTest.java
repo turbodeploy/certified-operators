@@ -2,9 +2,12 @@ package com.vmturbo.topology.processor.group;
 
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntityWithName;
+import static com.vmturbo.topology.processor.group.filter.FilterUtils.topologyEntityWithTags;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.eq;
@@ -16,12 +19,15 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -32,12 +38,14 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticGroupMembers;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.filter.TopologyFilterFactory;
@@ -72,6 +80,16 @@ public class GroupResolverTest {
         topologyMap.put(8L, topologyEntity(8L, EntityType.VIRTUAL_MACHINE, 3, 4));
         topologyMap.put(9L, topologyEntity(9L, EntityType.VIRTUAL_DATACENTER, 5, 6));
         topologyMap.put(10L, topologyEntityWithName(10L, EntityType.VIRTUAL_MACHINE, "VM#10", 9));
+
+        final Map<String, TagValuesDTO> tags11 =
+                ImmutableMap.of(
+                        "k1", TagValuesDTO.newBuilder().addValues("v1").addValues("v2").build(),
+                        "k2", TagValuesDTO.newBuilder().addValues("v3").addValues("v2").build());
+        final Map<String, TagValuesDTO> tags12 =
+                ImmutableMap.of(
+                        "k3", TagValuesDTO.newBuilder().addValues("v1").build());
+        topologyMap.put(11L, topologyEntityWithTags(11L, EntityType.STORAGE, tags11));
+        topologyMap.put(12L, topologyEntityWithTags(12L, EntityType.STORAGE, tags12));
 
         topologyGraph = TopologyGraph.newGraph(topologyMap);
     }
@@ -156,7 +174,49 @@ public class GroupResolverTest {
             .build();
 
         final GroupResolver resolver = new GroupResolver(new TopologyFilterFactory());
-        assertThat(resolver.resolve(dynamicGroup, topologyGraph), containsInAnyOrder(5L, 6L, 7L, 8L, 9L, 10L));
+        assertThat(
+                resolver.resolve(dynamicGroup, topologyGraph),
+                containsInAnyOrder(5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L));
+    }
+
+    @Test
+    public void testTagFilters() throws Exception {
+        testTagFilter(100L, "c", "v2", false, false);
+        testTagFilter(101L, "k.", "x", false, false);
+        testTagFilter(102L, "k1", "v.", true, false);
+        testTagFilter(103L, "k3", "v1", false, true);
+        testTagFilter(104L, "k.", "v.", true, true);
+        testTagFilter(105L, ".2", "v1", false, false);
+    }
+
+    private void testTagFilter(
+            long goid, String keyRegex, String valRegex, boolean entity11expected, boolean entity12expected
+    ) throws Exception {
+        final SearchParametersCollection searchParameters =
+                SearchParametersCollection.newBuilder()
+                    .addSearchParameters(
+                        SearchParameters.newBuilder().setStartingFilter(
+                            Search.PropertyFilter.newBuilder()
+                                .setPropertyName("tags")
+                                .setMapFilter(
+                                    MapFilter.newBuilder()
+                                        .setKeyPropertyRegex(keyRegex)
+                                        .setValuePropertyRegex(valRegex)
+                                        .build()
+                                ).build()
+                        )
+                    ).build();
+        final Group dynamicGroup =
+                Group.newBuilder()
+                        .setId(goid).setGroup(
+                            GroupInfo.newBuilder()
+                                .setEntityType(EntityType.STORAGE.getNumber())
+                                .setSearchParametersCollection(searchParameters)
+                ).build();
+        final Set<Long> groupMembers =
+                new GroupResolver(new TopologyFilterFactory()).resolve(dynamicGroup, topologyGraph);
+        assertEquals(entity11expected, groupMembers.contains(11L));
+        assertEquals(entity12expected, groupMembers.contains(12L));
     }
 
     @Test

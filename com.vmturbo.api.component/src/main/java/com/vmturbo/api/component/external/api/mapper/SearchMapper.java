@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.search.Search.ClusterMembershipFilter;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.Entity;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -103,6 +104,32 @@ public class SearchMapper {
                             .setComparisonOperator(ComparisonOperator.EQ)
                             .build())
                         .build();
+    }
+
+    /**
+     * Create a map filter for the specified property name and specified search values.
+     * The filter created allows for multimap properties.  The values of Such properties are maps,
+     * in which multiple values may correspond to a single key.  For example key "user" may be mapped
+     * to both values "peter" and "paul".
+     *
+     * @param propName property name to use for the search.
+     * @param keyRegex regular expression to check the multimap key against.
+     * @param valRegex regular expression to check the multimap values against.
+     * @param match If true, there should be a matching value under the matched key.
+     *              If false, there should be a non-matching value under the matched key.
+     * @return the property filter.
+     */
+    public static PropertyFilter mapPropertyFilterForMultimaps(
+            @Nonnull String propName, @Nonnull String keyRegex, @Nonnull String valRegex, boolean match) {
+        return PropertyFilter.newBuilder()
+                    .setPropertyName(propName)
+                    .setMapFilter(
+                            MapFilter.newBuilder()
+                                .setKeyPropertyRegex(keyRegex)
+                                .setValuePropertyRegex(valRegex)
+                                .setMatch(match)
+                                .build()
+                    ).build();
     }
 
     /**

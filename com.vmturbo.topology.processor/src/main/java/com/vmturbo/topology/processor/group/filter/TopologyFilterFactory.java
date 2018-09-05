@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.filter;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -14,6 +15,7 @@ import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
@@ -67,6 +69,10 @@ public class TopologyFilterFactory {
             case STRING_FILTER:
                 return stringFilter(propertyFilterCriteria.getPropertyName(),
                     propertyFilterCriteria.getStringFilter());
+            case MAP_FILTER:
+                return mapFilter(
+                        propertyFilterCriteria.getPropertyName(),
+                        propertyFilterCriteria.getMapFilter());
             default:
                 throw new IllegalArgumentException("Unknown PropertyTypeCase: " +
                     propertyFilterCriteria.getPropertyTypeCase());
@@ -146,6 +152,27 @@ public class TopologyFilterFactory {
                 }
             default:
                 throw new IllegalArgumentException("Unknown string property named: " + stringCriteria);
+        }
+    }
+
+    @Nonnull
+    private PropertyFilter mapFilter(
+            @Nonnull final String propertyName,
+            @Nonnull final Search.PropertyFilter.MapFilter mapCriteria) {
+        // currently only entity tags is a property of type map
+        if (propertyName.equals("tags")) {
+            return new PropertyFilter(te ->
+                te.getTopologyEntityDtoBuilder().getTagsMap().entrySet().stream()
+                        .anyMatch(e ->
+                                e.getKey().matches(mapCriteria.getKeyPropertyRegex()) &&
+                                e.getValue().getValuesList().stream().anyMatch(v ->
+                                        v.matches(mapCriteria.getValuePropertyRegex()) ==
+                                        mapCriteria.getMatch()
+                                )
+                        )
+            );
+        } else {
+            throw new IllegalArgumentException("Unknown map property named: " + propertyName);
         }
     }
 
