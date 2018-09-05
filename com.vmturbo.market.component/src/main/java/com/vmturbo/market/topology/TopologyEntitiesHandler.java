@@ -22,11 +22,8 @@ import com.vmturbo.commons.analysis.CommodityResizeDependencyMap;
 import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
-import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
@@ -34,7 +31,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
 import com.vmturbo.platform.analysis.ede.Ede;
-import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.ledger.PriceStatement;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
@@ -105,8 +101,6 @@ public class TopologyEntitiesHandler {
      *                                it, Market could generate resize down actions.
      * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
      *                                it, Market could generate resize up actions.
-     * @param suspensionThrottlingConfig suspension throttling configuration to be sent sent for analysis.
-     * @param analysis containing reference for replay actions.
      * @return The list of actions for the TOs.
      */
     public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
@@ -115,8 +109,7 @@ public class TopologyEntitiesHandler {
                                                   @Nonnull final Optional<Integer> maxPlacementsOverride,
                                                   final float rightsizeLowerWatermark,
                                                   final float rightsizeUpperWatermark,
-                                                  final SuspensionsThrottlingConfig suspensionThrottlingConfig,
-                                                  final Analysis analysis) {
+                                                  final SuspensionsThrottlingConfig suspensionThrottlingConfig) {
         logger.info("Received TOs from marketComponent. Starting economy creation on {} traders",
                 traderTOs.size());
         final long start = System.nanoTime();
@@ -184,11 +177,6 @@ public class TopologyEntitiesHandler {
             final String marketId = topologyInfo.getTopologyType() + "-"
                     + Long.toString(topologyInfo.getTopologyContextId()) + "-"
                     + Long.toString(topologyInfo.getTopologyId());
-            // Set replay actions.
-            if (isRealtime) {
-                ede.setReplayActions(analysis.getReplayActions() == null ? new ReplayActions()
-                                : analysis.getReplayActions());
-            }
             // trigger suspension throttling in XL
             actions = ede.generateActions(economy, true,
                     true, true, true, true, marketId, isRealtime, isRealtime ? suspensionThrottlingConfig
@@ -238,14 +226,6 @@ public class TopologyEntitiesHandler {
                     }
                 }
                 results = builder.build();
-
-                // Update replay actions
-                ReplayActions newReplayActions = ede.getReplayActions();
-                newReplayActions.setTraderOids(topology.getTraderOids());
-                newReplayActions.setActions(actions.stream()
-                                .filter(action -> action.getType().equals(ActionType.DEACTIVATE))
-                                .collect(Collectors.toList()));
-                analysis.setReplayActions(newReplayActions);
             }
         }
 

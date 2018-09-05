@@ -40,14 +40,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
-import com.vmturbo.platform.analysis.actions.ActionType;
-import com.vmturbo.platform.analysis.actions.Deactivate;
-import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
@@ -95,7 +88,7 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void end2endTest() throws IOException, InvalidTopologyException {
-        List<ActionTO> actionTOs = generateEnd2EndActions(mock(Analysis.class));
+        List<ActionTO> actionTOs = generateEnd2EndActions();
         assertFalse(actionTOs.isEmpty());
         // All commodities gotten from protobuf/messages/discoveredEntities.json
         // in generateEnd2End actions have resizable=false, so, there should not be resize actions
@@ -113,7 +106,7 @@ public class TopologyEntitiesHandlerTest {
     @Ignore("Currently fails due to OM-21364. Please re-enable when that bug is fixed.")
     @Test
     public void end2endTestCollapsing() throws IOException, InvalidTopologyException {
-        List<ActionTO> actionTOs = generateEnd2EndActions(mock(Analysis.class));
+        List<ActionTO> actionTOs = generateEnd2EndActions();
 
         // Verify that the actions are collapsed
         // Count Move actions - with collapsed actions there should be no more than one per shopping list
@@ -138,76 +131,6 @@ public class TopologyEntitiesHandlerTest {
                         .collect(Collectors.toSet());
         resized.retainAll(deactivated);
         assertTrue("Traders are resized but later deactivated", resized.isEmpty());
-    }
-
-    /**
-     * Test replay actions for real time topology. Few deactivate actions are created by analysis for
-     * given topology and those action should be added to replay actions.
-     * @throws IOException when the loaded file is missing
-     * @throws InvalidTopologyException not supposed to happen here
-     */
-    @Test
-    public void replayActionsTestForRealTime() throws IOException, InvalidTopologyException {
-        List<CommonDTO.EntityDTO> probeDTOs =
-                        messagesFromJsonFile("protobuf/messages/discoveredEntities.json", EntityDTO::newBuilder);
-
-        Map<Long, CommonDTO.EntityDTO> map = Maps.newHashMap();
-        IntStream.range(0, probeDTOs.size()).forEach(i -> map.put((long)i, probeDTOs.get(i)));
-        Map<Long, TopologyEntityDTO> topoDTOs = Converter.convert(map).stream()
-            .map(TopologyEntityDTO.Builder::build)
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Set<TraderTO> economyDTOs =
-            new TopologyConverter(REALTIME_TOPOLOGY_INFO, true, 0.75f)
-                        .convertToMarket(topoDTOs);
-        final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-                .setTopologyContextId(7L)
-                .setTopologyType(TopologyType.REALTIME)
-                .setTopologyId(1L)
-                .build();
-        ReplayActions replayActions = new ReplayActions();
-        Analysis analysis = mock(Analysis.class);
-        when(analysis.getReplayActions()).thenReturn(replayActions);
-        AnalysisResults results =
-            TopologyEntitiesHandler.performAnalysis(
-                economyDTOs, topologyInfo, Collections.emptyMap(), maxPlacementIterations,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark, SuspensionsThrottlingConfig.DEFAULT, analysis);
-
-        // All deactivate actions should be set in analysis' replay actions.
-        List<Long> deactivatedActionsTarget = results.getActionsList().stream()
-                        .filter(ActionTO::hasDeactivate)
-                        .map(actionTo -> actionTo.getDeactivate().getTraderToDeactivate())
-                        .collect(Collectors.toList());
-        List<Long> replayOids = replayActions.getActions().stream()
-            .map(a -> replayActions.getTraderOids().get(a.getActionTarget()))
-            .collect(Collectors.toList());
-
-        // Check that populated replay actions contain all Deactivate actions.
-        assertEquals(deactivatedActionsTarget.size(), replayOids.size());
-        assertTrue(replayActions.getActions().stream()
-            .allMatch(a -> a.getType().equals(ActionType.DEACTIVATE)));
-        assertTrue(deactivatedActionsTarget.containsAll(replayOids));
-    }
-
-    /**
-     * Test replay actions for plan topology. This should not affect current
-     * state of replay actions.
-     * @throws IOException when the loaded file is missing
-     * @throws InvalidTopologyException not supposed to happen here
-     */
-    @Test
-    public void replayActionsTestForPlan() throws IOException, InvalidTopologyException {
-        ReplayActions replayActions = new ReplayActions();
-        Deactivate deactivateAction = mock(Deactivate.class);
-        replayActions.getActions().add(deactivateAction);
-        Analysis analysis = mock(Analysis.class);
-        when(analysis.getReplayActions()).thenReturn(replayActions);
-
-        generateEnd2EndActions(mock(Analysis.class));
-
-        // Unchanged replay actions for plan.
-        assertEquals(replayActions, analysis.getReplayActions());
-        assertEquals(1, replayActions.getActions().size());
-        assertEquals(deactivateAction, replayActions.getActions().get(0));
     }
 
     /**
@@ -406,7 +329,7 @@ public class TopologyEntitiesHandlerTest {
      * @throws IOException If the file load fails.
      * @throws InvalidTopologyException not supposed to happen here
      */
-    private List<ActionTO> generateEnd2EndActions(Analysis analysis) throws IOException, InvalidTopologyException {
+    private List<ActionTO> generateEnd2EndActions() throws IOException, InvalidTopologyException {
         List<CommonDTO.EntityDTO> probeDTOs =
             messagesFromJsonFile("protobuf/messages/discoveredEntities.json", EntityDTO::newBuilder);
 
@@ -427,7 +350,7 @@ public class TopologyEntitiesHandlerTest {
         AnalysisResults results =
             TopologyEntitiesHandler.performAnalysis(
                 economyDTOs, topologyInfo, Collections.emptyMap(), maxPlacementIterations,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark, SuspensionsThrottlingConfig.DEFAULT, analysis);
+                    rightsizeLowerWatermark, rightsizeUpperWatermark, SuspensionsThrottlingConfig.DEFAULT);
         return results.getActionsList();
     }
 

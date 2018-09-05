@@ -50,7 +50,6 @@ import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -86,7 +85,6 @@ public class Analysis {
 
     private String errorMsg;
     private AnalysisState state;
-    private ReplayActions realtimeReplayActions;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -312,8 +310,7 @@ public class Analysis {
 
             final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
                 topologyInfo, globalSettingsMap, maxPlacementsOverride, rightsizeLowerWatermark,
-                rightsizeUpperWatermark, config.getSuspensionsThrottlingConfig(), this);
-
+                rightsizeUpperWatermark, config.getSuspensionsThrottlingConfig());
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
             converter.updateShoppingListMap(results.getNewShoppingListToBuyerEntryList());
@@ -873,23 +870,6 @@ public class Analysis {
         return traderTO.getShoppingListsList().stream()
                 .anyMatch(shoppingListTO -> !shoppingListTO.hasSupplier() ||
                         shoppingListTO.getSupplier() <= 0);
-    }
-
-    /**
-     * Replay actions are used only in real-time topologies.
-     * @return actions (suspend/deactivate) generated in this cycle to replay.
-     */
-    public ReplayActions getReplayActions() {
-        return realtimeReplayActions;
-    }
-
-    /**
-     * Replay actions are set only real-time topologies.
-     * @param replayActions Suspend/deactivate actions from previous cycle are set to replay
-     * in current analysis.
-     */
-    public void setReplayActions(ReplayActions replayActions) {
-        this.realtimeReplayActions = replayActions;
     }
 
     /**
