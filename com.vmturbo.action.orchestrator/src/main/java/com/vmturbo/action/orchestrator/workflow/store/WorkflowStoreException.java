@@ -3,16 +3,16 @@ package com.vmturbo.action.orchestrator.workflow.store;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 /**
- * Checked Exception thrown if there's an error persisting a workflow.
+ * Checked Exception thrown if there's an error reading from or writing to the WorkflowStore.
  **/
-public class PersistWorkflowException extends Exception {
+public class WorkflowStoreException extends Exception {
 
     /**
      * Error while persisting {@link WorkflowDTO.WorkflowInfo}s.
      *
      * @param message a message describing what was going on when the error occurred
      */
-    public PersistWorkflowException(String message) {
+    public WorkflowStoreException(String message) {
         super(message);
     }
 
@@ -21,7 +21,7 @@ public class PersistWorkflowException extends Exception {
      * @param message a message describing what was going on when the error occurred
      * @param cause a Throwable that precipitated this error handling
      */
-    public PersistWorkflowException(String message, Throwable cause) {
+    public WorkflowStoreException(String message, Throwable cause) {
         super(message, cause);
     }
 }

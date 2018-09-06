@@ -1,9 +1,14 @@
 package com.vmturbo.action.orchestrator.workflow.store;
 
 import java.util.List;
+import java.util.Set;
 
-import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
-import com.vmturbo.identity.store.IdentityStoreException;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.Workflow;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 
 /**
  * Store for Workflow items.
@@ -25,9 +30,24 @@ public interface WorkflowStore {
      * @param worflowInfos a list of WorkflowInfo protobufs describing the workflows to be stored.
      *                     Previously exising workflows will be updated. New workflows will be
      *                     added. Old workflows not on this list will be removed.
-     * @throws PersistWorkflowException if there is a problem saving either the OID of a workflow
+     * @throws WorkflowStoreException if there is a problem saving either the OID of a workflow
      * or the WorkflowInfo for the workflow.
      */
-    void persistWorkflows(long targetId, List<WorkflowDTO.WorkflowInfo> worflowInfos)
-            throws PersistWorkflowException;
+    void persistWorkflows(long targetId, List<WorkflowInfo> worflowInfos)
+            throws WorkflowStoreException;
+
+    /**
+     * Return the workflows that match the given 'orchestratorTypeFilter'. If the filter == null then
+     * all workflows will be returned.
+     *
+     * Note that the filter is not yet implemented, and not used by the UI. It should probably be
+     * removed from the request.
+     *
+     * @param orchestratorTypeFilter what type of OrchestrationTarget to include; or 'all' if null
+     * @return all the {@link Workflow} protobufs whose type matches the 'orchestratorTypeFilter'
+     * @throws WorkflowStoreException if there is any error fetching from the backing store
+     */
+    @Nonnull
+    Set<Workflow> fetchWorkflows(@Nullable OrchestratorType orchestratorTypeFilter)
+            throws WorkflowStoreException;
 }

@@ -13,6 +13,7 @@ import javax.persistence.Column;
 
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
+import org.jooq.exception.MappingException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
@@ -37,12 +38,17 @@ public class PersistentWorkflowIdentityStore implements PersistentIdentityStore<
      */
     @Override
     @Nonnull
-    public Map<IdentityMatchingAttributes, Long> fetchAllOidMappings() {
-        return dsl.select()
-                .from(WORKFLOW_OID)
-                .fetchInto(WorkflowHeader.class).stream()
-                .collect(Collectors.toMap(WorkflowHeader::getMatchingAttributes,
-                        WorkflowHeader::getId));
+    public Map<IdentityMatchingAttributes, Long> fetchAllOidMappings()
+            throws IdentityStoreException {
+        try {
+            return dsl.select()
+                    .from(WORKFLOW_OID)
+                    .fetchInto(WorkflowHeader.class).stream()
+                    .collect(Collectors.toMap(WorkflowHeader::getMatchingAttributes,
+                            WorkflowHeader::getId));
+        } catch (DataAccessException e) {
+            throw new IdentityStoreException("Error fetching all OID mappings", e);
+        }
     }
 
     /**

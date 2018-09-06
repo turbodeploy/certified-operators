@@ -246,6 +246,18 @@ public enum EntitySettingSpecs {
             Collections.singletonList("automation"),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE),
+            string(), true),
+
+    /**
+     * This Action Script action is added as a temporary work-around for a bug in the UI.
+     * The UI processes workflows as part of the 'actionScript' case - so at least one
+     * 'actionScript' must be included.
+     * TODO: remove this as part of fix OM-38669
+     */
+    ProvisionActionScript("provisionActionScript", "Provision",
+            Collections.singletonList("actionScript"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.PHYSICAL_MACHINE, EntityType.STORAGE),
             string(), true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =

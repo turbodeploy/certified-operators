@@ -61,6 +61,8 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc;
 import com.vmturbo.common.protobuf.widgets.WidgetsetsServiceGrpc.WidgetsetsServiceBlockingStub;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
@@ -181,6 +183,11 @@ public class CommunicationConfig {
     @Bean
     public RepositoryServiceBlockingStub repositoryRpcService() {
         return RepositoryServiceGrpc.newBlockingStub(repositoryChannel());
+    }
+
+    @Bean
+    public WorkflowServiceBlockingStub fetchWorkflowRpcService() {
+        return WorkflowServiceGrpc.newBlockingStub(actionOrchestratorChannel());
     }
 
     @Bean

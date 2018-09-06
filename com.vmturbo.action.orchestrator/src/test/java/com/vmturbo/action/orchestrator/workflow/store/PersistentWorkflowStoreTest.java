@@ -97,7 +97,7 @@ public class PersistentWorkflowStoreTest {
      * @throws PersistentWorkflowStoreTest should not happen
      */
     @Test
-    public void testPersistWorkflowOids() throws IdentityStoreException, PersistWorkflowException {
+    public void testPersistWorkflowOids() throws IdentityStoreException, WorkflowStoreException {
         // arrange
         IdentityStore mockIdentityStore = Mockito.mock(IdentityStore.class);
         WorkflowInfo workflow1 = WorkflowInfo.newBuilder()

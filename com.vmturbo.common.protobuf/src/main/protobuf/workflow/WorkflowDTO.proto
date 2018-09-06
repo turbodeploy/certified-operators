@@ -28,9 +28,8 @@ message WorkflowInfo {
     // Data to define the parameters which this workflow expects as defined using the target's ui.
     repeated WorkflowParameter workflow_param = 4;
 
-    // defined in the NonMarketEntity.WorkflowData but not used by the server (and ignored for now):
-    //    - repeated Property property = 2;
-    //    - optional EntityDTO.EntityType entityType = 3;
+    // Human readable descripton of the workflow discovered from the target
+    optional string description = 5;
 }
 
 // A descriptor for an input parameter to a workflow as specified by the workflow author.
@@ -58,10 +57,35 @@ message StoreDiscoveredWorkflowsRequest {
     repeated WorkflowInfo discovered_workflow = 2;
 }
 
+// Reserved for future filtering queries, organizing workflows by Orchestrator (target) Type.
+// Copied from com.vmturbo.api.enums.OrchestratorType - but the enum value AWS_Service_Catalog("AWS")
+// is under "negotiation", so it is omitted here.
+enum OrchestratorType {
+    UCSD = 1;
+}
 // The response to a request to store discovered workflows
 message StoreDiscoveredWorkflowsResponse { }
+
+// Request to fetch all the workflows on the system with the given OrchestratorType, or all if
+// 'orchestrator_type' is absent.
+// TODO: currently no filtering or paging implemented
+message FetchWorkflowsRequest {
+    // the type of orchestrator to filter on; if absent, return all
+    optional OrchestratorType orchestrator_type = 1;
+}
+
+message FetchWorkflowsResponse {
+    // the Workflows fetched
+    repeated Workflow workflows = 1;
+}
 
 service DiscoveredWorkflowService {
     // Store workflows discovered from a single Orchestration target
     rpc StoreDiscoveredWorkflows(StoreDiscoveredWorkflowsRequest) returns (StoreDiscoveredWorkflowsResponse);
+}
+
+// Return all known Workflows; todo: implement paging
+service WorkflowService {
+    // Retrive workflows from the Workflows store
+    rpc FetchWorkflows(FetchWorkflowsRequest) returns (FetchWorkflowsResponse);
 }

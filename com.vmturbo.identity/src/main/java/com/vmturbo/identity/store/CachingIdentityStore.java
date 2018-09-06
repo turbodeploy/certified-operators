@@ -159,7 +159,8 @@ public class CachingIdentityStore<ITEM_TYPE> implements IdentityStore<ITEM_TYPE>
 
     @Nonnull
     @Override
-    public Set<Long> filterItemOids(@Nonnull Predicate<IdentityMatchingAttributes> itemFilter) {
+    public Set<Long> filterItemOids(@Nonnull Predicate<IdentityMatchingAttributes> itemFilter)
+            throws IdentityStoreException {
         synchronized (oidMap) {
             initializeFromPersistentStore();
             return oidMap.entrySet().stream()
@@ -173,7 +174,7 @@ public class CachingIdentityStore<ITEM_TYPE> implements IdentityStore<ITEM_TYPE>
      * Ensure that the in-memory cache is initialized. Only fetch from the persistent store
      * once. Assumed to be called synchronized on 'oidMap'.
      */
-    private synchronized void initializeFromPersistentStore() {
+    private synchronized void initializeFromPersistentStore() throws IdentityStoreException {
         if (!initialized) {
             // initialize the in-memory cache from the persistent store
             oidMap.putAll(persistentStore.fetchAllOidMappings());

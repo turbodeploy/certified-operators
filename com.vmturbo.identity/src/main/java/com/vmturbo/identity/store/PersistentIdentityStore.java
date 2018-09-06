@@ -22,7 +22,7 @@ public interface PersistentIdentityStore<ITEM_TYPE> {
      * @return a Map from ItemAttributes to the corresponding OID
      */
     @Nonnull
-    Map<IdentityMatchingAttributes, Long> fetchAllOidMappings();
+    Map<IdentityMatchingAttributes, Long> fetchAllOidMappings() throws IdentityStoreException;
 
     /**
      * Persist new mappings from Item to the corresponding OID. The caller provides two maps

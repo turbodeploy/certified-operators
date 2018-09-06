@@ -22,6 +22,7 @@ import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
+import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
@@ -371,6 +372,12 @@ public class ServiceConfig {
     @Bean
     public WidgetSetsService widgetSetsService() {
         return new WidgetSetsService(communicationConfig.widgetsetsServiceBlockingStub());
+    }
+
+    @Bean
+    public IWorkflowsService workflowService() {
+        return new WorkflowsService(communicationConfig.fetchWorkflowRpcService(),
+                targetService());
     }
 
     @Bean

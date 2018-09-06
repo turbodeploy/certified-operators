@@ -7,6 +7,15 @@
 // TODO (roman, Nov 27 2018): It may be a good idea to move this into code. See: OM-27688
 {
   "managersByUuid": {
+    // temporary hack since UI requires at least one 'actionscriptmanager to process any
+    // controlmanager entries, i.e. workflows - fix is OM-38669
+    "actionscriptmanager": {
+      "displayName": "Action Script Settings",
+      "defaultCategory": "Automation",
+      "settings": [
+        "provisionActionScript"
+      ]
+    },
     "automationmanager": {
       "displayName": "Action Mode Settings",
       "defaultCategory": "Automation",

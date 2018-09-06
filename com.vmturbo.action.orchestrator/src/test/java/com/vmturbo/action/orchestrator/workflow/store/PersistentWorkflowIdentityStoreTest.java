@@ -78,9 +78,10 @@ public class PersistentWorkflowIdentityStoreTest {
     /**
      * Load the workflow DB with two entries, workflow-1 and workflow-2.
      * Fetch all the OID mappings into a map and verify.
+     * @throws IdentityStoreException - should not happen
      */
     @Test
-    public void testFetchAllOidMappings() {
+    public void testFetchAllOidMappings() throws IdentityStoreException {
         // arrange
         PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
         persistBothWorkflowOids();

@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,9 +20,14 @@ import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.protobuf.InvalidProtocolBufferException;
 
+import com.vmturbo.action.orchestrator.db.tables.pojos.Workflow;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.store.IdentityStore;
@@ -56,13 +62,21 @@ public class PersistentWorkflowStore implements WorkflowStore {
         this.clock = Objects.requireNonNull(clock);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void persistWorkflows(long targetId, List<WorkflowInfo> workflowInfos)
-            throws PersistWorkflowException {
+            throws WorkflowStoreException {
         try {
             // first, grab a set of previously persisted workflow oids for this target
-            final Set<Long> previousOidsForThisTarget = identityStore
-                    .filterItemOids(getOidMatchingPredicate(targetId));
+            final Set<Long> previousOidsForThisTarget;
+            try {
+                previousOidsForThisTarget = identityStore
+                        .filterItemOids(getOidMatchingPredicate(targetId));
+            } catch (IdentityStoreException e) {
+                throw new WorkflowStoreException("Error fetching workflow oids", e);
+            }
 
             // wrap the entire process in a DB transaction
             dsl.transaction(configuration -> {
@@ -83,7 +97,7 @@ public class PersistentWorkflowStore implements WorkflowStore {
                             identityStoreUpdate.getNewItems().size());
                 } catch (IdentityStoreException | DataAccessException e) {
                     logger.error("Identity Store Error fetching ItemOIDs for: " + workflowInfos, e);
-                    throw new PersistWorkflowException("Identity Store Error fetching ItemOIDs for: " +
+                    throw new WorkflowStoreException("Identity Store Error fetching ItemOIDs for: " +
                             workflowInfos, e);
                 }
 
@@ -106,7 +120,7 @@ public class PersistentWorkflowStore implements WorkflowStore {
                                 .set(WORKFLOW.LAST_UPDATE_TIME, dateTimeNow)
                                 .execute();
                     } catch (DataAccessException e) {
-                        throw new PersistWorkflowException(String.format("Error persisting workflow:"
+                        throw new WorkflowStoreException(String.format("Error persisting workflow:"
                                 + " %s for target id %s", workflowInfo.getName(), targetId), e);
                     }
                 }
@@ -121,7 +135,36 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 }
             });
         } catch (DataAccessException e) {
-            throw new PersistWorkflowException(e.getMessage(), e);
+            throw new WorkflowStoreException(e.getMessage(), e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public Set<WorkflowDTO.Workflow> fetchWorkflows(@Nullable OrchestratorType orchestratorTypeFilter)
+            throws WorkflowStoreException {
+        // note that the 'orchestratorFilterType' is defined by the UI but not set; it is ignored here
+        // in the future the filter may need to be implemented, but not currently.
+        ImmutableSet.Builder<WorkflowDTO.Workflow> resultBuilder = ImmutableSet.builder();
+        try {
+            dsl.transaction(configuration -> {
+                // set up a DSLContext for this transaction to use in all Jooq operations
+                DSLContext transactionDsl = DSL.using(configuration);
+                for (com.vmturbo.action.orchestrator.db.tables.pojos.Workflow workflow :
+                        transactionDsl.select()
+                        .from(WORKFLOW)
+                        .fetchInto(Workflow.class)) {
+                    // todo: replace the call to the builder with a fetch using a Jooq Converter
+                    WorkflowDTO.Workflow workflowInfo = buildWorkflowInfo(workflow);
+                    resultBuilder.add(workflowInfo);
+                }
+            });
+            return resultBuilder.build();
+        } catch (DataAccessException  e) {
+            throw new WorkflowStoreException("Error fetching workflows", e);
         }
     }
 
@@ -143,5 +186,23 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 return false;
             }
         };
+    }
+
+    /**
+     * Build a {@link WorkflowDTO.Workflow} object from a database {@link Workflow} bean.
+     * The WorkflowDTO.Workflow protobuf is taken from the 'workflow_info' column, where it was
+     * persisted as a blob.
+     *
+     * @param dbWorkflow the database {@link Workflow} bean to convert
+     * @return a {@link WorkflowDTO.Workflow} protobuf containing the information from the DB bean
+     * @throws InvalidProtocolBufferException if there's an error converting the blob bytearray
+     * back to a protobuf
+     */
+    private WorkflowDTO.Workflow buildWorkflowInfo(Workflow dbWorkflow)
+            throws InvalidProtocolBufferException {
+        return WorkflowDTO.Workflow.newBuilder()
+                .setId(dbWorkflow.getId())
+                .setWorkflowInfo(WorkflowInfo.parseFrom(dbWorkflow.getWorkflowInfo()))
+                .build();
     }
 }

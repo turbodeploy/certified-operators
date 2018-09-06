@@ -11,7 +11,6 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
-import com.vmturbo.api.component.external.api.service.LicenseService;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
 import com.vmturbo.api.controller.AdminController;
@@ -40,6 +39,7 @@ import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.controller.TemplatesController;
 import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
+import com.vmturbo.api.controller.WorkflowsController;
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.validators.TemplatesValidator;
 import com.vmturbo.api.xlcontroller.ClusterController;
@@ -198,6 +198,11 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public WidgetSetsController widgetSetsController() {
         return new WidgetSetsController();
+    }
+
+    @Bean
+    public WorkflowsController workflowsController() {
+        return new WorkflowsController();
     }
 
     @Bean

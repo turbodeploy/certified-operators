@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.workflow.rpc.DiscoveredWorkflowRpcService;
+import com.vmturbo.action.orchestrator.workflow.rpc.WorkflowRpcService;
 import com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowIdentityStore;
 import com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowStore;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowAttributeExtractor;
@@ -34,6 +35,11 @@ public class WorkflowConfig {
     @Bean
     public DiscoveredWorkflowRpcService discoveredWorkflowRpcService() {
         return new DiscoveredWorkflowRpcService(workflowStore());
+    }
+
+    @Bean
+    public WorkflowRpcService fetchWorkflowRpcService() {
+        return new WorkflowRpcService(workflowStore());
     }
 
     @Bean

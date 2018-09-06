@@ -49,5 +49,6 @@ public interface IdentityStore<ITEM_TYPE> {
      * to 'true' using the given 'itemFilter'
      */
     @Nonnull
-    Set<Long> filterItemOids(@Nonnull Predicate<IdentityMatchingAttributes> itemFilter);
+    Set<Long> filterItemOids(@Nonnull Predicate<IdentityMatchingAttributes> itemFilter)
+            throws IdentityStoreException;
 }

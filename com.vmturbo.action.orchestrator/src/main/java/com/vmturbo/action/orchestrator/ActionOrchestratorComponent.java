@@ -105,7 +105,8 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
                 jwtInterceptor,
                 monitoringInterceptor))
             .addService(ServerInterceptors.intercept(rpcConfig.entitySeverityRpcService(), monitoringInterceptor))
-            .addService(ServerInterceptors.intercept(workflowConfig.discoveredWorkflowRpcService(), monitoringInterceptor));
+            .addService(ServerInterceptors.intercept(workflowConfig.discoveredWorkflowRpcService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(workflowConfig.fetchWorkflowRpcService(), monitoringInterceptor));
         rpcConfig.actionsDebugRpcService().ifPresent(actionsDebugRpcService ->
             builder.addService(ServerInterceptors.intercept(actionsDebugRpcService, monitoringInterceptor)));
 
