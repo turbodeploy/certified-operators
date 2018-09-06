@@ -23,6 +23,7 @@ public interface StatRecordBuilder {
      * @param propertyType name for this stat, e.g. VMem
      * @param propertySubtype refinement for this stat, e.g. "used" vs "utilization"
      * @param capacityStat The capacity stat.
+     * @param reserved the amount of capacity that is "reserved" and unavailable for allocation.
      * @param producerId unique id of the producer for commodity bought
      * @param avgValue average value reported from discovery
      * @param minValue min value reported from discovery
@@ -36,6 +37,7 @@ public interface StatRecordBuilder {
     StatRecord buildStatRecord(@Nonnull final String propertyType,
                                @Nullable final String propertySubtype,
                                @Nullable final StatValue capacityStat,
+                               @Nullable final Float reserved,
                                @Nullable final Long producerId,
                                @Nullable final Float avgValue,
                                @Nullable final Float minValue,
@@ -50,6 +52,7 @@ public interface StatRecordBuilder {
      * @param propertyType name for this stat, e.g. VMem
      * @param propertySubtype refinement for this stat, e.g. "used" vs "utilization"
      * @param capacity available amount on the producer
+     * @param reserved the (optional) amount of capacity that is unavailable for allocation
      * @param producerId unique id of the producer for commodity bought
      * @param avgValue average value reported from discovery
      * @param minValue min value reported from discovery
@@ -63,6 +66,7 @@ public interface StatRecordBuilder {
     default StatRecord buildStatRecord(@Nonnull String propertyType,
                                        @Nullable String propertySubtype,
                                        @Nullable Float capacity,
+                                       @Nullable Float reserved,
                                        @Nullable Long producerId,
                                        @Nullable Float avgValue,
                                        @Nullable Float minValue,
@@ -73,6 +77,7 @@ public interface StatRecordBuilder {
         return buildStatRecord(propertyType,
                 propertySubtype,
                 capacity == null ? null : StatsAccumulator.singleStatValue(capacity),
+                reserved,
                 producerId,
                 avgValue,
                 minValue,
@@ -96,10 +101,15 @@ public interface StatRecordBuilder {
         @Nonnull
         @Override
         public StatRecord buildStatRecord(@Nonnull final String propertyType,
-                                          @Nullable final String propertySubtype, @Nullable final StatValue capacityStat,
-                                          @Nullable final Long producerId, @Nullable final Float avgValue,
-                                          @Nullable final Float minValue, @Nullable final Float maxValue,
-                                          @Nullable final String commodityKey, @Nullable final Float totalValue,
+                                          @Nullable final String propertySubtype,
+                                          @Nullable final StatValue capacityStat,
+                                          @Nullable final Float reserved,
+                                          @Nullable final Long producerId,
+                                          @Nullable final Float avgValue,
+                                          @Nullable final Float minValue,
+                                          @Nullable final Float maxValue,
+                                          @Nullable final String commodityKey,
+                                          @Nullable final Float totalValue,
                                           @Nullable final String relation) {
             final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
                     .setName(propertyType);
@@ -112,7 +122,10 @@ public interface StatRecordBuilder {
                 statRecordBuilder.setRelation(relation);
             }
 
-            // reserved ??
+            if (reserved != null) {
+                statRecordBuilder.setReserved(reserved);
+            }
+
             if (commodityKey != null) {
                 statRecordBuilder.setStatKey(commodityKey);
             }

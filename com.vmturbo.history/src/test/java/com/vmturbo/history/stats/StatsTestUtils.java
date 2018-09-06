@@ -168,9 +168,8 @@ public class StatsTestUtils {
     }
 
     /**
-     * Create a Record to use in a response list. Use a PmStatsLatestRecord just as an example -
-     * the type of the Record is not important. All of the different _stats_latest records have the
-     * same schema.
+     * Create a Record to use in a response list, with specific commodity key and a default
+     * effective capacity percentage of 100%.
      *
      * @param snapshotTime the time this stat was recorded
      * @param testValue the value of the stat
@@ -184,6 +183,32 @@ public class StatsTestUtils {
                                        @Nonnull final String propType,
                                        @Nonnull final String propSubType,
                                        @Nullable String commodityKey) {
+        return newStatRecordWithKeyAndEffectiveCapacity(snapshotTime, testValue, 1.0,
+                propType, propSubType, commodityKey);
+    }
+
+
+    /**
+     * Create a record with a specific key and effective capacity percentage.
+     *
+     *  Use a PmStatsLatestRecord just as an example - the type of the Record is not important. All
+     *  of the different _stats_latest records have the same schema.
+     *
+     * @param snapshotTime
+     * @param testValue
+     * @param effectiveCapacityPercentage
+     * @param propType
+     * @param propSubType
+     * @param commodityKey
+     * @return
+     */
+    @Nonnull
+    public static Record newStatRecordWithKeyAndEffectiveCapacity(@Nonnull final Timestamp snapshotTime,
+                                              final double testValue,
+                                              final double effectiveCapacityPercentage,
+                                              @Nonnull final String propType,
+                                              @Nonnull final String propSubType,
+                                              @Nullable String commodityKey) {
         final PmStatsLatestRecord statsRecord = new PmStatsLatestRecord();
         statsRecord.setSnapshotTime(snapshotTime);
         statsRecord.setPropertyType(propType);
@@ -192,6 +217,8 @@ public class StatsTestUtils {
         statsRecord.setMinValue(testValue / 2);
         statsRecord.setMaxValue(testValue * 2);
         statsRecord.setCapacity(testValue * 3);
+        // we'll simulate a usage throttle of 75%
+        statsRecord.setEffectiveCapacity(statsRecord.getCapacity() * effectiveCapacityPercentage);
         if (commodityKey != null) {
             statsRecord.setCommodityKey(commodityKey);
         }

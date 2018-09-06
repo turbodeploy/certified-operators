@@ -8,6 +8,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.str;
 import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
 import static com.vmturbo.history.schema.StringConstants.CAPACITY;
 import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.history.schema.StringConstants.EFFECTIVE_CAPACITY;
 import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
 import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
 import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
@@ -153,6 +154,7 @@ public interface StatsQueryFactory {
                     dField(table, PROPERTY_SUBTYPE),
                     dField(table, PRODUCER_UUID),
                     dField(table, CAPACITY),
+                    dField(table, EFFECTIVE_CAPACITY),
                     dField(table, RELATION),
                     dField(table, COMMODITY_KEY));
 

@@ -13,6 +13,7 @@ public class StringConstants {
 	public static final String AVG_CAPACITY = "avg_capacity";
     public static final String MIN_CAPACITY = "min_capacity";
     public static final String MAX_CAPACITY = "max_capacity";
+    public static final String EFFECTIVE_CAPACITY = "effective_capacity";
 	public static final String CLASS_NAME = "class_name";
 	public static final String COMMODITY_KEY = "commodity_key";
 	public static final String KEY = "key";

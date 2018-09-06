@@ -176,7 +176,7 @@ public class MarketStatsAccumulator {
      * @param count the number of Service Entitis of the given type
      */
     private void addEntityCountStat(String countStatsName, double count) {
-        internalAddCommodity(countStatsName, countStatsName, count, count, count,
+        internalAddCommodity(countStatsName, countStatsName, count, count, count, count,
                 RelationType.METRICS);
     }
 
@@ -187,6 +187,7 @@ public class MarketStatsAccumulator {
      * @param propertySubtype subtype of property to record
      * @param used current amount of the commodity being bought
      * @param capacity amount of the commodity the seller is providing
+     * @param effectiveCapacity amount of the commodity the seller is providing
      * @param peak (recent?) peak amount of the commodity being bought
      * @param relationType type of commodity stat this is:  sold=0, bought=1,
      *                     entity attribute based=2)
@@ -195,6 +196,7 @@ public class MarketStatsAccumulator {
                                       String propertySubtype,
                                       double used,
                                       Double capacity,
+                                      Double effectiveCapacity,
                                       double peak,
                                       RelationType relationType) {
         String commodityKey = MessageFormat.format("{0}::{1}::{2}",
@@ -205,7 +207,7 @@ public class MarketStatsAccumulator {
                     new MarketStatsData(entityType, propertyType, propertySubtype,
                             relationType));
             // accumulate the values from this stat item
-            statsData.accumulate(used, peak, capacity);
+            statsData.accumulate(used, peak, capacity, effectiveCapacity);
         }
     }
 
@@ -275,9 +277,17 @@ public class MarketStatsAccumulator {
             if (isExcludedCommodity(mixedCaseCommodityName)) {
                 continue;
             }
+
+            // if we have a non-null capacity and an effective capacity %, calculate effective capacity
+            // otherwise set it to capacity.
+            Double effectiveCapacity
+                    = (commoditySoldDTO.hasEffectiveCapacityPercentage() && (capacity != null))
+                    ? (commoditySoldDTO.getEffectiveCapacityPercentage() / 100.0 * capacity)
+                    : capacity;
             historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime,
                     entityId, RelationType.COMMODITIES, /*providerId*/null, capacity,
-                    commoditySoldDTO.getCommodityType().getKey(), insertStmt, dbTable);
+                    effectiveCapacity, commoditySoldDTO.getCommodityType().getKey(), insertStmt,
+                    dbTable);
             // set the values specific to used component of commodity and write
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED, commoditySoldDTO.getUsed(),
                     insertStmt, dbTable);
@@ -285,7 +295,8 @@ public class MarketStatsAccumulator {
             markRowComplete();
 
             // aggregate this stats value as part of the Market-wide stats
-            internalAddCommodity(mixedCaseCommodityName, PROPERTY_SUBTYPE_USED, commoditySoldDTO.getUsed(), capacity, commoditySoldDTO.getPeak(),
+            internalAddCommodity(mixedCaseCommodityName, PROPERTY_SUBTYPE_USED,
+                    commoditySoldDTO.getUsed(), capacity, effectiveCapacity, commoditySoldDTO.getPeak(),
                     RelationType.COMMODITIES);
         }
     }
@@ -402,8 +413,8 @@ public class MarketStatsAccumulator {
                     String commodityType = PERSISTED_ATTRIBUTE_MAP.get(propertyKey).getMixedCase();
                     persistEntityAttribute(snapshotTime, entityId, commodityType,
                             floatValue, insertStmt, dbTable);
-                    internalAddCommodity(commodityType, commodityType, floatValue, floatValue, floatValue,
-                            RelationType.METRICS);
+                    internalAddCommodity(commodityType, commodityType, floatValue, floatValue,
+                            floatValue, floatValue, RelationType.METRICS);
                 } catch (NumberFormatException e) {
                     logger.warn("error converting {} for {} = {}",
                             propertyKey, entityDTO.getDisplayName(), propertyValue);
@@ -432,7 +443,7 @@ public class MarketStatsAccumulator {
                                         @Nonnull Table<?> dbTable) throws VmtDbException {
         // initialize the common values for this row
         historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime, entityId,
-                RelationType.METRICS, /*providerId*/null,
+                RelationType.METRICS, /*providerId*/null, null,
                 null, null, insertStmt, dbTable);
         // set the values specific to used component of commodity and write
         historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, insertStmt,
@@ -487,7 +498,7 @@ public class MarketStatsAccumulator {
             double used = commodityBoughtDTO.getUsed();
             String key = commodityBoughtDTO.getCommodityType().getKey();
             historydbIO.initializeCommodityInsert(mixedCaseCommodityName, snapshotTime,
-                    buyerId, RelationType.COMMODITIESBOUGHT, providerId, capacity,
+                    buyerId, RelationType.COMMODITIESBOUGHT, providerId, capacity, null,
                     key, insertStmt, dbTable);
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED,
                     used, insertStmt, dbTable);
@@ -496,7 +507,7 @@ public class MarketStatsAccumulator {
 
             // aggregate this stats value as part of the Market-wide stats
             internalAddCommodity(mixedCaseCommodityName, PROPERTY_SUBTYPE_USED,
-                    commodityBoughtDTO.getUsed(), capacity, commodityBoughtDTO.getPeak(),
+                    commodityBoughtDTO.getUsed(), capacity, null, commodityBoughtDTO.getPeak(),
                     RelationType.COMMODITIESBOUGHT);
         }
     }
@@ -568,6 +579,7 @@ public class MarketStatsAccumulator {
         private final String propertySubtype;
         private final RelationType relationType;
         private double capacityTotal = 0.0;
+        private double effectiveCapacityTotal = 0.0;
         private double usedTotal = 0.0;
         private double min = Double.MAX_VALUE;
         private double max;
@@ -593,13 +605,20 @@ public class MarketStatsAccumulator {
          *             for this snapshot
          * @param capacity capacity for this commodity for the entity being tabulated
          *                 for this snapshot
+         * @param effectiveCapacity the effective capacity for this commodity for the entity being
+         *                          tabulated for this snapshot
          */
-        public void accumulate(double used, double peak, @Nullable Double capacity) {
+        public void accumulate(double used, double peak, @Nullable Double capacity,
+                               @Nullable Double effectiveCapacity) {
             // track the count of values and the total used to give the avg total at the end
             count++;
             this.usedTotal += used;
             if (capacity != null) {
                 this.capacityTotal += capacity;
+                // effective capacity only makes sense in a context with capacity, so only updating
+                // effective capacity when capacity was also provided.
+                // Also, when effective capacity is null, then the effective capacity == capacity.
+                effectiveCapacityTotal += (effectiveCapacity == null) ? capacity : effectiveCapacity;
             }
             this.min = Math.min(this.min, used);
             this.max = Math.max(this.max, peak);
@@ -621,6 +640,18 @@ public class MarketStatsAccumulator {
          */
         public Double getCapacity() {
             return count > 0 ? capacityTotal / count : 0D;
+        }
+
+        /**
+         * Return the average effective capacity across the entities tabulated.
+         *
+         * @return the average effective capacity of this commodity spec.
+         */
+        public Double getEffectiveCapacity() {
+            if (effectiveCapacityTotal == -1) {
+                return -1D;
+            }
+            return count > 0 ? effectiveCapacityTotal / count : 0D;
         }
 
         public String getEntityType() {

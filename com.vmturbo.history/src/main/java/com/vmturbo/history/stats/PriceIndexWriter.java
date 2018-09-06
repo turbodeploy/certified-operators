@@ -126,7 +126,7 @@ public class PriceIndexWriter {
                     if (dbTable != null) {
                         final InsertSetMoreStep<?> insertStmt = historydbIO.getCommodityInsertStatement(dbTable);
                         historydbIO.initializeCommodityInsert(StringConstants.PRICE_INDEX, snapshotTime,
-                                idAndPriceIdx.getKey(), RelationType.METRICS, null, null,
+                                idAndPriceIdx.getKey(), RelationType.METRICS, null, null, null,
                                 null, insertStmt, dbTable);
                         // set the values specific to used component of commodity and write
                         historydbIO.setCommodityValues(StringConstants.PRICE_INDEX, idAndPriceIdx.getValue(),

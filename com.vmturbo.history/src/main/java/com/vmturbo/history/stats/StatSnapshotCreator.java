@@ -3,6 +3,7 @@ package com.vmturbo.history.stats;
 import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
 import static com.vmturbo.history.schema.StringConstants.CAPACITY;
 import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.history.schema.StringConstants.EFFECTIVE_CAPACITY;
 import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
 import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
 import static com.vmturbo.history.schema.StringConstants.PRODUCER_UUID;
@@ -106,6 +107,7 @@ public interface StatSnapshotCreator {
                         float avgTotal = 0.0f;
                         float minTotal = 0.0f;
                         float maxTotal = 0.0f;
+                        final StatsAccumulator effectiveCapacityValue = new StatsAccumulator();
 
                         // calculate totals
                         for (Record dbStatRecord : dbStatRecordList) {
@@ -124,6 +126,17 @@ public interface StatSnapshotCreator {
                             Float oneCapacityValue = dbStatRecord.getValue(CAPACITY, Float.class);
                             if (oneCapacityValue != null) {
                                 capacityValue.record(oneCapacityValue.doubleValue());
+
+                                // effective capacity really only makes sense in the context of an
+                                // actual capacity, so we'll handle it within the capacity clause.
+                                Float oneEffectiveCapacityValue = dbStatRecord.getValue(EFFECTIVE_CAPACITY, Float.class);
+                                // a null effective capacity should be treated as full "capacity".
+                                if (oneEffectiveCapacityValue == null) {
+                                    // add one full capacity to the effective capacity total.
+                                    effectiveCapacityValue.record(oneCapacityValue);
+                                } else { // o/w add the effective capacity.
+                                    effectiveCapacityValue.record(oneEffectiveCapacityValue);
+                                }
                             }
                         }
 
@@ -133,9 +146,13 @@ public interface StatSnapshotCreator {
                         float minValueAvg = minTotal / numStatRecords;
                         float maxValueAvg = maxTotal / numStatRecords;
 
+                        // calculate the "reserved" amount. This is the gap between capacity and
+                        // "effective capacity".
+                        float reserved = (float) (capacityValue.getAvg() - effectiveCapacityValue.getAvg());
+
                         // build the record for this stat (commodity type)
                         final StatRecord statRecord = statRecordBuilder.buildStatRecord(propertyType, propertySubtype,
-                                capacityValue.toStatValue(), producerId, avgValueAvg, minValueAvg, maxValueAvg,
+                                capacityValue.toStatValue(), reserved, producerId, avgValueAvg, minValueAvg, maxValueAvg,
                                 commodityKey, avgTotal, relation);
 
                         // return add this record to the snapshot for this timestamp

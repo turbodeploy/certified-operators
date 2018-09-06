@@ -414,6 +414,8 @@ public class StatsHistoryRpcServiceTest {
         assertThat(statRecord.getCapacity().getMax(), equalTo(9f));
         assertThat(statRecord.getCapacity().getAvg(), equalTo(6f));
         assertThat(statRecord.getCapacity().getTotal(), equalTo(18f));
+        // reserved should be 0 since we didn't set an effective capacity %.
+        assertThat(statRecord.getReserved(), equalTo(0f));
     }
 
 

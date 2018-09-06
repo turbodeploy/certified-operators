@@ -10,6 +10,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.timestamp;
 import static com.vmturbo.history.schema.StringConstants.AVG_VALUE;
 import static com.vmturbo.history.schema.StringConstants.CAPACITY;
 import static com.vmturbo.history.schema.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.history.schema.StringConstants.EFFECTIVE_CAPACITY;
 import static com.vmturbo.history.schema.StringConstants.MAX_VALUE;
 import static com.vmturbo.history.schema.StringConstants.MIN_VALUE;
 import static com.vmturbo.history.schema.StringConstants.PRICE_INDEX;
@@ -411,6 +412,8 @@ public class HistorydbIO extends BasedbIO {
                         clipValue(marketStatsData.getMin()))
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.MAX_VALUE,
                         clipValue(marketStatsData.getMax()))
+                .set(MarketStatsLatest.MARKET_STATS_LATEST.EFFECTIVE_CAPACITY,
+                        clipValue(marketStatsData.getEffectiveCapacity()))
                 .set(MarketStatsLatest.MARKET_STATS_LATEST.RELATION,
                         marketStatsData.getRelationType());
     }
@@ -423,6 +426,7 @@ public class HistorydbIO extends BasedbIO {
      * @param relationType BOUGHT or SOLD
      * @param providerId OID of the provider, if BOUGHT
      * @param capacity the capacity of the commodity
+     * @param effectiveCapacity the effective capacity of the commodity
      * @param commodityKey the external association key for this commodity
      * @param insertStmt the insert SQL statement to insert the commodity row
      * @param table stats db table for this entity type
@@ -433,6 +437,7 @@ public class HistorydbIO extends BasedbIO {
                                           @Nonnull RelationType relationType,
                                           @Nullable Long providerId,
                                           @Nullable Double capacity,
+                                          @Nullable Double effectiveCapacity,
                                           @Nullable String commodityKey,
                                           @Nonnull InsertSetStep<?> insertStmt,
                                           @Nonnull Table<?> table) {
@@ -454,6 +459,7 @@ public class HistorydbIO extends BasedbIO {
                 .set(str(dField(table, PROPERTY_TYPE)), propertyType)
                 // 5 = propertySubtype - to be filled in later
                 .set(doubl(dField(table, CAPACITY)), clipValue(capacity))
+                .set(doubl(dField(table, EFFECTIVE_CAPACITY)), clipValue(effectiveCapacity))
                 // 7, 8, 9 = avg, min, max - to be filled in later
                 .set(relType(dField(table, RELATION)), relationType)
                 .set(str(dField(table, COMMODITY_KEY)), commodityKey);

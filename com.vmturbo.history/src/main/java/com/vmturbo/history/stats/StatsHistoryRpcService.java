@@ -415,6 +415,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 dbRecord.getPropertyType(),
                 dbRecord.getPropertySubtype(),
                 (Float)null,
+                (Float)null,
                 null,
                 dbRecord.getValue().floatValue(),
                 dbRecord.getValue().floatValue(),
@@ -428,6 +429,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         return statRecordBuilder.buildStatRecord(
                 dbRecord.getPropertyType(),
                 dbRecord.getPropertySubtype(),
+                (Float)null,
                 (Float)null,
                 null,
                 dbRecord.getValue().floatValue(),
@@ -527,6 +529,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     statsDBRecord.getPropertySubtype(),
                     statsDBRecord.getCapacity() == null ? null : statsDBRecord.getCapacity()
                             .floatValue(),
+                    null /* effective capacity*/,
                     null /* producerId */,
                     statsDBRecord.getAvgValue().floatValue(),
                     statsDBRecord.getMinValue().floatValue(),

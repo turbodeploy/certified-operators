@@ -198,7 +198,7 @@
 
                                 <forcedType>
                                     <name>Double</name>
-                                    <expressions>(?i)(.*\.capacity.*|.*\.avg_value.*|.*\.min_value.*|.*\.max_value.*|.*\.rate.*)</expressions>
+                                    <expressions>(?i)(.*\.capacity.*|.*\.effective_capacity.*|.*\.avg_value.*|.*\.min_value.*|.*\.max_value.*|.*\.rate.*)</expressions>
                                 </forcedType>
                             </forcedTypes>
 

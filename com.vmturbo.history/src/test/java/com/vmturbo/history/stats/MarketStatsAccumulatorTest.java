@@ -154,7 +154,6 @@ public class MarketStatsAccumulatorTest {
         verify(historydbIO, times(4)).execute(eq(BasedbIO.Style.FORCED), eq(mockInsertStmt));
     }
 
-
     @Test
     public void testExclusion() throws Exception {
         // arrange
