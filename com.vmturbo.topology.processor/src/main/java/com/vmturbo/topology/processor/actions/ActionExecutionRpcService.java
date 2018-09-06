@@ -177,7 +177,12 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
         getHost(targetId, targetInfo).ifPresent(actionBuilder::setHostedBySE);
 
-        actionBuilder.setCommodityAttribute(CommodityAttribute.Capacity);
+        // Handle resizes on commodity attributes other than just capacity. Note that we
+        // are converting TopologyDTO.CommodityAttribute enum to a classic ActionExecution
+        // .ActionItemDTO.CommodityAttribute enum here -- we are matching on the ordinal number,
+        // which is set up (but not enforced) to match in the two enums.
+        actionBuilder.setCommodityAttribute(
+                CommodityAttribute.forNumber(resizeAction.getCommodityAtribute().getNumber()));
 
         actionBuilder.setCurrentComm(commodityBuilderFromType(resizeAction.getCommodityType())
             .setCapacity(resizeAction.getOldCapacity()));

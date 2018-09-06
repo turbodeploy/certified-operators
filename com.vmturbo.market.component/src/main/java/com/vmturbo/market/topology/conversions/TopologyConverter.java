@@ -46,6 +46,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExpla
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
@@ -68,10 +70,12 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
@@ -1608,6 +1612,55 @@ public class TopologyConverter {
                     .orElseThrow(() -> new IllegalArgumentException(
                         "Resize commodity can't be converted to topology commodity format! "
                             + resizeTO.getSpecification()));
+        // Determine if this is a remove limit or a regular resize.
+        if (entityIdToEntityType.containsKey(entityId)) {
+            if (EntityType.VIRTUAL_MACHINE.getNumber() == entityIdToEntityType.get(entityId)) {
+                // If this is a VM and has a restricted capacity, we are going to assume it's a limit
+                // removal. This logic seems like it could be fragile, in that limit may not be the
+                // only way VM capacity could be restricted in the future, but this is consistent
+                // with how classic makes the same decision.
+                TraderTO traderTO = oidToTraderTOMap.get(entityId);
+                // find the commodity on the trader and see if there is a limit?
+                for (CommoditySoldTO commoditySold : traderTO.getCommoditiesSoldList()) {
+                    if (commoditySold.getSpecification().equals(resizeTO.getSpecification())) {
+                        // We found the commodity sold.  If it has a utilization upper bound < 1.0,
+                        // then the commodity is restricted, and according to our VM-rule, we will
+                        // treat this as a limit removal.
+                        float utilizationPercentage = commoditySold.getSettings().getUtilizationUpperBound();
+                        if (utilizationPercentage < 1.0) {
+                            // The "limit removal" is actually a resize on the commodity's "limit"
+                            // attribute that effectively sets it to zero.
+                            //
+                            // Ideally we would set the "old capacity" to the current limit
+                            // value, but as noted above, we don't have access to the limit here. We
+                            // only have the utilization percentage, which we expect to be based on
+                            // the limit and raw capacity values. Since we do have the utilization %
+                            // and raw capacity here, we can _approximate_ the current limit by
+                            // reversing the math used to determine the utilization %.
+                            //
+                            // We will grudgingly do that here. Note that this may be subject to
+                            // precision and rounding errors. In addition, if in the future we have
+                            // factors other than "limit" that could drive the VM resource
+                            // utilization threshold to below 100%, then this approximation would
+                            // likely be wrong and misleading in those cases.
+                            float approximateLimit = commoditySold.getCapacity() * utilizationPercentage;
+                            logger.debug("The commodity {} has util% of {}, so treating as limit"
+                                    +" removal (approximate limit: {}).",
+                                    topologyCommodity.getKey(), utilizationPercentage, approximateLimit);
+
+                            return ActionDTO.Resize.newBuilder()
+                                    .setTarget(createActionEntity(entityId, entityIdToEntityType))
+                                    .setOldCapacity(approximateLimit)
+                                    .setNewCapacity(0)
+                                    .setCommodityType(topologyCommodity)
+                                    .setCommodityAtribute(CommodityAttribute.LIMIT)
+                                    .build();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
         return ActionDTO.Resize.newBuilder()
                 .setTarget(createActionEntity(entityId, entityIdToEntityType))
                 .setNewCapacity(resizeTO.getNewCapacity())

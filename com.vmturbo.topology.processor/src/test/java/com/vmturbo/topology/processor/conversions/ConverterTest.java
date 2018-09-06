@@ -75,6 +75,14 @@ public class ConverterTest {
         assertEquals(3, vmTopologyDTO.getCommoditySoldListCount()); // 2xVCPU, 1xVMem
         assertEquals(2, vmTopologyDTO.getCommoditiesBoughtFromProvidersCount()); // buying from two providers
 
+        // check that vcpu P2 sold has the effective capacity limited
+        Optional<CommoditySoldDTO> P2VCPUCommoditySold = vmTopologyDTO.getCommoditySoldListList().stream()
+                .filter(commoditySoldDTO -> "P2".equals(commoditySoldDTO.getCommodityType().getKey()))
+                .findFirst();
+        assertTrue(P2VCPUCommoditySold.isPresent());
+        // vcpu p2 effective capacity % should be 50%
+        assertEquals(50.0, P2VCPUCommoditySold.get().getEffectiveCapacityPercentage(), 0.0);
+
         // check tags of the VM
         final Map<String, TagValuesDTO> vmTags = vmTopologyDTO.getTagsMap();
         assertEquals(3, vmTags.size());

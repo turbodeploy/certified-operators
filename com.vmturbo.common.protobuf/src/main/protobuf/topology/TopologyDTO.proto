@@ -408,11 +408,40 @@ enum TopologyType {
 }
 
 message CommodityType {
-    // type of commodity
+    // Type of commodity
     required int32 type = 1;
 
-    // the key of this commodity type
+    // The key of this commodity type
     optional string key = 2;
+}
+
+// Standard attributes of a commodity
+enum CommodityAttribute {
+    // The capacity of a commodity is the "raw capacity" -- i.e. the total amount of the commodity
+    // available for use, before considering any restrictions such as limits or utilization
+    // threshold percentages.
+    CAPACITY = 0;
+
+    // If a limit exists on a commodity, it represents a cap or ceiling on the capacity that
+    // should restrict the amount of the commodity that is actually available for allocation. Without
+    // considering a utilization threshold policy, the amount of the commodity available for allocation
+    // should be the minimum of (capacity, limit). Also, limit should be smaller than capacity for
+    // the limit to be meaningful.
+    //
+    // Limits are optional, and by default, commodities are "unlimited". It seems that limits are
+    // only used on VM CPU, Memory, and Network commodities.
+    LIMIT = 1;
+
+    // A reservation on a commodity functions almost like the opposite of a limit. If a commodity
+    // has a "reserved" amount set, then that amount cannot be allocated. It is considered "reserved"
+    // for a specific consumer for potential use and not available to other consumers.
+    //
+    // This is probably most relevant for commodities that can be overprovisioned, such as CPU or
+    // Memory. A VM with a 2gb reservation and 8gb capacity, for example, would guarantee that the
+    // PM sets aside at least 2gb for that VM to use, even if the actual amount in use is smaller.
+    //
+    // Reservations are also optional and the default state would be reserved = 0.
+    RESERVED = 2;
 }
 
 message CommodityBoughtDTO {

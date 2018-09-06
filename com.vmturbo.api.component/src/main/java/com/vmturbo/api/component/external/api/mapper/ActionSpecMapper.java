@@ -1,9 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.text.MessageFormat;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,13 +18,13 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
@@ -62,7 +59,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.commons.Units;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
@@ -677,20 +674,29 @@ public class ActionSpecMapper {
                     throws UnknownObjectException, ExecutionException, InterruptedException {
         actionApiDTO.setActionType(ActionType.RESIZE);
 
-        setEntityDtoFields(actionApiDTO.getTarget(), resize.getTarget().getId(), context);
-        setEntityDtoFields(actionApiDTO.getCurrentEntity(), resize.getTarget().getId(), context);
-        setEntityDtoFields(actionApiDTO.getNewEntity(), resize.getTarget().getId(), context);
+        long originalEntityOid = resize.getTarget().getId();
+        setEntityDtoFields(actionApiDTO.getTarget(), originalEntityOid, context);
+        setEntityDtoFields(actionApiDTO.getCurrentEntity(), originalEntityOid, context);
+        setEntityDtoFields(actionApiDTO.getNewEntity(), originalEntityOid, context);
 
         final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
                 resize.getCommodityType().getType());
         Objects.requireNonNull(commodityType, "Commodity for number "
                 + resize.getCommodityType().getType());
         actionApiDTO.getRisk().setReasonCommodity(commodityType.name());
-        actionApiDTO.setDetails(MessageFormat.format("Resize commodity {0} on entity {1} from {2} to {3}",
-                readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
-                readableEntityTypeAndName(actionApiDTO.getTarget()),
-                formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
-                formatResizeActionCommodityValue(commodityType, resize.getNewCapacity())));
+        // Check if we need to describe the action as a "remove limit" instead of regular resize.
+        if (CommodityAttribute.LIMIT == resize.getCommodityAtribute()) {
+            actionApiDTO.setDetails(MessageFormat.format("Remove {0} limit on entity {1}",
+                    readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
+                    readableEntityTypeAndName(actionApiDTO.getTarget())));
+        } else {
+            // Regular case
+            actionApiDTO.setDetails(MessageFormat.format("Resize {0} on entity {1} from {2} to {3}",
+                    readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
+                    readableEntityTypeAndName(actionApiDTO.getTarget()),
+                    formatResizeActionCommodityValue(commodityType, resize.getOldCapacity()),
+                    formatResizeActionCommodityValue(commodityType, resize.getNewCapacity())));
+        }
         actionApiDTO.setCurrentValue(Float.toString(resize.getOldCapacity()));
         actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
     }

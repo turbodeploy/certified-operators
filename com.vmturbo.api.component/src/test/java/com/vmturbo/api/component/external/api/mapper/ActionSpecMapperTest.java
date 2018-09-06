@@ -72,9 +72,11 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTOMoles;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit tests for {@link ActionSpecMapper}.
@@ -83,6 +85,7 @@ public class ActionSpecMapperTest {
 
     public static final int POLICY_ID = 10;
     public static final String POLICY_NAME = "policy";
+    private static final String ENTITY_TO_RESIZE_NAME = "EntityToResize";
     private ActionSpecMapper mapper;
 
     private RepositoryApi repositoryApi;
@@ -416,11 +419,11 @@ public class ActionSpecMapperTest {
             .build();
 
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-            .thenReturn(oidToEntityMap(entityApiDTO("EntityToResize", targetId, "c0")));
+            .thenReturn(oidToEntityMap(entityApiDTO(ENTITY_TO_RESIZE_NAME, targetId, "c0")));
 
         final ActionApiDTO actionApiDTO =
             mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
-        assertEquals("EntityToResize", actionApiDTO.getTarget().getDisplayName());
+        assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
         assertEquals(targetId, Long.parseLong(actionApiDTO.getTarget().getUuid()));
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.CPU.name(),
@@ -444,7 +447,7 @@ public class ActionSpecMapperTest {
                         .setEndUtilization(0.4f).build())
                 .build();
         Mockito.when(repositoryApi.getServiceEntitiesById(any()))
-                .thenReturn(oidToEntityMap(entityApiDTO("EntityToResize", targetId, "c0")));
+                .thenReturn(oidToEntityMap(entityApiDTO(ENTITY_TO_RESIZE_NAME, targetId, "c0")));
 
         final ActionApiDTO actionApiDTO =
                 mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
@@ -453,6 +456,47 @@ public class ActionSpecMapperTest {
         assertTrue(actionApiDTO.getDetails().contains(expectedDetailCapacityy));
         assertEquals(CommodityDTO.CommodityType.VMEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+    }
+
+    /**
+     * Test a limit resize.
+     *
+     * @throws Exception from mapper.mapActionSpecToActionApiDTO(), but shouldn't
+     * happen within this test.
+     */
+    @Test
+    public void testMapResizeVMLimit() throws Exception {
+        final long targetId = 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+                .setResize(Resize.newBuilder()
+                        .setTarget(ApiUtilsTest.createActionEntity(targetId,
+                                EntityType.VIRTUAL_MACHINE.getNumber()))
+                        .setOldCapacity(10)
+                        .setNewCapacity(0)
+                        .setCommodityAtribute(CommodityAttribute.LIMIT)
+                        .setCommodityType(commodityMem))
+                .build();
+
+        Explanation resize = Explanation.newBuilder()
+                .setResize(ResizeExplanation.newBuilder()
+                        .setStartUtilization(0.2f)
+                        .setEndUtilization(0.4f).build())
+                .build();
+
+        Mockito.when(repositoryApi.getServiceEntitiesById(any()))
+                .thenReturn(oidToEntityMap(entityApiDTO(ENTITY_TO_RESIZE_NAME, targetId, "c0")));
+
+        final ActionApiDTO actionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), contextId);
+        assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
+        assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertEquals(CommodityDTO.CommodityType.MEM.name(),
+                actionApiDTO.getRisk().getReasonCommodity());
+        // Verify that we recognize this as a mem limit removal. We'll just check the start of the
+        // string, there isn't much point to checking the entity-describing remainder of the
+        // string that follows.
+        final String REMOVE_DESCRIPTION = "Remove Mem limit on entity";
+        assertTrue(actionApiDTO.getDetails().startsWith(REMOVE_DESCRIPTION));
     }
 
     @Test

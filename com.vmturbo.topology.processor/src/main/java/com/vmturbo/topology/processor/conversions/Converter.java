@@ -448,10 +448,30 @@ public class Converter {
                 .setActive(commDTO.getActive())
                 .setIsResizeable(commDTO.getResizable());
 
-        if (commDTO.hasUtilizationThresholdPct()) {
-            retCommSoldBuilder.setEffectiveCapacityPercentage(commDTO.getUtilizationThresholdPct());
+        if (commDTO.hasLimit() && (commDTO.getLimit() > 0)
+                && commDTO.hasCapacity() && (commDTO.getCapacity() > 0)) {
+            // if limit < capacity, set the effective capacity percentage to limit / capacity as
+            // a percentage.
+            if (commDTO.getLimit() < commDTO.getCapacity()) {
+                retCommSoldBuilder.setEffectiveCapacityPercentage(
+                        100.0 * commDTO.getLimit() / commDTO.getCapacity());
+            }
         }
 
+        if (commDTO.hasUtilizationThresholdPct()) {
+            // set or adjust the effective capacity percentage based on utilization threshold percentage
+            double newEffectiveCapacityPercentage = commDTO.getUtilizationThresholdPct();
+            if (retCommSoldBuilder.hasEffectiveCapacityPercentage()) {
+                // this is an unexpected case -- we don't expect both limit and util threshold % to
+                // co-exist at the same time, so let's take a note.
+                logger.warn("{} commodity sold has both a 'limit' ({}) and " +
+                        "'utilizationThresholdPct' ({}) set.", commDTO.getDisplayName(),
+                        commDTO.getLimit(), commDTO.getUtilizationThresholdPct());
+                // update the new effective capacity to reflect both the limit and the util threshold
+                newEffectiveCapacityPercentage *= (retCommSoldBuilder.getEffectiveCapacityPercentage() / 100.0);
+            }
+            retCommSoldBuilder.setEffectiveCapacityPercentage(newEffectiveCapacityPercentage);
+        }
         if (commDTO.hasUsedIncrement()) {
             retCommSoldBuilder.setCapacityIncrement((float)commDTO.getUsedIncrement());
         }
