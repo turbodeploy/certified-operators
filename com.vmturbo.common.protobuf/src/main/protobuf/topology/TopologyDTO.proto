@@ -12,10 +12,10 @@ import "CloudCostDTO.proto";
 //
 // This message should contain all the type-specific configuration options we need to use in XL or
 // display in the UI.
-message TypeSpecificConfig {
-    message VirtualMachineConfig {
+message TypeSpecificInfo {
+    message VirtualMachineInfo {
         // The OS type.
-        optional .common_dto.OSType guest_os_type = 1 [default = LINUX];
+        optional .common_dto.OSType guest_os_type = 1 [default = UNKNOWN_OS];
 
         // If set, the tenancy of the VM. This is only applicable
         // in a cloud environment (in an on-prem environment you're always on a host).
@@ -24,7 +24,7 @@ message TypeSpecificConfig {
 
     oneof type {
         // The field number is the index of the entity type.
-        VirtualMachineConfig virtual_machine_config = 10;
+        VirtualMachineInfo virtual_machine = 10;
     }
 }
 
@@ -34,7 +34,7 @@ message TopologyEntityDTO {
     required int32 entity_type = 1;
 
     // Type-specific configuration of the entity.
-    optional TypeSpecificConfig type_specific_info = 30;
+    optional TypeSpecificInfo type_specific_info = 30;
 
     // object identifier
     required int64 oid = 2;

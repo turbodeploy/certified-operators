@@ -5,7 +5,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificConfig.VirtualMachineConfig;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -40,8 +40,8 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         }
 
         if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE &&
-                entity.getTypeSpecificInfo().hasVirtualMachineConfig()) {
-            VirtualMachineConfig vmConfig = entity.getTypeSpecificInfo().getVirtualMachineConfig();
+                entity.getTypeSpecificInfo().hasVirtualMachine()) {
+            VirtualMachineInfo vmConfig = entity.getTypeSpecificInfo().getVirtualMachine();
             return Optional.of(new ComputeConfig(vmConfig.getGuestOsType(), vmConfig.getTenancy()));
         }
 
