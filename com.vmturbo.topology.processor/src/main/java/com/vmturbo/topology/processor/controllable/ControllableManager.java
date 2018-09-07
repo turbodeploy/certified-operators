@@ -6,9 +6,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.stitching.TopologyEntity;
 
 /**
@@ -23,8 +20,6 @@ import com.vmturbo.stitching.TopologyEntity;
 public class ControllableManager {
 
     private final EntityActionDao entityActionDao;
-
-    private static final Logger logger = LogManager.getLogger();
 
     public ControllableManager(@Nonnull final EntityActionDao entityActionDao) {
         this.entityActionDao = Objects.requireNonNull(entityActionDao);
@@ -44,11 +39,8 @@ public class ControllableManager {
                 .filter(topology::containsKey)
                 .map(topology::get)
                 .map(TopologyEntity.Builder::getEntityBuilder)
-                .forEach(entityBuilder -> {
-                        entityBuilder.getAnalysisSettingsBuilder().setControllable(false);
-                        logger.trace("Applying controllable false for entity {}.",
-                                entityBuilder.getDisplayName());
-                });
+                .forEach(entityBuilder ->
+                        entityBuilder.getAnalysisSettingsBuilder().setControllable(false));
     }
 
     /**
@@ -65,10 +57,7 @@ public class ControllableManager {
                 .filter(topology::containsKey)
                 .map(topology::get)
                 .map(TopologyEntity.Builder::getEntityBuilder)
-                .forEach(entityBuilder -> {
-                        entityBuilder.getAnalysisSettingsBuilder().setSuspendable(false);
-                        logger.trace("Applying suspendable false for entity {}.",
-                                entityBuilder.getDisplayName());
-                });
+                .forEach(entityBuilder ->
+                        entityBuilder.getAnalysisSettingsBuilder().setSuspendable(false));
     }
 }
