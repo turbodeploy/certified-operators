@@ -169,13 +169,8 @@ message EntityReservedInstanceCoverage {
     message Coverage {
         // The id of reserved instance.
         optional int64 reserved_instance_id = 1;
-
-        // The reserved instance id of probe send out, we use it to tell if two reserved instance bought
-        // are same or not.
-        optional string probe_reserved_instance_id = 2;
-
         // The number of coupons covered by the reserve instance.
-        optional double covered_coupons = 3;
+        optional double covered_coupons = 2;
     }
 }
 
