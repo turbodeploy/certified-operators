@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -65,22 +66,25 @@ public class TopologyEntityCloudTopologyTest {
             .put(REGION.getOid(), REGION)
             .build();
 
+    private final TopologyEntityCloudTopologyFactory topologyFactory =
+            TopologyEntityCloudTopology.newFactory();
+
 
     @Test
     public void testGetEntityOid() {
-        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
         assertThat(cloudTopology.getEntity(VM.getOid()), is(Optional.of(VM)));
     }
 
     @Test
     public void testGetEntityComputeTier() {
-        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
         assertThat(cloudTopology.getComputeTier(VM.getOid()), is(Optional.of(COMPUTE_TIER)));
     }
 
     @Test
     public void testGetEntityRegion() {
-        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
         assertThat(cloudTopology.getRegion(VM.getOid()), is(Optional.of(REGION)));
     }
 }

@@ -3,6 +3,7 @@ package com.vmturbo.cost.component.entity.cost;
 import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
@@ -18,11 +19,17 @@ import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
+
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.CostType;
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
@@ -34,8 +41,16 @@ public class SQLEntityCostStore implements EntityCostStore {
 
     private final DSLContext dsl;
 
-    public SQLEntityCostStore(@Nonnull final DSLContext dsl) {
+    private final Clock clock;
+
+    private final int chunkSize;
+
+    public SQLEntityCostStore(@Nonnull final DSLContext dsl,
+                              @Nonnull final Clock clock,
+                              final int chunkSize) {
         this.dsl = Objects.requireNonNull(dsl);
+        this.clock = Objects.requireNonNull(clock);
+        this.chunkSize = chunkSize;
     }
 
     /**
@@ -44,46 +59,101 @@ public class SQLEntityCostStore implements EntityCostStore {
     @Override
     public void persistEntityCosts(@Nonnull final List<EntityCost> entityCosts)
             throws DbException, InvalidEntityCostsException {
-        final LocalDateTime curTime = LocalDateTime.now();
+        final LocalDateTime curTime = LocalDateTime.now(clock);
         Objects.requireNonNull(entityCosts);
-        if (isValidEntityCosts(entityCosts)) {
-            try {
-                BatchBindStep batch = dsl.batch(
-                        //have to provide dummy values for jooq
-                        dsl.insertInto(ENTITY_COST,
-                                ENTITY_COST.ASSOCIATED_ENTITY_ID,
-                                ENTITY_COST.CREATED_TIME,
-                                ENTITY_COST.ASSOCIATED_ENTITY_TYPE,
-                                ENTITY_COST.COST_TYPE,
-                                ENTITY_COST.CURRENCY,
-                                ENTITY_COST.AMOUNT)
-                                .values(entityCosts.get(0).getAssociatedEntityId(),
-                                        curTime,
-                                        entityCosts.get(0).getAssociatedEntityType(),
-                                        entityCosts.get(0).getComponentCostList().get(0).getCostType().getNumber(),
-                                        entityCosts.get(0).getTotalAmount().getCurrency(),
-                                        BigDecimal.valueOf(entityCosts.get(0).getComponentCostList().get(0).getAmount().getAmount())));
-
-                for (EntityCost entityCost : entityCosts) {
-                    entityCost.getComponentCostList().forEach(componentCost -> batch.bind(entityCost.getAssociatedEntityId(),
-                            curTime,
-                            entityCost.getAssociatedEntityType(),
-                            componentCost.getCostType().getNumber(),
-                            entityCost.getTotalAmount().getCurrency(),
-                            BigDecimal.valueOf(componentCost.getAmount().getAmount())));
-                }
-                //TODO: implement batch size, see OM-38675.
-                batch.execute();
-
-            } catch (DataAccessException e) {
-                throw new DbException("Failed to persist entity costs to DB" + e.getMessage());
-
-            }
-        } else {
+        if (!isValidEntityCosts(entityCosts)) {
             throw new InvalidEntityCostsException("All entity cost must have associated entity id," +
                     " spend type, component cost list, total amount ");
         }
 
+        try {
+            // We chunk the transactions for speed, and to avoid overloading the DB buffers
+            // on large topologies. Ideally this should be one transaction.
+            //
+            // TODO (roman, Sept 6 2018): Try to handle transaction failure (e.g. by deleting all
+            // committed data).
+            Lists.partition(entityCosts, chunkSize).forEach(chunk -> {
+                dsl.transaction(transaction -> {
+                    final DSLContext transactionContext = DSL.using(transaction);
+                    // Initialize the batch.
+                    final BatchBindStep batch = transactionContext.batch(
+                            //have to provide dummy values for jooq
+                            transactionContext.insertInto(ENTITY_COST)
+                                    .set(ENTITY_COST.ASSOCIATED_ENTITY_ID, 0L)
+                                    .set(ENTITY_COST.CREATED_TIME, curTime)
+                                    .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
+                                    .set(ENTITY_COST.COST_TYPE, 0)
+                                    .set(ENTITY_COST.CURRENCY, 0)
+                                    .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0)));
+
+                    // Bind values to the batch insert statement. Each "bind" should have values for
+                    // all fields set during batch initialization.
+                    chunk.forEach(entityCost -> entityCost.getComponentCostList()
+                        .forEach(componentCost ->
+                            batch.bind(entityCost.getAssociatedEntityId(),
+                            curTime,
+                            entityCost.getAssociatedEntityType(),
+                            componentCost.getCategory().getNumber(),
+                            entityCost.getTotalAmount().getCurrency(),
+                            BigDecimal.valueOf(componentCost.getAmount().getAmount()))));
+
+                    // Actually execute the batch insert.
+                    batch.execute();
+                });
+            });
+        } catch (DataAccessException e) {
+            throw new DbException("Failed to persist entity costs to DB" + e.getMessage());
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void persistEntityCost(@Nonnull final Map<Long, CostJournal<TopologyEntityDTO>> costJournals) throws DbException {
+        final LocalDateTime curTime = LocalDateTime.now(clock);
+        Objects.requireNonNull(costJournals);
+        try {
+            // We chunk the transactions for speed, and to avoid overloading the DB buffers
+            // on large topologies. Ideally this should be one transaction.
+            //
+            // TODO (roman, Sept 6 2018): Try to handle transaction failure (e.g. by deleting all
+            // committed data).
+            Iterators.partition(costJournals.values().iterator(), chunkSize)
+                .forEachRemaining(chunk -> dsl.transaction(transaction -> {
+                    final DSLContext transactionContext = DSL.using(transaction);
+                    // Initialize the batch.
+                    final BatchBindStep batch = transactionContext.batch(
+                            //have to provide dummy values for jooq
+                            dsl.insertInto(ENTITY_COST)
+                                    .set(ENTITY_COST.ASSOCIATED_ENTITY_ID, 0L)
+                                    .set(ENTITY_COST.CREATED_TIME, curTime)
+                                    .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
+                                    .set(ENTITY_COST.COST_TYPE, 0)
+                                    .set(ENTITY_COST.CURRENCY, 0)
+                                    .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0)));
+
+                    // Bind values to the batch insert statement. Each "bind" should have values for
+                    // all fields set during batch initialization.
+                    chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
+                        final double categoryCost = journal.getCostForCategory(costType);
+                        batch.bind(journal.getEntity().getOid(),
+                                curTime,
+                                journal.getEntity().getEntityType(),
+                                costType.getNumber(),
+                                // TODO (roman, Sept 5 2018): Not handling currency in cost
+                                // calculation yet.
+                                CurrencyAmount.getDefaultInstance().getCurrency(),
+                                BigDecimal.valueOf(categoryCost));
+                    }));
+
+                    // Actually execute the batch insert.
+                    batch.execute();
+                }));
+
+        } catch (DataAccessException e) {
+            throw new DbException("Failed to persist entity costs to DB" + e.getMessage());
+        }
     }
 
     // ensure all the entity cost object has id, spend type, components and their amount/rate
@@ -176,7 +246,7 @@ public class SQLEntityCostStore implements EntityCostStore {
                 .setAmount(CurrencyAmount.newBuilder()
                         .setAmount(entityCostRecord.getAmount().doubleValue())
                         .setCurrency(entityCostRecord.getCurrency()))
-                .setCostType(CostType.forNumber(entityCostRecord.getCostType()))
+                .setCategory(CostCategory.forNumber(entityCostRecord.getCostType()))
                 .build();
         return Cost.EntityCost.newBuilder()
                 .setAssociatedEntityId(entityCostRecord.getAssociatedEntityId())

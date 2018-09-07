@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -15,6 +16,7 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
@@ -34,16 +36,18 @@ public class CostJournal<ENTITY_CLASS> {
 
     private static final Logger logger = LogManager.getLogger();
 
-    public enum CostCategory {
-        COMPUTE,
-        LICENSE,
-    }
+    /**
+     * The entity for which the cost is calculated.
+     */
+    private final ENTITY_CLASS entity;
 
     private final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> onDemandPriceEntries;
 
     private final Map<CostCategory, Double> finalPricesByCategory;
 
-    private CostJournal(@Nullable final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> priceEntries) {
+    private CostJournal(@Nonnull final ENTITY_CLASS entity,
+                        @Nullable final Map<CostCategory, List<JournalEntry<ENTITY_CLASS>>> priceEntries) {
+        this.entity = entity;
         this.onDemandPriceEntries = priceEntries == null ?
                 Collections.emptyMap() : Collections.unmodifiableMap(priceEntries);
         this.finalPricesByCategory = sumPriceEntries();
@@ -72,6 +76,11 @@ public class CostJournal<ENTITY_CLASS> {
         return Collections.unmodifiableMap(summedMap);
     }
 
+    @Nonnull
+    public ENTITY_CLASS getEntity() {
+        return entity;
+    }
+
     /**
      * Get the aggregated cost for a particular category.
      *
@@ -80,6 +89,16 @@ public class CostJournal<ENTITY_CLASS> {
      */
     public double getCostForCategory(@Nonnull final CostCategory category) {
         return finalPricesByCategory.getOrDefault(category, 0.0);
+    }
+
+    /**
+     * Get the categories that this journal has prices for.
+     *
+     * @return The set of categories.
+     */
+    @Nonnull
+    public Set<CostCategory> getCategories() {
+        return Collections.unmodifiableSet(finalPricesByCategory.keySet());
     }
 
     /**
@@ -97,8 +116,8 @@ public class CostJournal<ENTITY_CLASS> {
      * @param <ENTITY_CLASS> The entity class (see {@link CostJournal}).
      * @return An empty {@link CostJournal} that will return 0 for all costs.
      */
-    public static <ENTITY_CLASS> CostJournal<ENTITY_CLASS> empty() {
-        return new CostJournal<>(null);
+    public static <ENTITY_CLASS> CostJournal<ENTITY_CLASS> empty(@Nonnull final ENTITY_CLASS entity) {
+        return new CostJournal<>(entity, null);
     }
 
     /**
@@ -218,7 +237,7 @@ public class CostJournal<ENTITY_CLASS> {
 
         @Nonnull
         public CostJournal<ENTITY_CLASS_> build() {
-            return new CostJournal<>(priceEntries);
+            return new CostJournal<>(entity, priceEntries);
         }
     }
 }

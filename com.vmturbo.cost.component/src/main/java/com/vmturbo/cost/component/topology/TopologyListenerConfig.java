@@ -9,6 +9,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.CloudCostCalculator;
+import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
+import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
@@ -19,18 +27,27 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
  */
 
 @Configuration
-@Import({TopologyProcessorClientConfig.class})
+@Import({TopologyProcessorClientConfig.class,
+        PricingConfig.class,
+        EntityCostConfig.class})
 public class TopologyListenerConfig {
 
     @Autowired
     private TopologyProcessorClientConfig topologyClientConfig;
+
+    @Autowired
+    private PricingConfig pricingConfig;
+
+    @Autowired
+    private EntityCostConfig entityCostConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
-        return new LiveTopologyEntitiesListener(realtimeTopologyContextId);
+        return new LiveTopologyEntitiesListener(realtimeTopologyContextId,
+                topologyCostCalculator(), entityCostConfig.entityCostStore());
     }
 
     @Bean
@@ -40,5 +57,31 @@ public class TopologyListenerConfig {
                     EnumSet.of(Subscription.LiveTopologies));
         topologyProcessor.addLiveTopologyListener(liveTopologyEntitiesListener());
         return topologyProcessor;
+    }
+
+    @Bean
+    public TopologyCostCalculator topologyCostCalculator() {
+        return new TopologyCostCalculator(cloudTopologyFactory(), topologyEntityInfoExtractor(),
+                cloudCostCalculatorFactory(), localCostDataProvider());
+    }
+
+    @Bean
+    public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
+        return TopologyEntityCloudTopology.newFactory();
+    }
+
+    @Bean
+    public TopologyEntityInfoExtractor topologyEntityInfoExtractor() {
+        return new TopologyEntityInfoExtractor();
+    }
+
+    @Bean
+    public CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory() {
+        return CloudCostCalculator.newFactory();
+    }
+
+    @Bean
+    public LocalCostDataProvider localCostDataProvider() {
+        return new LocalCostDataProvider(pricingConfig.priceTableStore());
     }
 }

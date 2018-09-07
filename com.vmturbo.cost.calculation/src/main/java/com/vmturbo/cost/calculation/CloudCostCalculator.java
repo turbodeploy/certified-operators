@@ -8,9 +8,9 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.cost.calculation.CostJournal.CostCategory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -37,7 +37,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor;
 
-    public CloudCostCalculator(@Nonnull final CloudCostDataProvider cloudCostDataProvider,
+    private CloudCostCalculator(@Nonnull final CloudCostDataProvider cloudCostDataProvider,
                                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor)
             throws CloudCostDataRetrievalException {
@@ -74,14 +74,14 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     public CostJournal<ENTITY_CLASS> calculateCost(@Nonnull final ENTITY_CLASS entity) {
         if (entityInfoExtractor.getEntityType(entity) != EntityType.VIRTUAL_MACHINE_VALUE) {
             // Not supporting cost calculation for anything other than VMs for now.
-            return CostJournal.empty();
+            return CostJournal.empty(entity);
         }
 
         final long entityId = entityInfoExtractor.getId(entity);
         final Optional<ENTITY_CLASS> regionOpt = cloudTopology.getRegion(entityId);
         if (!regionOpt.isPresent()) {
             logger.warn("Unable to find region for entity {}. Returning empty cost.", entityId);
-            return CostJournal.empty();
+            return CostJournal.empty(entity);
         }
         final ENTITY_CLASS region = regionOpt.get();
 
@@ -122,5 +122,30 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         });
 
         return journal.build();
+    }
+
+    /**
+     * Create a new production {@link CloudCostCalculatorFactory}.
+     *
+     * @param <ENTITY_CLASS> The class of entities used in the calculators produced by the factory.
+     * @return The {@link CloudCostCalculatorFactory}.
+     */
+    public static <ENTITY_CLASS> CloudCostCalculatorFactory<ENTITY_CLASS> newFactory() {
+        return CloudCostCalculator::new;
+    }
+
+    /**
+     * A factory for {@link CloudCostCalculator} instances. Mainly for unit-testing purposes.
+     *
+     * @param <ENTITY_CLASS> The class of entities used in this calculator.
+     */
+    @FunctionalInterface
+    public interface CloudCostCalculatorFactory<ENTITY_CLASS> {
+
+        @Nonnull
+        CloudCostCalculator<ENTITY_CLASS> newCalculator(
+                @Nonnull final CloudCostDataProvider cloudCostDataProvider,
+                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
+                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor) throws CloudCostDataRetrievalException;
     }
 }

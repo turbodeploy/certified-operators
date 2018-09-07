@@ -226,6 +226,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.sdk.server.common</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>cost-calculation</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

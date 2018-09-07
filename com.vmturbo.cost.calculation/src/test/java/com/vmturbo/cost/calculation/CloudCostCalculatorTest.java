@@ -9,9 +9,10 @@ import java.util.Optional;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
-import com.vmturbo.cost.calculation.CostJournal.CostCategory;
+import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -35,6 +36,9 @@ public class CloudCostCalculatorTest {
 
     private final EntityInfoExtractor<TestEntityClass> infoExtractor =
             (EntityInfoExtractor<TestEntityClass>)mock(EntityInfoExtractor.class);
+
+    private CloudCostCalculatorFactory<TestEntityClass> calculatorFactory =
+            CloudCostCalculator.<TestEntityClass>newFactory();
 
     /**
      * Test a simple on-demand calculation (no RI, no discount) for a VM.
@@ -72,7 +76,7 @@ public class CloudCostCalculatorTest {
         when(dataProvider.getCloudCostData()).thenReturn(cloudCostData);
 
         final CloudCostCalculator<TestEntityClass> calculator =
-                new CloudCostCalculator<>(dataProvider, topology, infoExtractor);
+                calculatorFactory.newCalculator(dataProvider, topology, infoExtractor);
 
         final TestEntityClass testEntity = mock(TestEntityClass.class);
 

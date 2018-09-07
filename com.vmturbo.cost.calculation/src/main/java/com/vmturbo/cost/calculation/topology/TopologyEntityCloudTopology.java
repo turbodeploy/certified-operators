@@ -34,7 +34,10 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
 
     private final Map<Long, TopologyEntityDTO> topologyEntitiesById;
 
-    public TopologyEntityCloudTopology(@Nonnull final Map<Long, TopologyEntityDTO> topologyEntitiesById) {
+    /**
+     * Do not call directly. Use {@link TopologyEntityCloudTopology#newFactory()}.
+     */
+    private TopologyEntityCloudTopology(@Nonnull final Map<Long, TopologyEntityDTO> topologyEntitiesById) {
         this.topologyEntitiesById =
                 Collections.unmodifiableMap(Objects.requireNonNull(topologyEntitiesById));
     }
@@ -108,5 +111,24 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
             final long connectedRegionId = connectedRegionIds.iterator().next();
             return getEntity(connectedRegionId);
         });
+    }
+
+    /**
+     * Use this method to get a production {@link TopologyEntityCloudTopologyFactory}.
+     *
+     * @return A {@link TopologyEntityCloudTopologyFactory} for use in production code.
+     */
+    @Nonnull
+    public static TopologyEntityCloudTopologyFactory newFactory() {
+        return TopologyEntityCloudTopology::new;
+    }
+
+    /**
+     * A factory for {@link TopologyEntityCloudTopology}, mainly for unit testing purposes.
+     */
+    @FunctionalInterface
+    public interface TopologyEntityCloudTopologyFactory {
+        @Nonnull
+        TopologyEntityCloudTopology newCloudTopology(@Nonnull final Map<Long, TopologyEntityDTO> entities);
     }
 }

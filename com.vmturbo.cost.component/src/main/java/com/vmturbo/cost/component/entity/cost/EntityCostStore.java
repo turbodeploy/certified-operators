@@ -8,6 +8,8 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.sql.utils.DbException;
 
 /**
@@ -21,6 +23,14 @@ public interface EntityCostStore {
      * @throws InvalidEntityCostsException if the provided entity cost DTO is not valid
      */
     void persistEntityCosts(@Nonnull final List<EntityCost> entityCosts) throws DbException, InvalidEntityCostsException;
+
+    /**
+     * Persist bulk entity costs based on {@link CostJournal}s.
+     *
+     * @param costJournals The journals, arranged by entity ID.
+     * @throws DbException If there is an error saving to the database.
+     */
+    void persistEntityCost(@Nonnull final Map<Long, CostJournal<TopologyEntityDTO>> costJournals) throws DbException;
 
     /**
      * Get entity costs between the start (minValue) and end (maxValue) dates.
