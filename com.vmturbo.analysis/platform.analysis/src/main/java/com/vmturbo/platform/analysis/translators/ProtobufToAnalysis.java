@@ -240,6 +240,7 @@ public final class ProtobufToAnalysis {
         destination.setMaxQuantity(source.getMaxQuantity());
         destination.setCapacity(source.getCapacity());
         destination.setStartQuantity(source.getQuantity());
+        destination.setNumConsumers(source.getNumConsumers());
         destination.setStartPeakQuantity(source.getQuantity() >
             source.getPeakQuantity() ? source.getQuantity() :
                 source.getPeakQuantity());

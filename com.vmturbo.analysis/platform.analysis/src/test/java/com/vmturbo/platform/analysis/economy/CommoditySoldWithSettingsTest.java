@@ -100,6 +100,21 @@ public final class CommoditySoldWithSettingsTest {
     }
 
     @Test
+    @Parameters({"0","1","1000"})
+    @TestCaseName("Test #{index}: (set|get)NumConsumers({0})")
+    public final void testGetSetNumConsumers_NormalInput(int numConsumers) {
+        fixture_.setNumConsumers(numConsumers);
+        assertEquals(numConsumers, fixture_.getNumConsumers(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    @Parameters({"-0.001","-1.0","-1000"})
+    @TestCaseName("Test #{index}: setNumConsumers({0})")
+    public final void testSetNumConsumers_InvalidInput(int numConsumers) {
+        fixture_.setNumConsumers(numConsumers);
+    }
+
+    @Test
     @Parameters({"0.0,0.0","1.0,0.0","1000,0.0",
                  "0.0,1.0","1.0,1.0","1000.1,1000",
                  "0.0,1000","1.0,1000","1000,1000","1000,1.0"})

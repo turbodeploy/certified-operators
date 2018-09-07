@@ -100,4 +100,7 @@ message CommoditySoldTO {
 
     // The settings associated with and controlling the behavior of this commodity sold.
     optional CommoditySoldSettingsTO settings = 7;
+
+    // number of consumers for this commodity
+    optional int32 numConsumers = 8;
 }

@@ -26,6 +26,9 @@ public abstract class CommoditySold implements Serializable {
     private double startQuantity_ = 0.0;
     private double startPeakQuantity_ = 0.0;
     private boolean thin_ = false;
+    // numConsumers is the sum of the traders sent to the market that are consuming a resource
+    // these can be active or inactive traders
+    private int numConsumers_ = 0;
 
     // Methods
 
@@ -104,6 +107,14 @@ public abstract class CommoditySold implements Serializable {
     }
 
     /**
+     * Returns the <b>numConsumers</b> of {@code this} commodity.
+     */
+    @Pure
+    public int getNumConsumers(@ReadOnly CommoditySold this) {
+        return numConsumers_;
+    }
+
+    /**
     *
     * @return The start quantity.
     */
@@ -161,7 +172,7 @@ public abstract class CommoditySold implements Serializable {
     @Deterministic
     public @NonNull CommoditySold setQuantity(double quantity) {
         // quantity can be over capacity
-        checkArgument(0 <= quantity, "quantity = " + quantity);
+        checkArgument(0 <= quantity, "quantity = %s", quantity);
         quantity_ = quantity;
         return this;
     }
@@ -183,7 +194,7 @@ public abstract class CommoditySold implements Serializable {
     @Deterministic
     public @NonNull CommoditySold setPeakQuantity(double peakQuantity) {
         // peakQuantity can be over capacity
-        checkArgument(0 <= peakQuantity, "quantity = " + peakQuantity);
+        checkArgument(0 <= peakQuantity, "peakQuantity = %s", peakQuantity);
         peakQuantity_ = peakQuantity;
         return this;
     }
@@ -195,10 +206,10 @@ public abstract class CommoditySold implements Serializable {
      * @return {@code this}
      */
     @Deterministic
-    public @NonNull CommoditySold setMaxQuantity(double quantity) {
+    public @NonNull CommoditySold setMaxQuantity(double maxQuantity) {
         // quantity can be over capacity
-        checkArgument(0 <= quantity, "quantity = " + quantity);
-        maxQuantity_ = quantity;
+        checkArgument(0 <= maxQuantity, "maxQuantity = %s", maxQuantity);
+        maxQuantity_ = maxQuantity;
         return this;
     }
 
@@ -216,7 +227,7 @@ public abstract class CommoditySold implements Serializable {
      */
     @Deterministic
     public @NonNull CommoditySold setCapacity(double capacity) {
-        checkArgument(0 <= capacity, "capacity = " + capacity); // should we check that this is >= max(quantity,peakQuantity)?
+        checkArgument(0 <= capacity, "capacity = %s", capacity);
         capacity_ = capacity;
         return this;
     }
@@ -230,7 +241,7 @@ public abstract class CommoditySold implements Serializable {
     @Deterministic
     public @NonNull CommoditySold setStartQuantity(double startQuantity) {
         // startQuantity can be over capacity
-        checkArgument(0 <= startQuantity, "startQuantity = " + startQuantity);
+        checkArgument(0 <= startQuantity, "startQuantity = %s", startQuantity);
         startQuantity_ = startQuantity;
         return this;
     }
@@ -244,7 +255,7 @@ public abstract class CommoditySold implements Serializable {
     @Deterministic
     public @NonNull CommoditySold setStartPeakQuantity(double startPeakQuantity) {
         // startPeakQuantity can be over capacity
-        checkArgument(0 <= startPeakQuantity, "startPeakQuantity = " + startPeakQuantity);
+        checkArgument(0 <= startPeakQuantity, "startPeakQuantity = %s", startPeakQuantity);
         startPeakQuantity_ = startPeakQuantity;
         return this;
     }
@@ -267,4 +278,16 @@ public abstract class CommoditySold implements Serializable {
         return this;
     }
 
+    /**
+     * Sets the number of consumers of this commodity
+     *
+     * @param numConsumers is the number of consumers of commodity
+     * @return {@code this}
+     */
+    @Deterministic
+    public @NonNull CommoditySold setNumConsumers(int numConsumers) {
+        checkArgument(0 <= numConsumers, "numConsumers = %s", numConsumers);
+        numConsumers_ = numConsumers;
+        return this;
+    }
 } // end CommoditySold interface

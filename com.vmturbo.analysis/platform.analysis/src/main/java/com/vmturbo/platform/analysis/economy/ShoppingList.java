@@ -284,7 +284,7 @@ public class ShoppingList implements Serializable {
     public @NonNull ShoppingList move(Trader newSupplier) {
         // Update old supplier to exclude this from its customers.
         if (getSupplier() != null) {
-            checkArgument(getSupplier().getModifiableCustomers().remove(this), "this = " + this);
+            checkArgument(getSupplier().getModifiableCustomers().remove(this), "this = %s", this);
         }
 
         // Update new supplier to include this to its customers.

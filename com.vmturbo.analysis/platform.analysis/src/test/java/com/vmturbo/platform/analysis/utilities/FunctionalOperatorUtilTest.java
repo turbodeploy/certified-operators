@@ -131,6 +131,8 @@ public class FunctionalOperatorUtilTest {
         TestUtils.createAndPlaceShoppingList(economy, Arrays.asList(TestUtils.CPU), vm,
                         new double[] {10}, new double[] {10}, pm);
         Assert.assertEquals(2, pm.getCustomers().size());
+        // populate numConsumers on the commSold by the pm
+        pm.getCommoditiesSold().forEach(cs -> cs.setNumConsumers(2));
 
         double[] res1 = FunctionalOperatorUtil.AVG_COMMS.operate(sl2, 0,
                         pm.getCommoditySold(TestUtils.CPU), pm, null, true, 0);

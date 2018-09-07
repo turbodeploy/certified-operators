@@ -153,9 +153,8 @@ class Cache {
                                 || shoppingList.getBuyer().getCloneOf() != -1) {
                     return price;
                 }
-                String topoId = String.valueOf(topo.getTopologyId());
                 // Use topology id to get matrix interface
-                Optional<MatrixInterface> interfaceOptional = TheMatrix.instance(topoId);
+                Optional<MatrixInterface> interfaceOptional = TheMatrix.instance(topo.getTopologyId());
                 // If consumer passed to price function is null, just return 0 price, as flow
                 // price only makes sense in the context of a specific consumer
                 if (interfaceOptional.isPresent()) {

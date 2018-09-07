@@ -290,6 +290,16 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             double sellerOrigUsed = commoditySold.getQuantity();
             double sellerOrigPeak = commoditySold.getPeakQuantity();
             commoditySold.setQuantity(0).setPeakQuantity(0);
+            // updating the numConsmers of a commodity when the move action is being taken
+            int numConsumers = commoditySold.getNumConsumers();
+            if (take) {
+                if (incomingSl) {
+                    commoditySold.setNumConsumers(numConsumers + 1);
+                // check if numConsumers is greater than 0. It can be 0 for bicliques
+                } else if (numConsumers > 0) {
+                    commoditySold.setNumConsumers(numConsumers - 1);
+                }
+            }
 
             // TODO: Currently, whenever there is an explicit combinator, we neglect overhead
             // because of the used recomputation we could have explicitCombinators for which we

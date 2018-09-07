@@ -10,7 +10,6 @@ import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
@@ -243,26 +242,24 @@ public class FunctionalOperatorUtil {
                     , take, overhead)
                     -> {
                         // consider just the buyers that consume the commodity as customers
-                        CommoditySpecification csBought = buyer.getBasket().get(boughtIndex);
-                        long numCustomers = seller.getCustomers().stream().filter(c ->
-                                (c.getBasket().indexOf(csBought) != -1)).count();
+                        double numCustomers = commSold.getNumConsumers();
                         // if we take the move, we have already moved and we dont need to assume a new
                         // customer. If we are not taking the move, we want to update the used considering
                         // an incoming customer. In which case, we need to increase the custoemrCount by 1
                         if (take) {
                             return new double[]{(commSold.getQuantity() * numCustomers +
                                                 buyer.getQuantities()[boughtIndex])
-                                                /(numCustomers),
+                                                / numCustomers,
                                                 (commSold.getPeakQuantity() * numCustomers +
                                                 buyer.getPeakQuantities()[boughtIndex])
-                                                /(numCustomers)};
+                                                / numCustomers};
                         } else {
                             return new double[]{Math.max(commSold.getQuantity(),
                                         (commSold.getQuantity() * numCustomers
-                                        + buyer.getQuantities()[boughtIndex])/(numCustomers + 1)),
+                                        + buyer.getQuantities()[boughtIndex]) / (numCustomers + 1)),
                                         Math.max(commSold.getPeakQuantity(),
                                         (commSold.getPeakQuantity() * numCustomers
-                                        + buyer.getPeakQuantities()[boughtIndex])/(numCustomers + 1))};
+                                        + buyer.getPeakQuantities()[boughtIndex]) / (numCustomers + 1))};
                         }
                     };
 
@@ -291,10 +288,9 @@ public class FunctionalOperatorUtil {
                                             || buyer.getBuyer().getCloneOf() != -1) {
                                 return new double[] {0, 0};
                             }
-                            String topoId = String.valueOf(topology.getTopologyId());
                             Optional<MatrixInterface> interfaceOptional =
-                                            TheMatrix.instance(topoId);
-                            // Check if interface is present for given topology
+                                            TheMatrix.instance(topology.getTopologyId());
+                            // Check if the matrix interface is present for this topology
                             if (interfaceOptional.isPresent()) {
                                 Long buyerOid = topology.getTraderOids().get(buyer.getBuyer());
                                 Long sellerOid = topology.getTraderOids().get(seller);
