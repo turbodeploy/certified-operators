@@ -56,7 +56,13 @@ public class ReservedInstanceBoughtStore {
      */
     public List<ReservedInstanceBought> getReservedInstanceBoughtByFilter(
             @Nonnull final ReservedInstanceBoughtFilter filter) {
-        return internalGet(dsl, filter).stream()
+        return getReservedInstanceBoughtByFilterWithContext(dsl, filter);
+    }
+
+    public List<ReservedInstanceBought> getReservedInstanceBoughtByFilterWithContext(
+            @Nonnull final DSLContext context,
+            @Nonnull final ReservedInstanceBoughtFilter filter) {
+        return internalGet(context, filter).stream()
                 .map(this::reservedInstancesToProto)
                 .collect(Collectors.toList());
     }
