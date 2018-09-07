@@ -1,0 +1,102 @@
+package com.vmturbo.cost.component.reserved.instance;
+
+import static com.vmturbo.cost.component.db.Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.jooq.BatchBindStep;
+import org.jooq.DSLContext;
+import org.jooq.Query;
+import org.jooq.exception.DataAccessException;
+import org.jooq.impl.DSL;
+
+import com.google.common.collect.Iterables;
+
+import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
+
+public class ComputeTierDemandStatsStore {
+
+    private final Logger logger = LogManager.getLogger();
+
+    /**
+     * Number of records to commit in one batch.
+     */
+    private int statsRecordsCommitBatchSize;
+
+    /**
+     * Number of results to return when fetching lazily.
+     */
+    private int statsRecordsQueryBatchSize;
+
+    private final DSLContext dslContext;
+
+    public ComputeTierDemandStatsStore(@Nonnull final DSLContext dslContext,
+                                       int statsRecordsCommitBatchSize,
+                                       int statsRecordsQueryBatchSize) {
+
+        this.dslContext = Objects.requireNonNull(dslContext);
+        this.statsRecordsCommitBatchSize = statsRecordsCommitBatchSize;
+        this.statsRecordsQueryBatchSize = statsRecordsQueryBatchSize;
+    }
+
+    /**
+     *
+     * @param hour hour for which the ComputeTier demand stats are requested
+     * @param day  day for which the ComputeTier demand stats are requested
+     * @return Stream of InstanceTypeHourlyByWeekRecord records.
+     *
+     * NOTE: This returns a resourceful stream. Resource should be closed
+     *
+     * by the caller.
+     */
+    public Stream<ComputeTierTypeHourlyByWeekRecord> getStats(byte hour, byte day)
+            throws DataAccessException {
+        return dslContext.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
+                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR.eq(hour)
+                        .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.eq(day)))
+                .fetchSize(statsRecordsQueryBatchSize)
+                .stream();
+    }
+
+    public void persistComputeTierDemandStats(
+            @Nonnull Collection<ComputeTierTypeHourlyByWeekRecord> demandStats)
+        throws DataAccessException {
+
+        logger.debug("Storing stats. NumRecords = {} ", demandStats.size());
+        // Each batch is run in a separate transaction. If some of the batch inserts fail,
+        // it's ok as the stats are independent. Better to have some of the stats than no
+        // stats at all.
+        for (List<ComputeTierTypeHourlyByWeekRecord> statsBatch :
+                Iterables.partition(demandStats, statsRecordsCommitBatchSize)) {
+
+                dslContext.transaction(configuration -> {
+                    try {
+                        DSLContext localDslContext = DSL.using(configuration);
+                        List<Query> batchQueries = new ArrayList<>();
+                        // TODO : karthikt. Check the difference in speed between multiple
+                        // insert statements(createStatement) vs single stateement with multiple
+                        // bind values(prepareStatement). Using createStatement here for syntax simplicity.
+                        for (ComputeTierTypeHourlyByWeekRecord stat: statsBatch) {
+                            batchQueries.add(
+                                    localDslContext.insertInto(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
+                                    .set(stat)
+                                    .onDuplicateKeyUpdate()
+                                    .set(stat));
+                        }
+                        localDslContext.batch(batchQueries).execute();
+                    } catch (DataAccessException ex) {
+                        throw ex;
+                    }
+                });
+        }
+    }
+}

@@ -49,6 +49,7 @@ volumes:
   mediation-xtremio: *localdriver
   mediation-vplex: *localdriver
   mediation-rhv: *localdriver
+  mediation-openstack: *localdriver
   mediation-ucsdirector: *localdriver
   mediation-aws: *localdriver
   mediation-awsbilling: *localdriver

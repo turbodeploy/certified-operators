@@ -53,7 +53,7 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     private static final Logger logger = LogManager.getLogger();
 
     /**
-     * A metric that tracks duration of preparation for stitching.
+     * A metric that tracks the time taken to load max values.
      */
     private static final DataMetricSummary COMMODITY_MAX_VALUES_LOAD_TIME_SUMMARY =
         DataMetricSummary.builder()

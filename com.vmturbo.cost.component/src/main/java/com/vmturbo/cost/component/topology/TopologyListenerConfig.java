@@ -17,6 +17,7 @@ import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.Topolog
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
+import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
@@ -27,13 +28,17 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
  */
 
 @Configuration
-@Import({TopologyProcessorClientConfig.class,
+@Import({ComputeTierDemandStatsConfig.class,
+        TopologyProcessorClientConfig.class,
         PricingConfig.class,
         EntityCostConfig.class})
 public class TopologyListenerConfig {
 
     @Autowired
     private TopologyProcessorClientConfig topologyClientConfig;
+
+    @Autowired
+    private ComputeTierDemandStatsConfig computeTierDemandStatsConfig;
 
     @Autowired
     private PricingConfig pricingConfig;
@@ -47,6 +52,8 @@ public class TopologyListenerConfig {
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         return new LiveTopologyEntitiesListener(realtimeTopologyContextId,
+                computeTierDemandStatsConfig.riDemandStatsWriter(),
+                topologyClientConfig.topologyProcessorRpcOnly(),
                 topologyCostCalculator(), entityCostConfig.entityCostStore());
     }
 
