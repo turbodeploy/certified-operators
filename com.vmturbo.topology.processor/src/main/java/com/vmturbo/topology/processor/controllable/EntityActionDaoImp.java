@@ -133,28 +133,50 @@ public class EntityActionDaoImp implements EntityActionDao {
                     now.minusSeconds(activateOrMoveInProgressExpiredSeconds);
             final LocalDateTime expiredSucceedThresholdTime =
                     now.minusSeconds(moveSucceedRecordExpiredSeconds);
-            final long deletedQueuedOrInProgressControllableCount = transactionDsl.deleteFrom(ENTITY_ACTION)
+            final List<EntityActionRecord> deletedQueuedOrInProgressControllableActionRecords = transactionDsl
+                    .selectFrom(ENTITY_ACTION)
                     .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
                                 .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued)))
                             .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move))
                             .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredInProgressThresholdTime)))
-                    .execute();
-            if (deletedQueuedOrInProgressControllableCount > 0) {
-                logger.warn("Deleted {} rows out of date in progress move action records which update " +
-                                "time is less than {}",
-                        deletedQueuedOrInProgressControllableCount, expiredInProgressThresholdTime);
-            }
+                    .fetch();
+            deletedQueuedOrInProgressControllableActionRecords.forEach(r -> {
+                transactionDsl.deleteFrom(ENTITY_ACTION)
+                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
+                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId())))
+                        .execute();
+                logger.warn("Deleted out of date in progress move action records with id {}, entity {} " +
+                                "which update time is less than {}",
+                        r.getActionId(), r.getEntityId(), expiredInProgressThresholdTime);
+            });
             // delete all failed move entity action records.
-            transactionDsl.deleteFrom(ENTITY_ACTION)
+            List<EntityActionRecord> failedActionRecords = transactionDsl.selectFrom(ENTITY_ACTION)
                     .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed)
                             .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
-                    .execute();
+                    .fetch();
+            failedActionRecords.forEach(r -> {
+                transactionDsl.deleteFrom(ENTITY_ACTION)
+                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
+                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId())))
+                .execute();
+                logger.debug("Deleted failed move action records with id {}, entity {}",
+                        r.getActionId(), r.getEntityId());
+            });
             // delete all expired succeed records.
-            transactionDsl.deleteFrom(ENTITY_ACTION)
+            List<EntityActionRecord> expiredSucceededActionRecords = transactionDsl.selectFrom(ENTITY_ACTION)
                     .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)
                             .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime))
                             .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.move)))
-                    .execute();
+                    .fetch();
+            expiredSucceededActionRecords.forEach(r -> {
+                transactionDsl.deleteFrom(ENTITY_ACTION)
+                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
+                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId())))
+                .execute();
+                logger.debug("Deleted expired successful action records with id {}, entity {} "
+                        + "which update time is less then {}.", r.getActionId(), r.getEntityId(),
+                        expiredSucceedThresholdTime);
+            });
             // after deleted expired records, the rest of 'succeed' or 'in progress' or 'queued' status
             // records are the entities not controllable.
             return transactionDsl.selectFrom(ENTITY_ACTION)
@@ -176,28 +198,45 @@ public class EntityActionDaoImp implements EntityActionDao {
                     now.minusSeconds(activateOrMoveInProgressExpiredSeconds);
             final LocalDateTime expiredSucceedThresholdTime =
                     now.minusSeconds(activateSucceedExpiredSeconds);
-            final long deletedQueuedOrInProgressActionCount = transactionDsl.deleteFrom(ENTITY_ACTION)
+            final List<EntityActionRecord> deletedQueuedOrInProgressActionRecords =
+                    transactionDsl.selectFrom(ENTITY_ACTION)
                     .where((ENTITY_ACTION.STATUS.eq(EntityActionStatus.in_progress)
                                 .or(ENTITY_ACTION.STATUS.eq(EntityActionStatus.queued)))
                             .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
                             .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredInProgressThresholdTime)))
-                    .execute();
-            if (deletedQueuedOrInProgressActionCount > 0) {
-                logger.warn("Deleted {} rows out of date in progress activate action records which update " +
-                                "time is less than {}",
-                        deletedQueuedOrInProgressActionCount, expiredInProgressThresholdTime);
-            }
+                    .fetch();
+            deletedQueuedOrInProgressActionRecords.forEach(r -> {
+                transactionDsl.deleteFrom(ENTITY_ACTION)
+                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
+                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId()))).execute();
+                logger.warn("Deleted out of date queued or in progress activate action with id {}"
+                        + " which update time is less than {}.",
+                        r.getActionId(), expiredInProgressThresholdTime);
+            });
             // delete all failed activate entity action records.
-            transactionDsl.deleteFrom(ENTITY_ACTION)
+            List<EntityActionRecord> failedActionRecords = transactionDsl.selectFrom(ENTITY_ACTION)
                     .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.failed)
                             .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate)))
-                    .execute();
+                    .fetch();
+            failedActionRecords.forEach(r -> {
+                transactionDsl.deleteFrom(ENTITY_ACTION)
+                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
+                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId()))).execute();
+                logger.debug("Deleted failed activate action with id {}.", r.getActionId());
+            });
             // delete all expired successful records.
-            transactionDsl.deleteFrom(ENTITY_ACTION)
+            List<EntityActionRecord> expiredSucceededActionRecords = transactionDsl.selectFrom(ENTITY_ACTION)
                     .where(ENTITY_ACTION.STATUS.eq(EntityActionStatus.succeed)
                             .and(ENTITY_ACTION.ACTION_TYPE.eq(EntityActionActionType.activate))
                             .and(ENTITY_ACTION.UPDATE_TIME.lessOrEqual(expiredSucceedThresholdTime)))
-                    .execute();
+                    .fetch();
+            expiredSucceededActionRecords.forEach(r -> {
+                transactionDsl.deleteFrom(ENTITY_ACTION)
+                        .where((ENTITY_ACTION.ACTION_ID.eq(r.getActionId()))
+                                .and(ENTITY_ACTION.ENTITY_ID.eq(r.getEntityId()))).execute();
+                logger.debug("Deleted expired successful action with id {} which update time is less than {}.",
+                        r.getActionId(), expiredSucceedThresholdTime);
+            });
             // after deleted expired records, the rest of 'succeed', 'queued' or 'in progress' status records
             // are the entities not suspendable. It is important to notice that for entity with activate action
             // in 'queued' or 'in progress' state, it remain as inactive so it will not be considered for

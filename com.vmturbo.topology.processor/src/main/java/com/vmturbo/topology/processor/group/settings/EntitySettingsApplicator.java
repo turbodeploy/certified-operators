@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanProjectInfo.PlanProjectScenario;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -240,6 +241,8 @@ public class EntitySettingsApplicator {
                     // moves so as to take the actions to move VM across networks, thus Manual and
                     // Automatic has to be chosen to execute the actions.
                     entity.getAnalysisSettingsBuilder().setShopTogether(false);
+                    logger.debug("Shoptogether is disabled for {} with move mode {} and storage move mode {}.",
+                            entity.getDisplayName(), computeMoveSetting, storageMoveSetting);
                 }
             }
         }
