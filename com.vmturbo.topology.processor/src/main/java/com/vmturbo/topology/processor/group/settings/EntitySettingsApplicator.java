@@ -240,6 +240,8 @@ public class EntitySettingsApplicator {
                     // moves so as to take the actions to move VM across networks, thus Manual and
                     // Automatic has to be chosen to execute the actions.
                     entity.getAnalysisSettingsBuilder().setShopTogether(false);
+                    logger.debug("Shoptogether is disabled for {} with move mode {} and storage move mode {}.",
+                            entity.getDisplayName(), computeMoveSetting, storageMoveSetting);
                 }
             }
         }
