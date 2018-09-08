@@ -21,7 +21,7 @@
               "settingOverride" : {
                 "setting" : {
                   "settingSpecName" : "provision",
-                  "enumSettingValue" : { "value" : "ENABLED" }
+                  "enumSettingValue" : { "value" : "AUTOMATIC" }
                 }
               }
             },
@@ -29,7 +29,7 @@
               "settingOverride" : {
                 "setting" : {
                   "settingSpecName" : "suspend",
-                  "enumSettingValue" : { "value" : "ENABLED" }
+                  "enumSettingValue" : { "value" : "AUTOMATIC" }
                 }
               }
             },
@@ -45,7 +45,7 @@
               "settingOverride" : {
                 "setting" : {
                   "settingSpecName" : "shop",
-                  "enumSettingValue" : { "value" : "ENABLED" }
+                  "enumSettingValue" : { "value" : "AUTOMATIC" }
                 },
                 "entity_type" : 2
               }

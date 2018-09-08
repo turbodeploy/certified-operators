@@ -320,10 +320,6 @@ public class PlanProjectExecutor {
                                     .build());
                 }
             }
-            scenarioInfoBuilder.addChanges(ScenarioChange.newBuilder()
-                .setTopologyAddition(TopologyAddition.newBuilder()
-                    .setAdditionCount(getNumClonesToAddForCluster(cluster))
-                    .setTemplateId(headroomTemplate.getId())));
         }
 
         final Scenario scenario = Scenario.newBuilder()
