@@ -20,6 +20,25 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.StandardWeighted;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
+import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
+import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO.Delta;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.topology.Topology;
+import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
+import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utility.MapTests;
 
 import junitparams.JUnitParamsRunner;
@@ -331,6 +350,198 @@ public class MarketTest {
             {EMPTY, new TraderWithSettings[]{IT0}, new ShoppingList[]{PIT0_0}},
             {EMPTY, new TraderWithSettings[]{IT0,IT0A}, new ShoppingList[]{PIT0A_0}},
         };
+    }
+
+    @Test
+    public void testBuyerSortCloud() {
+
+        TraderSettingsTO shoptogetherFalseTO =
+                TraderSettingsTO.newBuilder().setIsShopTogether(false)
+                        .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                                .setSumOfCommodity(SumOfCommodity
+                                        .newBuilder().build())
+                                .build())
+                        .build();
+
+        CommoditySpecificationTO storageProvisionSpecTO =
+                CommoditySpecificationTO.newBuilder().setBaseType(2).setType(2).build();
+
+
+        CommodityBoughtTO storageProvisionBoughtTO = CommodityBoughtTO.newBuilder().setQuantity(20)
+                .setPeakQuantity(50).setSpecification(storageProvisionSpecTO).build();
+        CommodityBoughtTO storageProvisionBoughtTO1 = CommodityBoughtTO.newBuilder().setQuantity(40)
+                .setPeakQuantity(40).setSpecification(storageProvisionSpecTO).build();
+        CommodityBoughtTO storageProvisionBoughtTO2 = CommodityBoughtTO.newBuilder().setQuantity(30)
+                .setPeakQuantity(30).setSpecification(storageProvisionSpecTO).build();
+
+        PriceFunctionTO standardPriceTO = PriceFunctionTO.newBuilder().setStandardWeighted(
+                StandardWeighted.newBuilder().setWeight(
+                        1).build()).build();
+        UpdatingFunctionTO ufTO = UpdatingFunctionTO.newBuilder().setDelta(Delta.newBuilder()
+                .build()).build();
+        CommoditySoldSettingsTO standardSettingTO = CommoditySoldSettingsTO.newBuilder()
+                .setPriceFunction(standardPriceTO).setUpdateFunction(ufTO).build();
+
+
+        CommoditySoldTO storageSoldByST1 = CommoditySoldTO.newBuilder()
+                .setSpecification(storageProvisionSpecTO).setQuantity(1000)
+                .setPeakQuantity(1000).setMaxQuantity(1000).setCapacity(2000)
+                .setSettings(standardSettingTO).build();
+
+
+
+
+        TraderTO shopAloneVMTO = TraderTO.newBuilder().setOid(23456).setType(55555)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(11114).setMovable(true).setSupplier(56789)
+                        .addCommoditiesBought(storageProvisionBoughtTO))
+                .build();
+        TraderTO shopAloneVMT1 = TraderTO.newBuilder().setOid(123456).setType(55555)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(111114).setMovable(true).setSupplier(56789)
+                        .addCommoditiesBought(storageProvisionBoughtTO1))
+                .build();
+        TraderTO shopAloneVMT2 = TraderTO.newBuilder().setOid(223456).setType(55555)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(211114).setMovable(true).setSupplier(56789)
+                        .addCommoditiesBought(storageProvisionBoughtTO2))
+                .build();
+
+
+
+        TraderTO st2TO = TraderTO.newBuilder().setOid(56789).setType(77777)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addCommoditiesSold(storageSoldByST1).build();
+
+        Topology topology = new Topology();
+        Trader shopAloneVM0 = ProtobufToAnalysis.addTrader(topology, shopAloneVMTO);
+        Trader shopAloneVM1 = ProtobufToAnalysis.addTrader(topology, shopAloneVMT1);
+        Trader shopAloneVM2 = ProtobufToAnalysis.addTrader(topology, shopAloneVMT2);
+        TraderSettings traderSst2 = ProtobufToAnalysis.addTrader(topology, st2TO).getSettings();
+        traderSst2.setCanAcceptNewCustomers(true);
+        CostFunction gp2CostFunc = TestUtils.setUpGP2CostFunction();
+        traderSst2.setQuoteFunction(
+                QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
+        traderSst2.setCostFunction(gp2CostFunc);
+        topology.populateMarketsWithSellers();
+        Economy economy = (Economy)topology.getEconomy();
+        economy.sortBuyersofMarket();
+        for (com.vmturbo.platform.analysis.economy.Market market : economy.getMarkets()) {
+            assertTrue(market.getBuyers().get(0).getBuyer() == shopAloneVM1);
+        }
+
+    }
+
+    @Test
+    public void testBuyerSortOnPrem() {
+
+        TraderSettingsTO shoptogetherFalseTO =
+                TraderSettingsTO.newBuilder().setIsShopTogether(false)
+                        .setQuoteFunction(QuoteFunctionDTO.newBuilder()
+                                .setSumOfCommodity(SumOfCommodity
+                                        .newBuilder().build())
+                                .build())
+                        .build();
+        CommoditySpecificationTO cpuSpecTO =
+                CommoditySpecificationTO.newBuilder().setBaseType(0).setType(1).build();
+        CommoditySpecificationTO storageProvisionSpecTO =
+                CommoditySpecificationTO.newBuilder().setBaseType(4).setType(5).build();
+
+        CommodityBoughtTO cpuBoughtTO = CommodityBoughtTO.newBuilder().setQuantity(100)
+                .setPeakQuantity(100).setSpecification(cpuSpecTO).build();
+        CommodityBoughtTO cpuBoughtTO1 = CommodityBoughtTO.newBuilder().setQuantity(120)
+                .setPeakQuantity(120).setSpecification(cpuSpecTO).build();
+        CommodityBoughtTO cpuBoughtTO2 = CommodityBoughtTO.newBuilder().setQuantity(110)
+                .setPeakQuantity(110).setSpecification(cpuSpecTO).build();
+        CommodityBoughtTO storageProvisionBoughtTO = CommodityBoughtTO.newBuilder().setQuantity(20)
+                .setPeakQuantity(50).setSpecification(storageProvisionSpecTO).build();
+        CommodityBoughtTO storageProvisionBoughtTO1 = CommodityBoughtTO.newBuilder().setQuantity(40)
+                .setPeakQuantity(40).setSpecification(storageProvisionSpecTO).build();
+        CommodityBoughtTO storageProvisionBoughtTO2 = CommodityBoughtTO.newBuilder().setQuantity(30)
+                .setPeakQuantity(30).setSpecification(storageProvisionSpecTO).build();
+
+        PriceFunctionTO standardPriceTO = PriceFunctionTO.newBuilder().setStandardWeighted(
+                StandardWeighted.newBuilder().setWeight(
+                        1).build()).build();
+        UpdatingFunctionTO ufTO = UpdatingFunctionTO.newBuilder().setDelta(Delta.newBuilder()
+                .build()).build();
+        CommoditySoldSettingsTO standardSettingTO = CommoditySoldSettingsTO.newBuilder()
+                .setPriceFunction(standardPriceTO).setUpdateFunction(ufTO).build();
+
+        CommoditySoldTO cpuSoldByPM1 = CommoditySoldTO.newBuilder().setSpecification(cpuSpecTO)
+                .setQuantity(1000).setPeakQuantity(1000)
+                .setMaxQuantity(1000).setCapacity(2000)
+                .setSettings(standardSettingTO).build();
+        CommoditySoldTO storageSoldByST1 = CommoditySoldTO.newBuilder()
+                .setSpecification(storageProvisionSpecTO).setQuantity(1000)
+                .setPeakQuantity(1000).setMaxQuantity(1000).setCapacity(2000)
+                .setSettings(standardSettingTO).build();
+
+
+
+
+        TraderTO shopAloneVMTO = TraderTO.newBuilder().setOid(23456).setType(55555)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(11113).setMovable(true).setSupplier(34567)
+                        .addCommoditiesBought(cpuBoughtTO))
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(11114).setMovable(true).setSupplier(56789)
+                        .addCommoditiesBought(storageProvisionBoughtTO))
+                .build();
+        TraderTO shopAloneVMT1 = TraderTO.newBuilder().setOid(123456).setType(55555)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(111113).setMovable(true).setSupplier(34567)
+                        .addCommoditiesBought(cpuBoughtTO1))
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(111114).setMovable(true).setSupplier(56789)
+                        .addCommoditiesBought(storageProvisionBoughtTO1))
+                .build();
+        TraderTO shopAloneVMT2 = TraderTO.newBuilder().setOid(223456).setType(55555)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(211113).setMovable(true).setSupplier(34567)
+                        .addCommoditiesBought(cpuBoughtTO2))
+                .addShoppingLists(ShoppingListTO.newBuilder()
+                        .setOid(211114).setMovable(true).setSupplier(56789)
+                        .addCommoditiesBought(storageProvisionBoughtTO2))
+                .build();
+        TraderTO pm1TO = TraderTO.newBuilder().setOid(34567).setType(66666)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addCommoditiesSold(cpuSoldByPM1).build();
+
+        TraderTO st1TO = TraderTO.newBuilder().setOid(56789).setType(77777)
+                .setState(TraderStateTO.ACTIVE)
+                .setSettings(shoptogetherFalseTO)
+                .addCommoditiesSold(storageSoldByST1).build();
+
+        Topology topology = new Topology();
+        Trader shopAloneVM0 = ProtobufToAnalysis.addTrader(topology, shopAloneVMTO);
+        Trader shopAloneVM1 = ProtobufToAnalysis.addTrader(topology, shopAloneVMT1);
+        Trader shopAloneVM2 = ProtobufToAnalysis.addTrader(topology, shopAloneVMT2);
+        TraderSettings traderSpm1 = ProtobufToAnalysis.addTrader(topology, pm1TO).getSettings();
+        traderSpm1.setCanAcceptNewCustomers(true);
+        TraderSettings traderSst1 = ProtobufToAnalysis.addTrader(topology, st1TO).getSettings();
+        traderSst1.setCanAcceptNewCustomers(true);
+        topology.populateMarketsWithSellers();
+        Economy economy = (Economy)topology.getEconomy();
+        economy.sortBuyersofMarket();
+        for (com.vmturbo.platform.analysis.economy.Market market : economy.getMarkets()) {
+            assertTrue(market.getBuyers().get(0).getBuyer() == shopAloneVM1);
+        }
+
     }
 
     @Test

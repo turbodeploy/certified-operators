@@ -519,6 +519,7 @@ public final class AnalysisToProtobuf {
     // Methods for converting CommunicationDTOs.
 
     /**
+     * wrapper method that converts a move to a shoppinglist
      *
      * @param move
      * @param economy
@@ -527,8 +528,20 @@ public final class AnalysisToProtobuf {
      */
     private static Trader replaceNewSupplier(Move move, UnmodifiableEconomy economy, Trader newSupplier) {
         ShoppingList buyer = move.getTarget();
+        return replaceNewSupplier(buyer, economy, newSupplier);
+    }
+
+    /**
+     * returns the template provider if the newSupplier is a cbtp.
+     *
+     * @param buyer
+     * @param economy
+     * @param newSupplier
+     * @return
+     */
+    public static Trader replaceNewSupplier(ShoppingList buyer, UnmodifiableEconomy economy, Trader newSupplier) {
         final Set<Entry<ShoppingList, Market>> shoppingListsInMarket =
-                        economy.getMarketsAsBuyer(newSupplier).entrySet();
+                economy.getMarketsAsBuyer(newSupplier).entrySet();
         if (shoppingListsInMarket.isEmpty()) {
             return null;
         }

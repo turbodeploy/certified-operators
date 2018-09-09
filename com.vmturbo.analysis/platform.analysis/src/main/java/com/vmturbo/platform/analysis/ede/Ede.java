@@ -155,6 +155,9 @@ public final class Ede {
                                         // contextid-topologyid, different for each plan
             statsUtils.append("NA"); // topology send time if unavailable
         }
+        // Sort the buyers of each market based on the current quote (on-prem) or
+        // current cost (cloud) sorted high to low.
+        economy.sortBuyersofMarket();
 
         // create a subset list of markets that have atleast one buyer that can move
         economy.composeMarketSubsetForPlacement();

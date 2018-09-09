@@ -6,6 +6,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -32,6 +34,7 @@ import com.google.common.primitives.Longs;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.ede.ActionClassifier;
+import com.vmturbo.platform.analysis.ede.Placement;
 import com.vmturbo.platform.analysis.economy.BalanceAccount;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.topology.Topology;
@@ -692,6 +695,17 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             trader = this.getTraders().get(trader.getCloneOf());
         }
         return trader;
+    }
+
+    /**
+     * sort the buyers of all markets based on the current quote (on-prem) or
+     * current cost (cloud) sorted high to low. The list buyers_ is updated for
+     * each market.
+     */
+    public void sortBuyersofMarket() {
+        for (Market market : getMarkets()) {
+            market.sortBuyers(this);
+        }
     }
 
     /**

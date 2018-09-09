@@ -5,16 +5,22 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
+import java.util.AbstractMap.SimpleEntry;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
+
+import com.vmturbo.platform.analysis.ede.Placement;
+import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 
 /**
  * A trading place where a particular basket of goods is sold and bought.
@@ -212,6 +218,60 @@ public final class Market implements Serializable {
 
         return this;
     }
+
+    /**
+     * Sort the buyers that belong to this market by current quote, high to low.
+     *
+     * @param economy - the economy where the market belongs to
+     */
+
+    public void sortBuyers(@NonNull Economy economy) {
+        List<Entry<ShoppingList, Double>> currentQuote = new ArrayList<>();
+        for (@NonNull ShoppingList shoppingList : getBuyers()) {
+            Trader newSupplier = shoppingList.getSupplier();
+            // the shoppinglist with no supplier should be given the
+            // first preference.
+            if(newSupplier == null) {
+                currentQuote.add(new SimpleEntry<>(shoppingList, Double.POSITIVE_INFINITY));
+            } else {
+                // replaceNewSupplier will skip the normal traders/suppliers and only work for CBTP.
+                Trader tp = AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, newSupplier);
+                // if  newSupplier is a cbtp convert it to tp
+                if(tp != null) {
+                    newSupplier = tp;
+                }
+                // get quote from on-prem suppliers and cost from cloud suppliers.
+                if(newSupplier.getSettings().getCostFunction() == null){
+                    List<Entry<ShoppingList, Market>> movableSlByMarket = new ArrayList<>();
+                    movableSlByMarket.add(new SimpleEntry<>(shoppingList, this));
+                    currentQuote.add(new SimpleEntry<>(shoppingList,
+                            Placement.computeCurrentQuote(economy, movableSlByMarket)));
+                } else{
+                    currentQuote.add(new SimpleEntry<>(shoppingList,
+                            QuoteFunctionFactory.computeCost(shoppingList, newSupplier, false, economy)));
+                }
+
+            }
+        }
+        Comparator<Entry<ShoppingList, Double>> compareShoppingList =
+                new Comparator<Entry<ShoppingList, Double>>() {
+                    @Override
+                    public int compare(Entry<ShoppingList, Double> entryA,
+                                       Entry<ShoppingList, Double> entryB) {
+                        return entryB.getValue().compareTo(entryA.getValue());
+                    }
+
+                };
+        Collections.sort(currentQuote, compareShoppingList);
+        // update buyers_ with the sorted list.
+        buyers_.clear();
+        for(Entry<ShoppingList, Double> slToQuote : currentQuote) {
+            buyers_.add(slToQuote.getKey());
+        }
+
+    }
+
+
 
     /**
      * Removes an existing seller from {@code this} market. If he was not in {@code this} market in
