@@ -354,6 +354,10 @@ mediation-azure:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
+mediation-oneview:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

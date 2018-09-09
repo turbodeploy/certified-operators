@@ -280,6 +280,7 @@
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
+                <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
@@ -469,6 +470,13 @@
             <id>mediation-vcenter-browsing</id>
             <modules>
                 <module>../com.vmturbo.mediation.vcenter.browsing.component</module>
+            </modules>
+        </profile>
+
+        <profile>
+            <id>mediation-oneview</id>
+            <modules>
+                <module>../com.vmturbo.mediation.oneview.component</module>
             </modules>
         </profile>
 
@@ -667,6 +675,7 @@
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
+                <module>../com.vmturbo.mediation.oneview.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.delegatingprobe</module>

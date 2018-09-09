@@ -56,6 +56,7 @@ volumes:
 #  mediation-awsbilling: *localdriver
 #  mediation-awscost: *localdriver
 #  mediation-azure: *localdriver
+#  mediation-oneview: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -437,6 +438,15 @@ services:
 #    extends:
 #      file: prod-services.yml
 #      service: mediation-azure-prod
+#    environment:
+#      JAVA_OPTS: "-Xmx768M"
+#    mem_limit: 1024M
+#    depends_on: *clustermgrdep
+#
+#  mediation-oneview:
+#    extends:
+#      file: prod-services.yml
+#      service: mediation-oneview-prod
 #    environment:
 #      JAVA_OPTS: "-Xmx768M"
 #    mem_limit: 1024M

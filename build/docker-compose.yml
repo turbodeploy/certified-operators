@@ -64,6 +64,7 @@ volumes:
   mediation-awsbilling: *localdriver
   mediation-awscost: *localdriver
   mediation-azure: *localdriver
+  mediation-oneview: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -928,3 +929,20 @@ services:
     volumes:
       - mediation-azure:/home/turbonomic/data
     mem_limit: ${MEDIATION_AZURE_MEM_LIMIT_MB}M
+
+  mediation-oneview:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.oneview.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_ONEVIEW_PORT}"
+      - "${MEDIATION_ONEVIEW_DEBUG_PORT}"
+    environment:
+      component_type: mediation-oneview
+      instance_id: mediation-oneview-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ONEVIEW_XMX_MB}M ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-onewview:/home/turbonomic/data
+    mem_limit: ${MEDIATION_ONEVIEW_MEM_LIMIT_MB}M
