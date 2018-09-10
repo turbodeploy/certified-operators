@@ -78,7 +78,6 @@ public class SystemLoadWriter {
         Query query = HistorydbIO.getJooqBuilder().
                 insertInto(SystemLoad.SYSTEM_LOAD).set(record);
 
-        logger.error("Query is : " + query.getSQL());
         historydbIO.execute(query);
     }
 

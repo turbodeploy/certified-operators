@@ -1,33 +1,35 @@
 package com.vmturbo.history.stats.live;
 
 import java.util.Collection;
-import java.util.Map;
-import javax.annotation.Nonnull;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
+
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 
+import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.Group;
-import com.vmturbo.history.utils.SystemLoadHelper;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.history.utils.HostsSumCapacities;
 import com.vmturbo.history.utils.StoragesSumCapacities;
 import com.vmturbo.history.utils.SystemLoadCommodities;
-import com.vmturbo.auth.api.Pair;
+import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -105,7 +107,7 @@ public class SystemLoadSnapshot {
                 for (CommoditySoldDTO commmSold : topologyEntity.getCommoditySoldListList()) {
                     if (SystemLoadCommodities.isSystemLoadCommodity(commmSold.getCommodityType().getType())) {
                         List<String> slices = systemLoadHelper.getSlices(topologyEntity);
-                        if (slices == null) {
+                        if (CollectionUtils.isEmpty(slices)) {
                             logger.debug("Unable to find slice for the sold commodity " + commmSold);
                         } else {
                             savedData = true;
@@ -119,7 +121,7 @@ public class SystemLoadSnapshot {
                     for (CommodityBoughtDTO commBought : commBoughtFromProv.getCommodityBoughtList()) {
                         if (SystemLoadCommodities.isSystemLoadCommodity(commBought.getCommodityType().getType())) {
                             List<String> slices = systemLoadHelper.getSlices(topologyEntity);
-                            if (slices == null) {
+                            if (CollectionUtils.isEmpty(slices)) {
                                 logger.debug("Unable to find slice for the bought commodity " + commBought);
                             } else {
                                 savedData = true;
@@ -132,105 +134,121 @@ public class SystemLoadSnapshot {
                 }
             } else if (topologyEntity.getEntityType() == EntityType.PHYSICAL_MACHINE.ordinal()) {
                 List<String> slices = systemLoadHelper.getSlices(topologyEntity);
-                for (CommoditySoldDTO commSold: topologyEntity.getCommoditySoldListList()) {
-                    if (SystemLoadCommodities.isHostCommodity(commSold.getCommodityType().getType())) {
-                        switch (SystemLoadCommodities.toSystemLoadCommodity(commSold.getCommodityType().getType())) {
-                            case CPU:
-                                for (String slice : slices) {
-                                    Map <String, Double> cpuSums = HostsSumCapacities.getCpu();
-                                    if (cpuSums.containsKey(slice)) {
-                                        cpuSums.put(slice, cpuSums.get(slice) + commSold.getCapacity());
-                                    } else {
-                                        cpuSums.put(slice, commSold.getCapacity());
+                if (CollectionUtils.isEmpty(slices)) {
+                    logger.debug("Unable to find slice for entity " + topologyEntity);
+                } else {
+                    for (CommoditySoldDTO commSold: topologyEntity.getCommoditySoldListList()) {
+                        if (SystemLoadCommodities.isHostCommodity(commSold.getCommodityType().getType())) {
+                            switch (SystemLoadCommodities.toSystemLoadCommodity(commSold.getCommodityType().getType())) {
+                                case CPU:
+                                    for (String slice : slices) {
+                                        Map<String, Double> cpuSums = HostsSumCapacities.getCpu();
+                                        if (cpuSums.containsKey(slice)) {
+                                            cpuSums.put(slice, cpuSums.get(slice) + commSold.getCapacity());
+                                        } else {
+                                            cpuSums.put(slice, commSold.getCapacity());
+                                        }
+                                        HostsSumCapacities.setCpu(cpuSums);
                                     }
-                                    HostsSumCapacities.setCpu(cpuSums);
-                                }
-                                break;
-                            case MEM:
-                                for (String slice : slices) {
-                                    Map <String, Double> memSums = HostsSumCapacities.getMem();
-                                    if (memSums.containsKey(slice)) {
-                                        memSums.put(slice, memSums.get(slice) + commSold.getCapacity());
-                                    } else {
-                                        memSums.put(slice, commSold.getCapacity());
+                                    break;
+                                case MEM:
+                                    for (String slice : slices) {
+                                        Map<String, Double> memSums = HostsSumCapacities.getMem();
+                                        if (memSums.containsKey(slice)) {
+                                            memSums.put(slice, memSums.get(slice) + commSold.getCapacity());
+                                        } else {
+                                            memSums.put(slice, commSold.getCapacity());
+                                        }
+                                        HostsSumCapacities.setMem(memSums);
                                     }
-                                    HostsSumCapacities.setMem(memSums);
-                                }
-                                break;
-                            case IO_THROUGHPUT:
-                                for (String slice : slices) {
-                                    Map <String, Double> ioThroughputSums = HostsSumCapacities.getIoThroughput();
-                                    if (ioThroughputSums.containsKey(slice)) {
-                                        ioThroughputSums.put(slice, ioThroughputSums.get(slice) + commSold.getCapacity());
-                                    } else {
-                                        ioThroughputSums.put(slice, commSold.getCapacity());
+                                    break;
+                                case IO_THROUGHPUT:
+                                    for (String slice : slices) {
+                                        Map<String, Double> ioThroughputSums = HostsSumCapacities.getIoThroughput();
+                                        if (ioThroughputSums.containsKey(slice)) {
+                                            ioThroughputSums.put(slice, ioThroughputSums.get(slice) + commSold.getCapacity());
+                                        } else {
+                                            ioThroughputSums.put(slice, commSold.getCapacity());
+                                        }
+                                        HostsSumCapacities.setIoThroughput(ioThroughputSums);
                                     }
-                                    HostsSumCapacities.setIoThroughput(ioThroughputSums);
-                                }
-                                break;
-                            case NET_THROUGHPUT:
-                                for (String slice : slices) {
-                                    Map <String, Double> netThroughputSums = HostsSumCapacities.getNetThroughput();
-                                    if (netThroughputSums.containsKey(slice)) {
-                                        netThroughputSums.put(slice, netThroughputSums.get(slice) + commSold.getCapacity());
-                                    } else {
-                                        netThroughputSums.put(slice, commSold.getCapacity());
+                                    break;
+                                case NET_THROUGHPUT:
+                                    for (String slice : slices) {
+                                        Map<String, Double> netThroughputSums = HostsSumCapacities.getNetThroughput();
+                                        if (netThroughputSums.containsKey(slice)) {
+                                            netThroughputSums.put(slice, netThroughputSums.get(slice) + commSold.getCapacity());
+                                        } else {
+                                            netThroughputSums.put(slice, commSold.getCapacity());
+                                        }
+                                        HostsSumCapacities.setNetThroughput(netThroughputSums);
                                     }
-                                    HostsSumCapacities.setNetThroughput(netThroughputSums);
-                                }
-                                break;
-                            case CPU_PROVISIONED:
-                                for (String slice : slices) {
-                                    Map <String, Double> cpuProvisionedSums = HostsSumCapacities.getCpuProvisioned();
-                                    if (cpuProvisionedSums.containsKey(slice)) {
-                                        cpuProvisionedSums.put(slice, cpuProvisionedSums.get(slice) + commSold.getCapacity());
-                                    } else {
-                                        cpuProvisionedSums.put(slice, commSold.getCapacity());
+                                    break;
+                                case CPU_PROVISIONED:
+                                    for (String slice : slices) {
+                                        Map<String, Double> cpuProvisionedSums = HostsSumCapacities.getCpuProvisioned();
+                                        if (cpuProvisionedSums.containsKey(slice)) {
+                                            cpuProvisionedSums.put(slice, cpuProvisionedSums.get(slice) + commSold.getCapacity());
+                                        } else {
+                                            cpuProvisionedSums.put(slice, commSold.getCapacity());
+                                        }
+                                        HostsSumCapacities.setCpuProvisioned(cpuProvisionedSums);
                                     }
-                                    HostsSumCapacities.setCpuProvisioned(cpuProvisionedSums);
-                                }
-                                break;
-                            case MEM_PROVISIONED:
-                                for (String slice : slices) {
-                                    Map <String, Double> memProvisionedSums = HostsSumCapacities.getMemProvisioned();
-                                    if (memProvisionedSums.containsKey(slice)) {
-                                        memProvisionedSums.put(slice, memProvisionedSums.get(slice) + commSold.getCapacity());
-                                    } else {
-                                        memProvisionedSums.put(slice, commSold.getCapacity());
+                                    break;
+                                case MEM_PROVISIONED:
+                                    for (String slice : slices) {
+                                        Map<String, Double> memProvisionedSums = HostsSumCapacities.getMemProvisioned();
+                                        if (memProvisionedSums.containsKey(slice)) {
+                                            memProvisionedSums.put(slice, memProvisionedSums.get(slice) + commSold.getCapacity());
+                                        } else {
+                                            memProvisionedSums.put(slice, commSold.getCapacity());
+                                        }
+                                        HostsSumCapacities.setMemProvisioned(memProvisionedSums);
                                     }
-                                    HostsSumCapacities.setMemProvisioned(memProvisionedSums);
-                                }
-                                break;
+                                    break;
+                                default:
+                                    logger.warn("Skipping system load commodity sold : " + commSold
+                                                    + " by host : " + topologyEntity);
+                                    break;
+                            }
                         }
                     }
                 }
             } else if (topologyEntity.getEntityType() == EntityType.STORAGE.ordinal()) {
                 List<String> slices = systemLoadHelper.getSlices(topologyEntity);
-                for (CommoditySoldDTO commSold: topologyEntity.getCommoditySoldListList()) {
-                    if (SystemLoadCommodities.isStorageCommodity(commSold.getCommodityType().getType())) {
-                        switch (SystemLoadCommodities.toSystemLoadCommodity(commSold.getCommodityType().getType())) {
-                            case STORAGE_ACCESS:
-                                for (String slice : slices) {
-                                    Map <String, Double> storageAccessSums = StoragesSumCapacities.getStorageAccess();
-                                    if (storageAccessSums.containsKey(slice)) {
-                                        storageAccessSums.put(slice, storageAccessSums.get(slice) + commSold.getCapacity());
-                                    } else {
-                                        storageAccessSums.put(slice, commSold.getCapacity());
+                if (CollectionUtils.isEmpty(slices)) {
+                    logger.debug("Unable to find slice for entity " + topologyEntity);
+                } else {
+                    for (CommoditySoldDTO commSold: topologyEntity.getCommoditySoldListList()) {
+                        if (SystemLoadCommodities.isStorageCommodity(commSold.getCommodityType().getType())) {
+                            switch (SystemLoadCommodities.toSystemLoadCommodity(commSold.getCommodityType().getType())) {
+                                case STORAGE_ACCESS:
+                                    for (String slice : slices) {
+                                        Map<String, Double> storageAccessSums = StoragesSumCapacities.getStorageAccess();
+                                        if (storageAccessSums.containsKey(slice)) {
+                                            storageAccessSums.put(slice, storageAccessSums.get(slice) + commSold.getCapacity());
+                                        } else {
+                                            storageAccessSums.put(slice, commSold.getCapacity());
+                                        }
+                                        StoragesSumCapacities.setStorageAccess(storageAccessSums);
                                     }
-                                    StoragesSumCapacities.setStorageAccess(storageAccessSums);
-                                }
-                                break;
-                            case STORAGE_PROVISIONED:
-                                for (String slice : slices) {
-                                    Map <String, Double> storageProvisionedSums = StoragesSumCapacities.getStorageProvisioned();
-                                    if (storageProvisionedSums.containsKey(slice)) {
-                                        storageProvisionedSums.put(slice, storageProvisionedSums.get(slice) + commSold.getCapacity());
-                                    } else {
-                                        storageProvisionedSums.put(slice, commSold.getCapacity());
+                                    break;
+                                case STORAGE_PROVISIONED:
+                                    for (String slice : slices) {
+                                        Map<String, Double> storageProvisionedSums = StoragesSumCapacities.getStorageProvisioned();
+                                        if (storageProvisionedSums.containsKey(slice)) {
+                                            storageProvisionedSums.put(slice, storageProvisionedSums.get(slice) + commSold.getCapacity());
+                                        } else {
+                                            storageProvisionedSums.put(slice, commSold.getCapacity());
+                                        }
+                                        StoragesSumCapacities.setStorageProvisioned(storageProvisionedSums);
                                     }
-                                    StoragesSumCapacities.setStorageProvisioned(storageProvisionedSums);
-                                }
-                                break;
+                                    break;
+                                default:
+                                    logger.warn("Skipping system load commodity sold : " + commSold
+                                                    + " by Storage : " + topologyEntity);
+                                    break;
+                            }
                         }
                     }
                 }

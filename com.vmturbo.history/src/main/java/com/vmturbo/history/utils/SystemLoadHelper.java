@@ -9,6 +9,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.List;
+
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import java.util.Date;
@@ -70,7 +72,7 @@ public class SystemLoadHelper {
      * @param entity The entity which sells the commodity.
      * @return The slices where the entity which sells the commodity belongs to.
      */
-    @Nullable public List<String> getSlices(TopologyEntityDTO entity) {
+     @Nonnull public List<String> getSlices(TopologyEntityDTO entity) {
         List<String> slices = new ArrayList<>();
         List<Long> entities_oids = new ArrayList<>();
 
@@ -96,7 +98,7 @@ public class SystemLoadHelper {
 
         // Finding the slice(s) where the host(s) belong to.
         if (entities_oids.size() == 0) {
-            return null;
+            return slices;
         } else {
             for (Map.Entry<String, Group> entry : slice2groups.entrySet()) {
                 String slice = entry.getKey();
@@ -112,11 +114,7 @@ public class SystemLoadHelper {
                     }
                 }
             }
-            if (slices.size() > 0) {
-                return slices;
-            } else {
-                return null;
-            }
+            return slices;
         }
     }
 
