@@ -15,6 +15,8 @@ import org.mockito.Mockito;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.PlanChanges.HistoricalBaseline;
@@ -23,6 +25,8 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
@@ -30,8 +34,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -164,7 +170,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.editCommoditiesForBaselineChanges(g, changes, topoInfo);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -221,7 +227,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.editCommoditiesForBaselineChanges(g, changes, topoInfo);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -309,7 +315,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.editCommoditiesForBaselineChanges(g, changes, topoInfo);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -378,7 +384,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.editCommoditiesForBaselineChanges(g, changes, topoInfo);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
 
         // Check values after calling CommoditiesEditor.
         // Expected : Before and after values should be same because commodity is an access commodity.
@@ -438,7 +444,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.editCommoditiesForBaselineChanges(g, changes, topoInfo);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -453,6 +459,72 @@ public class CommoditiesEditorTest {
         // Expected value peak for PM : peak - currPeakForVM < 0, hence peak = 100 (asfetchedFromDb)
         // Expected value peak for VM : as fetched from database : 100
         Assert.assertEquals(100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+                        .get(0).getPeak(), 0.0001);
+        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
+    }
+
+    @Test
+    public void testEditCommoditiesForClusterHeadroom() throws IOException {
+        // Get graph
+        // Sets value for VM(Used :10 , Peak : 20)
+        // Sets value for PM(Used : 70, Peak : 80)
+        TopologyGraph g = createGraph(CommodityDTO.CommodityType.MEM);
+
+        TopologyEntity pm = g.getEntity(1L).get();
+        TopologyEntity vm = g.getEntity(2L).get();
+
+        // Check values before calling CommoditiesEditor.
+        // Compare used
+        Assert.assertEquals(70, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+                        .get(0).getUsed(), 0.0001);
+        Assert.assertEquals(10, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
+
+        // Compare peak
+        Assert.assertEquals(80, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+                        .get(0).getPeak(), 0.0001);
+        Assert.assertEquals(20, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                        .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
+
+
+        SystemLoadInfoResponse response = SystemLoadInfoResponse.newBuilder()
+            .addRecord(SystemLoadRecord.newBuilder()
+                .setPropertyType(CommodityDTO.CommodityType.MEM.name())
+                .setAvgValue(50)
+                .setMaxValue(100)
+                .setUuid(2L) // uuid of VM
+                .build())
+            .build();
+        Mockito.when(statsHistoryService.getSystemLoadInfo(Mockito.any())).thenReturn(response);
+
+        PlanScope scope = PlanScope.newBuilder()
+            .addScopeEntries(PlanScopeEntry.newBuilder()
+                .setScopeObjectOid(10L)
+                .build())
+            .build();
+
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
+                .setPlanProjectType(com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType.CLUSTER_HEADROOM)
+                .build())
+            .build();
+
+        CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
+        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope);
+
+        // Check values after calling CommoditiesEditor.
+        // Compare used
+        // Expected value used for PM : used - currUsedForVM + usedFromSystemLoad : 70 - 10 + 50
+        // Expected value used for VM : as fetched from SystemLoad : 50
+        Assert.assertEquals(70 - 10 + 50, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+                        .get(0).getUsed(), 0.0001);
+        Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
+                        .get(0).getCommodityBoughtList().get(0).getUsed(), 0.0001);
+
+        // Compare peak
+        // Expected value peak for PM : peak - currPeakForVM + peakFromSystemLoad : 80 - 20 + 100
+        // Expected value peak for VM : as fetched from SystemLoad : 100
+        Assert.assertEquals(80 - 20 + 100, pm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
                         .get(0).getPeak(), 0.0001);
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);

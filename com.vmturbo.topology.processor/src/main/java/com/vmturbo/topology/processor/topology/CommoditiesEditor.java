@@ -13,7 +13,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.annotation.Nonnull;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -21,21 +20,25 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
-import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.common.protobuf.TopologyDTOUtil;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
+import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -60,13 +63,28 @@ public class CommoditiesEditor {
     }
 
     /**
+     * Applies changes to commodities values for used,peak etc. for VMs in
+     * specific cases like baseline plan, cluster headroom plan.
+     * @param graph to extract entities from.
+     * @param changes to iterate over and find relevant changes (e.g baseline change).
+     * @param topologyInfo to find VMs in current scope or to find plan type.
+     * @param scope to get information about plan scope.
+     */
+    public void applyCommodityEdits(@Nonnull final TopologyGraph graph,
+                    @Nonnull final List<ScenarioChange> changes,
+                    TopologyDTO.TopologyInfo topologyInfo, @Nonnull final PlanScope scope) {
+        editCommoditiesForBaselineChanges(graph, changes, topologyInfo);
+        editCommoditiesForClusterHeadroom(graph, scope, topologyInfo);
+    }
+
+    /**
      * Change commodity values for VMs and its providers if a scenario change
      * related to historical baseline exists.
      * @param graph to extract entities from.
      * @param changes to iterate over and find relevant to baseline change.
      * @param topologyInfo to find VMs in current scope.
      */
-    public void editCommoditiesForBaselineChanges(@Nonnull final TopologyGraph graph,
+    private void editCommoditiesForBaselineChanges(@Nonnull final TopologyGraph graph,
                     @Nonnull final List<ScenarioChange> changes,
                     TopologyDTO.TopologyInfo topologyInfo) {
         changes.stream()
@@ -124,7 +142,10 @@ public class CommoditiesEditor {
                     entityStat.getStatSnapshotsList().forEach(statSnapshot -> {
                         statSnapshot.getStatRecordsList().forEach(statRecord -> {
                             // Update commodity value for this entity
-                            updateCommodity(vm, statRecord, graph, providerIdsByCommodityType);
+                            final CommodityType commType = ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS
+                                .get(statRecord.getName());
+                            updateCommodityValuesForVmAndProvider(vm, commType, graph, providerIdsByCommodityType,
+                                statRecord.getPeak().getAvg(), statRecord.getUsed().getAvg());
                         });
                     });
                 });
@@ -159,14 +180,17 @@ public class CommoditiesEditor {
      * Example : Expected value used for provider : used/peak - currValueForVM + valueFromStatRecord.
      * Example : Expected value used for VM : as fetched from database (i.e StatRecord values).
      * @param vm and its providers for which commodity values are updated.
-     * @param statRecord as fetched from database for this VM.
+     * @param commType commodity type to be updated.
      * @param graph which entities belong to.
      * @param providerIdsByCommodityType provides relationship between commodity type and its providers for commodities bought by VM.
+     * @param peak value as fetched from database for this VM's commodity.
+     * @param used value as fetched from database for this VM's commodity.
      */
-    private void updateCommodity(TopologyEntity vm, StatRecord statRecord,
+    private void updateCommodityValuesForVmAndProvider(TopologyEntity vm, CommodityType commType,
                     final TopologyGraph graph,
-                    final Map<Integer, Queue<Long>> providerIdsByCommodityType) {
-        final CommodityType commType = ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS.get(statRecord.getName());
+                    final Map<Integer, Queue<Long>> providerIdsByCommodityType,
+                    final double peak,
+                    final double used) {
         // We skip access commodities and commodities sold by VM.
         // We are only interested in commodities bought by VM and we check that via commodityProviderMap.
         if (commType == null || ACCESS_COMMODITIES.contains(commType)
@@ -209,9 +233,9 @@ public class CommoditiesEditor {
                     CommoditySoldDTO.Builder commSold = commSoldByProvider.get();
                     // Subtract current value and add fetched value from database.
                     commSold.setPeak(Math.max(commSold.getPeak() - commodityBought.getPeak(), 0)
-                                    + statRecord.getPeak().getAvg());
+                                    + peak);
                     commSold.setUsed(Math.max(commSold.getUsed() - commodityBought.getUsed(), 0)
-                                    + statRecord.getUsed().getAvg());
+                                    + used);
                 }
 
                 // Set value for consumer.
@@ -219,8 +243,8 @@ public class CommoditiesEditor {
                 // we will set value for commodity bought from last record. It is not a problem because
                 // price in market is calculated by providers based on commodity sold. Mismatch in commodity
                 // bought and sold values will be reflected as overhead.
-               commodityBought.setPeak(statRecord.getPeak().getAvg());
-               commodityBought.setUsed(statRecord.getUsed().getAvg());
+               commodityBought.setPeak(peak);
+               commodityBought.setUsed(used);
             });
         });
     }
@@ -273,5 +297,59 @@ public class CommoditiesEditor {
             iterationCount++;
         }
         return vmSet;
+    }
+
+    /**
+     * Apply system load data to VMs if it is a cluster headroom plan with valid cluster oid.
+     * @param graph which entities belong to.
+     * @param scope which contains cluster oid.
+     * @param topologyInfo to identify if it is a Cluster headroom plan.
+     */
+    private void editCommoditiesForClusterHeadroom(@Nonnull final TopologyGraph graph,
+                    @Nonnull final PlanScope scope,
+                    @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+
+        if (!TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo)) {
+            return;
+        }
+
+        if (scope.getScopeEntriesCount() != 1) {
+            logger.error("Cluster headroom plan  has invalid scope entry count : "
+                            + scope.getScopeEntriesCount());
+            return;
+        }
+
+        long clusterOid = scope.getScopeEntriesList().get(0).getScopeObjectOid();
+
+        SystemLoadInfoRequest request = SystemLoadInfoRequest.newBuilder()
+                            .setClusterId(clusterOid).build();
+
+        SystemLoadInfoResponse response = historyClient.getSystemLoadInfo(request);
+
+        // Order response by VM's oid.
+        // Note : Ideally response should contain one record for one comm bought type per VM.
+        // So if there is repetition  for "VM1" with comm bought "MEM" it should be flagged
+        // here but there are commodities like Storage Amount which have multiple records and
+        // are valid. So it becomes difficult to differentiate and hence, currently we rely
+        // on response to contain accurate values.
+        Map<Long, List<SystemLoadRecord>> resp = response.getRecordList().stream()
+            .filter(SystemLoadRecord::hasUuid)
+            .collect(Collectors.groupingBy(SystemLoadRecord::getUuid));
+
+        resp.keySet().forEach(oid -> {
+            graph.getEntity(oid).ifPresent(vm -> {
+                // Create map for this VM and its providers.
+                Map<Integer, Queue<Long>> providerIdsByCommodityType =
+                                getProviderIdsByCommodityType(vm);
+                resp.get(oid).forEach(record -> {
+                    double peak = record.getMaxValue();
+                    double used = record.getAvgValue();
+                    // Update commodity value for this entity
+                    CommodityType commType = CommodityType.valueOf(record.getPropertyType());
+                    updateCommodityValuesForVmAndProvider(vm, commType, graph,
+                                    providerIdsByCommodityType, peak, used);
+                });
+            });
+        });
     }
 }

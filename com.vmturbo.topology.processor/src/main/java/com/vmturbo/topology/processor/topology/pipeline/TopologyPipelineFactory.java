@@ -257,7 +257,7 @@ public class TopologyPipelineFactory {
                         groupServiceClient, changes))
                 .addStage(new PolicyStage(policyManager, changes))
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
-                .addStage(new CommoditiesEditStage(commoditiesEditor, changes))
+                .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
                 .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
@@ -289,7 +289,7 @@ public class TopologyPipelineFactory {
                 .addStage(new TopologyEditStage(topologyEditor, changes))
                 .addStage(new GraphCreationStage())
                 .addStage(new ScopeResolutionStage(groupServiceClient, scope))
-                .addStage(new CommoditiesEditStage(commoditiesEditor, changes))
+                .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
                 // TODO (roman, Nov 2017): We need to do policy and setting application for
                 // plan-over-plan as well. However, the topology we get from the repository
                 // already has some policies and settings applied to it. In order to run those

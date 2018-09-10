@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
@@ -499,15 +500,19 @@ public class Stages {
 
         private final CommoditiesEditor commoditiesEditor;
 
+        private final PlanScope scope;
 
-        public CommoditiesEditStage(@Nonnull CommoditiesEditor commoditiesEditor, @Nonnull List<ScenarioChange> changes) {
+
+        public CommoditiesEditStage(@Nonnull CommoditiesEditor commoditiesEditor,
+                        @Nonnull List<ScenarioChange> changes, @Nonnull PlanScope scope) {
             this.changes = Objects.requireNonNull(changes);
-            this.commoditiesEditor = commoditiesEditor;
+            this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
+            this.scope = Objects.requireNonNull(scope);
         }
 
         @Override
         public void passthrough(@Nonnull TopologyGraph graph) throws PipelineStageException {
-            commoditiesEditor.editCommoditiesForBaselineChanges(graph, changes, getContext().getTopologyInfo());
+            commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(), scope);
         }
     }
 
