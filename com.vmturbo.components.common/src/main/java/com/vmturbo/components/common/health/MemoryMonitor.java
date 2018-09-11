@@ -3,7 +3,9 @@ package com.vmturbo.components.common.health;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
+import java.util.concurrent.atomic.AtomicLong;
 
+import javax.annotation.Nonnull;
 import javax.management.Notification;
 import javax.management.NotificationEmitter;
 import javax.management.NotificationListener;
@@ -46,6 +48,9 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
     // this is the "old gen heap used ratio" threshold at which the memory monitor will start
     // reporting unhealthy statuses. It defaults to 95%.
     private final double memUsedRatioAlertThreshold;
+
+    // The time at which the last full gc completed.
+    private final AtomicLong lastFullGcCompletionTime = new AtomicLong();
 
     /**
      * Constructs a memory monitor with specified params. The monitor will report an unhealthy status
@@ -112,6 +117,18 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
         }
     }
 
+    @Override
+    public SimpleHealthStatus reportHealthy(@Nonnull final String message) {
+        return super.reportHealthy(String.format("%s [lastFullGC %d]",
+            message, lastFullGcCompletionTime == null ? 0 : lastFullGcCompletionTime.get()));
+    }
+
+    @Override
+    public SimpleHealthStatus reportUnhealthy(@Nonnull final String message) {
+        return super.reportUnhealthy(String.format("%s [lastFullGC %d]",
+            message, lastFullGcCompletionTime == null ? 0 : lastFullGcCompletionTime.get()));
+    }
+
     /**
      * The MemoryNotificationListener processes JMX notifications about garbage collection events.
      *
@@ -147,6 +164,7 @@ public class MemoryMonitor extends SimpleHealthStatusProvider {
                         // otherwise, if we are healthy, we are only looking for the "unhealthy" scenario
                         // where we don't have enough heap left after a full gc happens.
                         if (info.getGcAction().equals(MAJOR_GC_ACTION_LABEL)) {
+                            lastFullGcCompletionTime.set(System.currentTimeMillis());
                             updateHealthStatus(oldGenUsage);
                         }
                     }

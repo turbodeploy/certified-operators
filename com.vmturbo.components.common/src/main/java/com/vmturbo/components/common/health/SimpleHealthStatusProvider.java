@@ -76,7 +76,7 @@ public class SimpleHealthStatusProvider implements HealthStatusProvider {
      *
      * @param message associated with the unhealthy status
      */
-    public synchronized SimpleHealthStatus reportUnhealthy(String message) {
+    public synchronized SimpleHealthStatus reportUnhealthy(@Nonnull String message) {
         SimpleHealthStatus newStatus = new SimpleHealthStatus(false,message, lastHealthStatus);
         setHealthStatus(newStatus);
         return newStatus;

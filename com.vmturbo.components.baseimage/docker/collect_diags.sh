@@ -23,9 +23,11 @@ function column() {
 
 # Determine the process id of the VMT Component
 COMPONENT_PID=`ps -e -o pid,args | grep "[j]ava" | awk '{print $1}'`
+DUMP_REQUEST_TIME=0
 if [[ ! -z "$COMPONENT_PID" ]]; then
     # trigger a stack dump
     # Do this first, as the results may take a while to get collected
+    DUMP_REQUEST_TIME=`date +%s%3N`
     kill -3 ${COMPONENT_PID}
 
     echo "Java threads with non-0 PCPU" >>${diag_directory}/top.txt
@@ -113,6 +115,12 @@ df -ih >>${diag_directory}/df.txt
 
 # Check disk space
 df -k > ${diag_directory}/diskspace.txt
+
+if [ ${DUMP_REQUEST_TIME} -ne 0 ]; then
+    # Wait for the full GC to complete before collecting GC logs because the object histogram will be
+    # present in the GC logs only AFTER the full GC has completed.
+    sh wait_for_full_gc.sh ${DUMP_REQUEST_TIME}
+fi
 
 # Copy GC logs
 cp -a /home/turbonomic/data/gclog/ ${diag_directory}/gclog
