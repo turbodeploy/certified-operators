@@ -443,7 +443,7 @@ public class KVBackedTargetStore implements TargetStore {
             long probeId = optionalTarget.get().getProbeId();
             Optional<ProbeInfo> optionalProbeInfo = probeStore.getProbe(probeId);
             if (optionalProbeInfo.isPresent()) {
-                return Optional.of(SDKProbeType.create(optionalProbeInfo.get().getProbeType()));
+                return Optional.ofNullable(SDKProbeType.create(optionalProbeInfo.get().getProbeType()));
             }
         }
         return Optional.empty();
