@@ -7,6 +7,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.PostConstruct;
+import javax.annotation.PreDestroy;
 
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -204,6 +205,11 @@ public class PlanTestConfig {
         IdentityGenerator.initPrefix(0);
         dbConfig.flyway().clean();
         dbConfig.flyway().migrate();
+    }
+
+    @PreDestroy
+    public void destroy() {
+        dbConfig.flyway().clean();
     }
 
      @Bean

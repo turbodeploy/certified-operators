@@ -19,15 +19,14 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.Result;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
@@ -56,9 +55,10 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(
         loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class, PlanTestConfig.class}
+        classes = {PlanTestConfig.class}
 )
 @TestPropertySource(properties = {"originalSchemaName=plan"})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class PlanDaoImplTest {
 
     @Autowired
@@ -70,28 +70,11 @@ public class PlanDaoImplTest {
     @Autowired
     private SettingServiceMole settingServer;
 
-    private Flyway flyway;
-
     private DSLContext dsl;
 
     @Before
     public void setup() throws Exception {
-        IdentityGenerator.initPrefix(0);
-        prepareDatabase();
         dsl = dbConfig.dsl();
-    }
-
-    private void prepareDatabase() throws Exception {
-        flyway = dbConfig.flyway();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test
