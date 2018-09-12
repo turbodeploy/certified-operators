@@ -110,6 +110,7 @@ public class TopologyConverterTest {
         connectedEntityRepoDTO.setConnectedEntityType(EntityType.PHYSICAL_MACHINE.getNumber());
         connectedEntityRepoDTO.setConnectedEntityId(pmTopoDTO.getOid());
         vmServiceEntity.setConnectedEntityList(Lists.newArrayList(connectedEntityRepoDTO));
+        vmServiceEntity.setTargetIds(Lists.newArrayList(1111L));
     }
 
     @Test
@@ -225,6 +226,12 @@ public class TopologyConverterTest {
                                         connectedEntityRepoDTO.getConnectedEntityType() &&
                                 connectedEntity.getConnectedEntityId() ==
                                         connectedEntityRepoDTO.getConnectedEntityId())));
+
+        // check target ids
+        if (seRepoDTO.getTargetIds() != null) {
+            assertTrue(seRepoDTO.getTargetIds().containsAll(
+                    seTopoDTO.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList()));
+        }
     }
 
     private static void verifyCommodityBought(

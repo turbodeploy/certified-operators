@@ -3,6 +3,7 @@ package com.vmturbo.repository.topology;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -17,6 +18,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
@@ -69,6 +72,16 @@ public class TopologyConverter {
                     serviceEntityDTO.getConnectedEntityList().stream()
                             .map(ConnectedEntityMapper::convert)
                             .collect(Collectors.toList()));
+
+            // set DiscoveryOrigin if any
+            Optional.ofNullable(serviceEntityDTO.getTargetIds()).ifPresent(targetIds ->
+                    topologyEntityBuilder.setOrigin(Origin.newBuilder()
+                            .setDiscoveryOrigin(DiscoveryOrigin.newBuilder()
+                                    .addAllDiscoveringTargetIds(serviceEntityDTO.getTargetIds())
+                                    .build())
+                            .build())
+            );
+
             return topologyEntityBuilder.build();
         }
 
@@ -118,6 +131,11 @@ public class TopologyConverter {
             // Commodities sold list
             se.setCommoditySoldList(t.getCommoditySoldListList().stream().map(comm ->
                     CommodityMapper.convert(seOid, seOid, comm)).collect(Collectors.toList()));
+
+            // save discovering target ids
+            if (t.hasOrigin() && t.getOrigin().hasDiscoveryOrigin()) {
+                se.setTargetIds(t.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList());
+            }
 
             return se;
         }

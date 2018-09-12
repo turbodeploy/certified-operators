@@ -31,6 +31,8 @@ public class ServiceEntityRepoDTO {
 
     private List<ConnectedEntityRepoDTO> connectedEntityList;
 
+    private List<Long> targetIds;
+
     public String getUuid() {
         return uuid;
     }
@@ -135,11 +137,19 @@ public class ServiceEntityRepoDTO {
         this.connectedEntityList = connectedEntityList;
     }
 
+    public List<Long> getTargetIds() {
+        return targetIds;
+    }
+
+    public void setTargetIds(List<Long> targetIds) {
+        this.targetIds = targetIds;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
                             entityType, oid, priceIndex, priceIndexProjected, providers, severity,
-                            state, uuid, tags, connectedEntityList);
+                            state, uuid, tags, connectedEntityList, targetIds);
     }
 
     @Override
@@ -163,7 +173,8 @@ public class ServiceEntityRepoDTO {
                Objects.equals(state, that.state) &&
                Objects.equals(uuid, that.uuid) &&
                Objects.equals(tags, that.tags) &&
-               Objects.equals(connectedEntityList, that.connectedEntityList);
+               Objects.equals(connectedEntityList, that.connectedEntityList) &&
+               Objects.equals(targetIds, that.targetIds);
     }
 
     @Override
@@ -176,6 +187,7 @@ public class ServiceEntityRepoDTO {
                 + commoditiesBoughtRepoFromProviderDTOList
                 + ", commoditySoldList=" + commoditySoldList
                 + ", connectedEntityList=" + connectedEntityList
+                + ", targetIds=" + targetIds
                 + "]";
     }
 }
