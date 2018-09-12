@@ -944,5 +944,5 @@ services:
       instance_id: mediation-oneview-1
       JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_ONEVIEW_XMX_MB}M ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
     volumes:
-      - mediation-onewview:/home/turbonomic/data
+      - mediation-oneview:/home/turbonomic/data
     mem_limit: ${MEDIATION_ONEVIEW_MEM_LIMIT_MB}M
