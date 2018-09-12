@@ -20,3 +20,6 @@ target/
 # OVA builds
 build/packer.io/packer_cache
 build/packer.io/turbonomic_xl
+
+# Reviewboard config (avoid committing customizations)
+.reviewboardrc
