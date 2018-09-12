@@ -673,7 +673,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                                           @Nonnull final DiscoveryResponse response) {
         final boolean success = !hasGeneralCriticalError(response.getErrorDTOList());
         final long targetId = discovery.getTargetId();
-        logger.trace("Received discovery result from target {}: {}", targetId, response);
+        logger.debug("Received discovery result from target {}: {}", targetId, response);
 
         try {
             if (success) {
