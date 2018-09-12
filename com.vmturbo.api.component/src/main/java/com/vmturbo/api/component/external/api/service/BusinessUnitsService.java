@@ -36,11 +36,6 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     }
 
     @Override
-    public List<GroupApiDTO> getBusinessUnitGroups(final String uuid) throws Exception {
-        throw ApiUtils.notImplementedInXL();
-    }
-
-    @Override
     public BusinessUnitApiDTO getBusinessUnitByUuid(final String uuid) throws Exception {
         throw ApiUtils.notImplementedInXL();
     }
