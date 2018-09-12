@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,9 @@ public class ActionClassifierTest {
     private @NonNull Trader vm;
     private @NonNull Trader pm1;
     private @NonNull Trader pm2;
+    private @NonNull Trader app1;
+    private @NonNull Trader container1;
+    private @NonNull Trader pod1;
 
     private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
     ActionClassifier classifier;
@@ -118,6 +122,29 @@ public class ActionClassifierTest {
         unmodifiableTraderOidField.setAccessible(true);
         unmodifiableTraderOidField.set(firstTopology, traderOids);
 
+        // providerMustClone segment testing
+
+        pod1 = TestUtils.createContainerPod(first, new double[]{101, 102}, "pod-1");
+        Trader pod2 = TestUtils.createContainerPod(first, new double[]{103, 104}, "pod-2");
+        container1 = TestUtils.createContainer(first, new double[]{105, 106}, "container-1");
+        Trader container2 = TestUtils.createContainer(first, new double[]{107, 108}, "container-2");
+        app1 = TestUtils.createApplication(first, new double[]{109, 110}, "app-1");
+        Trader app2 = TestUtils.createApplication(first, new double[]{111, 112}, "app-2");
+        Trader vapp = TestUtils.createVirtualApplication(first, new double[]{113, 114}, "vapp");
+
+        TestUtils.createAndPlaceShoppingList(first,
+                Arrays.asList(TestUtils.RESPONSE_TIME, TestUtils.TRANSACTION), vapp, new double[]{201, 202}, app1);
+        TestUtils.createAndPlaceShoppingList(first,
+                Arrays.asList(TestUtils.RESPONSE_TIME, TestUtils.TRANSACTION), vapp, new double[]{203, 204}, app2);
+        TestUtils.createAndPlaceShoppingList(first,
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM), app1, new double[]{205, 206}, container1);
+        TestUtils.createAndPlaceShoppingList(first,
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM), app2, new double[]{207, 208}, container2);
+        TestUtils.createAndPlaceShoppingList(first,
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM), container1, new double[]{209, 210}, pod1);
+        TestUtils.createAndPlaceShoppingList(first,
+                Arrays.asList(TestUtils.VCPU, TestUtils.VMEM), container2, new double[]{211, 212}, pod2);
+
         second = cloneEconomy(first);
         classifier = new ActionClassifier(first);
     }
@@ -145,9 +172,16 @@ public class ActionClassifierTest {
         actions.add(move);
         Deactivate deactivate = new Deactivate(first, pm1, buying.get(pmShoppingList));
         actions.add(deactivate);
+        actions.add(new Deactivate(first, app1, null));
+        actions.add(new Deactivate(first, container1, null));
+        actions.add(new Deactivate(first, pod1, null));
+
         classifier.classify(actions);
         assertEquals(true, actions.get(0).isExecutable());
         assertEquals(false, actions.get(1).isExecutable());
+        assertEquals(false, actions.get(2).isExecutable());  // app1 suspend
+        assertEquals(false, actions.get(3).isExecutable());  // container1 suspend
+        assertEquals(true, actions.get(4).isExecutable());   // pod1 suspend
         move.take();
         try {
             @NonNull

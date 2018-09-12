@@ -1,7 +1,10 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
@@ -15,8 +18,8 @@ import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.Resize;
-import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 
@@ -26,6 +29,8 @@ public class ActionClassifier {
 
     final private @NonNull Economy simulationEconomy_;
     private int executable_ = 0;
+    // List of Traders whose actions should be forced to executable = true.
+    private Set<Trader> forceEnable_ = new HashSet<>();
 
     public int getExecutable() {
         return executable_;
@@ -48,12 +53,39 @@ public class ActionClassifier {
         markResizeUpsExecutable(actions);
         markResizeDownsExecutable(actions);
         markSuspensionsEmptyTradersExecutable(actions);
+        // This must be called after all other suspension classification occurs, because it could
+        // potentially enable actions for previously disabled suspension actions.
+        markSuspensionsInAtomicSegments(actions);
 
         // Step 3 - determine if move actions are executable or not
         classifyAndMarkMoves(actions);
 
         stats(actions);
-        return;
+    }
+
+    /**
+     * An atomic segment represents a segment of the supply chain that provisions and suspends as a
+     * unit, and the bottom of the segment is the controllable entity.  This atomic segment is
+     * defined in the probe by setting the providerMustClone attribute in the entity.  Since these
+     * suspended entities are linked, they are exempt from the requirement that the entity's
+     * customer list be empty before suspension.  Previously run classifiers here use the "no
+     * customers" test when deciding whether to mark an action as not executable.  This classifier
+     * runs last and marks the actions associated with these bottoms of atomic segments as
+     * executable.
+     *
+     * An example of this is an Application -> Container -> ContainerPod segment in a Kubernetes
+     * cluster, where the ContainerPod is lowest level controllable entity.  In this case, we
+     * would want the Application and Container to not be executable, but we would want the
+     * ContainerPod at the bottom to be executable.
+     *
+     * @param actions  List of actions to be classified
+     */
+    private void markSuspensionsInAtomicSegments(final List<Action> actions) {
+        if (!forceEnable_.isEmpty()) {
+            actions.stream()
+                .filter(a -> a instanceof Deactivate && forceEnable_.contains(a.getActionTarget()))
+                .forEach(a -> a.setExecutable(true));
+        }
     }
 
     /**
@@ -102,13 +134,44 @@ public class ActionClassifier {
      * @param actions The list of actions to be classified.
      */
     private void markSuspensionsNonEmptyTradersNonExecutable(@NonNull List<Action> actions) {
+        Set<Trader> checked = new HashSet<>();
         actions.stream().filter(a -> a instanceof Deactivate).forEach(a -> {
             try {
                 Deactivate s = (Deactivate)a;
                 Trader suspensionCandidate = s.getActionTarget();
-                if (suspensionCandidate.getCustomers() != null
-                                && !suspensionCandidate.getCustomers().isEmpty()) {
+                if (!suspensionCandidate.getSettings().isProviderMustClone()) {
+                    if (!suspensionCandidate.getCustomers().isEmpty()){
+                        s.setExecutable(false);
+                    }
+                } else {
+                    // When providerMustClone is set, we only want the bottom of the atomic
+                    // segment to be executable.  Mark this action as not executable and add the
+                    // Trader at the bottom to the list of traders whose actions must be forced
+                    // to executable.
                     s.setExecutable(false);
+                    List<Trader> tradersToCheck = new ArrayList<>();
+                    tradersToCheck.add(suspensionCandidate);
+                    while (!tradersToCheck.isEmpty()) {
+                        Trader trader = tradersToCheck.remove(0);
+                        if (!checked.add(trader)) {
+                            // Already processed from this trader down, so skip it
+                            continue;
+                        }
+                        if (trader.getSettings().isProviderMustClone()) {
+                            for (Map.Entry<ShoppingList, Market> entry :
+                                    s.getEconomy().getMarketsAsBuyer(trader).entrySet()) {
+                                @Nullable Trader provider = entry.getKey().getSupplier();
+                                // If provider has already been checked, no need to check it again.
+                                if (provider != null && !checked.contains(provider)) {
+                                    tradersToCheck.add(provider);
+                                }
+                            }
+                        } else {
+                            // We are at the bottom of the chain, so suspensions associated with
+                            // this trader should be executable.
+                            forceEnable_.add(trader);
+                        }
+                    }
                 }
             } catch (Exception ex) {
                 a.setExecutable(true);
@@ -187,7 +250,7 @@ public class ActionClassifier {
      * @param actions The list of actions to be classified.
      */
     private void classifyAndMarkMoves(@NonNull List<Action> actions) {
-        actions.stream().forEach(a -> {
+        actions.forEach(a -> {
             if (a instanceof Move) {
                 classifyAndMarkMove((Move)a);
             } else if (a instanceof CompoundMove){
@@ -204,7 +267,7 @@ public class ActionClassifier {
     /**
      * Mark move as executable if it can be successfully simulated in the clone of the Economy.
      *
-     * @param m The {@link Move} to be classified.
+     * @param move The {@link Move} to be classified.
      */
     private void classifyAndMarkMove (Move move) {
         try {
@@ -238,10 +301,10 @@ public class ActionClassifier {
 
     private void printLogMessageInDebugForExecutableFlag(Action a) {
         if (logger.isDebugEnabled()) {
-            String addtionalInfo = a.getActionTarget() != null
+            String additionalInfo = a.getActionTarget() != null
                             ? a.getActionTarget().getDebugInfoNeverUseInCode() : a.toString();
             ActionType actionType = a.getType();
-            logger.debug("Setting executable true for " + actionType + " target : " + addtionalInfo);
+            logger.debug("Setting executable true for " + actionType + " target : " + additionalInfo);
        }
     }
     /**

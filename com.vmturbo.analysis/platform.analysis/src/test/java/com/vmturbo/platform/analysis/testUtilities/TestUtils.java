@@ -3,10 +3,7 @@
  */
 package com.vmturbo.platform.analysis.testUtilities;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -47,8 +44,10 @@ public class TestUtils {
     public static final int IOPS_TYPE = 5;
     public static final int CONTAINER_TYPE = 6;
     public static final int VAPP_TYPE = 7;
+    public static final int POD_TYPE = 8;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
+    public static final List<Long> NO_CLIQUES = new ArrayList<>();
 
     private static int commSpecCounter;
 
@@ -64,6 +63,7 @@ public class TestUtils {
     public static final CommoditySpecification IOPS = createNewCommSpec();
     public static final CommoditySpecification TRANSACTION = createNewCommSpec();
     public static final CommoditySpecification SEGMENTATION_COMMODITY = createNewCommSpec();
+    public static final CommoditySpecification RESPONSE_TIME = createNewCommSpec();
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
@@ -214,6 +214,58 @@ public class TestUtils {
         Trader vdc = economy.addTrader(VDC_TYPE, TraderState.ACTIVE, new Basket());
         vdc.getSettings().setCanAcceptNewCustomers(true);
         return vdc;
+    }
+
+    /**
+     * @param economy - Economy into which to insert the created virtual application
+     * @param capacities - capacities of commodities sold in the same order as basketCommodities.
+     * @param name the name of the virtual application
+     *
+     * @return - virtual application that was created
+     */
+    public static Trader createVirtualApplication(Economy economy, double[] capacities, String name) {
+        return createTrader(economy, VAPP_TYPE, NO_CLIQUES,
+                Arrays.asList(RESPONSE_TIME, TRANSACTION), capacities, true, true, name);
+    }
+
+    /**
+     * @param economy - Economy into which to insert the created application
+     * @param capacities - capacities of commodities sold in the same order as basketCommodities.
+     * @param name the name of the application
+     *
+     * @return - application that was created
+     */
+    public static Trader createApplication(Economy economy, double[] capacities, String name) {
+        Trader trader = createTrader(economy, APP_TYPE, NO_CLIQUES, Arrays.asList(RESPONSE_TIME, TRANSACTION),
+                capacities, true, false, name);
+        trader.getSettings().setProviderMustClone(true);
+        return trader;
+    }
+
+    /**
+     * @param economy - Economy into which to insert the created container
+     * @param capacities - capacities of commodities sold in the same order as basketCommodities.
+     * @param name the name of the container
+     *
+     * @return - container that was created
+     */
+    public static Trader createContainer(Economy economy, double[] capacities, String name) {
+        Trader trader =  createTrader(economy, CONTAINER_TYPE, NO_CLIQUES, Arrays.asList(VCPU, VMEM),
+                capacities, true, false, name);
+        trader.getSettings().setProviderMustClone(true);
+        return trader;
+    }
+
+    /**
+     * @param economy - Economy into which to insert the created pod
+     * @param capacities - capacities of commodities sold in the same order as basketCommodities.
+     * @param name the name of the pod
+     *
+     * @return - pod that was created
+     */
+    public static Trader createContainerPod(Economy economy, double[] capacities, String name) {
+        return createTrader(economy, POD_TYPE, NO_CLIQUES,
+                Arrays.asList(VCPU, VMEM), capacities, true, false, name);
     }
 
     /**
