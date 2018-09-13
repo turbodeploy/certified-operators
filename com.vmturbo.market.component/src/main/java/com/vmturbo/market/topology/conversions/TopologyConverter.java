@@ -22,13 +22,14 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Table;
 import com.google.gson.Gson;
-
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -149,6 +150,9 @@ public class TopologyConverter {
     // Bicliquer created based on pm
     private final BiCliquer pmBasedBicliquer = new BiCliquer();
 
+    // Table that stores the number of consumers of a commodity sold by a provider
+    private final Table<Long, CommodityType, Integer> numConsumersOfSoldCommTable =
+            HashBasedTable.create();
     // Map from bcKey to commodity bought
     private Map<String, CommodityDTOs.CommodityBoughtTO> bcCommodityBoughtMap = Maps.newHashMap();
     // a BiMap from DSPMAccess and Datastore commodity sold key to seller oid
@@ -251,16 +255,44 @@ public class TopologyConverter {
                 .filter(comm -> isBicliqueCommodity(comm.getCommodityType()))
                 .forEach(comm -> edge(dto, comm));
             oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
+            populateCommodityConsumesTable(dto);
         }
         dsBasedBicliquer.compute(oidToUuidMap);
         pmBasedBicliquer.compute(oidToUuidMap);
         logger.debug("Done creating bicliques");
+
         final ImmutableSet.Builder<EconomyDTOs.TraderTO> returnBuilder = ImmutableSet.builder();
         entityOidToDto.values().stream()
                 .map(this::topologyDTOtoTraderTO)
                 .forEach(returnBuilder::add);
         logger.info("Converted topologyEntityDTOs to traderTOs");
         return returnBuilder.build();
+    }
+
+    /**
+     * Iterate over all commodities bought by a trader from a supplier and increment the
+     * number of consumers associated with the commodities bought in the corresponding seller
+     *
+     * This information is stored in numConsumersOfSoldCommTable
+     *
+     */
+    private void populateCommodityConsumesTable(TopologyDTO.TopologyEntityDTO dto) {
+        // iterate over the commoditiesBought by a buyer on a per seller basis
+        dto.getCommoditiesBoughtFromProvidersList().forEach(entry ->
+            // for each commodityBought, we increment the number of consumers for the
+            // corresponding commSold in numConsumersOfSoldCommTable
+            entry.getCommodityBoughtList().forEach(commDto -> {
+                Integer consumersCount = numConsumersOfSoldCommTable.get(
+                        entry.getProviderId(), commDto.getCommodityType());
+                if (consumersCount == null) {
+                    consumersCount = new Integer(0);
+                }
+                consumersCount = consumersCount + 1;
+                numConsumersOfSoldCommTable.put(entry.getProviderId(),
+                        commDto.getCommodityType(),
+                        consumersCount);
+            })
+        );
     }
 
     private void edge(TopologyDTO.TopologyEntityDTO dto, TopologyDTO.CommoditySoldDTO commSold) {
@@ -1002,7 +1034,7 @@ public class TopologyConverter {
             .filter(commSold -> includeGuaranteedBuyer
                 || !AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
                 || !AnalysisUtil.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
-            .map(this::commoditySold)
+            .map(commSold -> commoditySold(commSold, topologyDTO))
             .collect(Collectors.toList());
 
         // In the case of non-shop-together, create the biclique commodities
@@ -1032,7 +1064,8 @@ public class TopologyConverter {
 
     @Nonnull
     protected CommodityDTOs.CommoditySoldTO commoditySold(
-                    @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
+                    @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold,
+                    TopologyDTO.TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         float capacity = (float)topologyCommSold.getCapacity();
         float used = (float)topologyCommSold.getUsed();
@@ -1088,6 +1121,9 @@ public class TopologyConverter {
                 maxQuantity, maxQuantityFloat);
             maxQuantityFloat = 0;
         }
+        // if entry not present, initialize to 0
+        int numConsumers = Optional.ofNullable(numConsumersOfSoldCommTable.get(dto.getOid(),
+                    topologyCommSold.getCommodityType())).map(o -> o.intValue()).orElse(0);
         return CommodityDTOs.CommoditySoldTO.newBuilder()
                         .setPeakQuantity((float)topologyCommSold.getPeak())
                         .setCapacity(capacity)
@@ -1098,6 +1134,7 @@ public class TopologyConverter {
                         .setSettings(economyCommSoldSettings)
                         .setSpecification(commoditySpecification(commodityType))
                         .setThin(topologyCommSold.getIsThin())
+                        .setNumConsumers(numConsumers)
                         .build();
     }
 
