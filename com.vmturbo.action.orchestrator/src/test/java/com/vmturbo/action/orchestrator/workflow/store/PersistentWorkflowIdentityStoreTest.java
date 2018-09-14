@@ -167,11 +167,11 @@ public class PersistentWorkflowIdentityStoreTest {
                 .build();
         dsl.insertInto(WORKFLOW)
                 .set(WORKFLOW.ID, WORKFLOW_1_OID)
-                .set(WORKFLOW.WORKFLOW_INFO, workflow1.toByteArray())
+                .set(WORKFLOW.WORKFLOW_INFO, workflow1)
                 .execute();
         dsl.insertInto(WORKFLOW)
                 .set(WORKFLOW.ID, WORKFLOW_2_OID)
-                .set(WORKFLOW.WORKFLOW_INFO, workflow2.toByteArray())
+                .set(WORKFLOW.WORKFLOW_INFO, workflow2)
                 .execute();
         PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
 

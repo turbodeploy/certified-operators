@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.workflow.store;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -50,4 +51,17 @@ public interface WorkflowStore {
     @Nonnull
     Set<Workflow> fetchWorkflows(@Nullable OrchestratorType orchestratorTypeFilter)
             throws WorkflowStoreException;
+
+    /**
+     * Fetch an Optional containing the {@link Workflow} corresponding to the given id.
+     *
+     * If not found then return Optional.empty()
+     *
+     * @param workflowId the unique ID of the workflow to fetch
+     * @return an Optional containing the Workflow corresponding to the given id, or
+     * Optional.empty() if not found.
+     * @throws WorkflowStoreException there's an error in the underlying workflow store
+     */
+    @Nonnull
+    Optional<Workflow> fetchWorkflow(long workflowId) throws WorkflowStoreException;
 }

@@ -150,7 +150,7 @@
                                     <converter>com.vmturbo.action.orchestrator.store.ExecutionStepConverter</converter>
                                 </customType>
                                 <customType>
-                                    <name>com.vmturbo.common.protobuf.workflow.WorkflowDTO</name>
+                                    <name>com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo</name>
                                     <converter>com.vmturbo.action.orchestrator.workflow.store.WorkflowInfoConverter</converter>
                                 </customType>
                             </customTypes>
@@ -179,6 +179,10 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep</name>
                                     <expression>.*\.action_history\.execution_step</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <name>com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo</name>
+                                    <expression>.*\.workflow\.workflow_info</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

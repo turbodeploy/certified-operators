@@ -20,6 +20,7 @@ import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
+import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -377,7 +378,12 @@ public class ServiceConfig {
     @Bean
     public IWorkflowsService workflowService() {
         return new WorkflowsService(communicationConfig.fetchWorkflowRpcService(),
-                targetService());
+                targetService(), workflowMapper());
+    }
+
+    @Bean
+    public WorkflowMapper workflowMapper() {
+        return new WorkflowMapper();
     }
 
     @Bean

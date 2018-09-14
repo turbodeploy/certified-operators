@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -11,6 +10,8 @@ import javax.annotation.Nullable;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
+import io.grpc.StatusRuntimeException;
+
 import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.workflow.WorkflowApiDTO;
@@ -19,6 +20,7 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.FetchWorkflowsRequest;
+import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc;
 import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceBlockingStub;
 
 /**
@@ -26,13 +28,16 @@ import com.vmturbo.common.protobuf.workflow.WorkflowServiceGrpc.WorkflowServiceB
  **/
 public class WorkflowsService implements IWorkflowsService {
 
-    private final WorkflowServiceBlockingStub fetchWorkflowServiceRpc;
+    private final WorkflowServiceBlockingStub workflowServiceRpc;
     private final TargetsService targetsService;
+    private final WorkflowMapper workflowMapper;
 
-    public WorkflowsService(@Nonnull WorkflowServiceBlockingStub fetchWorkflowServiceRpc,
-                            @Nonnull TargetsService targetsService) {
-        this.fetchWorkflowServiceRpc = Objects.requireNonNull(fetchWorkflowServiceRpc);
+    public WorkflowsService(@Nonnull WorkflowServiceBlockingStub workflowServiceRpc,
+                            @Nonnull TargetsService targetsService,
+                            @Nonnull WorkflowMapper workflowMapper) {
+        this.workflowServiceRpc = Objects.requireNonNull(workflowServiceRpc);
         this.targetsService = Objects.requireNonNull(targetsService);
+        this.workflowMapper = Objects.requireNonNull(workflowMapper);
     }
 
     /**
@@ -53,7 +58,7 @@ public class WorkflowsService implements IWorkflowsService {
                     .valueOf(apiWorkflowType.getName()));
         }
         // fetch the workflows
-        WorkflowDTO.FetchWorkflowsResponse workflowsResponse = fetchWorkflowServiceRpc
+        WorkflowDTO.FetchWorkflowsResponse workflowsResponse = workflowServiceRpc
                 .fetchWorkflows(fetchWorkflowsBuilder.build());
         // set up a mapping to cache the OID -> TargetApiDTO to reduce the Target lookups
         // from what we know now, there will likely be a very small number of Orchestration
@@ -70,15 +75,41 @@ public class WorkflowsService implements IWorkflowsService {
                 // store it for reuse
                 workflowTargets.put(workflowTargetOid, targetApiDTO);
             }
-            WorkflowApiDTO dto = WorkflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
+            WorkflowApiDTO dto = workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
             answer.add(dto);
         }
         return answer;
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>
+     * <p>
+     * We call the {@link WorkflowServiceGrpc} to fetch the data.
+     *
+     * @throws StatusRuntimeException if the gRPC call fails
+     * @throws UnknownObjectException if the target is not found
+     */
     @Override
-    public WorkflowApiDTO getWorkflowByUuid(String uuid) throws Exception {
-        // todo: implement this call for Workflow Execution (OM-37225)
-        return new WorkflowApiDTO();
+    public WorkflowApiDTO getWorkflowByUuid(@Nonnull String workflowUuid) throws Exception {
+        Objects.requireNonNull(workflowUuid);
+        // fetch the desired workflow
+        WorkflowDTO.FetchWorkflowResponse fetchWorkflowResponse = workflowServiceRpc.fetchWorkflow(
+                WorkflowDTO.FetchWorkflowRequest.newBuilder()
+                        .setId(Long.valueOf(workflowUuid))
+                        .build());
+        // test to see if the workflow with that ID was found
+        if (fetchWorkflowResponse.hasWorkflow()) {
+            // found one
+            WorkflowDTO.Workflow workflow = fetchWorkflowResponse.getWorkflow();
+            // fetch the corresponding target
+            String workflowTargetOid = Long.toString(workflow.getWorkflowInfo().getTargetId());
+            TargetApiDTO targetApiDTO = targetsService.getTarget(workflowTargetOid);
+            // map the workflow and the target to {@link WorkflowApiDTO} and return it
+            return workflowMapper.toUiWorkflowApiDTO(workflow, targetApiDTO);
+        } else {
+            // not found
+            throw new UnknownObjectException("Workflow with id: " + workflowUuid + " not found");
+        }
     }
 }

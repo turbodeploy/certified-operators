@@ -66,6 +66,12 @@ enum OrchestratorType {
 // The response to a request to store discovered workflows
 message StoreDiscoveredWorkflowsResponse { }
 
+// Request to fetch a single workflow given the ID
+message FetchWorkflowRequest {
+    // the ID of the workflow to request
+    optional int64 id = 1;
+}
+
 // Request to fetch all the workflows on the system with the given OrchestratorType, or all if
 // 'orchestrator_type' is absent.
 // TODO: currently no filtering or paging implemented
@@ -74,9 +80,18 @@ message FetchWorkflowsRequest {
     optional OrchestratorType orchestrator_type = 1;
 }
 
+// Response for fetching a single workflow by id.  If the workflow is not found, the 'workflow'
+// field will be empty.
+message FetchWorkflowResponse {
+    // the Workflow fetched
+    optional Workflow workflow = 1;
+}
+
+// Response for fetching multiple workflows.
 message FetchWorkflowsResponse {
     // the Workflows fetched
     repeated Workflow workflows = 1;
+    // TODO: support paginated results when the request supports pagination
 }
 
 service DiscoveredWorkflowService {
@@ -84,8 +99,13 @@ service DiscoveredWorkflowService {
     rpc StoreDiscoveredWorkflows(StoreDiscoveredWorkflowsRequest) returns (StoreDiscoveredWorkflowsResponse);
 }
 
-// Return all known Workflows; todo: implement paging
+// Access to the Workflows store.
 service WorkflowService {
     // Retrive workflows from the Workflows store
+    // TODO: implement paging
     rpc FetchWorkflows(FetchWorkflowsRequest) returns (FetchWorkflowsResponse);
+
+    // Retrieve an individual workflow by ID; if not found, then the 'workflow' field will
+    // be empty.
+    rpc FetchWorkflow(FetchWorkflowRequest) returns (FetchWorkflowResponse);
 }

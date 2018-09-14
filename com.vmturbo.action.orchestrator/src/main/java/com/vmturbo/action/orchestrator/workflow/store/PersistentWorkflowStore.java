@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -23,7 +24,6 @@ import org.jooq.impl.DSL;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.protobuf.InvalidProtocolBufferException;
 
 import com.vmturbo.action.orchestrator.db.tables.pojos.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -113,10 +113,10 @@ public class PersistentWorkflowStore implements WorkflowStore {
                         transactionDsl
                                 .insertInto(WORKFLOW)
                                 .set(WORKFLOW.ID, oid)
-                                .set(WORKFLOW.WORKFLOW_INFO, workflowInfo.toByteArray())
+                                .set(WORKFLOW.WORKFLOW_INFO, workflowInfo)
                                 .set(WORKFLOW.LAST_UPDATE_TIME, dateTimeNow)
                                 .onDuplicateKeyUpdate()
-                                .set(WORKFLOW.WORKFLOW_INFO, workflowInfo.toByteArray())
+                                .set(WORKFLOW.WORKFLOW_INFO, workflowInfo)
                                 .set(WORKFLOW.LAST_UPDATE_TIME, dateTimeNow)
                                 .execute();
                     } catch (DataAccessException e) {
@@ -169,6 +169,40 @@ public class PersistentWorkflowStore implements WorkflowStore {
     }
 
     /**
+     * {@inheritDoc}
+     *
+     * <p>Fetch the desired row from the WORKFLOW table with the given ID. This row might not be found,
+     * causing an error, or (if the DB is inconsistent) more than one row might be returned, also
+     * an error.
+     */
+    @Nonnull
+    public Optional<WorkflowDTO.Workflow> fetchWorkflow(long workflowId) throws WorkflowStoreException {
+        WorkflowDTO.Workflow.Builder workflowBuilder = WorkflowDTO.Workflow.newBuilder()
+                .setId(workflowId);
+        try {
+            dsl.transaction(configuration -> {
+                // set up a DSLContext for this transaction to use in all Jooq operations
+                DSLContext transactionDsl = DSL.using(configuration);
+                WorkflowInfo workflowInfo =
+                        transactionDsl.select(WORKFLOW.WORKFLOW_INFO)
+                                .from(WORKFLOW)
+                                .where(WORKFLOW.ID.eq(workflowId))
+                                .fetchOneInto(WorkflowInfo.class);
+                // if the workflow by that id is not found, then the select() result will be null
+                if (workflowInfo != null) {
+                    workflowBuilder.setWorkflowInfo(workflowInfo);
+                }
+            });
+        } catch (DataAccessException  e) {
+            throw new WorkflowStoreException("Error fetching workflow: " + workflowId, e);
+        }
+        // if the workflow info was found, it was stored in the workflowBuilder; else not found
+        return workflowBuilder.hasWorkflowInfo()
+                ? Optional.of(workflowBuilder.build())
+                : Optional.empty();
+    }
+
+    /**
      * Return a Predicate which, given an {@link IdentityMatchingAttributes}, will compare
      * the WORKFLOW_TARGET_ID with the given targetId. Return true if this IdentityMatchinAttributes
      * was persisted for the same targetId.
@@ -195,14 +229,12 @@ public class PersistentWorkflowStore implements WorkflowStore {
      *
      * @param dbWorkflow the database {@link Workflow} bean to convert
      * @return a {@link WorkflowDTO.Workflow} protobuf containing the information from the DB bean
-     * @throws InvalidProtocolBufferException if there's an error converting the blob bytearray
-     * back to a protobuf
+
      */
-    private WorkflowDTO.Workflow buildWorkflowInfo(Workflow dbWorkflow)
-            throws InvalidProtocolBufferException {
+    private WorkflowDTO.Workflow buildWorkflowInfo(Workflow dbWorkflow) {
         return WorkflowDTO.Workflow.newBuilder()
                 .setId(dbWorkflow.getId())
-                .setWorkflowInfo(WorkflowInfo.parseFrom(dbWorkflow.getWorkflowInfo()))
+                .setWorkflowInfo(dbWorkflow.getWorkflowInfo())
                 .build();
     }
 }
