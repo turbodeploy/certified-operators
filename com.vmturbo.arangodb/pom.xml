@@ -23,15 +23,14 @@
                         <version>${docker.maven.plugin.version}</version>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>turbonomic/arangodb</imageName>
+                            <imageName>${docker.image.prefix}/${artifactId}</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
-                                <imageTag>latest</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
-                                <label>com.vmturbo.build=${buildNumber}</label>
                             </labels>
+                            <serverId>docker-registry</serverId>
                         </configuration>
                         <executions>
                             <execution>
@@ -48,8 +47,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>/turbonomic/arangodb</image>
-                                    <newName>registry.eng.vmturbo.com:5000/turbonomic/arangodb</newName>
+                                    <image>/${docker.image.prefix}/${artifactId}</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/${artifactId}:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -59,7 +58,7 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>registry.eng.vmturbo.com:5000/turbonomic/arangodb</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/${artifactId}</imageName>
                                 </configuration>
                             </execution>
                         </executions>
@@ -67,6 +66,10 @@
                     <plugin>
                         <groupId>org.jacoco</groupId>
                         <artifactId>jacoco-maven-plugin</artifactId>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.atlassian.maven.plugins</groupId>
+                        <artifactId>bash-maven-plugin</artifactId>
                     </plugin>
                 </plugins>
             </build>

@@ -1,5 +1,5 @@
-FROM ubuntu:17.10
-MAINTAINER Michael Borodiansky <michael.borodiansky@turbonomic.com>
+FROM ubuntu:18.10
+MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 RUN apt-get update -q -y && apt-get upgrade -q -y && \
 apt-get install -q -y --no-install-recommends rsyslog python2.7 xz-utils net-tools vim-tiny openjdk-8-jdk && \

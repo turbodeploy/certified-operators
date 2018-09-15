@@ -61,7 +61,7 @@
         <commons-lang.version>2.6</commons-lang.version>
         <jersey-client.version>2.17</jersey-client.version>
         <jersey-media-jaxb.version>2.17</jersey-media-jaxb.version>
-        <docker.maven.plugin.version>0.4.13</docker.maven.plugin.version>
+        <docker.maven.plugin.version>1.1.1</docker.maven.plugin.version>
         <swagger-annotations.version>1.5.4</swagger-annotations.version>
         <swagger.codegen.plugin.version>2.2.3</swagger.codegen.plugin.version>
         <jackson-datatype-guava.version>2.6.5</jackson-datatype-guava.version>
@@ -81,6 +81,7 @@
         <swagger-ui-version>3.0.14</swagger-ui-version>
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
+        <bash.plugin.version>1.0-rc4</bash.plugin.version>
         <!-- END swagger properties -->
 
         <docker.compose.rule.version>0.31.1</docker.compose.rule.version>
@@ -109,6 +110,9 @@
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
 
+        <!-- docker registry for turbonomic -->
+        <docker.registry>registry.turbonomic.com</docker.registry>
+        <docker.image.prefix>turbonomic</docker.image.prefix>
     </properties>
 
     <prerequisites>
@@ -688,6 +692,88 @@
             </modules>
         </profile>
 
+        <profile>
+            <id>save</id>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>com.spotify</groupId>
+                            <artifactId>docker-maven-plugin</artifactId>
+                            <!-- executions>
+                                <execution>
+                                    <id>build-docker-image</id>
+                                    <phase>package</phase>
+                                    <goals>
+                                        <goal>build</goal>
+                                    </goals>
+                                    <configuration>
+                                        <saveImageToTarArchive>/opt/storage/xl/${project.version}/images/${artifactId}-${project.version}.tgz</saveImageToTarArchive>
+                                    </configuration>
+                                </execution>
+                            </executions -->
+                        </plugin>
+                        <plugin>
+                            <groupId>com.atlassian.maven.plugins</groupId>
+                            <artifactId>bash-maven-plugin</artifactId>
+                            <version>${bash.plugin.version}</version>
+                            <executions>
+                                <execution>
+                                    <id>test</id>
+                                    <phase>integration-test</phase>
+                                    <goals>
+                                        <goal>run</goal>
+                                    </goals>
+                                </execution>
+                            </executions>
+                            <configuration>
+                                <script>
+                                    # Here you can execute shell commands
+                                    echo "Docker local image save"
+                                    mkdir -p /opt/storage/xl/${project.version}/images/
+                                    docker tag turbonomic/${artifactId}:${project.version} localhost:5000/turbonomic/${artifactId}:${project.version}
+                                    docker save localhost:5000/turbonomic/${artifactId}:${project.version} | xz -T0 -9 > /opt/storage/xl/${project.version}/images/${artifactId}-${project.version}.tgz
+                                </script>
+                            </configuration>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+        <profile>
+            <id>testing</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <!-- Run with:
+                            mvn bash:run
+                            mvn install
+                        -->
+                        <groupId>com.atlassian.maven.plugins</groupId>
+                        <artifactId>bash-maven-plugin</artifactId>
+                        <version>${bash.plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>test</id>
+                                <phase>integration-test</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <script>
+                                # Here you can execute shell commands
+                                echo "Docker local image save"
+                                mkdir -p /opt/storage/xl/${project.version}/images/
+                                docker tag turbonomic/${artifactId}:${project.version} localhost:5000/turbonomic/${artifactId}:${project.version}
+                                docker save localhost:5000/turbonomic/${artifactId}:${project.version} | xz -T0 -9 > /opt/storage/xl/${project.version}/images/${artifactId}-${project.version}.tgz
+                            </script>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
     </profiles>
 
     <build>

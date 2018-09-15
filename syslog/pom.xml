@@ -26,16 +26,14 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>turbonomic/syslog</imageName>
+                            <imageName>${docker.image.prefix}/syslog</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
-                                <imageTag>${buildNumber}</imageTag>
-                                <imageTag>latest</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
-                                <label>com.vmturbo.build=${buildNumber}</label>
                             </labels>
+                            <serverId>docker-registry</serverId>
                         </configuration>
                         <executions>
                             <execution>
@@ -52,8 +50,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>turbonomic/syslog</image>
-                                    <newName>registry.eng.vmturbo.com:5000/turbonomic/syslog</newName>
+                                    <image>${docker.image.prefix}/syslog</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/syslog:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -63,10 +61,15 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>registry.eng.vmturbo.com:5000/turbonomic/syslog</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/syslog</imageName>
                                 </configuration>
                             </execution>
                         </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.atlassian.maven.plugins</groupId>
+                        <artifactId>bash-maven-plugin</artifactId>
+                        <version>${bash.plugin.version}</version>
                     </plugin>
                 </plugins>
             </build>

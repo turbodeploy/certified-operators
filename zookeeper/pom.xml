@@ -25,16 +25,14 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>turbonomic/zookeeper</imageName>
+                            <imageName>${docker.image.prefix}/${artifactId}</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
-                                <imageTag>${buildNumber}</imageTag>
-                                <imageTag>latest</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
-                                <label>com.vmturbo.build=${buildNumber}</label>
                             </labels>
+                            <serverId>docker-registry</serverId>
                         </configuration>
                         <executions>
                             <execution>
@@ -51,8 +49,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>turbonomic/zookeeper</image>
-                                    <newName>registry.eng.vmturbo.com:5000/turbonomic/zookeeper</newName>
+                                    <image>${docker.image.prefix}/${artifactId}</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/${artifactId}:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -62,10 +60,15 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>registry.eng.vmturbo.com:5000/turbonomic/zookeeper</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/${artifactId}</imageName>
                                 </configuration>
                             </execution>
                         </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.atlassian.maven.plugins</groupId>
+                        <artifactId>bash-maven-plugin</artifactId>
+                        <version>${bash.plugin.version}</version>
                     </plugin>
                 </plugins>
             </build>

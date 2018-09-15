@@ -26,16 +26,14 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>turbonomic/com.vmturbo.consul</imageName>
+                            <imageName>${docker.image.prefix}/com.vmturbo.consul</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
-                                <imageTag>${buildNumber}</imageTag>
-                                <imageTag>latest</imageTag>
                             </imageTags>
                             <labels>
                                 <label>com.vmturbo.version=${project.version}</label>
-                                <label>com.vmturbo.build=${buildNumber}</label>
                             </labels>
+                            <serverId>docker-registry</serverId>
                             <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
                             <runs>
                                 <run>chmod 755 docker/entrypoint.sh</run>
@@ -66,8 +64,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>turbonomic/com.vmturbo.consul</image>
-                                    <newName>registry.eng.vmturbo.com:5000/turbonomic/com.vmturbo.consul</newName>
+                                    <image>${docker.image.prefix}/${project.artifactId}</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -77,10 +75,15 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>registry.eng.vmturbo.com:5000/turbonomic/com.vmturbo.consul</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/com.vmturbo.consul</imageName>
                                 </configuration>
                             </execution>
                         </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.atlassian.maven.plugins</groupId>
+                        <artifactId>bash-maven-plugin</artifactId>
+                        <version>${bash.plugin.version}</version>
                     </plugin>
                 </plugins>
             </build>

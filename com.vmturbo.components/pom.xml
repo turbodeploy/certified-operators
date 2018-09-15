@@ -107,17 +107,14 @@
                             <groupId>com.spotify</groupId>
                             <artifactId>docker-maven-plugin</artifactId>
                             <configuration>
-                                <imageName>turbonomic/${project.artifactId}</imageName>
+                                <imageName>${docker.image.prefix}/${project.artifactId}</imageName>
                                 <imageTags>
                                     <imageTag>${project.version}</imageTag>
-                                    <imageTag>${buildNumber}</imageTag>
-                                    <imageTag>latest</imageTag>
                                 </imageTags>
                                 <labels>
                                     <label>com.vmturbo.version=${project.version}</label>
-                                    <label>com.vmturbo.build=${buildNumber}</label>
                                 </labels>
-                                <baseImage>turbonomic/vmt-component-base:${project.version}</baseImage>
+                                <baseImage>${docker.image.prefix}/vmt-component-base:${project.version}</baseImage>
                                 <entryPoint>["/entrypoint.sh", "${project.build.finalName}.jar"]</entryPoint>
                                 <resources>
                                     <resource>
@@ -150,8 +147,8 @@
                                         <goal>tag</goal>
                                     </goals>
                                     <configuration>
-                                        <image>turbonomic/${project.artifactId}</image>
-                                        <newName>registry.eng.vmturbo.com:5000/turbonomic/${project.artifactId}</newName>
+                                        <image>${docker.image.prefix}/${project.artifactId}</image>
+                                        <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}</newName>
                                     </configuration>
                                 </execution>
                                     <execution>
@@ -161,11 +158,15 @@
                                             <goal>push</goal>
                                         </goals>
                                         <configuration>
-                                            <imageName>registry.eng.vmturbo.com:5000/turbonomic/${project.artifactId}</imageName>
+                                            <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}</imageName>
                                         </configuration>
                                     </execution>
                                 </executions>
                             </plugin>
+                        <plugin>
+                            <groupId>com.atlassian.maven.plugins</groupId>
+                            <artifactId>bash-maven-plugin</artifactId>
+                        </plugin>
                         <plugin>
                             <groupId>org.apache.maven.plugins</groupId>
                             <artifactId>maven-dependency-plugin</artifactId>
