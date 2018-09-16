@@ -730,9 +730,10 @@
                                 <script>
                                     # Here you can execute shell commands
                                     echo "Docker local image save"
-                                    mkdir -p /opt/storage/xl/${project.version}/images/
-                                    docker tag turbonomic/${artifactId}:${project.version} localhost:5000/turbonomic/${artifactId}:${project.version}
-                                    docker save localhost:5000/turbonomic/${artifactId}:${project.version} | xz -T0 -9 > /opt/storage/xl/${project.version}/images/${artifactId}-${project.version}.tgz
+                                    sudo -n mkdir -p /opt/storage/xl/${project.version}/images/
+                                    sudo -n chmod -R 755 /opt/storage/xl/${project.version}/images/
+                                    sudo -n docker tag turbonomic/${artifactId}:${project.version} localhost:5000/turbonomic/${artifactId}:${project.version}
+                                    sudo -n docker save localhost:5000/turbonomic/${artifactId}:${project.version} | xz -T0 -9 > /opt/storage/xl/${project.version}/images/${artifactId}-${project.version}.tgz
                                 </script>
                             </configuration>
                         </plugin>
