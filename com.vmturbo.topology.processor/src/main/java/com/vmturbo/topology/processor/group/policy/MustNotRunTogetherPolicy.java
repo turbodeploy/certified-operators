@@ -70,7 +70,7 @@ public class MustNotRunTogetherPolicy extends PlacementPolicy {
         if (!consumers.isEmpty()) {
             // add the commodity sold to all the entities of a particular type.
             addCommoditySoldToSpecificEntityTypeProviders(mustNotRunTogetherPolicy.getProviderEntityType(),
-                    ImmutableSet.of(consumerGroup.getId()),
+                    consumers,
                     topologyGraph,
                     SEGM_CAPACITY_VALUE_SINGLE_CONSUMER);
 
