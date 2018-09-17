@@ -329,8 +329,8 @@ public class ActionSpecMapperTest {
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
-            "Reconfigure C 0 'Target' which requires Cpu Allocation, Network TestNetworkName1 but " +
-                    "is hosted by C 1 'Source' which does not provide Cpu Allocation, Network " +
+            "Reconfigure C 0 Target which requires Cpu Allocation, Network TestNetworkName1 but " +
+                    "is hosted by C 1 Source which does not provide Cpu Allocation, Network " +
                     "TestNetworkName1",
             actionApiDTO.getDetails());
     }
@@ -366,7 +366,7 @@ public class ActionSpecMapperTest {
 
         assertEquals( ActionType.RECONFIGURE, actionApiDTO.getActionType());
         assertEquals(
-            "Reconfigure C 0 'Target' as it is unplaced.",
+            "Reconfigure C 0 Target as it is unplaced.",
             actionApiDTO.getDetails());
     }
 
@@ -398,7 +398,7 @@ public class ActionSpecMapperTest {
         assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
-        assertThat(actionApiDTO.getDetails(), containsString("Provision c 0 'EntityToClone'"));
+        assertThat(actionApiDTO.getDetails(), containsString("Provision c 0 EntityToClone"));
     }
 
     @Test
@@ -587,7 +587,7 @@ public class ActionSpecMapperTest {
                         IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
         assertThat(actionApiDTO.getDetails(), is("Suspend " + prettyClassName +
-                " '" + entityToDeactivateName + "'."));
+                " " + entityToDeactivateName + "."));
     }
 
     /**
@@ -621,7 +621,7 @@ public class ActionSpecMapperTest {
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
                         CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
         assertThat(actionApiDTO.getDetails(), is("Delete " + prettyClassName +
-                " '" + entityToDeactivateName + "'."));
+                " " + entityToDeactivateName + "."));
     }
 
     @Test

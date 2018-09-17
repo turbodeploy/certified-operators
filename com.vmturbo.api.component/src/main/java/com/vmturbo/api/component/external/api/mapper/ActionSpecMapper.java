@@ -771,7 +771,7 @@ public class ActionSpecMapper {
     /**
      * Return a nicely formatted string like:
      *
-     * <p><code>Virtual Machine 'vm-test 01 for now'</code>
+     * <p><code>Virtual Machine vm-test 01 for now</code>
      *
      * <p>in which the entity type is expanded from camel case to words, and the displayName()
      * is surrounded with single quotes.
@@ -788,7 +788,7 @@ public class ActionSpecMapper {
      * single quotes
      */
     private String readableEntityTypeAndName(BaseApiDTO entityDTO) {
-        return String.format("%s '%s'",
+        return String.format("%s %s",
             ActionDTOUtil.getSpaceSeparatedWordsFromCamelCaseString(entityDTO.getClassName()),
             entityDTO.getDisplayName()
         );

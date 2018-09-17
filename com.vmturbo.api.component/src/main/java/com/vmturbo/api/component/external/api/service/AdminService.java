@@ -65,6 +65,8 @@ public class AdminService implements IAdminService {
         answer.setVersionInfo(getVersionInfoString());
         // TODO: 'checkForUpdates' is not yet implemented
         answer.setUpdates(UPDATES_NOT_IMPLEMENTED);
+        // xl uses market 2
+        answer.setMarketVersion(2);
         return answer;
     }
 

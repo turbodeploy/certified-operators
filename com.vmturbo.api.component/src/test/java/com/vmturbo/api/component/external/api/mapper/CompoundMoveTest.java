@@ -182,16 +182,14 @@ public class CompoundMoveTest {
             apiDto.getDetails());
     }
 
-    private static final String APO = "'"; // apostrophe
-
     private static String details(String targetType, String targetName,
                     String providerType, String providerName1, String providerName2) {
         return "Move " + targetType + " "
-                        + APO + targetName + APO
+                        + targetName
                         + " from " + providerType  + " "
-                        + APO + providerName1 + APO
+                        + providerName1
                         + " to " + providerType + " "
-                        + APO + providerName2 + APO;
+                        + providerName2;
     }
 
     private ActionSpec buildActionSpec(ActionDTO.Action action) {
