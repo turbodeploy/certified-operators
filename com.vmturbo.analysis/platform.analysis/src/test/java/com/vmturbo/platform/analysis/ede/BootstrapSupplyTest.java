@@ -560,17 +560,74 @@ public class BootstrapSupplyTest {
                         BootstrapSupply.shopTogetherBootstrap(economy);
 
         assertTrue(bootStrapActionList.size() == 2);
-        assertEquals(bootStrapActionList.get(0).getActionTarget(), pm2);
-        assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(1).getType());
+        assertEquals(bootStrapActionList.get(1).getActionTarget(), pm2);
+        assertEquals(ActionType.COMPOUND_MOVE, bootStrapActionList.get(0).getType());
         Move expectedComputeMove1 = new Move(economy, sl1, pm1, pm2);
         Move expectedStorageMove1 = new Move(economy, sl2, st1, st2);
         Move expectedComputeMove2 = new Move(economy, sl3, pm1, pm2);
         Move expectedStorageMove2 = new Move(economy, sl4, st1, st2);
-        List<Move> moves = ((CompoundMove)bootStrapActionList.get(1)).getConstituentMoves();
+        List<Move> moves = ((CompoundMove)bootStrapActionList.get(0)).getConstituentMoves();
         assertTrue( (moves.get(0).equals(expectedComputeMove1) && moves.get(1).equals(expectedStorageMove1))
                        || (moves.get(0).equals(expectedStorageMove1) && moves.get(1).equals(expectedComputeMove1))
                        || (moves.get(0).equals(expectedComputeMove2) && moves.get(1).equals(expectedStorageMove2))
                        || (moves.get(0).equals(expectedStorageMove2) && moves.get(1).equals(expectedComputeMove2)));
+    }
+
+    /**
+     * Case: shop together : Pm1 connected to St1.
+     * Pm2 connected to St2.
+     * 4 VMs  on PM1 and St1 such that CPU capacity of Pm1 is exceeded.
+     * vm4 cannot fit it either of pm1 and pm2. Needs provisionbyDemand.
+     * We also need provisionbySupply for one of the smaller vms (vm1,vm2,vm3)
+     * Expected result: 1 provisionbysupply and 1 provisionbyDemand. 1 vm in each host.
+     */
+    @Test
+    public void test_bootstrapShopTogether_provision(){
+        Economy economy = new Economy();
+        Trader pm1 = TestUtils.createPM(economy, Arrays.asList(1l), 100, 100, false,"PM1");
+        Trader st1 = TestUtils.createStorage(economy, Arrays.asList(1l), 600, false,"DS1");
+        // pm2 is the only clonable host. So the provisionByDemand should be using this. Since it does not belong to
+        // the last clique it will be moved to the end so that we can do provision by demand.
+        Trader pm2 = TestUtils.createPM(economy, Arrays.asList(0l), 100, 100, true,"PM2");
+        Trader st2 = TestUtils.createStorage(economy, Arrays.asList(0l), 600, false,"DS2");
+        Trader vm1 = TestUtils.createVM(economy,"VM1");
+        ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm1, new double[]{60, 0}, pm1);
+        ShoppingList sl2 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT), vm1, new double[]{100}, st1);
+        Trader vm2 = TestUtils.createVM(economy,"VM2");
+        ShoppingList sl3 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm2, new double[]{60, 0}, pm1);
+        ShoppingList sl4 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT), vm2, new double[]{100}, st1);
+        Trader vm3 = TestUtils.createVM(economy,"VM3");
+        ShoppingList sl5 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm3, new double[]{60, 0}, pm1);
+        ShoppingList sl6 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT), vm3, new double[]{100}, st1);
+        // vm4 does not fit on any host. so needs provisionbydemand.
+        Trader vm4 = TestUtils.createVM(economy,"VM4");
+        ShoppingList sl7 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.CPU, TestUtils.MEM), vm4, new double[]{160, 0}, pm1);
+        ShoppingList sl8 = TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.ST_AMT), vm4, new double[]{100}, st1);
+        economy.getModifiableShopTogetherTraders().add(vm1);
+        economy.getModifiableShopTogetherTraders().add(vm2);
+        economy.getModifiableShopTogetherTraders().add(vm3);
+        economy.getModifiableShopTogetherTraders().add(vm4);
+        economy.populateMarketsWithSellers();
+        List<Action> bootStrapActionList =
+                BootstrapSupply.shopTogetherBootstrap(economy);
+        assertTrue(bootStrapActionList.stream().filter(action -> action instanceof
+                ProvisionByDemand).collect(Collectors.toList()).size() == 1);
+        assertTrue(bootStrapActionList.stream().filter(action -> action instanceof
+                ProvisionBySupply).collect(Collectors.toList()).size() == 1);
+        assertTrue(bootStrapActionList.stream().filter(action -> action instanceof
+                ProvisionByDemand).collect(Collectors.toList())
+                .get(0).getActionTarget().getDebugInfoNeverUseInCode().contains("PM2"));
+        assertTrue(bootStrapActionList.stream().filter(action -> action instanceof
+                ProvisionBySupply).collect(Collectors.toList())
+                .get(0).getActionTarget().getDebugInfoNeverUseInCode().contains("PM2"));
     }
 
     /**

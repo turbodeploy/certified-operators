@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -334,17 +335,87 @@ public class BootstrapSupply {
                 logger.info("New sellers have to be provisioned to accommodate the trader "
                             + buyerDebugInfo + ".");
             }
-            List<Action> provisionAndSubsequentMove = checkAndApplyProvisionForShopTogether(economy,
-                buyingTrader, commonCliques.iterator().next(),
-                                slsThatNeedProvBySupply);
-            allActions.addAll(provisionAndSubsequentMove);
+            if(commonCliques.isEmpty()){
+                logger.error("No clique for Buyer: ", buyingTrader.getDebugInfoNeverUseInCode());
+            }
+            else {
+                Long commonClique = bestCliqueForProvisioning(economy, buyingTrader, commonCliques);
+                List<Action> provisionAndSubsequentMove = checkAndApplyProvisionForShopTogether(economy,
+                        buyingTrader, commonClique,
+                        slsThatNeedProvBySupply);
+                allActions.addAll(provisionAndSubsequentMove);
+            }
         } else {
             allActions.addAll(Placement.checkAndGenerateCompoundMoveActions(economy, buyingTrader,
                                                                     minimizer));
         }
         return allActions;
     }
+    /**
+     * Consider all cliques the buyer can buy from. Find the clique which
+     * need only provision by supply. If all the cliques need a provision by
+     * demand then pick the clique for which the sellers are clonable.
+     *
+     * @param economy economy the {@Link Economy} for which we want to guarantee enough supply.
+     * @param buyer the shop-together buyer
+     * @param commonCliques the set of cliques which the buyer can buy
+     */
+    private static Long bestCliqueForProvisioning(
+            Economy economy,
+            Trader buyer,
+            Set<Long>  commonCliques) {
+        // If none of the cliques has clonable sellers for all
+        // shopping lists then we cannot do provisioning by demand at all.
+        // so returning the first clique is fine as this variable will never be updated.
+        Long cliqueNeedsProvisionByDemandButClonable = commonCliques.iterator().next();
+        List<Entry<ShoppingList, Market>> movableSlByMarket =
+                economy.moveableSlByMarket(buyer);
+        for(Long currentClique : commonCliques) {
+            boolean isSelersInCliqueClonable = true;
+            boolean needsProvisionByDemand = false;
+            for (Entry<ShoppingList, Market> entry : movableSlByMarket) {
+                ShoppingList sl = entry.getKey();
+                Market market = entry.getValue();
+                @NonNull List<@NonNull Trader> sellers =
+                        market.getCliques().get(currentClique);
+                // consider just sellersAvailableForPlacement
+                sellers.retainAll(market.getActiveSellersAvailableForPlacement());
+                @NonNull Stream<@NonNull Trader> stream =
+                        sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                                ? sellers.stream() : sellers.parallelStream();
+                @NonNull QuoteMinimizer minimizer = stream.collect(() -> new QuoteMinimizer(economy, sl),
+                        QuoteMinimizer::accept, QuoteMinimizer::combine);
+                // not all sl in movableSlByMarket needs additional supply, we should check by quote.
+                // If quote is infinity, we need to cache it and add supply for it later.
+                if (Double.isInfinite(minimizer.getBestQuote())) {
+                    Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.of(currentClique));
+                    if (sellerThatFits == null) { // Provision By Demand
+                        needsProvisionByDemand = true;
+                        List<Trader> clonableSellers = sellers.stream().filter(s ->
+                                s.getSettings().isCloneable()).collect(Collectors.toList());
+                        //if the clique1 had a host with clonable true. and clique2 had no host with clonable true.
+                        // and we have to do provisionbydemand with clique2 we will not be able to  provision.
+                        if (clonableSellers.isEmpty()) {
+                            isSelersInCliqueClonable = false;
+                            break;
 
+                        }
+                    }
+                }
+            }
+            if(!needsProvisionByDemand){
+                return currentClique;
+            }
+            if (isSelersInCliqueClonable){
+                cliqueNeedsProvisionByDemandButClonable = currentClique;
+            }
+        }
+        // We provision by demand only if we are in the last available clique and
+        // all the other cliques also required provision by demand to accommodate
+        // the buyer. i.e none of the existing providers could accommodate the
+        // buyer.
+        return cliqueNeedsProvisionByDemandButClonable;
+    }
     /**
      * If there is a trader that can be reactivated or cloned through ProvisionBySupply to fit buyer
      * that is doing shop together, populate the slsThatNeedProvBySupply list with the buyer that
@@ -363,7 +434,7 @@ public class BootstrapSupply {
                     long commonClique,
                     Map<ShoppingList, Long> slsThatNeedProvBySupply) {
         List<Entry<ShoppingList, Market>> movableSlByMarket =
-                        economy.moveableSlByMarket(buyer);
+                economy.moveableSlByMarket(buyer);
         @NonNull List<Action> provisionedRelatedActions = new ArrayList<>();
         @NonNull Map<ShoppingList, Trader> newSuppliers = new HashMap<>();
         // The newSuppliersToIgnore set stores the traders from the newSuppliers
@@ -384,55 +455,63 @@ public class BootstrapSupply {
             // together placement.
             @NonNull List<@NonNull Trader> sellers =
                     market.getCliques().get(commonClique)
-                        .stream()
-                        // Since we don't actually place the SLs onto the newSuppliers in
-                        // this function, the utilization of the newSeller will not change.
-                        // Due to this, the best quote for all subsequent SLs which can fit
-                        // in the new seller will get finite quote. So we need to ignore
-                        // the newSellers to trigger provisionByDemand for each of the
-                        // SL(which needs provisionByDemand).
-                        //
-                        // E.g. Let's consider a scenario where there is a buyer
-                        // with 2 Storage SLs of equal size and they both can't
-                        // be placed on any existing Storages. The 1st SL will cause
-                        // a provision(byDemand) of a new storage to fit this SL.
-                        // Since we don't place the 1st SL in this function,
-                        // the 2nd SL will get a finite best quote(due to
-                        // the newly provisioned storage). Later when the 1st SL is
-                        // actually placed on this new storage, there won't be
-                        // any more capacity for the 2nd SL. So the VM which has
-                        // these SLs will go unplaced as the 2nd SL will get
-                        // infinite quote. To fix this problem, we need to provision
-                        // a new storage for the 2nd SL too. By ignoring the previously
-                        // provisioned storage as a potential seller, we force the
-                        // provisioning of a new storage.
-                        .filter(trader -> !newSuppliersToIgnore.contains(trader))
-                        .collect(Collectors.toList());
+                            .stream()
+                            // Since we don't actually place the SLs onto the newSuppliers in
+                            // this function, the utilization of the newSeller will not change.
+                            // Due to this, the best quote for all subsequent SLs which can fit
+                            // in the new seller will get finite quote. So we need to ignore
+                            // the newSellers to trigger provisionByDemand for each of the
+                            // SL(which needs provisionByDemand).
+                            //
+                            // E.g. Let's consider a scenario where there is a buyer
+                            // with 2 Storage SLs of equal size and they both can't
+                            // be placed on any existing Storages. The 1st SL will cause
+                            // a provision(byDemand) of a new storage to fit this SL.
+                            // Since we don't place the 1st SL in this function,
+                            // the 2nd SL will get a finite best quote(due to
+                            // the newly provisioned storage). Later when the 1st SL is
+                            // actually placed on this new storage, there won't be
+                            // any more capacity for the 2nd SL. So the VM which has
+                            // these SLs will go unplaced as the 2nd SL will get
+                            // infinite quote. To fix this problem, we need to provision
+                            // a new storage for the 2nd SL too. By ignoring the previously
+                            // provisioned storage as a potential seller, we force the
+                            // provisioning of a new storage.
+                            .filter(trader -> !newSuppliersToIgnore.contains(trader))
+                            .collect(Collectors.toList());
 
             // consider just sellersAvailableForPlacement
             sellers.retainAll(market.getActiveSellersAvailableForPlacement());
             @NonNull Stream<@NonNull Trader> stream =
-                            sellers.size() < economy.getSettings().getMinSellersForParallelism()
+                    sellers.size() < economy.getSettings().getMinSellersForParallelism()
                             ? sellers.stream() : sellers.parallelStream();
             @NonNull QuoteMinimizer minimizer = stream.collect(() -> new QuoteMinimizer(economy, sl),
-                                                     QuoteMinimizer::accept, QuoteMinimizer::combine);
+                    QuoteMinimizer::accept, QuoteMinimizer::combine);
             // not all sl in movableSlByMarket needs additional supply, we should check by quote.
             // If quote is infinity, we need to cache it and add supply for it later.
             if (Double.isInfinite(minimizer.getBestQuote())) {
                 boolean isDebugBuyer = sl.getBuyer().isDebugEnabled();
                 String buyerDebugInfo = sl.getBuyer().getDebugInfoNeverUseInCode();
-
-                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.empty());
+                // Since we are moving the buyer to the sellerthatfits we have to make sure
+                // that it belongs to the currentClique.
+                Trader sellerThatFits = findTraderThatFitsBuyer(sl, sellers, market, economy, Optional.of(commonClique));
                 // provision by supply
                 if (sellerThatFits != null) {
                     boolean isDebugSeller = sellerThatFits.isDebugEnabled();
                     String sellerDebugInfo = sellerThatFits.getDebugInfoNeverUseInCode();
                     if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                         logger.info("The seller " + sellerDebugInfo + " can fit the buyer "
-                                    + buyerDebugInfo + ". Cached for provision by supply.");
+                                + buyerDebugInfo + ". Cached for provision by supply.");
                     }
                     // cache the sl that need ProvisionBySupply in slsThatNeedProvBySupply
+                    // Since we are going to do a compound move of the buyer we have to make sure
+                    // all the shopping list are in the sllist and corresponding seller in
+                    // traderlist. The sellerThatFits can be use a seller for now. Eventually
+                    // when the provisionbysupply actually happens it will go to something
+                    // in the same clique as other shoppinglists.
                     slsThatNeedProvBySupply.put(sl, commonClique);
+                    traderList.add(sellerThatFits);
+                    slList.add(sl);
                 } else { // provision by demand
                     if (logger.isTraceEnabled() || isDebugBuyer) {
                         logger.info("No seller who fits buyer " + buyerDebugInfo + " found."
@@ -444,15 +523,15 @@ public class BootstrapSupply {
                     if (clonableSellers.isEmpty()) {
                         if (logger.isTraceEnabled() || isDebugBuyer) {
                             logger.info("No clonable trader can be found in market though"
-                                        + " buyer {} has an infinity quote.", buyerDebugInfo);
+                                    + " buyer {} has an infinity quote.", buyerDebugInfo);
                         } else {
                             logger.warn("No clonable trader can be found in market though"
-                                        + " buyer {} has an infinity quote.", buyerDebugInfo);
+                                    + " buyer {} has an infinity quote.", buyerDebugInfo);
                         }
                     } else {
                         Trader currentSupplier = sl.getSupplier();
                         Action action = new ProvisionByDemand(economy, sl,
-                            (currentSupplier != null && clonableSellers.contains(currentSupplier)) ?
+                                (currentSupplier != null && clonableSellers.contains(currentSupplier)) ?
                                         currentSupplier : clonableSellers.get(0)).take();
                         ((ActionImpl)action).setImportance(Double.POSITIVE_INFINITY);
                         Trader newSeller = ((ProvisionByDemand)action).getProvisionedSeller();
@@ -460,15 +539,15 @@ public class BootstrapSupply {
                         String sellerDebugInfo = newSeller.getDebugInfoNeverUseInCode();
                         if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                             logger.info("New seller " + sellerDebugInfo
-                                        + " was provisioned to fit " + buyerDebugInfo + ".");
+                                    + " was provisioned to fit " + buyerDebugInfo + ".");
                         }
 
                         // provisionByDemand does not place the provisioned trader. We try finding
                         // best placement for it, if none exists, we create one supply for
                         // provisioned trader
                         provisionedRelatedActions
-                            .addAll(shopTogetherBootstrapForIndividualBuyer(economy, newSeller,
-                                                                        slsThatNeedProvBySupply));
+                                .addAll(shopTogetherBootstrapForIndividualBuyer(economy, newSeller,
+                                        slsThatNeedProvBySupply));
                         provisionedRelatedActions.add(action);
                         newSuppliers.put(sl, newSeller);
                         newSuppliersToIgnore.add(newSeller);
@@ -488,15 +567,17 @@ public class BootstrapSupply {
                 slList.add(e.getKey());
                 traderList.add(e.getValue());
             });
+        }
+        if (slList.size() == movableSlByMarket.size()) {
             CompoundMove compoundMove = CompoundMove
-                            .createAndCheckCompoundMoveWithImplicitSources(economy, slList,
-                                                                           traderList);
+                    .createAndCheckCompoundMoveWithImplicitSources(economy, slList,
+                            traderList);
             if (compoundMove != null) {
                 boolean isDebugTrader = slList.get(0).getBuyer().isDebugEnabled();
                 String buyerDebugInfo = slList.get(0).getBuyer().getDebugInfoNeverUseInCode();
                 if (logger.isTraceEnabled() || isDebugTrader) {
                     logger.info("New compound move was generated for trader "
-                                + buyerDebugInfo + ".");
+                            + buyerDebugInfo + ".");
                 }
                 provisionedRelatedActions.add(compoundMove.take());
             }
