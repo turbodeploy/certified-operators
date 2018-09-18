@@ -81,7 +81,6 @@
         <swagger-ui-version>3.0.14</swagger-ui-version>
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
-        <bash.plugin.version>1.0-rc4</bash.plugin.version>
         <!-- END swagger properties -->
 
         <docker.compose.rule.version>0.31.1</docker.compose.rule.version>
@@ -690,90 +689,6 @@
                 <module>../com.vmturbo.components.test.performance</module>
                 <module>../com.vmturbo.systest</module>
             </modules>
-        </profile>
-
-        <profile>
-            <id>save</id>
-            <build>
-                <pluginManagement>
-                    <plugins>
-                        <plugin>
-                            <groupId>com.spotify</groupId>
-                            <artifactId>docker-maven-plugin</artifactId>
-                            <!-- executions>
-                                <execution>
-                                    <id>build-docker-image</id>
-                                    <phase>package</phase>
-                                    <goals>
-                                        <goal>build</goal>
-                                    </goals>
-                                    <configuration>
-                                        <saveImageToTarArchive>/opt/storage/xl/${project.version}/images/${artifactId}-${project.version}.tgz</saveImageToTarArchive>
-                                    </configuration>
-                                </execution>
-                            </executions -->
-                        </plugin>
-                        <plugin>
-                            <groupId>com.atlassian.maven.plugins</groupId>
-                            <artifactId>bash-maven-plugin</artifactId>
-                            <version>${bash.plugin.version}</version>
-                            <executions>
-                                <execution>
-                                    <id>test</id>
-                                    <phase>integration-test</phase>
-                                    <goals>
-                                        <goal>run</goal>
-                                    </goals>
-                                </execution>
-                            </executions>
-                            <configuration>
-                                <script>
-                                    # Here you can execute shell commands
-                                    echo "Docker local image save"
-                                    sudo -n mkdir -p /opt/storage/xl/${project.version}/images/
-                                    sudo -n chmod -R 755 /opt/storage/xl/${project.version}/images/
-                                    sudo -n docker tag turbonomic/${artifactId}:${project.version} localhost:5000/turbonomic/${artifactId}:${project.version}
-                                    sudo -n docker save localhost:5000/turbonomic/${artifactId}:${project.version} | xz -T0 -9 > /opt/storage/xl/${project.version}/images/${artifactId}-${project.version}.tgz
-                                </script>
-                            </configuration>
-                        </plugin>
-                    </plugins>
-                </pluginManagement>
-            </build>
-        </profile>
-        <profile>
-            <id>testing</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <!-- Run with:
-                            mvn bash:run
-                            mvn install
-                        -->
-                        <groupId>com.atlassian.maven.plugins</groupId>
-                        <artifactId>bash-maven-plugin</artifactId>
-                        <version>${bash.plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <id>test</id>
-                                <phase>integration-test</phase>
-                                <goals>
-                                    <goal>run</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <script>
-                                # Here you can execute shell commands
-                                echo "Docker local image save"
-                                mkdir -p /opt/storage/xl/${project.version}/images/
-                                docker tag turbonomic/${artifactId}:${project.version} localhost:5000/turbonomic/${artifactId}:${project.version}
-                                docker save localhost:5000/turbonomic/${artifactId}:${project.version} | xz -T0 -9 > /opt/storage/xl/${project.version}/images/${artifactId}-${project.version}.tgz
-                            </script>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
     </profiles>
 
