@@ -4,11 +4,16 @@ if [ "${WORKSPACE}" == "" ]; then
     echo 'Environment variable $WORKSPACE must be defined'
     exit 99
 fi
+VER_SHORT="${VER_SHORT}"
+POM_VERSION="${POM_VERSION}"
+storage_dir="/opt/storage/xl/${VER_SHORT}/images"
+mkdir -p ${storage_dir}
 mkdir -p ${WORKSPACE}/data
 cd ${WORKSPACE}/data
 rm -rf images >/dev/null 2>&1
 mkdir -p ${WORKSPACE}/data/images
 cd ${WORKSPACE}/data/images
+
 
 # The following assumes that we have the script in the top-level directory and we have checked out the build project in the XL.
 DOCKER_COMPOSE_YML_FILE_TGT=docker-compose.yml
@@ -29,14 +34,32 @@ do
         docker pull ${img} && docker save ${img} | xz -T0 -9 > $(echo $img | cut -d':' -f1 | cut -d'/' -f2).tgz
     else
         # Our stuff
-		img_res=$(echo $img | cut -d'/' -f2 | awk -F'.component' '{print $1}')
-		if [[ $img_res == com.vmturbo* ]]; then
-			img_res=$(echo $img_res | awk -F'com.vmturbo.' '{print $2}')
-		fi
-		img_res=$(echo $img_res | tr '.' '_')
+	img_res=$(echo $img | cut -d'/' -f2 | awk -F'.component' '{print $1}')
+	if [[ $img_res == com.vmturbo* ]]; then
+		img_res=$(echo $img_res | awk -F'com.vmturbo.' '{print $2}')
+          if [ ! -z "${POM_VERSION}" ]
+          then
+              docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
+              docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
+          fi
+	fi
+	img_res=$(echo $img_res | tr '.' '_')
         docker save ${img}:latest | xz -T0 -9 > ${img_res}.tgz
+        if [ ! -z "${POM_VERSION}" ]
+        then
+            docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
+            docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
+        fi
     fi
 done
+
+if [ ! -z "${POM_VERSION}" ]
+then
+  for file in `ls ${storage_dir}/*tgz`
+  do
+    sha256sum $file >> ${storage_dir}/turbonomic_sums.txt
+  done
+fi
 
 # Copy the docker-compose.yml files for each size topology
 cp ${WORKSPACE}/build/docker-compose.yml.15k ${WORKSPACE}/data/images/
@@ -62,6 +85,11 @@ INFO="${WORKSPACE}/data/images/turbonomic_info.txt"
 echo "Built on: $(date)" > ${INFO}
 echo "Version: XL ${VER_SHORT}" >> ${INFO}
 echo "Build #: ${RELEASE_REV}" >> ${INFO}
+
+if [ ! -z "${POM_VERSION}" ]
+then
+  cp ${INFO} ${storage_dir}/turbonomic_info.txt 
+fi
 
 # Cleanup and create the ISO
 cd ${WORKSPACE}/data
@@ -103,9 +131,27 @@ do
     img_res=$(echo $img | cut -d'/' -f2 | awk -F'.component' '{print $1}')
     if [[ $img_res == com.vmturbo* ]]; then
         img_res=$(echo $img_res | awk -F'com.vmturbo.' '{print $2}')
+      if [ ! -z "${POM_VERSION}" ]
+      then
+        docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
+        docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
+        for file in `ls ${storage_dir}/*tgz`
+        do
+          sha256sum $file >> ${storage_dir}/turbonomic_sums.txt
+        done
+      fi
     fi
     img_res=$(echo $img_res | tr '.' '_')
     docker save ${img}:latest | xz -T0 -9 > ${img_res}.tgz
+    if [ ! -z "${POM_VERSION}" ]
+    then
+      docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
+      docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
+      for file in `ls ${storage_dir}/*tgz`
+      do
+        sha256sum $file >> ${storage_dir}/turbonomic_sums.txt
+      done
+    fi
 done
 cd ${WORKSPACE}/data
 rm docker_images.iso
