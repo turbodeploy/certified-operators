@@ -31,6 +31,20 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
             public String toAQLString() {
                 return "!~";
             }
+        },
+
+        EQ {
+            @Override
+            public String toAQLString() {
+                return "==";
+            }
+        },
+
+        NEQ {
+            @Override
+            public String toAQLString() {
+                return "!=";
+            }
         }
     }
 
@@ -161,22 +175,27 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                     String.format("FILTER service_entity.%s %s \"%s\"", pName, strOp.toAQLString(), strVal),
                 (pName, numOp, numVal) ->
                     String.format("FILTER service_entity.%s %s %s", pName, numOp.toAQLString(), numVal),
-                (pName, strOp, keyRegex, valRegex, multi) -> {
+                (pName, strOp, key, value, multi) -> {
                     // construct AQL filter for (multi)-map search
                     // the value filter depends on whether this is a map or a multimap
                     // the value in a map entry is a single string, while in multimap is an array
-                    final String valueFilterPattern =
-                            multi ? "FOR value in service_entity.%s[key] FILTER value %s \"%s\""
-                                  : "service_entity.tags[key] %s \"%s\"";
+                    final String valueFilterPattern;
+                    if (value == null || value.isEmpty()) {
+                        valueFilterPattern = "";
+                    } else if (multi) {
+                        valueFilterPattern = "FOR value in service_entity.%s[key] FILTER value %s \"%s\"";
+                    } else {
+                        valueFilterPattern = "service_entity.tags[key] %s \"%s\"";
+                    }
                     final String valueFilter =
-                            String.format(valueFilterPattern, pName, strOp.toAQLString(), valRegex);
+                            String.format(valueFilterPattern, pName, strOp.toAQLString(), value);
 
                     // the full filter includes a search on the key
-                    // notice that the operator for keys is always =~ (i.e., Arango's regular expression map)
+                    // notice that the operator for keys is always ==
                     // regardless of strOp
                     return String.format(
-                            "FOR key in ATTRIBUTES(service_entity.%s) FILTER key =~ \"%s\" %s",
-                            pName, keyRegex, valueFilter);
+                            "FOR key in ATTRIBUTES(service_entity.%s) FILTER key == \"%s\" %s",
+                            pName, key, valueFilter);
                 },
                 (direction, hop) -> "",
                 (direction, filter) -> ""));

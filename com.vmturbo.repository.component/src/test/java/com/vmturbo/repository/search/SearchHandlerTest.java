@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
 
@@ -42,7 +41,6 @@ import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.operator.GraphCreatorFixture;
 import com.vmturbo.repository.graph.parameter.GraphCmd.ServiceEntityMultiGet;
-import com.vmturbo.repository.topology.TopologyDatabase;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 

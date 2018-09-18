@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package common;
+
+option java_package = "com.vmturbo.common.protobuf.common";
+
+enum EnvironmentType {
+    HYBRID = 1;
+    CLOUD = 2;
+    ONPREM = 3;
+}

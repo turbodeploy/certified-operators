@@ -113,20 +113,20 @@ public class SearchMapper {
      * to both values "peter" and "paul".
      *
      * @param propName property name to use for the search.
-     * @param keyRegex regular expression to check the multimap key against.
-     * @param valRegex regular expression to check the multimap values against.
+     * @param key string to check the multimap key against.
+     * @param value string to check the multimap values against.
      * @param match If true, there should be a matching value under the matched key.
      *              If false, there should be a non-matching value under the matched key.
      * @return the property filter.
      */
     public static PropertyFilter mapPropertyFilterForMultimaps(
-            @Nonnull String propName, @Nonnull String keyRegex, @Nonnull String valRegex, boolean match) {
+            @Nonnull String propName, @Nonnull String key, @Nonnull String value, boolean match) {
         return PropertyFilter.newBuilder()
                     .setPropertyName(propName)
                     .setMapFilter(
                             MapFilter.newBuilder()
-                                .setKeyPropertyRegex(keyRegex)
-                                .setValuePropertyRegex(valRegex)
+                                .setKey(key)
+                                .setValue(value)
                                 .setMatch(match)
                                 .build()
                     ).build();
@@ -218,7 +218,7 @@ public class SearchMapper {
 
 
     /**
-     * Convert a {@link Search.Entity} to a {@link ServiceEntityApiDTO}.
+     * Convert a {@link com.vmturbo.common.protobuf.search.Search.Entity} to a {@link ServiceEntityApiDTO}.
      * @param entity the entity to convert
      * @return the to resulting service entity API DTO.
      */

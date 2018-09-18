@@ -9,6 +9,7 @@ import static javaslang.Patterns.Success;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -25,12 +26,15 @@ import org.slf4j.LoggerFactory;
 
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
+import com.arangodb.ArangoDBException;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import javaslang.control.Either;
 import javaslang.control.Try;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
@@ -84,6 +88,20 @@ public class SearchHandler {
 
         executorService = Executors.newCachedThreadPool(
                 new ThreadFactoryBuilder().setNameFormat("search-handler-%d").build());
+    }
+
+    /**
+     * Search tags based on a {@link SearchTagsRequest} message.
+     *
+     * @param dbName the name of the live database.
+     * @param request the criteria for the tags returned.
+     * @return the tags returned in form of a map from keys to {@link TagValuesDTO} objects.
+     *         one {@link TagValuesDTO} object represents a list of values.
+     * @throws ArangoDBException database access failed.
+     */
+    public Map<String, TagValuesDTO> searchTags(String dbName, SearchTagsRequest request)
+            throws ArangoDBException {
+        return executor.executeTagCommand(dbName, request);
     }
 
     /**

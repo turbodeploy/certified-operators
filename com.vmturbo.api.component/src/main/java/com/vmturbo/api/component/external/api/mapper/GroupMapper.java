@@ -105,8 +105,8 @@ public class GroupMapper {
                     // the UI and it partitions it using the equals sign
                     // TODO: a solution based on two fields must be implemented (OM-38687)
                     final String[] kv = context.getFilter().getExpVal().split("=");
-                    final String value = kv.length != 2 || kv[1].isEmpty() ? ".*" : kv[1];
-                    final String key = kv.length != 2 || kv[0].isEmpty() ? ".*" : kv[0];
+                    final String value = kv.length < 2 ? "" : kv[1];
+                    final String key = kv.length < 1 ? "" : kv[0];
                     final PropertyFilter tagsFilter =
                             SearchMapper.mapPropertyFilterForMultimaps(
                                     TAGS, key, value, context.getFilter().getExpType().equals(EQUAL));

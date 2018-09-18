@@ -16,6 +16,7 @@ import javax.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.arangodb.ArangoDBException;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -37,6 +38,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
+import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceImplBase;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.result.ScopedEntity;
@@ -67,6 +70,10 @@ public class SearchService extends SearchServiceImplBase {
         this.searchHandler = checkNotNull(searchHandler);
         this.defaultPaginationLimit = defaultPaginationLimit;
         this.maxPaginationLimit = maxPaginationLimit;
+    }
+
+    public String getLiveDatabaseName() {
+        return TopologyDatabases.getDbName(lifecycleManager.getRealtimeDatabase().get());
     }
 
     @Override
@@ -226,6 +233,29 @@ public class SearchService extends SearchServiceImplBase {
             logger.error("Search entity failed for request {} with exception", request, e);
             final Status status = Status.ABORTED.withCause(e).withDescription(e.getMessage());
             responseObserver.onError(status.asRuntimeException());
+        }
+    }
+
+    /**
+     * Request tags from the repository.  Currently, no pagination is supported, for simplicity.
+     *
+     * @param request the request.
+     * @param responseObserver a stream observer that contains the result.
+     */
+    @Override
+    public void searchTags(
+            SearchTagsRequest request,
+            StreamObserver<SearchTagsResponse> responseObserver) {
+        try {
+            responseObserver.onNext(
+                    SearchTagsResponse.newBuilder()
+                            .putAllTags(
+                                searchHandler.searchTags(getLiveDatabaseName(), request))
+                            .build());
+            responseObserver.onCompleted();
+        } catch (Throwable e) {
+            responseObserver.onError(
+                    Status.ABORTED.withCause(e).withDescription(e.getMessage()).asRuntimeException());
         }
     }
 

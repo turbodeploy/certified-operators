@@ -5,9 +5,11 @@ import static javaslang.API.Case;
 import static javaslang.API.Match;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -21,6 +23,9 @@ import org.slf4j.LoggerFactory;
 
 import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
+import com.arangodb.ArangoDBException;
+import com.arangodb.entity.BaseDocument;
+import com.arangodb.model.AqlQueryOptions;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -28,8 +33,12 @@ import com.google.common.collect.ImmutableMap;
 import javaslang.collection.Seq;
 import javaslang.control.Try;
 
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
+import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
+import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
 import com.vmturbo.repository.graph.parameter.GraphCmd;
@@ -252,5 +261,79 @@ public class ArangoDBExecutor implements GraphDBExecutor {
         // We don't explicitly close the cursor because the server auto-closes it once the
         // cursor is out of results.
         return cursor.asListRemaining();
+    }
+
+    /**
+     * Fetches tags from the database.  Currently, no pagination is supported, for simplicity.
+     *
+     * @param databaseName name of the current live database.
+     * @param request the RPC request.
+     * @throws ArangoDBException for any problem communicating with the database.
+     */
+    @Override
+    @Nonnull
+    public Map<String, TagValuesDTO> executeTagCommand(
+            @Nonnull String databaseName,
+            @Nonnull SearchTagsRequest request) throws ArangoDBException {
+        final Collection<Long> entityOids = request.getEntitiesList();
+        final EnvironmentTypeEnum.EnvironmentType environmentType =
+                request.hasEnvironmentType() ? request.getEnvironmentType() : null;
+
+        // construct AQL query
+        final StringBuilder queryBuilder =
+                new StringBuilder("FOR service_entity IN seVertexCollection\n");
+        if (request.hasEntityType()) {
+            queryBuilder
+                    .append("FILTER service_entity.entityType == \"")
+                    .append(RepoObjectType.mapEntityType(request.getEntityType()))
+                    .append("\"\n");
+        }
+        if (entityOids != null && !entityOids.isEmpty()) {
+            queryBuilder.append("FILTER service_entity.oid IN [");
+            queryBuilder.append(
+                    entityOids
+                            .stream()
+                            .map(x -> "\"" + x.toString() + "\"")
+                            .collect(Collectors.joining(", ")));
+            queryBuilder.append("]\n");
+        }
+        if (environmentType != null) {
+            // TODO: add filter for environment type (ONPREM, CLOUD, HYBRID) when it is implemented
+        }
+        queryBuilder.append("FILTER LENGTH(ATTRIBUTES(service_entity.tags)) > 0\n");
+        queryBuilder.append("RETURN service_entity.tags");
+        final String query = queryBuilder.toString();
+        logger.info("AQL query constructed:\n {}\n", query);
+
+        // execute query
+        final ArangoCursor<BaseDocument> resultCursor =
+                arangoDatabaseFactory.getArangoDriver().db(databaseName).query(
+                    query, null, new AqlQueryOptions(), BaseDocument.class);
+
+        // convert results to a map from strings (key) to sets of strings (values)
+        // using sets here prevents duplicate key/value pairs
+        final Map<String, Set<String>> resultWithSetsOfValues = new HashMap<>();
+        while (resultCursor.hasNext()) {
+            final BaseDocument tags = resultCursor.next();
+            for (Entry<String, Object> e : tags.getProperties().entrySet()) {
+                final String key = e.getKey();
+                final List<String> values = (List<String>)e.getValue();
+                resultWithSetsOfValues.merge(
+                        key,
+                        new HashSet<>(values),
+                        (vs1, vs2) -> {
+                            vs1.addAll(vs2);
+                            return vs1;
+                        });
+            }
+        }
+
+        // convert the result to a map from strings (key) to a TagValuesDTO object (values)
+        final Map<String, TagValuesDTO> result = new HashMap<>();
+        for (Entry<String, Set<String>> e : resultWithSetsOfValues.entrySet()) {
+            result.put(e.getKey(), TagValuesDTO.newBuilder().addAllValues(e.getValue()).build());
+        }
+
+        return result;
     }
 }

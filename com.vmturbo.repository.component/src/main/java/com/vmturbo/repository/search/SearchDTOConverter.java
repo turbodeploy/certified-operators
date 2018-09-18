@@ -180,9 +180,9 @@ public class SearchDTOConverter {
                         Filter.mapPropertyFilter(
                                 propertyName,
                                 propertyFilter.getStringFilter().getMatch() ?
-                                        StringOperator.REGEX : StringOperator.NEGATIVE_REGEX,
-                                propertyFilter.getMapFilter().getKeyPropertyRegex(),
-                                propertyFilter.getMapFilter().getValuePropertyRegex(),
+                                        Filter.StringOperator.EQ : Filter.StringOperator.NEQ,
+                                propertyFilter.getMapFilter().getKey(),
+                                propertyFilter.getMapFilter().getValue(),
                                 propertyFilter.getMapFilter().getIsMultimap());
                 break;
 

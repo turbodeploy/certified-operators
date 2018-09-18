@@ -182,15 +182,17 @@ public class GroupResolverTest {
     @Test
     public void testTagFilters() throws Exception {
         testTagFilter(100L, "c", "v2", false, false);
-        testTagFilter(101L, "k.", "x", false, false);
-        testTagFilter(102L, "k1", "v.", true, false);
-        testTagFilter(103L, "k3", "v1", false, true);
-        testTagFilter(104L, "k.", "v.", true, true);
-        testTagFilter(105L, ".2", "v1", false, false);
+        testTagFilter(101L, "c", "", false, false);
+        testTagFilter(102L, "k1", "", true, false);
+        testTagFilter(103L, "k1", "v1", true, false);
+        testTagFilter(104L, "k1", "v1", true, false);
+        testTagFilter(105L, "k1", "v8", false, false);
+        testTagFilter(106L, "k2", "", true, false);
+        testTagFilter(107L, "k3", "v1", false, true);
     }
 
     private void testTagFilter(
-            long goid, String keyRegex, String valRegex, boolean entity11expected, boolean entity12expected
+            long goid, String key, String value, boolean entity11expected, boolean entity12expected
     ) throws Exception {
         final SearchParametersCollection searchParameters =
                 SearchParametersCollection.newBuilder()
@@ -200,8 +202,8 @@ public class GroupResolverTest {
                                 .setPropertyName("tags")
                                 .setMapFilter(
                                     MapFilter.newBuilder()
-                                        .setKeyPropertyRegex(keyRegex)
-                                        .setValuePropertyRegex(valRegex)
+                                        .setKey(key)
+                                        .setValue(value)
                                         .build()
                                 ).build()
                         )

@@ -24,8 +24,8 @@ import com.vmturbo.stitching.TopologyEntity;
 /**
  * A factory for constructing an appropriate filter to perform a search against the topology.
  *
- * TODO: For now only supports filtering on Oid, EntityType, and displayName (these are probably the
- * most commonly used properties in any case.
+ * TODO: For now only supports filtering on Oid, EntityType, displayName, and tags (these are probably the
+ * most commonly used properties in any case).
  *
  * TODO: A more extensible means of property filter creation.
  */
@@ -159,18 +159,23 @@ public class TopologyFilterFactory {
     private PropertyFilter mapFilter(
             @Nonnull final String propertyName,
             @Nonnull final Search.PropertyFilter.MapFilter mapCriteria) {
+        if (!mapCriteria.hasKey()) {
+            throw new IllegalArgumentException("Map filter without key value: " + mapCriteria.toString());
+        }
+        final Predicate<String> valueFilter;
+        if (mapCriteria.hasValue() && !mapCriteria.getValue().isEmpty()) {
+            valueFilter = v -> v.equals(mapCriteria.getValue());
+        } else {
+            valueFilter = v -> true;
+        }
+
         // currently only entity tags is a property of type map
         if (propertyName.equals("tags")) {
             return new PropertyFilter(te ->
                 te.getTopologyEntityDtoBuilder().getTagsMap().entrySet().stream()
                         .anyMatch(e ->
-                                e.getKey().matches(mapCriteria.getKeyPropertyRegex()) &&
-                                e.getValue().getValuesList().stream().anyMatch(v ->
-                                        v.matches(mapCriteria.getValuePropertyRegex()) ==
-                                        mapCriteria.getMatch()
-                                )
-                        )
-            );
+                                e.getKey().matches(mapCriteria.getKey()) &&
+                                e.getValue().getValuesList().stream().anyMatch(valueFilter)));
         } else {
             throw new IllegalArgumentException("Unknown map property named: " + propertyName);
         }

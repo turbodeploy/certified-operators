@@ -345,6 +345,13 @@ public class ServiceConfig {
     }
 
     @Bean
+    public TagsService tagsService() {
+        return new TagsService(
+                communicationConfig.searchServiceBlockingStub(),
+                communicationConfig.groupExpander());
+    }
+
+    @Bean
     public TargetsService targetService() {
         return new TargetsService(communicationConfig.topologyProcessor(),
                 Duration.ofSeconds(targetValidationTimeoutSeconds),
