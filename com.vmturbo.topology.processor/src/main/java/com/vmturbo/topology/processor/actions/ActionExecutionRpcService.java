@@ -182,7 +182,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
         // .ActionItemDTO.CommodityAttribute enum here -- we are matching on the ordinal number,
         // which is set up (but not enforced) to match in the two enums.
         actionBuilder.setCommodityAttribute(
-                CommodityAttribute.forNumber(resizeAction.getCommodityAtribute().getNumber()));
+                CommodityAttribute.forNumber(resizeAction.getCommodityAttribute().getNumber()));
 
         actionBuilder.setCurrentComm(commodityBuilderFromType(resizeAction.getCommodityType())
             .setCapacity(resizeAction.getOldCapacity()));

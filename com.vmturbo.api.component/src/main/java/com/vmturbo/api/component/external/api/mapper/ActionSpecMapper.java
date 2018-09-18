@@ -685,7 +685,7 @@ public class ActionSpecMapper {
                 + resize.getCommodityType().getType());
         actionApiDTO.getRisk().setReasonCommodity(commodityType.name());
         // Check if we need to describe the action as a "remove limit" instead of regular resize.
-        if (CommodityAttribute.LIMIT == resize.getCommodityAtribute()) {
+        if (resize.getCommodityAttribute() == CommodityAttribute.LIMIT) {
             actionApiDTO.setDetails(MessageFormat.format("Remove {0} limit on entity {1}",
                     readableCommodityTypes(Collections.singletonList(resize.getCommodityType())),
                     readableEntityTypeAndName(actionApiDTO.getTarget())));

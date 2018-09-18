@@ -1690,7 +1690,7 @@ public class TopologyConverter {
                                     .setOldCapacity(approximateLimit)
                                     .setNewCapacity(0)
                                     .setCommodityType(topologyCommodity)
-                                    .setCommodityAtribute(CommodityAttribute.LIMIT)
+                                    .setCommodityAttribute(CommodityAttribute.LIMIT)
                                     .build();
                         }
                         break;

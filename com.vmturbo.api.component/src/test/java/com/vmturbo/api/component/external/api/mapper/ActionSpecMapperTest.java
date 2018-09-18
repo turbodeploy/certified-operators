@@ -473,7 +473,7 @@ public class ActionSpecMapperTest {
                                 EntityType.VIRTUAL_MACHINE.getNumber()))
                         .setOldCapacity(10)
                         .setNewCapacity(0)
-                        .setCommodityAtribute(CommodityAttribute.LIMIT)
+                        .setCommodityAttribute(CommodityAttribute.LIMIT)
                         .setCommodityType(commodityMem))
                 .build();
 

@@ -163,7 +163,7 @@ message Resize {
     optional float new_capacity = 4;
 
     // which specific attribute of the commodity should be resized? defaults to "capacity".
-    optional topology.CommodityAttribute commodityAtribute = 5 [default = CAPACITY];
+    optional topology.CommodityAttribute commodity_attribute = 5 [default = CAPACITY];
 }
 
 // Activate an existing deactivated entity.

@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.GetHostInfoResp
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.HostInfo;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -463,6 +464,11 @@ public class ActionTranslator {
          */
         private Resize translateVcpuResizeInfo(@Nonnull final Resize originalResize,
                                                @Nonnull final HostInfo hostInfo) {
+            // don't apply the mhz translation for limit and reserved commodity attributes
+            if (originalResize.getCommodityAttribute() == CommodityAttribute.LIMIT
+                || originalResize.getCommodityAttribute() == CommodityAttribute.RESERVED) {
+                return originalResize;
+            }
             final Resize newResize = originalResize.toBuilder()
                 .setOldCapacity(Math.round(originalResize.getOldCapacity() / hostInfo.getCpuCoreMhz()))
                 .setNewCapacity((float)Math.ceil(originalResize.getNewCapacity() / hostInfo.getCpuCoreMhz()))
