@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,9 +23,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -43,7 +44,6 @@ import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
@@ -109,6 +109,18 @@ public class TargetsService implements ITargetsService {
                     .build();
 
     /**
+     * The probe categorys that we should hide and prevent users to create that kind of target on UI.
+     *
+     * TODO: We should define the hidden flag in each ProbeInfo instead of hard code here..
+     */
+    @VisibleForTesting
+    static final Set<String> HIDDEN_PROBE_CATEGORIES =
+            new ImmutableSet.Builder<String>()
+                    .add(ProbeCategory.BILLING.getCategory())
+                    .add(ProbeCategory.STORAGE_BROWSING.getCategory())
+                    .build();
+
+    /**
      * The default target status to use when there's no good UI mapping.
      */
     @VisibleForTesting
@@ -167,6 +179,7 @@ public class TargetsService implements ITargetsService {
 
             final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
             final List<TargetApiDTO> answer = targets.stream()
+                    .filter(removeHiddenTargets())
                     .map(targetInfo -> {
                         try {
                             return mapTargetInfoToDTO(targetInfo);
@@ -179,6 +192,15 @@ public class TargetsService implements ITargetsService {
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
+    }
+
+    /**
+     * Filter the targets list which we do not want to show users.
+     *
+     * @return Predicate<TargetInfo> True if the target is not hidden
+     */
+    private Predicate<TargetInfo> removeHiddenTargets() {
+        return targetInfo -> !targetInfo.isHidden();
     }
 
     /**
@@ -226,7 +248,7 @@ public class TargetsService implements ITargetsService {
         final List<TargetApiDTO> answer = new ArrayList<>(probes.size());
         for (ProbeInfo probeInfo : probes) {
             try {
-                if (isProbeLicensed(probeInfo)) {
+                if (isProbeLicensed(probeInfo) && !isProbeHidden(probeInfo)) {
                     answer.add(mapProbeInfoToDTO(probeInfo));
                 }
             } catch (FieldVerificationException e) {
@@ -263,6 +285,18 @@ public class TargetsService implements ITargetsService {
         }
         // default behavior is that the probe is licensed.
         return true;
+    }
+
+    /**
+     * Check the if the probe category should be hidden on UI and we should prevent users createing such
+     * kind of target.
+     *
+     * @param probeInfo the ProbeInfo to check.
+     * @return true, if the probe is hidden from users.
+     */
+    private boolean isProbeHidden(ProbeInfo probeInfo) {
+        final String category = probeInfo.getCategory();
+        return HIDDEN_PROBE_CATEGORIES.contains(category);
     }
 
 

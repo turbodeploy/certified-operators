@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -11,14 +12,13 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
-
-import io.swagger.annotations.ApiModelProperty;
-
 import com.vmturbo.topology.processor.api.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.dto.TargetInputFields;
+
+import io.swagger.annotations.ApiModelProperty;
 
 /**
  * Common class for Java objects representing request and response objects
@@ -139,6 +139,16 @@ public class TargetRESTApi {
         public String getStatus() {
             return status;
         }
+
+        @Override
+        public Optional<Long> getParentId() {
+            return spec.getParentId();
+        }
+
+        @Override
+        public boolean isHidden() {
+            return spec.getIsHidden();
+        }
     }
 
     /**
@@ -153,16 +163,24 @@ public class TargetRESTApi {
 
         @ApiModelProperty(value = "Probe to which the target belongs.")
         private final Long probeId;
+        @ApiModelProperty(value = "Parent target id of the target.")
+        private final Optional<Long> parentId;
+        @ApiModelProperty(value = "Is the target hidden from users.")
+        private final boolean isHidden;
 
 
         protected TargetSpec() {
             probeId = null;
+            parentId = Optional.empty();
+            isHidden = false;
         }
 
         public TargetSpec(@Nonnull final Long probeId,
                         @Nonnull final List<InputField> accountFields) {
             super(accountFields);
             this.probeId = Objects.requireNonNull(probeId);
+            this.parentId = Optional.empty();
+            this.isHidden = false;
         }
 
         public TargetSpec(@Nonnull final TopologyProcessorDTO.TargetSpec targetSpec) {
@@ -170,10 +188,21 @@ public class TargetRESTApi {
                             .map(accountValue -> new InputField(accountValue))
                             .collect(Collectors.toList()));
             this.probeId = targetSpec.getProbeId();
+            this.parentId = targetSpec.hasParentId() ? Optional.of(targetSpec.getParentId())
+                    : Optional.empty();
+            this.isHidden = targetSpec.getIsHidden();
         }
 
         public Long getProbeId() {
             return probeId;
+        }
+
+        public Optional<Long> getParentId() {
+            return parentId;
+        }
+
+        public boolean getIsHidden() {
+            return isHidden;
         }
 
         /**

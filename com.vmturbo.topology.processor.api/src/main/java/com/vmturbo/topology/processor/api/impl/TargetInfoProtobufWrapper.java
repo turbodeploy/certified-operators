@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.api.impl;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -48,5 +49,16 @@ public class TargetInfoProtobufWrapper implements TargetInfo {
     @Override
     public String getStatus() {
         return null;
+    }
+
+    @Override
+    public Optional<Long> getParentId() {
+        return targetInfo.getSpec().hasParentId() ? Optional.of(targetInfo.getSpec().getParentId())
+                : Optional.empty();
+    }
+
+    @Override
+    public boolean isHidden() {
+        return targetInfo.getSpec().getIsHidden();
     }
 }

@@ -4,7 +4,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -50,8 +49,8 @@ import org.springframework.web.context.WebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
-
 import com.vmturbo.api.controller.TargetsController;
 import com.vmturbo.api.dto.ErrorApiDTO;
 import com.vmturbo.api.dto.target.InputFieldApiDTO;
@@ -61,6 +60,7 @@ import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.utils.ParamStrings;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.AccountValue;
@@ -179,13 +179,28 @@ public class TargetsServiceTest {
         return newProbeInfo;
     }
 
-    private TargetInfo createMockTargetInfo(long probeId, long targetId, AccountValue... accountValues) throws Exception {
+    private TargetInfo createMockTargetInfo(long probeId, long targetId, AccountValue... accountValues)
+            throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         Mockito.when(targetInfo.getId()).thenReturn(targetId);
         Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
         Mockito.when(targetInfo.getAccountData()).thenReturn(
                         new HashSet<>(Arrays.asList(accountValues)));
         Mockito.when(targetInfo.getStatus()).thenReturn("Validated");
+        Mockito.when(targetInfo.isHidden()).thenReturn(false);
+        registeredTargets.put(targetId, targetInfo);
+        return targetInfo;
+    }
+
+    private TargetInfo createMockHiddenTargetInfo(long probeId, long targetId, AccountValue... accountValues)
+            throws Exception {
+        final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
+        Mockito.when(targetInfo.getId()).thenReturn(targetId);
+        Mockito.when(targetInfo.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetInfo.getAccountData()).thenReturn(
+                        new HashSet<>(Arrays.asList(accountValues)));
+        Mockito.when(targetInfo.getStatus()).thenReturn("Validated");
+        Mockito.when(targetInfo.isHidden()).thenReturn(true);
         registeredTargets.put(targetId, targetInfo);
         return targetInfo;
     }
@@ -280,6 +295,36 @@ public class TargetsServiceTest {
     }
 
     /**
+     * Tests for retrieval of all the targets with out the filtered targets, e.g. hidden targets.
+     *
+     * @throws Exception on exceptions occur.
+     */
+    @Test
+    public void testGetAllTargetsWithoutFilteredTargets() throws Exception {
+        final int hiddenTargetsCount = 1;
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        final Collection<TargetInfo> targets = new ArrayList<>();
+        targets.add(createMockTargetInfo(probe.getId(), 2));
+        targets.add(createMockTargetInfo(probe.getId(), 3));
+        targets.add(createMockHiddenTargetInfo(probe.getId(), 4));
+        Mockito.when(targets.iterator().next().getStatus()).thenReturn("Connection refused");
+
+        final MvcResult result = mockMvc
+                        .perform(get("/targets").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                        .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetApiDTO[] resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                        TargetApiDTO[].class);
+        Assert.assertEquals(targets.size() - hiddenTargetsCount, resp.length);
+        final Map<Long, TargetApiDTO> map = Arrays.asList(resp).stream()
+                .collect(Collectors.toMap(tad -> Long.valueOf(tad.getUuid()), tad -> tad));
+        for (TargetInfo target : targets) {
+            if (target.isHidden()) continue;
+            final TargetApiDTO dto = map.get(target.getId());
+            assertEquals(target, dto);
+        }
+    }
+
+    /**
      * Tests for retrieval of all the targets.
      *
      * @throws Exception on exceptions occur.
@@ -347,8 +392,6 @@ public class TargetsServiceTest {
      */
     @Test
     public void testAddTargetForAbsentProbe() throws Exception {
-        final long prpbeId = 1;
-        final long targetId = 2;
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType("probe-type");
         targetDto.setInputFields(Arrays.asList(inputField("key", "value")));
@@ -553,6 +596,47 @@ public class TargetsServiceTest {
                         .getContentAsString(), TargetApiDTO[].class));
         for (TargetApiDTO apiProbe : resp) {
             final ProbeInfo probeInfo = probeByType.get(apiProbe.getType());
+            Assert.assertEquals(probeInfo.getIdentifyingFields(), apiProbe.getIdentifyingFields());
+            Assert.assertNotNull("Unknown probe found: " + apiProbe.getType(), probeInfo);
+        }
+    }
+
+    /**
+     * Tests retrieval of all the probes, registered in TopologyProcessor, without the one belong to hidden
+     * category (billing, storage browsing).
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testGetProbesWithoutHiddenCategory() throws Exception {
+        final Set<String> hiddenProbeCategorys = new ImmutableSet.Builder<String>()
+                .add(ProbeCategory.BILLING.getCategory())
+                .add(ProbeCategory.STORAGE_BROWSING.getCategory())
+                .build();
+        final int hiddenProbesCount = 2;
+        final Collection<ProbeInfo> probesCollection = new ArrayList<>();
+        final String field1 = "field11";
+        final String field2 = "field22";
+        final String field3 = "field3";
+        probesCollection.add(createMockProbeInfo(1, "type1", "category1",
+                        createAccountDef(field1), createAccountDef("field12")));
+        probesCollection.add(createMockProbeInfo(2, "type2", ProbeCategory.BILLING.getCategory(),
+                        createAccountDef(field2), createAccountDef("field22")));
+        probesCollection.add(createMockProbeInfo(3, "type3", ProbeCategory.STORAGE_BROWSING.getCategory(),
+                        createAccountDef(field3)));
+        final Map<String, ProbeInfo> probeByType = probesCollection.stream().collect(
+                        Collectors.toMap(pr -> pr.getType(), pr -> pr));
+
+        final MvcResult result = mockMvc
+                        .perform(MockMvcRequestBuilders.get("/targets/specs").accept(
+                                        MediaType.APPLICATION_JSON_UTF8_VALUE))
+                        .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final List<TargetApiDTO> resp = Arrays.asList(GSON.fromJson(result.getResponse()
+                        .getContentAsString(), TargetApiDTO[].class));
+        Assert.assertEquals(probesCollection.size() - hiddenProbesCount, resp.size());
+        for (TargetApiDTO apiProbe : resp) {
+            final ProbeInfo probeInfo = probeByType.get(apiProbe.getType());
+            if (hiddenProbeCategorys.contains(probeInfo.getCategory())) continue;
             Assert.assertEquals(probeInfo.getIdentifyingFields(), apiProbe.getIdentifyingFields());
             Assert.assertNotNull("Unknown probe found: " + apiProbe.getType(), probeInfo);
         }
