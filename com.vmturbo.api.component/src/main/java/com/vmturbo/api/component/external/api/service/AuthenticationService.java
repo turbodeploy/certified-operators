@@ -54,6 +54,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 
 public class AuthenticationService implements IAuthenticationService {
 
+    public static final String ADMINISTRATOR = "ADMINISTRATOR";
     /**
      * The auth service host.
      */
@@ -141,11 +142,13 @@ public class AuthenticationService implements IAuthenticationService {
                                                            .port(authPort_)
                                                            .path("/users/initAdmin");
         AuthUserDTO dto = new AuthUserDTO(AuthUserDTO.PROVIDER.LOCAL, username, password, null,
-                                          null, ImmutableList.of("ADMINISTRATOR"));
+                                          null, ImmutableList.of(ADMINISTRATOR));
         try {
             restTemplate_.postForObject(builder.build().toUriString(), dto, String.class);
             UserApiDTO user = new UserApiDTO();
             user.setUsername(username);
+            // administrator user will always have "administrator" role.
+            user.setRoleName(ADMINISTRATOR);
             return user;
         } catch(RestClientException e) {
             throw new ServiceUnavailableException(AUTH_SERVICE_NOT_AVAILABLE_MSG);

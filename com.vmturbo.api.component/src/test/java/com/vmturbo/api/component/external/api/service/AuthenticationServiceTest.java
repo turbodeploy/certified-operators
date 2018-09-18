@@ -25,6 +25,8 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
+import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
@@ -42,6 +44,7 @@ public class AuthenticationServiceTest {
 
     public static final String AUTH_HOST = "AUTH_HOST";
     private static final int AUTH_PORT = 4321;
+    public static final String PASSWORD = "password";
     private final String username = "username";
     private final String group = "group";
     private final String ipAddress = "10.10.1.1";
@@ -82,6 +85,14 @@ public class AuthenticationServiceTest {
                 Optional.empty(), ipAddress);
         Assert.assertEquals(dto.getUser(), authUserDTO.get().getUser());
         Assert.assertEquals(dto.getRoles(), authUserDTO.get().getRoles());
+    }
+
+    @Test
+    public void testInitAdmin() throws Exception {
+        BaseApiDTO authUserDTO = testAuthenticationService.initAdmin(username,
+                PASSWORD);
+        Assert.assertEquals(AuthenticationService.ADMINISTRATOR, ((UserApiDTO)authUserDTO).getRoleName());
+        Assert.assertEquals(username, ((UserApiDTO)authUserDTO).getUsername());
     }
 
 
