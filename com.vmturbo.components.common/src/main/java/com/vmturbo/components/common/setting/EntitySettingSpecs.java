@@ -247,6 +247,15 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.PHYSICAL_MACHINE),
             string(), true),
+    /**
+     * Automation Policy for the Resize Workflow. The value is the name of an
+     * Orchestration workflow to invoke when a resize action is generated and executed.
+     */
+    ResizeActionWorkflow("resizeActionWorkflow", "Resize Workflow",
+            Collections.singletonList("automation"),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.STORAGE),
+            string(), true),
 
     /**
      * This Action Script action is added as a temporary work-around for a bug in the UI.

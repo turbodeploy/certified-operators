@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
@@ -170,7 +171,7 @@ public class Action implements ActionView {
                 recommendation.getExplanation());
     }
 
-    public Action(Action prototype, ActionDTO.Action.SupportLevel supportLevel) {
+    public Action(Action prototype, SupportLevel supportLevel) {
         this.actionPlanId = prototype.actionPlanId;
         this.actionTranslation = prototype.actionTranslation;
         this.decision = prototype.decision;
@@ -207,13 +208,11 @@ public class Action implements ActionView {
 
     @Override
     public String toString() {
-        StringBuffer buf = new StringBuffer();
-        buf.append("Action Id=").append(getId())
-           .append(", Type=").append(recommendation.getInfo().getActionTypeCase())
-           .append(", Mode=").append(getMode())
-           .append(", State=").append(getState())
-           .append(", Recommendation=").append(recommendation);
-        return buf.toString();
+        return "Action Id=" + getId() +
+                ", Type=" + recommendation.getInfo().getActionTypeCase() +
+                ", Mode=" + getMode() +
+                ", State=" + getState() +
+                ", Recommendation=" + recommendation;
     }
 
     /**
@@ -267,24 +266,44 @@ public class Action implements ActionView {
     }
 
     /**
-     * Get the mode of the action. The action mode is established by checking the policy for the action
-     * when it is received by the action orchestrator.
+     * Calculate the {@link ActionMode} of the action. Check first for a Workflow Action, where
+     * the Action Mode is determined by the Workflow Policy. If not a Workflow Action,
+     * then the mode is determined by the  strictest policy that applies to the entity
+     * involved in the action.
      *
-     * The mode is determined by the strictest policy that applies to any entity involved in the action.
-     * The default mode is RECOMMEND for actions of unrecognized type, and MANUAL for actions of
-     * recognized type with sufficient SupportLevel.
      * @return The {@link ActionMode} that currently applies to the action.
      */
     @Override
     public ActionMode getMode() {
+        return ActionModeCalculator.calculateWorkflowActionMode(recommendation, entitySettings)
+                .orElseGet(this::getClippedActionMode);
+    }
+
+
+    /**
+     * Calculate the {@link ActionMode} for this action based on the mode default for this action,
+     * limited by (clipped by) the action modes supported by the probe for this action.
+     *
+     * The mode is determined by the strictest policy that applies to any entity involved in the action.
+     * The default mode is RECOMMEND for actions of unrecognized type, and MANUAL for actions of
+     * recognized type with sufficient SupportLevel.
+     *
+     * @return The {@link ActionMode} that currently applies to the action.
+     * @throws IllegalArgumentException if the Action SupportLevel is not supported.
+     */
+    private ActionMode getClippedActionMode() {
         switch (recommendation.getSupportingLevel()) {
             case UNSUPPORTED:
                 return ActionMode.DISABLED;
             case SHOW_ONLY:
-                final ActionMode mode = ActionModeCalculator.calculateActionMode(recommendation, entitySettings);
-                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE) ? ActionMode.RECOMMEND : mode;
+                final ActionMode mode = ActionModeCalculator.calculateActionMode(
+                        recommendation, entitySettings);
+                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
+                        ? ActionMode.RECOMMEND
+                        : mode;
             case SUPPORTED:
-                return ActionModeCalculator.calculateActionMode(recommendation, entitySettings);
+                return ActionModeCalculator.calculateActionMode(
+                        recommendation, entitySettings);
             default:
                 throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
         }
@@ -450,7 +469,7 @@ public class Action implements ActionView {
      *
      * @return should be the shown or not.
      */
-    public ActionDTO.Action.SupportLevel getSupportLevel() {
+    public SupportLevel getSupportLevel() {
         return recommendation.getSupportingLevel();
     }
 

@@ -88,10 +88,12 @@ public class ActionExecutor implements ActionExecutionListener {
     @Nonnull
     public Map<Action, Long> getProbeIdsForActions(@Nonnull Collection<Action> actions)
             throws EntitiesResolutionException {
+        // from Set(action-recommendations), make a map from action-id -> ( entity-id -> EntityInfo )
         final Map<Long, Map<Long, EntityInfo>> actionsInvolvedEntities =
                 getActionsInvolvedEntities(actions.stream()
                         .map(Action::getRecommendation)
                         .collect(Collectors.toSet()));
+        // calculate map from action-recommendation-id -> action-recommendation
         final Map<Long, ActionDTO.Action> recomendationsById = actions.stream()
                 .collect(Collectors.toMap(action -> action.getRecommendation().getId(),
                         Action::getRecommendation));
@@ -105,12 +107,10 @@ public class ActionExecutor implements ActionExecutionListener {
     }
 
     /**
-     * Get the ID of the probe or target for the {@link ExecutableStep} for a
-     * {@link ActionDTO.Action} recommendation.
+     * Get the ID of the probe or target for the {@link ExecutableStep} for an {@link Action}.
      *
-     * @param action Action which target or probe id it returnes.
-     *         probe id.
-     * @return targetId or probeId for the action.
+     * @param action TopologyProcessor Action
+     * @return targetId for the action.
      * @throws EntitiesResolutionException if entities related to the target failed to
      *         resolve in TopologyProcessor
      * @throws UnsupportedActionException if action is not supported by XL
@@ -127,11 +127,22 @@ public class ActionExecutor implements ActionExecutionListener {
                         " has no overlapping targets between the entities involved.")));
     }
 
+    /**
+     * Given a map from action-recommendation-id to action-recommendation and a
+     * map action-id -> ( entity-id -> EntityInfo ), determine a map
+     * (action-recommendation-id -> probe-id).
+     *
+     *
+     * @param actions a map from action-id -> ActionDTO.Action
+     * @param actionsInvolvedEntities a map from action-id -> ( entity-id -> EntityInfo )
+     * @return a map from Long -> Long of action recommendation id -> probe id
+     */
     @Nonnull
     private Map<Long, Long> getActionDTOsProbes(@Nonnull Map<Long, ActionDTO.Action> actions,
             @Nonnull Map<Long, Map<Long, EntityInfo>> actionsInvolvedEntities) {
         final Map<Long, Long> actionDTOsProbes = new HashMap<>();
         for (Map.Entry<Long, Map<Long, EntityInfo>> entry : actionsInvolvedEntities.entrySet()) {
+            // for each action, determine the target for this action
             final Optional<Long> targetId =
                     getEntitiesTarget(actions.get(entry.getKey()), entry.getValue());
             // TODO this logic should be changed when support for cross-target actions is added
@@ -156,6 +167,7 @@ public class ActionExecutor implements ActionExecutionListener {
     /**
      * Gets the id of the target that the provided entities have in common.
      * (If there are multiple targets, one is selected by the targetResolver.)
+     *
      * @param action action to be passed to the targetResolver if conflict occurs
      * @param involvedEntityInfos map of entity id to entity info.
      * @return id of the common target
@@ -163,6 +175,7 @@ public class ActionExecutor implements ActionExecutionListener {
     @Nonnull
     public Optional<Long> getEntitiesTarget(@Nonnull ActionDTO.Action action,
             @Nonnull Map<Long, EntityInfo> involvedEntityInfos) {
+        // calculate overlapping targets for this action - to be improved, see Jeff
         Set<Long> overlappingTarget = null;
         for (final EntityInfo info : involvedEntityInfos.values()) {
             final Set<Long> curInfoTargets = new HashSet<>(info.getTargetIdToProbeIdMap().keySet());

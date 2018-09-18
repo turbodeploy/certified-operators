@@ -56,7 +56,8 @@
       "defaultCategory": "Automation",
       "settings": [
         "suspendActionWorkflow",
-        "provisionActionWorkflow"
+        "provisionActionWorkflow",
+        "resizeActionWorkflow"
       ]
     },
     "marketsettingsmanager": {
