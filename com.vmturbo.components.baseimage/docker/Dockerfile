@@ -1,4 +1,4 @@
-FROM ubuntu:18.10
+FROM ubuntu:17.10
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 RUN apt-get update -q -y && apt-get upgrade -q -y && \
