@@ -88,14 +88,14 @@ public class SearchIntegration {
         System.out.println("====> Results: " + results);
 
         // Run via Pipeline
-        final Either<Throwable, Collection<String>> pipelineResults =
+        final Either<Throwable, java.util.List<String>> pipelineResults =
                 pipeline.run(context, Collections.emptyList());
         System.out.println("====> Pipeline Results: " + pipelineResults);
 
         // Run via Pipeline with a function.
-        final Either<Throwable, ArangoCursor<ServiceEntityRepoDTO>> pipelineWithEntities =
+        final Either<Throwable, java.util.List<ServiceEntityRepoDTO>> pipelineWithEntities =
                 pipeline.run(context, ArangoDBSearchComputation.toEntities, Collections.emptyList());
-        System.out.println("====> Pipeline with entities: " + pipelineWithEntities.map(ArangoCursor::asListRemaining));
+        System.out.println("====> Pipeline with entities: " + pipelineWithEntities);
     }
 
     @Test
@@ -139,10 +139,9 @@ public class SearchIntegration {
                 .executorService(executorService)
                 .build();
 
-        final Either<Throwable, ArangoCursor<ServiceEntityRepoDTO>> resultsEntities =
+        final Either<Throwable, java.util.List<ServiceEntityRepoDTO>> resultsEntities =
                 pipeline.run(context, ArangoDBSearchComputation.toEntities, Collections.emptyList());
-        System.out.println(resultsEntities.map(cursor -> {
-            final java.util.List<ServiceEntityRepoDTO> entities = cursor.asListRemaining();
+        System.out.println(resultsEntities.map(entities -> {
             System.out.println("Entities: " + entities.size());
             return entities;
         }));
@@ -202,11 +201,11 @@ public class SearchIntegration {
                                                         arangoDatabaseFactory,
                                                         arangoDBExecutor);
 
-        Either<Throwable, Collection<String>> result = searchHandler.searchEntityOids(
+        Either<Throwable, java.util.List<String>> result = searchHandler.searchEntityOids(
                 Arrays.asList(repr1, repr2, repr3), db, Optional.empty(), Collections.emptyList());
         System.out.println("====> Search OID Results: " + result);
 
-        Either<Throwable, Collection<ServiceEntityRepoDTO>> result2 = searchHandler.searchEntities(
+        Either<Throwable, java.util.List<ServiceEntityRepoDTO>> result2 = searchHandler.searchEntities(
                 Arrays.asList(repr1, repr2, repr3), db, Optional.empty(), Collections.emptyList());
         System.out.println("====> Search entity Results: " + result2);
     }

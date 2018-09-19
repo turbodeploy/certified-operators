@@ -40,16 +40,11 @@ public class SearchPipeline<CTX> {
      *             entity oids, the search results will be subset of those entity oids.
      * @return The output of the pipeline or an error.
      */
-    public Either<Throwable, Collection<String>> run(final CTX context, final Collection<String> oids) {
-        return run(context, ids -> new SearchStage<CTX, Collection<String>, Collection<String>>() {
-            @Override
-            public SearchStageComputation<CTX, Collection<String>, Collection<String>> computation() {
-                return (ctx, in) -> {
-                    // Strip the vertex prefix with the end of a '/'
-                    final int prefixIndex = serviceEntityVertex.length() + 1;
-                    return ids.stream().map(id -> id.substring(prefixIndex)).collect(Collectors.toList());
-                };
-            }
+    public Either<Throwable, List<String>> run(final CTX context, final Collection<String> oids) {
+        return run(context, ids -> () -> (ctx, in) -> {
+            // Strip the vertex prefix with the end of a '/'
+            final int prefixIndex = serviceEntityVertex.length() + 1;
+            return ids.stream().map(id -> id.substring(prefixIndex)).collect(Collectors.toList());
         }, oids);
     }
 
@@ -69,7 +64,8 @@ public class SearchPipeline<CTX> {
             final Collection<String> oids) {
         try {
             final Collection<String> inputs = oids.isEmpty() ? Collections.singleton(ALL_ENTITIES) : oids;
-            final SearchStage<CTX, Collection<String>, RET> pipeline = SearchStage.fold(stages).flatMap(fn);
+            final SearchStage<CTX, Collection<String>, RET> pipeline = SearchStage.fold(stages)
+                .flatMap(fn);
             final RET results = pipeline.run(context, inputs);
             return Either.right(results);
         } catch (RuntimeException e) {

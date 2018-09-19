@@ -3,6 +3,7 @@ package com.vmturbo.repository.search;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -130,36 +131,81 @@ public class ArangoDBSearchComputation implements SearchStageComputation<SearchC
      */
     public static Function<Collection<String>, SearchStage<SearchComputationContext,
                                                            Collection<String>,
-                                                           ArangoCursor<ServiceEntityRepoDTO>>> toEntities =
-            ids -> () -> (ctx, in) -> {
+                                                           List<ServiceEntityRepoDTO>>> toEntities =
+            // The IDs that come in are qualified with the collection name.
+            vertexIds -> () -> (ctx, in) -> {
                 final String query = "FOR se IN @@serviceEntityCollection\n" +
                                      "FILTER se._id IN @inputs\n" +
-                                     "RETURN { uuid: se.uuid," +
-                                               "oid: se.oid," +
-                                               "displayName: se.displayName," +
-                                               "state: se.state," +
-                                               "severity: se.severity," +
-                                               "entityType: se.entityType" +
+                                     "RETURN { \"vertexId\" : se._id, " +
+                                              "\"dto\" : {" +
+                                                   "uuid: se.uuid," +
+                                                   "oid: se.oid," +
+                                                   "displayName: se.displayName," +
+                                                   "state: se.state," +
+                                                   "severity: se.severity," +
+                                                   "entityType: se.entityType" +
+                                               "}" +
                                              "}";
 
                 final Map<String, Object> bindVars = ImmutableMap.of(
                         "@serviceEntityCollection", ctx.entityCollectionName(),
-                        "inputs", ids);
+                        "inputs", vertexIds);
 
-                final Future<ArangoCursor<ServiceEntityRepoDTO>> cursor =
+                final Future<ArangoCursor<ToEntityQueryReturn>> cursor =
                         Future.of(ctx.executorService(), () -> {
                             LOG.debug("pipeline ({}) converting to entities using {}", ctx.traceID(), query);
 
                             return ctx.arangoDB()
                                     .db(ctx.databaseName())
-                                    .query(query, bindVars, null, ServiceEntityRepoDTO.class);
+                                    .query(query, bindVars, null, ToEntityQueryReturn.class);
                         });
 
                 cursor.onFailure(err ->
                         LOG.error("Encountered exception while getting to ServiceEntities", err));
 
-                return cursor.get();
+                // To preserve the results of pagination, we need to return the ServiceEntityRepoDTOs
+                // in the same order that the vertexIds were in.
+
+                // Need to arrange results by the vertex ID (the _id field) in order to
+                // match them against the input ids.
+                final Map<String, ServiceEntityRepoDTO> repoDtosByVertexId = new HashMap<>();
+                cursor.get().forEachRemaining(queryReturn -> repoDtosByVertexId.put(queryReturn.getVertexId(), queryReturn.getDto()));
+
+                return vertexIds.stream()
+                        .map(repoDtosByVertexId::get)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
             };
+
+    /**
+     * Utility class for the {@link ArangoDBSearchComputation#toEntities} AQL query, to allow
+     * returning the "_id" field alongside the {@link ServiceEntityRepoDTO}.
+     */
+    public static class ToEntityQueryReturn {
+
+        /**
+         * The ID of the vertex in arango. This is the "_id" field.
+         */
+        private String vertexId;
+
+        private ServiceEntityRepoDTO dto;
+
+        public String getVertexId() {
+            return vertexId;
+        }
+
+        public void setVertexId(final String id) {
+            this.vertexId = id;
+        }
+
+        public ServiceEntityRepoDTO getDto() {
+            return dto;
+        }
+
+        public void setDto(final ServiceEntityRepoDTO dto) {
+            this.dto = dto;
+        }
+    }
 
     @Override
     public boolean equals(Object o) {

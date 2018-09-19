@@ -90,14 +90,15 @@ public class SearchHandlerTest {
         given(arangoDatabaseFactory.getArangoDriver()).willReturn(arangoDB);
         given(arangoDB.db(db)).willReturn(arangoDatabase);
         given(arangoDatabase.query(any(), any(), any(), any())).willReturn(arangoCursor);
-        given(arangoCursor.asListRemaining()).willReturn(Arrays.asList("1", "2"));
+        given(arangoCursor.asListRemaining()).willReturn(
+                Arrays.asList(graphDefinition.getServiceEntityVertex() + "/1", graphDefinition.getServiceEntityVertex() + "/2"));
     }
 
     @Test
     public void testSearchEntityOidsWithException() {
         given(arangoDB.db(any())).willThrow(new RuntimeException());
 
-        final Either<Throwable, Collection<String>> result =
+        final Either<Throwable, java.util.List<String>> result =
                         searchHandler.searchEntityOids(reprs, db, Optional.empty(), Collections.emptyList());
 
         assertTrue("The result should be an exception", result.isLeft());
@@ -136,7 +137,7 @@ public class SearchHandlerTest {
     public void testSearchEntitiesWithException() {
         given(arangoDB.db(any())).willThrow(new RuntimeException());
 
-        final Either<Throwable, Collection<ServiceEntityRepoDTO>> result =
+        final Either<Throwable, java.util.List<ServiceEntityRepoDTO>> result =
                         searchHandler.searchEntities(reprs, db, Optional.empty(), Collections.emptyList());
 
         assertTrue("The result should be an exception", result.isLeft());

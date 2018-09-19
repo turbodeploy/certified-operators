@@ -24,7 +24,6 @@ import javax.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.arangodb.ArangoCursor;
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -111,7 +110,7 @@ public class SearchHandler {
      * @param database The database to search for entities.
      * @return The result of OID list from database or an exception.
      */
-    public Either<Throwable, Collection<String>> searchEntityOids(
+    public Either<Throwable, List<String>> searchEntityOids(
                           @Nonnull final List<AQLRepr> aqlReprs,
                           @Nonnull final String database,
                           @Nonnull final Optional<PaginationParameters> paginationParams,
@@ -133,7 +132,7 @@ public class SearchHandler {
      * @param database The database to search for entities.
      * @return The result of {@link ServiceEntityRepoDTO} list from database or an exception.
      */
-    public Either<Throwable, Collection<ServiceEntityRepoDTO>> searchEntities(
+    public Either<Throwable, List<ServiceEntityRepoDTO>> searchEntities(
             @Nonnull final List<AQLRepr> aqlReprs,
             @Nonnull final String database,
             @Nonnull final Optional<PaginationParameters> paginationParams,
@@ -143,14 +142,9 @@ public class SearchHandler {
         final ArangoDB arangoDB = arangoDatabaseFactory.getArangoDriver();
         final List<String> oidsWithPrefix = generateOidsWithPrefix(oids);
 
-        try(DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()) {
-            final Either<Throwable, ArangoCursor<ServiceEntityRepoDTO>> cursorResult =
-                            pipeline(fusedAQLReprs).run(context(arangoDB, database),
-                                                   ArangoDBSearchComputation.toEntities, oidsWithPrefix);
-            // TODO: We may want to reify the ArangoCursor later to reduce memory pressure.
-            // We don't close the cursor explicitly because it gets destroyed on the server
-            // after iterating over the results.
-            return cursorResult.map(ArangoCursor::asListRemaining);
+        try (DataMetricTimer timer = SEARCH_PIPELINE_DURATION_SUMMARY.startTimer()) {
+            return pipeline(fusedAQLReprs).run(context(arangoDB, database),
+                                   ArangoDBSearchComputation.toEntities, oidsWithPrefix);
         }
     }
 

@@ -347,14 +347,12 @@ public class SearchService implements ISearchService {
     private SearchPaginationResponse searchEntitiesByParameters(@Nonnull GroupApiDTO inputDTO,
                                                                 @Nullable String nameQuery,
                                                                 @Nonnull SearchPaginationRequest paginationRequest) {
-        List<SearchParameters> searchParameters =
-            groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), nameQuery);
-
-        // Convert any ClusterMemberFilters to static member filters
-        Search.SearchEntityOidsRequest.Builder searchRequestBuilder = Search.SearchEntityOidsRequest.newBuilder();
-        for (SearchParameters params : searchParameters) {
-            searchRequestBuilder.addSearchParameters(resolveClusterFilters(params));
-        }
+        final List<SearchParameters> searchParameters =
+            groupMapper.convertToSearchParameters(inputDTO, inputDTO.getClassName(), nameQuery)
+                .stream()
+                // Convert any cluster membership filters to property filters.
+                .map(this::resolveClusterFilters)
+                .collect(Collectors.toList());
 
         // match only the entity uuids which are part of the group or cluster
         // defined in the scope
@@ -367,17 +365,22 @@ public class SearchService implements ISearchService {
         if (!expandedIds.isEmpty() && !isGlobalScope) {
             allEntityOids.addAll(expandedIds);
         }
-        final SearchEntityOidsRequest searchRequest = searchRequestBuilder
-                .addAllEntityOid(allEntityOids)
-                .build();
+
         if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
+            final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
+                    .addAllSearchParameters(searchParameters)
+                    .addAllEntityOid(allEntityOids)
+                    .build();
             return getServiceEntityPaginatedWithSeverity(inputDTO, nameQuery, paginationRequest,
-                    expandedIds, searchRequest);
+                    expandedIds, searchOidsRequest);
         } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
+            final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
+                    .addAllSearchParameters(searchParameters)
+                    .addAllEntityOid(allEntityOids)
+                    .build();
             return getServiceEntityPaginatedWithUtilization(inputDTO, nameQuery, paginationRequest,
-                    expandedIds, searchRequest, isGlobalScope);
+                    expandedIds, searchOidsRequest, isGlobalScope);
         } else {
-            // TODO: Implement search entities order by utilization and cost.
             final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
                     .addAllSearchParameters(searchParameters)
                     .addAllEntityOid(allEntityOids)
