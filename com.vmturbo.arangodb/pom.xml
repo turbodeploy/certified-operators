@@ -23,7 +23,7 @@
                         <version>${docker.maven.plugin.version}</version>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/${artifactId}</imageName>
+                            <imageName>${docker.image.prefix}/arangodb</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
                             </imageTags>
