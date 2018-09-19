@@ -47,8 +47,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>/${docker.image.prefix}/${artifactId}</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/${artifactId}:${project.version}</newName>
+                                    <image>/${docker.image.prefix}/arangodb</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/arangodb:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
