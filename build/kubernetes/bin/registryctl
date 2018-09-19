@@ -9,10 +9,12 @@ version=${3}
 usage()
 {
 	echo
-        echo "Useage: `basename $0` ip                 -> show service ip of registry server"
-        echo "Useage: `basename $0` tag image version  -> tag image version in the local registry"
-        echo "Useage: `basename $0` push image version -> push tagged version into kube private registry"
-        echo "Useage: `basename $0` bulk all version   -> push all tagged version into kube private registry"
+        echo "Useage: `basename $0` ip                     -> show service ip of registry server"
+        echo "Useage: `basename $0` tag image version      -> tag image version in the local registry"
+        echo "Useage: `basename $0` push image version     -> push tagged version into kube private registry"
+        echo "Useage: `basename $0` bulk all version       -> push all tagged version into kube private registry"
+        echo "Useage: `basename $0` upgrade image version  -> push all tagged version into kube private registry"
+        echo "Useage: `basename $0` upgrade all version    -> push all tagged version into kube private registry"
 	echo
         exit -1
 }
@@ -49,7 +51,6 @@ fi
 # Push to the private registry
 if [ "${registry}" == "bulk" ]
 then
-  echo HERE
   [ -z "${image}" ] && usage
   [ -z "${version}" ] && usage
   bulkImages=( $(docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
@@ -58,3 +59,30 @@ then
     docker push localhost:5000/turbonomic/${dockerImage}:${version}
   done
 fi
+
+# Upgrade images in the private registry
+if [ "${registry}" == "upgrade" ] && [ "${image}" != "all" ]
+then
+  [ -z "${version}" ] && usage
+  tgz=$(ls /opt/xl/kubernetes/images/${version} | grep "${image}")
+  docker load < /opt/xl/kubernetes/images/${version}/${tgz}
+  bulkImages=( $(docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
+  tagImage=$(docker images  | grep -w ${image} | grep ${version} | grep localhost | awk '{print $3}')
+  docker push localhost:5000/turbonomic/${image}:${version}
+fi
+
+# Upgrade images in the private registry
+if [ "${registry}" == "upgrade" ] && [ "${image}" == "all" ]
+then
+  [ -z "${version}" ] && usage
+  for tgz in $(ls /opt/xl/kubernetes/images/${version})
+  do
+    docker load < /opt/xl/kubernetes/images/${version}/${tgz}
+  done
+  bulkImages=( $(docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
+  for dockerImage in "${bulkImages[@]}"
+  do
+    docker push localhost:5000/turbonomic/${dockerImage}:${version}
+  done
+fi
+

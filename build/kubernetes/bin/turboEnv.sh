@@ -1,4 +1,4 @@
-#!/bin/bash 
+#!/bin/bash
 
 # turboEnv.sh
 # Set up the kubernetes namespace, network policies and registry to use.
@@ -8,6 +8,7 @@ source /opt/local/etc/turbo.conf
 
 # Set basepath for xl yaml
 yamlBasePath="/opt/xl/kubernetes/yaml"
+imageBasePath="/opt/xl/kubernetes/images"
 
 declare -a node=(${node})
 
@@ -20,33 +21,42 @@ done
 tLen=${#node[@]}
 
 # Set up the storage class for gluster
-export HEKETI_CLI_SERVER=$(kubectl get svc/heketi --template 'http://{{.spec.clusterIP}}:{{(index .spec.ports 0).port}}')
-cp ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml.template ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
-sed -i "s#HEKETI_CLI_SERVER#${HEKETI_CLI_SERVER}#g" ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
-if [ ${tLen} = 1 ]
-then
-  sed -i "s#GLUSTER_REPLICA#none#g" ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
-else
-  sed -i "s#GLUSTER_REPLICA#replicate:${tLen}#g" ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
-fi
-kubectl create -f ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
-echo "heketi api server = ${HEKETI_CLI_SERVER}"
+storageClass=$(kubectl get sc)
+if [ -z "${storageClass}" ]
+then 
+  export HEKETI_CLI_SERVER=$(kubectl get svc/heketi --template 'http://{{.spec.clusterIP}}:{{(index .spec.ports 0).port}}')
+  cp ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml.template ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
+  sed -i "s#HEKETI_CLI_SERVER#${HEKETI_CLI_SERVER}#g" ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
+  if [ ${tLen} = 1 ]
+  then
+    sed -i "s#GLUSTER_REPLICA#none#g" ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
+  else
+    sed -i "s#GLUSTER_REPLICA#replicate:${tLen}#g" ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
+  fi
+  kubectl create -f ${yamlBasePath}/storage-class/gluster-heketi-sc.yaml
+  echo "heketi api server = ${HEKETI_CLI_SERVER}"
 
 # Set gluster as the default storage class
 kubectl patch storageclass gluster-heketi -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+fi
 
 # Set namespace
-kubectl create -f ${yamlBasePath}/namespace/turbo.yaml
-kubectl config set-context turbo --namespace=${namespace}
-kubectl config use-context turbo
-
-# Set gluster as the default storage class
-kubectl patch storageclass gluster-heketi -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+checkNameSpace=$(kubectl config get-contexts turbo | grep turbo)
+if [ -z "${checkNameSpace}" ]
+then
+  kubectl create -f ${yamlBasePath}/namespace/turbo.yaml
+  kubectl config set-context turbo --namespace=${namespace}
+  kubectl config use-context turbo
+fi
 
 # Set network poilcy
-kubectl create -f ${yamlBasePath}/network-policy
-
+zonePolicy=$(kubectl get networkpolicy secure-zone-access)
+if [ -z "${zonePolicy}" ]
+then
+  kubectl create -f ${yamlBasePath}/network-policy
+fi
 # Get current image (this will have to be adjusted if we move to individual versioning
+mkdir -p ${imageBasePath}/${turboVersion}
 if [ x$registry == xlocalhost ]
 then
   currentVersion=$(grep "image:" ${yamlBasePath}/base/api.yaml | awk -F: '{print $4}')
