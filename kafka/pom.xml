@@ -25,7 +25,7 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/${artifactId}</imageName>
+                            <imageName>${docker.image.prefix}/kafka</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
                             </imageTags>
@@ -49,8 +49,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/${artifactId}</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/${artifactId}:${project.version}</newName>
+                                    <image>${docker.image.prefix}/kafka</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/kafka:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
@@ -60,7 +60,7 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/${artifactId}</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/kafka</imageName>
                                 </configuration>
                             </execution>
                         </executions>
