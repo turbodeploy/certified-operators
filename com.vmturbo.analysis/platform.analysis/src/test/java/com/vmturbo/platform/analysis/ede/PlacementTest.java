@@ -439,7 +439,8 @@ public class PlacementTest {
 
             // Add buyers
             for (@SuppressWarnings("unused") Object[][] dummy : buyerConfigurations) {
-                e.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY).getSettings().setQuoteFactor(0.999);
+                e.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY).getSettings().setQuoteFactor(0.999)
+                .setMoveCostFactor(0);
             }
 
             // Add sellers
@@ -726,7 +727,8 @@ public class PlacementTest {
 
             // Add buyers
             for (@SuppressWarnings("unused") Object[][] dummy : buyerConfigurations) {
-                e.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY).getSettings().setQuoteFactor(0.999);
+                e.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY).getSettings().setQuoteFactor(0.999)
+                .setMoveCostFactor(0);
             }
 
             // Add sellers

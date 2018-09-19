@@ -35,6 +35,7 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     private double maxDesiredUtilization_ = 1.0;
     private double minDesiredUtilization_ = 0.0;
     private double quoteFactor_ = 0.75f;
+    private double moveCostFactor_ = 0.005f;
     @Nullable private CostFunction costFunction_ = null;
     // default quote function is sum of commodity
     private QuoteFunction quoteFunction_ = QuoteFunctionFactory.sumOfCommodityQuoteFunction();
@@ -158,6 +159,12 @@ final class TraderWithSettings extends Trader implements TraderSettings {
     }
 
     @Override
+    @Pure
+    public double getMoveCostFactor(@ReadOnly TraderWithSettings this) {
+        return moveCostFactor_;
+    }
+
+    @Override
     @Deterministic
     public @NonNull TraderWithSettings setSuspendable(boolean suspendable) {
         suspendable_ = suspendable;
@@ -230,6 +237,14 @@ final class TraderWithSettings extends Trader implements TraderSettings {
         checkArgument(quoteFactor > 0.0, "quoteFactor = " + quoteFactor);
         checkArgument(quoteFactor <= 1.0, "quoteFactor = " + quoteFactor);
         quoteFactor_ = quoteFactor;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull TraderWithSettings setMoveCostFactor(double moveCostFactor) {
+        checkArgument(moveCostFactor >= 0.0);
+        moveCostFactor_ = moveCostFactor;
         return this;
     }
 

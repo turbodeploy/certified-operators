@@ -39,6 +39,7 @@ public class Placement {
 
     public static int globalCounter = 0;
     private static boolean printMaxPlacementIterations = true;
+    public static final int MOVE_COST_FACTOR_MAX_COMM_SIZE = 10;
 
     /**
      * Returns a list of recommendations to optimize the placement of all traders in the economy.
@@ -99,7 +100,7 @@ public class Placement {
                                                                         List<ShoppingList> sls) {
         return generatePlacementDecisions(economy, sls);
     }
-    
+
     /**
      * Returns a list of recommendations to optimize the placement of a trader either using shop
      * together or shop alone algorithm depending on the trader's setting.
@@ -198,7 +199,11 @@ public class Placement {
 
         // move, and update economy and state
         PlacementResults placementResults = PlacementResults.empty();
-        if (cheapestQuote < currentQuote * buyer.getSettings().getQuoteFactor()) {
+        // Move will require destination provider to be cheaper than current host by quote factor
+        // and move cost factor.
+        if (Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, shoppingList.getBasket().size())
+                        * buyer.getSettings().getMoveCostFactor() + cheapestQuote
+                        < currentQuote * buyer.getSettings().getQuoteFactor()) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = 0;
@@ -359,8 +364,11 @@ public class Placement {
                         : traderIds(minimizer.getBestSellers().stream());
         if (minimizer != null && !currentSuppliersIds.equals(bestSellerIds)) {
             double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
-            if (minimizer.getBestTotalQuote() < currentTotalQuote
-                            * shoppingLists.get(0).getBuyer().getSettings().getQuoteFactor()) {
+            ShoppingList firstSL = shoppingLists.get(0);
+            if (Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
+                            * firstSL.getBuyer().getSettings().getMoveCostFactor()
+                            + minimizer.getBestTotalQuote() < currentTotalQuote
+                            * firstSL.getBuyer().getSettings().getQuoteFactor()) {
                 List<Trader> bestSellers = minimizer.getBestSellers();
                 List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
                                 .collect(Collectors.toList());

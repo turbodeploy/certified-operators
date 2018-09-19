@@ -108,6 +108,15 @@ public interface TraderSettings {
     double getQuoteFactor();
 
     /**
+     * Returns the quote move cost factor of {@code this} trader.
+     *
+     * <p>
+     *  Gets Move Cost Factor value.
+     * </p>
+     */
+    double getMoveCostFactor();
+
+    /**
      * Sets the value of the <b>cloneable</b> field.
      *
      * <p>
@@ -217,6 +226,19 @@ public interface TraderSettings {
      * @return {@code this}
      */
     @NonNull TraderSettings setQuoteFactor(double quoteFactor);
+
+    /**
+     * Sets the value of the <b>move cost factor</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param moveCostFactor the new value for the field. Must be 0 <= moveCostFactor.
+     * @return {@code this}
+     */
+    @NonNull TraderSettings setMoveCostFactor(double moveCostFactor);
+
 
     /**
      * Sets the {@link CostFunction} for a trader.
