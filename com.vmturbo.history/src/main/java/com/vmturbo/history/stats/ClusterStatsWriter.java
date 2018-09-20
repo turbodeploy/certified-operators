@@ -168,6 +168,40 @@ class ClusterStatsWriter {
     }
 
     /**
+     * Insert multiple records into the cluster_stats_by_day table.
+     * Records are provided in table with <PropertyType, SubPropertyType, Value>
+     * Current date will be used for the record.
+     * If a record with the same primary key already exists, the value of the existing record.
+     * will be updated with the new value.
+     * @param clusterOID cluster OID.
+     * @param clusterData with <PropertyType, SubPropertyType, Value>.
+     * @throws VmtDbException if there is a problem writing to the DB.
+     */
+    public void batchInsertClusterStatsByDayRecord(final long clusterOID,
+                    final com.google.common.collect.Table<String, String, BigDecimal> clusterData)
+                    throws VmtDbException {
+        LocalDate today = LocalDate.now(Clock.systemUTC());
+        Date dbToday = Date.valueOf(today);
+        String clusterOid = Long.toString(clusterOID);
+        InsertSetMoreStep<?> insertStmt = (InsertSetMoreStep<?>)HistorydbIO.getJooqBuilder()
+                        .insertInto(CLUSTER_STATS_BY_DAY,
+                                    CLUSTER_STATS_BY_DAY.RECORDED_ON,
+                                    CLUSTER_STATS_BY_DAY.INTERNAL_NAME,
+                                    CLUSTER_STATS_BY_DAY.PROPERTY_TYPE,
+                                    CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE,
+                                    CLUSTER_STATS_BY_DAY.VALUE);
+
+            // Expected size of batch is ~10 rows with 5 columns.
+            clusterData.cellSet().forEach(cell -> {
+                insertStmt.values(dbToday, clusterOid, cell.getRowKey(), cell.getColumnKey(), cell.getValue())
+                .onDuplicateKeyUpdate()
+                .set(CLUSTER_STATS_BY_DAY.VALUE, cell.getValue());
+            });
+
+        historydbIO.execute(BasedbIO.Style.FORCED, insertStmt);
+    }
+
+    /**
      * Insert a record into the cluster_stats_by_day table. Current date will be used for the record.
      * If a record with the same primary key already exists, the value of the existing record
      * will be updated with the new value.

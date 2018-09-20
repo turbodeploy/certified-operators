@@ -121,7 +121,8 @@ public class ServiceConfig {
         return new ActionsService(communicationConfig.actionsRpcService(),
                                   mapperConfig.actionSpecMapper(),
                                   communicationConfig.repositoryApi(),
-                                  communicationConfig.getRealtimeTopologyContextId());
+                                  communicationConfig.getRealtimeTopologyContextId(),
+                                  communicationConfig.groupExpander());
     }
 
     @Bean

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,8 +17,7 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Lists;
+import org.springframework.util.CollectionUtils;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -26,6 +26,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionCountsMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionScopesApiInputDTO;
@@ -44,6 +45,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -61,16 +64,20 @@ public class ActionsService implements IActionsService {
 
     private final long realtimeTopologyContextId;
 
+    private final GroupExpander groupExpander;
+
     private final Logger log = LogManager.getLogger();
 
     public ActionsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final RepositoryApi repositoryApi,
-                          final long realtimeTopologyContextId) {
+                          final long realtimeTopologyContextId,
+                          @Nonnull GroupExpander groupExpander) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.groupExpander = groupExpander;
     }
 
     /**
@@ -172,29 +179,47 @@ public class ActionsService implements IActionsService {
         if (actionScopesApiInputDTO.getScopes() == null) {
             return  new ArrayList<>();
         }
-        final Set<Long> entityIds = actionScopesApiInputDTO.getScopes().stream()
-            .map(Long::valueOf)
-            .collect(Collectors.toSet());
-        final Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
-        for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
-                repositoryApi.getServiceEntitiesById(
-                        ServiceEntitiesRequest.newBuilder(entityIds).build())
-                    .entrySet()) {
-            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
-                -> new UnknownObjectException(
-                "ServiceEntity Not Found for oid: " + entry.getKey()));
-            entityStatsApiDTO.setUuid(serviceEntity.getUuid());
-            entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
-            entityStatsApiDTO.setClassName(serviceEntity.getClassName());
-            entityStatsApiDTO.setStats(new ArrayList<>());
-            entityStatsMap.put(entry.getKey(), entityStatsApiDTO);
-        }
-
         try {
-            getActionCountStatsByUuid(actionScopesApiInputDTO.getActionInput(), entityIds,
-                entityStatsMap);
-        } catch (StatusRuntimeException e) {
+            final Set<Long> entityIds = new HashSet<>();
+            // Handle request if scope uuid belongs to a group/cluster.
+            final List<EntityStatsApiDTO> resultStats = new ArrayList<>();
+            actionScopesApiInputDTO.getScopes().stream().forEach(uuid -> {
+                Set<Long> groupMembers = groupExpander.expandUuid(uuid);
+                long groupUuid = Long.valueOf(uuid);
+                if (!groupMembers.contains(groupUuid)) {
+                    resultStats.add(getActionStatsByUuidsQueryForGroup(uuid,
+                                    actionScopesApiInputDTO, groupMembers));
+                } else {
+                    // Add to entity id set only if it is not a group.
+                    entityIds.add(groupUuid);
+                }
+            });
+
+            // Handle request if scope uuid belongs to service entity.
+            if (!CollectionUtils.isEmpty(entityIds)) {
+                final Map<Long, EntityStatsApiDTO> entityStatsMap = new HashMap<>();
+                for (Map.Entry<Long, Optional<ServiceEntityApiDTO>> entry :
+                        repositoryApi.getServiceEntitiesById(
+                                ServiceEntitiesRequest.newBuilder(entityIds).build())
+                            .entrySet()) {
+                    final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+                    ServiceEntityApiDTO serviceEntity = entry.getValue().orElseThrow(()
+                        -> new UnknownObjectException(
+                        "ServiceEntity Not Found for oid: " + entry.getKey()));
+                    entityStatsApiDTO.setUuid(serviceEntity.getUuid());
+                    entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
+                    entityStatsApiDTO.setClassName(serviceEntity.getClassName());
+                    entityStatsApiDTO.setStats(new ArrayList<>());
+                    entityStatsMap.put(entry.getKey(), entityStatsApiDTO);
+                }
+
+                getActionCountStatsByUuid(actionScopesApiInputDTO.getActionInput(), entityIds,
+                    entityStatsMap);
+                // Combine results from group and entities.
+                resultStats.addAll(entityStatsMap.values());
+            }
+            return resultStats;
+        }  catch (StatusRuntimeException e) {
             if (e.getStatus().getCode().equals(Code.NOT_FOUND)) {
                 throw new UnknownObjectException(e.getStatus().getDescription());
             } else if (e.getStatus().getCode().equals(Code.INVALID_ARGUMENT)) {
@@ -203,11 +228,28 @@ public class ActionsService implements IActionsService {
                 throw e;
             }
         }
-        return Lists.newArrayList(entityStatsMap.values());
     }
 
     /**
-     * Get a list of actions by multiple uuids using query parameters
+     * Get action counts for given group uuid.
+     * @param uuid of the group.
+     * @param actionScopesApiInputDTO contains filter criteria for getting action stats.
+     * @param groupMembers  are set of uuids of members of the given group uuid.
+     * @return entity stats for all members in the group.
+     */
+    @Nonnull
+    private EntityStatsApiDTO getActionStatsByUuidsQueryForGroup(String uuid,
+                    ActionScopesApiInputDTO actionScopesApiInputDTO,
+                    Set<Long> groupMembers) {
+        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+        entityStatsApiDTO.setUuid(uuid);
+        entityStatsApiDTO.setStats(getActionCountStatsForEntities(actionScopesApiInputDTO.getActionInput(),
+                        groupMembers));
+        return entityStatsApiDTO;
+    }
+
+    /**
+     * Get a list of actions by multiple uuids using query parameters.
      *
      * @param actionScopesApiInputDTO The object used to query the actions
      * @return a list of actions by multiple uuids using query parameters
@@ -246,6 +288,26 @@ public class ActionsService implements IActionsService {
                             actionCountsByEntity.getCountsByTypeList()));
                 }
             });
+    }
+
+    /**
+     *
+     * Send request to action orchestrator and get action counts for entities in group.
+     *
+     * @param inputDto contains filter criteria for getting action stats.
+     * @param groupMembers set of uuids belonging to same group.
+     * @return stats collected for entities in group.
+     */
+    @Nonnull
+    private List<StatSnapshotApiDTO> getActionCountStatsForEntities(ActionApiInputDTO inputDto, Set<Long> entityIds) {
+        final ActionQueryFilter filter =
+                actionSpecMapper.createActionFilter(inputDto, Optional.ofNullable(entityIds));
+        final GetActionCountsResponse response =
+                actionOrchestratorRpc.getActionCounts(GetActionCountsRequest.newBuilder()
+                    .setTopologyContextId(realtimeTopologyContextId)
+                    .setFilter(filter)
+                    .build());
+        return ActionCountsMapper.countsByTypeToApi(response.getCountsByTypeList());
     }
 
     /**

@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -25,8 +26,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Record;
 import org.jooq.exception.DataAccessException;
+import org.springframework.util.CollectionUtils;
 
+import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 
@@ -35,7 +40,9 @@ import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
 
+import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
@@ -72,6 +79,7 @@ import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFacto
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.schema.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
@@ -110,8 +118,15 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     private final SystemLoadReader systemLoadReader;
     private final SystemLoadWriter systemLoadWriter;
 
-    private static final String CLUSTER_STATS_TYPE_HEADROOM_VMS = "headroomVMs";
-    private static final String CLUSTER_STATS_TYPE_NUM_VMS = "numVMs";
+    private static final Set<String> HEADROOM_STATS =
+                    ImmutableSet.of(StringConstants.CPU_HEADROOM,
+                            StringConstants.MEM_HEADROOM,
+                            StringConstants.STORAGE_HEADROOM,
+                            StringConstants.CPU_EXHAUSTION,
+                            StringConstants.MEM_EXHAUSTION,
+                            StringConstants.STORAGE_EXHAUSTION,
+                            StringConstants.VM_GROWTH,
+                            StringConstants.HEADROOM_VMS);
 
     private static final String PROPERTY_TYPE_PREFIX_CURRENT = "current";
 
@@ -356,6 +371,53 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                 final List<ClusterStatsByDayRecord> statDBRecordsByDay =
                         clusterStatsReader.getStatsRecordsByDay(clusterId, startDate, endDate, commodityNames);
 
+                // For CPUHeadroom, MemHeadroom and StorageHeadroom "property type" we have
+                // rows with "sub-property type" : used and capacity. Both of them have
+                // to be merged to create one stat record with read used and capacity.
+                Map<String, List<ClusterStatsByDayRecord>> headroomStats = statDBRecordsByDay.stream()
+                    .filter(record -> HEADROOM_STATS.contains(record.getPropertyType()))
+                    .collect(Collectors.groupingBy(ClusterStatsByDayRecord::getPropertyType));
+
+                // Handle Headroom stats
+                headroomStats
+                    .forEach((propertyType, recordsOnDifferentDates) -> {
+                        // GroupBy records based on date
+                        recordsOnDifferentDates.stream().collect(Collectors.groupingBy(ClusterStatsByDayRecord::getRecordedOn))
+                            .values().forEach(records -> {
+                                if (CollectionUtils.isEmpty(records))  {
+                                    return;
+                                }
+                                switch (records.size()) {
+                                    // CPUExhaustion, MemExhaustion and StorageExhaustion expected to have one record each.
+                                    case 1 :
+                                        resultMap.put(records.get(0).getRecordedOn(),
+                                                        createStatRecordForClusterStatsByDay(records.get(0)));
+                                        break;
+                                     // CPUHeadroom, MemHeadroom and StorageHeadroom expected to have two records each.
+                                    case 2 :
+                                        ClusterStatsByDayRecord firstRecord =  records.get(0);
+                                        ClusterStatsByDayRecord secondRecord =  records.get(1);
+                                        if (firstRecord.getPropertySubtype().equals(StringConstants.CAPACITY)) {
+                                            resultMap.put(secondRecord.getRecordedOn(),
+                                                createStatRecordForClusterStatsByDay(secondRecord,
+                                                                firstRecord.getValue().floatValue()));
+                                        } else {
+                                            resultMap.put(secondRecord.getRecordedOn(),
+                                                createStatRecordForClusterStatsByDay(firstRecord,
+                                                                secondRecord.getValue().floatValue()));
+                                        }
+                                    break;
+                                    // Print an error if none of the cases satisfied above.
+                                    default:
+                                        logger.error("Skipping entry of headroom records because of unexpected  "
+                                                        + "records size : " + records.size());
+                                        break;
+                                }
+                                // Remove headroom records because we have already processed them.
+                                statDBRecordsByDay.removeAll(records);
+                        });
+                    });
+
                 // Group records by date.
                 for (ClusterStatsByDayRecord record : statDBRecordsByDay) {
                     resultMap.put(record.getRecordedOn(), createStatRecordForClusterStatsByDay(record));
@@ -404,6 +466,20 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         return false;
     }
 
+    private StatRecord createStatRecordForClusterStatsByDay(ClusterStatsByDayRecord dbRecord, float capacity) {
+        return statRecordBuilder.buildStatRecord(
+                        dbRecord.getPropertyType(),
+                        dbRecord.getPropertySubtype(),
+                        capacity,
+                        (Float)null,
+                        null,
+                        dbRecord.getValue().floatValue(),
+                        dbRecord.getValue().floatValue(),
+                        dbRecord.getValue().floatValue(),
+                        null,
+                        dbRecord.getValue().floatValue(),
+                        null);
+    }
     /**
      * Helper method to create StatRecord objects, which nest inside StatSnapshot objects.
      *
@@ -481,14 +557,41 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                                     @Nonnull StreamObserver<Stats.SaveClusterHeadroomResponse> responseObserver) {
         logger.info("Got request to save cluster headroom: {}", request);
         try {
-            clusterStatsWriter.insertClusterStatsByDayRecord(request.getClusterId(),
-                    CLUSTER_STATS_TYPE_HEADROOM_VMS,
-                    CLUSTER_STATS_TYPE_HEADROOM_VMS,
-                    BigDecimal.valueOf(request.getHeadroom()));
-            clusterStatsWriter.insertClusterStatsByDayRecord(request.getClusterId(),
-                    CLUSTER_STATS_TYPE_NUM_VMS,
-                    CLUSTER_STATS_TYPE_NUM_VMS,
-                    BigDecimal.valueOf(request.getNumVMs()));
+
+            // Table represents : <PropertyType, SubPropertyType, Value>
+            com.google.common.collect.Table<String, String, BigDecimal> headroomData =
+                            HashBasedTable.create();
+
+            headroomData.put(StringConstants.HEADROOM_VMS, StringConstants.HEADROOM_VMS,
+                            BigDecimal.valueOf(request.getHeadroom()));
+            headroomData.put(StringConstants.NUM_VMS, StringConstants.NUM_VMS,
+                            BigDecimal.valueOf(request.getNumVMs()));
+
+            // CPU related headroom stats.
+            headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.USED,
+                            BigDecimal.valueOf(request.getCpuHeadroomInfo().getHeadroom()));
+            headroomData.put(StringConstants.CPU_HEADROOM, StringConstants.CAPACITY,
+                            BigDecimal.valueOf(request.getCpuHeadroomInfo().getCapacity()));
+            headroomData.put(StringConstants.CPU_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                            BigDecimal.valueOf(request.getCpuHeadroomInfo().getDaysToExhaustion()));
+
+            // Memory related headroom stats.
+            headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.USED,
+                            BigDecimal.valueOf(request.getMemHeadroomInfo().getHeadroom()));
+            headroomData.put(StringConstants.MEM_HEADROOM, StringConstants.CAPACITY,
+                            BigDecimal.valueOf(request.getMemHeadroomInfo().getCapacity()));
+            headroomData.put(StringConstants.MEM_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                            BigDecimal.valueOf(request.getMemHeadroomInfo().getDaysToExhaustion()));
+
+            // Storage related headroom stats.
+            headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.USED,
+                            BigDecimal.valueOf(request.getStorageHeadroomInfo().getHeadroom()));
+            headroomData.put(StringConstants.STORAGE_HEADROOM, StringConstants.CAPACITY,
+                            BigDecimal.valueOf(request.getStorageHeadroomInfo().getCapacity()));
+            headroomData.put(StringConstants.STORAGE_EXHAUSTION, StringConstants.EXHAUSTION_DAYS,
+                            BigDecimal.valueOf(request.getStorageHeadroomInfo().getDaysToExhaustion()));
+
+            clusterStatsWriter.batchInsertClusterStatsByDayRecord(Long.valueOf(request.getClusterId()), headroomData);
             responseObserver.onNext(Stats.SaveClusterHeadroomResponse.getDefaultInstance());
             responseObserver.onCompleted();
         } catch (VmtDbException e) {

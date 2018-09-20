@@ -244,6 +244,17 @@ message DeletePlanStatsRequest{
 message DeletePlanStatsResponse{
 }
 
+message CommodityHeadroom {
+    // Number of VMs that can be accommodated in cluster considering its utilization for given commodity.
+    optional int64 headroom = 1;
+
+    // Number of VMs that may accommodate empty cluster for given commodity.
+    optional int64 capacity = 2;
+
+    // Number of days to cluster exhaustion for given commodity.
+    optional int64 days_to_exhaustion = 3;
+}
+
 message SaveClusterHeadroomRequest {
     // The ID of the cluster
     optional int64 cluster_id = 1;
@@ -253,6 +264,15 @@ message SaveClusterHeadroomRequest {
 
     // The number of VMs in the cluster at the time of this request
     optional int64 numVMs = 3;
+
+    // Headroom information for CPU.
+    optional CommodityHeadroom cpu_headroom_info = 4;
+
+    // Headroom information for Memory.
+    optional CommodityHeadroom mem_headroom_info = 5;
+
+    // Headroom information for Storage.
+    optional CommodityHeadroom storage_headroom_info = 6;
 }
 
 message SaveClusterHeadroomResponse {

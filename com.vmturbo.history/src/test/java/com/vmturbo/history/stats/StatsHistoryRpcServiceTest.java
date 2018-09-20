@@ -40,6 +40,7 @@ import org.jooq.Record;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Matchers;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -538,10 +539,7 @@ public class StatsHistoryRpcServiceTest {
 
         clientStub.saveClusterHeadroom(request);
 
-        verify(mockClusterStatsWriter).insertClusterStatsByDayRecord(clusterId,
-                "headroomVMs", "headroomVMs", BigDecimal.valueOf(headroom));
-        verify(mockClusterStatsWriter).insertClusterStatsByDayRecord(clusterId,
-                "numVMs", "numVMs", BigDecimal.valueOf(numVMs));
+        verify(mockClusterStatsWriter).batchInsertClusterStatsByDayRecord(Matchers.anyLong(), any());
     }
 
     /**
