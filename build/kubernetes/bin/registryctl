@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Get value from the  command line
-registry=${1}
+step=${1}
 image=${2}
 version=${3}
 
@@ -11,6 +11,7 @@ usage()
 	echo
         echo "Useage: `basename $0` ip                     -> show service ip of registry server"
         echo "Useage: `basename $0` tag image version      -> tag image version in the local registry"
+        echo "Useage: `basename $0` load image version     -> load local docker image tgz"
         echo "Useage: `basename $0` push image version     -> push tagged version into kube private registry"
         echo "Useage: `basename $0` bulk all version       -> push all tagged version into kube private registry"
         echo "Useage: `basename $0` upgrade image version  -> push all tagged version into kube private registry"
@@ -20,19 +21,30 @@ usage()
 }
 
 # Test variables are not empty.
-[ -z "${registry}" ] && usage
+[ -z "${step}" ] && usage
+
+# Check for environment
+source /opt/local/etc/turbo.conf
+declare -a turboEnv=(${turboEnv})
+echo "Running `basename $0` for ${turboEnv} environment"
+if [ "${turboEnv}" == "dev" ]
+then
+	imageBasePath="/opt/xl/kubernetes/images/dev"
+else
+	imageBasePath="/opt/xl/kubernetes/images/${version}"
+fi
 
 # Get registry ip
 registryIp=$(kubectl get svc | grep -w registry | awk '{print $3}')
 
 # Show registry local svc ip
-if [ "${registry}" == "ip" ]
+if [ "${step}" == "ip" ]
 then
   echo "Registry Service ip = ${registryIp}"
 fi
 
 # Create a tag to push to the private registry
-if [ "${registry}" == "tag" ]
+if [ "${step}" == "tag" ]
 then
   [ -z "${image}" ] && usage
   [ -z "${version}" ] && usage
@@ -40,16 +52,25 @@ then
   docker tag ${tagImage} localhost:5000/turbonomic/${image}:${version}
 fi
 
-# Push to the private registry
-if [ "${registry}" == "push" ]
+# Load docker image tgz file
+if [ "${step}" == "load" ]
 then
   [ -z "${image}" ] && usage
   [ -z "${version}" ] && usage
-  docker push localhost:5000/turbonomic/${image}:${version} 
+	tgz=$(ls ${imageBasePath} | grep "${image}")
+  docker load --input ${imageBasePath}/${tgz}
 fi
 
 # Push to the private registry
-if [ "${registry}" == "bulk" ]
+if [ "${step}" == "push" ]
+then
+  [ -z "${image}" ] && usage
+  [ -z "${version}" ] && usage
+  docker push localhost:5000/turbonomic/${image}:${version}
+fi
+
+# Push to the private registry
+if [ "${step}" == "bulk" ]
 then
   [ -z "${image}" ] && usage
   [ -z "${version}" ] && usage
@@ -61,23 +82,23 @@ then
 fi
 
 # Upgrade images in the private registry
-if [ "${registry}" == "upgrade" ] && [ "${image}" != "all" ]
+if [ "${step}" == "upgrade" ] && [ "${image}" != "all" ]
 then
   [ -z "${version}" ] && usage
-  tgz=$(ls /opt/xl/kubernetes/images/${version} | grep "${image}")
-  docker load < /opt/xl/kubernetes/images/${version}/${tgz}
+  tgz=$(ls ${imageBasePath} | grep "${image}")
+  docker load --input ${imageBasePath}/${tgz}
   bulkImages=( $(docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
   tagImage=$(docker images  | grep -w ${image} | grep ${version} | grep localhost | awk '{print $3}')
   docker push localhost:5000/turbonomic/${image}:${version}
 fi
 
 # Upgrade images in the private registry
-if [ "${registry}" == "upgrade" ] && [ "${image}" == "all" ]
+if [ "${step}" == "upgrade" ] && [ "${image}" == "all" ]
 then
   [ -z "${version}" ] && usage
-  for tgz in $(ls /opt/xl/kubernetes/images/${version})
+  for tgz in $(ls ${imageBasePath})
   do
-    docker load < /opt/xl/kubernetes/images/${version}/${tgz}
+    docker load --input ${imageBasePath}/${tgz}
   done
   bulkImages=( $(docker images | grep localhost | awk '{print $1}' | awk -F/ '{print $3}') )
   for dockerImage in "${bulkImages[@]}"
@@ -85,4 +106,3 @@ then
     docker push localhost:5000/turbonomic/${dockerImage}:${version}
   done
 fi
-
