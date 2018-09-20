@@ -126,11 +126,6 @@ public class TargetsService implements ITargetsService {
     @VisibleForTesting
     static final String UNKNOWN_TARGET_STATUS = "UNKNOWN";
 
-    /**
-     * The 'displayName' for a target is taken from either the 'address' or 'nameOrAddress' property
-     */
-    private static final Set<String> TARGET_ADDRESS_KEYS = Sets.newHashSet("address", "nameOrAddress");
-
     static final String TARGET = "Target";
 
     private final Logger logger = LogManager.getLogger();
@@ -797,11 +792,7 @@ public class TargetsService implements ITargetsService {
                     .map(inputFieldDTO -> {
                         final AccountValue value = accountValuesByName.get(inputFieldDTO.getName());
                         if (value != null) {
-                            final String valueString = value.getStringValue();
-                            inputFieldDTO.setValue(valueString);
-                            if (TARGET_ADDRESS_KEYS.contains(inputFieldDTO.getName())) {
-                                targetApiDTO.setDisplayName(valueString);
-                            }
+                            inputFieldDTO.setValue(value.getStringValue());
                         }
                         return inputFieldDTO;
                     })
