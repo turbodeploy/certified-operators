@@ -1,97 +1,294 @@
 #!/bin/bash
 
-# turbo script to get kubernetes information 
-
-# Get value from the  command line
-action=${1}
-component=${2}
-extra=${3}
+# turbo script to get kubernetes information
+db_username="root"
+db_password="vmturbo"
+database="vmtdb"
+filename=""
+log_dir="/home/vmtsyslog/rsyslog/"
+output_zip_dir="."
+tmp_log_dir="/tmp/rsyslog"
+kubeCommand="/usr/local/bin/kubectl"
+xlYamlDir="/opt/xl/kubernetes/yaml/"
 
 # Functions used throughout the script
 usage()
 {
-        echo
-        echo "Useage: `basename $0` logs <optional> component 20 -> Get logs from syslog container.
-                                              Specify component and last x amount of lines"
-        echo "Useage: `basename $0` create component             -> Create various pods to bring up the system.
-                                              create <namespace, registry, base, services, probes, non-prod"
-        echo "Useage: `basename $0` pod                          -> Get status of pods"
-        echo "Useage: `basename $0` svc                          -> Get services"
-        echo "Useage: `basename $0` deps                         -> Get deployments"
-        echo "Useage: `basename $0` bulk all version   -> push all tagged version into kube private registry"
-        echo
+        echo "################################################################################################
+usage:
+`basename $0` logs                                  -> Get logs from syslog container.
+        logs -c <component_name>                    -> To get logs for particular component
+        logs -n <number>                            -> Number of lines from latest logs
+`basename $0` create component                      -> Create various pods to bring up the system.
+        create <namespace, registry, base, services, probes, non-prod or individual component>
+`basename $0` shell  <pod_name>                     -> SSH to a pod
+`basename $0` sql                                   -> To run sql into database
+        sql  -u <username> -p <password> -d <database> -s <sql>
+`basename $0` start <deployment_name>               -> start deployment
+`basename $0` stop <deployment_name>                -> stop deployment
+`basename $0` restart <deployment_name>             -> restart deployment
+`basename $0` deployments                           -> Get status of deployments
+`basename $0` pods                                  -> Get status of pods
+`basename $0` svcs                                  -> Get services
+`basename $0` watch <pods or deployments or svcs>   -> Watch status of pods or deployments or services
+`basename $0` diags                                 -> Get all logs in zip
+        diags -f <filename> or -p <log_dir> or -o <output_zip_dir>
+################################################################################################"
         exit -1
 }
 
-# Test variables are not empty.
-[ -z "${action}" ] && usage
+[ -z "${1}" ] && usage
 
+args=$1; shift
+case "$args" in
+  # Get logs from rsyslog
+  logs)
+  #TODO
+  #    - zero, one, or two of the "-c" and "-n" options
+  #    - more than one components to look for, e.g.
+  #    "-c topology-processor history" or perhaps
+  #    "-c topology-processor|history" (i.e. one grep expression) if you prefer
 
-export kubeCommand="/usr/local/bin/kubectl"
-export rsyslogPodName=$(kubectl get pods -o go-template --template '{{range .items}}{{.metadata.name}}{{"\n"}}{{end}}' | grep rsyslog)
-export xlYamlDir="/opt/xl/kubernetes/yaml/"
-
-# Get Logs
-if [ "${action}" == "logs" ]
-then
-  if [ -z "${extra}" ]
-  then
-    ${kubeCommand} logs ${rsyslogPodName} | grep ^${component}
-  else
-  [ -z "${component}" ] && usage
-  [ -z "${extra}" ] && usage
-  ${kubeCommand} logs ${rsyslogPodName} | grep ^${component} | tail -n${extra}
-  fi
-fi
-
-# Start Components
-if [ "${action}" == "create" ]
-then
-  [ -z "${component}" ] && usage
-  case $component in
-     namespace)
-          ${kubeCommand} create -f ${xlYamlDir}/turbo-ns.yaml
-          ${kubeCommand} config set-context turbo --namespace=turbonomic
-          ${kubeCommand} config use-context turbo
+    [ -z "${1}" ] && usage
+    rsyslogPodName=$(kubectl get pods -o go-template --template '{{range .items}}{{.metadata.name}}{{"\n"}}{{end}}' | grep rsyslog)
+    while getopts "c:n:" opt; do
+      case ${opt} in
+        c )
+          ${kubeCommand} logs ${rsyslogPodName} | grep ^${OPTARG}
+          exit 0
           ;;
-     registry)
-          ${kubeCommand} create -f ${xlYamlDir}/registry/
+        n )
+          ${kubeCommand} logs ${rsyslogPodName} | tail -n${OPTARG}
+          exit 0
           ;;
-     base)
-          ${kubeCommand} create -f ${xlYamlDir}/base/
+        \? )
+          echo "Invalid Option: -$OPTARG" 1>&2
+          usage
+          exit 1
           ;;
-     services)
-          ${kubeCommand} create -f ${xlYamlDir}/services/
+        : )
+          echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+          exit 1
           ;;
-     probes)
-          ${kubeCommand} create -f ${xlYamlDir}/probes/
+      esac
+      shift $((OPTIND -1))
+    done
+    ;;
+  create)
+    component=$1; shift
+    case $component in
+       namespace)
+            ${kubeCommand} create -f ${xlYamlDir}/turbo-ns.yaml
+            ${kubeCommand} config set-context turbo --namespace=turbonomic
+            ${kubeCommand} config use-context turbo
+            ;;
+       registry)
+            ${kubeCommand} create -f ${xlYamlDir}/registry/
+            ;;
+       base)
+            ${kubeCommand} create -f ${xlYamlDir}/base/
+            ;;
+       services)
+            ${kubeCommand} create -f ${xlYamlDir}/services/
+            ;;
+       pods)
+            ${kubeCommand} create -f ${xlYamlDir}/probes/
+            ;;
+       non-prod)
+            ${kubeCommand} create -f ${xlYamlDir}/non-prod/
+            ;;
+       *)
+            individual=$(find /opt/xl/kubernetes/yaml -name ${component}.yaml)
+            if [ ! -z ${individual} ]
+            then
+              ${kubeCommand} create -f ${individual}
+            else
+              echo "Couldn't find this specific component to create" 1>&2
+              exit 1
+            fi
+            ;;
+    esac
+    ;;
+  start)
+  # TODO: Allow multiple components to start
+  #      start history mediation-vcenter
+    component=$1; shift
+    [ -z $component ] && echo "Please specify deployment name" && exit 1
+    pushd ${xlYamlDir}
+      component_yaml_file=$(find . -name "${component}.yaml")
+    popd
+    [ -z $component_yaml_file ] && echo "Coluldn't find yaml for ${component}" && exit 1
+    ${kubeCommand} create -f ${xlYamlDir}/${component_yaml_file}
+    ;;
+  stop)
+  # TODO: Allow multiple components to stop
+  #      stop history mediation-vcenter
+    component=$1; shift
+    [ -z $component ] && echo "Please specify deployment name" && exit 1
+    ${kubeCommand} delete deployment ${component}
+    ;;
+  restart)
+  # TODO: Allow multiple components to restart
+  #      restart history mediation-vcenter
+    component=$1; shift
+    [ -z $component ] && echo "Please specify deployment name" && exit 1
+    ${kubeCommand} delete deployment ${component}
+    pushd ${xlYamlDir}
+      component_yaml_file=$(find . -name "${component}.yaml")
+    popd
+    [ -z $component_yaml_file ] && echo "Coluldn't find yaml for ${component}" && exit 1
+    ${kubeCommand} create -f ${xlYamlDir}/${component_yaml_file}
+    ;;
+  shell)
+  # TODO: Allow executing shell command using this option
+  #      shell topology-processor ls -l
+    pod=$1; shift
+    [ -z $pod ] && echo "Invalid Option: 'shell' requires an argument" 1>&2 && usage && exit -1
+    pod_name=$(kubectl get pods -o name --field-selector=status.phase=Running | grep ^pods/${pod} | cut -f2 -d '/')
+    if [ -z "${pod_name}" ]
+    then
+      echo "Couldn't find '${pod}' pod or pod is not runnning" 1>&2
+      exit 1
+    else
+      echo "Getting into pod: '${pod_name}'" 1>&2
+      ${kubeCommand} exec -it ${pod_name} /bin/bash
+    fi
+    ;;
+  deployments)
+    ${kubeCommand} get deployments
+    ;;
+  pods)
+    ${kubeCommand} get pods
+    ;;
+  svcs)
+    ${kubeCommand} get svc
+    ;;
+  watch)
+  # TODO: Allow -t for adding delay in watch command
+  # -t<secs> to allow changing the 'watch' delay
+    component=$1; shift
+    case $component in
+      deployments)
+        watch -n1 "${kubeCommand} get deployments"
+        ;;
+      pods)
+        watch -n1 "${kubeCommand} get pods"
+        ;;
+      svcs)
+        watch -n1 "${kubeCommand} get svc"
+        ;;
+      *)
+        echo "Please use pods or deployments or svcs" 1>&2
+        usage
+        ;;
+    esac
+    ;;
+  sql)
+    while getopts "u:p:d:s:" opt; do
+      case ${opt} in
+        u )
+          if [ ! -z $OPTARG ]
+          then
+            db_username=$OPTARG
+          fi
           ;;
-     non-prod)
-          ${kubeCommand} create -f ${xlYamlDir}/non-prod/
+        p )
+          if [ ! -z $OPTARG ]
+          then
+            db_password=$OPTARG
+          fi
           ;;
-     *)
-	  individual=$(find /opt/xl/kubernetes/yaml -name ${component}.yaml) 
-          ${kubeCommand} create -f ${individual}
+        d )
+          if [ ! -z $OPTARG ]
+          then
+            database=$OPTARG
+          fi
           ;;
-  esac
-fi
-
-
-
-# Show pod status
-if [ "${action}" == "pod" ]
-then
-  ${kubeCommand} get pods
-fi
-
-# Show services 
-if [ "${action}" == "svc" ]
-then
-  ${kubeCommand} get svc
-fi
-# Show deployments 
-if [ "${action}" == "deps" ]
-then
-  ${kubeCommand} get deployment
-fi
-
+        s )
+          sql=$OPTARG
+          ;;
+        ? )
+          echo "Invalid Option: -$OPTARG" 1>&2
+          echo "Please spcify -u USERNAME -p PASSWORD -d DATABASE -s SQL" 1>&2
+          exit 1
+          ;;
+        : )
+          echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+          exit 1
+          ;;
+      esac
+    done
+    db_pod_name=$(kubectl get pods -o name --field-selector=status.phase=Running | grep '^pods/db-' | cut -f2 -d '/')
+    if [ -z "${db_pod_name}" ]
+    then
+      echo "Couldn't find 'db' pod or 'db' pod is not runnning" 1>&2
+      exit 1
+    else
+      echo "Getting into pod: '${db_pod_name}'" 1>&2
+      ${kubeCommand} exec -it ${db_pod_name} -- /bin/bash -c "/usr/bin/mysql -u${db_username} -p${db_password} ${database} -e '$sql'"
+      exit
+    fi
+    ;;
+  diags)
+    while getopts "f:p:o:" opt; do
+      case ${opt} in
+        f )
+          if [ ! -z $OPTARG ]
+          then
+            filename=$OPTARG
+          fi
+          ;;
+        p )
+          if [ ! -z $OPTARG ]
+          then
+            log_dir=$OPTARG
+          fi
+          ;;
+        o )
+          if [ ! -z $OPTARG ]
+          then
+            output_zip_dir=$OPTARG
+          fi
+          ;;
+        \? )
+          echo "Invalid Option: -$OPTARG" 1>&2
+          echo "Please spcify -f for filename" 1>&2
+          echo "-p for log directory in pod" 1>&2
+          echo "-o local output directory" 1>&2
+          exit 1
+          ;;
+        : )
+          echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+          exit 1
+          ;;
+      esac
+      shift $((OPTIND -1))
+    done
+    rsyslogPodName=$(kubectl get pods -o go-template --template '{{range .items}}{{.metadata.name}}{{"\n"}}{{end}}' | grep rsyslog)
+    if [ -z "${rsyslogPodName}" ]
+    then
+      echo "Couldn't find 'rsyslog' pod or 'rsyslog' pod is not runnning" 1>&2
+      exit 1
+    else
+      echo "Getting logs from pod: '${rsyslogPodName}'" 1>&2
+      mkdir -p ${tmp_log_dir}
+      if [ ! -z ${filename} ]
+      then
+        ${kubeCommand} cp turbonomic/${rsyslogPodName}:${log_dir}${filename} ${tmp_log_dir}
+      else
+        ${kubeCommand} cp turbonomic/${rsyslogPodName}:${log_dir} ${tmp_log_dir}
+      fi
+      tar -cf ${output_zip_dir}/syslog.tar ${tmp_log_dir}/*
+      rm -rf ${tmp_log_dir}
+      [ -f ${output_zip_dir}/syslog.tar ] && echo "Tar file: ${output_zip_dir}/syslog.tar has been created." 1>&2
+      exit
+    fi
+    ;;
+  [hH][eE][lL][pP]|-h|-H)
+    usage
+    ;;
+  *)
+    echo "Invalid Option: '$args' has been specified." 1>&2
+    usage
+    ;;
+esac
