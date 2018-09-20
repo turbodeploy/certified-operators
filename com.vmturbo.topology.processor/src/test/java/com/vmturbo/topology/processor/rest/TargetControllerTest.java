@@ -50,9 +50,9 @@ import org.springframework.web.util.NestedServletException;
 
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
-import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
@@ -61,6 +61,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
+import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.GetAllTargetsResponse;
@@ -82,6 +83,7 @@ import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 
@@ -123,6 +125,11 @@ public class TargetControllerTest {
         }
 
         @Bean
+        IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore() {
+            return new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore()));
+        }
+
+        @Bean
         Scheduler schedulerMock() {
             return Mockito.mock(Scheduler.class);
         }
@@ -134,9 +141,7 @@ public class TargetControllerTest {
 
         @Bean
         public TargetStore targetStore() {
-            IdentityProvider mockIdSvc = Mockito.mock(IdentityProvider.class);
-            Mockito.when(mockIdSvc.getTargetId(Mockito.anyObject())).thenAnswer( c -> IdentityGenerator.next());
-            return new KVBackedTargetStore(keyValueStore(), mockIdSvc, probeStore());
+            return new KVBackedTargetStore(keyValueStore(), probeStore(), targetIdentityStore());
         }
 
         @Override
@@ -570,13 +575,12 @@ public class TargetControllerTest {
         Assert.assertEquals(0, retTargets.size());
     }
 
-
     @Test
     public void testGetAllSecretField() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
                         AccountDefEntry.newBuilder(mandatoryAccountDef);
         accountBuilder.getCustomDefinitionBuilder().setName("secret").setIsSecret(true);
-        ProbeInfo info = ProbeInfo.newBuilder(probeInfo)
+        ProbeInfo info = ProbeInfo.newBuilder(probeInfo).addTargetIdentifierField("secret")
                 .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(info, transport);
 

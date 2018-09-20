@@ -6,6 +6,8 @@ import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.topology.processor.api.FakeRemoteMediation;
+import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 
 /**
  * Utility class to create some objects, suitable for tests.
@@ -32,7 +34,11 @@ public class Probes {
                                         .setPrimitiveValue(PrimitiveValue.STRING))
                         .build();
         emptyProbe = ProbeInfo.newBuilder().setProbeType("probe-type-" + counter.getAndIncrement())
-                        .setProbeCategory("category").addTargetIdentifierField(TARGET_ID).build();
+                        .setProbeCategory("category")
+                        .addTargetIdentifierField(TargetSpecAttributeExtractor.PROBE_ID)
+                        .addTargetIdentifierField(TARGET_ID)
+                        .addTargetIdentifierField(FakeRemoteMediation.TGT_ID)
+                        .build();
         defaultProbe = ProbeInfo.newBuilder(emptyProbe)
                         .setProbeType("probe-type-" + counter.getAndIncrement())
                         .addAccountDefinition(mandatoryField).build();

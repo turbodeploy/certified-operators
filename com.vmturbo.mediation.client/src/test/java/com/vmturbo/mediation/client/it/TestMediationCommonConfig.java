@@ -15,9 +15,9 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.communication.WebsocketServerTransportManager.TransportHandler;
+import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.mediation.common.tests.util.IRemoteMediation;
@@ -89,8 +89,7 @@ public class TestMediationCommonConfig {
 
     @Bean
     public TargetStore targetStore() {
-        return new KVBackedTargetStore(keyValueStore(), identityProvider(),
-                        probeStore());
+        return new KVBackedTargetStore(keyValueStore(), probeStore(), Mockito.mock(IdentityStore.class));
     }
 
     @Bean

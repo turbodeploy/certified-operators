@@ -98,6 +98,7 @@ public class TopologyProcessorDiagnosticsConfig {
     @Bean
     public TopologyProcessorDiagnosticsHandler diagsHandler() {
         return new TopologyProcessorDiagnosticsHandler(targetConfig.targetStore(),
+                targetConfig.persistentIdentityStore(),
                 schedulerConfig.scheduler(),
                 entityConfig.entityStore(),
                 probeConfig.probeStore(),

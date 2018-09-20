@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.targets;
 
-import static org.mockito.Matchers.any;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -10,9 +8,9 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
+import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.AccountValue;
@@ -20,7 +18,8 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
-import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.TestIdentityStore;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 
 /**
@@ -30,11 +29,11 @@ public class DerivedTargetParserTest {
 
     private KeyValueStore keyValueStore;
 
-    private IdentityProvider identityProvider;
-
     private ProbeStore probeStore;
 
     private TargetStore targetStore;
+
+    private IdentityStore<TargetSpec> identityStore;
 
     private DerivedTargetParser derivedTargetParser;
 
@@ -43,24 +42,27 @@ public class DerivedTargetParserTest {
     @Before
     public void setup() throws Exception{
         keyValueStore = Mockito.mock(KeyValueStore.class);
-        identityProvider = Mockito.mock(IdentityProvider.class);
         probeStore = Mockito.mock(ProbeStore.class);
-        targetStore = new KVBackedTargetStore(keyValueStore, identityProvider, probeStore);
+        identityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
+        targetStore = new KVBackedTargetStore(keyValueStore, probeStore, identityStore);
         derivedTargetParser = new DerivedTargetParser(probeStore, targetStore);
         nextTargetId = 10086L;
     }
 
     /**
      * Test instantiate derived targets.
+     * @throws IdentityStoreException should never happen
      */
+    @SuppressWarnings("unchecked")
     @Test
-    public void testInstantiateDerivedTargets() {
+    public void testInstantiateDerivedTargets() throws IdentityStoreException {
         final String addressField = PredefinedAccountDefinition.Address.name().toLowerCase();
         final String userNameField = PredefinedAccountDefinition.Username.name().toLowerCase();
         final long probeId = 0L;
         final long parentTargetId = 0L;
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
-                .setProbeCategory("test").setProbeType("foo").addTargetIdentifierField("BBB")
+                .setProbeCategory("test").setProbeType("foo")
+                .addTargetIdentifierField(addressField)
                 .addAccountDefinition(AccountDefEntry.newBuilder()
                     .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                         .setName(userNameField)
@@ -90,11 +92,6 @@ public class DerivedTargetParserTest {
                 .build();
         final List<DerivedTargetSpecificationDTO> derivedDTOList = Arrays.asList(dto1, dto2);
 
-        Mockito.when(identityProvider.getTargetId(any())).thenAnswer(new Answer<Long>() {
-            @Override public Long answer(InvocationOnMock invocation) throws Throwable {
-                return nextTargetId();
-            }
-        });
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
         Mockito.when(probeStore.getProbeIdForType(Mockito.anyString())).thenReturn(Optional.of(probeId));
 
@@ -150,11 +147,6 @@ public class DerivedTargetParserTest {
 
         Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
         Mockito.when(probeStore.getProbeIdForType(Mockito.anyString())).thenReturn(Optional.of(probeId));
-        Mockito.when(identityProvider.getTargetId(any())).thenAnswer(new Answer<Long>() {
-            @Override public Long answer(InvocationOnMock invocation) throws Throwable {
-                return nextTargetId();
-            }
-        });
 
         derivedTargetParser.instantiateDerivedTargets(parentTargetId, Arrays.asList(dto1, dto2));
         Assert.assertEquals(2, targetStore.getAll().size());

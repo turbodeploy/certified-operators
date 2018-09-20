@@ -10,6 +10,7 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue.PropertyValueList;
@@ -45,11 +46,11 @@ public class DerivedTargetParser {
             @Nonnull final List<DerivedTargetSpecificationDTO> derivedTargetsList) {
         logger.trace(derivedTargetsList.size() + " derived targets found.");
         final List<TargetSpec> derivedTargetSpecs = new ArrayList<>();
-        for (final DerivedTargetSpecificationDTO derivedTargetDTO : derivedTargetsList) {
+        derivedTargetsList.forEach(derivedTargetDTO -> {
             try {
                 final long probeId = probeStore.getProbeIdForType(derivedTargetDTO.getProbeType())
-                        .orElseThrow(() -> new InvalidTargetException("No probe found for derived target " +
-                                derivedTargetDTO.getProbeType()));
+                        .orElseThrow(() -> new InvalidTargetException(
+                                String.format("No probe type %s found.", derivedTargetDTO.getProbeType())));
                 final TargetSpec targetSpec = parseDerivedTargetSpec(probeId, parentTargetId,
                                 derivedTargetDTO);
                 // If the target is dependent on the parent target, then we create it as derived target, or
@@ -59,11 +60,16 @@ public class DerivedTargetParser {
                 } else {
                     targetStore.createTarget(targetSpec);
                 }
-            } catch (InvalidTargetException e) {
-                logger.error("Parse derived target failed! " + e);
+            } catch (InvalidTargetException | IdentityStoreException | DuplicateTargetException e) {
+                logger.error("Parse derived target failed. Target DTO: {}. {}", derivedTargetDTO, e);
             }
+        });
+        try {
+            targetStore.createOrUpdateDerivedTargets(derivedTargetSpecs);
+        } catch (IdentityStoreException e) {
+            logger.error("Error when fetching derived target identifiers and OIDs, derived targets creation "
+                    + "or update failed. {}", e);
         }
-        targetStore.createOrUpdateDerivedTargets(derivedTargetSpecs);
     }
 
     private TargetSpec parseDerivedTargetSpec(final long probeId, final long parentTargetId,

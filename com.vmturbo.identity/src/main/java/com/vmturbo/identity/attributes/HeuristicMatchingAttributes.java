@@ -10,9 +10,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
-import com.vmturbo.identity.store.IdentityStoreException;
 
 /**
  * Capture the com.vmturbo.identity.attributes to implement a heuristics-based comparison for items

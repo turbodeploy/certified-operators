@@ -11,6 +11,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,15 +23,15 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.google.common.collect.ImmutableList;
+
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
 import io.swagger.annotations.ApiResponse;
 import io.swagger.annotations.ApiResponses;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
@@ -42,11 +44,13 @@ import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.targets.DuplicateTargetException;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+
 
 /**
  * Controller for the REST interface for target management.
@@ -97,7 +101,7 @@ public class TargetController {
             final Target target = targetStore.createTarget(targetSpec.toDto());
             final TargetInfo targetInfo = targetToTargetInfo(target);
             return new ResponseEntity<>(targetInfo, HttpStatus.OK);
-        } catch (TopologyProcessorException e) {
+        } catch (TopologyProcessorException | IdentityStoreException | DuplicateTargetException e) {
             return errorResponse(e, HttpStatus.BAD_REQUEST);
         } catch (InvalidTargetException e) {
             final TargetInfo resp = error(e.getErrors());
@@ -161,6 +165,10 @@ public class TargetController {
         } catch (InvalidTargetException e) {
             final TargetInfo resp = error(e.getErrors());
             return new ResponseEntity<>(resp, HttpStatus.BAD_REQUEST);
+        } catch (IdentifierConflictException e) {
+            return errorResponse(e, HttpStatus.BAD_REQUEST);
+        } catch (IdentityStoreException e) {
+            return errorResponse(e, HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (TargetNotFoundException e) {
             return errorResponse(e, HttpStatus.NOT_FOUND);
         }
@@ -182,6 +190,8 @@ public class TargetController {
             return new ResponseEntity<>(targetToTargetInfo(target), HttpStatus.OK);
         } catch (TargetNotFoundException e) {
             return errorResponse(e, HttpStatus.NOT_FOUND);
+        } catch (IdentityStoreException e) {
+            return errorResponse(e, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 

@@ -186,6 +186,10 @@
         </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
+            <artifactId>identity</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.group.api</artifactId>
         </dependency>
         <dependency>
@@ -254,6 +258,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>history-component-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.persistence</groupId>
+            <artifactId>javax.persistence-api</artifactId>
         </dependency>
 
         <dependency>

@@ -20,9 +20,12 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.SenderReceiverPair;
+import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.actions.ActionExecutionRpcService;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
@@ -43,6 +46,7 @@ import com.vmturbo.topology.processor.rest.TargetController;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
@@ -133,8 +137,13 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    protected IdentityStore<TargetSpec> targetIdentityStore() {
+        return new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore()));
+    }
+
+    @Bean
     public TargetStore targetStore() {
-        return new KVBackedTargetStore(keyValueStore(), identityProvider(), probeStore());
+        return new KVBackedTargetStore(keyValueStore(), probeStore(), targetIdentityStore());
     }
 
     @Override

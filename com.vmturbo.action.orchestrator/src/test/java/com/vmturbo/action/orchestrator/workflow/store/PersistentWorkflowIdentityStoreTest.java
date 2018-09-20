@@ -11,11 +11,12 @@ import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowT
 import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowTestConstants.WORKFLOW_2_TARGET_ID;
 import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowTestConstants.attr1;
 import static com.vmturbo.action.orchestrator.workflow.store.PersistentWorkflowTestConstants.attr2;
-import static junit.framework.TestCase.assertTrue;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.List;
@@ -24,6 +25,8 @@ import java.util.Set;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.jooq.Record;
+import org.jooq.Result;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -36,11 +39,12 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
-import com.vmturbo.identity.store.IdentityStoreException;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -102,27 +106,53 @@ public class PersistentWorkflowIdentityStoreTest {
     @Test
     public void testSaveOidMappings() throws Exception {
         // arrange
-        PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
+        PersistentIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
         dsl.insertInto(WORKFLOW_OID)
                 .set(WORKFLOW_OID.ID, WORKFLOW_1_OID)
                 .set(WORKFLOW_OID.EXTERNAL_NAME, WORKFLOW_1_NAME)
                 .set(WORKFLOW_OID.TARGET_ID, WORKFLOW_1_TARGET_ID)
                 .execute();
-        Map<WorkflowInfo, Long> itemToOidMap =
-                ImmutableMap.<WorkflowInfo, Long>builder()
-                        .put(PersistentWorkflowTestConstants.workflow2, WORKFLOW_2_OID)
+        Map<IdentityMatchingAttributes, Long> attrsToOidMap =
+                ImmutableMap.<IdentityMatchingAttributes, Long>builder()
+                        .put(attr2, WORKFLOW_2_OID)
                         .build();
-        Map<WorkflowInfo, IdentityMatchingAttributes> itemToAttrMap =
-                ImmutableMap.<WorkflowInfo, IdentityMatchingAttributes>builder()
-                        .put(PersistentWorkflowTestConstants.workflow2, attr2)
-                        .build();
+
         // act
-        testIdentityStore.saveOidMappings(itemToOidMap, itemToAttrMap);
+        testIdentityStore.saveOidMappings(attrsToOidMap);
         // assert
         Map<IdentityMatchingAttributes, Long> attrToOidMap = testIdentityStore.fetchAllOidMappings();
         assertThat(attrToOidMap.size(), equalTo(2));
         assertThat(attrToOidMap.keySet(), containsInAnyOrder(attr1, attr2));
         assertThat(attrToOidMap.values(), containsInAnyOrder(WORKFLOW_1_OID, WORKFLOW_2_OID));
+    }
+
+    /**
+     * Load the workflow DB with one entries, workflow-1.
+     * Update the workflow1 to workflow2 with workflow oid 1
+     * Fetch all the OID mappings into a map and verify.
+     */
+    @Test
+    public void testUpdateOidMappings() throws Exception {
+        // arrange
+        PersistentIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
+        dsl.insertInto(WORKFLOW_OID)
+                .set(WORKFLOW_OID.ID, WORKFLOW_1_OID)
+                .set(WORKFLOW_OID.EXTERNAL_NAME, WORKFLOW_1_NAME)
+                .set(WORKFLOW_OID.TARGET_ID, WORKFLOW_1_TARGET_ID)
+                .execute();
+        Map<IdentityMatchingAttributes, Long> updatedMap =
+                ImmutableMap.<IdentityMatchingAttributes, Long>builder()
+                        .put(attr2, WORKFLOW_1_OID)
+                        .build();
+
+        // act
+        testIdentityStore.updateOidMappings(updatedMap);
+        // assert
+        Map<IdentityMatchingAttributes, Long> attrsToOidMap = testIdentityStore.fetchAllOidMappings();
+        assertEquals(attrsToOidMap.size(), 1);
+        Map.Entry<IdentityMatchingAttributes, Long> entry = attrsToOidMap.entrySet().iterator().next();
+        assertEquals(entry.getKey(), attr2);
+        assertEquals((long) entry.getValue(), WORKFLOW_1_OID);
     }
 
     /**
@@ -196,20 +226,44 @@ public class PersistentWorkflowIdentityStoreTest {
     }
 
     /**
+     * Test that collecting and restoring work flow identifiers diags.
+     *
+     * @throws DiagnosticsException - should never happen
+     */
+    @Test
+    public void testDiagsCollectAndRestore() throws DiagnosticsException {
+        PersistentWorkflowIdentityStore testIdentityStore = new PersistentWorkflowIdentityStore(dsl);
+        persistBothWorkflowOids();
+        final List<String> diags = testIdentityStore.collectDiags();
+        assertEquals(2, diags.size());
+        // Clean up db before restore
+        dsl.delete(WORKFLOW_OID).execute();
+        testIdentityStore.restoreDiags(diags);
+        final Result<Record> rs = dsl.select()
+                .from(WORKFLOW_OID)
+                .fetch();
+        assertEquals(2, rs.size());
+        assertThat(rs.getValues(WORKFLOW_OID.ID), containsInAnyOrder(WORKFLOW_1_OID, WORKFLOW_2_OID));
+        assertThat(rs.getValues(WORKFLOW_OID.TARGET_ID),
+                containsInAnyOrder(WORKFLOW_1_TARGET_ID, WORKFLOW_2_TARGET_ID));
+        assertThat(rs.getValues(WORKFLOW_OID.EXTERNAL_NAME),
+                containsInAnyOrder(WORKFLOW_1_NAME, WORKFLOW_2_NAME));
+    }
+
+    /**
      * Persist two rows in the WORKFLOW_OID table.
      */
     private void persistBothWorkflowOids() {
         dsl.insertInto(WORKFLOW_OID)
                 .set(WORKFLOW_OID.ID, WORKFLOW_1_OID)
-                .set(WORKFLOW_OID.EXTERNAL_NAME, WORKFLOW_1_NAME)
                 .set(WORKFLOW_OID.TARGET_ID, WORKFLOW_1_TARGET_ID)
+                .set(WORKFLOW_OID.EXTERNAL_NAME, WORKFLOW_1_NAME)
                 .execute();
         dsl.insertInto(WORKFLOW_OID)
                 .set(WORKFLOW_OID.ID, WORKFLOW_2_OID)
-                .set(WORKFLOW_OID.EXTERNAL_NAME, WORKFLOW_2_NAME)
                 .set(WORKFLOW_OID.TARGET_ID, WORKFLOW_2_TARGET_ID)
+                .set(WORKFLOW_OID.EXTERNAL_NAME, WORKFLOW_2_NAME)
                 .execute();
     }
-
 
 }

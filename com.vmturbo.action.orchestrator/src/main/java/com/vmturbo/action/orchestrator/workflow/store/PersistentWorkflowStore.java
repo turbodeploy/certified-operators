@@ -30,8 +30,8 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.OrchestratorType;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
-import com.vmturbo.identity.store.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStoreUpdate;
 
 /**

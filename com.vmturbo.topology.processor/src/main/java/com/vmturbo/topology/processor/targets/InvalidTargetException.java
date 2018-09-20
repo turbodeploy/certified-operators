@@ -15,7 +15,7 @@ import com.google.common.collect.ImmutableList;
  * {@link com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo}
  * at probe registration time.
  */
-public class InvalidTargetException extends Exception {
+public class InvalidTargetException extends TargetStoreException {
     private final List<String> errors;
 
     public InvalidTargetException(@Nonnull final List<String> errors) {

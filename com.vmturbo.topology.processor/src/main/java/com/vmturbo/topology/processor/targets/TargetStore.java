@@ -3,9 +3,12 @@ package com.vmturbo.topology.processor.targets;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.identity.exceptions.IdentifierConflictException;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -50,13 +53,16 @@ public interface TargetStore {
      *
      * @param spec Target information.
      * @return The newly created target.
-     * @throws InvalidTargetException If the spec is invalid.
+     * @throws InvalidTargetException If the target spec is invalid.
+     * @throws DuplicateTargetException If the target is already exist.
+     * @throws IdentityStoreException If no old or new oid fetched.
      */
     @Nonnull
-    Target createTarget(@Nonnull final TargetSpec spec) throws InvalidTargetException;
+    Target createTarget(@Nonnull final TargetSpec spec) throws InvalidTargetException,
+            DuplicateTargetException, IdentityStoreException;
 
     /**
-     * Stores the information for a new target. Does not validate account values.
+     * Retores the information from serialized string with given oid. Does not validate account values.
      *
      * @param targetId the target identifier
      * @param spec Target information
@@ -64,15 +70,17 @@ public interface TargetStore {
      * @throws InvalidTargetException If the target spec is invalid.
      */
     @Nonnull
-    Target createTarget(long targetId, @Nonnull final TargetSpec spec) throws InvalidTargetException;
+    Target restoreTarget(long targetId, @Nonnull final TargetSpec spec) throws InvalidTargetException;
 
     /**
      * Creates or updates derived targets based on the target specs. If the target has already exist, we just
      * update the current one with non-identifier fields data, or create new derived target.
      *
      * @param targetSpecs List of target information.
+     * @throws IdentityStoreException If fetching target identity attributes failed.
      */
-    void createOrUpdateDerivedTargets(@Nonnull final List<TargetSpec> targetSpecs);
+    void createOrUpdateDerivedTargets(@Nonnull final List<TargetSpec> targetSpecs)
+            throws IdentityStoreException;
 
     /**
      * Get all targets associated with a probe.
@@ -92,12 +100,14 @@ public interface TargetStore {
      * @param targetId target id to change
      * @param updatedFields new data for the target
      * @return new changed target
-     * @throws InvalidTargetException if target validation failed
+     * @throws InvalidTargetException if target validation failed.
      * @throws TargetNotFoundException if target to be modified is absent in the store.
+     * @throws IdentityStoreException if target spec update failed.
      */
     @Nonnull
     Target updateTarget(long targetId, @Nonnull Collection<AccountValue> updatedFields)
-                    throws InvalidTargetException, TargetNotFoundException;
+                    throws InvalidTargetException, TargetNotFoundException,
+                        IdentityStoreException, IdentifierConflictException;
 
     /**
      * Removes existing target with the specified id from the store and trigger broadcast.
@@ -105,10 +115,11 @@ public interface TargetStore {
      * @param targetId target id to remove
      * @return target removed
      * @throws TargetNotFoundException if target to be removed is absent in the store.
+     * @throws IdentityStoreException if target to be removed is absent in the store.
      */
     @Nonnull
     Target removeTargetAndBroadcastTopology(long targetId, TopologyHandler topologyHandler,
-                    Scheduler scheduler) throws TargetNotFoundException;
+                    Scheduler scheduler) throws TargetNotFoundException, IdentityStoreException;
 
     /**
      * Remove all targets from the store.
@@ -131,13 +142,13 @@ public interface TargetStore {
     boolean removeListener(@Nonnull TargetStoreListener listener);
 
     /**
-     * Get all derived targets which belong to the specific target.
+     * Get all derived target ids which belong to the specific parent target.
      *
      * @param parentTargetId The parent target id.
-     * @return The list of derived targets which belong to the parent target.
+     * @return The set of derived target ids which belong to the parent target.
      */
     @Nonnull
-    List<Target> getDerivedTargets(long parentTargetId);
+    Set<Long> getDerivedTargetIds(long parentTargetId);
 
     /**
      * Given a target id, get the probe info for the probe associated with the target.

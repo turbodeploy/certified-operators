@@ -44,13 +44,16 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
+import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
+import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.DiscoverAllResponse;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationDto;
@@ -81,6 +84,7 @@ import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
+import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
@@ -116,9 +120,13 @@ public class OperationControllerTest {
         }
 
         @Bean
+        IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore() {
+            return new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore()));
+        }
+
+        @Bean
         TargetStore targetStore() {
-            return new KVBackedTargetStore(new MapKeyValueStore(), identityProvider(),
-                            probeStore());
+            return new KVBackedTargetStore(new MapKeyValueStore(), probeStore(), targetIdentityStore());
         }
 
         /**

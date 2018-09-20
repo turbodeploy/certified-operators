@@ -14,7 +14,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.Gson;
@@ -32,7 +31,6 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.impl.TargetInfoProtobufWrapper;
-import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 
@@ -88,14 +86,16 @@ public class Target {
         return info.targetInfo.getSpec();
     }
 
-    Target(final @Nonnull IdentityProvider identityProvider,
-           final @Nonnull ProbeStore probeStore,
-           final @Nonnull TargetSpec inputSpec) throws InvalidTargetException {
-        this(Objects.requireNonNull(identityProvider, "Identity provider should not be null")
-                        .getTargetId(inputSpec), probeStore, inputSpec, true);
-    }
-
-    @VisibleForTesting
+    /**
+     * Create a target instance with the given information of parameters.
+     *
+     * @param targetId The target id assigned from identity store.
+     * @param probeStore The probe store instance.
+     * @param inputSpec The target spec which contain information of the target.
+     * @param validateAccountValues Boolean to know if we need to validate the account value.
+     *
+     * @throws InvalidTargetException If creating target failed.
+     */
     public Target(long targetId,
            final @Nonnull ProbeStore probeStore,
            final @Nonnull TargetSpec inputSpec,

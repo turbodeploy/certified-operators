@@ -6,14 +6,16 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.components.common.diagnostics.Diagnosable;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 
 /**
  * A persistent mapping from a MatchingAttribute (derived from a discovered item) to the
  * corresponding OID.
  * Intended to be used as a backing store for the IdentityStore class.
  */
-public interface PersistentIdentityStore<ITEM_TYPE> {
+public interface PersistentIdentityStore extends Diagnosable {
 
     /**
      * Fetches all the mappings from ItemAttributes -> OID. This is used by IdentityStore
@@ -25,21 +27,21 @@ public interface PersistentIdentityStore<ITEM_TYPE> {
     Map<IdentityMatchingAttributes, Long> fetchAllOidMappings() throws IdentityStoreException;
 
     /**
-     * Persist new mappings from Item to the corresponding OID. The caller provides two maps
-     * used to perform the persistence operation.
+     * Persist new mappings from Item identifiers to the corresponding OID.
      *
-     * The first map, 'itemOidMap', holds the new OID to be persisted for each item.
-     *
-     * The second map, 'itemToAttributesMap' contains the IdentityMatchingAttributes for each item -
-     * the attributes which make this item unique with respect to OID generation,
-     * in case the PersistentIdentityStore wants to persist the IdentityMatchingAttributes as well.
-     *
-     * @param itemToOidMap a map for Item to OID for all keys in 'itemsToPersist'
-     * @param itemToAttributesMap the map from Item to the identifying attributes used to differentiate
-     *                            each item from all the others.
+     * @param attrsToOidMap a map for IdentityMatchingAttributes to OID for all keys in 'itemsToPersist'
+     * @throws IdentityStoreException if there is an error saving these records
      */
-    void saveOidMappings(@Nonnull Map<ITEM_TYPE, Long> itemToOidMap,
-                         @Nonnull Map<ITEM_TYPE, IdentityMatchingAttributes> itemToAttributesMap)
+    void saveOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrsToOidMap)
+            throws IdentityStoreException;
+
+    /**
+     * Update the existing mappings from Item identifiers to the corresponding OID.
+     *
+     * @param attrsToOidMap a map of the OIDs of records to remove from the PersistentIdentityStore.
+     * @throws IdentityStoreException if there is an error updating these records
+     */
+    void updateOidMappings(@Nonnull Map<IdentityMatchingAttributes, Long> attrsToOidMap)
             throws IdentityStoreException;
 
     /**

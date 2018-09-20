@@ -8,8 +8,7 @@ import static org.junit.Assert.assertNotEquals;
 import org.junit.Test;
 
 import com.google.common.collect.Sets;
-
-import com.vmturbo.identity.store.IdentityStoreException;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 
 /**
  * Test the permutations of 'equals' conditions for HeuristicMatchingAttributes

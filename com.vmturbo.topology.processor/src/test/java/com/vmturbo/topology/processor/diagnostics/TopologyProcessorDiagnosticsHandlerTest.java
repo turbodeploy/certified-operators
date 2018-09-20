@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -44,7 +45,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
-
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
@@ -69,6 +69,8 @@ import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO;
@@ -114,6 +116,7 @@ import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata.PropertyMetadata;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -131,6 +134,7 @@ import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetDeserializationException;
+import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -146,6 +150,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final Scheduler scheduler = mock(Scheduler.class);
     private final EntityStore entityStore = mock(EntityStore.class);
     private final ProbeStore probeStore = mock(ProbeStore.class);
+    private final PersistentIdentityStore targetPersistentIdentityStore =
+            mock(PersistentIdentityStore.class);
     private final DiscoveredGroupUploader groupUploader = mock(DiscoveredGroupUploader.class);
     private final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader =
         mock(DiscoveredTemplateDeploymentProfileUploader.class);
@@ -172,6 +178,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final Map<Long, Map<DeploymentProfileInfo, Set<EntityProfileDTO>>> discoveredProfileMap
         = new HashMap<>();
     private final Map<Long, ProbeInfo> probeMap = new HashMap<>();
+    private final List<String> identifierDiags = new ArrayList<>();
 
     @Before
     public void setup() throws Exception {
@@ -186,15 +193,16 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         doReturn(discoveredProfileMap).when(templateDeploymentProfileUploader)
             .getDiscoveredDeploymentProfilesByTarget();
         when(probeStore.getProbes()).thenReturn(probeMap);
+        when(targetPersistentIdentityStore.collectDiags()).thenReturn(identifierDiags);
     }
 
     private ZipInputStream dumpDiags() throws IOException {
         ByteArrayOutputStream zipBytes = new ByteArrayOutputStream();
         ZipOutputStream zos = new ZipOutputStream(zipBytes);
         TopologyProcessorDiagnosticsHandler handler =
-                new TopologyProcessorDiagnosticsHandler(targetStore, scheduler, entityStore,
-                    probeStore, groupUploader, templateDeploymentProfileUploader, identityProvider,
-                    new DiagnosticsWriter());
+                new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
+                        entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
+                        identityProvider, new DiagnosticsWriter());
         handler.dumpDiags(zos);
         zos.close();
         return new ZipInputStream(new ByteArrayInputStream(zipBytes.toByteArray()));
@@ -211,19 +219,25 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
-        assertTrue(ze.getName().equals("Probes.diags"));
+        assertEquals("Probes.diags", ze.getName());
         byte[] bytes = new byte[20];
         assertEquals(-1, zis.read(bytes));
         assertEquals(0, bytes[0]); // the entry is empty
 
         ze = zis.getNextEntry();
-        assertTrue(ze.getName().equals("Targets.diags"));
+        assertEquals("Target.identifiers.diags", ze.getName());
         bytes = new byte[20];
         assertEquals(-1, zis.read(bytes));
         assertEquals(0, bytes[0]); // the entry is empty
 
         ze = zis.getNextEntry();
-        assertTrue(ze.getName().equals("Schedules.diags"));
+        assertEquals("Targets.diags", ze.getName());
+        bytes = new byte[20];
+        assertEquals(-1, zis.read(bytes));
+        assertEquals(0, bytes[0]); // the entry is empty
+
+        ze = zis.getNextEntry();
+        assertEquals("Schedules.diags", ze.getName());
         bytes = new byte[20];
         assertEquals(-1, zis.read(bytes));
         assertEquals(0, bytes[0]); // the entry is empty
@@ -274,6 +288,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             .withTarget(new Target(targetId, probeStore, targetSpec, true));
 
         targets.add(withSecretFields.target);
+        identifierDiags.add("test diags");
 
         final ZipInputStream zis = dumpDiags();
 
@@ -287,6 +302,10 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         assertEquals(withSecretFields.probeInfo, result.getProbeInfo());
 
         ze = zis.getNextEntry();
+        assertEquals("Target.identifiers.diags", ze.getName());
+        assertNotEquals(-1, zis.read(bytes));
+
+        ze = zis.getNextEntry();
         assertEquals("Targets.diags", ze.getName());
         bytes = new byte[1024];
         assertNotEquals(-1, zis.read(bytes));
@@ -297,16 +316,16 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     @Test
     public void testRestoreTargetsInvalidJson()
-            throws IOException, TargetDeserializationException, InvalidTargetException {
+            throws IOException, TargetDeserializationException, InvalidTargetException, IdentityStoreException {
         final long targetId = 1;
         final TargetInfo validTarget = TargetInfo.newBuilder()
                 .setId(targetId)
                 .setSpec(targetSpecBuilder.setProbeId(2))
                 .build();
         final TopologyProcessorDiagnosticsHandler handler =
-                new TopologyProcessorDiagnosticsHandler(targetStore, scheduler, entityStore,
-                    probeStore, groupUploader, templateDeploymentProfileUploader, identityProvider,
-                    new DiagnosticsWriter());
+                new TopologyProcessorDiagnosticsHandler(targetStore, targetPersistentIdentityStore, scheduler,
+                        entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
+                        identityProvider, new DiagnosticsWriter());
         // Valid json, but not a target info
         final String invalidJsonTarget = GSON.toJson(targetSpecBuilder.setProbeId(3));
         // Invalid json
@@ -317,11 +336,11 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         handler.restoreTargets(ImmutableList.of(invalidJsonTarget, invalidJson, validJsonTarget));
 
         // Verify that we only restored one target.
-        verify(targetStore, times(1)).createTarget(
+        verify(targetStore, times(1)).restoreTarget(
                 anyLong(),
                 any());
         // Verify that the restored target had the right information.
-        verify(targetStore).createTarget(
+        verify(targetStore).restoreTarget(
                 eq(targetId),
                 eq(validTarget.getSpec()));
     }
@@ -368,6 +387,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             assertEquals(testTopologies[i].probeInfo, result.getProbeInfo());
             assertEquals(testTopologies[i].probeId, result.getProbeId());
         }
+
+        ze = zis.getNextEntry();
+        assertEquals("Target.identifiers.diags", ze.getName());
 
         ze = zis.getNextEntry();
         assertEquals("Targets.diags", ze.getName());
@@ -449,12 +471,12 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         TargetStore simpleTargetStore =
                 new KVBackedTargetStore(
                         new MapKeyValueStore(),
-                        mock(IdentityProvider.class),
-                        mock(ProbeStore.class));
+                        mock(ProbeStore.class),
+                        new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore)));
         TopologyProcessorDiagnosticsHandler handler =
-                new TopologyProcessorDiagnosticsHandler(simpleTargetStore, scheduler, entityStore,
-                    probeStore, groupUploader, templateDeploymentProfileUploader, identityProvider,
-                    new DiagnosticsWriter());
+                new TopologyProcessorDiagnosticsHandler(simpleTargetStore, targetPersistentIdentityStore, scheduler,
+                        entityStore, probeStore, groupUploader, templateDeploymentProfileUploader,
+                        identityProvider, new DiagnosticsWriter());
 
         handler.restore(new FileInputStream(new File(fullPath("diags/compressed/diags0.zip"))));
         List<Target> targets = simpleTargetStore.getAll();

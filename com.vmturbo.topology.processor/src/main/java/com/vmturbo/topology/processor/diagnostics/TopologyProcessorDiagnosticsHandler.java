@@ -37,6 +37,8 @@ import com.vmturbo.components.common.DiagnosticsWriter;
 import com.vmturbo.components.common.diagnostics.Diagnosable.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.Diags;
 import com.vmturbo.components.common.diagnostics.RecursiveZipReader;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
@@ -69,10 +71,12 @@ public class TopologyProcessorDiagnosticsHandler {
     private static final String SCHEDULES_DIAGS_FILE_NAME = "Schedules.diags";
     private static final String ID_DIAGS_FILE_NAME = "Identity.diags";
     private static final String PROBES_DIAGS_FILE_NAME = "Probes.diags";
+    private static final String TARGET_IDENTIFIERS_DIAGS_FILE_NAME = "Target.identifiers.diags";
 
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
 
     private final TargetStore targetStore;
+    private final PersistentIdentityStore targetPersistentIdentityStore;
     private final Scheduler scheduler;
     private final EntityStore entityStore;
     private final ProbeStore probeStore;
@@ -85,6 +89,7 @@ public class TopologyProcessorDiagnosticsHandler {
 
     TopologyProcessorDiagnosticsHandler(
         @Nonnull final TargetStore targetStore,
+        @Nonnull final PersistentIdentityStore targetPersistentIdentityStore,
         @Nonnull final Scheduler scheduler,
         @Nonnull final EntityStore entityStore,
         @Nonnull final ProbeStore probeStore,
@@ -93,6 +98,7 @@ public class TopologyProcessorDiagnosticsHandler {
         @Nonnull final IdentityProvider identityProvider,
         @Nonnull final DiagnosticsWriter diagnosticsWriter) {
         this.targetStore = targetStore;
+        this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
         this.entityStore = entityStore;
         this.probeStore = probeStore;
@@ -122,6 +128,7 @@ public class TopologyProcessorDiagnosticsHandler {
     private void dumpDiags(ZipOutputStream diagnosticZip,
                            Function<IdentifiedEntityDTO, String> identifiedEntityMapper,
                            Function<Target, TargetInfo> targetMapper) {
+
         // Probes
         diagnosticsWriter.writeZipEntry(PROBES_DIAGS_FILE_NAME,
             probeStore.getProbes().entrySet().stream()
@@ -130,6 +137,15 @@ public class TopologyProcessorDiagnosticsHandler {
                 .collect(Collectors.toList()),
             diagnosticZip
         );
+
+        // Target identifiers in db, skip following tasks if failed to keep consistency.
+        try {
+            diagnosticsWriter.writeZipEntry(TARGET_IDENTIFIERS_DIAGS_FILE_NAME,
+                targetPersistentIdentityStore.collectDiags(), diagnosticZip);
+        } catch (DiagnosticsException e) {
+            logger.error("Dump target spec oid table failed, following dumping tasks will be skipped. {}", e);
+            return;
+        }
 
         // Targets
         List<Target> targets = targetStore.getAll();
@@ -216,6 +232,13 @@ public class TopologyProcessorDiagnosticsHandler {
      * @param diagnosticZip the ZipOutputStream to dump diags to
      */
     public void dumpAnonymizedDiags(ZipOutputStream diagnosticZip) {
+        // Target identifiers in db.
+        try {
+            diagnosticsWriter.writeZipEntry(TARGET_IDENTIFIERS_DIAGS_FILE_NAME,
+                targetPersistentIdentityStore.collectDiags(), diagnosticZip);
+        } catch (DiagnosticsException e) {
+            logger.error("Dump target spec oid table failed. {}", e);
+        }
         // Targets
         List<Target> targets = targetStore.getAll();
         diagnosticsWriter.writeZipEntry(TARGETS_DIAGS_FILE_NAME,
@@ -282,7 +305,9 @@ public class TopologyProcessorDiagnosticsHandler {
                 continue;
             }
             try {
-                if (TARGETS_DIAGS_FILE_NAME.equals(diagsName)) {
+                if (TARGET_IDENTIFIERS_DIAGS_FILE_NAME.equals(diagsName)) {
+                    restoreTargetIdentifiers(diagsLines);
+                } else if (TARGETS_DIAGS_FILE_NAME.equals(diagsName)) {
                     restoreTargets(diagsLines);
                 } else if (SCHEDULES_DIAGS_FILE_NAME.equals(diagsName)) {
                     restoreSchedules(diagsLines);
@@ -324,6 +349,22 @@ public class TopologyProcessorDiagnosticsHandler {
     }
 
     /**
+     * Clear the target spec oid table and re-populate the data in json-serialized target identifiers.
+     *
+     * @param serializedTargets a list of json-serialized target identifiers data
+     * @throws IdentityStoreException if deserialization fails
+     * @throws DiagnosticsException if restore target identifiers into database fails
+     */
+    @VisibleForTesting
+    void restoreTargetIdentifiers(@Nonnull final List<String> serializedTargetIdentifiers)
+            throws IdentityStoreException, DiagnosticsException {
+        logger.info("Attempting to restore " + serializedTargetIdentifiers.size() + " target identifiers data "
+                + "to database");
+        targetPersistentIdentityStore.restoreDiags(serializedTargetIdentifiers);
+        logger.info("Restored target identifiers into database.");
+    }
+
+    /**
      * Clear the target store and re-populate it based on a list of serialized targets.
      *
      * @param serializedTargets a list of json-serialized targets
@@ -347,7 +388,7 @@ public class TopologyProcessorDiagnosticsHandler {
             .filter(Objects::nonNull)
             .map(targetInfo -> {
                 try {
-                    return targetStore.createTarget(targetInfo.getId(), targetInfo.getSpec());
+                    return targetStore.restoreTarget(targetInfo.getId(), targetInfo.getSpec());
                 } catch (InvalidTargetException e) {
                     // This shouldn't happen, because the createTarget method we use
                     // here shouldn't do validation.

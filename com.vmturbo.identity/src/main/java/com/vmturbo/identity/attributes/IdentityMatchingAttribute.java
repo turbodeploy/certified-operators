@@ -58,7 +58,9 @@ public class IdentityMatchingAttribute {
         return Objects.hash(attributeId, attributeValue);
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s : %s ", attributeId, attributeValue);
+    }
+
 }
-
-
-

@@ -9,8 +9,7 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.collect.Sets;
-
-import com.vmturbo.identity.store.IdentityStoreException;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 
 /**
  * A simple set of com.vmturbo.identity.attributes, consisting of key/value pairs. Defines 'equals' to be
@@ -82,6 +81,17 @@ public class SimpleMatchingAttributes implements IdentityMatchingAttributes {
     @Override
     public int hashCode() {
         return attributes.hashCode();
+    }
+
+    /**
+     * The 'toString()' method returns the serialized attributes list for error print or debug use.
+     *
+     * @return serialized string of attributes list with formating "[attr id 1 : attr value 1,
+     * attr id 2 : attr value 2, ...]"
+     */
+    @Override
+    public String toString() {
+        return attributes.toString();
     }
 
     /**

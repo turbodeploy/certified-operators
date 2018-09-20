@@ -1,13 +1,15 @@
 package com.vmturbo.identity.store;
 
-
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
+import com.vmturbo.identity.exceptions.IdentifierConflictException;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 
 /**
  * A store maintaining a mapping from discovered items of type ITEM_TYPE  to the corresponding OID.
@@ -32,13 +34,24 @@ public interface IdentityStore<ITEM_TYPE> {
             throws IdentityStoreException;
 
     /**
-     * Remove the workflow oid infos corresponding to the given OIDs.
+     * Remove the item oid infos corresponding to the given OIDs.
      *
-     * @param oidsToRemove the oids for the workflow infos to be removed
-     * @throws IdentityStoreException if there's an error removing the workflow infos
+     * @param oidsToRemove the oids to be removed
+     * @throws IdentityStoreException if there's an error removing the infos
      */
     void removeItemOids(@Nonnull Set<Long> oidsToRemove) throws IdentityStoreException;
 
+    /**
+     * Update the attributes associated with a particular OID. We need to support this to allow users to
+     * make changes to user-controlled entities without changing the entity OID.
+     *
+     * @param itemMap the oid to identity matching attributes map.
+     * @throws IdentityStoreException if there's an error updating the infos
+     * @throws IdentifierConflictException if there is same item already exist in store
+     */
+    @Nonnull
+    void updateItemAttributes(@Nonnull Map<Long, ITEM_TYPE> itemMap)
+            throws IdentityStoreException, IdentifierConflictException;
 
     /**
      * Look up the OIDs for items that match the given predicate based on the

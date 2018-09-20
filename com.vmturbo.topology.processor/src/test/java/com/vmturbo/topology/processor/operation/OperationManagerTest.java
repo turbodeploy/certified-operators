@@ -28,6 +28,7 @@ import org.mockito.Mockito;
 import com.google.common.collect.Lists;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -47,7 +48,9 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
+import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
@@ -65,6 +68,7 @@ import com.vmturbo.topology.processor.plan.DiscoveredTemplateDeploymentProfileUp
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.util.Probes;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
@@ -78,9 +82,12 @@ public class OperationManagerTest {
 
     private final TestProbeStore probeStore = new TestProbeStore(identityProvider);
 
+    private final IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore = new TestIdentityStore<>(
+            new TargetSpecAttributeExtractor(probeStore));
+
     private final KeyValueStore kvStore = new MapKeyValueStore();
 
-    private final TargetStore targetStore = new KVBackedTargetStore(kvStore, identityProvider, probeStore);
+    private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore, targetIdentityStore);
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
 
@@ -126,14 +133,12 @@ public class OperationManagerTest {
 
         probeId = IdentityGenerator.next();
         when(identityProvider.getProbeId(any())).thenReturn(probeId);
-        targetId = IdentityGenerator.next();
-        when(identityProvider.getTargetId(any())).thenReturn(targetId);
 
         System.setProperty("com.vmturbo.keydir", testFolder.newFolder().getAbsolutePath());
         final ProbeInfo probeInfo = Probes.emptyProbe;
         probeStore.registerNewProbe(probeInfo, transport);
         final TargetSpec target = new TargetSpec(probeId, Collections.emptyList());
-        targetStore.createTarget(target.toDto());
+        targetId = targetStore.createTarget(target.toDto()).getId();
 
         when(mockRemoteMediationServer.getMessageHandlerExpirationClock())
                 .thenReturn(Clock.systemUTC());

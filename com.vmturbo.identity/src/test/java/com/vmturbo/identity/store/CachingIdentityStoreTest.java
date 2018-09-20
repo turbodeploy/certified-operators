@@ -26,7 +26,6 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.identity.attributes.AttributeExtractor;
@@ -34,7 +33,7 @@ import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
 
 @RunWith(MockitoJUnitRunner.class)
-public class CachingIdentityStoreTest {
+public class CachingIdentityStoreTest<ITEM_TYPE> {
 
     private final SimpleMatchingAttributes attr1 = SimpleMatchingAttributes.newBuilder()
             .addAttribute("id", "v1")
@@ -44,16 +43,16 @@ public class CachingIdentityStoreTest {
             .build();
 
     @Mock
-    private TestItem mockItem1;
+    private ITEM_TYPE mockItem1;
 
     @Mock
-    private TestItem mockItem2;
+    private ITEM_TYPE mockItem2;
 
     @Mock
     PersistentIdentityStore persistentStore;
 
     @Mock
-    AttributeExtractor attributeExtractor;
+    AttributeExtractor<ITEM_TYPE> attributeExtractor;
 
     @Mock
     IdentityInitializer identityInitializer;
@@ -84,35 +83,32 @@ public class CachingIdentityStoreTest {
     @Test
     public void testFetchOrAssignOids() throws Exception {
         // arrange
-        List<TestItem> testItemList = Lists.newArrayList(
+        List<ITEM_TYPE> itemsList = Lists.newArrayList(
                 mockItem1,
                 mockItem2
         );
-        CachingIdentityStore testCachingIdentityStore = new CachingIdentityStore(attributeExtractor,
+        CachingIdentityStore<ITEM_TYPE> testCachingIdentityStore = new CachingIdentityStore(attributeExtractor,
                 persistentStore, identityInitializer);
         // act
-        IdentityStoreUpdate itemOidMapResult = testCachingIdentityStore.fetchOrAssignItemOids(testItemList);
+        IdentityStoreUpdate<ITEM_TYPE> itemOidMapResult = testCachingIdentityStore
+                .fetchOrAssignItemOids(itemsList);
         // assert
         verify(persistentStore).fetchAllOidMappings();
-        ArgumentCaptor<Map> itemsMapCaptor = ArgumentCaptor.forClass(Map.class);
-        ArgumentCaptor<Map> attributesMapCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map> attrsToOidMapCaptor = ArgumentCaptor.forClass(Map.class);
         // verify that there was one call to 'saveOidMappings()'
-        verify(persistentStore).saveOidMappings(attributesMapCaptor.capture(), itemsMapCaptor.capture());
+        verify(persistentStore).saveOidMappings(attrsToOidMapCaptor.capture());
         verifyNoMoreInteractions(persistentStore);
-        // verify that the items ->
-        final Map<TestItem, IdentityMatchingAttributes> itemsMap = itemsMapCaptor.getValue();
-        assertThat(itemsMap.keySet(), containsInAnyOrder(mockItem1, mockItem2));
-        assertThat(itemsMap.values(), containsInAnyOrder(attr1, attr2));
+        // verify that the attrs ->
+        final Map<IdentityMatchingAttributes, Long> attrsToOidMap = attrsToOidMapCaptor.getValue();
+        assertThat(attrsToOidMap.keySet(), containsInAnyOrder(attr1, attr2));
         // check the result contains both items and that the OIDs were generated
-        final Map<TestItem, Long> newItemsMap = itemOidMapResult.getNewItems();
+        final Map<ITEM_TYPE, Long> newItemsMap = itemOidMapResult.getNewItems();
         assertThat(newItemsMap.size(), equalTo(2));
         assertThat(newItemsMap.keySet(), containsInAnyOrder(mockItem1, mockItem2));
         assertThat(newItemsMap.get(mockItem1), greaterThan(beginTestOid));
         assertThat(newItemsMap.get(mockItem2), greaterThan(newItemsMap.get(mockItem1)));
         assertTrue(itemOidMapResult.getOldItems().isEmpty());
     }
-
-
 
     /**
      * Simulate two OIDs pre-loaded from the persistent store; no new OID mapping will be saved
@@ -129,21 +125,21 @@ public class CachingIdentityStoreTest {
                         .put(attr2, IdentityGenerator.next())
                         .build();
         when(persistentStore.fetchAllOidMappings()).thenReturn(preloadOidMappings);
-        List<TestItem> testOidList = Lists.newArrayList(
+        List<ITEM_TYPE> testOidList = Lists.newArrayList(
                 mockItem1,
                 mockItem2
         );
-        CachingIdentityStore testCachingIdentityStore = new CachingIdentityStore(attributeExtractor,
+        CachingIdentityStore<ITEM_TYPE> testCachingIdentityStore = new CachingIdentityStore(attributeExtractor,
                 persistentStore, identityInitializer);
         // act
-        IdentityStoreUpdate itemOidMapResult = testCachingIdentityStore.fetchOrAssignItemOids(testOidList);
+        IdentityStoreUpdate<ITEM_TYPE> itemOidMapResult = testCachingIdentityStore.fetchOrAssignItemOids(testOidList);
         // assert
         verify(persistentStore).fetchAllOidMappings();
         verifyNoMoreInteractions(persistentStore);
         // check the result contains both items and that the OIDs were generated
-        final Map<TestItem, Long> newItemsMap = itemOidMapResult.getNewItems();
+        final Map<ITEM_TYPE, Long> newItemsMap = itemOidMapResult.getNewItems();
         assertTrue(newItemsMap.isEmpty());
-        final Map<TestItem, Long> oldItemsMap = itemOidMapResult.getOldItems();
+        final Map<ITEM_TYPE, Long> oldItemsMap = itemOidMapResult.getOldItems();
         assertThat(oldItemsMap.size(), equalTo(2));
         assertThat(oldItemsMap.keySet(), containsInAnyOrder(mockItem1, mockItem2));
         assertThat(oldItemsMap.get(mockItem1), greaterThan(beginTestOid));
@@ -165,35 +161,55 @@ public class CachingIdentityStoreTest {
                         .put(attr1, IdentityGenerator.next())
                         .build();
         when(persistentStore.fetchAllOidMappings()).thenReturn(preloadOidMappings);
-        List<TestItem> testItemList = Lists.newArrayList(
-                mockItem1,
-                mockItem2
-        );
-        CachingIdentityStore testCachingIdentityStore = new CachingIdentityStore(attributeExtractor,
+        List<ITEM_TYPE> itemsList = Lists.newArrayList(mockItem1, mockItem2);
+        CachingIdentityStore<ITEM_TYPE> testCachingIdentityStore = new CachingIdentityStore(attributeExtractor,
                 persistentStore, identityInitializer);
         // act
-        IdentityStoreUpdate itemOidMapResult = testCachingIdentityStore.fetchOrAssignItemOids(testItemList);
+        IdentityStoreUpdate<ITEM_TYPE> itemOidMapResult = testCachingIdentityStore
+                .fetchOrAssignItemOids(itemsList);
         // assert
         verify(persistentStore).fetchAllOidMappings();
-        ArgumentCaptor<Map> itemsMapCaptor = ArgumentCaptor.forClass(Map.class);
-        ArgumentCaptor<Map> attributesMapCaptor = ArgumentCaptor.forClass(Map.class);
-        verify(persistentStore).saveOidMappings(attributesMapCaptor.capture(), itemsMapCaptor.capture());
+        ArgumentCaptor<Map> attrsToOidMapCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(persistentStore).saveOidMappings(attrsToOidMapCaptor.capture());
         verifyNoMoreInteractions(persistentStore);
         // expect attr2 to have been saved in the persistent store
-        assertThat(itemsMapCaptor.getAllValues().size(), equalTo(1));
-        Set<IdentityMatchingAttributes> matchingAttributesFound = itemsMapCaptor.getValue().keySet();
-        assertThat(matchingAttributesFound, contains(mockItem2));
+        assertThat(attrsToOidMapCaptor.getAllValues().size(), equalTo(1));
+        Set<IdentityMatchingAttributes> matchingAttributesFound = attrsToOidMapCaptor.getValue().keySet();
+        assertThat(matchingAttributesFound, contains(attr2));
         // check the that one item is in the old map, and one in the new map
-        final Map<TestItem, Long> newItemsMap = itemOidMapResult.getNewItems();
+        final Map<ITEM_TYPE, Long> newItemsMap = itemOidMapResult.getNewItems();
         assertThat(newItemsMap.size(), equalTo(1));
-        final Map<TestItem, Long> oldItemsMap = itemOidMapResult.getOldItems();
+        final Map<ITEM_TYPE, Long> oldItemsMap = itemOidMapResult.getOldItems();
         assertThat(oldItemsMap.size(), equalTo(1));
-//        assertThat(itemOidMapResult.keySet(), containsInAnyOrder(mockItem1, mockItem2));
-//        assertThat(itemOidMapResult.get(mockItem1), greaterThan(beginTestOid));
-//        assertThat(itemOidMapResult.get(mockItem2), greaterThan(itemOidMapResult.get(mockItem1)));
     }
 
-    private static class TestItem {
+    /**
+     * Test update two  {@link IdentityMatchingAttributes} with given generated cOIDs
+     * preloaded from the persistent store. Expect that both IdentitMatchingAttributes, with
+     * OIDs assigned, will be updated.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testUpdateItemAttributes() throws Exception {
+        // arrange
+        final long id1 = IdentityGenerator.next();
+        final long id2 = IdentityGenerator.next();
+        Map<Long, ITEM_TYPE> updateItems = ImmutableMap.of(id1, mockItem1, id2, mockItem2);
+        CachingIdentityStore<ITEM_TYPE> testCachingIdentityStore = new CachingIdentityStore(attributeExtractor,
+                persistentStore, identityInitializer);
+        //act
+        testCachingIdentityStore.updateItemAttributes(updateItems);
+        // assert
+        verify(persistentStore).fetchAllOidMappings();
 
+        ArgumentCaptor<Map> attrsToOidMapCaptor = ArgumentCaptor.forClass(Map.class);
+        // verify that there was one call to 'saveOidMappings()'
+        verify(persistentStore).updateOidMappings(attrsToOidMapCaptor.capture());
+        verifyNoMoreInteractions(persistentStore);
+        // verify that the items ->
+        final Map<IdentityMatchingAttributes, Long> itemsMap = attrsToOidMapCaptor.getValue();
+        assertThat(itemsMap.keySet(), containsInAnyOrder(attr1, attr2));
+        assertThat(itemsMap.values(), containsInAnyOrder(id1, id2));
     }
 }

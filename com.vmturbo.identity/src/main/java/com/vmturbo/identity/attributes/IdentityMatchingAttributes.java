@@ -4,7 +4,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.identity.store.IdentityStoreException;
+import com.vmturbo.identity.exceptions.IdentityStoreException;
 
 /**
  * Capture a {@link Set} of {@link IdentityMatchingAttribute} values. Used as a key during the
