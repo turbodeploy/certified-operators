@@ -157,7 +157,7 @@ public class TopologyConverterTest {
         assertEquals(100, vdcTraderTO.getOid());
         assertEquals(EntityType.VIRTUAL_DATACENTER_VALUE, vdcTraderTO.getType());
         assertEquals(TraderStateTO.ACTIVE, vdcTraderTO.getState());
-        assertEquals("VIRTUAL_DATACENTER::CDV-1", vdcTraderTO.getDebugInfoNeverUseInCode());
+        assertEquals("VIRTUAL_DATACENTER|100|CDV-1", vdcTraderTO.getDebugInfoNeverUseInCode());
         List<CommoditySoldTO> commSoldList = vdcTraderTO.getCommoditiesSoldList();
         assertEquals(1, commSoldList.size());
         CommoditySoldTO commSold = commSoldList.get(0);

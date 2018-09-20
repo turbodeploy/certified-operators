@@ -733,15 +733,23 @@ public class TopologyConverter {
 
     /**
      * Construct a string that can be used for debug purposes.
+     *
+     * The debug info format should be: EntityType|OID|DisplayName
+     * do not change the format, otherwise the analysis stats collection will break
+     * This format is the same in both classic and XL
+     * TODO this should be enforced in a better way
+     *
      * @param topologyDTO the topology entity DTO
-     * @return a string in the format "VIRTUAL_MACHINE::VM-1" where "VM-1" is the entity
+     * @return a string in the format "VIRTUAL_MACHINE|1234|VM-1" where "VM-1" is the entity
      * display name.
      */
     @Nonnull
     private static String entityDebugInfo(
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         return EntityType.forNumber(topologyDTO.getEntityType())
-                + "::"
+                + "|"
+                + topologyDTO.getOid()
+                + "|"
                 + topologyDTO.getDisplayName();
     }
 
