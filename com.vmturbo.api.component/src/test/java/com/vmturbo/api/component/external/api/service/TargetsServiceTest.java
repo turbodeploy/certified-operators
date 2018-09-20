@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.time.Duration;
@@ -224,6 +226,26 @@ public class TargetsServiceTest {
         final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
                         TargetApiDTO.class);
         assertEquals(target, probe, resp);
+    }
+
+    /**
+     * Tests that 'displayName' is set from the 'address' property.
+     *
+     * @throws Exception on exceptions occur.
+     */
+    @Test
+    public void getTargetDisplayname() throws Exception {
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category",
+                        createAccountDef("address"));
+        final TargetInfo target = createMockTargetInfo(probe.getId(), 3,
+                createAccountValue("address", "targetAddress"));
+
+        final MvcResult result = mockMvc
+                        .perform(get("/targets/3").accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                        .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final TargetApiDTO resp = GSON.fromJson(result.getResponse().getContentAsString(),
+                        TargetApiDTO.class);
+        assertThat(resp.getDisplayName(), equalTo("targetAddress"));
     }
 
     /**
