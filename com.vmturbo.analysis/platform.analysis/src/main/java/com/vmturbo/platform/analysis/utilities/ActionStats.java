@@ -3,68 +3,47 @@ package com.vmturbo.platform.analysis.utilities;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.time.Instant;
+
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
-import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Reconfigure;
 import com.vmturbo.platform.analysis.actions.Resize;
 
 /**
  * This class tracks action statistics through various phases. The supported usage is:<br>
  * <code>
- *     ActionStats actionStats = new ActionStats(ArrayList<Action>);<br>
- *     actionStats.phaseLogEntry("Phase1");<br>
- *     actionStats.phaseLogEntry("Phase2");<br>
- *     actionStats.phaseLogEntry("Phase3");<br>
- *     actionStats.finalLogEntry();
+ * ActionStats actionStats = new ActionStats(ArrayList<Action>);<br>
+ * actionStats.phaseLogEntry("Phase1");<br>
+ * actionStats.phaseLogEntry("Phase2");<br>
+ * actionStats.phaseLogEntry("Phase3");<br>
+ * actionStats.finalLogEntry();
  * </code>
- *
  */
 public class ActionStats {
 
-    private static final String ST = ", ST:";
-    private static final String PM = " (PM:";
     private static final String PHASE_FINAL = "final";
-    private static final String V_MEM = "VMem";
-    private static final String V_CPU = "VCPU";
-    private static final String STORAGE = "Storage";
-    private static final String PHYSICAL_MACHINE = "PhysicalMachine";
-    private static final String VIRTUAL_MACHINE = "VirtualMachine";
 
     static final Logger logger = LogManager.getLogger(ActionStats.class);
 
     /**
-     * Data object to hold the counts for various action types.
-     *
+     * Data object to hold the counts for various action types, over a specific phase.
      */
     private static class ActionStatsData {
-        long numProvisions = 0;
-        long numSuspensions = 0;
-        long numActivations = 0;
-        long numResizes = 0;
-        long numMoves = 0;
 
-        long numHostProvisions = 0;
-        long numHostSuspensions = 0;
-        long numHostActivations = 0;
-        long numCpuResizes = 0;
-        long numHostMoves = 0;
-
-        long numStorageProvisions = 0;
-        long numStorageSuspensions = 0;
-        long numStorageActivations = 0;
-        long numMemResizes = 0;
-        long numStorageMoves = 0;
+        // map<actionType, map<entityType, count>>
+        final Map<ActionType, Map<String, Long>> statsMap = new HashMap<>();
     }
 
 
@@ -161,140 +140,100 @@ public class ActionStats {
     }
 
     private boolean isThereData(ActionStatsData data) {
-        return data.numMoves > 0 || data.numResizes > 0 ||
-               data.numProvisions > 0 || data.numSuspensions > 0;
-    }
-
-    private boolean isThereNonResizeData(ActionStatsData data) {
-        return data.numMoves > 0 || data.numProvisions > 0 || data.numSuspensions > 0;
+        return !data.statsMap.isEmpty();
     }
 
     /**
      * Append counts to the StringBuilder
      *
      * @param stringBuilder The StringBuilder which is appended to
-     * @param data The object containing the counts
-     * @param phase The phase for which the log is being generated
+     * @param data          The object containing the counts
+     * @param phase         The phase for which the log is being generated
      */
     private void body(StringBuilder stringBuilder, ActionStatsData data, String phase) {
-        if (data.numResizes > 0) {
-            stringBuilder.append(" ").append(data.numResizes).append(" resizes").append(" (VCPU:")
-            .append(data.numCpuResizes).append(", VMem:")
-            .append(data.numMemResizes).append(")");
-        }
-        if (isThereNonResizeData(data)) {
-            stringBuilder.append(",");
-        }
-        if (data.numProvisions > 0) {
-           stringBuilder
-            //" XXX provisions (PM:XX1, ST:XX2),")
-            .append(" ").append(data.numProvisions).append(" provisions").append(PM)
-                .append(data.numHostProvisions).append(ST)
-                .append(data.numStorageProvisions).append("),");
-        }
-        if (data.numSuspensions > 0) {
-            stringBuilder
-            //" YYY suspensions (PM:YY1, ST:YY2), and")
-            .append(" ").append(data.numSuspensions).append(" suspensions").append(PM)
-                .append(data.numHostSuspensions)
-                .append(ST).append(data.numStorageSuspensions).append("),");
-        }
-        if (data.numActivations > 0) {
-            stringBuilder
-            //" WWW activations (PM:YY1, ST:YY2), and")
-            .append(" ").append(data.numActivations).append(" activations").append(PM)
-                .append(data.numHostActivations)
-                .append(ST).append(data.numStorageActivations).append("),");
-        }
-        if (data.numMoves > 0) {
-            stringBuilder
-            //" ZZZ moves");
-            .append(" ").append(data.numMoves).append(" moves").append(PM)
-                .append(data.numHostMoves)
-                .append(ST).append(data.numStorageMoves).append(")");
-        }
+
+        // final string example:
+        // " 34 MOVE (PhysicalMachine:10, Storage:24), 5 PROVISION_BY_DEMAND (PhysicalMachine:4, Storage:1)"
+        data.statsMap.forEach((actionType, entityMap) -> {
+
+            if (!entityMap.isEmpty()) {
+
+                //Example: " 34 MOVE ("
+                Long globalCount = entityMap.values().stream().collect(Collectors.summingLong(Long::longValue));
+                String statsDescBegin = String.format(" %d %s (", globalCount, actionType);
+                stringBuilder.append(statsDescBegin);
+
+                entityMap.forEach((entityType, count) -> {
+
+                    //Example: "PhysicalMachine:10, "
+                    String entityStatsDesc = String.format("%s:%d, ", entityType, count);
+                    stringBuilder.append(entityStatsDesc);
+
+                });
+
+                // trim the last 2 chars
+                stringBuilder.delete(stringBuilder.length() - 2, stringBuilder.length());
+                stringBuilder.append("),");
+
+            }
+        });
+
+        // trim the last char
+        stringBuilder.delete(stringBuilder.length() - 1, stringBuilder.length());
     }
 
     /**
      * Counts the various types of actions
      *
-     * @param offset The offset in Actions list to start the count from
+     * @param offset          The offset in Actions list to start the count from
      * @param actionStatsData The data object where the counts are accumulated
      */
     private void count(int offset, ActionStatsData actionStatsData) {
         for (int i = offset; i < actions_.size(); i++) {
             Action action = actions_.get(i);
-            switch(action.getType()) {
-                case MOVE :
+            switch (action.getType()) {
+                case MOVE:
                     incrementMoves(actionStatsData, (Move) action);
                     break;
-                case COMPOUND_MOVE :
+                case COMPOUND_MOVE:
                     for (Move m : ((CompoundMove) action).getConstituentMoves()) {
                         incrementMoves(actionStatsData, m);
                     }
                     break;
-                case RESIZE :
-                    actionStatsData.numResizes++;
+                case RESIZE:
                     Resize resize = (Resize) action;
                     String resizeTrader = resize.getSellingTrader()
-                                    .getDebugInfoNeverUseInCode();
+                        .getDebugInfoNeverUseInCode();
                     String resizeCommodity = resize.getResizedCommoditySpec()
-                                    .getDebugInfoNeverUseInCode();
-                    if (resizeTrader.startsWith(VIRTUAL_MACHINE) &&
-                                    resizeCommodity.startsWith(V_CPU)) {
-                        actionStatsData.numCpuResizes++;
-                    } else if (resizeTrader.startsWith(VIRTUAL_MACHINE)  &&
-                                    resizeCommodity.startsWith(V_MEM)) {
-                        actionStatsData.numMemResizes++;
-                    }
+                        .getDebugInfoNeverUseInCode();
+
+                    String entityType = extractEntityType(resizeTrader);
+                    String commType = extractEntityType(resizeCommodity);
+
+                    // use the encoding entitytype|commodityType to store it in the map
+                    increaseEntityCount(actionStatsData, action.getType(), entityType + "|" + commType);
                     break;
-                case PROVISION_BY_DEMAND :
-                    actionStatsData.numProvisions++;
+                case PROVISION_BY_DEMAND:
                     ProvisionByDemand provisionByDemand = (ProvisionByDemand) action;
                     String demandDebug = provisionByDemand.getModelSeller()
-                                    .getDebugInfoNeverUseInCode();
-                    if (demandDebug.startsWith(PHYSICAL_MACHINE)) {
-                        actionStatsData.numHostProvisions++;
-                    } else if (demandDebug.startsWith(STORAGE)) {
-                        actionStatsData.numStorageProvisions++;
-                    }
+                        .getDebugInfoNeverUseInCode();
+
+                    increaseEntityCount(actionStatsData, action.getType(), extractEntityType(demandDebug));
                     break;
-                case PROVISION_BY_SUPPLY :
-                    actionStatsData.numProvisions++;
+                case PROVISION_BY_SUPPLY:
                     ProvisionBySupply provisionBySupply = (ProvisionBySupply) action;
                     String supplyDebug = provisionBySupply.getModelSeller()
-                                    .getDebugInfoNeverUseInCode();
-                    if (supplyDebug.startsWith(PHYSICAL_MACHINE)) {
-                        actionStatsData.numHostProvisions++;
-                    } else if (supplyDebug.startsWith(STORAGE)) {
-                        actionStatsData.numStorageProvisions++;
-                    }
+                        .getDebugInfoNeverUseInCode();
+
+                    increaseEntityCount(actionStatsData, action.getType(), extractEntityType(supplyDebug));
                     break;
-                case ACTIVATE :
-                    Activate activate = (Activate) action;
-                    actionStatsData.numActivations++;
-                    String activateTarget = activate.getActionTarget().getDebugInfoNeverUseInCode();
-                    if (activateTarget.startsWith(PHYSICAL_MACHINE)) {
-                        actionStatsData.numHostActivations++;
-                    } else if (activateTarget.startsWith(STORAGE)) {
-                        actionStatsData.numStorageActivations++;
-                    }
+                case ACTIVATE:
+                case DEACTIVATE:
+                case RECONFIGURE:
+                    String target = action.getActionTarget().getDebugInfoNeverUseInCode();
+                    increaseEntityCount(actionStatsData, action.getType(), extractEntityType(target));
                     break;
-                case DEACTIVATE :
-                    actionStatsData.numSuspensions++;
-                    Deactivate deactivate = (Deactivate) action;
-                    String deactTarget = deactivate.getActionTarget().getDebugInfoNeverUseInCode();
-                    if (deactTarget.startsWith(PHYSICAL_MACHINE)) {
-                        actionStatsData.numHostSuspensions++;
-                    } else if (deactTarget.startsWith(STORAGE)) {
-                        actionStatsData.numStorageSuspensions++;
-                    }
-                    break;
-                case RECONFIGURE :
-                    Reconfigure reconfigure = (Reconfigure) action;
-                    // count Reconfigurations??
-                    break;
-                case UNKNOWN :
+                case UNKNOWN:
             }
         }
     }
@@ -302,25 +241,33 @@ public class ActionStats {
     /**
      * Increment counts for moves
      *
-     * @param actionStatsData The data object where the counts are accumulated
      * @param move The {@link Move} action
      */
     private void incrementMoves(ActionStatsData actionStatsData, Move move) {
-        if (move == null || actionStatsData == null) {
+        if (move == null) {
             return;
         }
         if (move.getDestination() == null) {
             logger.error("Move action with a null destination. Move target: "
-                            + (move.getActionTarget() == null ? "nullTrader":
-                               move.getActionTarget().getDebugInfoNeverUseInCode()));
+                + (move.getActionTarget() == null ? "nullTrader" :
+                move.getActionTarget().getDebugInfoNeverUseInCode()));
             return;
         }
-        actionStatsData.numMoves++;
-        String destinationDebug = move.getDestination().getDebugInfoNeverUseInCode();
-        if (destinationDebug.startsWith(PHYSICAL_MACHINE)) {
-            actionStatsData.numHostMoves++;
-        } else if (destinationDebug.startsWith(STORAGE)) {
-            actionStatsData.numStorageMoves++;
-        }
+
+        String entityType = extractEntityType(move.getDestination().getDebugInfoNeverUseInCode());
+        increaseEntityCount(actionStatsData, ActionType.MOVE, entityType);
+    }
+
+    private void increaseEntityCount(ActionStatsData actionStatsData, ActionType actionType, String entityType) {
+        actionStatsData.statsMap.computeIfAbsent(actionType, k -> new HashMap<>())
+            .merge(entityType, 1L, Long::sum);
+    }
+
+    // this is based on the convention that the debug string is in the format: EntityType|OID|DisplayName
+    private String extractEntityType(String debugString) {
+        String entityType = "";
+        String[] strings = debugString.split("\\|");
+        entityType = strings[0];
+        return entityType;
     }
 }
