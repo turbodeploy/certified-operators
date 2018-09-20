@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -101,5 +102,42 @@ public class LiveStatsReaderTest {
 
         assertThat(result.getNextCursor(), is(nextCursor));
         assertThat(result.getNextPageRecords(), is(ImmutableMap.of(1L, Collections.singletonList(testRecord))));
+    }
+
+    @Test
+    public void testGetStatPageNextPageIsEmpty() throws VmtDbException {
+        final EntityStatsScope scope = EntityStatsScope.newBuilder()
+                .setEntityList(EntityList.newBuilder()
+                        .addEntities(1))
+                .build();
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .setStartDate(123L)
+                .build();
+        final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
+        final Optional<String> nextCursor = Optional.of("ROSIETNROSIENTR");
+
+        final TimeRange timeRange = mock(TimeRange.class);
+        when(timeRange.getMostRecentSnapshotTime()).thenReturn(TIMESTAMP);
+        when(timeRange.getTimeFrame()).thenReturn(TIME_FRAME);
+        when(timeRangeFactory.resolveTimeRange(statsFilter)).thenReturn(Optional.of(timeRange));
+
+        final NextPageInfo nextPageInfo = mock(NextPageInfo.class);
+        // entity OIDs are empty
+        when(nextPageInfo.getEntityOids()).thenReturn(Collections.emptyList());
+        when(nextPageInfo.getTable()).thenReturn(TABLE);
+        when(nextPageInfo.getNextCursor()).thenReturn(nextCursor);
+        when(mockHistorydbIO.getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams))
+                .thenReturn(nextPageInfo);
+
+        final StatRecordPage result =
+                liveStatsReader.getPaginatedStatsRecords(scope, statsFilter, paginationParams);
+
+        verify(timeRangeFactory).resolveTimeRange(statsFilter);
+        verify(mockHistorydbIO).getNextPage(scope, TIMESTAMP, TIME_FRAME, paginationParams);
+        // verify early return
+        verify(statsQueryFactory, never()).createStatsQuery(nextPageInfo.getEntityOids(), TABLE, statsFilter.getCommodityRequestsList(), timeRange, AGGREGATE.NO_AGG);
+
+        assertThat(result.getNextCursor(), is(Optional.empty()));
+        assertThat(result.getNextPageRecords(), is(Collections.emptyMap()));
     }
 }

@@ -156,7 +156,7 @@ public class LiveStatsReader {
      * Get a page of stat records. The stats records are returned individually for each entity.
      * It is the caller's responsibility to aggregate them if desired.
      *
-     * @param entityIds The set of IDs to retrieve records for.
+     * @param entityStatsScope The scope for an entity stats query.
      * @param statsFilter The filter specifying which stats to get. If the filter time range spans
      *                    across multiple snapshots, the sort order for pagination will be
      *                    derived from the most recent snapshot. However, once we determine the
@@ -188,6 +188,11 @@ public class LiveStatsReader {
                 timeRange.getTimeFrame(),
                 paginationParams);
 
+        //  Only add records when next page is NOT empty, otherwise do an early return.
+        if (nextPageInfo.getEntityOids().isEmpty()) {
+            logger.warn("Empty next page for scope {} and pagination params {}", entityStatsScope, paginationParams);
+            return StatRecordPage.empty();
+        }
         // Now we build up a query to get ALL relevant stats for the entities in the page.
         // This may include stats for other snapshots, if the time range in the stats filter
         // matches multiple snapshots.
