@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.integration;
 
+import java.util.Map;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -52,5 +53,36 @@ public interface CloudTopology<ENTITY_CLASS> {
      *  be SOME associated region unless the topology is malformed.
      */
     @Nonnull
-    Optional<ENTITY_CLASS> getRegion(final long entityId);
+    Optional<ENTITY_CLASS> getConnectedRegion(final long entityId);
+
+    /**
+     * Get the owner of a particular entity.
+     *
+     * The "owner" is the entity that has an "OWNS" connection to the entity. Typically this
+     * will be a business account.
+     *
+     * This method does not search for the owner recursively. i.e. if entity A owns entity B, and
+     * entity B is connected to entity C, calling this method on entity C will return an empty
+     * optional.
+     *
+     * @param entityId The ID of the entity.
+     * @return An optional containing the owner of this entity, or an empty optional if the ID
+     * is not found, or there is no associated owner.
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getOwner(final long entityId);
+
+    /**
+     * Get the service a particular entity belongs to.
+     *
+     * This method does not search for the owner recursively. Typically services are connected to
+     * tiers. To get the service associated with, say, a VM, the caller has to find the ID(s) of the
+     * tier(s) the VM buys from, and then call this method.
+     *
+     * @param entityId The ID of the entity.
+     * @return An optional containing the service connected to this entity, or an empty optional if
+     * the ID is not found, or there is no associated service.
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getConnectedService(final long entityId);
 }

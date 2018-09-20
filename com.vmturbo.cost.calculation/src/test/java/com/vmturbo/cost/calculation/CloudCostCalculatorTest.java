@@ -2,9 +2,13 @@ package com.vmturbo.cost.calculation;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import org.junit.Test;
@@ -13,6 +17,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
+import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -39,6 +44,9 @@ public class CloudCostCalculatorTest {
 
     private CloudCostCalculatorFactory<TestEntityClass> calculatorFactory =
             CloudCostCalculator.<TestEntityClass>newFactory();
+
+    private DiscountApplicatorFactory<TestEntityClass> discountApplicatorFactory =
+            (DiscountApplicatorFactory<TestEntityClass>)mock(DiscountApplicatorFactory.class);
 
     /**
      * Test a simple on-demand calculation (no RI, no discount) for a VM.
@@ -72,38 +80,43 @@ public class CloudCostCalculatorTest {
                         .build())
                 .build();
 
-        final CloudCostData cloudCostData = new CloudCostData(priceTable);
+        final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap());
         when(dataProvider.getCloudCostData()).thenReturn(cloudCostData);
 
         final CloudCostCalculator<TestEntityClass> calculator =
-                calculatorFactory.newCalculator(dataProvider, topology, infoExtractor);
+                calculatorFactory.newCalculator(dataProvider, topology, infoExtractor, discountApplicatorFactory);
 
-        final TestEntityClass testEntity = mock(TestEntityClass.class);
+        final TestEntityClass testEntity = TestEntityClass.newBuilder(entityId)
+                .setType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setComputeConfig(new EntityInfoExtractor.ComputeConfig(OSType.SUSE, Tenancy.DEFAULT))
+                .build(infoExtractor);
 
-        when(infoExtractor.getEntityType(testEntity)).thenReturn(EntityType.VIRTUAL_MACHINE_VALUE);
-        when(infoExtractor.getId(testEntity)).thenReturn(entityId);
-        when(infoExtractor.getComputeConfig(testEntity))
-            .thenReturn(Optional.of(new EntityInfoExtractor.ComputeConfig(OSType.SUSE, Tenancy.DEFAULT)));
+        final TestEntityClass region = TestEntityClass.newBuilder(regionId)
+                .build(infoExtractor);
 
-        final TestEntityClass region = mock(TestEntityClass.class);
-        when(infoExtractor.getId(region)).thenReturn(regionId);
+        final TestEntityClass computeTier = TestEntityClass.newBuilder(computeTierId)
+                .build(infoExtractor);
 
-        final TestEntityClass computeTier = mock(TestEntityClass.class);
-        when(infoExtractor.getId(computeTier)).thenReturn(computeTierId);
-
-        when(topology.getRegion(entityId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedRegion(entityId)).thenReturn(Optional.of(region));
         when(topology.getComputeTier(entityId)).thenReturn(Optional.of(computeTier));
 
+        final DiscountApplicator<TestEntityClass> discountApplicator =
+                (DiscountApplicator<TestEntityClass>)mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(any())).thenReturn(0.0);
+        when(discountApplicatorFactory.entityDiscountApplicator(testEntity, topology, infoExtractor, cloudCostData))
+            .thenReturn(discountApplicator);
 
         // act
         final CostJournal<TestEntityClass> journal = calculator.calculateCost(testEntity);
 
         // assert
-        assertThat(journal.getTotalCost(), is(basePrice + suseAdjustment));
-        assertThat(journal.getCostForCategory(CostCategory.COMPUTE), is(basePrice));
-        assertThat(journal.getCostForCategory(CostCategory.LICENSE), is(suseAdjustment));
+        assertThat(journal.getTotalHourlyCost(), is(basePrice + suseAdjustment));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(basePrice));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(suseAdjustment));
+
+        // Once for the compute, once for the license, because both costs are "paid to" the
+        // compute tier.
+        verify(discountApplicator, times(2)).getDiscountPercentage(computeTier);
     }
 
-    public static class TestEntityClass {
-    }
 }

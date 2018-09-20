@@ -12,9 +12,12 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
+import com.vmturbo.cost.calculation.DiscountApplicator;
+import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
+import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
@@ -31,7 +34,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
 @Import({ComputeTierDemandStatsConfig.class,
         TopologyProcessorClientConfig.class,
         PricingConfig.class,
-        EntityCostConfig.class})
+        EntityCostConfig.class,
+        DiscountConfig.class})
 public class TopologyListenerConfig {
 
     @Autowired
@@ -45,6 +49,9 @@ public class TopologyListenerConfig {
 
     @Autowired
     private EntityCostConfig entityCostConfig;
+
+    @Autowired
+    private DiscountConfig discountConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -69,7 +76,12 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyCostCalculator topologyCostCalculator() {
         return new TopologyCostCalculator(cloudTopologyFactory(), topologyEntityInfoExtractor(),
-                cloudCostCalculatorFactory(), localCostDataProvider());
+                cloudCostCalculatorFactory(), localCostDataProvider(), discountApplicatorFactory());
+    }
+
+    @Bean
+    public DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory() {
+        return DiscountApplicator.newFactory();
     }
 
     @Bean
@@ -89,6 +101,6 @@ public class TopologyListenerConfig {
 
     @Bean
     public LocalCostDataProvider localCostDataProvider() {
-        return new LocalCostDataProvider(pricingConfig.priceTableStore());
+        return new LocalCostDataProvider(pricingConfig.priceTableStore(), discountConfig.discountStore());
     }
 }

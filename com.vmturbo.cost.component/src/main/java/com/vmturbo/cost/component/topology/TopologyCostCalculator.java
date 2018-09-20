@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
@@ -35,14 +36,18 @@ public class TopologyCostCalculator {
 
     private final LocalCostDataProvider localCostDataProvider;
 
+    private final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory;
+
     public TopologyCostCalculator(@Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                   @Nonnull final TopologyEntityInfoExtractor topologyEntityInfoExtractor,
                                   @Nonnull final CloudCostCalculatorFactory<TopologyEntityDTO> cloudCostCalculatorFactory,
-                                  @Nonnull final LocalCostDataProvider localCostDataProvider) {
+                                  @Nonnull final LocalCostDataProvider localCostDataProvider,
+                                  @Nonnull final DiscountApplicatorFactory<TopologyEntityDTO> discountApplicatorFactory) {
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
         this.topologyEntityInfoExtractor = Objects.requireNonNull(topologyEntityInfoExtractor);
         this.cloudCostCalculatorFactory = Objects.requireNonNull(cloudCostCalculatorFactory);
         this.localCostDataProvider = Objects.requireNonNull(localCostDataProvider);
+        this.discountApplicatorFactory = Objects.requireNonNull(discountApplicatorFactory);
     }
 
     /**
@@ -56,7 +61,7 @@ public class TopologyCostCalculator {
         final CloudCostCalculator<TopologyEntityDTO> costCalculator;
         try {
             costCalculator = cloudCostCalculatorFactory.newCalculator(localCostDataProvider,
-                    cloudTopology, topologyEntityInfoExtractor);
+                    cloudTopology, topologyEntityInfoExtractor, discountApplicatorFactory);
             return cloudEntities.values().stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, costCalculator::calculateCost));
         } catch (CloudCostDataRetrievalException e) {

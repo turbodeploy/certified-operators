@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -37,13 +38,17 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor;
 
+    private final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory;
+
     private CloudCostCalculator(@Nonnull final CloudCostDataProvider cloudCostDataProvider,
-                               @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
-                               @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor)
+               @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
+               @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
+               @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory)
             throws CloudCostDataRetrievalException {
         this.cloudCostData = Objects.requireNonNull(cloudCostDataProvider).getCloudCostData();
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.entityInfoExtractor = Objects.requireNonNull(entityInfoExtractor);
+        this.discountApplicatorFactory = Objects.requireNonNull(discountApplicatorFactory);
     }
 
     /**
@@ -74,18 +79,22 @@ public class CloudCostCalculator<ENTITY_CLASS> {
     public CostJournal<ENTITY_CLASS> calculateCost(@Nonnull final ENTITY_CLASS entity) {
         if (entityInfoExtractor.getEntityType(entity) != EntityType.VIRTUAL_MACHINE_VALUE) {
             // Not supporting cost calculation for anything other than VMs for now.
-            return CostJournal.empty(entity);
+            return CostJournal.empty(entity, entityInfoExtractor);
         }
 
         final long entityId = entityInfoExtractor.getId(entity);
-        final Optional<ENTITY_CLASS> regionOpt = cloudTopology.getRegion(entityId);
+        final Optional<ENTITY_CLASS> regionOpt = cloudTopology.getConnectedRegion(entityId);
         if (!regionOpt.isPresent()) {
             logger.warn("Unable to find region for entity {}. Returning empty cost.", entityId);
-            return CostJournal.empty(entity);
+            return CostJournal.empty(entity, entityInfoExtractor);
         }
         final ENTITY_CLASS region = regionOpt.get();
 
-        final CostJournal.Builder<ENTITY_CLASS> journal = CostJournal.newBuilder(entity, region);
+        final DiscountApplicator<ENTITY_CLASS> discountApplicator =
+                discountApplicatorFactory.entityDiscountApplicator(entity, cloudTopology, entityInfoExtractor, cloudCostData);
+
+        final CostJournal.Builder<ENTITY_CLASS> journal =
+                CostJournal.newBuilder(entity, entityInfoExtractor, region, discountApplicator);
 
         entityInfoExtractor.getComputeConfig(entity).ifPresent(computeConfig -> {
             // Calculate on-demand prices for entities that have a compute config.
@@ -146,6 +155,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         CloudCostCalculator<ENTITY_CLASS> newCalculator(
                 @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                 @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
-                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor) throws CloudCostDataRetrievalException;
+                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
+                @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory)
+            throws CloudCostDataRetrievalException;
     }
 }

@@ -1,9 +1,12 @@
 package com.vmturbo.cost.calculation.integration;
 
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 
 /**
@@ -31,17 +34,26 @@ public interface CloudCostDataProvider {
      * the {@link PriceTable} from the cost probes, the discounts for various business accounts,
      * and the reserved instance coverage.
      */
-    class CloudCostData {
+    public class CloudCostData {
 
         private final PriceTable combinedPriceTable;
 
-        public CloudCostData(@Nonnull final PriceTable priceTable) {
+        private final Map<Long, Discount> discountsByAccount;
+
+        public CloudCostData(@Nonnull final PriceTable priceTable,
+                             @Nonnull final Map<Long, Discount> discountsByAccount) {
             this.combinedPriceTable = Objects.requireNonNull(priceTable);
+            this.discountsByAccount = Objects.requireNonNull(discountsByAccount);
         }
 
         @Nonnull
         public PriceTable getPriceTable() {
             return combinedPriceTable;
+        }
+
+        @Nonnull
+        public Optional<Discount> getDiscountForAccount(final long accountId) {
+            return Optional.ofNullable(discountsByAccount.get(accountId));
         }
     }
 

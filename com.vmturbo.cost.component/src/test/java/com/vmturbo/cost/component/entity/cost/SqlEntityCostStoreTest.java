@@ -9,14 +9,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Map;
-import java.util.Objects;
-
-import javax.annotation.Nonnull;
 
 import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
@@ -187,7 +183,7 @@ public class SqlEntityCostStoreTest {
         when(journal.getEntity()).thenReturn(entity);
         when(journal.getCategories()).thenReturn(costsByCategory.keySet());
         for (final CostCategory category : CostCategory.values()) {
-            when(journal.getCostForCategory(category))
+            when(journal.getHourlyCostForCategory(category))
                 .thenReturn(costsByCategory.getOrDefault(category, 0.0));
         }
         return journal;

@@ -136,7 +136,7 @@ public class SQLEntityCostStore implements EntityCostStore {
                     // Bind values to the batch insert statement. Each "bind" should have values for
                     // all fields set during batch initialization.
                     chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
-                        final double categoryCost = journal.getCostForCategory(costType);
+                        final double categoryCost = journal.getHourlyCostForCategory(costType);
                         batch.bind(journal.getEntity().getOid(),
                                 curTime,
                                 journal.getEntity().getEntityType(),
