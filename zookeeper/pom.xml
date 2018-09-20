@@ -25,7 +25,7 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/${artifactId}</imageName>
+                            <imageName>${docker.image.prefix}/zookeeper</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
                             </imageTags>
@@ -60,7 +60,7 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/${artifactId}</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/zookeeper</imageName>
                                 </configuration>
                             </execution>
                         </executions>

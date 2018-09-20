@@ -58,7 +58,7 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/${artifactId}</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/arangodb</imageName>
                                 </configuration>
                             </execution>
                         </executions>
