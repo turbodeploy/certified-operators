@@ -2,6 +2,9 @@ package com.vmturbo.api.component;
 
 import java.nio.charset.Charset;
 import java.util.List;
+import java.util.Objects;
+
+import javax.annotation.Nonnull;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +18,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.api.handler.GlobalExceptionHandler;
 import com.vmturbo.api.interceptors.TelemetryInterceptor;
+import com.vmturbo.api.serviceinterfaces.IAppVersionInfo;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.api.ComponentGsonFactory;
 
@@ -28,6 +32,12 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
 
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix;
+
+    @Value("${publicVersionString}")
+    private String publicVersionString;
+
+    @Value("${build-number.build}")
+    private String buildNumber;
 
     /**
      * Add a new instance of the {@link GsonHttpMessageConverter} to the list of available {@link HttpMessageConverter}s in use.
@@ -68,6 +78,13 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
         return new GlobalExceptionHandler();
     }
 
+    @Bean
+    public IAppVersionInfo versionInfo() {
+        // Build Number includes quotation marks around it. Strip those if they are present.
+        final String strippedBuildNumber = buildNumber.replaceAll("^\"|\"$", "");
+        return new AppVersionInfo(publicVersionString, strippedBuildNumber);
+    }
+
     /**
      * Create a telemetry interceptor to collect REST API usage and latency metrics.
      *
@@ -75,7 +92,66 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public TelemetryInterceptor telemetryInterceptor() {
-        return new TelemetryInterceptor();
+        return new TelemetryInterceptor(versionInfo());
+    }
+
+    /**
+     * Implement the {@link IAppVersionInfo} to provide version info to the {@link TelemetryInterceptor}.
+     */
+    private static class AppVersionInfo implements IAppVersionInfo {
+        private final String publicVersionString;
+        private final String buildNumber;
+
+        AppVersionInfo(@Nonnull final String publicVersionString,
+                       @Nonnull final String buildNumber) {
+            this.publicVersionString = Objects.requireNonNull(publicVersionString);
+            this.buildNumber = Objects.requireNonNull(buildNumber);
+        }
+
+        @Override
+        public String getVersion() {
+            return publicVersionString;
+        }
+
+        @Override
+        public String getBuildTime() {
+            return buildNumber;
+        }
+
+        @Override
+        public String getBuildUser() {
+            return "";
+        }
+
+        @Override
+        public String getGitCommit() {
+            return "";
+        }
+
+        @Override
+        public String getGitBranch() {
+            return "";
+        }
+
+        @Override
+        public String getGitDescription() {
+            return "";
+        }
+
+        @Override
+        public boolean hasCodeChanges() {
+            return false;
+        }
+
+        @Override
+        public String getProperty(String s) {
+            return "";
+        }
+
+        @Override
+        public String getProperty(String s, String s1) {
+            return "";
+        }
     }
 }
 

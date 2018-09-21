@@ -140,11 +140,13 @@ public class ApiDiagnosticsHandlerTest {
 
     @Test
     public void testCollectEntityCounts() throws Exception {
-        diagnosticsHandler.collectEntityCounts();
+        final VersionAndRevision versionAndRevision =
+            new VersionAndRevision(VERSION_STRING);
+        diagnosticsHandler.collectEntityCounts(versionAndRevision);
 
         final String metrics = TelemetryMetricUtilities.format004(CollectorRegistry.defaultRegistry);
-        assertTrue(metrics.contains("{service_entity_name=\"VirtualMachine\",} 21.0"));
-        assertTrue(metrics.contains("{service_entity_name=\"PhysicalMachine\",} 4.0"));
+        assertTrue(metrics.contains("service_entity_count{service_entity_name=\"VirtualMachine\",version=\"Turbonomic Operations Manager 7.4.0:20180722153849000\",} 21.0"));
+        assertTrue(metrics.contains("service_entity_count{service_entity_name=\"PhysicalMachine\",version=\"Turbonomic Operations Manager 7.4.0:20180722153849000\",} 4.0"));
     }
 
     private SupplychainEntryDTO supplyChainEntry(final int entityCount) {

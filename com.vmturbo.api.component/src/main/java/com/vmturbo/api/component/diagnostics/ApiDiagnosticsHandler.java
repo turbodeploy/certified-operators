@@ -115,11 +115,11 @@ public class ApiDiagnosticsHandler {
         TelemetryMetricDefinitions.setTurbonomicVersionAndRevision(
             versionAndRevision.version, versionAndRevision.revision);
 
-        collectEntityCounts();
+        collectEntityCounts(versionAndRevision);
     }
 
     @VisibleForTesting
-    void collectEntityCounts() {
+    void collectEntityCounts(@Nonnull final VersionAndRevision versionAndRevision) {
         try {
             final SupplychainApiDTOFetcherBuilder supplyChainFetcher = this.supplyChainFetcherFactory
                 .newApiDtoFetcher()
@@ -130,7 +130,8 @@ public class ApiDiagnosticsHandler {
 
             final SupplychainApiDTO supplyChain = supplyChainFetcher.fetch();
             supplyChain.getSeMap().forEach((entityType, entry) ->
-                TelemetryMetricDefinitions.setServiceEntityCount(entityType, entry.getEntitiesCount()));
+                TelemetryMetricDefinitions.setServiceEntityCount(entityType, entry.getEntitiesCount(),
+                    versionAndRevision.version, versionAndRevision.revision));
         } catch (Exception e) {
             logger.error("Unable to collect supply chain entity counts.", e);
         }
