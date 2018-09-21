@@ -15,8 +15,12 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
@@ -25,16 +29,21 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
+import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
+import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
+import com.vmturbo.action.orchestrator.store.LiveActionStore.RecommendationTracker;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.commons.idgen.IdentityGenerator;
@@ -411,4 +420,108 @@ public class LiveActionStoreTest {
                 eq(firstPlanId));
         assertEquals(1, actionStore.size());
     }
+
+    @Test
+    public void testPurgeOfNonRecommendedAction() {
+        ActionDTO.Action.Builder queuedMove =
+                move(vm1, hostA, vmType, hostB, vmType);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(firstPlanId)
+                .addAction(queuedMove)
+                .build();
+
+        actionStore.populateRecommendedActions(firstPlan);
+        Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
+        queuedAction.get().receive(new AutomaticAcceptanceEvent("foo", 123L));
+        assertThat(actionStore.getAction(queuedMove.getId()).get().getState(), is(ActionState.QUEUED));
+
+        ActionDTO.Action.Builder queuedMoveSameSrc =
+                move(vm1, hostA, vmType, hostC, vmType);
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(secondPlanId)
+                .addAction(queuedMoveSameSrc)
+                .build();
+        actionStore.populateRecommendedActions(secondPlan);
+
+        // The 1st action should be in CLEARED state and the 2nd one should be in READY state.
+        assertThat (actionStore.size(), is(2));
+        assertThat(actionStore.getAction(queuedMove.getId()).get().getState(), is(ActionState.CLEARED));
+        assertThat(actionStore.getAction(queuedMoveSameSrc.getId()).get().getState(), is(ActionState.READY));
+    }
+
+    @Test
+    public void testRetentionOfReRecommendedAction() {
+        ActionDTO.Action.Builder queuedMove =
+                move(vm1, hostA, vmType, hostB, vmType);
+
+        ActionPlan firstPlan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(firstPlanId)
+                .addAction(queuedMove)
+                .build();
+
+        actionStore.populateRecommendedActions(firstPlan);
+        Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
+        queuedAction.get().receive(new AutomaticAcceptanceEvent("foo", 123L));
+        assertThat(actionStore.getAction(queuedMove.getId()).get().getState(),
+                is(ActionState.QUEUED));
+
+        ActionDTO.Action.Builder queuedMoveReRecommended =
+                move(vm1, hostA, vmType, hostB, vmType);
+        ActionPlan secondPlan = ActionPlan.newBuilder()
+                .setTopologyId(topologyId)
+                .setId(secondPlanId)
+                .addAction(queuedMoveReRecommended)
+                .build();
+        actionStore.populateRecommendedActions(secondPlan);
+
+        assertThat (actionStore.size(), is(1));
+        assertThat(actionStore.getAction(queuedMove.getId()).get().getState(),
+                is(ActionState.QUEUED));
+    }
+
+    @Test
+    public void testRecommendationTracker() {
+        ActionDTO.Action move1 =
+                move(vm1, hostA, vmType, hostB, vmType).build();
+        ActionDTO.Action move2 =
+                move(vm2, hostA, vmType, hostB, vmType).build();
+        ActionDTO.Action move3 =
+                move(vm1, hostA, vmType, hostC, vmType).build();
+        // Add some duplicates actionInfos to fill the queue with more than 1 entry
+        ActionDTO.Action move4 =
+                move(vm1, hostA, vmType, hostB, vmType).build();
+        ActionDTO.Action move5 =
+                move(vm2, hostA, vmType, hostB, vmType).build();
+
+        ActionFactory actionFactory = new ActionFactory();
+        List<Action> actions = ImmutableList.of(move1, move2, move3, move4, move5)
+                .stream()
+                .map(action -> actionFactory.newAction(action, firstPlanId))
+                .collect(Collectors.toList());
+
+        // Now test the recommendation tracker structure.
+        // Run many iterations where a different action is taken from the tracker in each iteration
+        // to cover various cases (i.e. remove from front, middle, end)
+        int numIterations = actions.size();
+        for (int i=0; i < numIterations; i++) {
+            RecommendationTracker recommendations = new RecommendationTracker();
+            actions.forEach(action -> recommendations.add(action));
+            Action actionToRemove = actions.get(i);
+            recommendations.take(actionToRemove.getRecommendation().getInfo());
+            Set<Long> actionIdsRemaining =
+                    actions.stream()
+                    .map(a -> a.getId())
+                    .filter(id -> id!=actionToRemove.getId())
+                    .collect(Collectors.toSet());
+            assertThat(actionIdsRemaining, new ReflectionEquals(
+                    StreamSupport.stream(recommendations.spliterator(), false)
+                    .map(action -> action.getId())
+                    .collect(Collectors.toSet())));
+        }
+    }
+
 }

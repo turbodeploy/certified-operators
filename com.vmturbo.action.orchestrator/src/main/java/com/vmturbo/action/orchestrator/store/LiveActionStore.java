@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -27,6 +28,8 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
@@ -35,7 +38,6 @@ import com.vmturbo.action.orchestrator.action.QueryFilter;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -123,7 +125,8 @@ public class LiveActionStore implements ActionStore {
      * Internally keeps a map of queues where the key is the ActionInfo for a recommended Action by the
      * market and the values are an ordered queue of the corresponding domain model {@link Action}s.
      */
-    private static class RecommendationTracker implements Iterable<Action> {
+    @VisibleForTesting
+    static class RecommendationTracker implements Iterable<Action> {
         final Map<ActionInfo, Queue<Action>> recommendations = new HashMap<>();
 
         /**
@@ -185,7 +188,10 @@ public class LiveActionStore implements ActionStore {
                     return false;
                 }
 
-                queueIterator = mapIterator.next().iterator();
+                // try to get the 1st non-empty queue.
+                while (mapIterator.hasNext() && !queueIterator.hasNext()) {
+                    queueIterator = mapIterator.next().iterator();
+                }
                 return queueIterator.hasNext();
             }
 
@@ -198,6 +204,11 @@ public class LiveActionStore implements ActionStore {
             public void remove() {
                 throw new UnsupportedOperationException();
             }
+        }
+
+        @Override
+        public String toString() {
+            return recommendations.toString();
         }
     }
 
@@ -280,12 +291,17 @@ public class LiveActionStore implements ActionStore {
 
             final long planId = actionPlan.getId();
             final Set<Long> entitiesToRetrieve = new HashSet<>();
-            actionPlan.getActionList().forEach(recommendedAction -> {
+            final AtomicInteger newActionCounts = new AtomicInteger(0);
+            for (ActionDTO.Action recommendedAction : actionPlan.getActionList() ) {
                 ActionInfo actionInfo = recommendedAction.getInfo();
                 // If the new action has not been recommended previously, add it to the action
                 // store.
-                final Action action = recommendations.take(actionInfo)
-                    .orElse(actionFactory.newAction(recommendedAction, entitySettingsCache, planId));
+                final Action action =
+                        recommendations.take(actionInfo)
+                                .orElseGet(() ->  {
+                                        newActionCounts.getAndIncrement();
+                                        return actionFactory.newAction(recommendedAction, entitySettingsCache, planId);
+                                });
                 if (action.getState() == ActionState.READY) {
                     try {
                         entitiesToRetrieve.addAll(ActionDTOUtil.getInvolvedEntities(recommendedAction));
@@ -294,7 +310,10 @@ public class LiveActionStore implements ActionStore {
                         logger.error("Recommendation contains unsupported action", e);
                     }
                 }
-            });
+            }
+            logger.info("Number of Re-Recommended actions={}, Newly created actions={}",
+                    (actionPlan.getActionCount() - newActionCounts.get()),
+                    newActionCounts);
 
             entitySettingsCache.update(entitiesToRetrieve,
                     actionPlan.getTopologyContextId(), actionPlan.getTopologyId());

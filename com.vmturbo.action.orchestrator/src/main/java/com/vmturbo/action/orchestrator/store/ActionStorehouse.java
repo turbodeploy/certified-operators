@@ -110,6 +110,7 @@ public class ActionStorehouse {
             try {
                 actionExecutionFutures.removeIf(actionExecutionTask ->
                         actionExecutionTask.getFuture().isDone() ||
+                            actionExecutionTask.getAction().getState() == ActionState.CLEARED ||
                             actionExecutionTask.getAction().getState() == ActionState.FAILED ||
                             actionExecutionTask.getAction().getState() == ActionState.SUCCEEDED);
                 actionExecutionFutures.addAll(automatedExecutor.executeAutomatedFromStore(store));
