@@ -26,7 +26,7 @@
                         <artifactId>docker-maven-plugin</artifactId>
                         <configuration>
                             <dockerDirectory>${project.basedir}/docker</dockerDirectory>
-                            <imageName>${docker.image.prefix}/consul</imageName>
+                            <imageName>${docker.image.prefix}/com.vmturbo.consul</imageName>
                             <imageTags>
                                 <imageTag>${project.version}</imageTag>
                             </imageTags>
@@ -64,8 +64,8 @@
                                     <goal>tag</goal>
                                 </goals>
                                 <configuration>
-                                    <image>${docker.image.prefix}/consul</image>
-                                    <newName>${docker.registry}/${docker.image.prefix}/consul:${project.version}</newName>
+                                    <image>${docker.image.prefix}/${project.artifactId}</image>
+                                    <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}</newName>
                                 </configuration>
                             </execution>
                             <execution>
