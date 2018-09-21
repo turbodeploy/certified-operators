@@ -75,7 +75,7 @@
                                     <goal>push</goal>
                                 </goals>
                                 <configuration>
-                                    <imageName>${docker.registry}/${docker.image.prefix}/consul</imageName>
+                                    <imageName>${docker.registry}/${docker.image.prefix}/com.vmturbo.consul</imageName>
                                 </configuration>
                             </execution>
                         </executions>
