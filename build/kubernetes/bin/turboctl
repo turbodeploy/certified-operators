@@ -9,7 +9,10 @@ log_dir="/home/vmtsyslog/rsyslog/"
 output_zip_dir="."
 tmp_log_dir="/tmp/rsyslog"
 kubeCommand="/usr/local/bin/kubectl"
+registryctlCommand="/opt/local/bin/registryctl"
 xlYamlDir="/opt/xl/kubernetes/yaml/"
+component_name=""
+component_version=""
 
 # Functions used throughout the script
 usage()
@@ -24,6 +27,7 @@ usage:
 `basename $0` shell  <pod_name>                     -> SSH to a pod
 `basename $0` sql                                   -> To run sql into database
         sql  -u <username> -p <password> -d <database> -s <sql>
+`basename $0` deploy -c <component_name> -v <component_version>   -> deploy updated component using new image
 `basename $0` start <deployment_name>               -> start deployment
 `basename $0` stop <deployment_name>                -> stop deployment
 `basename $0` restart <deployment_name>             -> restart deployment
@@ -48,7 +52,6 @@ case "$args" in
   #    - more than one components to look for, e.g.
   #    "-c topology-processor history" or perhaps
   #    "-c topology-processor|history" (i.e. one grep expression) if you prefer
-
     [ -z "${1}" ] && usage
     rsyslogPodName=$(kubectl get pods -o go-template --template '{{range .items}}{{.metadata.name}}{{"\n"}}{{end}}' | grep rsyslog)
     while getopts "c:n:" opt; do
@@ -98,7 +101,7 @@ case "$args" in
             ${kubeCommand} create -f ${xlYamlDir}/non-prod/
             ;;
        *)
-            individual=$(find /opt/xl/kubernetes/yaml -name ${component}.yaml)
+            individual=$(find ${xlYamlDir} -name ${component}.yaml)
             if [ ! -z ${individual} ]
             then
               ${kubeCommand} create -f ${individual}
@@ -109,13 +112,47 @@ case "$args" in
             ;;
     esac
     ;;
+  deploy)
+    while getopts "c::v::" opt; do
+      case ${opt} in
+        c )
+          component_name=${OPTARG}
+          ;;
+        v )
+          component_version=${OPTARG}
+          ;;
+        \? )
+          echo "Invalid Option: -$OPTARG" 1>&2
+          usage
+          exit 1
+          ;;
+        : )
+          echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+          exit 1
+          ;;
+      esac
+    done
+    if [ -z ${component_name} ] || [ -z ${component_version} ]
+    then
+      echo "Please specify component name and version to deploy" 1>&2
+      usage
+    fi
+    ${registryctlCommand} load ${component_name} ${component_version}
+    ${registryctlCommand} push ${component_name} ${component_version}
+    component_yaml_filepath=$(find ${xlYamlDir} -name ${component_name}.yaml)
+    component_package_from_yaml=$(cat ${component_yaml_filepath} | grep 'image: ' | cut -f3 -d '/' | cut -f1 -d ':')
+    sed -i "s#image: .*#image: localhost:5000/turbonomic/${component_package_from_yaml}:${component_version}#" ${component_yaml_filepath}
+    # Check for deployment
+    [ ! -z $(${kubeCommand} get deployments -o name | grep "deployments/${component_name}") ] && ${kubeCommand} delete deployment ${component_name}
+    ${kubeCommand} create -f ${component_yaml_filepath}
+    ;;
   start)
   # TODO: Allow multiple components to start
   #      start history mediation-vcenter
     component=$1; shift
     [ -z $component ] && echo "Please specify deployment name" && exit 1
     pushd ${xlYamlDir}
-      component_yaml_file=$(find . -name "${component}.yaml")
+      component_yaml_file=$(find ${xlYamlDir} -name "${component}.yaml")
     popd
     [ -z $component_yaml_file ] && echo "Coluldn't find yaml for ${component}" && exit 1
     ${kubeCommand} create -f ${xlYamlDir}/${component_yaml_file}
@@ -134,7 +171,7 @@ case "$args" in
     [ -z $component ] && echo "Please specify deployment name" && exit 1
     ${kubeCommand} delete deployment ${component}
     pushd ${xlYamlDir}
-      component_yaml_file=$(find . -name "${component}.yaml")
+      component_yaml_file=$(find ${xlYamlDir} -name "${component}.yaml")
     popd
     [ -z $component_yaml_file ] && echo "Coluldn't find yaml for ${component}" && exit 1
     ${kubeCommand} create -f ${xlYamlDir}/${component_yaml_file}
