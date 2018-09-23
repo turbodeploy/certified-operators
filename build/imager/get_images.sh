@@ -133,7 +133,8 @@ pushd images
 for file in `ls *tgz`; do sha256sum $file > turbonomic_sums.txt; done
 if [ ! -z "${POM_VERSION}" ]
 then
-  for file in `ls ${storage_dir}/*tgz`; do sha256sum $file > ${storage_dir}/turbonomic_sums.txt; done
+  rm -rf ${storage_dir}/turbonomic_sums.txt
+  for file in `ls ${storage_dir}/*tgz`; do sha256sum $file >> ${storage_dir}/turbonomic_sums.txt; done
 fi
 popd
 mkisofs -l -iso-level 4 -o docker_diags_${RELEASE_REV}.iso images/
