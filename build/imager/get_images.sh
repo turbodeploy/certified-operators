@@ -37,11 +37,6 @@ do
 	img_res=$(echo $img | cut -d'/' -f2 | awk -F'.component' '{print $1}')
 	if [[ $img_res == com.vmturbo* ]]; then
 		img_res=$(echo $img_res | awk -F'com.vmturbo.' '{print $2}')
-          if [ ! -z "${POM_VERSION}" ]
-          then
-              docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
-              docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
-          fi
 	fi
 	img_res=$(echo $img_res | tr '.' '_')
         docker save ${img}:latest | xz -T0 -9 > ${img_res}.tgz
@@ -52,14 +47,6 @@ do
         fi
     fi
 done
-
-if [ ! -z "${POM_VERSION}" ]
-then
-  for file in `ls ${storage_dir}/*tgz`
-  do
-    sha256sum $file >> ${storage_dir}/turbonomic_sums.txt
-  done
-fi
 
 # Copy the docker-compose.yml files for each size topology
 cp ${WORKSPACE}/build/docker-compose.yml.15k ${WORKSPACE}/data/images/
@@ -131,15 +118,6 @@ do
     img_res=$(echo $img | cut -d'/' -f2 | awk -F'.component' '{print $1}')
     if [[ $img_res == com.vmturbo* ]]; then
         img_res=$(echo $img_res | awk -F'com.vmturbo.' '{print $2}')
-      if [ ! -z "${POM_VERSION}" ]
-      then
-        docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
-        docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
-        for file in `ls ${storage_dir}/*tgz`
-        do
-          sha256sum $file >> ${storage_dir}/turbonomic_sums.txt
-        done
-      fi
     fi
     img_res=$(echo $img_res | tr '.' '_')
     docker save ${img}:latest | xz -T0 -9 > ${img_res}.tgz
@@ -147,16 +125,16 @@ do
     then
       docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
       docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
-      for file in `ls ${storage_dir}/*tgz`
-      do
-        sha256sum $file >> ${storage_dir}/turbonomic_sums.txt
-      done
     fi
 done
 cd ${WORKSPACE}/data
 rm docker_images.iso
 pushd images
 for file in `ls *tgz`; do sha256sum $file > turbonomic_sums.txt; done
+if [ ! -z "${POM_VERSION}" ]
+then
+  for file in `ls ${storage_dir}/*tgz`; do sha256sum $file > ${storage_dir}/turbonomic_sums.txt; done
+fi
 popd
 mkisofs -l -iso-level 4 -o docker_diags_${RELEASE_REV}.iso images/
 rm -f images/*
