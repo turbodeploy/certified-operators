@@ -1,16 +1,19 @@
 package com.vmturbo.components.test.utilities.metric;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.MatcherAssert.assertThat;
+
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
-
-import org.junit.Assert;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -119,7 +122,24 @@ public class MetricTestUtil {
                                 .add(new TimestampedSample(sample.value, clock.millis())));
             });
 
-            Assert.assertEquals(expectedMap, visitedSamples);
+            // Make sure we visited all the same metric families.
+            assertThat(expectedMap.keySet(), is(visitedSamples.keySet()));
+            expectedMap.forEach((key, expectedSampledMetrics) -> {
+                final Map<MetricKey, List<TimestampedSample>> sampledMetrics = visitedSamples.get(key);
+                // Make sure we visited all the same metrics.
+                assertThat(expectedSampledMetrics.keySet(), is(sampledMetrics.keySet()));
+
+                expectedSampledMetrics.forEach((metricKey, expectedTimestampedSamples) -> {
+                    // For visited samples we can't do a straight-up comparison.
+                    // Due to timing errors in slow environments (e.g. jenkins) we may have more
+                    // visited samples than expected. However, since we should be using fixed,
+                    // manually-incremented clocks, and manually incrementing the sample values,
+                    // the de-duped samples should be the same.
+                    final Set<TimestampedSample> expectedTimestampedSamplesSet = new HashSet<>(expectedTimestampedSamples);
+                    final Set<TimestampedSample> timestampedSamplesSet = new HashSet<>(sampledMetrics.get(metricKey));
+                    assertThat(expectedTimestampedSamplesSet, is(timestampedSamplesSet));
+                });
+            });
         }
 
         public Map<MetricFamilyKey, Map<MetricKey, MetricMetadata>> getMetadata() {

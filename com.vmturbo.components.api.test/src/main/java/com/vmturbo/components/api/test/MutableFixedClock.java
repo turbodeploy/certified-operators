@@ -24,6 +24,10 @@ public class MutableFixedClock extends Clock {
         curFixedClock = Clock.fixed(initialInstant, zone);
     }
 
+    public MutableFixedClock(final long millis) {
+        curFixedClock = Clock.fixed(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
+    }
+
     @Override
     public ZoneId getZone() {
         synchronized (clockLock) {

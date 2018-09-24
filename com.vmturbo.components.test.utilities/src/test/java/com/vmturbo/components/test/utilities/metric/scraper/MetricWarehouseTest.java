@@ -1,13 +1,11 @@
 package com.vmturbo.components.test.utilities.metric.scraper;
 
 
-import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -15,11 +13,10 @@ import io.prometheus.client.Collector.MetricFamilySamples;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.test.utilities.component.ComponentCluster;
 import com.vmturbo.components.test.utilities.metric.MetricTestUtil.TestWarehouseVisitor;
 import com.vmturbo.components.test.utilities.metric.MetricsWarehouse;
-import com.vmturbo.components.test.utilities.metric.scraper.LocalMetricsScraper;
-import com.vmturbo.components.test.utilities.metric.scraper.MetricsScraper;
 
 public class MetricWarehouseTest {
 
@@ -31,12 +28,7 @@ public class MetricWarehouseTest {
             .help("help")
             .register(testRegistry);
 
-    private final Clock clock = Mockito.mock(Clock.class);
-
-    @Before
-    public void setup() {
-        Mockito.when(clock.millis()).thenReturn(100L);
-    }
+    private final MutableFixedClock clock = new MutableFixedClock(100);
 
     @Test
     public void testMetricWarehouse() throws InterruptedException {
@@ -102,7 +94,6 @@ public class MetricWarehouseTest {
 
         // Stop collecting. The farm should collect one more time.
         warehouse.stop("testMetricWarehouse");
-
 
         Mockito.verify(visitor).onStartWarehouse(Mockito.eq("testMetricWarehouse"));
         Mockito.verify(visitor).onEndWarehouse();
