@@ -1,6 +1,8 @@
 package com.vmturbo.cost.component.rpc;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -14,8 +16,13 @@ import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
-import com.vmturbo.common.protobuf.cost.Cost.DiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.Discount.Builder;
+import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
+import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo.AccountLevelDiscount;
+import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.DiscountInfoOrBuilder;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
@@ -28,11 +35,11 @@ import com.vmturbo.sql.utils.DbException;
  */
 public class CostRpcService extends CostServiceImplBase {
 
-    private static final String ERR_MSG = "Invalid discount deletion input: No associated account ID specified";
-    private static final String NO_ASSOCIATED_ACCOUNT_ID_OR_DISCOUNT_INFO_PRESENT = "No associated account id or discount info present.";
+    private static final String ERR_MSG = "Invalid discount deletion input: No associated account ID or discount ID specified";
+    private static final String NO_ASSOCIATED_ACCOUNT_ID_OR_DISCOUNT_INFO_PRESENT = "No discount info present.";
     private static final String INVALID_ARGUMENTS_FOR_DISCOUNT_UPDATE = "Invalid arguments for discount update";
     private static final String CREATING_A_DISCOUNT_WITH_ASSOCIATED_ACCOUNT_ID = "Creating a discount: {} with associated account id: {}";
-    private static final String DELETING_A_DISCOUNT = "Deleting a discount: {}";
+    private static final String DELETING_A_DISCOUNT = "Deleting a discount {}: {}";
     private static final String UPDATING_A_DISCOUNT = "Updating a discount: {}";
     private static final String FAILED_TO_UPDATE_DISCOUNT = "Failed to update discount ";
     private static final String FAILED_TO_FIND_THE_UPDATED_DISCOUNT = "Failed to find the updated discount";
@@ -52,7 +59,7 @@ public class CostRpcService extends CostServiceImplBase {
      * {@inheritDoc}
      */
     @Override
-    public void createDiscount(DiscountRequest request,
+    public void createDiscount(CreateDiscountRequest request,
                                StreamObserver<CreateDiscountResponse> responseObserver) {
         logger.info(CREATING_A_DISCOUNT_WITH_ASSOCIATED_ACCOUNT_ID,
                 request.getDiscountInfo(), request.getId());
@@ -84,16 +91,20 @@ public class CostRpcService extends CostServiceImplBase {
     @Override
     public void deleteDiscount(DeleteDiscountRequest request,
                                StreamObserver<DeleteDiscountResponse> responseObserver) {
-        if (!request.hasId()) {
+        // ensure request has either associated account or discount id
+        if ((!request.hasAssociatedAccountId() && !request.hasDiscountId())) {
             logger.error(ERR_MSG);
             responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(ERR_MSG).asRuntimeException());
             return;
         }
-        final long id = request.getId();
-
-        logger.info(DELETING_A_DISCOUNT, id);
         try {
-            discountStore.deleteDiscountByDiscountId(id);
+            if (request.hasDiscountId()) {
+                logger.info(DELETING_A_DISCOUNT, "by ID", request.getDiscountId());
+                discountStore.deleteDiscountByDiscountId(request.getDiscountId());
+            } else {
+                logger.info(DELETING_A_DISCOUNT, "by associated account ID", request.getDiscountId());
+                discountStore.deleteDiscountByAssociatedAccountId(request.getAssociatedAccountId());
+            }
             responseObserver.onNext(DeleteDiscountResponse.newBuilder()
                     .setDeleted(true)
                     .build());
@@ -141,32 +152,70 @@ public class CostRpcService extends CostServiceImplBase {
      * {@inheritDoc}
      */
     @Override
-    public void updateDiscount(DiscountRequest request,
+    public void updateDiscount(UpdateDiscountRequest request,
                                StreamObserver<UpdateDiscountResponse> responseObserver) {
-        if (!request.hasId() || !request.hasDiscountInfo()) {
+        // require new discount info
+        if (!request.hasNewDiscountInfo() || (!request.hasAssociatedAccountId() && !request.hasDiscountId())) {
             logger.error(INVALID_ARGUMENTS_FOR_DISCOUNT_UPDATE);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(INVALID_ARGUMENTS_FOR_DISCOUNT_UPDATE).asRuntimeException());
             return;
         }
         logger.info(UPDATING_A_DISCOUNT, request);
+
         try {
-            discountStore.updateDiscount(request.getId(), request.getDiscountInfo());
-            Discount discount = discountStore.getDiscountByDiscountId(request.getId()).stream()
-                    .findFirst().orElseThrow(() -> new DbException(FAILED_TO_FIND_THE_UPDATED_DISCOUNT));
-            final UpdateDiscountResponse res = UpdateDiscountResponse.newBuilder()
-                    .setUpdatedDiscount(discount)
-                    .build();
-            responseObserver.onNext(res);
+            final Discount existingDiscount = getDiscount(request);
+            // copy the original discountInfo as base
+            final DiscountInfo.Builder newBuilder = DiscountInfo.newBuilder(existingDiscount.getDiscountInfo());
+            final DiscountInfo discountInfo = request.getNewDiscountInfo();
+
+            if (discountInfo.hasServiceLevelDiscount()) {
+                newBuilder.setServiceLevelDiscount(discountInfo.getServiceLevelDiscount());
+            }
+
+            if (discountInfo.hasTierLevelDiscount()) {
+                newBuilder.setTierLevelDiscount(discountInfo.getTierLevelDiscount());
+            }
+
+            if (discountInfo.hasAccountLevelDiscount()) {
+                newBuilder.setAccountLevelDiscount(discountInfo.getAccountLevelDiscount());
+            }
+
+            if (discountInfo.hasDisplayName()) {
+                newBuilder.setDisplayName(discountInfo.getDisplayName());
+            }
+            if (request.hasAssociatedAccountId()) {
+                discountStore.updateDiscountByAssociatedAccount(request.getAssociatedAccountId(), newBuilder.build());
+            } else {
+                discountStore.updateDiscount(request.getDiscountId(), newBuilder.build());
+
+            }
+
+            responseObserver.onNext(UpdateDiscountResponse.newBuilder()
+                    .setUpdatedDiscount(getDiscount(request))
+                    .build());
             responseObserver.onCompleted();
         } catch (DiscountNotFoundException e) {
-            logger.error(FAILED_TO_UPDATE_DISCOUNT + request.getId(), e);
+            logger.error(FAILED_TO_UPDATE_DISCOUNT + getId(request), e);
             responseObserver.onError(Status.NOT_FOUND
                     .withDescription(e.getMessage()).asException());
         } catch (DbException e) {
-            logger.error(FAILED_TO_UPDATE_DISCOUNT + request.getId(), e);
+            logger.error(FAILED_TO_UPDATE_DISCOUNT + getId(request), e);
             responseObserver.onError(Status.INTERNAL
                     .withDescription(e.getMessage()).asException());
         }
+    }
+
+    private long getId(final UpdateDiscountRequest request) {
+        return request.hasDiscountId() ? request.getDiscountId() : request.getAssociatedAccountId();
+    }
+
+    private Discount getDiscount(final UpdateDiscountRequest request) throws DiscountNotFoundException, DbException {
+        final List<Discount> discounts = request.hasAssociatedAccountId() ?
+                discountStore.getDiscountByAssociatedAccountId(request.getAssociatedAccountId()) :
+                discountStore.getDiscountByDiscountId(request.getDiscountId());
+        return discounts.stream()
+                .findFirst()
+                .orElseThrow(() -> new DiscountNotFoundException(FAILED_TO_FIND_THE_UPDATED_DISCOUNT));
     }
 }

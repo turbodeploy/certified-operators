@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +29,8 @@ import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountQueryFilter;
-import com.vmturbo.common.protobuf.cost.Cost.DiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
+import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
@@ -44,20 +46,97 @@ public class CostRpcServiceTest {
     public static final double DISCOUNT_PERCENTAGE1 = 10.0;
     private static final long id = 1234L;
     private static final long id2 = 1235L;
-    final DiscountInfo discountInfoAccountLevelOnly1 = DiscountInfo.newBuilder()
+    final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
                     .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
                     .build())
+            .setServiceLevelDiscount(DiscountInfo
+                    .ServiceLevelDiscount
+                    .newBuilder()
+                    .putDiscountPercentageByServiceId(id, DISCOUNT_PERCENTAGE1)
+                    .build())
             .build();
-    final DiscountInfo discountInfoAccountLevelOnly2 = DiscountInfo.newBuilder()
+
+    final DiscountInfo discountInfo2 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
                     .setDiscountPercentage(DISCOUNT_PERCENTAGE2)
                     .build())
+            .setServiceLevelDiscount(DiscountInfo
+                    .ServiceLevelDiscount
+                    .newBuilder()
+                    .putDiscountPercentageByServiceId(id, DISCOUNT_PERCENTAGE1)
+                    .build())
             .build();
+    final DiscountInfo discountInfo3 = DiscountInfo.newBuilder()
+            .setAccountLevelDiscount(DiscountInfo
+                    .AccountLevelDiscount
+                    .newBuilder()
+                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
+                    .build())
+            .setServiceLevelDiscount(DiscountInfo
+                    .ServiceLevelDiscount
+                    .newBuilder()
+                    .putDiscountPercentageByServiceId(id, DISCOUNT_PERCENTAGE1)
+                    .build())
+            .setDisplayName("testname")
+            .build();
+    final DiscountInfo discountInfo4 = DiscountInfo.newBuilder()
+            .setAccountLevelDiscount(DiscountInfo
+                    .AccountLevelDiscount
+                    .newBuilder()
+                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
+                    .build())
+            .setServiceLevelDiscount(DiscountInfo
+                    .ServiceLevelDiscount
+                    .newBuilder()
+                    .putDiscountPercentageByServiceId(id, DISCOUNT_PERCENTAGE1)
+                    .build())
+            .build();
+
+
+    final DiscountInfo discountInfo5 = DiscountInfo.newBuilder()
+            .setAccountLevelDiscount(DiscountInfo
+                    .AccountLevelDiscount
+                    .newBuilder()
+                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
+                    .build())
+            .setServiceLevelDiscount(DiscountInfo
+                    .ServiceLevelDiscount
+                    .newBuilder()
+                    .putDiscountPercentageByServiceId(id, DISCOUNT_PERCENTAGE1)
+                    .build())
+            .setTierLevelDiscount(DiscountInfo
+                    .TierLevelDiscount
+                    .newBuilder()
+                    .putDiscountPercentageByTierId(id, DISCOUNT_PERCENTAGE1))
+            .build();
+
+
+    final DiscountInfo discountInfoAccountOnly1 = DiscountInfo.newBuilder()
+            .setAccountLevelDiscount(DiscountInfo
+                    .AccountLevelDiscount
+                    .newBuilder()
+                    .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
+                    .build())
+            .setDisplayName("testname")
+            .build();
+
+    final DiscountInfo discountInfoServiceAndTierOnly1 = DiscountInfo.newBuilder()
+            .setServiceLevelDiscount(DiscountInfo
+                    .ServiceLevelDiscount
+                    .newBuilder()
+                    .putDiscountPercentageByServiceId(id, DISCOUNT_PERCENTAGE1)
+                    .build())
+            .setTierLevelDiscount(DiscountInfo
+                    .TierLevelDiscount
+                    .newBuilder()
+                    .putDiscountPercentageByTierId(id, DISCOUNT_PERCENTAGE1))
+            .build();
+
     public DiscountStore discountStore = mock(DiscountStore.class);
     private CostRpcService costRpcService;
 
@@ -68,19 +147,19 @@ public class CostRpcServiceTest {
 
     @Test
     public void testCreateDiscount() throws Exception {
-        final DiscountRequest request = DiscountRequest.newBuilder()
+        final CreateDiscountRequest request = CreateDiscountRequest.newBuilder()
                 .setId(ASSOCIATED_ACCOUNT_ID)
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+                .setDiscountInfo(discountInfo1)
                 .build();
         final StreamObserver<Cost.CreateDiscountResponse> mockObserver =
                 mock(StreamObserver.class);
 
         Discount discount = Discount.newBuilder()
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+                .setDiscountInfo(discountInfo1)
                 .setId(id)
                 .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
                 .build();
-        given(discountStore.persistDiscount(ASSOCIATED_ACCOUNT_ID, discountInfoAccountLevelOnly1)).willReturn(discount);
+        given(discountStore.persistDiscount(ASSOCIATED_ACCOUNT_ID, discountInfo1)).willReturn(discount);
 
         costRpcService.createDiscount(request, mockObserver);
         verify(mockObserver).onNext(CreateDiscountResponse.newBuilder()
@@ -94,7 +173,7 @@ public class CostRpcServiceTest {
         final StreamObserver<CreateDiscountResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        costRpcService.createDiscount(DiscountRequest.newBuilder()
+        costRpcService.createDiscount(CreateDiscountRequest.newBuilder()
                 // No discount info set.
                 // No discount associated account id
                 .build(), mockObserver);
@@ -103,14 +182,14 @@ public class CostRpcServiceTest {
 
     @Test
     public void testCreateDiscountFailedWihInvalidAccountId() throws Exception {
-        final DiscountRequest request = DiscountRequest.newBuilder()
+        final CreateDiscountRequest request = CreateDiscountRequest.newBuilder()
                 .setId(ASSOCIATED_ACCOUNT_ID)
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+                .setDiscountInfo(discountInfo1)
                 .build();
         final StreamObserver<Cost.CreateDiscountResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        given(discountStore.persistDiscount(ASSOCIATED_ACCOUNT_ID, discountInfoAccountLevelOnly1))
+        given(discountStore.persistDiscount(ASSOCIATED_ACCOUNT_ID, discountInfo1))
                 .willThrow(DuplicateAccountIdException.class);
         costRpcService.createDiscount(request, mockObserver);
         verify(mockObserver).onError(any(IllegalStateException.class));
@@ -118,14 +197,14 @@ public class CostRpcServiceTest {
 
     @Test
     public void testCreateDiscountFailWithDbException() throws Exception {
-        final DiscountRequest request = DiscountRequest.newBuilder()
+        final CreateDiscountRequest request = CreateDiscountRequest.newBuilder()
                 .setId(ASSOCIATED_ACCOUNT_ID)
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+                .setDiscountInfo(discountInfo1)
                 .build();
         final StreamObserver<Cost.CreateDiscountResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        doThrow(new DbException(id + "")).when(discountStore).persistDiscount(ASSOCIATED_ACCOUNT_ID, discountInfoAccountLevelOnly1);
+        doThrow(new DbException(id + "")).when(discountStore).persistDiscount(ASSOCIATED_ACCOUNT_ID, discountInfo1);
         costRpcService.createDiscount(request, mockObserver);
         verify(mockObserver).onError(any(IllegalStateException.class));
         final ArgumentCaptor<StatusException> exceptionCaptor = ArgumentCaptor.forClass(StatusException.class);
@@ -136,7 +215,26 @@ public class CostRpcServiceTest {
     @Test
     public void testDeleteDiscount() throws DbException, DiscountNotFoundException {
         final DeleteDiscountRequest deleteDiscountRequest = DeleteDiscountRequest.newBuilder()
-                .setId(id)
+                .setAssociatedAccountId(id)
+                .build();
+
+        final StreamObserver<DeleteDiscountResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        costRpcService.deleteDiscount(deleteDiscountRequest, mockObserver);
+
+        verify(discountStore).deleteDiscountByAssociatedAccountId(id);
+        verify(mockObserver).onNext(
+                DeleteDiscountResponse.newBuilder().setDeleted(true).build());
+        verify(mockObserver).onCompleted();
+        verify(mockObserver, never()).onError(any());
+    }
+
+
+    @Test
+    public void testDeleteDiscountWithDiscountId() throws DbException, DiscountNotFoundException {
+        final DeleteDiscountRequest deleteDiscountRequest = DeleteDiscountRequest.newBuilder()
+                .setDiscountId(id)
                 .build();
 
         final StreamObserver<DeleteDiscountResponse> mockObserver =
@@ -165,13 +263,13 @@ public class CostRpcServiceTest {
 
     private void testDeleteException(Exception e, Code code) throws DiscountNotFoundException, DbException {
         final DeleteDiscountRequest discountID = DeleteDiscountRequest.newBuilder()
-                .setId(id)
+                .setAssociatedAccountId(id)
                 .build();
 
         final StreamObserver<DeleteDiscountResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        doThrow(e).when(discountStore).deleteDiscountByDiscountId(id);
+        doThrow(e).when(discountStore).deleteDiscountByAssociatedAccountId(id);
         costRpcService.deleteDiscount(discountID, mockObserver);
 
         verify(mockObserver, never()).onCompleted();
@@ -205,14 +303,14 @@ public class CostRpcServiceTest {
 
         final Discount discounts = Discount.newBuilder()
                 .setId(id)
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+                .setDiscountInfo(discountInfo1)
                 .build();
         given(discountStore.getDiscountByAssociatedAccountId(id)).willReturn(ImmutableList.of(discounts));
 
         costRpcService.getDiscounts(request, mockObserver);
 
         verify(discountStore).getDiscountByAssociatedAccountId(id);
-        verify(mockObserver).onNext(Discount.newBuilder().setId(id).setDiscountInfo(discountInfoAccountLevelOnly1).build());
+        verify(mockObserver).onNext(Discount.newBuilder().setId(id).setDiscountInfo(discountInfo1).build());
         verify(mockObserver).onCompleted();
     }
 
@@ -239,20 +337,20 @@ public class CostRpcServiceTest {
 
         final Discount discounts = Discount.newBuilder()
                 .setId(id)
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+                .setDiscountInfo(discountInfo1)
                 .build();
 
         final Discount discounts2 = Discount.newBuilder()
                 .setId(id2)
-                .setDiscountInfo(discountInfoAccountLevelOnly2)
+                .setDiscountInfo(discountInfo2)
                 .build();
         given(discountStore.getAllDiscount()).willReturn(ImmutableList.of(discounts, discounts2));
 
         costRpcService.getDiscounts(request, mockObserver);
 
         verify(discountStore).getAllDiscount();
-        verify(mockObserver).onNext(Discount.newBuilder().setId(id).setDiscountInfo(discountInfoAccountLevelOnly1).build());
-        verify(mockObserver).onNext(Discount.newBuilder().setId(id2).setDiscountInfo(discountInfoAccountLevelOnly2).build());
+        verify(mockObserver).onNext(Discount.newBuilder().setId(id).setDiscountInfo(discountInfo1).build());
+        verify(mockObserver).onNext(Discount.newBuilder().setId(id2).setDiscountInfo(discountInfo2).build());
         verify(mockObserver).onCompleted();
     }
 
@@ -276,10 +374,10 @@ public class CostRpcServiceTest {
     }
 
     @Test
-    public void testUpdateDiscount() throws Exception {
-        final DiscountRequest request = DiscountRequest.newBuilder()
-                .setId(id)
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+    public void testUpdateAccountDiscountOnly() throws Exception {
+        final UpdateDiscountRequest request = UpdateDiscountRequest.newBuilder()
+                .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
+                .setNewDiscountInfo(discountInfoAccountOnly1)
                 .build();
         final StreamObserver<UpdateDiscountResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -287,14 +385,86 @@ public class CostRpcServiceTest {
         Discount discount = Discount.newBuilder()
                 .setId(id)
                 .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+                .setDiscountInfo(discountInfo2)
                 .build();
-        given(discountStore.getDiscountByDiscountId(id)).willReturn(ImmutableList.of(discount));
+        // discountInfoAccountOnly1 from the request has DISCOUNT_PERCENTAGE1 as account level discount
+        // discountInfo2 has DISCOUNT_PERCENTAGE2 as account level discount
+        given(discountStore.getDiscountByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID))
+                .willReturn(ImmutableList.of(discount));
         costRpcService.updateDiscount(request, mockObserver);
 
-        verify(discountStore).updateDiscount(id, discountInfoAccountLevelOnly1);
+        // verify the account level discount is not changed (the account level discount from the request is NOT used)
+        verify(discountStore)
+                .updateDiscountByAssociatedAccount(ASSOCIATED_ACCOUNT_ID, discountInfo3);
         verify(mockObserver).onNext(
                 UpdateDiscountResponse.newBuilder().setUpdatedDiscount(discount).build());
+        verify(mockObserver).onCompleted();
+        verify(mockObserver, never()).onError(any());
+    }
+
+
+    // UI currently doesn't use discount id for updating
+    @Test
+    public void testUpdateDiscountWithDiscountId() throws Exception {
+        final UpdateDiscountRequest request = UpdateDiscountRequest.newBuilder()
+                .setDiscountId(id)
+                .setNewDiscountInfo(discountInfoAccountOnly1)
+                .build();
+        final StreamObserver<UpdateDiscountResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        Discount discount = Discount.newBuilder()
+                .setId(id)
+                .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
+                .setDiscountInfo(discountInfo2)
+                .build();
+        // discountInfoAccountOnly1 from the request has DISCOUNT_PERCENTAGE1 as account level discount
+        // discountInfo2 has DISCOUNT_PERCENTAGE2 as account level discount
+        given(discountStore.getDiscountByDiscountId(id))
+                .willReturn(ImmutableList.of(discount));
+        costRpcService.updateDiscount(request, mockObserver);
+
+        // verify the account level discount is not changed (the account level discount from the request is NOT used)
+        verify(discountStore)
+                .updateDiscount(id, discountInfo3);
+        verify(mockObserver).onNext(
+                UpdateDiscountResponse.newBuilder().setUpdatedDiscount(discount).build());
+        verify(mockObserver).onCompleted();
+        verify(mockObserver, never()).onError(any());
+    }
+
+    @Test
+    public void testUpdateServiceAndTierDiscountOnly() throws Exception {
+        final UpdateDiscountRequest request = UpdateDiscountRequest.newBuilder()
+                .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
+                .setNewDiscountInfo(discountInfoServiceAndTierOnly1)
+                .build();
+        final StreamObserver<UpdateDiscountResponse> mockObserver =
+                mock(StreamObserver.class);
+
+        Discount discount = Discount.newBuilder()
+                .setId(id)
+                .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
+                .setDiscountInfo(discountInfo1)
+                .build();
+        // discountInfo1 has DISCOUNT_PERCENTAGE1, and should be updated to DISCOUNT_PERCENTAGE2.
+        given(discountStore.getDiscountByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID))
+                .willReturn(ImmutableList.of(discount));
+        costRpcService.updateDiscount(request, mockObserver);
+
+        Discount expectedDiscount = Discount.newBuilder()
+                .setId(id)
+                .setAssociatedAccountId(ASSOCIATED_ACCOUNT_ID)
+                .setDiscountInfo(discountInfo4)
+                .build();
+
+        // verify only the account level discount is updated.
+        // request asks to update account level discount to DISCOUNT_PERCENTAGE2
+        // and discountInfo2 as DISCOUNT_PERCENTAGE2 for account level, and same tier and service
+        // level discounts.
+        verify(discountStore).updateDiscountByAssociatedAccount(ASSOCIATED_ACCOUNT_ID, discountInfo5);
+        verify(mockObserver).onNext(
+                UpdateDiscountResponse.newBuilder().setUpdatedDiscount(expectedDiscount).build());
         verify(mockObserver).onCompleted();
         verify(mockObserver, never()).onError(any());
     }
@@ -304,7 +474,7 @@ public class CostRpcServiceTest {
         final StreamObserver<UpdateDiscountResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        costRpcService.updateDiscount(DiscountRequest.newBuilder()
+        costRpcService.updateDiscount(UpdateDiscountRequest.newBuilder()
                 // No discount info set.
                 // No discount id
                 .build(), mockObserver);
@@ -313,13 +483,13 @@ public class CostRpcServiceTest {
 
     @Test
     public void testUpdateDiscountFailedWithDBException() throws Exception {
-        final DiscountRequest request = DiscountRequest.newBuilder()
-                .setId(id)
-                .setDiscountInfo(discountInfoAccountLevelOnly1)
+        final UpdateDiscountRequest request = UpdateDiscountRequest.newBuilder()
+                .setAssociatedAccountId(id)
+                .setNewDiscountInfo(discountInfo1)
                 .build();
         final StreamObserver<UpdateDiscountResponse> mockObserver =
                 mock(StreamObserver.class);
-        doThrow(new DbException("1")).when(discountStore).updateDiscount(id, discountInfoAccountLevelOnly1);
+        doThrow(new DbException("1")).when(discountStore).updateDiscount(id, discountInfo1);
 
         costRpcService.updateDiscount(request, mockObserver);
 
@@ -328,7 +498,6 @@ public class CostRpcServiceTest {
 
         final ArgumentCaptor<StatusException> exceptionCaptor = ArgumentCaptor.forClass(StatusException.class);
         verify(mockObserver).onError(exceptionCaptor.capture());
-        assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.INTERNAL)
-                .descriptionContains("1"));
+        assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.NOT_FOUND).anyDescription());
     }
 }

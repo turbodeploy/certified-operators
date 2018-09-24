@@ -36,12 +36,17 @@ public class SQLDiscountStoreTest {
     public static final long ASSOCIATED_ACCOUNT_ID = 1111l;
     public static final double DISCOUNT_PERCENTAGE2 = 20.0;
     public static final double DISCOUNT_PERCENTAGE1 = 10.0;
+    public static final long SERVICE_KEY1 = 11111l;
     final DiscountInfo discountInfoAccountLevelOnly1 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
                     .newBuilder()
                     .setDiscountPercentage(DISCOUNT_PERCENTAGE1)
                     .build())
+            .setServiceLevelDiscount(DiscountInfo
+            .ServiceLevelDiscount.newBuilder()
+                    .putDiscountPercentageByServiceId(SERVICE_KEY1, DISCOUNT_PERCENTAGE2)
+            )
             .build();
     final DiscountInfo discountInfoAccountLevelOnly2 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
@@ -101,6 +106,11 @@ public class SQLDiscountStoreTest {
                 .getDiscountInfo()
                 .getAccountLevelDiscount()
                 .getDiscountPercentage(), 0.001);
+        assertEquals(DISCOUNT_PERCENTAGE2, discountDto
+                .getDiscountInfo()
+                .getServiceLevelDiscount()
+                .getDiscountPercentageByServiceIdMap()
+                .get(SERVICE_KEY1), 0.001);
         return discountDto;
     }
 
@@ -122,5 +132,32 @@ public class SQLDiscountStoreTest {
     @Test(expected = DiscountNotFoundException.class)
     public void testUpdateDiscountWithNotExistedAccount() throws DiscountNotFoundException, DbException {
         discountDao.updateDiscount(Long.MAX_VALUE, discountInfoAccountLevelOnly2);
+    }
+
+    @Test
+    public void testUpdateAndDeleteByAccountAssociationId() throws DbException, DiscountNotFoundException, DuplicateAccountIdException {
+
+        // SAVE discount
+        Discount discountDto = saveDiscount();
+
+        // READ by discount id
+        List<Discount> disCounts = discountDao.getDiscountByDiscountId(discountDto.getId());
+        assertEquals(ASSOCIATED_ACCOUNT_ID, disCounts.get(0).getAssociatedAccountId());
+
+        // READ by associated account id
+        disCounts = discountDao.getDiscountByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
+        assertEquals(ASSOCIATED_ACCOUNT_ID, disCounts.get(0).getAssociatedAccountId());
+
+        // UPDATE
+        discountDao.updateDiscountByAssociatedAccount(ASSOCIATED_ACCOUNT_ID, discountInfoAccountLevelOnly2);
+        disCounts = discountDao.getDiscountByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
+        assertEquals(DISCOUNT_PERCENTAGE2, disCounts.get(0)
+                .getDiscountInfo()
+                .getAccountLevelDiscount()
+                .getDiscountPercentage(), 0.001);
+
+        // DELETE
+        discountDao.deleteDiscountByAssociatedAccountId(ASSOCIATED_ACCOUNT_ID);
+        assertEquals(0, discountDao.getAllDiscount().size());
     }
 }

@@ -200,7 +200,8 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
     @Override
     public void retrieveTopologyEntities(RetrieveTopologyEntitiesRequest request,
                                          StreamObserver<RetrieveTopologyEntitiesResponse> responseObserver) {
-        if (!request.hasTopologyId() || !request.hasTopologyContextId() || !request.hasTopologyType()) {
+
+        if (!request.hasTopologyContextId() || !request.hasTopologyType()) {
             logger.error("Missing parameters for retrieve topology entities: " + request);
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription("Missing parameters for retrieve topology entities")
@@ -217,10 +218,11 @@ public class RepositoryRpcService extends RepositoryServiceImplBase {
         final TopologyType topologyType = (request.getTopologyType() ==
                 RetrieveTopologyEntitiesRequest.TopologyType.PROJECTED) ? TopologyType.PROJECTED :
                         TopologyType.SOURCE;
-        final Either<String, Collection<TopologyEntityDTO>> result =
+        final Either<String, Collection<TopologyEntityDTO>> result = request.hasTopologyId() ?
                 graphDBService.retrieveTopologyEntities(request.getTopologyContextId(),
                         request.getTopologyId(), ImmutableSet.copyOf(request.getEntityOidsList()),
-                        topologyType);
+                        topologyType) :
+                graphDBService.retrieveRealTimeTopologyEntities(ImmutableSet.copyOf(request.getEntityOidsList()));
          final RetrieveTopologyEntitiesResponse response = Match(result).of(
                 Case(Right($()), entities ->
                     RetrieveTopologyEntitiesResponse.newBuilder()

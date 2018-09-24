@@ -144,6 +144,12 @@ public class MapperConfig {
                 communicationConfig.policyRpcService());
     }
 
+    @Bean
+    public BusinessUnitMapper businessUnitMapper() {
+        return new BusinessUnitMapper(communicationConfig.getRealtimeTopologyContextId());
+    }
+
+
     @Bean(destroyMethod = "shutdownNow")
     public ExecutorService executorService() {
         return Executors.newCachedThreadPool(new ThreadFactoryBuilder()

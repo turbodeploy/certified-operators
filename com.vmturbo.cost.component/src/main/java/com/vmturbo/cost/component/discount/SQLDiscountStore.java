@@ -86,6 +86,21 @@ public class SQLDiscountStore implements DiscountStore {
         }
     }
 
+    @Override
+    public void updateDiscountByAssociatedAccount(final long associatedAccountId, @Nonnull final DiscountInfo discountInfo) throws DiscountNotFoundException, DbException {
+        try {
+            if (dsl.update(DISCOUNT)
+                    .set(DISCOUNT.DISCOUNT_INFO, discountInfo)
+                    .where(DISCOUNT.ASSOCIATED_ACCOUNT_ID.eq(associatedAccountId))
+                    .execute() != 1) {
+                throw new DiscountNotFoundException("Associated account id " + associatedAccountId +
+                        " is not found. Could not update");
+            }
+        } catch (DataAccessException e) {
+            throw new DbException(e.getMessage());
+        }
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -149,6 +164,20 @@ public class SQLDiscountStore implements DiscountStore {
         } catch (DataAccessException e) {
             throw new DbException(e.getMessage());
         }
+    }
+
+    @Override
+    public void deleteDiscountByAssociatedAccountId(final long id) throws DiscountNotFoundException, DbException {
+        try {
+            if (dsl.deleteFrom(DISCOUNT).where(DISCOUNT.ASSOCIATED_ACCOUNT_ID.eq(id))
+                    .execute() != 1) {
+                throw new DiscountNotFoundException("Discount id " + id +
+                        " is not found. Could not delete");
+            }
+        } catch (DataAccessException e) {
+            throw new DbException(e.getMessage());
+        }
+
     }
 
     //Convert discount DB record to discount proto DTO

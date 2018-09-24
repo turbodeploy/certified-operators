@@ -1,7 +1,9 @@
 package com.vmturbo.repository.api;
 
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
@@ -17,6 +19,9 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanEntityStats;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest.TopologyType;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyResponse;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -40,6 +45,23 @@ public class RepositoryClient {
                 .setTopologyId(topologyId)
                 .build();
         return repositoryService.retrieveTopology(request);
+    }
+
+    /**
+     * Retrieve real time topology entities with provided OIDs
+     *
+     * @param oids OIDs to retrieve topology entities
+     * @param realtimeContextId real time context id
+     * @return RetrieveTopologyEntitiesResponse
+     */
+    public RetrieveTopologyEntitiesResponse retrieveTopologyEntities(@Nonnull final List<Long> oids,
+                                                                              final long realtimeContextId) {
+        RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityOids(oids)
+                .setTopologyContextId(realtimeContextId)
+                .setTopologyType(TopologyType.SOURCE)
+                .build();
+        return repositoryService.retrieveTopologyEntities(request);
     }
 
     public RepositoryOperationResponse deleteTopology(long topologyId,

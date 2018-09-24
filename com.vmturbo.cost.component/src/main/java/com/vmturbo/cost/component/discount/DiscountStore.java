@@ -39,6 +39,18 @@ public interface DiscountStore {
             final long id,
             @Nonnull final DiscountInfo discountInfo) throws DiscountNotFoundException, DbException;
 
+    /**
+     * Update discount by discount id.
+     *
+     * @param id           discount id
+     * @param discountInfo discount Info proto ojbject
+     * @throws DiscountNotFoundException if the discount with discount id doesn't exist
+     * @throws DbException               if anything goes wrong in the database
+     */
+    void updateDiscountByAssociatedAccount(
+            final long associatedAccountId,
+            @Nonnull final DiscountInfo discountInfo) throws DiscountNotFoundException, DbException;
+
 
     /**
      * Returns all the existing discounts.
@@ -77,4 +89,13 @@ public interface DiscountStore {
      * @throws DbException               if anything goes wrong in the database
      */
     void deleteDiscountByDiscountId(final long id) throws DiscountNotFoundException, DbException;
+
+    /**
+     * Delete discount by discount id.
+     *
+     * @param id discount id
+     * @throws DiscountNotFoundException if the discount with discount id doesn't exist
+     * @throws DbException               if anything goes wrong in the database
+     */
+    void deleteDiscountByAssociatedAccountId(final long id) throws DiscountNotFoundException, DbException;
 }

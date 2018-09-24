@@ -244,16 +244,37 @@ message CreateDiscountResponse {
 
 // delete discount request
 message DeleteDiscountRequest {
-    optional int64 id = 1;
+    oneof id {
+        // discount id
+        int64 discount_id = 1;
+
+        // it's associated account id
+        int64 associated_account_id = 2;
+    }
 }
 
-// create or update discount request
-message DiscountRequest {
-    // for create, it's associated account id; for update, it's discount id
+// create discount request
+message CreateDiscountRequest {
+    // associated account id
     optional int64 id = 1;
 
     // discount info to be created or updated
     optional DiscountInfo discount_info = 2;
+}
+
+
+// update account level discount
+message UpdateDiscountRequest {
+    oneof id {
+        // discount id
+        int64 discount_id = 1;
+
+        // it's associated account id
+        int64 associated_account_id = 2;
+    }
+
+    // discount info to be created or updated
+    optional DiscountInfo new_discount_info = 3;
 }
 
 // delete discount response
@@ -371,19 +392,19 @@ service CostService {
     // Get information about account expense
     rpc GetAccountExpense (ExpenseRequest) returns (ExpenseResponse);
 
-    // Get account discounts
+    // Get account discounts by associated account ids
     rpc GetDiscounts (GetDiscountRequest) returns (stream Discount);
 
     // Create a discount for given associated account id and info
-    rpc CreateDiscount(DiscountRequest) returns (CreateDiscountResponse);
+    rpc CreateDiscount(CreateDiscountRequest) returns (CreateDiscountResponse);
 
-    // Delete a discount for a given discount id
+    // Delete a discount for a given associated account id
     rpc DeleteDiscount(DeleteDiscountRequest) returns (DeleteDiscountResponse);
 
     // Update a discount for given discount id and info
     //
     // Returns NOT_FOUND if the discount id or discount info is not found
-    rpc UpdateDiscount(DiscountRequest) returns (UpdateDiscountResponse);
+    rpc UpdateDiscount(UpdateDiscountRequest) returns (UpdateDiscountResponse);
 }
 
 message RegionFilter {

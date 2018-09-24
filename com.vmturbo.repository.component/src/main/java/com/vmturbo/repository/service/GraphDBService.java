@@ -246,6 +246,36 @@ public class GraphDBService {
         );
     }
 
+    /**
+     * Retrieve TopologyEntityDTO from repository graph. Note that, right now, returned TopologyEntityDTO
+     * only contains partial fields, because {@link ServiceEntityRepoDTO} only keep partial fields,
+     * and TopologyEntityDTO are converted back from stored {@link ServiceEntityRepoDTO}.
+     *
+     * @param entitiesToFind a set of entity ids.
+     * @return Either of String or Collection of {@link TopologyEntityDTO}.
+     */
+    public Either<String, Collection<TopologyEntityDTO>> retrieveRealTimeTopologyEntities(
+            @Nonnull final Set<Long> entitiesToFind) {
+        final Optional<TopologyID> topologyID = topologyManager.getRealtimeTopologyId();
+        if (topologyID.isPresent()) {
+            final TopologyDatabase databaseToUse = topologyID.get().database();
+            final GraphCmd.ServiceEntityMultiGet cmd = new GraphCmd.ServiceEntityMultiGet(
+                    graphDefinition.getServiceEntityVertex(),
+                    entitiesToFind,
+                    databaseToUse);
+            final Try<Collection<ServiceEntityRepoDTO>> seResults = executor.executeServiceEntityMultiGetCmd(cmd);
+            logger.debug("Multi-entity search results {}", seResults);
+
+            return Match(seResults).of(
+                    Case(Success($()), repoDtos -> timedValue(
+                            () -> Either.right(TopologyConverter.convertToTopologyEntity(repoDtos)),
+                            SEARCH_CONVERSION_DURATION_SUMMARY)),
+                    Case(Failure($()), exc -> Either.left(exc.getMessage()))
+            );
+        }
+        return Either.left("Failed to find real time topology Id");
+    }
+
 
     private <T> T timedValue(final Supplier<T> supplier, final DataMetricSummary summary) {
         DataMetricTimer timer = summary.startTimer();

@@ -196,6 +196,17 @@ public class RepositoryRpcServiceTest {
     }
 
     @Test
+    public void testRetrieveRealTimeTopologyEntities() {
+        when(graphDBService.retrieveRealTimeTopologyEntities(Mockito.anySet()))
+                .thenReturn(Either.right(Collections.emptyList()));
+        repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                .setTopologyContextId(topologyContextId)
+                .addAllEntityOids(Lists.newArrayList(1L))
+                .setTopologyType(RetrieveTopologyEntitiesRequest.TopologyType.SOURCE)
+                .build());
+    }
+
+    @Test
     public void testRetrievePlanProjectedStats() {
         // arrange
         final ProjectedTopologyEntity topologyEntityDTO = ProjectedTopologyEntity.newBuilder()

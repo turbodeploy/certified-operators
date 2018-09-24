@@ -10,6 +10,9 @@
 
     <Loggers>
         <Logger name="com.vmturbo" level="info" />
+        <Logger name="com.vmturbo.platform.audit" level="INFO" additivity="false">
+            <AppenderRef ref="stdout"/>
+        </Logger>
         <Root level="info">
             <AppenderRef ref="stdout"/>
         </Root>
