@@ -140,9 +140,8 @@ public class ActionTranslatorTest {
     @Test
     public void testTranslateResizeActionTypesWithSameVcpuValue() throws Exception {
         final Action resize = setupDefaultResizeActionNegativeScenario();
-        assertEquals(1, translator.translate(Stream.of(resize)).count());
-        assertFalse("the recommendation should not present",
-                resize.getActionTranslation().getTranslatedRecommendation().isPresent());
+        // The action shouldn't appear in the post-translation stream.
+        assertEquals(0, translator.translate(Stream.of(resize)).count());
     }
 
     @Test

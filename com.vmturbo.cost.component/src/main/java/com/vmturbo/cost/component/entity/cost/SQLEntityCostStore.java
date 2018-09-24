@@ -5,8 +5,6 @@ import static com.vmturbo.cost.component.db.Tables.ENTITY_COST;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +27,7 @@ import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -192,7 +191,7 @@ public class SQLEntityCostStore implements EntityCostStore {
     private Map<Long, Map<Long, EntityCost>> constructEntityCostMap(final Result<EntityCostRecord> entityCostRecords) {
         final Map<Long, Map<Long, EntityCost>> records = new HashMap<>();
         entityCostRecords.forEach(entityRecord -> {
-            Map<Long, EntityCost> costsForTimestamp = records.computeIfAbsent(localDateTimeToDate(entityRecord.getCreatedTime()), k -> new HashMap<>());
+            Map<Long, EntityCost> costsForTimestamp = records.computeIfAbsent(TimeUtil.localDateTimeToMilli(entityRecord.getCreatedTime()), k -> new HashMap<>());
             //TODO: optimize to avoid building EntityCost
             final EntityCost newCost = toEntityCostDTO(entityRecord);
             costsForTimestamp.compute(newCost.getAssociatedEntityId(),
@@ -253,15 +252,5 @@ public class SQLEntityCostStore implements EntityCostStore {
                 .addComponentCost(componentCost)
                 .setAssociatedEntityType(entityCostRecord.getAssociatedEntityType())
                 .build();
-    }
-
-    /**
-     * Convert local date time to long.
-     *
-     * @param startOfDay start of date with LocalDateTime type.
-     * @return date time in long type.
-     */
-    private long localDateTimeToDate(LocalDateTime startOfDay) {
-        return Date.from(startOfDay.atZone(ZoneId.systemDefault()).toInstant()).getTime();
     }
 }

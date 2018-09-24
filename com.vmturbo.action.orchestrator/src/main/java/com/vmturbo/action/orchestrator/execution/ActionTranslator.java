@@ -142,23 +142,11 @@ public class ActionTranslator {
     @Nonnull
     public Stream<ActionSpec> translateToSpecs(@Nonnull final Stream<ActionView> actionStream) {
         return translate(actionStream)
+            // Filter out failed VCPU resize translations.
+            // TODO (roman, Sep 21 2018): We may want to filter these out when processing
+            // actions from the market.
             .filter(this::isVcpuResizeTranslationSuccessful)
             .map(this::toSpec);
-    }
-
-    /**
-     * Filter out VCPU resize actions with same "from" and "to" values. Since it doesn't make sense
-     * to generate same values VCPU resize actions.
-     * TODO: refactor it to be more genaric, probably a predicate?
-     * @param actionView action view
-     * @return false if it's VCPU resize action and translation is failed.
-     */
-    private boolean isVcpuResizeTranslationSuccessful(@Nonnull final ActionView actionView) {
-        final ActionDTO.ActionInfo actionInfo = actionView.getRecommendation().getInfo();
-        // not resize action || not VCPU resize || VCPU resize translation is successful
-        return !actionInfo.getActionTypeCase().equals(ActionTypeCase.RESIZE)
-                || actionInfo.getResize().getCommodityType().getType() != CommodityType.VCPU_VALUE
-                || actionView.getActionTranslation().getTranslatedRecommendation().isPresent();
     }
 
     /**
@@ -186,7 +174,26 @@ public class ActionTranslator {
      *         on the input. If this is important, consider applying an {@link Stream#sorted(Comparator)} operation.
      */
     public Stream<ActionView> translate(@Nonnull final Stream<ActionView> actionStream) {
-        return translationExecutor.translate(actionStream);
+        return translationExecutor.translate(actionStream)
+            // Filter out failed VCPU resize translations.
+            // TODO (roman, Sep 21 2018): We may want to filter these out when processing
+            // actions from the market.
+            .filter(this::isVcpuResizeTranslationSuccessful);
+    }
+
+    /**
+     * Filter out VCPU resize actions with same "from" and "to" values. Since it doesn't make sense
+     * to generate same values VCPU resize actions.
+     * TODO: refactor it to be more genaric, probably a predicate?
+     * @param actionView action view
+     * @return false if it's VCPU resize action and translation is failed.
+     */
+    private boolean isVcpuResizeTranslationSuccessful(@Nonnull final ActionView actionView) {
+        final ActionDTO.ActionInfo actionInfo = actionView.getRecommendation().getInfo();
+        // not resize action || not VCPU resize || VCPU resize translation is successful
+        return !actionInfo.getActionTypeCase().equals(ActionTypeCase.RESIZE)
+                || actionInfo.getResize().getCommodityType().getType() != CommodityType.VCPU_VALUE
+                || actionView.getActionTranslation().getTranslatedRecommendation().isPresent();
     }
 
     /**

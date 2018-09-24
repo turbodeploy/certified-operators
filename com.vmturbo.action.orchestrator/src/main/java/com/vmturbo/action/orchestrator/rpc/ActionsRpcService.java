@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
@@ -83,6 +84,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.components.api.TimeUtil;
 
 /**
  * Implements the RPC calls supported by the action orchestrator for retrieving and executing actions.
@@ -211,6 +213,9 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                     Optional<ActionQueryFilter> filter = request.hasFilter() ?
                             Optional.of(request.getFilter()) :
                             Optional.empty();
+                    // We do translation after pagination because translation failures may
+                    // succeed on retry. If we do translation before pagination, success after
+                    // failure will mix up the pagination limit.
                     final Stream<ActionView> resultViews = new QueryFilter(filter)
                             .filteredActionViews(store.get());
 
@@ -277,8 +282,8 @@ public class ActionsRpcService extends ActionsServiceImplBase {
                 .map(actionViews::get))
                 .collect(Collectors.toMap(actionSpec -> actionSpec.getRecommendation().getId(), Function.identity()));
 
-            // Get actionIds
-            contained.forEach(containedId -> responseObserver.onNext(aoAction(translatedActions.get(containedId))));
+        // Get actionIds
+        contained.forEach(containedId -> responseObserver.onNext(aoAction(translatedActions.get(containedId))));
         actionIds.forEach(missingId -> responseObserver.onNext(aoAction(missingId, Optional.empty())));
         responseObserver.onCompleted();
     }
@@ -307,16 +312,15 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         final Optional<ActionStore> contextStore =
                 actionStorehouse.getStore(request.getTopologyContextId());
         if (contextStore.isPresent()) {
-            final Stream<ActionView> actionViewStream = request.hasFilter() ?
-                    new QueryFilter(Optional.of(request.getFilter()))
-                        .filteredActionViews(contextStore.get()) :
-                    contextStore.get().getActionViews().values().stream();
-
-            observeActionCounts(actionViewStream, response);
+            final Stream<ActionView> translatedActionViews = filteredTranslatedActionViews(
+                    request.hasFilter() ? Optional.of(request.getFilter()) : Optional.empty(),
+                    contextStore.get());
+            observeActionCounts(translatedActionViews, response);
         } else {
             contextNotFoundError(response, request.getTopologyContextId());
         }
     }
+
 
     /**
      * {@inheritDoc}
@@ -329,13 +333,21 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         if (contextStore.isPresent()) {
             // Get actions within the startDate and endDate, filter the relevant actions, and
             // group the actions by recommended date.
-            final Map<Long, List<ActionView>> longListMap =  new QueryFilter(Optional.of(request.getFilter()))
-                            .filteredActionViewsGroupByDate(contextStore.get());
-            observeActionCountsByDate(longListMap, response);
+            final Stream<ActionView> translatedActionViews = filteredTranslatedActionViews(
+                    request.hasFilter() ? Optional.of(request.getFilter()) : Optional.empty(),
+                    contextStore.get());
+            final Map<Long, List<ActionView>> actionsByDate =
+                translatedActionViews.collect(Collectors.groupingBy(action ->
+                    TimeUtil.localDateTimeToMilli(action
+                        .getRecommendationTime()
+                        .toLocalDate()
+                        .atStartOfDay()))); // Group by start of the Day
+            observeActionCountsByDate(actionsByDate, response);
         } else {
             contextNotFoundError(response, request.getTopologyContextId());
         }
     }
+
 
     @Override
     public void getActionCountsByEntity(GetActionCountsByEntityRequest request,
@@ -348,12 +360,32 @@ public class ActionsRpcService extends ActionsServiceImplBase {
         final Optional<ActionStore> contextStore =
             actionStorehouse.getStore(request.getTopologyContextId());
         if (contextStore.isPresent()) {
-            final Multimap<Long, ActionView> actionViewsMap =
-                new QueryFilter(Optional.of(request.getFilter()))
-                    .filterActionViewsByEntityId(contextStore.get());
-            observeActionCountsByEntity(actionViewsMap, response);
-        }
-        else {
+            final Multimap<Long, ActionView> actionsByEntity = ArrayListMultimap.create();
+            // If there are no involved entities in the request we return an empty map.
+            if (!request.getFilter().getInvolvedEntities().getOidsList().isEmpty()) {
+                final Stream<ActionView> translatedActionViews = filteredTranslatedActionViews(
+                        request.hasFilter() ? Optional.of(request.getFilter()) : Optional.empty(),
+                        contextStore.get());
+
+                final Set<Long> targetEntities =
+                        new HashSet<>(request.getFilter().getInvolvedEntities().getOidsList());
+                // Collect action views by entity ID of the involved entities.
+                // For example: Action 1: Move VM1 from Host1 to Host2, and input entity Id is Host 2.
+                // In the final Map, there will be one entry: key Host2 and Value is Action 1.
+                translatedActionViews.forEach(actionView -> {
+                    try {
+                        ActionDTOUtil.getInvolvedEntities(actionView.getRecommendation()).stream()
+                                // We only care about actions that involve the target entities.
+                                .filter(targetEntities::contains)
+                                .forEach(entityId -> actionsByEntity.put(entityId, actionView));
+                    } catch (UnsupportedActionException e) {
+                        // if action not supported, ignore this action
+                        logger.warn("Unsupported action {}", actionView);
+                    }
+                });
+            }
+            observeActionCountsByEntity(actionsByEntity, response);
+        } else {
             contextNotFoundError(response, request.getTopologyContextId());
         }
     }
@@ -608,6 +640,22 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             });
         response.onNext(actionCountsByEntityResponseBuilder.build());
         response.onCompleted();
+    }
+
+    /**
+     * Utility method to query actions from an action store and apply translation. We need to
+     * do this for all actions that go out to the user.
+     *
+     * @param requestFilter An {@link Optional} containing the filter for actions.
+     * @param actionStore The action store to query.
+     * @return A stream of post-translation {@link ActionView}s. Any actions that fail translation
+     *         will not be in this stream.
+     */
+    @Nonnull
+    private Stream<ActionView> filteredTranslatedActionViews(Optional<ActionQueryFilter> requestFilter,
+                                                             ActionStore actionStore) {
+        return actionTranslator.translate(new QueryFilter(requestFilter)
+                .filteredActionViews(actionStore));
     }
 
     private static Map<ActionType, Long> getActionsByType(@Nonnull final Stream<ActionView> actionViewStream) {

@@ -1,10 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +21,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
+import com.vmturbo.components.api.TimeUtil;
 
 /**
  * Unit tests for the {@link ActionSpecMapper}.
@@ -133,8 +132,8 @@ public class ActionCountsMapperTest {
         LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
         LocalDateTime now = LocalDateTime.now();
 
-        map.put(localDateTimeToDate(yesterday), list);
-        map.put(localDateTimeToDate(now), list); // different date
+        map.put(TimeUtil.localDateTimeToMilli(yesterday), list);
+        map.put(TimeUtil.localDateTimeToMilli(now), list); // different date
         final List<StatSnapshotApiDTO> retList = ActionCountsMapper.countsByStateAndModeGroupByDateToApi(map);
 
         Assert.assertEquals(2, retList.size());
@@ -161,13 +160,4 @@ public class ActionCountsMapperTest {
         Assert.assertEquals(Float.valueOf(val), stat.getValues().getMin());
         Assert.assertEquals(Float.valueOf(val), stat.getValues().getTotal());
     }
-
-    /*
-     * Convert local date time to long.
-     */
-    private long localDateTimeToDate(LocalDateTime startOfDay) {
-        return Date.from(startOfDay.atZone(ZoneId.systemDefault()).toInstant()).getTime();
-    }
-
-
 }

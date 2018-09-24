@@ -2,16 +2,11 @@ package com.vmturbo.action.orchestrator.action;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.Date;
 import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
@@ -19,11 +14,9 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
+import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
@@ -83,33 +76,6 @@ public class QueryFilter {
     }
 
     /**
-     * Group the actions by recommended date.
-     *
-     * Group action type count by action recommendation date.
-     * If there is no involved actions within provided period, return empty map.
-     *
-     * @param actionStore action store
-     * @return Map (key, value) -> (recommended date, set of actions)
-     */
-    public Map<Long, List<ActionView>> filteredActionViewsGroupByDate(@Nonnull final ActionStore actionStore) {
-        if (optionalFilter.isPresent() && optionalFilter.get().hasStartDate()
-                && optionalFilter.get().hasEndDate()) {
-            LocalDateTime startDate = getLocalDateTime(optionalFilter.get().getStartDate());
-            LocalDateTime endDate = getLocalDateTime(optionalFilter.get().getEndDate());
-            Stream<ActionView> actionViewStream =  actionStore.getActionViewsByDate(startDate, endDate)
-                    .values()
-                    .stream()
-                    .filter(actionView -> test(actionView, actionStore.getVisibilityPredicate()));
-            return actionViewStream.collect(Collectors.groupingBy(action ->
-                    localDateTimeToDate(action
-                            .getRecommendationTime()
-                            .toLocalDate()
-                            .atStartOfDay()))); // Group by start of the Day
-        }
-        return Maps.newHashMap();
-    }
-
-    /**
      * Convert date time to local date time.
      *
      * @param dateTime date time with long type.
@@ -118,53 +84,6 @@ public class QueryFilter {
     private LocalDateTime getLocalDateTime(long dateTime) {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(dateTime),
                                     TimeZone.getDefault().toZoneId());
-    }
-
-    /**
-     * Convert local date time to long.
-     * @param startOfDay start of date with LocalDateTime type.
-     * @return date time in long type.
-     */
-    private long localDateTimeToDate(LocalDateTime startOfDay) {
-        return Date.from(startOfDay.atZone(ZoneId.systemDefault()).toInstant()).getTime();
-    }
-
-    /**
-     * Get action views type count by entity Id. When filtering actions, it will use its involved entities.
-     * For example: Action 1: Move VM1 from Host1 to Host2, and input entity Id is Host 2. In final Map,
-     * it will have an entry: Key is Host2 and Value is Action 1. And Map key will only contains input
-     * entity Ids. If there is no involved entities, return empty map.
-     *
-     * @param actionStore contains all current active actions.
-     * @return A map Key is entity id, and value is a list of action views it involves.
-     */
-    public Multimap<Long, ActionView> filterActionViewsByEntityId(@Nonnull final ActionStore actionStore) {
-        final Multimap<Long, ActionView> entityToActionViews = ArrayListMultimap.create();
-        // If there is no involved entities, return empty map.
-        if (!involvedEntities.isPresent()) {
-            return entityToActionViews;
-        }
-        actionStore.getActionViews().values().stream()
-            .filter(actionView -> test(actionView, actionStore.getVisibilityPredicate()))
-            .forEach(actionView -> {
-                try {
-                    final Set<Long> actionInvolvedEntities = ActionDTOUtil.getInvolvedEntities(
-                        actionView.getRecommendation());
-                    // add actionView to each involved entities entry
-                    actionInvolvedEntities.forEach(entityId -> entityToActionViews.put(entityId, actionView));
-                } catch (UnsupportedActionException e) {
-                    // if action not supported, ignore this action
-                    logger.warn("Unsupported action {}", actionView);
-                }
-        });
-        // only keep involved entities
-        involvedEntities.ifPresent(entities -> {
-            final List<Long> needToRemoveEntityIds = entityToActionViews.keySet().stream()
-                .filter(entity -> !entities.contains(entity))
-                .collect(Collectors.toList());
-            needToRemoveEntityIds.forEach(entityToActionViews::removeAll);
-        });
-        return entityToActionViews;
     }
 
     /**

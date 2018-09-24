@@ -14,6 +14,7 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -55,16 +56,23 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByDateResponse.ActionCountsByDateEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse;
+import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsByEntityResponse.ActionCountsByEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetActionCountsResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.StateAndModeCount;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextInfoRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
@@ -73,6 +81,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlock
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.TimeUtil;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -592,6 +601,29 @@ public class ActionQueryRpcTest {
                     .build()));
     }
 
+    /**
+     * Verify filtering out VCPU resize actions with same "from" and "to" values.
+     * Since it doesn't make sense to generate same values VCPU resize actions.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testGetAllActionCountsWithResizeActionWithFailedTranslation() throws Exception {
+        ActionView resizeAction = new Action(ActionOrchestratorTestUtils
+                .createResizeRecommendation(1, 11l,
+                        CommodityType.VCPU, 4000, 2500), actionPlanId);
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                resizeAction.getId(), resizeAction);
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(action -> true);
+
+        final GetActionCountsResponse response = actionOrchestratorServiceClientForFailedTranslation.getActionCounts(
+                GetActionCountsRequest.newBuilder()
+                        .setTopologyContextId(topologyContextId)
+                        .build());
+        assertThat(response.getCountsByTypeCount(), is(0));
+    }
+
     @Test
     public void testGetActionCountsWithQueryFilter() throws Exception {
         final ActionView firstAction = spy(ActionOrchestratorTestUtils.createMoveAction(1, actionPlanId));
@@ -640,6 +672,134 @@ public class ActionQueryRpcTest {
                         .setTopologyContextId(topologyContextId)
                         .build());
     }
+
+    @Test
+    public void testGetActionCountsByEntity() throws Exception {
+        final long actionPlanId = 10;
+        final ActionView visibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
+                1, 7, 77, 1, 777, 1), actionPlanId));
+        final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
+                2, 8, 88, 1, 888, 1), actionPlanId));
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                visibleAction.getId(), visibleAction,
+                invisibleAction.getId(), invisibleAction);
+        when(actionStore.getActionViews()).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(view -> view.getId() == visibleAction.getId());
+
+        final GetActionCountsByEntityResponse response =
+                actionOrchestratorServiceClient.getActionCountsByEntity(
+                        GetActionCountsByEntityRequest.newBuilder()
+                                .setTopologyContextId(topologyContextId)
+                                .setFilter(ActionQueryFilter.newBuilder()
+                                    .setInvolvedEntities(InvolvedEntities.newBuilder()
+                                        .addOids(7)
+                                        .addOids(77)))
+                                .build());
+
+        Map<Long, List<TypeCount>> typeCountsByEntity = response.getActionCountsByEntityList().stream()
+                .collect(Collectors.toMap(ActionCountsByEntity::getEntityId, ActionCountsByEntity::getCountsByTypeList));
+        assertThat(typeCountsByEntity.size(), is(2));
+        assertThat(typeCountsByEntity.get(7L), contains(TypeCount.newBuilder().setType(ActionType.MOVE).setCount(1).build()));
+        assertThat(typeCountsByEntity.get(77L), contains(TypeCount.newBuilder().setType(ActionType.MOVE).setCount(1).build()));
+    }
+
+    @Test
+    public void testGetActionCountsByEntityNoInvolvedEntities() throws Exception {
+
+        final GetActionCountsByEntityResponse response =
+            actionOrchestratorServiceClient.getActionCountsByEntity(
+                GetActionCountsByEntityRequest.newBuilder()
+                        .setTopologyContextId(topologyContextId)
+                        .setFilter(ActionQueryFilter.newBuilder()
+                                .setInvolvedEntities(InvolvedEntities.getDefaultInstance()))
+                        .build());
+        assertThat(response.getActionCountsByEntityCount(), is(0));
+    }
+
+    @Test
+    public void testGetActionCountsByEntityContextNotFound() throws Exception {
+        when(actionStorehouse.getStore(eq(topologyContextId)))
+                .thenReturn(Optional.empty());
+
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
+                .descriptionContains(Long.toString(topologyContextId)));
+
+        actionOrchestratorServiceClient.getActionCountsByEntity(
+                GetActionCountsByEntityRequest.newBuilder()
+                        .setTopologyContextId(topologyContextId)
+                        .setFilter(ActionQueryFilter.newBuilder()
+                                .setInvolvedEntities(InvolvedEntities.newBuilder()
+                                        .addOids(7)))
+                        .build());
+    }
+
+    @Test
+    public void testGetActionCountsByDate() throws Exception {
+        final long actionPlanId = 10;
+        final LocalDateTime date = LocalDateTime.now();
+        final LocalDateTime startOfDay = date.toLocalDate().atStartOfDay();
+        final ActionView visibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
+                1, 7, 77, 1, 777, 1), actionPlanId));
+        when(visibleAction.getRecommendationTime())
+               .thenReturn(date);
+        final ActionView visibleQueuedAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
+                3, 7, 77, 1, 777, 1), actionPlanId));
+        when(visibleQueuedAction.getRecommendationTime())
+                .thenReturn(date);
+        when(visibleQueuedAction.getState())
+                .thenReturn(ActionState.QUEUED);
+        final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
+                2, 8, 88, 1, 888, 1), actionPlanId));
+        final Map<Long, ActionView> actionViews = ImmutableMap.of(
+                visibleAction.getId(), visibleAction,
+                visibleQueuedAction.getId(), visibleQueuedAction,
+                invisibleAction.getId(), invisibleAction);
+
+        when(actionStore.getActionViewsByDate(any(), any())).thenReturn(actionViews);
+        when(actionStore.getVisibilityPredicate()).thenReturn(view -> view.getId() != invisibleAction.getId());
+
+        final GetActionCountsByDateResponse response =
+                actionOrchestratorServiceClient.getActionCountsByDate(
+                        GetActionCountsRequest.newBuilder()
+                                .setTopologyContextId(topologyContextId)
+                                .setFilter(ActionQueryFilter.newBuilder()
+                                    .setVisible(true)
+                                    .setStartDate(TimeUtil.localDateTimeToMilli(date))
+                                    .setEndDate(TimeUtil.localDateTimeToMilli(date)))
+                                .build());
+        final Map<Long, List<StateAndModeCount>> countsByDate = response.getActionCountsByDateList().stream()
+                .collect(Collectors.toMap(ActionCountsByDateEntry::getDate, ActionCountsByDateEntry::getCountsByStateAndModeList));
+
+        assertThat(countsByDate.keySet(),
+            // Start of day.
+            is(Collections.singleton(TimeUtil.localDateTimeToMilli(startOfDay))));
+        assertThat(countsByDate.get(TimeUtil.localDateTimeToMilli(startOfDay)), containsInAnyOrder(
+            StateAndModeCount.newBuilder()
+                .setState(ActionState.QUEUED)
+                .setMode(ActionMode.MANUAL)
+                .setCount(1)
+                .build(),
+            StateAndModeCount.newBuilder()
+                .setState(ActionState.READY)
+                .setMode(ActionMode.MANUAL)
+                .setCount(1)
+                .build()));
+    }
+
+    @Test
+    public void testGetActionCountsByDateContextNotFound() throws Exception {
+        when(actionStorehouse.getStore(eq(topologyContextId)))
+                .thenReturn(Optional.empty());
+
+        expectedException.expect(GrpcRuntimeExceptionMatcher.hasCode(Code.NOT_FOUND)
+                .descriptionContains(Long.toString(topologyContextId)));
+
+        actionOrchestratorServiceClient.getActionCountsByDate(
+                GetActionCountsRequest.newBuilder()
+                        .setTopologyContextId(topologyContextId)
+                        .build());
+    }
+
 
     private List<ActionSpec> fetchSpecList(Iterable<ActionOrchestratorAction> rpcIter) {
         return StreamSupport.stream(rpcIter.spliterator(), false)
