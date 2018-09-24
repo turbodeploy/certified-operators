@@ -1,13 +1,16 @@
 package com.vmturbo.cost.calculation;
 
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableSet;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -20,6 +23,8 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
 
 /**
  * This is the main entry point into the cost calculation library. The user is responsible for
@@ -31,6 +36,11 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTi
 public class CloudCostCalculator<ENTITY_CLASS> {
 
     private static final Logger logger = LogManager.getLogger();
+
+    private static final Set<Integer> ENTITY_TYPES_WITH_COST = ImmutableSet.of(
+                                        EntityType.VIRTUAL_MACHINE_VALUE,
+                                        EntityType.DATABASE_SERVER_VALUE,
+                                        EntityType.DATABASE_VALUE);
 
     private final CloudCostData cloudCostData;
 
@@ -77,7 +87,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      */
     @Nonnull
     public CostJournal<ENTITY_CLASS> calculateCost(@Nonnull final ENTITY_CLASS entity) {
-        if (entityInfoExtractor.getEntityType(entity) != EntityType.VIRTUAL_MACHINE_VALUE) {
+        if (!ENTITY_TYPES_WITH_COST.contains(entityInfoExtractor.getEntityType(entity))) {
             // Not supporting cost calculation for anything other than VMs for now.
             return CostJournal.empty(entity, entityInfoExtractor);
         }
@@ -96,39 +106,79 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final CostJournal.Builder<ENTITY_CLASS> journal =
                 CostJournal.newBuilder(entity, entityInfoExtractor, region, discountApplicator);
 
-        entityInfoExtractor.getComputeConfig(entity).ifPresent(computeConfig -> {
-            // Calculate on-demand prices for entities that have a compute config.
-            cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
-                final long regionId = entityInfoExtractor.getId(region);
-                final OnDemandPriceTable onDemandPriceTable = cloudCostData.getPriceTable()
-                    .getOnDemandPriceByRegionIdMap().get(regionId);
-                if (onDemandPriceTable != null) {
-                    final ComputeTierPriceList computePriceList =
-                        onDemandPriceTable.getComputePricesByTierIdMap()
-                            .get(entityInfoExtractor.getId(computeTier));
-                    if (computePriceList != null) {
-                        final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
-                        // TODO (roman, Aug 17 2018): When implementing RI's, amount bought will
-                        // be the fraction of the VM that's bought at on-demand prices.
-                        final double amountBought = 1;
-                        journal.recordOnDemandCost(CostCategory.COMPUTE, computeTier,
-                            basePrice.getPricesList().get(0), amountBought);
-                        if (computeConfig.getOs() != basePrice.getGuestOsType()) {
-                            computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
-                                .filter(computeConfig::matchesPriceTableConfig)
-                                .findAny()
-                                .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
-                                    CostCategory.LICENSE,
-                                    computeTier,
-                                    priceAdjustmentConfig.getPricesList().get(0), amountBought));
+        switch (entityInfoExtractor.getEntityType(entity)) {
+            case EntityType.VIRTUAL_MACHINE_VALUE:
+                entityInfoExtractor.getComputeConfig(entity).ifPresent(computeConfig -> {
+                    // Calculate on-demand prices for entities that have a compute config.
+                    cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
+                        final long regionId = entityInfoExtractor.getId(region);
+                        final OnDemandPriceTable onDemandPriceTable = cloudCostData.getPriceTable()
+                            .getOnDemandPriceByRegionIdMap().get(regionId);
+                        if (onDemandPriceTable != null) {
+                            final ComputeTierPriceList computePriceList =
+                                onDemandPriceTable.getComputePricesByTierIdMap()
+                                    .get(entityInfoExtractor.getId(computeTier));
+                            if (computePriceList != null) {
+                                final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
+                                // TODO (roman, Aug 17 2018): When implementing RI's, amount bought will
+                                // be the fraction of the VM that's bought at on-demand prices.
+                                final double amountBought = 1;
+                                journal.recordOnDemandCost(CostCategory.COMPUTE, computeTier,
+                                    basePrice.getPricesList().get(0), amountBought);
+                                if (computeConfig.getOs() != basePrice.getGuestOsType()) {
+                                    computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
+                                        .filter(computeConfig::matchesPriceTableConfig)
+                                        .findAny()
+                                        .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
+                                            CostCategory.LICENSE,
+                                            computeTier,
+                                            priceAdjustmentConfig.getPricesList().get(0), amountBought));
+                                }
+                            }
+                        } else {
+                            logger.warn("Global price table has no entry for region {}. This means there" +
+                                " is some inconsistency between the topology and pricing data.", regionId);
                         }
-                    }
-                } else {
-                    logger.warn("Global price table has no entry for region {}. This means there" +
-                        " is some inconsistency between the topology and pricing data.", regionId);
-                }
-            });
-        });
+                    });
+                });
+                break;
+            case EntityType.DATABASE_VALUE :
+            case EntityType.DATABASE_SERVER_VALUE :
+                entityInfoExtractor.getDatabaseConfig(entity).ifPresent(databaseConfig -> {
+                    // Calculate on-demand prices for entities that have a database config.
+                    // cloudTopology.get
+                    cloudTopology.getDatabaseTier(entityId).ifPresent(databaseTier -> {
+                        final long regionId = entityInfoExtractor.getId(region);
+                        final OnDemandPriceTable onDemandPriceTable = cloudCostData.getPriceTable()
+                            .getOnDemandPriceByRegionIdMap().get(regionId);
+                        if (onDemandPriceTable != null) {
+                            final DatabaseTierPriceList dbPriceList =
+                                onDemandPriceTable.getDbPricesByInstanceIdMap()
+                                    .get(entityInfoExtractor.getId(databaseTier));
+                            if (dbPriceList != null) {
+                                final DatabaseTierConfigPrice basePrice = dbPriceList.getBasePrice();
+                                final double amountBought = 1;
+                                journal.recordOnDemandCost(CostCategory.COMPUTE, databaseTier,
+                                    basePrice.getPricesList().get(0), amountBought);
+                                dbPriceList.getConfigurationPriceAdjustmentsList().stream()
+                                    .filter(databaseConfig::matchesPriceTableConfig)
+                                    .findAny()
+                                    .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
+                                        CostCategory.LICENSE,
+                                        databaseTier,
+                                        priceAdjustmentConfig.getPricesList().get(0), amountBought));
+                            }
+                        } else {
+                            logger.warn("Global price table has no entry for region {}. This means there" +
+                                " is some inconsistency between the topology and pricing data.", regionId);
+                        }
+                    });
+                });
+                break;
+            default:
+                logger.error("Received invalid entity " + entity.toString());
+                break;
+        }
 
         return journal.build();
     }

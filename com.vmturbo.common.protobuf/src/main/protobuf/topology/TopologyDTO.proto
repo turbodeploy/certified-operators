@@ -22,9 +22,18 @@ message TypeSpecificInfo {
         optional .common_dto.Tenancy tenancy = 2;
     }
 
+    message DatabaseInfo {
+        // Edition
+        optional .common_dto.DatabaseEdition edition = 1;
+
+        // Engine
+        optional .common_dto.DatabaseEngine engine = 2;
+    }
+
     oneof type {
         // The field number is the index of the entity type.
         VirtualMachineInfo virtual_machine = 10;
+        DatabaseInfo database = 46;
     }
 }
 
