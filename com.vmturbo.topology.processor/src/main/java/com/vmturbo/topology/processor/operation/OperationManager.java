@@ -21,6 +21,7 @@ import org.jooq.exception.DataAccessException;
 
 import com.google.common.collect.ImmutableList;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -31,6 +32,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO;
 import com.vmturbo.platform.common.dto.Discovery.ErrorDTO.ErrorSeverity;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
+import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
@@ -190,8 +192,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      */
     @Override
     public synchronized Action requestActions(final long actionId,
-                                           final long targetId,
-                                           @Nonnull final List<ActionItemDTO> actionDtos)
+                                              final long targetId,
+                                              @Nonnull final List<ActionItemDTO> actionDtos,
+                                              @Nonnull Optional<WorkflowDTO.WorkflowInfo> workflowInfoOpt)
             throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
         final Target target = targetStore.getTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
@@ -203,15 +206,20 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         final Action action = new Action(actionId, target.getProbeId(),
                 targetId, identityProvider);
+        final ActionExecutionDTO.Builder actionExecutionBuilder = ActionExecutionDTO.newBuilder()
+                .setActionType(actionDtos.size() > 1
+                        // We assume that with multiple actions, they are all MOVE/CHANGE actions
+                        ? ActionType.MOVE_TOGETHER
+                        : actionDtos.get(0).getActionType())
+                .addAllActionItem(actionDtos);
+        // if a WorkflowInfo action execution override is present, translate it to a NonMarketEntity
+        // and include it in the ActionExecution to be sent to the target
+        workflowInfoOpt.ifPresent(workflowInfo ->
+                actionExecutionBuilder.setWorkflow(buildWorkflowNonMarketEntity(workflowInfo)));
         final ActionRequest request = ActionRequest.newBuilder()
                 .setProbeType(probeType)
                 .addAllAccountValue(target.getMediationAccountVals())
-                .setActionExecutionDTO(ActionExecutionDTO.newBuilder()
-                        .setActionType(actionDtos.size() > 1
-                        // We assume that with multiple actions, they are all MOVE/CHANGE actions
-                            ? ActionType.MOVE_TOGETHER
-                            : actionDtos.get(0).getActionType())
-                        .addAllActionItem(actionDtos))
+                .setActionExecutionDTO(actionExecutionBuilder)
                 .build();
         final ActionMessageHandler messageHandler = new ActionMessageHandler(this,
                 action,
@@ -225,6 +233,42 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         logger.info("Beginning " + action);
         operationStart(action);
         return action;
+    }
+
+    /**
+     * Create a NonMarketEntity representing the given {@link WorkflowDTO.WorkflowInfo}.
+     * The corresponding 'entityType' is: {@link NonMarketEntityDTO.NonMarketEntityType#WORKFLOW}.
+     *
+     * @param workflowInfo the information describing this Workflow, including ID, displayName,
+     *                     and defining data - parameters and properties.
+     * @return a newly created NonMarketEntity
+     */
+    private NonMarketEntityDTO buildWorkflowNonMarketEntity(WorkflowDTO.WorkflowInfo workflowInfo) {
+        return NonMarketEntityDTO.newBuilder()
+                .setEntityType(NonMarketEntityDTO.NonMarketEntityType.WORKFLOW)
+                .setDisplayName(workflowInfo.getDisplayName())
+                .setId(workflowInfo.getName())
+                .setDescription(workflowInfo.getDescription())
+                // populate the WorkflowData field of the NonMarketEntity
+                .setWorkflowData(NonMarketEntityDTO.WorkflowData.newBuilder()
+                        // include the 'param' entries from the Workflow
+                        .addAllParam(workflowInfo.getWorkflowParamList().stream()
+                                .map(workflowParam -> NonMarketEntityDTO.Parameter.newBuilder()
+                                        .setDescription(workflowParam.getDescription())
+                                        .setName(workflowParam.getName())
+                                        .setType(workflowParam.getType())
+                                        .setMandatory(workflowParam.getMandatory())
+                                        .build())
+                                .collect(Collectors.toList()))
+                        // include the 'property' entries from the Workflow
+                        .addAllProperty(workflowInfo.getWorkflowPropertyList().stream()
+                                .map(workflowProperty -> NonMarketEntityDTO.Property.newBuilder()
+                                        .setName(workflowProperty.getName())
+                                        .setValue(workflowProperty.getValue())
+                                        .build())
+                                .collect(Collectors.toList()))
+                        .build())
+                .build();
     }
 
     /**

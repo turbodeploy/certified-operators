@@ -5,8 +5,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Lists;
-
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO.WorkflowParameter;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
@@ -38,22 +37,32 @@ public class DiscoveredWorkflowInterpreter {
                         .setTargetId(targetId)
                         .setName(nonMarketEntityDTO.getId())
                         .setDisplayName(nonMarketEntityDTO.getDisplayName())
-                        .addAllWorkflowParam(interpretParams(nonMarketEntityDTO
-                                .getWorkflowData()
+                        .addAllWorkflowParam(interpretParams(nonMarketEntityDTO.getWorkflowData()
                                 .getParamList()))
+                        .addAllWorkflowProperty(interpretProps(nonMarketEntityDTO.getWorkflowData()
+                                .getPropertyList()))
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    private List<WorkflowDTO.WorkflowProperty> interpretProps(List<NonMarketEntityDTO.Property> propertyList) {
+        return propertyList.stream()
+                .map(nmeProperty -> WorkflowDTO.WorkflowProperty.newBuilder()
+                        .setName(nmeProperty.getName())
+                        .setValue(nmeProperty.getValue())
                         .build())
                 .collect(Collectors.toList());
     }
 
     private List<WorkflowParameter> interpretParams(List<Parameter> paramList) {
-        List<WorkflowParameter> answer = Lists.newArrayList();
-        paramList.forEach(discoveredParam -> answer.add(WorkflowParameter.newBuilder()
-                .setName(discoveredParam.getName())
-                .setDescription(discoveredParam.getDescription())
-                .setType(discoveredParam.getType())
-                .setMandatory(discoveredParam.getMandatory())
-                .build()));
-        return answer;
+        return paramList.stream()
+                .map(discoveredParam -> WorkflowParameter.newBuilder()
+                        .setName(discoveredParam.getName())
+                        .setDescription(discoveredParam.getDescription())
+                        .setType(discoveredParam.getType())
+                        .setMandatory(discoveredParam.getMandatory())
+                        .build())
+                .collect(Collectors.toList());
     }
 
 }

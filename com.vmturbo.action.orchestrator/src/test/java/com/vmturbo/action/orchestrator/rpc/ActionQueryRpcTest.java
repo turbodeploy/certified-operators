@@ -49,6 +49,7 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.store.PlanActionStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -104,11 +105,13 @@ public class ActionQueryRpcTest {
 
     private ActionsRpcService actionsRpcService = new ActionsRpcService(
             actionStorehouse, Mockito.mock(ActionExecutor.class),
-            actionTranslator, paginatorFactory);
+            actionTranslator, paginatorFactory,
+            Mockito.mock(WorkflowStore.class));
 
     private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(
             actionStorehouse, Mockito.mock(ActionExecutor.class),
-            actionTranslatorWithFailedTranslation, paginatorFactory);
+            actionTranslatorWithFailedTranslation, paginatorFactory,
+            Mockito.mock(WorkflowStore.class));
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

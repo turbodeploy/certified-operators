@@ -4,6 +4,7 @@ package topology;
 option java_package = "com.vmturbo.common.protobuf.topology";
 
 import "action/ActionDTO.proto";
+import "workflow/WorkflowDTO.proto";
 
 message ExecuteActionRequest {
     // The ID of the action being executed.
@@ -18,6 +19,9 @@ message ExecuteActionRequest {
 
     // The action information.
     optional action.ActionInfo action_info = 3;
+
+    // Any action may be overridden by a "workflow" specification
+    optional workflow.WorkflowInfo workflow_info = 4;
 }
 
 message ExecuteActionResponse {}

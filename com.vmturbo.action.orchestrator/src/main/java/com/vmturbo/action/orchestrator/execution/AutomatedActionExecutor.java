@@ -30,12 +30,14 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 public class AutomatedActionExecutor {
 
@@ -58,12 +60,19 @@ public class AutomatedActionExecutor {
 
     private final Logger logger = LogManager.getLogger();
 
+    /**
+     * the store for all the known {@link WorkflowDTO.Workflow} items
+     */
+    private final WorkflowStore workflowStore;
+
     public AutomatedActionExecutor(@Nonnull final ActionExecutor executor,
                                    @Nonnull final ExecutorService executorService,
-                                   @Nonnull final ActionTranslator translator) {
+                                   @Nonnull final ActionTranslator translator,
+                                   @Nonnull final WorkflowStore workflowStore) {
         this.actionExecutor = Objects.requireNonNull(executor);
         this.executionService = Objects.requireNonNull(executorService);
         this.actionTranslator = Objects.requireNonNull(translator);
+        this.workflowStore = Objects.requireNonNull(workflowStore);
     }
 
     /**
@@ -213,7 +222,13 @@ public class AutomatedActionExecutor {
                         if (translated.isPresent()) {
                             try {
                                 logger.info("Attempting to execute action {}", action);
-                                actionExecutor.executeSynchronously(targetId, translated.get());
+                                // Fetch the Workflow, if any, that controls this Action
+                                Optional<WorkflowDTO.Workflow> workflowOpt =
+                                        action.getWorkflow(workflowStore);
+                                // Execute the Action on the given target, or the Workflow target
+                                // if a Workflow is specified.
+                                actionExecutor.executeSynchronously(targetId, translated.get(),
+                                        workflowOpt);
                             } catch (ExecutionStartException e) {
                                 final String errorMsg = String.format(EXECUTION_START_MSG, actionId);
                                 logger.error(errorMsg, e);

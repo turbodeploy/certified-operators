@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -41,6 +42,7 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecutionMoles.ActionExecutionServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoMoles.EntityServiceMole;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 /**
@@ -72,6 +74,8 @@ public class ActionExecutorTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
+    private Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
+
     @Before
     public void setup() throws IOException, TargetResolutionException {
         actionTargetResolver = Mockito.mock(ActionTargetResolver.class);
@@ -95,7 +99,7 @@ public class ActionExecutorTest {
         Assert.assertEquals(targetId, actionExecutor.getTargetId(action));
 
         try {
-            actionExecutor.execute(targetId, action);
+            actionExecutor.execute(targetId, action, workflowOpt);
         } catch (ExecutionStartException e) {
             // We expect this to happen, since the backend implementation
             // is not implemented.

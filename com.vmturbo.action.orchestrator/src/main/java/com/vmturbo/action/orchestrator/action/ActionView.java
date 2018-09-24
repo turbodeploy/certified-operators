@@ -7,11 +7,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatus;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 /**
  * Provides a limited-access view of an action that permits accessors for retrieving properties
@@ -135,4 +137,20 @@ public interface ActionView {
         return getRecommendation().getExecutable() &&
             getState().equals(ActionState.READY);
     }
+
+    /**
+     * Fetch an Optional of the {@link WorkflowDTO.Workflow} corresponding to this Action, if any.
+     * The Workflow is controlled by an Orchestration Setting whose name is based on the name of
+     * this action. For example, a "Provision" action workflow is configured by creating a
+     * "ProvisionActionWorkflow" setting. The ID of the workflow is given by the "value" of the
+     * setting, if one is found, and that ID is used to look up the Workflow object in the
+     * given 'workflowStore'.
+     * If there is no such setting, or no Workflow with that ID is found in the store,
+     * then return Optional.empty().
+     *
+     * @param workflowStore the store of all known Workflow objects
+     * @return an Optional of the corresponding Workflow based on an Orchestration Setting for the
+     * corresponding Action type.
+     */
+    Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore);
 }

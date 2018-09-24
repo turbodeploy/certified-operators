@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -139,7 +140,7 @@ public class ActionModeCalculator {
 
             // Are there ever workflow overrides defined for this action?
             final ActionTypeCase actionTypeCase = actionDTO.getInfo().getActionTypeCase();
-            EntitySettingSpecs workflowOverride = WORKFLOW_ACTION_TYPE_MAP.get(actionTypeCase);
+            final EntitySettingSpecs workflowOverride = WORKFLOW_ACTION_TYPE_MAP.get(actionTypeCase);
             if (workflowOverride == null) {
                 return Optional.empty();
             }
@@ -161,6 +162,53 @@ public class ActionModeCalculator {
             // extract the setting value as a string and return it
             final String actionModeString = baseSetting.getEnumSettingValue().getValue();
             return Optional.of(ActionMode.valueOf(actionModeString));
+        } catch (UnsupportedActionException e) {
+            logger.error("Unable to calculate complex action mode.", e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * For an action which corresponds to a Workflow Action, e.g. ProvisionActionWorkflow,
+     * return the ActionMode of the policy for the related action, e.g. ProvisionAction.
+     *
+     * If this is not a Workflow Action, then return Optional.empty()
+     *
+     * @param actionDTO The action to analyze to see if it is a Workflow Action
+     * @param entitySettingsCache the EntitySettings lookaside for the given action
+     * @return an Optional containing the ActionMode if this is a Workflow Action, or
+     * Optional.empty() if this is not a Workflow Action or the type of the ActionDTO is not
+     * supported.
+     */
+    @Nonnull
+    public static Optional<SettingProto.Setting> calculateWorkflowSetting(
+            @Nonnull final ActionDTO.Action actionDTO,
+            @Nullable final EntitySettingsCache entitySettingsCache) {
+        try {
+            Objects.requireNonNull(actionDTO);
+            if (Objects.isNull(entitySettingsCache)) {
+                return Optional.empty();
+            }
+
+            // find the entity which is the target of this action
+            final long actionTargetEntityId = ActionDTOUtil.getTargetEntityId(actionDTO);
+
+            // get a map of all the settings (settingName  -> setting) specific to this entity
+            final Map<String, Setting> settingsForActionTarget = entitySettingsCache
+                    .getSettingsForEntity(actionTargetEntityId);
+
+            // Are there any workflow override settings allowed for this action type?
+            EntitySettingSpecs workflowOverride = WORKFLOW_ACTION_TYPE_MAP.get(
+                    actionDTO.getInfo().getActionTypeCase());
+            if (workflowOverride == null) {
+                // workflow overrides are not allowed
+                return Optional.empty();
+            }
+            // Is there a corresponding setting for this Workflow override for the current entity?
+            // note: the value of the workflowSettingSpec is the OID of the workflow, only used during
+            // execution
+            return Optional.ofNullable(settingsForActionTarget.get(
+                    workflowOverride.getSettingName()));
         } catch (UnsupportedActionException e) {
             logger.error("Unable to calculate complex action mode.", e);
             return Optional.empty();

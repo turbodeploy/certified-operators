@@ -1,8 +1,10 @@
 package com.vmturbo.action.orchestrator.rpc;
 
+import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.when;
+
 import java.util.Optional;
 
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -17,6 +19,7 @@ import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
@@ -25,15 +28,13 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.Mockito.when;
-
 public class ActionDeletionRpcTest {
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
     private final ActionStorehouse actionStorehouse = Mockito.mock(ActionStorehouse.class);
     private final ActionStore actionStore = Mockito.mock(ActionStore.class);
     private final ActionPaginatorFactory paginatorFactory = Mockito.mock(ActionPaginatorFactory.class);
+    private final WorkflowStore workflowStore = Mockito.mock(WorkflowStore.class);
 
     private final long topologyContextId = 3;
 
@@ -41,7 +42,8 @@ public class ActionDeletionRpcTest {
             new ActionsRpcService(actionStorehouse,
                     Mockito.mock(ActionExecutor.class),
                     Mockito.mock(ActionTranslator.class),
-                    paginatorFactory);
+                    paginatorFactory,
+                    workflowStore);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();

@@ -71,6 +71,26 @@ public class Entity {
         return Optional.ofNullable(perTargetInfo.get(targetId));
     }
 
+    /**
+     * Get the entity info for this entity
+     * Uses the provided targetId if possible, but if no match for that targetId is found in the
+     * perTargetInfo map, it returns the first entry in that map instead.
+     *
+     * The idea is that we want the entity info for this entity, regardless of what target it was
+     * discovered by.
+     *
+     * @param targetId the target that discovered the desired entity data
+     * @return information about this entity as discovered by a specific target.
+     */
+    @Nonnull
+    public Optional<PerTargetInfo> getEntityInfo(final long targetId) {
+        return Optional.ofNullable(this.perTargetInfo.get(targetId))
+                // found the perTargetInfo - return as an Optional
+                .map(Optional::of)
+                // not found - look through all targetInfo and return the first one, if any
+                .orElse(allTargetInfo().stream().findFirst());
+    }
+
     @Nonnull
     public Collection<PerTargetInfo> allTargetInfo() {
         return perTargetInfo.values();

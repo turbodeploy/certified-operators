@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.topology.processor.operation.action.Action;
@@ -189,6 +190,8 @@ public interface IOperationManager {
      * assigned by the Action Orchestrator.
      * @param targetId The id of the target containing the entities for the action.
      * @param actionDtos A list of {@link ActionExecution.ActionItemDTO}s describing the action(s) to execute.
+     * @param workflowInfo the Workflow that will override the handling of this action, if one is
+     *                     specified in a Setting
      * @return The {@link Action} requested for the target.
      * @throws TargetNotFoundException When the requested target is not found.
      * @throws ProbeException When the probe corresponding to the target is not connected.
@@ -197,7 +200,8 @@ public interface IOperationManager {
      * probe.
      */
     Action requestActions(long actionId, long targetId,
-            @Nonnull List<ActionExecution.ActionItemDTO> actionDtos)
+                          @Nonnull List<ActionExecution.ActionItemDTO> actionDtos,
+                          @Nonnull Optional<WorkflowDTO.WorkflowInfo> workflowInfo)
             throws ProbeException, TargetNotFoundException, CommunicationException,
             InterruptedException;
 

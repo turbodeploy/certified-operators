@@ -10,6 +10,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AuthorizedActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
@@ -21,6 +24,8 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.state.machine.StateMachine;
 import com.vmturbo.action.orchestrator.state.machine.Transition.TransitionResult;
 import com.vmturbo.action.orchestrator.store.EntitySettingsCache;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStoreException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -30,6 +35,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
+import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -41,6 +48,9 @@ import com.vmturbo.proactivesupport.DataMetricSummary;
  */
 @ThreadSafe
 public class Action implements ActionView {
+
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * The recommended steps to take in the environment.
      */
@@ -310,6 +320,36 @@ public class Action implements ActionView {
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    @Nonnull
+    public Optional<WorkflowDTO.Workflow> getWorkflow(WorkflowStore workflowStore) {
+        Optional<WorkflowDTO.Workflow> workflowOpt = Optional.empty();
+        // fetch the setting, if any, that defines whether a Workflow should be applied
+        final Optional<SettingProto.Setting> workflowSettingOpt = getWorkflowSetting();
+        if (workflowSettingOpt.isPresent()) {
+            final String workflowIdString = workflowSettingOpt.get().getStringSettingValue()
+                    .getValue();
+            try {
+                // the value of the Workflow Setting denotes the ID of the Workflow to apply
+                final long workflowId = Long.valueOf(workflowIdString);
+                workflowOpt = Optional.of(workflowStore.fetchWorkflow(workflowId)
+                        .orElseThrow(() -> new IllegalStateException("Workflow not found, id: " +
+                                workflowIdString)));
+            } catch (NumberFormatException e) {
+                logger.error("Invalid workflow ID: " + workflowIdString, e);
+                return Optional.empty();
+            } catch (WorkflowStoreException e) {
+                logger.error("Error accessing Workflow, id: " + workflowIdString, e);
+                return Optional.empty();
+            }
+        }
+        return workflowOpt;
+    }
+
+
+    /**
      * Get the ID of the action. This ID is the same as the one provided by the market in its
      * recommendation.
      *
@@ -375,6 +415,25 @@ public class Action implements ActionView {
         return actionTranslation.getTranslationStatus();
     }
 
+    /**
+     * Find the Setting for a Workflow Orchestration Policy, if there is one, that applies to
+     * the current Action. The calculation uses the ActionDTO.Action and the EntitySettingsCache.
+     *
+     * @return an Optional containing the Setting for a Workflow Orchestration Policy, if there
+     * is one defined for this action, or Optional.empty() otherwise
+     */
+    @Nonnull
+    private Optional<SettingProto.Setting> getWorkflowSetting() {
+        return ActionModeCalculator.calculateWorkflowSetting(recommendation, entitySettings);
+    }
+
+
+    /**
+     * Determine if this Action may be executed directly by Turbonomic, i.e. the mode
+     * is either AUTOMATIC or MANUAL.
+     *
+     * @return true if this Action may be executed, i.e. mode is either AUTOMATIC or MANUAL
+     */
     private boolean modePermitsExecution() {
         return getMode() == ActionMode.AUTOMATIC || getMode() == ActionMode.MANUAL;
     }
@@ -528,11 +587,10 @@ public class Action implements ActionView {
             .labels(getActionType().name())
             .decrement();
 
-        executableStep.getExecutionTimeSeconds().ifPresent(executionTime -> {
-            ACTION_DURATION_SUMMARY
-                .labels(getActionType().name())
-                .observe((double)executionTime);
-        });
+        executableStep.getExecutionTimeSeconds().ifPresent(executionTime ->
+                ACTION_DURATION_SUMMARY
+                        .labels(getActionType().name())
+                        .observe((double)executionTime));
     }
 
     /**

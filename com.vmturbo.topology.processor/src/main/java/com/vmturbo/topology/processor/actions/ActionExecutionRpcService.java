@@ -2,7 +2,7 @@ package com.vmturbo.topology.processor.actions;
 
 import static com.vmturbo.common.protobuf.ActionDTOUtil.getProviderEntityIdsFromMoveAction;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionResponse;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -43,6 +44,14 @@ import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Tokens to use generating error logging during entity lookup. These correspond to the
+     * three entity designations in any action.
+     */
+    private static final String TARGET_LOOKUP_TOKEN = "target";
+    private static final String SOURCE_LOOKUP_TOKEN = "source";
+    private static final String DESTINATION_LOOKUP_TOKEN = "destination";
 
     private final EntityStore entityStore;
 
@@ -82,16 +91,23 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     sdkActions.add(deactivate(request.getTargetId(),
                         request.getActionId(), actionInfo.getDeactivate()));
                     break;
+                case PROVISION:
+                    sdkActions.add(provision(request.getTargetId(),
+                            request.getActionId(), actionInfo.getProvision()));
+                    break;
                 default:
                     throw new IllegalArgumentException("Unsupported action type: " +
                                     actionInfo.getActionTypeCase());
             }
 
             logger.debug("Start action {}", sdkActions);
+            Optional<WorkflowDTO.WorkflowInfo> workflowOptional = request.hasWorkflowInfo() ?
+                    Optional.of(request.getWorkflowInfo()) : Optional.empty();
 
             operationManager.requestActions(request.getActionId(),
-                request.getTargetId(),
-                Objects.requireNonNull(sdkActions));
+                    request.getTargetId(),
+                    Objects.requireNonNull(sdkActions),
+                    workflowOptional);
 
             responseObserver.onNext(ExecuteActionResponse.getDefaultInstance());
             responseObserver.onCompleted();
@@ -101,10 +117,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
         } catch (InterruptedException e) {
             responseObserver.onError(Status.ABORTED
                     .withDescription(e.getMessage()).asException());
-        } catch (ActionExecutionException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getMessage()).asException());
-        } catch (TargetNotFoundException e) {
+        } catch (ActionExecutionException | TargetNotFoundException e) {
             responseObserver.onError(Status.INVALID_ARGUMENT
                     .withDescription(e.getMessage()).asException());
         } catch (CommunicationException e) {
@@ -120,12 +133,14 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                                     throws ActionExecutionException {
         try {
             // insert activate actions to action record table
-            entityActionDao.insertAction(actionId, ActionDTO.ActionType.ACTIVATE, new HashSet<>(Arrays.asList(targetId)));
+            entityActionDao.insertAction(actionId, ActionDTO.ActionType.ACTIVATE,
+                    new HashSet<>(Collections.singletonList(targetId)));
         } catch (DataAccessException e) {
-            logger.error("Failed to create queued activate action records for action: {}", actionId);
+            logger.error("Failed to create queued activate action records for action: {}",
+                    actionId);
         }
-        final PerTargetInfo targetInfo =
-                        getPerTargetInfo(targetId, activateAction.getTarget().getId(), "target");
+        final PerTargetInfo targetInfo = getPerTargetInfo(targetId,
+                activateAction.getTarget().getId(), TARGET_LOOKUP_TOKEN);
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
         actionBuilder.setActionType(ActionType.START);
@@ -142,11 +157,29 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                     final long actionId,
                     @Nonnull final ActionDTO.Deactivate deactivateAction)
                                     throws ActionExecutionException {
-        final PerTargetInfo targetInfo =
-                        getPerTargetInfo(targetId, deactivateAction.getTarget().getId(), "target");
+        final PerTargetInfo targetInfo = getPerTargetInfo(targetId,
+                deactivateAction.getTarget().getId(), TARGET_LOOKUP_TOKEN);
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
         actionBuilder.setActionType(ActionType.SUSPEND);
+        actionBuilder.setUuid(Long.toString(actionId));
+        actionBuilder.setTargetSE(targetInfo.getEntityInfo());
+
+        getHost(targetId, targetInfo).ifPresent(actionBuilder::setHostedBySE);
+
+        return actionBuilder.build();
+    }
+
+    @Nonnull
+    public ActionItemDTO provision(final long targetId,
+                    final long actionId,
+                    @Nonnull final ActionDTO.Provision provision)
+                                    throws ActionExecutionException {
+        final PerTargetInfo targetInfo = getPerTargetInfo(targetId,
+                provision.getEntityToClone().getId(), TARGET_LOOKUP_TOKEN);
+
+        final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
+        actionBuilder.setActionType(ActionType.PROVISION);
         actionBuilder.setUuid(Long.toString(actionId));
         actionBuilder.setTargetSE(targetInfo.getEntityInfo());
 
@@ -160,10 +193,9 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     public ActionItemDTO resize(final long targetId,
                     final long actionId,
                     @Nonnull final ActionDTO.Resize resizeAction)
-                                    throws InterruptedException, ProbeException, TargetNotFoundException,
-                                    CommunicationException, ActionExecutionException {
-        final PerTargetInfo targetInfo =
-                        getPerTargetInfo(targetId, resizeAction.getTarget().getId(), "target");
+                                    throws ActionExecutionException {
+        final PerTargetInfo targetInfo = getPerTargetInfo(targetId, resizeAction.getTarget().getId(),
+                TARGET_LOOKUP_TOKEN);
 
         final ActionItemDTO.Builder actionBuilder = ActionItemDTO.newBuilder();
 
@@ -200,9 +232,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
     @Nonnull
     public List<ActionItemDTO> move(final long targetId,
                     final long actionId,
-                    @Nonnull final ActionDTO.Move moveAction)
-                                    throws InterruptedException, ProbeException,
-                                    TargetNotFoundException, CommunicationException, ActionExecutionException {
+                    @Nonnull final ActionDTO.Move moveAction) throws ActionExecutionException {
         final Set<Long> entityIds = getProviderEntityIdsFromMoveAction(moveAction);
         try {
             // insert records to controllable table which have "queued" status.
@@ -211,16 +241,20 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
             logger.error("Failed to create queued controllable records for action: {}", actionId);
         }
         List<ActionItemDTO> actions = Lists.newArrayList();
-        final PerTargetInfo targetInfo = getPerTargetInfo(targetId, moveAction.getTarget().getId(), "target");
+        final PerTargetInfo targetInfo = getPerTargetInfo(targetId, moveAction.getTarget().getId(),
+                TARGET_LOOKUP_TOKEN);
         for (ChangeProvider change : moveAction.getChangesList()) {
             actions.add(actionItemDto(targetId, change, actionId, targetInfo));
         }
         return actions;
     }
 
-    private ActionItemDTO actionItemDto(long targetId, ChangeProvider change, long actionId, PerTargetInfo targetInfo) throws ActionExecutionException {
-        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, change.getSource().getId(), "source");
-        final PerTargetInfo destInfo = getPerTargetInfo(targetId, change.getDestination().getId(), "destination");
+    private ActionItemDTO actionItemDto(long targetId, ChangeProvider change, long actionId,
+                                        PerTargetInfo targetInfo) throws ActionExecutionException {
+        final PerTargetInfo sourceInfo = getPerTargetInfo(targetId, change.getSource().getId(),
+                SOURCE_LOOKUP_TOKEN);
+        final PerTargetInfo destInfo = getPerTargetInfo(targetId, change.getDestination().getId(),
+                DESTINATION_LOOKUP_TOKEN);
 
         // Set the action type depending on the type of the entity being moved.
         final EntityType srcEntityType = sourceInfo.getEntityInfo().getEntityType();
@@ -269,7 +303,7 @@ public class ActionExecutionRpcService extends ActionExecutionServiceImplBase {
                                     throws ActionExecutionException {
         return entityStore.getEntity(entityId)
                         .orElseThrow(() -> ActionExecutionException.noEntity(entityType, entityId))
-                        .getTargetInfo(targetId)
+                        .getEntityInfo(targetId)
                         .orElseThrow(() -> ActionExecutionException.noEntityTargetInfo(
                             entityType, entityId, targetId));
     }

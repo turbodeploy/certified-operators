@@ -41,6 +41,7 @@ import com.vmturbo.action.orchestrator.execution.TargetResolutionException;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLogEntry;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -81,6 +82,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.TopologyContextResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.TypeCount;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceImplBase;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 /**
  * Implements the RPC calls supported by the action orchestrator for retrieving and executing actions.
@@ -98,19 +100,27 @@ public class ActionsRpcService extends ActionsServiceImplBase {
     private static final Logger logger = LogManager.getLogger();
 
     /**
+     * the store for all the known {@link WorkflowDTO.Workflow} items
+     */
+    private final WorkflowStore workflowStore;
+
+    /**
      * Create a new ActionsRpcService.
      * @param actionStorehouse The storehouse containing action stores.
      * @param actionExecutor The executor for executing actions.
      * @param actionTranslator The translator for translating actions (from market to real-world).
+     * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
      */
     public ActionsRpcService(@Nonnull final ActionStorehouse actionStorehouse,
                              @Nonnull final ActionExecutor actionExecutor,
                              @Nonnull final ActionTranslator actionTranslator,
-                             @Nonnull final ActionPaginatorFactory paginatorFactory) {
+                             @Nonnull final ActionPaginatorFactory paginatorFactory,
+                             @Nonnull final WorkflowStore workflowStore) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.paginatorFactory = Objects.requireNonNull(paginatorFactory);
+        this.workflowStore = Objects.requireNonNull(workflowStore);
     }
 
     /**
@@ -484,9 +494,10 @@ public class ActionsRpcService extends ActionsServiceImplBase {
             actionTranslator.translate(action);
             final Optional<ActionDTO.Action> translatedRecommendation =
                 action.getActionTranslation().getTranslatedRecommendation();
-
             if (translatedRecommendation.isPresent()) {
-                actionExecutor.execute(targetId, translatedRecommendation.get());
+                // execute the action, passing the workflow override (if any)
+                actionExecutor.execute(targetId, translatedRecommendation.get(),
+                        action.getWorkflow(workflowStore));
                 return AcceptActionResponse.newBuilder()
                     .setActionSpec(actionTranslator.translateToSpec(action))
                     .build();

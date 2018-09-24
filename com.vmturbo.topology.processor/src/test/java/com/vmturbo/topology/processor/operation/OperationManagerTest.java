@@ -648,7 +648,8 @@ public class OperationManagerTest {
     public void testStartAction() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos,
+                Optional.empty());
         Mockito.verify(mockRemoteMediationServer).sendActionRequest(eq(probeId),
             any(ActionRequest.class), any(OperationMessageHandler.class));
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
@@ -658,7 +659,8 @@ public class OperationManagerTest {
     public void testProcessActionSuccess() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos,
+                Optional.empty());
 
         final ActionResult result = ActionResult.newBuilder()
                 .setResponse(ActionResponse.newBuilder()
@@ -676,7 +678,8 @@ public class OperationManagerTest {
     public void testActionDiscoveryFailure() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos,
+                Optional.empty());
         // Critical errors applying to the target rather than a specific entity
         // should prevent any EntityDTOs in the discovery from being added to
         // the topology snapshot for the target.
@@ -697,7 +700,8 @@ public class OperationManagerTest {
     public void testProcessActionCancelOperation() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
 
-        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos,
+                Optional.empty());
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.notifyOperationCancelled(action, "Transport closed");
         OperationTestUtilities.waitForEvent(operationListener, listener -> !listener.lastStatusMatches(Status.IN_PROGRESS));
@@ -719,7 +723,8 @@ public class OperationManagerTest {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
         final Target target = targetStore.getTarget(targetId).get();
 
-        final Action action = operationManager.requestActions(0, targetId, actionItemDtos);
+        final Action action = operationManager.requestActions(0, targetId, actionItemDtos,
+                Optional.empty());
         Assert.assertTrue(operationManager.getInProgressAction(action.getId()).isPresent());
         operationManager.onTargetRemoved(target);
         OperationTestUtilities.waitForAction(operationManager, action);

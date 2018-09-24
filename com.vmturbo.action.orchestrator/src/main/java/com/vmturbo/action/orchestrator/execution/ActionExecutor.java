@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExe
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass;
 import com.vmturbo.common.protobuf.topology.EntityInfoOuterClass.EntityInfo;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 
@@ -56,7 +57,8 @@ public class ActionExecutor implements ActionExecutionListener {
 
     /**
      * Futures to track success or failure of actions that are executing synchronously
-     * (i.e. via the {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action)} method).
+     * (i.e. via the {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action, Optional)}
+     * method).
      */
     private final Map<Long, CompletableFuture<Void>> inProgressSyncActions =
             Collections.synchronizedMap(new HashMap<>());
@@ -255,9 +257,23 @@ public class ActionExecutor implements ActionExecutionListener {
                 .collect(Collectors.toMap(EntityInfo::getEntityId, Function.identity()));
     }
 
-    public void executeSynchronously(final long targetId, @Nonnull final ActionDTO.Action action)
+    /**
+     * Schedule the given {@link ActionDTO.Action} for execution and wait for completion.
+     *
+     * @param targetId the ID of the Target which should execute the action (unless there's a
+     *                 Workflow specified - see below)
+     * @param action the Action to execute
+     * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
+     * @throws ExecutionStartException if the Action fails to start
+     * @throws InterruptedException if the "wait for completion" is interrupted
+     * @throws SynchronousExecutionException any other execute exception
+     */
+    public void executeSynchronously(final long targetId, @Nonnull final ActionDTO.Action action,
+                                     @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
             throws ExecutionStartException, InterruptedException, SynchronousExecutionException {
-        execute(targetId, action);
+        Objects.requireNonNull(action);
+        Objects.requireNonNull(workflowOpt);
+        execute(targetId, action, workflowOpt);
         final CompletableFuture<Void> future = new CompletableFuture<>();
         inProgressSyncActions.put(action.getId(), future);
         try {
@@ -271,16 +287,38 @@ public class ActionExecutor implements ActionExecutionListener {
         }
     }
 
-    public void execute(final long targetId, @Nonnull final ActionDTO.Action action)
+    /**
+     * Schedule execution of the given {@link ActionDTO.Action} and return immediately.
+     *
+     * @param targetId the ID of the Target which should execute the action (unless there's a
+     *                 Workflow specified - see below)
+     * @param action the Action to execute
+     * @param workflowOpt an Optional specifying a Workflow to override the execution of the Action
+     * @throws ExecutionStartException
+     */
+    public void execute(final long targetId, @Nonnull final ActionDTO.Action action,
+                        @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
             throws ExecutionStartException {
-        final ExecuteActionRequest executionRequest = ExecuteActionRequest.newBuilder()
+        Objects.requireNonNull(action);
+        Objects.requireNonNull(workflowOpt);
+        final ExecuteActionRequest.Builder executionRequestBuilder = ExecuteActionRequest.newBuilder()
                 .setActionId(action.getId())
-                .setTargetId(targetId)
-                .setActionInfo(action.getInfo())
-                .build();
+                .setActionInfo(action.getInfo());
+        if (workflowOpt.isPresent()) {
+            // if there is a Workflow for this action, then the target to execute the action
+            // will be the one from which the Workflow was discovered instead of the target
+            // from which the original Target Entity was discovered
+            final WorkflowDTO.WorkflowInfo workflowInfo = workflowOpt.get().getWorkflowInfo();
+            executionRequestBuilder.setTargetId(workflowInfo.getTargetId());
+            executionRequestBuilder.setWorkflowInfo(workflowInfo);
+        } else {
+            // Typically, the target to execute the action is the target from which the
+            // Target Entity was discovered
+            executionRequestBuilder.setTargetId(targetId);
+        }
 
         try {
-            actionExecutionService.executeAction(executionRequest);
+            actionExecutionService.executeAction(executionRequestBuilder.build());
             logger.info("Action: {} started.", action.getId());
         } catch (StatusRuntimeException e) {
             throw new ExecutionStartException(
@@ -327,7 +365,7 @@ public class ActionExecutor implements ActionExecutionListener {
 
     /**
      * Exception thrown when an action executed via
-     * {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action)} fail
+     * {@link ActionExecutor#executeSynchronously(long, ActionDTO.Action, Optional)} fail
      * to complete.
      */
     public static class SynchronousExecutionException extends Exception {

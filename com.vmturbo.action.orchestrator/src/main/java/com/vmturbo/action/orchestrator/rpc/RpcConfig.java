@@ -14,6 +14,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionsServiceController;
 import com.vmturbo.common.protobuf.action.ActionsDebugREST.ActionsDebugServiceController;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOREST.EntitySeverityServiceController;
@@ -31,6 +32,9 @@ public class RpcConfig {
     @Autowired
     private ActionTranslator actionTranslator;
 
+    @Autowired
+    WorkflowConfig workflowConfig;
+
     @Value("${actionPaginationDefaultLimit}")
     private int actionPaginationDefaultLimit;
 
@@ -40,11 +44,11 @@ public class RpcConfig {
     @Bean
     public ActionsRpcService actionRpcService() {
         return new ActionsRpcService(
-            actionStoreConfig.actionStorehouse(),
-            actionExecutor,
-            actionTranslator,
-            actionPaginatorFactory()
-        );
+                actionStoreConfig.actionStorehouse(),
+                actionExecutor,
+                actionTranslator,
+                actionPaginatorFactory(),
+                workflowConfig.workflowStore());
     }
 
     @Bean

@@ -15,6 +15,7 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.ActionTranslator;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
+import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.components.api.ComponentRestTemplate;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -42,6 +43,9 @@ public class ActionStoreConfig {
 
     @Autowired
     private ActionExecutionConfig actionExecutionConfig;
+
+    @Autowired
+    WorkflowConfig workflowConfig;
 
     @Value("${entityTypeRetryIntervalMillis}")
     private long entityTypeRetryIntervalMillis;
@@ -74,7 +78,8 @@ public class ActionStoreConfig {
     public AutomatedActionExecutor automatedActionExecutor() {
         return new AutomatedActionExecutor(actionExecutionConfig.actionExecutor(),
                 Executors.newSingleThreadExecutor(),
-                actionTranslator());
+                actionTranslator(),
+                workflowConfig.workflowStore());
     }
 
     @Bean

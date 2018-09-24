@@ -28,6 +28,9 @@ message WorkflowInfo {
     // Data to define the parameters which this workflow expects as defined using the target's ui.
     repeated WorkflowParameter workflow_param = 4;
 
+    // Data to define the properties that define this workflow
+    repeated WorkflowProperty workflow_property = 6;
+
     // Human readable descripton of the workflow discovered from the target
     optional string description = 5;
 }
@@ -45,6 +48,14 @@ message WorkflowParameter {
     required string type = 3 [default = "String"];
     // Is this parameter mandatory?
     optional bool mandatory = 4 [default = true];
+}
+
+// A descriptor for a key/value pair for a Workflow Property
+message WorkflowProperty {
+    // The name of the property
+    optional string name = 1;
+    // the string value of the property
+    optional string value = 2;
 }
 
 // A request to persist the workflows discovered from the given target_id. This request represents

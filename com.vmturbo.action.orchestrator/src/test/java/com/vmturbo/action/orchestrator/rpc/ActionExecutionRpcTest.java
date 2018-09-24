@@ -14,6 +14,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Optional;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -43,6 +44,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -50,6 +52,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -58,6 +61,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
  * Tests for action execution RPCs.
  */
 public class ActionExecutionRpcTest {
+
+    private static final Optional<WorkflowDTO.Workflow> EMPTY_WORKFLOW_OPTIONAL = Optional.empty();
+
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
 
     private final IActionFactory actionFactory = new ActionFactory();
@@ -78,6 +84,8 @@ public class ActionExecutionRpcTest {
         })));
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
+    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
+
     private final ActionSupportResolver filter = mock(ActionSupportResolver.class);
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
@@ -87,7 +95,8 @@ public class ActionExecutionRpcTest {
     private static final long ACTION_ID = 9999;
 
     private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator, paginatorFactory);
+            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator, paginatorFactory,
+                    workflowStore);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
@@ -95,7 +104,7 @@ public class ActionExecutionRpcTest {
     private ActionStore actionStoreSpy;
 
     @Before
-    public void setup() throws Exception {
+    public void setup() {
         IdentityGenerator.initPrefix(0);
 
         actionStoreSpy =
@@ -243,7 +252,7 @@ public class ActionExecutionRpcTest {
 
         when(actionExecutor.getTargetId(Mockito.eq(recommendation))).thenReturn(targetId);
         doThrow(new ExecutionStartException("ERROR!"))
-            .when(actionExecutor).execute(eq(targetId), eq(recommendation));
+            .when(actionExecutor).execute(eq(targetId), eq(recommendation), eq(EMPTY_WORKFLOW_OPTIONAL));
 
         AcceptActionResponse response =  actionOrchestratorServiceClient.acceptAction(acceptActionContext);
 
@@ -271,7 +280,8 @@ public class ActionExecutionRpcTest {
         }).when(actionTranslator).translate(any(Action.class));
 
         actionOrchestratorServiceClient.acceptAction(acceptActionContext);
-        Mockito.verify(actionExecutor).execute(eq(targetId), eq(translationResult));
+        Mockito.verify(actionExecutor).execute(eq(targetId), eq(translationResult),
+                eq(EMPTY_WORKFLOW_OPTIONAL));
     }
 
     @Test

@@ -43,6 +43,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
@@ -90,6 +91,7 @@ public class ActionExecutionSecureRpcTest {
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
             executor, actionStoreLoader);
+    private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final ActionExecutor actionExecutor = mock(ActionExecutor.class);
     // Have the translator pass-through translate all actions.
     private final ActionTranslator actionTranslator = Mockito.spy(new ActionTranslator(actionStream ->
@@ -102,7 +104,8 @@ public class ActionExecutionSecureRpcTest {
 
     private final EntitySettingsCache entitySettingsCache = mock(EntitySettingsCache.class);
     private final ActionsRpcService actionsRpcService =
-            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator, paginatorFactory);
+            new ActionsRpcService(actionStorehouse, actionExecutor, actionTranslator, paginatorFactory,
+                    workflowStore);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;
