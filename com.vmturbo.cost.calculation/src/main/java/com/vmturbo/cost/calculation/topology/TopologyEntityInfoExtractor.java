@@ -5,9 +5,12 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 
 /**
  * An {@link EntityInfoExtractor} for {@link TopologyEntityDTO}, to be used when running the cost
@@ -46,5 +49,27 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         }
 
         return Optional.empty();
+    }
+
+    @Override
+    public Optional<DatabaseConfig> getDatabaseConfig(
+            TopologyEntityDTO entity) {
+        if (entity.getEntityType() != EntityType.DATABASE_SERVER_VALUE ||
+                entity.getEntityType() != EntityType.DATABASE_VALUE) {
+            return Optional.empty();
+        }
+
+        if (!entity.hasTypeSpecificInfo()) {
+            return Optional.empty();
+        }
+
+        if (entity.getTypeSpecificInfo().hasDatabase()) {
+            DatabaseInfo dbConfig = entity.getTypeSpecificInfo().getDatabase();
+            return Optional.of(new DatabaseConfig(dbConfig.getEdition(),
+                                                  dbConfig.getEngine()));
+        }
+
+        return Optional.empty();
+
     }
 }

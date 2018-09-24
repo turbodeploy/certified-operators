@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -34,16 +33,21 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagVal
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ApplicationData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DatabaseData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
@@ -221,6 +225,16 @@ public class Converter {
                         .setFamily(ctData.getFamily())
                         .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
                         .build());
+            case APPLICATION_DATA:
+                final ApplicationData appData = sdkEntity.getApplicationData();
+                if (appData.hasDbData()) {
+                    final DatabaseData dbData = appData.getDbData();
+                    retBuilder.setDatabase(DatabaseInfo.newBuilder()
+                            .setEdition(parseDbEdition(dbData.getEdition()))
+                            .setEngine(parseDbEngine(dbData.getEngine()))
+                            .build());
+                    break;
+                }
                 break;
         }
         return retBuilder.build();
@@ -235,6 +249,26 @@ public class Converter {
             return OSType.valueOf(upperCaseOsName);
         } catch (IllegalArgumentException e) {
             return OSType.UNKNOWN_OS;
+        }
+    }
+
+    @Nonnull
+    private static DatabaseEdition parseDbEdition(@Nonnull final String dbEdition) {
+        final String upperCaseDbEdition = dbEdition.toUpperCase();
+        try {
+            return DatabaseEdition.valueOf(upperCaseDbEdition);
+        } catch (IllegalArgumentException e) {
+            return DatabaseEdition.NONE;
+        }
+    }
+
+    @Nonnull
+    private static DatabaseEngine parseDbEngine(@Nonnull final String dbEngine) {
+        final String upperCaseDbEngine = dbEngine.toUpperCase();
+        try {
+            return DatabaseEngine.valueOf(upperCaseDbEngine);
+        } catch (IllegalArgumentException e) {
+            return DatabaseEngine.UNKNOWN;
         }
     }
 

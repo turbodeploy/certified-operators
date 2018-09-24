@@ -11,6 +11,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 
 /**
  * The entity class to use as the template parameter in cost calculation tests.
@@ -60,6 +61,8 @@ public final class TestEntityClass {
 
         private Optional<ComputeConfig> computeConfig = Optional.empty();
 
+        private Optional<DatabaseConfig> databaseConfig = Optional.empty();
+
         private List<BiConsumer<TestEntityClass, EntityInfoExtractor<TestEntityClass>>> extractorConsumers = new ArrayList<>();
 
         @Nonnull
@@ -80,6 +83,13 @@ public final class TestEntityClass {
         public Builder setComputeConfig(@Nonnull final ComputeConfig computeConfig) {
             this.computeConfig = Optional.of(computeConfig);
             extractorConsumers.add((entity, infoExtractor) -> when(infoExtractor.getComputeConfig(entity)).thenReturn(Optional.of(computeConfig)));
+            return this;
+        }
+
+        @Nonnull
+        public Builder setDatabaseConfig(@Nonnull final DatabaseConfig databaseConfig) {
+            this.databaseConfig = Optional.of(databaseConfig);
+            extractorConsumers.add((entity, infoExtractor) -> when(infoExtractor.getDatabaseConfig(entity)).thenReturn(Optional.of(databaseConfig)));
             return this;
         }
 
