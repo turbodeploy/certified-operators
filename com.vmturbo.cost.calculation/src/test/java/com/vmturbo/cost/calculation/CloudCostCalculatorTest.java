@@ -27,10 +27,14 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 
@@ -57,7 +61,7 @@ public class CloudCostCalculatorTest {
      * Test a simple on-demand calculation (no RI, no discount) for a VM.
      */
     @Test
-    public void testCalculateOnDemandCost() throws CloudCostDataRetrievalException {
+    public void testCalculateOnDemandCostForCompute() throws CloudCostDataRetrievalException {
         // arrange
         final long regionId = 1;
         final long computeTierId = 2;
@@ -132,6 +136,78 @@ public class CloudCostCalculatorTest {
         // Once for the compute, once for the license, because both costs are "paid to" the
         // compute tier.
         verify(discountApplicator, times(2)).getDiscountPercentage(computeTier);
+    }
+
+    /**
+     * Test a on-demand calculation (no discount) for a Database.
+     */
+    @Test
+    public void testCalculateOnDemandCostForDatabase() throws CloudCostDataRetrievalException {
+        // arrange
+        final long regionId = 1;
+        final long dbTierId = 4;
+        final long entityId = 9;
+        final double basePrice = 10;
+        final double mysqlAdjustment = 5;
+        final PriceTable priceTable = PriceTable.newBuilder()
+                .putOnDemandPriceByRegionId(regionId, OnDemandPriceTable.newBuilder()
+                        .putDbPricesByInstanceId(dbTierId, DatabaseTierPriceList.newBuilder()
+                                .setBasePrice(DatabaseTierConfigPrice.newBuilder()
+                                        .setDbEdition(DatabaseEdition.NONE)
+                                        .setDbEngine(DatabaseEngine.MARIADB)
+                                        .addPrices(Price.newBuilder()
+                                            .setUnit(Unit.HOURS)
+                                            .setPriceAmount(CurrencyAmount.newBuilder()
+                                                .setAmount(basePrice))))
+                                .addConfigurationPriceAdjustments(DatabaseTierConfigPrice.newBuilder()
+                                        .setDbEdition(DatabaseEdition.SQL_SERVER_ENTERPRISE)
+                                        .setDbEngine(DatabaseEngine.MYSQL)
+                                        .addPrices(Price.newBuilder()
+                                                .setUnit(Unit.HOURS)
+                                                .setPriceAmount(CurrencyAmount.newBuilder()
+                                                        .setAmount(mysqlAdjustment))))
+                                .build())
+                        .build())
+                .build();
+
+        final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap());
+        when(dataProvider.getCloudCostData()).thenReturn(cloudCostData);
+
+        final CloudCostCalculator<TestEntityClass> calculator =
+                calculatorFactory.newCalculator(dataProvider, topology, infoExtractor, discountApplicatorFactory);
+
+        final TestEntityClass testEntity = TestEntityClass.newBuilder(entityId)
+                .setType(EntityType.DATABASE_VALUE)
+                .setDatabaseConfig(new EntityInfoExtractor.DatabaseConfig(DatabaseEdition.SQL_SERVER_ENTERPRISE
+                        , DatabaseEngine.MYSQL))
+                .build(infoExtractor);
+
+        final TestEntityClass region = TestEntityClass.newBuilder(regionId)
+                .build(infoExtractor);
+
+        final TestEntityClass databaseTier = TestEntityClass.newBuilder(dbTierId)
+                .build(infoExtractor);
+
+        when(topology.getConnectedRegion(entityId)).thenReturn(Optional.of(region));
+        when(topology.getDatabaseTier(entityId)).thenReturn(Optional.of(databaseTier));
+
+        final DiscountApplicator<TestEntityClass> discountApplicator =
+                (DiscountApplicator<TestEntityClass>)mock(DiscountApplicator.class);
+        when(discountApplicator.getDiscountPercentage(any())).thenReturn(0.0);
+        when(discountApplicatorFactory.entityDiscountApplicator(testEntity, topology, infoExtractor, cloudCostData))
+            .thenReturn(discountApplicator);
+
+        // act
+        final CostJournal<TestEntityClass> journal = calculator.calculateCost(testEntity);
+
+        // assert
+        assertThat(journal.getTotalHourlyCost(), is(basePrice + mysqlAdjustment));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(basePrice));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(mysqlAdjustment));
+
+        // Once for the compute, once for the license, because both costs are "paid to" the
+        // database tier.
+        verify(discountApplicator, times(2)).getDiscountPercentage(databaseTier);
     }
 
 }
