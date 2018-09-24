@@ -11,7 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.identity.exceptions.IdentityStoreException;
+import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.DerivedTargetSpecificationDTO;
+import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue.PropertyValueList;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -47,6 +49,12 @@ public class DerivedTargetParser {
         logger.trace(derivedTargetsList.size() + " derived targets found.");
         final List<TargetSpec> derivedTargetSpecs = new ArrayList<>();
         derivedTargetsList.forEach(derivedTargetDTO -> {
+            final String targetName = derivedTargetDTO.getAccountValueList().stream()
+                        .filter(accountValue -> accountValue.getKey().equalsIgnoreCase(
+                                PredefinedAccountDefinition.Address.name()))
+                        .map(Discovery.AccountValue::getStringValue)
+                        .findFirst()
+                        .orElse(derivedTargetDTO.toString());
             try {
                 final long probeId = probeStore.getProbeIdForType(derivedTargetDTO.getProbeType())
                         .orElseThrow(() -> new InvalidTargetException(
@@ -54,14 +62,19 @@ public class DerivedTargetParser {
                 final TargetSpec targetSpec = parseDerivedTargetSpec(probeId, parentTargetId,
                                 derivedTargetDTO);
                 // If the target is dependent on the parent target, then we create it as derived target, or
-                // we should create the target as normal way as the case for VCD creating VC targets..
+                // we should create the target as normal way as the case for VCD creating VC targets.
                 if (targetSpec.hasParentId()) {
                     derivedTargetSpecs.add(targetSpec);
                 } else {
-                    targetStore.createTarget(targetSpec);
+                    try {
+                        targetStore.createTarget(targetSpec);
+                    } catch (DuplicateTargetException e) {
+                        logger.warn("Derived target {} has already exists, next steps will be skipped.",
+                                targetName);
+                    }
                 }
-            } catch (InvalidTargetException | IdentityStoreException | DuplicateTargetException e) {
-                logger.error("Parse derived target failed. Target DTO: {}. {}", derivedTargetDTO, e);
+            } catch (InvalidTargetException | IdentityStoreException e) {
+                logger.error("Parse derived target {} failed. {}", targetName, e);
             }
         });
         try {

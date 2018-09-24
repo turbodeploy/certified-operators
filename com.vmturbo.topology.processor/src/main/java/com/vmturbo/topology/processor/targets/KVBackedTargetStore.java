@@ -25,7 +25,6 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
@@ -169,7 +168,7 @@ public class KVBackedTargetStore implements TargetStore {
                 registerTarget(retTarget);
                 return retTarget;
             } else if (!oldItems.isEmpty()) {
-                final long existingTargetId = newItems.values().iterator().next();
+                final long existingTargetId = oldItems.values().iterator().next();
                 throw new DuplicateTargetException(targetAddr.orElse(String.valueOf(existingTargetId)));
             }
             // Should never happen

@@ -576,3 +576,16 @@ services:
     volumes:
       - mediation-oneview:/home/turbonomic/data
     restart: always
+
+  mediation-vcd-prod:
+    extends:
+      file: common-services.yml
+      service: prod-component
+    image: turbonomic/com.vmturbo.mediation.vcd.component
+    environment:
+      consul_host: consul
+      component_type: mediation-vcd
+      instance_id: mediation-vcd-1
+    volumes:
+      - mediation-vcd:/home/turbonomic/data
+    restart: always

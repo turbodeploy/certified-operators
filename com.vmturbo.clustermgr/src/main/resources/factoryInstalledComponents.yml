@@ -358,6 +358,10 @@ mediation-oneview:
   <<: *baseVmtComponentSettings
   <<: *commonMediationComponentSettings
 
+mediation-vcd:
+  <<: *baseVmtComponentSettings
+  <<: *commonMediationComponentSettings
+
 plan-orchestrator:
   <<: *baseVmtComponentSettings
   <<: *db_conn_info

@@ -65,6 +65,7 @@ volumes:
   mediation-awscost: *localdriver
   mediation-azure: *localdriver
   mediation-oneview: *localdriver
+  mediation-vcd: *localdriver
   kafka1-log: *localdriver
   zoo1-data: *localdriver
   nginx-data: *localdriver
@@ -946,3 +947,20 @@ services:
     volumes:
       - mediation-oneview:/home/turbonomic/data
     mem_limit: ${MEDIATION_ONEVIEW_MEM_LIMIT_MB}M
+
+  mediation-vcd:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.mediation.vcd.component
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_VCD_PORT}"
+      - "${MEDIATION_VCD_DEBUG_PORT}"
+    environment:
+      component_type: mediation-vcd
+      instance_id: mediation-vcd-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} -Xmx${MEDIATION_VCD_XMX_MB}M ${MEDIATION_VCD_SYSTEM_PROPERTIES}"
+    volumes:
+      - mediation-vcd:/home/turbonomic/data
+    mem_limit: ${MEDIATION_VCD_MEM_LIMIT_MB}M
