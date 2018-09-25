@@ -282,5 +282,3 @@ CREATE TRIGGER entity_cost_keys BEFORE INSERT ON entity_cost
     DO BEGIN
       call aggregate_entity_cost;
     END //
-
-    DELIMITER ;
