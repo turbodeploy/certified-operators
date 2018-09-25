@@ -137,10 +137,10 @@ case "$args" in
       echo "Please specify component name and version to deploy" 1>&2
       usage
     fi
-    ${registryctlCommand} load ${component_name} ${component_version}
-    ${registryctlCommand} push ${component_name} ${component_version}
     component_yaml_filepath=$(find ${xlYamlDir} -name ${component_name}.yaml)
     component_package_from_yaml=$(cat ${component_yaml_filepath} | grep 'image: ' | cut -f3 -d '/' | cut -f1 -d ':')
+    ${registryctlCommand} load ${component_package_from_yaml} ${component_version}
+    ${registryctlCommand} push ${component_package_from_yaml} ${component_version}
     sed -i "s#image: .*#image: localhost:5000/turbonomic/${component_package_from_yaml}:${component_version}#" ${component_yaml_filepath}
     # Check for deployment
     [ ! -z $(${kubeCommand} get deployments -o name | grep "deployments/${component_name}") ] && ${kubeCommand} delete deployment ${component_name}
