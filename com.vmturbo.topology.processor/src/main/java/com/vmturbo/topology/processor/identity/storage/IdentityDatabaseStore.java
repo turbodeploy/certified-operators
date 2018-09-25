@@ -31,12 +31,16 @@ public class IdentityDatabaseStore {
     }
 
     void saveDescriptors(final long probeId,
-                         @Nonnull final Collection<EntityInMemoryProxyDescriptor> descriptors)
+                         @Nonnull final Collection<IdentityRecord> records)
             throws IdentityDatabaseException {
         try {
+            // TODO: change this into a batch insert.
             dsl.transaction(configuration -> {
                 final DSLContext transactionDsl = DSL.using(configuration);
-                descriptors.forEach(descriptor -> insert(transactionDsl, probeId, descriptor));
+                records.forEach(record ->
+                        insert(transactionDsl, probeId,
+                                record.getEntityType().getNumber(),
+                                record.getDescriptor()));
             });
         } catch (DataAccessException e) {
             throw new IdentityDatabaseException(e);
@@ -44,15 +48,18 @@ public class IdentityDatabaseStore {
     }
 
     private void insert(@Nonnull final DSLContext context,
-                        @Nonnull long probeId,
+                        final long probeId,
+                        final int entityType,
                         @Nonnull final EntityInMemoryProxyDescriptor descriptor) {
         context.insertInto(AssignedIdentity.ASSIGNED_IDENTITY)
                 .columns(AssignedIdentity.ASSIGNED_IDENTITY.ID,
                     AssignedIdentity.ASSIGNED_IDENTITY.PROBE_ID,
-                    AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES)
-                .values(descriptor.getOID(), probeId, descriptor)
+                    AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES,
+                    AssignedIdentity.ASSIGNED_IDENTITY.ENTITY_TYPE)
+                .values(descriptor.getOID(), probeId, descriptor, entityType)
                 .onDuplicateKeyUpdate()
                 .set(AssignedIdentity.ASSIGNED_IDENTITY.PROPERTIES, descriptor)
+                .set(AssignedIdentity.ASSIGNED_IDENTITY.ENTITY_TYPE, entityType)
                 .execute();
     }
 

@@ -225,6 +225,21 @@ public enum EntityType {
         return Lists.<Table<?>>newArrayList(hourTable, dayTable, monthTable);
     }
 
+    /**
+     *  Given the class name, return the EntityType associate with that class Name.
+     *
+     * @param clsName class name
+     * @return An optional of the EntityType associated with the class name.
+     */
+    public static Optional<EntityType> getEntityTypeByClsName(String clsName) {
+        for (EntityType type : EntityType.values()) {
+            if (type.clsName.equals(clsName)) {
+                return Optional.of(type);
+            }
+        }
+        return Optional.empty();
+    }
+
     private static Map<Integer, EntityType> VALUE_TO_ENTITY_TYPE_MAP = new HashMap<>();
 
     static {

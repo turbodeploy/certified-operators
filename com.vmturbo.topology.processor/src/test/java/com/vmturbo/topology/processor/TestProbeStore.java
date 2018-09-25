@@ -95,6 +95,14 @@ public class TestProbeStore implements ProbeStore {
     }
 
     @Override
+    public Optional<ProbeInfo> getProbeInfoForType(@Nonnull final String probeTypeName) {
+        return probeInfos.entrySet().stream()
+                .filter(entry -> entry.getValue().getProbeType().equals(probeTypeName))
+                .map(Entry::getValue)
+                .findFirst();
+    }
+
+    @Override
     @Nonnull
     public List<Long> getProbeIdsForCategory(@Nonnull final ProbeCategory probeCategory) {
         return probeInfos.entrySet().stream()
@@ -126,5 +134,14 @@ public class TestProbeStore implements ProbeStore {
     @Override
     public ProbeOrdering getProbeOrdering() {
         return new StandardProbeOrdering(this);
+    }
+
+    @Override
+    public void updateProbeInfo(ProbeInfo newProbeInfo) {
+        Optional<Long> probeId = getProbeIdForType(newProbeInfo.getProbeType());
+        if (!probeId.isPresent()) {
+            return;
+        }
+        probeInfos.put(probeId.get(), newProbeInfo);
     }
 }
