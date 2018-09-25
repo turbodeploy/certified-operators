@@ -57,6 +57,8 @@ import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRe
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
@@ -929,5 +931,27 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         }
         responseObserver.onNext(responseBuilder.build());
         responseObserver.onCompleted();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void getEntityIdToEntityTypeMapping(
+            GetEntityIdToEntityTypeMappingRequest request,
+            StreamObserver<GetEntityIdToEntityTypeMappingResponse> responseObserver) {
+
+        try {
+            GetEntityIdToEntityTypeMappingResponse response =
+                    GetEntityIdToEntityTypeMappingResponse.newBuilder()
+                        .putAllEntityIdToEntityTypeMap(
+                                historydbIO.getEntityIdToEntityTypeMap())
+                    .build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (VmtDbException e) {
+            responseObserver.onError(
+                    Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
     }
 }

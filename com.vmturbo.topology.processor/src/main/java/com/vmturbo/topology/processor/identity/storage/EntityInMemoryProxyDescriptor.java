@@ -43,11 +43,17 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
     private final Set<String> queryPropertySet;
 
     /**
+     * The identifying properties.
+     * Includes volatile and non-volatile properties.
+     */
+    private final List<PropertyDescriptor> identifyingProperties;
+
+    /**
      * The query properties.
      */
     private final List<PropertyDescriptor> heuristicProperties;
 
-    EntityInMemoryProxyDescriptor(final long oid,
+    public EntityInMemoryProxyDescriptor(final long oid,
                              @Nonnull final EntityDescriptor entityDescriptor,
                              @Nonnull final EntityMetadataDescriptor metadataDescriptor)
             throws IdentityWrongSetException {
@@ -56,11 +62,12 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
             entityDescriptor.getHeuristicProperties(metadataDescriptor));
     }
 
-    EntityInMemoryProxyDescriptor(final long oid,
+    public EntityInMemoryProxyDescriptor(final long oid,
             @Nonnull final List<PropertyDescriptor> identifyingProperties,
             @Nonnull final List<PropertyDescriptor> heuristicProperties) {
         this.oid = oid;
         this.queryPropertySet = composeQuerySet(identifyingProperties, heuristicProperties);
+        this.identifyingProperties = identifyingProperties;
         this.heuristicProperties = ImmutableList.copyOf(heuristicProperties);
         this.key = composeKeyFromProperties(identifyingProperties);
     }
@@ -99,6 +106,10 @@ public class EntityInMemoryProxyDescriptor implements EntityProxyDescriptor {
 
     public Set<String> getQueryPropertySet() {
         return queryPropertySet;
+    }
+
+    public Collection<PropertyDescriptor> getIdentifyingProperties() {
+        return identifyingProperties;
     }
 
     @Override

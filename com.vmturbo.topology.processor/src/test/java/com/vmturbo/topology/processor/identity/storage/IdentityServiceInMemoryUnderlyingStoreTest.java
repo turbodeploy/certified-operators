@@ -21,6 +21,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
@@ -34,6 +35,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
 import com.vmturbo.topology.processor.identity.EntityDescriptorMock;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
@@ -72,7 +76,9 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
                                                                            new ArrayList<String>());
         store.addEntry(firstOID, entityDescriptor,
-                       mock(EntityMetadataDescriptor.class), probeId);
+                        mock(EntityMetadataDescriptor.class),
+                        EntityType.VIRTUAL_MACHINE,
+                        probeId);
         long oid = store.lookupByIdentifyingSet(mock(EntityMetadataDescriptor.class),
                                                 EntityDescriptorMock
                                                         .composePropertySet(Arrays.asList("VM")));
@@ -94,7 +100,9 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                 new EntityDescriptorImpl(propertyDescriptors, Collections.emptyList(),
                         Collections.emptyList());
         store.addEntry(firstOID, entityDescriptor,
-                mock(EntityMetadataDescriptor.class), probeId);
+                mock(EntityMetadataDescriptor.class),
+                EntityType.VIRTUAL_MACHINE,
+                probeId);
         long oid = store.lookupByIdentifyingSet(mock(EntityMetadataDescriptor.class),
                 propertyDescriptors);
         Assert.assertEquals(firstOID, oid);
@@ -118,7 +126,9 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
                                                                            new ArrayList<String>());
         store.addEntry(firstOID, entityDescriptor,
-                       mock(EntityMetadataDescriptor.class), probeId);
+                        mock(EntityMetadataDescriptor.class),
+                        EntityType.VIRTUAL_MACHINE,
+                        probeId);
         Assert.assertEquals(1, sizeIndex.size() - iSizeIndex);
         Assert.assertEquals(1, sizeoid2Dto.size() - iSizeoid2Dto);
         Mockito.verify(databaseStore).saveDescriptors(anyLong(), any());
@@ -138,13 +148,17 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
                                                                            new ArrayList<String>());
         store.addEntry(firstOID, entityDescriptor,
-                       mock(EntityMetadataDescriptor.class), probeId);
+                        mock(EntityMetadataDescriptor.class),
+                        EntityType.VIRTUAL_MACHINE,
+                        probeId);
         EntityDescriptor entityDescriptorUpdate =
                 new EntityDescriptorMock(Arrays.asList("VM_Update"),
                                             new ArrayList<String>());
         Mockito.verify(databaseStore).saveDescriptors(anyLong(), any());
         store.updateEntry(firstOID, entityDescriptorUpdate,
-                          mock(EntityMetadataDescriptor.class), probeId);
+                          mock(EntityMetadataDescriptor.class),
+                          EntityType.VIRTUAL_MACHINE,
+                          probeId);
         // Size stays the same
         Assert.assertEquals(1, sizeIndex.size() - iSizeIndex);
         Assert.assertEquals(1, sizeoid2Dto.size() - iSizeoid2Dto);
@@ -162,12 +176,16 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
                                                                            new ArrayList<String>());
         store.addEntry(firstOID, entityDescriptor,
-                       mock(EntityMetadataDescriptor.class), probeId);
+                       mock(EntityMetadataDescriptor.class),
+                       EntityType.VIRTUAL_MACHINE,
+                       probeId);
         EntityDescriptor entityDescriptorUpdate =
                 new EntityDescriptorMock(Arrays.asList("VM_Update_Fail"),
                                             new ArrayList<String>());
         store.updateEntry(secondOID, entityDescriptorUpdate,
-                          mock(EntityMetadataDescriptor.class), probeId);
+                        mock(EntityMetadataDescriptor.class),
+                        EntityType.VIRTUAL_MACHINE,
+                        probeId);
         Field index = store.getClass().getDeclaredField("index_");
         Field oid2Dto = store.getClass().getDeclaredField("oid2Dto_");
         index.setAccessible(true);
@@ -198,7 +216,9 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
                                                                            new ArrayList<String>());
         store.addEntry(firstOID, entityDescriptor,
-                       mock(EntityMetadataDescriptor.class), probeId);
+                mock(EntityMetadataDescriptor.class),
+                EntityType.VIRTUAL_MACHINE,
+                probeId);
         Assert.assertEquals(1, sizeIndex.size() - iSizeIndex);
         Assert.assertEquals(1, sizeoid2Dto.size() - iSizeoid2Dto);
         store.removeEntry(firstOID);
@@ -221,7 +241,9 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
         EntityDescriptor entityDescriptor = new EntityDescriptorMock(Arrays.asList("VM"),
                                                                            new ArrayList<String>());
         store.addEntry(firstOID, entityDescriptor,
-                       mock(EntityMetadataDescriptor.class), probeId);
+                mock(EntityMetadataDescriptor.class),
+                EntityType.VIRTUAL_MACHINE,
+                probeId);
         Assert.assertEquals(1, sizeIndex.size() - iSizeIndex);
         Assert.assertEquals(1, sizeoid2Dto.size() - iSizeoid2Dto);
         store.removeEntry(secondOID);
@@ -233,6 +255,10 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
     @Test
     public void testUpsertEntries() throws Exception {
         EntryData data1 = mock(EntryData.class);
+        EntityDTO entityDTO =
+                EntityDTO.newBuilder().setId("999").setEntityType(EntityType.VIRTUAL_MACHINE).build();
+        when(data1.getEntityDTO()).thenReturn(Optional.of(entityDTO));
+
         when(data1.getDescriptor()).thenReturn(
                 new EntityDescriptorMock(Arrays.asList("VM"),
                         Arrays.asList("VM_Heuristics")));
@@ -243,6 +269,7 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
                 new EntityDescriptorMock(Arrays.asList("VM"),
                         Arrays.asList("VM_Heuristics")));
         when(data2.getMetadata()).thenReturn(mock(EntityMetadataDescriptor.class));
+        when(data2.getEntityDTO()).thenReturn(Optional.of(entityDTO));
 
         store.upsertEntries(ImmutableMap.of(firstOID, data1, secondOID, data2));
 
@@ -258,10 +285,13 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
     public void testUpsertFail() throws Exception {
         doThrow(IdentityDatabaseException.class).when(databaseStore).saveDescriptors(anyLong(), any());
         EntryData data = mock(EntryData.class);
+        EntityDTO entityDTO =
+                EntityDTO.newBuilder().setId("999").setEntityType(EntityType.VIRTUAL_MACHINE).build();
         when(data.getDescriptor()).thenReturn(
                 new EntityDescriptorMock(Arrays.asList("VM"),
                         Arrays.asList("VM_Heuristics")));
         when(data.getProbeId()).thenReturn(probeId);
+        when(data.getEntityDTO()).thenReturn(Optional.of(entityDTO));
         when(data.getMetadata()).thenReturn(mock(EntityMetadataDescriptor.class));
 
         try {
@@ -295,16 +325,20 @@ public class IdentityServiceInMemoryUnderlyingStoreTest {
     @Test
     public void testBackupRestore() throws Exception {
         final EntryData data1 = mock(EntryData.class);
+        EntityDTO entityDTO =
+                EntityDTO.newBuilder().setId("999").setEntityType(EntityType.VIRTUAL_MACHINE).build();
         when(data1.getDescriptor()).thenReturn(
                 new EntityDescriptorMock(Arrays.asList("VM"),
                         Arrays.asList("VM_Heuristics")));
         when(data1.getMetadata()).thenReturn(mock(EntityMetadataDescriptor.class));
+        when(data1.getEntityDTO()).thenReturn(Optional.of(entityDTO));
 
         final EntryData data2 = mock(EntryData.class);
         when(data2.getDescriptor()).thenReturn(
                 new EntityDescriptorMock(Arrays.asList("VM"),
                         Arrays.asList("VM_Heuristics")));
         when(data2.getMetadata()).thenReturn(mock(EntityMetadataDescriptor.class));
+        when(data2.getEntityDTO()).thenReturn(Optional.of(entityDTO));
 
         store.upsertEntries(ImmutableMap.of(firstOID, data1, secondOID, data2));
 

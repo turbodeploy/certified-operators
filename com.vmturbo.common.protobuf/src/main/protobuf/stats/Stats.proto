@@ -3,6 +3,7 @@ package stats;
 
 option java_package = "com.vmturbo.common.protobuf.stats";
 
+import "CommonDTO.proto";
 import "common/Pagination.proto";
 import "group/GroupDTO.proto";
 import "setting/Setting.proto";
@@ -408,7 +409,12 @@ message SystemLoadRecord {
     optional string commodity_key = 12;
 }
 
+message GetEntityIdToEntityTypeMappingRequest {
+}
 
+message GetEntityIdToEntityTypeMappingResponse {
+    map<int64, common_dto.EntityDTO.EntityType> entityIdToEntityTypeMap = 1;
+}
 
 // the gRPC API entry points for the Stats service
 service StatsHistoryService {
@@ -464,4 +470,8 @@ service StatsHistoryService {
 
     // Get the system load information for a specific slice (cluster)
     rpc GetSystemLoadInfo(SystemLoadInfoRequest) returns (SystemLoadInfoResponse);
+
+    // Get the entityId and the corresponding entityType.
+    // NOTE: This rpc call is used for a specific upgrade use case. DON'T USE THIS FOR OTHER SCENARIOS.
+    rpc GetEntityIdToEntityTypeMapping(GetEntityIdToEntityTypeMappingRequest) returns (GetEntityIdToEntityTypeMappingResponse);
 }
