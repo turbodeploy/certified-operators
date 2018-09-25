@@ -228,13 +228,13 @@ then
   echo
 
   # Install local registry if needed
-  echo "######################################################################"
-  echo "                 Setup Registry ${registry}                           "
-  echo "######################################################################"
-  /opt/local/bin/turboRegistry.sh
-  echo
-  echo
-  echo
+#echo "######################################################################"
+#  echo "                 Setup Registry ${registry}                           "
+#  echo "######################################################################"
+#  /opt/local/bin/turboRegistry.sh
+#  echo
+#  echo
+#  echo
 
   # Install turbo components
   echo "######################################################################"
