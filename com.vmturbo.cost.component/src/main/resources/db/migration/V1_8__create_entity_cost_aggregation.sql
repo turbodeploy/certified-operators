@@ -283,6 +283,4 @@ CREATE TRIGGER entity_cost_keys BEFORE INSERT ON entity_cost
       call aggregate_entity_cost;
     END //
 
-    UPDATE version_info SET version=1.8 WHERE id=1;
-    //
     DELIMITER ;
