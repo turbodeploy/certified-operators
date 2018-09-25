@@ -80,6 +80,6 @@ public class ReservedInstanceCoverageStore {
                 new ReservedInstanceCoverageLatestRecord(currentTime, entityRiCoverage.getId(),
                         entityRiCoverage.getRegionId(), entityRiCoverage.getAvailabilityZoneId(),
                         entityRiCoverage.getBusinessAccountId(), entityRiCoverage.getTotalCoupons(),
-                        entityRiUsedCouponsMap.getOrDefault(entityRiCoverage.getId(), 0.0)));
+                        entityRiUsedCouponsMap.getOrDefault(entityRiCoverage.getId(), 0.0),null,null,null));
     }
 }

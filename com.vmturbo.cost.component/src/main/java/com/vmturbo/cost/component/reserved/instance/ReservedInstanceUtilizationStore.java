@@ -100,6 +100,6 @@ public class ReservedInstanceUtilizationStore {
         return context.newRecord(Tables.RESERVED_INSTANCE_UTILIZATION_LATEST,
                 new ReservedInstanceUtilizationLatestRecord(curTime, riId, riSpecIdToRegionMap.get(riSpecId),
                         riBoughtInfo.getAvailabilityZoneId(), riBoughtInfo.getBusinessAccountId(),
-                        riTotalCoupons, riUsedCouponsMap.get(riId)));
+                        riTotalCoupons, riUsedCouponsMap.get(riId),null,null,null));
     }
 }
