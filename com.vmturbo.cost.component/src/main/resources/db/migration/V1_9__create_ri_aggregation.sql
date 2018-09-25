@@ -554,6 +554,4 @@ DO BEGIN
   call aggregate_reserved_instance_utilization;
 END //
 
-update version_info set version=1.9 where id=1;
-//
 DELIMITER ;
