@@ -95,15 +95,15 @@ public class ActionStatsTest {
         actions.add(move);
 
         String logPhase1 = actionStats.phaseLogEntry("Phase1");
-        assertEquals(true, logPhase1.contains("1 " + move.getType () + " (PhysicalMachine:1"));
+        assertEquals(true, logPhase1.contains("1 moves (PM:1"));
         assertTrue(logPhase1.contains(Long.toString(ANALYSIS_ID)));
 
         actions.add(move);
         String logPhase2 = actionStats.phaseLogEntry("Phase2");
-        assertEquals(true, logPhase2.contains("1 " + move.getType () + " (PhysicalMachine:1"));
+        assertEquals(true, logPhase2.contains("1 moves (PM:1"));
 
         String finalEntry = actionStats.finalLogEntry();
-        assertEquals(true, finalEntry.contains("2 " + move.getType () + " (PhysicalMachine:2"));
+        assertEquals(true, finalEntry.contains("2 moves (PM:2"));
         assertTrue(finalEntry.contains(Long.toString(ANALYSIS_ID)));
     }
 }
