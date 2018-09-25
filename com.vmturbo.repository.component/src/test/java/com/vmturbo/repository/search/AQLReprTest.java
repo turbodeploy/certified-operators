@@ -1,35 +1,36 @@
 package com.vmturbo.repository.search;
 
+import static com.vmturbo.repository.search.SearchTestUtil.makeStringFilter;
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.Optional;
+
+import org.junit.Test;
+
+import javaslang.collection.List;
+
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.repository.graph.executor.AQL;
 import com.vmturbo.repository.graph.executor.AQLs;
 import com.vmturbo.repository.search.AQLRepr.AQLPagination;
 
-import javaslang.collection.List;
-import org.junit.Test;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.registerCustomDateFormat;
-
-import java.util.Optional;
-
 public class AQLReprTest {
     @Test
     public void testMultiplePropertiesToAQL() {
         final Filter<PropertyFilterType> typeFilter =
-                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "VirtualMachine");
+                Filter.stringPropertyFilter("entityType", makeStringFilter("VirtualMachine", true));
         final Filter<PropertyFilterType> capacityFilter =
                 Filter.numericPropertyFilter("capacity", Filter.NumericOperator.GTE, 3.01f);
         final Filter<PropertyFilterType> nameFilter =
-                Filter.stringPropertyFilter("displayName", Filter.StringOperator.REGEX, ".*foo");
+                Filter.stringPropertyFilter("displayName", makeStringFilter(".*foo", false));
 
         final AQLRepr repr = new AQLRepr(List.of(typeFilter, capacityFilter, nameFilter));
         final AQL aql = repr.toAQL();
 
         assertThat(AQLs.getQuery(aql)).isNotEmpty()
-                       .contains("entityType =~ \"VirtualMachine\"",
+                       .contains("REGEX_TEST(service_entity.entityType, \"VirtualMachine\", false)",
                                  "capacity >= 3.01",
-                                 "displayName =~ \".*foo\"");
+                                 "REGEX_TEST(service_entity.displayName, \".*foo\", true)");
     }
 
     @Test
@@ -48,7 +49,7 @@ public class AQLReprTest {
     @Test
     public void testCondTraversal() {
         final Filter<PropertyFilterType> typeFilter =
-                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "VirtualMachine");
+                Filter.stringPropertyFilter("entityType", makeStringFilter("VirtualMachine", true));
         final Filter<TraversalFilterType> condTraversal =
                 Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER, typeFilter);
 
@@ -57,7 +58,7 @@ public class AQLReprTest {
 
         assertThat(AQLs.getQuery(aql)).isNotEmpty()
                        .contains("1..100 INBOUND",
-                                 "entityType =~ \"VirtualMachine\"");
+                                 "REGEX_TEST(service_entity.entityType, \"VirtualMachine\", false)");
     }
 
     @Test
@@ -65,7 +66,7 @@ public class AQLReprTest {
         final Filter<TraversalFilterType> hopTraversal =
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 3);
         final Filter<PropertyFilterType> typeFilter =
-                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "VirtualMachine");
+                Filter.stringPropertyFilter("entityType", makeStringFilter("VirtualMachine", true));
         final Filter<PropertyFilterType> capacityFilter =
                 Filter.numericPropertyFilter("capacity", Filter.NumericOperator.GTE, 3.01f);
 
@@ -75,28 +76,28 @@ public class AQLReprTest {
         assertThat(AQLs.getQuery(aql)).isNotEmpty()
                        .contains("1..3 OUTBOUND",
                                  "LENGTH(p.edges) == 3",
-                                 "entityType =~ \"VirtualMachine\"",
+                                 "REGEX_TEST(service_entity.entityType, \"VirtualMachine\", false)",
                                  "capacity >= 3.01");
     }
 
     @Test
     public void testCondTraversalWithOtherFilters() {
         final Filter<PropertyFilterType> typeFilter =
-                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "VirtualMachine");
+                Filter.stringPropertyFilter("entityType", makeStringFilter("VirtualMachine", true));
         final Filter<TraversalFilterType> condTraversal =
                 Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER, typeFilter);
         final Filter<PropertyFilterType> capacityFilter =
                 Filter.numericPropertyFilter("capacity", Filter.NumericOperator.GTE, 3.01f);
         final Filter<PropertyFilterType> nameFilter =
-                Filter.stringPropertyFilter("displayName", Filter.StringOperator.REGEX, ".*foo");
+                Filter.stringPropertyFilter("displayName", makeStringFilter(".*foo", false));
 
         final AQLRepr repr = new AQLRepr(List.of(condTraversal, nameFilter, capacityFilter));
         final AQL aql = repr.toAQL();
 
         assertThat(AQLs.getQuery(aql)).isNotEmpty()
                        .contains("1..100 INBOUND",
-                                 "entityType =~ \"VirtualMachine\"",
-                                 "displayName =~ \".*foo\"",
+                                 "REGEX_TEST(service_entity.entityType, \"VirtualMachine\", false)",
+                                 "REGEX_TEST(service_entity.displayName, \".*foo\", true)",
                                  "capacity >= 3.01");
     }
 
@@ -105,7 +106,7 @@ public class AQLReprTest {
         final Filter<TraversalFilterType> hopTraversal =
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 3);
         final Filter<PropertyFilterType> typeFilter =
-                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "VirtualMachine");
+                Filter.stringPropertyFilter("entityType", makeStringFilter("VirtualMachine", true));
 
         new AQLRepr(List.of(typeFilter, hopTraversal));
     }
@@ -113,17 +114,17 @@ public class AQLReprTest {
     @Test
     public void testAQLPagination() {
         final Filter<PropertyFilterType> typeFilter =
-                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "VirtualMachine");
+                Filter.stringPropertyFilter("entityType", makeStringFilter("VirtualMachine", true));
         final Filter<PropertyFilterType> nameFilter =
-                Filter.stringPropertyFilter("displayName", Filter.StringOperator.REGEX, ".*foo");
+                Filter.stringPropertyFilter("displayName", makeStringFilter(".*foo", false));
         final AQLPagination aqlPagination =
                 new AQLPagination(SearchOrderBy.ENTITY_NAME, true, 20, Optional.of(20L));
         final AQLRepr aqlRepr = new AQLRepr(List.of(typeFilter, nameFilter), aqlPagination);
         final AQL aql = aqlRepr.toAQL();
 
         assertThat(AQLs.getQuery(aql)).isNotEmpty()
-                .contains("entityType =~ \"VirtualMachine\"",
-                         "displayName =~ \".*foo\"",
+                .contains("REGEX_TEST(service_entity.entityType, \"VirtualMachine\", false)",
+                         "REGEX_TEST(service_entity.displayName, \".*foo\", true)",
                          "SORT service_entity.displayName ASC",
                          "LIMIT 20,20");
     }

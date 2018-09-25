@@ -52,6 +52,15 @@ public class TopologyFilterFactoryTest {
         .setEntityType(EntityType.PHYSICAL_MACHINE.getNumber())
         .setDisplayName("bar");
 
+    final TopologyEntityDTO.Builder mixedCaseEntity = TopologyEntityDTO.newBuilder()
+        .setOid(3L)
+        .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+        .setDisplayName("MyEntity");
+    final TopologyEntityDTO.Builder lowercaseEntity = TopologyEntityDTO.newBuilder()
+        .setOid(4L)
+        .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+        .setDisplayName("myentity");
+
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -118,6 +127,50 @@ public class TopologyFilterFactoryTest {
 
         when(entity2.getTopologyEntityDtoBuilder()).thenReturn(barEntity);
         assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForDisplayCaseSensitive() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("displayName")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setStringPropertyRegex("MyEntity")
+                                .setCaseSensitive(true)
+                        ))
+                .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter propertyFilter = (PropertyFilter)filter;
+
+        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(mixedCaseEntity);
+        assertTrue(propertyFilter.test(entity1));
+
+        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(lowercaseEntity);
+        assertFalse(propertyFilter.test(entity2));
+    }
+
+    @Test
+    public void testSearchFilterForDisplayCaseInsensitive() {
+        final SearchFilter searchCriteria = SearchFilter.newBuilder()
+                .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                        .setPropertyName("displayName")
+                        .setStringFilter(StringFilter.newBuilder()
+                                .setStringPropertyRegex("myentity")
+                                .setCaseSensitive(false)
+                        ))
+                .build();
+
+        final TopologyFilter filter = filterFactory.filterFor(searchCriteria);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter propertyFilter = (PropertyFilter)filter;
+
+        when(entity1.getTopologyEntityDtoBuilder()).thenReturn(mixedCaseEntity);
+        assertTrue(propertyFilter.test(entity1));
+
+        when(entity2.getTopologyEntityDtoBuilder()).thenReturn(lowercaseEntity);
+        assertTrue(propertyFilter.test(entity2));
     }
 
     @Test

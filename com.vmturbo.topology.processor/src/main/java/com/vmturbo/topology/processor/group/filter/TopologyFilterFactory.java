@@ -1,12 +1,12 @@
 package com.vmturbo.topology.processor.group.filter;
 
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 import java.util.function.ToLongFunction;
 import java.util.regex.Pattern;
+
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang.StringUtils;
@@ -15,11 +15,9 @@ import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
-import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
-import com.vmturbo.stitching.TopologyEntity;
 
 /**
  * A factory for constructing an appropriate filter to perform a search against the topology.
@@ -130,7 +128,8 @@ public class TopologyFilterFactory {
                 return new PropertyFilter(stringPredicate(
                     stringCriteria.getStringPropertyRegex(),
                     entity -> entity.getTopologyEntityDtoBuilder().getDisplayName(),
-                    !stringCriteria.getMatch()
+                    !stringCriteria.getMatch(),
+                    stringCriteria.getCaseSensitive()
                 ));
             // Support oid either as a string or as a numeric filter.
             case "oid":
@@ -147,7 +146,8 @@ public class TopologyFilterFactory {
                     return new PropertyFilter(stringPredicate(
                             stringCriteria.getStringPropertyRegex(),
                             entity -> String.valueOf(entity.getOid()),
-                            !stringCriteria.getMatch()
+                            !stringCriteria.getMatch(),
+                            stringCriteria.getCaseSensitive()
                     ));
                 }
             default:
@@ -254,13 +254,15 @@ public class TopologyFilterFactory {
      * @param propertyLookup The function to use to lookup an int-value from a given {@link TopologyEntity}.
      * @param negate If true, return the opposite of the match. That is, if true return false
      *               if the match succeeds. If false, return the same as the match.
+     * @param caseSensitive If true, match the case of the regex. If false, do a case-insensitive comparison.
      * @return A predicate.
      */
     @Nonnull
     private Predicate<TopologyEntity> stringPredicate(final String regex,
                                               @Nonnull final Function<TopologyEntity, String> propertyLookup,
-                                              final boolean negate) {
-        final Pattern pattern = Pattern.compile(regex);
+                                              final boolean negate,
+                                              final boolean caseSensitive) {
+        final Pattern pattern = Pattern.compile(regex, caseSensitive ? 0 : Pattern.CASE_INSENSITIVE);
         return negate ?
             entity -> !pattern.matcher(propertyLookup.apply(entity)).find() :
             entity -> pattern.matcher(propertyLookup.apply(entity)).find();

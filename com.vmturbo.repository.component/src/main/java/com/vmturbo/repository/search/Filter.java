@@ -6,6 +6,9 @@ import org.derive4j.ExportAsPublic;
 import org.derive4j.Flavour;
 import org.derive4j.Visibility;
 
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
+
 /**
  * The representation of different search filters.
  *
@@ -16,36 +19,6 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
 
     enum Type {
         PROPERTY_STRING, PROPERTY_NUMERIC, PROPERTY_MAP, TRAVERSAL_HOP, TRAVERSAL_COND
-    }
-
-    enum StringOperator implements AQLConverter {
-        REGEX {
-            @Override
-            public String toAQLString() {
-                return "=~";
-            }
-        },
-
-        NEGATIVE_REGEX {
-            @Override
-            public String toAQLString() {
-                return "!~";
-            }
-        },
-
-        EQ {
-            @Override
-            public String toAQLString() {
-                return "==";
-            }
-        },
-
-        NEQ {
-            @Override
-            public String toAQLString() {
-                return "!=";
-            }
-        }
     }
 
     enum NumericOperator implements AQLConverter {
@@ -109,10 +82,9 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     }
 
     interface Cases<R> {
-        R StringPropertyFilter(String strPropName, StringOperator strOp, String strValue);
+        R StringPropertyFilter(String propName, StringFilter stringFilter);
         R NumericPropertyFilter(String numPropName, NumericOperator numOp, Number numValue);
-        R MapPropertyFilter(
-                String mapPropName, StringOperator strOp, String keyRegex, String valRegex, boolean multi);
+        R MapPropertyFilter(String propName, MapFilter mapFilter);
         R TraverseHopFilter(TraversalDirection direction, int hop);
         R TraverseCondFilter(TraversalDirection direction, Filter filter);
     }
@@ -171,11 +143,22 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
         // TODO (here and elsewhere): SANITIZE the input before inserting it into the query (OM-38634)
         // TODO (here and elsewhere): translate the Java regex language to the ArangoDB regex language (OM-38634)
         return this.match(Filters.cases(
-                (pName, strOp, strVal) ->
-                    String.format("FILTER service_entity.%s %s \"%s\"", pName, strOp.toAQLString(), strVal),
+                (pName, stringFilter) -> {
+                    // See: https://docs.arangodb.com/devel/AQL/Functions/String.html#regextest
+                    return String.format("FILTER %s REGEX_TEST(service_entity.%s, \"%s\", %s)",
+                            stringFilter.getMatch() ? "" : "NOT",
+                            pName,
+                            stringFilter.getStringPropertyRegex(),
+                            stringFilter.getCaseSensitive() ? "false" : "true");
+                },
                 (pName, numOp, numVal) ->
                     String.format("FILTER service_entity.%s %s %s", pName, numOp.toAQLString(), numVal),
-                (pName, strOp, key, value, multi) -> {
+                (pName, mapFilter) -> {
+                    final String key = mapFilter.getKey();
+                    final String value = mapFilter.getValue();
+                    final boolean multi = mapFilter.getIsMultimap();
+                    final String strOp = mapFilter.getMatch() ? "==" : "!=";
+
                     // construct AQL filter for (multi)-map search
                     // the value filter depends on whether this is a map or a multimap
                     // the value in a map entry is a single string, while in multimap is an array
@@ -188,7 +171,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                         valueFilterPattern = "service_entity.tags[key] %s \"%s\"";
                     }
                     final String valueFilter =
-                            String.format(valueFilterPattern, pName, strOp.toAQLString(), value);
+                            String.format(valueFilterPattern, pName, strOp, value);
 
                     // the full filter includes a search on the key
                     // notice that the operator for keys is always ==
@@ -205,37 +188,28 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
      * Smart constructor for creating a string property filter.
      *
      * @param propName The property name.
-     * @param op The string operator.
-     * @param value The value for the operator.
+     * @param stringFilter The string filter the property value should match.
      *
      * @return A {@link Filter<PropertyFilterType>}.
      */
     @ExportAsPublic
     public static Filter<PropertyFilterType> stringPropertyFilter(final String propName,
-                                                                  final StringOperator op,
-                                                                  final String value) {
-        return Filters.StringPropertyFilter0(propName, op, value);
+                                                                  final StringFilter stringFilter) {
+        return Filters.StringPropertyFilter0(propName, stringFilter);
     }
 
     /**
      * Smart constructor for creating a multimap property filter.
      *
      * @param propName The property name.
-     * @param op The string operator.
-     * @param keyRegex The key regular expression.
-     * @param valueRegex The value regular expression.
-     * @param multi iff this is a multi-map.
+     * @param mapFilter The map filter the property should match.
      *
      * @return A {@link Filter<PropertyFilterType>}.
      */
     @ExportAsPublic
-    public static Filter<PropertyFilterType> mapPropertyFilter(
-            final String propName,
-            final StringOperator op,
-            final String keyRegex,
-            final String valueRegex,
-            final boolean multi) {
-        return Filters.MapPropertyFilter0(propName, op, keyRegex, valueRegex, multi);
+    public static Filter<PropertyFilterType> mapPropertyFilter(final String propName,
+                                                               final MapFilter mapFilter) {
+        return Filters.MapPropertyFilter0(propName, mapFilter);
     }
 
     /**

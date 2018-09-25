@@ -35,6 +35,7 @@ import javaslang.collection.List;
 import javaslang.control.Either;
 import javaslang.control.Try;
 
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
@@ -55,13 +56,19 @@ public class SearchHandlerTest {
 
 
     private final AQLRepr repr1 = new AQLRepr(List.of(
-            Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "DataCenter")));
+            Filter.stringPropertyFilter("entityType", StringFilter.newBuilder()
+                    .setStringPropertyRegex("DataCenter")
+                    .setCaseSensitive(true)
+                    .build())));
 
     private final AQLRepr repr2 = new AQLRepr(List.of(
             Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 2)));
 
     private final AQLRepr repr3 = new AQLRepr(List.of(
-            Filter.stringPropertyFilter("displayName", Filter.StringOperator.REGEX, "20")));
+            Filter.stringPropertyFilter("displayName", StringFilter.newBuilder()
+                    .setStringPropertyRegex("20")
+                    .setCaseSensitive(true)
+                    .build())));
 
     private final java.util.List<AQLRepr> reprs = Arrays.asList(repr1, repr2, repr3);
 

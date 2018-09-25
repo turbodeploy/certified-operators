@@ -86,6 +86,11 @@ public class SearchMapper {
             .setStringFilter(StringFilter.newBuilder()
                     .setStringPropertyRegex(value)
                     .setMatch(match)
+                    // Always do a case-insensitive search when looking for strings.
+                    // Note - we may want to switch to a smart-case search, where the search
+                    // is case-sensitive if the regex contains an uppercase letter, and
+                    // case-insensitive otherwise.
+                    .setCaseSensitive(false)
                     .build())
             .build();
     }

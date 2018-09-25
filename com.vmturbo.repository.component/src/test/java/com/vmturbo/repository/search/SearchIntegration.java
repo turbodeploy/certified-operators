@@ -1,5 +1,7 @@
 package com.vmturbo.repository.search;
 
+import static com.vmturbo.repository.search.SearchTestUtil.makeStringFilter;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -51,11 +53,11 @@ public class SearchIntegration {
     @Test
     public void overallFlow() {
         final AQLRepr repr1 = new AQLRepr(List.of(
-                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "DataCenter")));
+                Filter.stringPropertyFilter("entityType", makeStringFilter("DataCenter", true))));
         final AQLRepr repr2 = new AQLRepr(List.of(
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 1)));
         final AQLRepr repr3 = new AQLRepr(List.of(
-                Filter.stringPropertyFilter("displayName", Filter.StringOperator.REGEX, "20")));
+                Filter.stringPropertyFilter("displayName", makeStringFilter("20", false))));
 
         final SearchStage<SearchComputationContext, Collection<String>, Collection<String>> s1 =
                 () -> new ArangoDBSearchComputation(repr1.toAQL());
@@ -191,11 +193,11 @@ public class SearchIntegration {
         final ArangoDBExecutor arangoDBExecutor = new ArangoDBExecutor(arangoDatabaseFactory);
 
         final AQLRepr repr1 = new AQLRepr(List.of(
-                Filter.stringPropertyFilter("entityType", Filter.StringOperator.REGEX, "PhysicalMachine")));
+                Filter.stringPropertyFilter("entityType", makeStringFilter("PhysicalMachine", true))));
         final AQLRepr repr2 = new AQLRepr(List.of(
                 Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 1)));
         final AQLRepr repr3 = new AQLRepr(List.of(
-                Filter.stringPropertyFilter("displayName", Filter.StringOperator.REGEX, "#")));
+                Filter.stringPropertyFilter("displayName", makeStringFilter("#", false))));
 
         SearchHandler searchHandler = new SearchHandler(graphDefinition,
                                                         arangoDatabaseFactory,

@@ -1,17 +1,19 @@
 package com.vmturbo.repository.search;
 
+import static com.vmturbo.repository.search.SearchTestUtil.makeStringFilter;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertEquals;
+
+import java.util.List;
+
+import org.junit.Test;
+
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-
-import org.junit.Test;
-
-import java.util.List;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.Assert.assertEquals;
 
 @SuppressWarnings("unchecked")
 public class SearchDTOConverterTest {
@@ -27,6 +29,7 @@ public class SearchDTOConverterTest {
             .setPropertyName(ENTITY_TYPE)
             .setStringFilter(Search.PropertyFilter.StringFilter.newBuilder()
                     .setStringPropertyRegex(VIRTUAL_MACHINE)
+                    .setCaseSensitive(true)
                     .build());
 
     private static Search.PropertyFilter.Builder ENTITY_TYPE_VM_NUMERIC = Search.PropertyFilter.newBuilder()
@@ -40,6 +43,7 @@ public class SearchDTOConverterTest {
             .setPropertyName(DISPLAY_NAME)
             .setStringFilter(Search.PropertyFilter.StringFilter.newBuilder()
                     .setStringPropertyRegex(FOO)
+                    .setCaseSensitive(false)
                     .build());
 
     private static Search.PropertyFilter.Builder CAPACITY_GTE_TWO = Search.PropertyFilter.newBuilder()
@@ -68,9 +72,9 @@ public class SearchDTOConverterTest {
         final List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameters);
 
         assertThat(aqlReprs)
-                .hasSize(1)
-                .containsExactly(AQLRepr
-                        .fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, Filter.StringOperator.REGEX, VIRTUAL_MACHINE)));
+            .hasSize(1)
+            .containsExactly(AQLRepr
+                .fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, ENTITY_TYPE_VM.getStringFilter())));
     }
 
     @Test
@@ -83,11 +87,11 @@ public class SearchDTOConverterTest {
         final List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameters);
 
         assertThat(aqlReprs)
-                .hasSize(2)
-                .containsExactly(
-                        AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, Filter.StringOperator.REGEX, VIRTUAL_MACHINE)),
-                        AQLRepr.fromFilters(Filter.stringPropertyFilter(DISPLAY_NAME, Filter.StringOperator.REGEX, FOO))
-                );
+            .hasSize(2)
+            .containsExactly(
+                AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, ENTITY_TYPE_VM.getStringFilter())),
+                AQLRepr.fromFilters(Filter.stringPropertyFilter(DISPLAY_NAME, DISPLAY_NAME_FOO.getStringFilter()))
+            );
     }
 
     @Test
@@ -103,15 +107,15 @@ public class SearchDTOConverterTest {
         final List<AQLRepr> aqlReprs = SearchDTOConverter.toAqlRepr(searchParameters);
 
         assertThat(aqlReprs)
-                .hasSize(5)
-                .containsExactly(
-                        AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, Filter.StringOperator.REGEX, VIRTUAL_MACHINE)),
-                        AQLRepr.fromFilters(Filter.stringPropertyFilter(DISPLAY_NAME, Filter.StringOperator.REGEX, FOO)),
-                        AQLRepr.fromFilters(Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 2)),
-                        AQLRepr.fromFilters(Filter.numericPropertyFilter(CAPACITY, Filter.NumericOperator.GTE, 2L)),
-                        AQLRepr.fromFilters(Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER,
-                                Filter.numericPropertyFilter(CAPACITY, Filter.NumericOperator.GTE, 2L)))
-                );
+            .hasSize(5)
+            .containsExactly(
+                AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, ENTITY_TYPE_VM.getStringFilter())),
+                AQLRepr.fromFilters(Filter.stringPropertyFilter(DISPLAY_NAME, DISPLAY_NAME_FOO.getStringFilter())),
+                AQLRepr.fromFilters(Filter.traversalHopFilter(Filter.TraversalDirection.CONSUMER, 2)),
+                AQLRepr.fromFilters(Filter.numericPropertyFilter(CAPACITY, Filter.NumericOperator.GTE, 2L)),
+                AQLRepr.fromFilters(Filter.traversalCondFilter(Filter.TraversalDirection.PROVIDER,
+                    Filter.numericPropertyFilter(CAPACITY, Filter.NumericOperator.GTE, 2L)))
+            );
     }
 
     @Test
@@ -124,11 +128,10 @@ public class SearchDTOConverterTest {
 
         // expect that the regex will be anchored to match the full string
         assertThat(aqlReprs)
-                .hasSize(1)
-                .containsExactly(
-                        AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE,
-                                Filter.StringOperator.REGEX, '^' + VIRTUAL_MACHINE + '$'))
-                );
+            .hasSize(1)
+            .containsExactly(
+                AQLRepr.fromFilters(Filter.stringPropertyFilter(ENTITY_TYPE, makeStringFilter('^' + VIRTUAL_MACHINE + '$', true)))
+            );
     }
 
     @Test(expected = IllegalArgumentException.class)

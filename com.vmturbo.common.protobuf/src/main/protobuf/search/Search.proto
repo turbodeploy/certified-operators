@@ -108,6 +108,10 @@ message PropertyFilter {
         // If true, the regex should match.
         // If false, the regex should NOT match.
         optional bool match = 2 [default = true];
+
+        // If true, the case of the letters should match.
+        // False by default (i.e. case insensitive by default)
+        optional bool case_sensitive = 3 [default = false];
     }
 
     message NumericFilter {

@@ -9,11 +9,12 @@ import java.util.stream.Collectors;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
-import com.vmturbo.repository.search.Filter.StringOperator;
 
 public class SearchDTOConverter {
 
@@ -126,8 +127,13 @@ public class SearchDTOConverter {
                 final long value = propertyFilter.getNumericFilter().getValue();
                 if (propertyName.equals("entityType")) {
                     // translate the entityType number to a string; make sure matches entire value
-                    filter = Filter.stringPropertyFilter(propertyName, Filter.StringOperator.REGEX,
-                        '^' + RepoObjectType.mapEntityType(Math.toIntExact(value)) + '$');
+                    // Match the case as well - entity type is driven by enum.
+                    filter = Filter.stringPropertyFilter(propertyName,
+                        StringFilter.newBuilder()
+                            .setStringPropertyRegex('^' + RepoObjectType.mapEntityType(Math.toIntExact(value)) + '$')
+                            .setMatch(true)
+                            .setCaseSensitive(true)
+                            .build());
                 }
                 else {
                     final Filter.NumericOperator numOp;
@@ -165,25 +171,16 @@ public class SearchDTOConverter {
                 break;
 
             case STRING_FILTER:
-                if (!propertyFilter.getStringFilter().hasStringPropertyRegex()) {
+                final StringFilter stringFilter = propertyFilter.getStringFilter();
+                if (!stringFilter.hasStringPropertyRegex()) {
                     return Either.left(new IllegalArgumentException("String filter regex is not set"));
                 }
-
-                final String regex = propertyFilter.getStringFilter().getStringPropertyRegex();
-                final StringOperator operator = propertyFilter.getStringFilter().getMatch() ?
-                    StringOperator.REGEX : StringOperator.NEGATIVE_REGEX;
-                filter = Filter.stringPropertyFilter(propertyName, operator, regex);
+                filter = Filter.stringPropertyFilter(propertyName, stringFilter);
                 break;
 
             case MAP_FILTER:
-                filter =
-                        Filter.mapPropertyFilter(
-                                propertyName,
-                                propertyFilter.getStringFilter().getMatch() ?
-                                        Filter.StringOperator.EQ : Filter.StringOperator.NEQ,
-                                propertyFilter.getMapFilter().getKey(),
-                                propertyFilter.getMapFilter().getValue(),
-                                propertyFilter.getMapFilter().getIsMultimap());
+                final MapFilter mapFilter = propertyFilter.getMapFilter();
+                filter = Filter.mapPropertyFilter(propertyName, mapFilter);
                 break;
 
             case PROPERTYTYPE_NOT_SET:

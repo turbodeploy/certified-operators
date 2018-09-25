@@ -1,19 +1,6 @@
 package com.vmturbo.repository.search;
 
-import com.github.jknack.handlebars.Template;
-import com.google.common.base.MoreObjects;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
-import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
-import com.vmturbo.repository.graph.executor.AQL;
-import com.vmturbo.repository.graph.executor.AQLs;
-
-import javaslang.collection.List;
-import javaslang.control.Option;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -24,9 +11,22 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkArgument;
-
 import javax.annotation.Nonnull;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.github.jknack.handlebars.Template;
+import com.google.common.base.MoreObjects;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
+import javaslang.collection.List;
+import javaslang.control.Option;
+
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
+import com.vmturbo.repository.graph.executor.AQL;
+import com.vmturbo.repository.graph.executor.AQLs;
 
 /**
  * A Java representation of AQL.
@@ -78,9 +78,9 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
         return filters.headOption().map(firstFilter -> {
             final AQL aql = (AQL)firstFilter.match(
                     Filters.cases(
-                        (strPropName, strOp, strValue) -> constructPropertyAQL(firstFilter),
+                        (strPropName, stringFilter) -> constructPropertyAQL(firstFilter),
                         (numPropName, numOp, numValue) -> constructPropertyAQL(firstFilter),
-                        (mapPropName, strOp, key, value, multi) -> constructPropertyAQL(firstFilter),
+                        (mapPropName, mapFilter) -> constructPropertyAQL(firstFilter),
                         this::constructTraversalHopAQL,
                         this::constructTraversalCondAQL));
 
