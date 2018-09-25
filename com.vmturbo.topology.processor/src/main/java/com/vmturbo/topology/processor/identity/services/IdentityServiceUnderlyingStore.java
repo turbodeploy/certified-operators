@@ -8,6 +8,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
 import com.vmturbo.topology.processor.identity.EntryData;
@@ -39,6 +40,7 @@ public interface IdentityServiceUnderlyingStore {
      * @param oid                The object id.
      * @param descriptor         The descriptor.
      * @param metadataDescriptor The metadata descriptor.
+     * @param entityType         The type of the entity.
      * @param probeId            The ID of the probe of the target which discovered the entity.
      * @throws IdentityServiceStoreOperationException In case of an error adding the Entity.
      * @throws IdentityUninitializedException If the store is not initialized yet.
@@ -46,6 +48,7 @@ public interface IdentityServiceUnderlyingStore {
     void addEntry(final long oid,
                   @Nonnull final EntityDescriptor descriptor,
                   @Nonnull final EntityMetadataDescriptor metadataDescriptor,
+                  @Nonnull final EntityType entityType,
                   final long probeId)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
@@ -65,6 +68,7 @@ public interface IdentityServiceUnderlyingStore {
      * @param oid                The object id.
      * @param descriptor         The descriptor.
      * @param metadataDescriptor The metadata descriptor.
+     * @param entityType         The type of the entity.
      * @param probeId            The ID of the probe of the target which discovered the entity.
      * @throws IdentityServiceStoreOperationException In case of an error updating the Entity.
      * @throws IdentityUninitializedException If the store is not initialized yet.
@@ -72,6 +76,7 @@ public interface IdentityServiceUnderlyingStore {
     void updateEntry(final long oid,
                      @Nonnull final EntityDescriptor descriptor,
                      @Nonnull final EntityMetadataDescriptor metadataDescriptor,
+                     @Nonnull final EntityType entityType,
                      final long probeId)
             throws IdentityServiceStoreOperationException, IdentityUninitializedException;
 
@@ -141,4 +146,14 @@ public interface IdentityServiceUnderlyingStore {
      * @param input The reader to back up from.
      */
     void restore(@Nonnull final Reader input);
+
+    /**
+     * Reload the entity descriptors from the underlying backing store.
+     *
+     * If the store is a pass-through, then this will be a no-op. If the
+     * store is an in-memory store backed by a persistent store, this call
+     * updates the in-memory store with the latest values from the
+     * persistent store.
+     */
+    void reloadEntityDescriptors();
 }
