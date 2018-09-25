@@ -2,24 +2,31 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
-
-import com.google.common.collect.Lists;
-
-import io.grpc.Status.Code;
-import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
+import com.google.common.base.Suppliers;
+import com.google.common.collect.Lists;
+import com.turbonomic.cpucapacity.CPUCatalog;
+import com.turbonomic.cpucapacity.CPUInfo;
+
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
+import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
@@ -60,14 +67,42 @@ public class TemplatesService implements ITemplatesService {
 
     private final TemplateSpecServiceBlockingStub templateSpecService;
 
+    /**
+     * The list of known CPU Models and their performance scaling values.
+     */
+    private final CPUCatalog cpuCatalog;
+
+    /**
+     * Maps between internal protobuf format of Templates an the external API
+     * TemplateApiDTO and TemplateApiInputDTO structures.
+     */
     private final TemplateMapper templateMapper;
+
+    /**
+     * Create a time-based cache for the CPU Catalog - a set of CpuInfo values.
+     */
+    private Supplier<Set<CPUInfo>> cpuInfoCatalogCache;
+
+    /**
+     * Maps from external api CpuModelApiDTO to internal CPUInfo protobuf.
+     */
+    private final CpuInfoMapper cpuInfoMapper;
+
 
     public TemplatesService(@Nonnull final TemplateServiceBlockingStub templateService,
                             @Nonnull final TemplateMapper templateMapper,
-                            @Nonnull final TemplateSpecServiceBlockingStub templateSpecService) {
-        this.templateService = templateService;
-        this.templateMapper = templateMapper;
-        this.templateSpecService = templateSpecService;
+                            @Nonnull final TemplateSpecServiceBlockingStub templateSpecService,
+                            @Nonnull final CPUCatalog cpuCatalog,
+                            @Nonnull final CpuInfoMapper cpuInfoMapper,
+                            final int cpuCatalogLifeHours) {
+        this.templateService = Objects.requireNonNull(templateService);
+        this.templateMapper = Objects.requireNonNull(templateMapper);
+        this.templateSpecService = Objects.requireNonNull(templateSpecService);
+        this.cpuCatalog = Objects.requireNonNull(cpuCatalog);
+        this.cpuInfoMapper = Objects.requireNonNull(cpuInfoMapper);
+        // create a cache for the CPU Info - it doesn't change very often
+        cpuInfoCatalogCache = Suppliers.memoizeWithExpiration(cpuCatalog::getCatalog,
+            cpuCatalogLifeHours, TimeUnit.HOURS);
     }
 
     /**
@@ -254,8 +289,10 @@ public class TemplatesService implements ITemplatesService {
     }
 
     @Override
-    public List<CpuModelApiDTO> getCpuList() throws Exception {
-        throw ApiUtils.notImplementedInXL();
+    public List<CpuModelApiDTO> getCpuList() {
+        return cpuInfoCatalogCache.get().stream()
+                .map(cpuInfoMapper::convertCpuDTO)
+                .collect(Collectors.toList());
     }
 
     @Override

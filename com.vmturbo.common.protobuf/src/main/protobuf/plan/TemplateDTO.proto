@@ -54,6 +54,9 @@ message TemplateInfo {
     // such as: AVG:VMs_Development41 Cloudstack:GROUP-VMsByCluster_vsphere-dc3.eng.vmturbo.com datacenter-22 domain-c72
     optional string model = 2;
 
+    // Model of the CPU in the PhysicalMachine
+    optional string cpu_model = 10;
+
     // Vendor related to the template
     optional string vendor = 3;
 

@@ -18,6 +18,9 @@
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
         <vmturbo.mt.branch.version>6.3.0-SNAPSHOT</vmturbo.mt.branch.version>
 
+        <!--CPU Capacity Library Version-->
+        <cpu.capacity.version>1.2.0-SNAPSHOT</cpu.capacity.version>
+
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -1470,6 +1473,13 @@
                 <artifactId>platform.analysis.protobuf</artifactId>
                 <version>${market.version}</version>
             </dependency>
+            <!-- com.turbonomic dependencies -->
+            <dependency>
+                <groupId>com.turbonomic</groupId>
+                <artifactId>com.turbonomic.cpucapacity</artifactId>
+                <version>${cpu.capacity.version}</version>
+            </dependency>
+
             <!-- Embedded Tomcat -->
             <dependency>
                 <groupId>org.apache.tomcat.embed</groupId>

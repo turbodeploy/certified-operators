@@ -3,10 +3,11 @@ package com.vmturbo.api.component.external.api.service;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.io.IOException;
 import java.util.List;
 
+import org.apache.commons.lang.StringUtils;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -14,15 +15,20 @@ import org.mockito.Mockito;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
+import com.turbonomic.cpucapacity.CPUCapacityEstimatorException;
+import com.turbonomic.cpucapacity.CPUCatalog;
+import com.turbonomic.cpucapacity.CPUCatalogFactory;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.TemplateMapper;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
+import com.vmturbo.api.dto.template.CpuModelApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.CreateTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
@@ -77,6 +83,8 @@ public class TemplatesServiceTest {
                 .setName("numOfCpu")))
         .build();
 
+    public static final int CPU_CATALOG_LIFE_HOURS = 1;
+
     private final TestTemplateService templateService = Mockito.spy(new TestTemplateService());
 
     private final TestTemplateSpecService templateSpecService = Mockito.spy(new TestTemplateSpecService());
@@ -84,6 +92,12 @@ public class TemplatesServiceTest {
     private TemplatesService templatesService;
 
     private TemplateMapper templateMapper;
+
+    /**
+     * The catalog of know CPU Models. It is delcared as static here so we only instantiate
+     * it once for performance reasons.
+     */
+    static private CPUCatalog cpuCatalog;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -93,11 +107,23 @@ public class TemplatesServiceTest {
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(templateService, templateSpecService);
 
+    @BeforeClass
+    public static void setupClass() {
+        try {
+            // only fetch the catalog once, statically, for performance reasons
+            cpuCatalog = new CPUCatalogFactory().makeCatalog();
+        } catch (CPUCapacityEstimatorException e) {
+            throw new RuntimeException("Error creating CPUCatalog: ", e);
+        }
+    }
     @Before
-    public void setup() throws IOException {
+    public void setup() {
         templateMapper = new TemplateMapper();
-        templatesService = new TemplatesService(TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            templateMapper, TemplateSpecServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+        final CpuInfoMapper cpuInfoMapper = new CpuInfoMapper();
+        templatesService = new TemplatesService(
+            TemplateServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            templateMapper, TemplateSpecServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            cpuCatalog, cpuInfoMapper, CPU_CATALOG_LIFE_HOURS);
 
     }
 
@@ -163,6 +189,29 @@ public class TemplatesServiceTest {
         final String uuid = String.valueOf(TEMPLATE.getId());
         Boolean result = templatesService.deleteTemplate(uuid);
         assertTrue(result);
+    }
+
+    /**
+     * Test that the Service returns information and that (at least one field of) the result
+     * is not empty.
+     *
+     * @throws CPUCapacityEstimatorException if there's an error in the base CPUCatalogFactory, should
+     * not happen
+     */
+    @Test
+    public void testGetCpuList() throws CPUCapacityEstimatorException {
+
+        // Arrange
+        int catalogSize = new CPUCatalogFactory().makeCatalog().getCatalog().size();
+
+        // Act
+        List<CpuModelApiDTO> cpuList = templatesService.getCpuList();
+
+        // Assert
+        assertTrue("Expected CPU Model Info in the result", !cpuList.isEmpty());
+        assertEquals("Result list size mismatch", catalogSize, cpuList.size());
+        CpuModelApiDTO cpuModelInfo = cpuList.iterator().next();
+        assertTrue(StringUtils.isNotEmpty(cpuModelInfo.getModelName()));
     }
 
     private class TestTemplateService extends TemplateServiceImplBase {

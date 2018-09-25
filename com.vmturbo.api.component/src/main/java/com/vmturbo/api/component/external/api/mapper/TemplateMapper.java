@@ -55,14 +55,12 @@ public class TemplateMapper {
      * @return {@link TemplateApiDTO}
      */
     public TemplateApiDTO mapToTemplateApiDTO(Template template, TemplateSpec templateSpec) {
-        TemplateApiDTO dto = new TemplateApiDTO();
-        final TemplateInfo templateInfo = template.getTemplateInfo();
-        setBasicApiDTOProperty(dto, template, templateInfo);
+        TemplateApiDTO dto = buildBasicTemplateApiDTO(template);
 
         dto.setComputeResources(Lists.newArrayList());
         dto.setStorageResources(Lists.newArrayList());
         dto.setInfrastructureResources(Lists.newArrayList());
-        List<TemplateResource> templateResourceList = templateInfo.getResourcesList();
+        List<TemplateResource> templateResourceList = template.getTemplateInfo().getResourcesList();
         // For one templateSpec, its field names should be unique.
         Map<String, TemplateSpecField> templateSpecFieldMap = templateSpec.getResourcesList()
             .stream()
@@ -110,18 +108,31 @@ public class TemplateMapper {
         return templateInfo.build();
     }
 
-    private void setBasicApiDTOProperty(TemplateApiDTO dto, Template template, TemplateInfo templateInfo) {
+    /**
+     * Construct a new External API {@link TemplateApiDTO} with values from the internal
+     * {@link Template} protobuf.
+     *
+     * @param template the internal Template protobuf from which the values are taken
+     * @return an External API TemplateApiDTO populated from the given Template protobuf
+     */
+    private TemplateApiDTO buildBasicTemplateApiDTO(Template template) {
+        TemplateApiDTO dto = new TemplateApiDTO();
+        final TemplateInfo templateInfo = template.getTemplateInfo();
         dto.setUuid(String.valueOf(template.getId()));
         dto.setDisplayName(templateInfo.getName());
         dto.setModel(templateInfo.getModel());
+        dto.setCpuModel(templateInfo.getCpuModel());
         dto.setVendor(templateInfo.getVendor());
-        dto.setClassName(ServiceEntityMapper.toUIEntityType(templateInfo.getEntityType()) + TemplatesUtils.PROFILE);
+        dto.setClassName(ServiceEntityMapper.toUIEntityType(templateInfo.getEntityType()) +
+                TemplatesUtils.PROFILE);
         dto.setDescription(templateInfo.getDescription());
         if (templateInfo.hasPrice()) {
             dto.setPrice(templateInfo.getPrice());
         }
         // If template has a targetId, then it is discovered template
-        dto.setDiscovered(template.hasTargetId() ? true : false);
+        dto.setDiscovered(template.hasTargetId());
+
+        return dto;
     }
 
 
@@ -194,6 +205,9 @@ public class TemplateMapper {
                                              int entityType) {
         if (inputDTO.getModel() != null) {
             templateInfo.setModel(inputDTO.getModel());
+        }
+        if (inputDTO.getCpuModel() != null) {
+            templateInfo.setCpuModel(inputDTO.getCpuModel());
         }
         if (inputDTO.getVendor() != null) {
             templateInfo.setVendor(inputDTO.getVendor());

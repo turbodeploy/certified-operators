@@ -275,6 +275,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.licensing</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.turbonomic</groupId>
+            <artifactId>com.turbonomic.cpucapacity</artifactId>
+        </dependency>
 
         <!-- return XML from REST endpoints if requested -->
         <dependency>

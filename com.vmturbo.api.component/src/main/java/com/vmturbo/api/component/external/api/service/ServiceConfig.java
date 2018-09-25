@@ -7,6 +7,7 @@ import javax.servlet.Servlet;
 import javax.servlet.ServletContext;
 import javax.servlet.ServletRegistration;
 
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -16,9 +17,14 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.security.saml.userdetails.SAMLUserDetailsService;
 
+import com.turbonomic.cpucapacity.CPUCapacityEstimatorException;
+import com.turbonomic.cpucapacity.CPUCatalog;
+import com.turbonomic.cpucapacity.CPUCatalogFactory;
+
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
+import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
 import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import com.vmturbo.api.component.external.api.mapper.WorkflowMapper;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
@@ -82,6 +88,9 @@ public class ServiceConfig {
 
     @Value("${samlIdpMetadata:samlIdpMetadata}")
     private String samlIdpMetadata;
+
+    @Value("${cpuInfoCacheLifetimeHours}")
+    private int cpuCatalogLifeHours;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -371,8 +380,22 @@ public class ServiceConfig {
     @Bean
     public TemplatesService templatesService() {
         return new TemplatesService(communicationConfig.templateServiceBlockingStub(),
-                                    mapperConfig.templateMapper(),
-                                    communicationConfig.templateSpecServiceBlockingStub());
+            mapperConfig.templateMapper(), communicationConfig.templateSpecServiceBlockingStub(),
+            cpuCatalog(), cpuInfoMapper(), cpuCatalogLifeHours);
+    }
+
+    @Bean
+    public CpuInfoMapper cpuInfoMapper() {
+        return new CpuInfoMapper();
+    }
+
+    @Bean
+    public CPUCatalog cpuCatalog() {
+        try {
+            return new CPUCatalogFactory().makeCatalog();
+        } catch (CPUCapacityEstimatorException e) {
+            throw new BeanCreationException("Error creating CPUCatalog bean:", e);
+        }
     }
 
     @Bean

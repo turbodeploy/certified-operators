@@ -6,10 +6,10 @@ import org.junit.Test;
 
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.template.ResourceApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiInputDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -38,16 +38,17 @@ public class TemplateMapperTest {
         .build();
 
     private final static TemplateInfo TEMPLATE_PM_INFO = TemplateInfo.newBuilder()
-        .setName("test-PM-template")
-        .setTemplateSpecId(2)
-        .setEntityType(EntityType.PHYSICAL_MACHINE.getValue())
-        .addResources(TemplateResource.newBuilder()
-            .setCategory(ResourcesCategory.newBuilder()
-                .setName(ResourcesCategoryName.Infrastructure))
-            .addFields(TemplateField.newBuilder()
-                .setName("numOfCores")
-                .setValue("1.0")))
-        .build();
+            .setName("test-PM-template")
+            .setTemplateSpecId(2)
+            .setEntityType(EntityType.PHYSICAL_MACHINE.getValue())
+            .setCpuModel("cpu-model")
+            .addResources(TemplateResource.newBuilder()
+                    .setCategory(ResourcesCategory.newBuilder()
+                            .setName(ResourcesCategoryName.Infrastructure))
+                    .addFields(TemplateField.newBuilder()
+                            .setName("numOfCores")
+                            .setValue("1.0")))
+            .build();
 
     private final static TemplateInfo TEMPLATE_ST_INFO = TemplateInfo.newBuilder()
         .setName("test-ST-template")
@@ -123,6 +124,7 @@ public class TemplateMapperTest {
     public void testMapPMTemplateToApiDTO() {
         TemplateApiDTO templateApiDTO = templateMapper.mapToTemplateApiDTO(TEMPLATE_PM, TEMPLATE_PM_SPEC);
         assertEquals("test-PM-template", templateApiDTO.getDisplayName());
+        assertEquals("cpu-model", templateApiDTO.getCpuModel());
         assertEquals(1, templateApiDTO.getInfrastructureResources().size());
         assertEquals(1, templateApiDTO.getInfrastructureResources().get(0).getStats().size());
         assertEquals("numOfCores", templateApiDTO.getInfrastructureResources().get(0).getStats().get(0).getName());
@@ -155,11 +157,16 @@ public class TemplateMapperTest {
         assertEquals(TEMPLATE_VM_INFO, templateInfo);
     }
 
+    /**
+     * Test mapping from an external TemplateApiInputDTO with fields for a PM
+     * to a TemplateInfo internal protobuf.
+     */
     @Test
     public void testPMApiInputDTOtoTemplateInfo() {
         final TemplateApiInputDTO templateApiInputDTO = new TemplateApiInputDTO();
         templateApiInputDTO.setDisplayName("test-PM-template");
         templateApiInputDTO.setClassName("PhysicalMachineProfile");
+        templateApiInputDTO.setCpuModel("cpu-model");
         final ResourceApiDTO resourceApiDTO = new ResourceApiDTO();
         final StatApiDTO statApiDTO = new StatApiDTO();
         statApiDTO.setName("numOfCores");
