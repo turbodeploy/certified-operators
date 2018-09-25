@@ -554,4 +554,3 @@ DO BEGIN
   call aggregate_reserved_instance_utilization;
 END //
 
-DELIMITER ;
