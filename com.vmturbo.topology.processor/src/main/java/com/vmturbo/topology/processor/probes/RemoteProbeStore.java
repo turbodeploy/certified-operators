@@ -43,7 +43,7 @@ public class RemoteProbeStore implements ProbeStore {
     /**
      * Key prefix of values stored in Consul.
      */
-    public static final String PROBE_PREFIX = "probes/";
+    private static final String PROBE_PREFIX = "probes/";
 
     @GuardedBy("dataLock")
     private final KeyValueStore keyValueStore;
@@ -134,18 +134,16 @@ public class RemoteProbeStore implements ProbeStore {
                 final boolean probeExists = probes.containsKey(probeId);
                 stitchingOperationStore.setOperationsForProbe(probeId, probeInfo, probeOrdering);
 
-                try {
-                    keyValueStore.put(PROBE_PREFIX + Long.toString(probeId),
-                            JsonFormat.printer().print(probeInfo));
-                } catch (InvalidProtocolBufferException e) {
-                    logger.error("Invalid probeInfo {}", probeInfo);
-                    throw new ProbeException("Failed to persist probe info in Consul. Probe ID: " + probeId);
-                }
-
                 probes.put(probeId, transport);
                 // If we passed the compatibility check, it is safe to replace the old registration
                 // information in the store.
                 probeInfos.put(probeId, probeInfo);
+                try {
+                    keyValueStore.put(PROBE_PREFIX + Long.toString(probeId),
+                            JsonFormat.printer().print(probeInfo));
+                } catch (InvalidProtocolBufferException e) {
+                    logger.error("Failed to persist probe info in Consul. Probe ID: " + probeId);
+                }
 
                 if (probeExists) {
                     logger.info("Connected probe " + probeId +
@@ -269,51 +267,6 @@ public class RemoteProbeStore implements ProbeStore {
     public Map<Long, ProbeInfo> getProbes() {
         synchronized (dataLock) {
             return ImmutableMap.copyOf(probeInfos);
-        }
-    }
-
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Optional<ProbeInfo> getProbeInfoForType(@Nonnull final String probeTypeName) {
-
-        synchronized (dataLock) {
-            return probeInfos.entrySet().stream()
-                    .filter(entry -> entry.getValue().getProbeType().equals(probeTypeName))
-                    .map(Entry::getValue)
-                    .findFirst();
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     * This method does a blind update and doesn't do any compatability check
-     * with the old one and the new probeInfos.
-     */
-    @Override
-    public void updateProbeInfo(@Nonnull ProbeInfo probeInfo)
-        throws ProbeException {
-
-        Objects.requireNonNull(probeInfo, "probeInfo cannot be null");
-        Optional<Long> probeId = getProbeIdForType(probeInfo.getProbeType());
-        if (!probeId.isPresent()) {
-            logger.warn("Trying to update a non-existing probeInfo: {}", probeInfo);
-            return;
-        }
-
-        synchronized (dataLock) {
-
-            try {
-                keyValueStore.put(PROBE_PREFIX + Long.toString(probeId.get()),
-                        JsonFormat.printer().print(probeInfo));
-            } catch (InvalidProtocolBufferException e) {
-                logger.error("Invalid probeInfo {}", probeInfo);
-                throw new ProbeException("Failed to persist probe info in Consul. Probe ID: " + probeId);
-            }
-
-            probeInfos.put(probeId.get(), probeInfo);
         }
     }
 
