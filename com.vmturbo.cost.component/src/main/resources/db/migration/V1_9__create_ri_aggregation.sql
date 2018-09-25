@@ -546,6 +546,7 @@ CREATE PROCEDURE aggregate_reserved_instance_coverage()
 /* Executes hourly, running the aggregate_reserved_instance_coverage, and aggregate_reserved_instance_utilization procedures */
 
 DROP EVENT IF EXISTS aggregate_ri;
+//
 CREATE
 EVENT aggregate_ri
   ON SCHEDULE EVERY 1 HOUR
