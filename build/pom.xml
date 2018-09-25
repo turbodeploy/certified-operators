@@ -16,7 +16,7 @@
         <maven.compiler.target>${java.version}</maven.compiler.target>
 
         <!-- MT Version from which to resolve cross-branch dependencies on common code -->
-        <vmturbo.mt.branch.version>6.3.0-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>6.4.0-SNAPSHOT</vmturbo.mt.branch.version>
 
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.2.0-SNAPSHOT</cpu.capacity.version>
