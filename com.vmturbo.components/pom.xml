@@ -151,17 +151,21 @@
                                         <newName>${docker.registry}/${docker.image.prefix}/${project.artifactId}:${project.version}</newName>
                                     </configuration>
                                 </execution>
-                                <execution>
-                                      <id>push-docker-image</id>
-                                     <phase>deploy</phase>
-                                     <goals>
-                                         <goal>push</goal>
-                                     </goals>
-                                     <configuration>
-                                         <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}</imageName>
-                                    </configuration>
-                                 </execution>
-                            </executions>
+                                    <execution>
+                                        <id>push-docker-image</id>
+                                        <phase>deploy</phase>
+                                        <goals>
+                                            <goal>push</goal>
+                                        </goals>
+                                        <configuration>
+                                            <imageName>${docker.registry}/${docker.image.prefix}/${project.artifactId}</imageName>
+                                        </configuration>
+                                    </execution>
+                                </executions>
+                            </plugin>
+                        <plugin>
+                            <groupId>com.atlassian.maven.plugins</groupId>
+                            <artifactId>bash-maven-plugin</artifactId>
                         </plugin>
                         <plugin>
                             <groupId>org.apache.maven.plugins</groupId>

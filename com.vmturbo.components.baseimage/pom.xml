@@ -120,6 +120,11 @@
                             </execution>
                         </executions>
                     </plugin>
+                    <plugin>
+                        <groupId>com.atlassian.maven.plugins</groupId>
+                        <artifactId>bash-maven-plugin</artifactId>
+                        <version>${bash.plugin.version}</version>
+                    </plugin>
                 </plugins>
             </build>
         </profile>

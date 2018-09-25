@@ -54,6 +54,11 @@
 
             </plugin>
             <plugin>
+                <groupId>com.atlassian.maven.plugins</groupId>
+                <artifactId>bash-maven-plugin</artifactId>
+                <version>${bash.plugin.version}</version>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
             </plugin>

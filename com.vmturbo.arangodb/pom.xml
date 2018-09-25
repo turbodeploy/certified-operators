@@ -67,6 +67,10 @@
                         <groupId>org.jacoco</groupId>
                         <artifactId>jacoco-maven-plugin</artifactId>
                     </plugin>
+                    <plugin>
+                        <groupId>com.atlassian.maven.plugins</groupId>
+                        <artifactId>bash-maven-plugin</artifactId>
+                    </plugin>
                 </plugins>
             </build>
         </profile>
