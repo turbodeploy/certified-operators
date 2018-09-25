@@ -83,4 +83,8 @@ public class SdkServerConfig {
     public ServerEndpointRegistration remoteMediationEndpointRegistration() {
         return new ServerEndpointRegistration(REMOTE_MEDIATION_PATH, remoteMediationServerTransportManager());
     }
+
+    public long getNegotiationTimeoutSec() {
+        return negotiationTimeoutSec;
+    }
 }

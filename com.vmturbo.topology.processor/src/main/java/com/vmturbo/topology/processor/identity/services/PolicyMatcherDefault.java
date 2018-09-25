@@ -19,6 +19,16 @@ class PolicyMatcherDefault implements PolicyMatcher {
     private final int heuristicThreshold;
 
     /**
+     *  When a new heuristic identifying property is added, the existing
+     *  records which don't have this new property will be
+     *  assigned a placeholder dummy value. This DUMMY_VALUE will match
+     *  with any new value assigned for that property. After it is matched,
+     *  the dummy value will be replaced by the real value.
+     *
+     */
+    private static final String DUMMY_VALUE = "DUMMY_VALUE";
+
+    /**
      * Create a new default policy matcher.
      *
      * @param heuristicThreshold The threshold for determining a heuristic match using this matcher.
@@ -60,7 +70,11 @@ class PolicyMatcherDefault implements PolicyMatcher {
 
             for (Map.Entry<String, PropertyReferenceCounter> entry : oldValues.entrySet()) {
                 total += entry.getValue().intValue();
-                PropertyReferenceCounter i = newValues.get(entry.getKey());
+                // Always match to new value if the old value is set to dummy_value.
+                PropertyReferenceCounter i =
+                        entry.getKey().equals(DUMMY_VALUE) ?
+                                new PropertyReferenceCounter() :
+                                newValues.get(entry.getKey());
                 // None, skip
                 if (i == null) {
                     continue;
