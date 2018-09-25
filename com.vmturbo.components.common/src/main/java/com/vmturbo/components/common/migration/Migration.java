@@ -1,7 +1,7 @@
 package com.vmturbo.components.common.migration;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
-import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
+import com.vmturbo.common.protobuf.common.Migration.MigrationInfo;
 
 /**
  * Interface that the migrations have to implement.
@@ -22,16 +22,15 @@ public interface Migration {
     /**
      * Retrieve the current info about the migration.
      *
-     * @return the current {@link MigrationProgressInfo}
+     * @return the current {@link MigrationInfo}
      */
-    MigrationProgressInfo getMigrationInfo();
+    MigrationInfo getMigrationInfo();
 
 
     /**
      * Start the migration.
      *
-     * @return {@link MigrationProgressInfo} describing the details
-     * of the migration
+     * @return {@link MigrationInfo } describing the details of the migration
      */
-    MigrationProgressInfo startMigration();
+    MigrationInfo startMigration();
 }
