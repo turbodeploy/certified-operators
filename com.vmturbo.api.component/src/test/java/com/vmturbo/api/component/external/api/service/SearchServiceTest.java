@@ -25,7 +25,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
@@ -46,7 +45,9 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplychainApiDTOFetcherBuilder;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
+import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.enums.EnvironmentType;
@@ -78,7 +79,6 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
  * Unit test for {@link SearchService}.
@@ -97,6 +97,7 @@ public class SearchServiceTest {
     private final UuidMapper uuidMapper = new UuidMapper(7777777L);
     private final GroupExpander groupExpander = mock(GroupExpander.class);
     private final PaginationMapper paginationMapperSpy = spy(new PaginationMapper());
+    private final TagsService tagsService = mock(TagsService.class);
 
     private SearchServiceMole searchServiceSpy = Mockito.spy(new SearchServiceMole());
     private EntitySeverityServiceMole entitySeverityServiceSpy = Mockito.spy(new EntitySeverityServiceMole());
@@ -129,6 +130,7 @@ public class SearchServiceTest {
                 paginationMapperSpy,
                 groupUseCaseParser,
                 uuidMapper,
+                tagsService,
                 777777
         );
     }
@@ -368,19 +370,47 @@ public class SearchServiceTest {
     }
 
     /**
-     * The options for the tags field should be an empty list, which means that there is no
-     * restriction on the inputs when a tags-related filter is created in the UI.
-     * TODO: this behavior should change with OM-38687.
+     * The options for the tags fields should come from the tags that are in the live topology.
+     * These can be fetched by calling the tag service.
+     *
+     * For every existing tag key k there should be an option k for the first field.
+     * For every existing value v under k, there should be an option v for the second field,
+     * when the first field is k.
+     * No other options should exist.
      *
      * @throws Exception should not happen.
      */
     @Test
     public void testOptionsForTags() throws Exception {
-        Assert.assertTrue(
-                searchService.getCriteriaOptions(
-                    GroupMapper.TAGS, Collections.emptyList(),
-                    EntityType.VIRTUAL_MACHINE.toString(), EnvironmentType.CLOUD
-                ).isEmpty()
-        );
+        // mock tag service response
+        final TagApiDTO[] tagsFromTagService = new TagApiDTO[3];
+        tagsFromTagService[0] = new TagApiDTO();
+        tagsFromTagService[0].setKey("0");
+        tagsFromTagService[0].setValues(Arrays.asList("Value1", "Value2", "Value3"));
+        tagsFromTagService[1] = new TagApiDTO();
+        tagsFromTagService[1].setKey("1");
+        tagsFromTagService[1].setValues(Arrays.asList("Value4", "Value5"));
+        tagsFromTagService[2] = new TagApiDTO();
+        tagsFromTagService[2].setKey("2");
+        tagsFromTagService[2].setValues(Collections.singletonList("Value6"));
+        Mockito.when(tagsService.getTags(any(), any(), any())).thenReturn(Arrays.asList(tagsFromTagService));
+
+        // retrieve search service response
+        final List<CriteriaOptionApiDTO> result =
+                searchService.getCriteriaOptions(GroupMapper.TAGS, null, null, null);
+
+        // compare response with expected response
+        int resultCount = 0;
+        for (CriteriaOptionApiDTO option : result) {
+            int index = Integer.valueOf(option.getValue());
+            assertTrue(0 <= index);
+            assertTrue(index < 3);
+            assertEquals(
+                tagsFromTagService[index].getValues().stream().collect(Collectors.toSet()),
+                option.getSubValues().stream().collect(Collectors.toSet())
+            );
+            resultCount++;
+        }
+        assertEquals(3, resultCount);
     }
 }

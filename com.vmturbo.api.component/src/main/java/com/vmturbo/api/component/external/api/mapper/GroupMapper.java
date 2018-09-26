@@ -101,15 +101,11 @@ public class GroupMapper {
         filterTypesToProcessors.put(
                 TAGS,
                 context -> {
-                    // this solution is temporary.  it assumes that only one string is obtained from
-                    // the UI and it partitions it using the equals sign
-                    // TODO: a solution based on two fields must be implemented (OM-38687)
-                    final String[] kv = context.getFilter().getExpVal().split("=");
-                    final String value = kv.length < 2 ? "" : kv[1];
-                    final String key = kv.length < 1 ? "" : kv[0];
+                    //TODO: the expression value coming from the UI is currently unsanitized.
+                    // It is assumed that the tag keys and values do not contain characters such as = and |.
+                    // This is reported as a JIRA issue OM-39039.
                     final PropertyFilter tagsFilter =
-                            SearchMapper.mapPropertyFilterForMultimaps(
-                                    TAGS, key, value, context.getFilter().getExpType().equals(EQUAL));
+                            SearchMapper.mapPropertyFilterForMultimaps(TAGS, context.getFilter().getExpVal());
                     return ImmutableList.of(SearchMapper.searchFilterProperty(tagsFilter));
                 });
         filterTypesToProcessors.put(
@@ -180,7 +176,6 @@ public class GroupMapper {
                 })
                 .filter(Optional::isPresent).map(Optional::get)
                 .collect(Collectors.toSet());
-
 
         final Set<Long> groupMembers;
         final boolean isGlobalScopeGroup;
@@ -357,7 +352,6 @@ public class GroupMapper {
         //     OperationalEntities.PresentationLayer.Services.impl.ServiceEntityUtilsImpl
         //     #getEntityInformation() to determine environmentType
         outputDTO.setEnvironmentType(EnvironmentType.ONPREM);
-
 
         return outputDTO;
     }

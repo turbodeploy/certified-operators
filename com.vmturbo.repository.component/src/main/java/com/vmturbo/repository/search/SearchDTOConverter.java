@@ -179,8 +179,13 @@ public class SearchDTOConverter {
                 break;
 
             case MAP_FILTER:
-                final MapFilter mapFilter = propertyFilter.getMapFilter();
-                filter = Filter.mapPropertyFilter(propertyName, mapFilter);
+                filter =
+                        Filter.mapPropertyFilter(
+                                propertyName,
+                                propertyFilter.getMapFilter().getKey(),
+                                propertyFilter.getMapFilter().getValuesList(),
+                                propertyFilter.getMapFilter().getIsMultimap()
+                        );
                 break;
 
             case PROPERTYTYPE_NOT_SET:

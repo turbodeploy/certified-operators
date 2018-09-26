@@ -1,5 +1,8 @@
 package com.vmturbo.repository.search;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.derive4j.Data;
 import org.derive4j.Derive;
 import org.derive4j.ExportAsPublic;
@@ -84,7 +87,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     interface Cases<R> {
         R StringPropertyFilter(String propName, StringFilter stringFilter);
         R NumericPropertyFilter(String numPropName, NumericOperator numOp, Number numValue);
-        R MapPropertyFilter(String propName, MapFilter mapFilter);
+        R MapPropertyFilter(String mapPropName, String key, List<String> values, boolean multi);
         R TraverseHopFilter(TraversalDirection direction, int hop);
         R TraverseCondFilter(TraversalDirection direction, Filter filter);
     }
@@ -141,7 +144,6 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
     @Override
     public String toAQLString() {
         // TODO (here and elsewhere): SANITIZE the input before inserting it into the query (OM-38634)
-        // TODO (here and elsewhere): translate the Java regex language to the ArangoDB regex language (OM-38634)
         return this.match(Filters.cases(
                 (pName, stringFilter) -> {
                     // See: https://docs.arangodb.com/devel/AQL/Functions/String.html#regextest
@@ -153,32 +155,24 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                 },
                 (pName, numOp, numVal) ->
                     String.format("FILTER service_entity.%s %s %s", pName, numOp.toAQLString(), numVal),
-                (pName, mapFilter) -> {
-                    final String key = mapFilter.getKey();
-                    final String value = mapFilter.getValue();
-                    final boolean multi = mapFilter.getIsMultimap();
-                    final String strOp = mapFilter.getMatch() ? "==" : "!=";
-
+                (pName, key, values, multi) -> {
                     // construct AQL filter for (multi)-map search
                     // the value filter depends on whether this is a map or a multimap
                     // the value in a map entry is a single string, while in multimap is an array
-                    final String valueFilterPattern;
-                    if (value == null || value.isEmpty()) {
-                        valueFilterPattern = "";
-                    } else if (multi) {
-                        valueFilterPattern = "FOR value in service_entity.%s[key] FILTER value %s \"%s\"";
+                    if (values == null || values.isEmpty()) {
+                        return String.format("FILTER \"%s\" IN ATTRIBUTES(service_entity.%s)", key, pName);
                     } else {
-                        valueFilterPattern = "service_entity.tags[key] %s \"%s\"";
+                        // turn the list of values to an AQL string representation of that list
+                        final String valuesInQuotes =
+                                values.stream().map(x -> "\"" + x + "\"").collect(Collectors.joining(", "));
+                        return String.format(
+                                "FILTER service_entity.%s[\"%s\"] %s %s",
+                                pName,
+                                key,
+                                multi ? "ANY IN" : "IN",
+                                "[" + valuesInQuotes + "]"
+                        );
                     }
-                    final String valueFilter =
-                            String.format(valueFilterPattern, pName, strOp, value);
-
-                    // the full filter includes a search on the key
-                    // notice that the operator for keys is always ==
-                    // regardless of strOp
-                    return String.format(
-                            "FOR key in ATTRIBUTES(service_entity.%s) FILTER key == \"%s\" %s",
-                            pName, key, valueFilter);
                 },
                 (direction, hop) -> "",
                 (direction, filter) -> ""));
@@ -202,14 +196,19 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
      * Smart constructor for creating a multimap property filter.
      *
      * @param propName The property name.
-     * @param mapFilter The map filter the property should match.
+     * @param key The key.
+     * @param values The values.
+     * @param multi iff this is a multi-map.
      *
      * @return A {@link Filter<PropertyFilterType>}.
      */
     @ExportAsPublic
-    public static Filter<PropertyFilterType> mapPropertyFilter(final String propName,
-                                                               final MapFilter mapFilter) {
-        return Filters.MapPropertyFilter0(propName, mapFilter);
+    public static Filter<PropertyFilterType> mapPropertyFilter(
+            final String propName,
+            final String key,
+            final List<String> values,
+            final boolean multi) {
+        return Filters.MapPropertyFilter0(propName, key, values, multi);
     }
 
     /**

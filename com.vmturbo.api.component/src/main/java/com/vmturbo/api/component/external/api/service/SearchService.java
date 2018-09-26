@@ -47,6 +47,7 @@ import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entity.TagApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
 import com.vmturbo.api.dto.search.CriteriaOptionApiDTO;
@@ -124,6 +125,8 @@ public class SearchService implements ISearchService {
 
     private final long realtimeContextId;
 
+    private final TagsService tagsService;
+
     SearchService(@Nonnull final RepositoryApi repositoryApi,
                   @Nonnull final MarketsService marketsService,
                   @Nonnull final GroupsService groupsService,
@@ -137,6 +140,7 @@ public class SearchService implements ISearchService {
                   @Nonnull final PaginationMapper paginationMapper,
                   @Nonnull final GroupUseCaseParser groupUseCaseParser,
                   @Nonnull UuidMapper uuidMapper,
+                  @Nonnull TagsService tagsService,
                   final long realtimeTopologyContextId) {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.marketsService = Objects.requireNonNull(marketsService);
@@ -151,6 +155,7 @@ public class SearchService implements ISearchService {
         this.groupUseCaseParser = groupUseCaseParser;
         this.supplyChainFetcherFactory = supplyChainFetcherFactory;
         this.uuidMapper = uuidMapper;
+        this.tagsService = tagsService;
         this.realtimeContextId = realtimeTopologyContextId;
     }
 
@@ -667,7 +672,25 @@ public class SearchService implements ISearchService {
                 break;
 
             case TAGS:
-                // keep options list empty: any string can be input in the tags fields
+                // retrieve relevant tags from the tags service
+                final List<TagApiDTO> tags = tagsService.getTags(scopes, entityType, envType);
+
+                // convert into a map
+                final Map<String, List<TagApiDTO>> tagsAsMap =
+                        tags.stream().collect(Collectors.groupingBy(TagApiDTO::getKey));
+
+                // translate tags as criteria options in the result
+                tagsAsMap.entrySet().forEach(e -> {
+                    final CriteriaOptionApiDTO criteriaOptionApiDTO = new CriteriaOptionApiDTO();
+                    criteriaOptionApiDTO.setValue(e.getKey());
+                    criteriaOptionApiDTO.setSubValues(
+                            e.getValue()
+                                    .stream()
+                                    .flatMap(tagApiDTO -> tagApiDTO.getValues().stream())
+                                    .collect(Collectors.toList())
+                    );
+                    optionApiDTOs.add(criteriaOptionApiDTO);
+                });
                 break;
 
             default:

@@ -127,20 +127,20 @@ message PropertyFilter {
     // then, a map filter with key "user" and value "peter" will accept the entity.
     // on the other hand, (key = "department", value = "paul") or (key = "user", value = "john")
     // will reject the entity.
-    // if the value is missing, then the entity will be accepted if and only if the key exists.
+    // if no value is specified, then the entity will be accepted if and only if the key exists.
+    // if multiple values are given, then the entity will be accepted if at least one of the values matches.
     message MapFilter {
-        // Regular expression used against the key
+        // string checked against the tag key
+        // the value in this field must much one of the tag keys of the entity
         optional string key = 1;
 
-        // Regular expression used against the value
-        optional string value = 2;
+        // strings checked against the tag value
+        // one of the strings in this field must match one of the tag values of the entity
+        // if empty, this field is ignored
+        repeated string values = 2;
 
         // True iff this is a multimap (multiple values per key are possible)
         optional bool is_multimap = 3 [default = true];
-
-        // If true, the values should match.
-        // If false, the values should NOT match.
-        optional bool match = 4 [default = true];
     }
 
 }

@@ -320,6 +320,7 @@ public class ServiceConfig {
                 mapperConfig.paginationMapper(),
                 mapperConfig.groupUseCaseParser(),
                 mapperConfig.uuidMapper(),
+                tagsService(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

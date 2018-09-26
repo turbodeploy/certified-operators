@@ -1,9 +1,13 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 
@@ -25,6 +29,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.Tr
  * Utility class with static methods to facilitate the creation of searches and filters.
  */
 public class SearchMapper {
+
+    private static final Logger logger = LogManager.getLogger();
 
     public static final String ENTITY_TYPE_PROPERTY = "entityType";
     public static final String DISPLAY_NAME_PROPERTY = "displayName";
@@ -112,29 +118,67 @@ public class SearchMapper {
     }
 
     /**
-     * Create a map filter for the specified property name and specified search values.
+     * Create a map filter for the specified property name and specified expression field coming from the UI.
+     *
+     * The form of the value of the expression field is expected to be "k=v1|k=v2|...", where k is the key
+     * and v1, v2, ... are the possible values.  If the expression does not conform to the expected format,
+     * then a filter with empty key and values fields is generated.
+     *
+     * TODO: the expression value coming from the UI is currently unsanitized.  It is assumed that the tag
+     * keys and values do not contain the characters '=' and '|'.  This is reported as a JIRA issue OM-39039.
+     *
      * The filter created allows for multimap properties.  The values of Such properties are maps,
      * in which multiple values may correspond to a single key.  For example key "user" may be mapped
      * to both values "peter" and "paul".
      *
+     *
      * @param propName property name to use for the search.
-     * @param key string to check the multimap key against.
-     * @param value string to check the multimap values against.
-     * @param match If true, there should be a matching value under the matched key.
-     *              If false, there should be a non-matching value under the matched key.
+     * @param expField expression field coming from the UI.
      * @return the property filter.
      */
     public static PropertyFilter mapPropertyFilterForMultimaps(
-            @Nonnull String propName, @Nonnull String key, @Nonnull String value, boolean match) {
-        return PropertyFilter.newBuilder()
+            @Nonnull String propName, @Nonnull String expField
+    ) {
+        final String[] keyValuePairs = expField.split("\\|");
+        String key = null;
+        final List<String> values = new ArrayList<>();
+        for (String kvp : keyValuePairs) {
+            final String[] kv = kvp.split("=");
+            if (kv.length == 0 || kv.length > 2) {
+                logger.error("String \"{}\" cannot be split into key/value pair.", kvp);
+                return emptyMapPropertyFilter(propName);
+            }
+            if (key == null) {
+                key = kv[0];
+            } else if (!key.equals(kv[0])) {
+                logger.error("Map filter {} contains more than one keys.", expField);
+                return emptyMapPropertyFilter(propName);
+            }
+            if (kv.length == 2 && !kv[1].isEmpty()) {
+                values.add(kv[1]);
+            }
+        }
+
+        final PropertyFilter result =
+                PropertyFilter
+                    .newBuilder()
                     .setPropertyName(propName)
                     .setMapFilter(
-                            MapFilter.newBuilder()
-                                .setKey(key)
-                                .setValue(value)
-                                .setMatch(match)
-                                .build()
+                        MapFilter.newBuilder()
+                            .setKey(key == null ? "" : key)
+                            .addAllValues(values)
+                            .build()
                     ).build();
+        logger.debug("Property filter constructed: {}", result);
+
+        return result;
+    }
+
+    private static PropertyFilter emptyMapPropertyFilter(String propName) {
+        return
+            PropertyFilter.newBuilder().setPropertyName(propName).setMapFilter(
+                MapFilter.newBuilder().setKey("").build()
+            ).build();
     }
 
     /**

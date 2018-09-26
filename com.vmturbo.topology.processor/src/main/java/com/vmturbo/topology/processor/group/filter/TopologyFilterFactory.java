@@ -29,6 +29,7 @@ import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPr
  */
 public class TopologyFilterFactory {
     public static final String ENTITY_TYPE_PROPERTY_NAME = "entityType";
+    public static final String TAGS_TYPE_PROPERTY_NAME = "tags";
 
     public TopologyFilterFactory() {
         // Nothing to do
@@ -163,18 +164,18 @@ public class TopologyFilterFactory {
             throw new IllegalArgumentException("Map filter without key value: " + mapCriteria.toString());
         }
         final Predicate<String> valueFilter;
-        if (mapCriteria.hasValue() && !mapCriteria.getValue().isEmpty()) {
-            valueFilter = v -> v.equals(mapCriteria.getValue());
+        if (!mapCriteria.getValuesList().isEmpty()) {
+            valueFilter = v -> mapCriteria.getValuesList().contains(v);
         } else {
             valueFilter = v -> true;
         }
 
         // currently only entity tags is a property of type map
-        if (propertyName.equals("tags")) {
+        if (propertyName.equals(TAGS_TYPE_PROPERTY_NAME)) {
             return new PropertyFilter(te ->
                 te.getTopologyEntityDtoBuilder().getTagsMap().entrySet().stream()
                         .anyMatch(e ->
-                                e.getKey().matches(mapCriteria.getKey()) &&
+                                e.getKey().equals(mapCriteria.getKey()) &&
                                 e.getValue().getValuesList().stream().anyMatch(valueFilter)));
         } else {
             throw new IllegalArgumentException("Unknown map property named: " + propertyName);

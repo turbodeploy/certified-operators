@@ -7,7 +7,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.eq;
@@ -17,7 +16,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -181,18 +182,16 @@ public class GroupResolverTest {
 
     @Test
     public void testTagFilters() throws Exception {
-        testTagFilter(100L, "c", "v2", false, false);
-        testTagFilter(101L, "c", "", false, false);
-        testTagFilter(102L, "k1", "", true, false);
-        testTagFilter(103L, "k1", "v1", true, false);
-        testTagFilter(104L, "k1", "v1", true, false);
-        testTagFilter(105L, "k1", "v8", false, false);
-        testTagFilter(106L, "k2", "", true, false);
-        testTagFilter(107L, "k3", "v1", false, true);
+        testTagFilter(100L, "c", Collections.EMPTY_LIST, false, false);
+        testTagFilter(101L, "k1", Collections.EMPTY_LIST, true, false);
+        testTagFilter(102L, "k2", Collections.singletonList("v1"), false, false);
+        testTagFilter(103L, "k2", Arrays.asList("v1", "v2"), true, false);
+        testTagFilter(104L, "k3", Arrays.asList("v1", "v4"), false, true);
     }
 
     private void testTagFilter(
-            long goid, String key, String value, boolean entity11expected, boolean entity12expected
+        long goid, String key, List<String> values,
+        boolean entity11expected, boolean entity12expected
     ) throws Exception {
         final SearchParametersCollection searchParameters =
                 SearchParametersCollection.newBuilder()
@@ -203,7 +202,7 @@ public class GroupResolverTest {
                                 .setMapFilter(
                                     MapFilter.newBuilder()
                                         .setKey(key)
-                                        .setValue(value)
+                                        .addAllValues(values)
                                         .build()
                                 ).build()
                         )

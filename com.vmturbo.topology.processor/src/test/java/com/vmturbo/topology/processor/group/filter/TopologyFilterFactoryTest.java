@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -23,14 +24,18 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToDepthFilter;
 import com.vmturbo.topology.processor.group.filter.TraversalFilter.TraversalToPropertyFilter;
@@ -464,5 +469,54 @@ public class TopologyFilterFactoryTest {
         assertThat(
             displayNameFilter.apply(Stream.of(entity), graph).collect(Collectors.toList()),
             contains(entity));
+    }
+
+    /**
+     * Checks various cases of the tags-related filter.
+     */
+    @Test
+    public void testMapFilter() {
+        final PropertyFilter filter =
+                new TopologyFilterFactory()
+                    .filterFor(
+                        Search.PropertyFilter
+                            .newBuilder()
+                            .setPropertyName(TopologyFilterFactory.TAGS_TYPE_PROPERTY_NAME)
+                            .setMapFilter(
+                                MapFilter
+                                    .newBuilder()
+                                    .setKey("KEY")
+                                    .addValues("VALUE1")
+                                    .addValues("VALUE2")
+                            ).build()
+                );
+
+        // entity has no tags
+        assertFalse(filter.test(createEntityWithTags(Collections.EMPTY_MAP)));
+
+        // entity does not have the key
+        assertFalse(filter.test(createEntityWithTags(
+            ImmutableMap.of("OTHERKEY", TagValuesDTO.newBuilder().addValues("VALUE1").build())
+        )));
+
+        // entity has the key, but not one of the values
+        assertFalse(filter.test(createEntityWithTags(
+            ImmutableMap.of(
+                "OTHERKEY", TagValuesDTO.newBuilder().addValues("VALUE1").build(),
+                "KEY", TagValuesDTO.newBuilder().addValues("VALUE3").addValues("VALUE4").build()
+            )
+        )));
+
+        // entity has the key, but and one of the values
+        assertTrue(filter.test(createEntityWithTags(
+            ImmutableMap.of(
+                "OTHERKEY", TagValuesDTO.newBuilder().addValues("VALUE1").build(),
+                "KEY", TagValuesDTO.newBuilder().addValues("VALUE2").addValues("VALUE4").build()
+            )
+        )));
+    }
+
+    private TopologyEntity createEntityWithTags(Map<String, TagValuesDTO> tagsMap) {
+        return topologyEntity(TopologyEntityDTO.newBuilder().putAllTags(tagsMap));
     }
 }

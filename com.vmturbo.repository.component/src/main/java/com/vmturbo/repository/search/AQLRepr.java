@@ -80,7 +80,7 @@ public class AQLRepr implements Iterable<Filter<? extends AnyFilterType>> {
                     Filters.cases(
                         (strPropName, stringFilter) -> constructPropertyAQL(firstFilter),
                         (numPropName, numOp, numValue) -> constructPropertyAQL(firstFilter),
-                        (mapPropName, mapFilter) -> constructPropertyAQL(firstFilter),
+                        (mapPropName, key, value, multi) -> constructPropertyAQL(firstFilter),
                         this::constructTraversalHopAQL,
                         this::constructTraversalCondAQL));
 

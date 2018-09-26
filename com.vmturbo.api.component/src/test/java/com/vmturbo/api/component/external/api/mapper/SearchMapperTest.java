@@ -117,4 +117,44 @@ public class SearchMapperTest {
             "AvailabilityZone", "Region");
         assertEquals(EXPECTED_TYPES, SearchMapper.SEARCH_ALL_TYPES);
     }
+
+    /**
+     * This test verifies that the expression value that comes from the UI is translated properly
+     * into a map filter, in various cases.
+     */
+    @Test
+    public void testMapFilter() {
+        final PropertyFilter filter1 = SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=B");
+        assertTrue(filter1.hasMapFilter());
+        assertEquals("Prop", filter1.getPropertyName());
+        assertEquals("AA", filter1.getMapFilter().getKey());
+        assertEquals(1, filter1.getMapFilter().getValuesCount());
+        assertEquals("B", filter1.getMapFilter().getValues(0));
+
+        final PropertyFilter filter2 =
+                SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=BB|AA=CC");
+        assertTrue(filter2.hasMapFilter());
+        assertEquals("Prop", filter2.getPropertyName());
+        assertEquals("AA", filter2.getMapFilter().getKey());
+        assertEquals(2, filter2.getMapFilter().getValuesCount());
+        assertTrue(filter2.getMapFilter().getValuesList().contains("BB"));
+        assertTrue(filter2.getMapFilter().getValuesList().contains("CC"));
+
+        final PropertyFilter filter3 = SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=");
+        assertTrue(filter3.hasMapFilter());
+        assertEquals("Prop", filter3.getPropertyName());
+        assertEquals("AA", filter3.getMapFilter().getKey());
+        assertEquals(0, filter3.getMapFilter().getValuesCount());
+
+        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=B|DD"));
+        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimaps("Prop", "AA=BB|C=D"));
+        assertIsEmptyMapFilter(SearchMapper.mapPropertyFilterForMultimaps("Prop", "=B|foo=DD"));
+    }
+
+    private void assertIsEmptyMapFilter(PropertyFilter filter) {
+        assertTrue(filter.hasMapFilter());
+        assertEquals("Prop", filter.getPropertyName());
+        assertEquals("", filter.getMapFilter().getKey());
+        assertEquals(0, filter.getMapFilter().getValuesCount());
+    }
 }
