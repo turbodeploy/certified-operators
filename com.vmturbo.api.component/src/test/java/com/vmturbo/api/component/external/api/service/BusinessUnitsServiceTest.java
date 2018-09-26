@@ -19,9 +19,9 @@ import com.vmturbo.api.component.external.api.mapper.BusinessUnitMapper;
 import com.vmturbo.api.component.external.api.service.BusinessUnitsService.MissingDiscountException;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiInputDTO;
-import com.vmturbo.api.dto.businessunit.CloudServiceDiscountApiDTO;
+import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
-import com.vmturbo.api.dto.businessunit.TemplateDiscountDTO;
+import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.ServicePricingModel;
 import com.vmturbo.api.serviceinterfaces.IBusinessUnitsService;
@@ -60,13 +60,13 @@ public class BusinessUnitsServiceTest {
 
     private CostServiceBlockingStub costService;
 
-    private static CloudServiceDiscountApiDTO populateServiceDto() {
-        final CloudServiceDiscountApiDTO cloudServiceDiscountApiDTO = new CloudServiceDiscountApiDTO();
+    private static CloudServicePriceAdjustmentApiDTO populateServiceDto() {
+        final CloudServicePriceAdjustmentApiDTO cloudServiceDiscountApiDTO = new CloudServicePriceAdjustmentApiDTO();
         cloudServiceDiscountApiDTO.setUuid(SERVICE_DISCOUNT_UUID);
         cloudServiceDiscountApiDTO.setDisplayName("AWS RDS");
         cloudServiceDiscountApiDTO.setPricingModel(ServicePricingModel.ON_DEMAND);
         cloudServiceDiscountApiDTO.setDiscount(SERVICE_DISCOUNT);
-        TemplateDiscountDTO templateDiscountDTO = new TemplateDiscountDTO();
+        TemplatePriceAdjustmentDTO templateDiscountDTO = new TemplatePriceAdjustmentDTO();
         templateDiscountDTO.setFamily("c5d");
         templateDiscountDTO.setUuid(TIER_DISCOUNT_UUID);
         templateDiscountDTO.setDisplayName("c5d.xlarge");
@@ -77,7 +77,7 @@ public class BusinessUnitsServiceTest {
         entityPriceDTO.setDisplayName("aws-EU (Ireland)");
         templateDiscountDTO.setPricesPerDatacenter(ImmutableList.of(entityPriceDTO));
 
-        cloudServiceDiscountApiDTO.setTemplateDiscounts(ImmutableList.of(templateDiscountDTO));
+        cloudServiceDiscountApiDTO.setTemplatePriceAdjustments(ImmutableList.of(templateDiscountDTO));
         return cloudServiceDiscountApiDTO;
     }
 

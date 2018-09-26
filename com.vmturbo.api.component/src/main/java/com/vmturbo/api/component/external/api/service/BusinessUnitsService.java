@@ -19,7 +19,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiInputDTO;
-import com.vmturbo.api.dto.businessunit.BusinessUnitDiscountApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -168,9 +168,9 @@ public class BusinessUnitsService implements IBusinessUnitsService {
      * {@inheritDoc}
      */
     @Override
-    public BusinessUnitDiscountApiDTO
+    public BusinessUnitPriceAdjustmentApiDTO
     editBusinessUnitDiscounts(@Nonnull String uuid,
-                              @Nonnull BusinessUnitDiscountApiDTO businessUnitDiscountApiDTO)
+                              @Nonnull BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO)
             throws Exception {
         Objects.requireNonNull(uuid);
         Objects.requireNonNull(businessUnitDiscountApiDTO);
@@ -250,7 +250,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
      */
     @Override
     @Nonnull
-    public BusinessUnitDiscountApiDTO getBusinessUnitDiscounts(@Nonnull String uuid) throws Exception {
+    public BusinessUnitPriceAdjustmentApiDTO getBusinessUnitDiscounts(@Nonnull String uuid) throws Exception {
         // TODO valid the uuid with validInput method
         final Iterator<Discount> discounts = costService.getDiscounts(GetDiscountRequest.newBuilder()
                 .setFilter(DiscountQueryFilter.newBuilder().addAssociatedAccountId(Long.parseLong(uuid)))

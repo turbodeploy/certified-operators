@@ -19,10 +19,10 @@ import com.google.common.collect.ImmutableSet;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
-import com.vmturbo.api.dto.businessunit.BusinessUnitDiscountApiDTO;
-import com.vmturbo.api.dto.businessunit.CloudServiceDiscountApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
+import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
-import com.vmturbo.api.dto.businessunit.TemplateDiscountDTO;
+import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
@@ -49,7 +49,7 @@ import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * Mapping between Cost domain DTO {@link Discount} and API DTOs
- * {@link BusinessUnitApiDTO} and {@link BusinessUnitDiscountApiDTO}.
+ * {@link BusinessUnitApiDTO} and {@link BusinessUnitPriceAdjustmentApiDTO}.
  */
 public class BusinessUnitMapper {
 
@@ -119,23 +119,23 @@ public class BusinessUnitMapper {
     }
 
     /**
-     * Convert {@link BusinessUnitDiscountApiDTO} to Cost domain {@link TierLevelDiscount}
+     * Convert {@link BusinessUnitPriceAdjustmentApiDTO} to Cost domain {@link TierLevelDiscount}
      *
      * @param businessUnitDiscountApiDTO Api DTO for business unit discount
      * @return TierLevelDiscount
      */
     @Nonnull
-    public TierLevelDiscount toTierDiscountProto(@Nonnull final BusinessUnitDiscountApiDTO businessUnitDiscountApiDTO) {
+    public TierLevelDiscount toTierDiscountProto(@Nonnull final BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO) {
         final TierLevelDiscount.Builder builder = TierLevelDiscount.newBuilder();
-        businessUnitDiscountApiDTO.getServiceDiscounts().stream()
+        businessUnitDiscountApiDTO.getServicePriceAdjustments().stream()
                 .filter(serviceDiscountApiDTO ->
-                        serviceDiscountApiDTO.getTemplateDiscounts() != null
-                                && serviceDiscountApiDTO.getTemplateDiscounts().size() > ZERO
-                                && serviceDiscountApiDTO.getTemplateDiscounts().stream().anyMatch(templateDiscountDTO ->
+                        serviceDiscountApiDTO.getTemplatePriceAdjustments() != null
+                                && serviceDiscountApiDTO.getTemplatePriceAdjustments().size() > ZERO
+                                && serviceDiscountApiDTO.getTemplatePriceAdjustments().stream().anyMatch(templateDiscountDTO ->
                                 templateDiscountDTO != null && templateDiscountDTO.getDiscount() != null
                                         && templateDiscountDTO.getDiscount() > ZERO))
                 .forEach(serviceWithTierDiscount ->
-                        serviceWithTierDiscount.getTemplateDiscounts().forEach(templateDiscountDTO -> {
+                        serviceWithTierDiscount.getTemplatePriceAdjustments().forEach(templateDiscountDTO -> {
                             if (templateDiscountDTO.getDiscount() != null)
                                 builder.putDiscountPercentageByTierId(Long.parseLong(templateDiscountDTO.getUuid()), templateDiscountDTO.getDiscount());
                         }));
@@ -144,15 +144,15 @@ public class BusinessUnitMapper {
     }
 
     /**
-     * Convert {@link BusinessUnitDiscountApiDTO} to domain object {@link ServiceLevelDiscount}
+     * Convert {@link BusinessUnitPriceAdjustmentApiDTO} to domain object {@link ServiceLevelDiscount}
      *
      * @param businessUnitDiscountApiDTO Api DTO for business unit discount
      * @return ServiceLevelDiscount
      */
     @Nonnull
-    public ServiceLevelDiscount toServiceDiscountProto(@Nonnull final BusinessUnitDiscountApiDTO businessUnitDiscountApiDTO) {
+    public ServiceLevelDiscount toServiceDiscountProto(@Nonnull final BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO) {
         final Builder builder = DiscountInfo.ServiceLevelDiscount.newBuilder();
-        businessUnitDiscountApiDTO.getServiceDiscounts().stream()
+        businessUnitDiscountApiDTO.getServicePriceAdjustments().stream()
                 .filter(serviceDiscountApiDTO -> serviceDiscountApiDTO.getDiscount() != null && serviceDiscountApiDTO.getDiscount() > ZERO)
                 .forEach(serviceWithDiscount -> builder.putDiscountPercentageByServiceId(Long.parseLong(serviceWithDiscount.getUuid()), serviceWithDiscount.getDiscount()));
         return builder.build();
@@ -213,20 +213,20 @@ public class BusinessUnitMapper {
      * @param discount         discount from Cost component
      * @param repositoryClient repository client
      * @param searchService    search service
-     * @return BusinessUnitDiscountApiDTO
+     * @return BusinessUnitPriceAdjustmentApiDTO
      * @throws InvalidOperationException
      */
-    public BusinessUnitDiscountApiDTO toDiscountApiDTO(@Nonnull final Discount discount,
+    public BusinessUnitPriceAdjustmentApiDTO toDiscountApiDTO(@Nonnull final Discount discount,
                                                        @Nonnull final RepositoryClient repositoryClient,
                                                        @Nonnull final ISearchService searchService)
             throws Exception {
-        final BusinessUnitDiscountApiDTO businessUnitDiscountApiDTO = new BusinessUnitDiscountApiDTO();
-        businessUnitDiscountApiDTO.setServiceDiscounts(toCloudServiceDiscountApiDTOs(discount, repositoryClient, searchService));
+        final BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO = new BusinessUnitPriceAdjustmentApiDTO();
+        businessUnitDiscountApiDTO.setServiceDiscounts(toCloudServicePriceAdjustmentApiDTOs(discount, repositoryClient, searchService));
         return businessUnitDiscountApiDTO;
     }
 
     /**
-     * Convert discount to CloudServiceDiscountApiDTOs.
+     * Convert discount to CloudServicePriceAdjustmentApiDTOs.
      * Steps:
      * 1. get all the Cloud services and tiers from search service
      * 2. match Cloud services with service discounts from {@link Discount} DTO, and assign discount
@@ -235,14 +235,14 @@ public class BusinessUnitMapper {
      * @param discount         discount from Cost component
      * @param repositoryClient repository client
      * @param searchService    search service
-     * @return CloudServiceDiscountApiDTOs
+     * @return CloudServicePriceAdjustmentApiDTOs
      * @throws InvalidOperationException if search operation failed
      */
-    private List<CloudServiceDiscountApiDTO> toCloudServiceDiscountApiDTOs(@Nonnull final Discount discount,
+    private List<CloudServicePriceAdjustmentApiDTO> toCloudServicePriceAdjustmentApiDTOs(@Nonnull final Discount discount,
                                                                            @Nonnull final RepositoryClient repositoryClient,
                                                                            @Nonnull final ISearchService searchService)
             throws Exception {
-        final List<CloudServiceDiscountApiDTO> cloudServiceDiscountApiDTOs = getCloudServiceDiscountApiDTOs(repositoryClient, searchService);
+        final List<CloudServicePriceAdjustmentApiDTO> cloudServiceDiscountApiDTOs = getCloudServicePriceAdjustmentApiDTOs(repositoryClient, searchService);
         final DiscountInfo discountInfo = discount.getDiscountInfo();
         if (discountInfo.hasServiceLevelDiscount()) {
             discount.getDiscountInfo().getServiceLevelDiscount().getDiscountPercentageByServiceIdMap().forEach((serviceId, rate) -> {
@@ -258,8 +258,8 @@ public class BusinessUnitMapper {
             discount.getDiscountInfo().getTierLevelDiscount().getDiscountPercentageByTierIdMap().forEach((tierId, rate) -> {
                 cloudServiceDiscountApiDTOs.forEach(
                         cloudServiceDiscountApiDTO -> {
-                            if (cloudServiceDiscountApiDTO.getTemplateDiscounts() != null)
-                                cloudServiceDiscountApiDTO.getTemplateDiscounts().stream().
+                            if (cloudServiceDiscountApiDTO.getTemplatePriceAdjustments() != null)
+                                cloudServiceDiscountApiDTO.getTemplatePriceAdjustments().stream().
                                         filter(templateDiscountDTO -> templateDiscountDTO.getUuid().equals(String.valueOf(tierId)))
                                         .forEach(dto -> {
                                             dto.setDiscount(rate.floatValue());
@@ -278,10 +278,10 @@ public class BusinessUnitMapper {
      *
      * @param repositoryClient repository client
      * @param searchService    search service
-     * @return CloudServiceDiscountApiDTO
+     * @return CloudServicePriceAdjustmentApiDTO
      * @throws InvalidOperationException if search operation failed
      */
-    private List<CloudServiceDiscountApiDTO> getCloudServiceDiscountApiDTOs(@Nonnull final RepositoryClient repositoryClient,
+    private List<CloudServicePriceAdjustmentApiDTO> getCloudServicePriceAdjustmentApiDTOs(@Nonnull final RepositoryClient repositoryClient,
                                                                             @Nonnull final ISearchService searchService)
             throws Exception {
         // TODO optimize following search, using search service to get all the Cloud services seems overkill
@@ -302,47 +302,47 @@ public class BusinessUnitMapper {
                 .flatMap(apiDTO -> topologyEntityDTOS
                         .stream()
                         .filter(dto -> dto.getOid() == Long.parseLong(apiDTO.getUuid()))
-                        .map(tpDto -> buildCloudServiceDiscountApiDTO(apiDTO, tpDto, repositoryClient))
+                        .map(tpDto -> buildCloudServicePriceAdjustmentApiDTO(apiDTO, tpDto, repositoryClient))
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                 ).collect(Collectors.toList());
     }
 
     /**
-     * Build {@link CloudServiceDiscountApiDTO)
+     * Build {@link CloudServicePriceAdjustmentApiDTO)
      *
      * @param baseApiDTO        base Api DTO from search service
      * @param topologyEntityDTO topology DTO for repository
      * @param repositoryClient  repository client to find "owned" tiers
-     * @return CloudServiceDiscountApiDTOs which includes their TemplateDiscountDTOs
+     * @return CloudServicePriceAdjustmentApiDTOs which includes their TemplatePriceAdjustmentDTOs
      */
-    private Optional<CloudServiceDiscountApiDTO> buildCloudServiceDiscountApiDTO(@Nonnull final BaseApiDTO baseApiDTO,
+    private Optional<CloudServicePriceAdjustmentApiDTO> buildCloudServicePriceAdjustmentApiDTO(@Nonnull final BaseApiDTO baseApiDTO,
                                                                                  @Nonnull final TopologyEntityDTO topologyEntityDTO,
                                                                                  @Nonnull final RepositoryClient repositoryClient) {
-        final CloudServiceDiscountApiDTO cloudServiceDiscountApiDTO = new CloudServiceDiscountApiDTO();
+        final CloudServicePriceAdjustmentApiDTO cloudServiceDiscountApiDTO = new CloudServicePriceAdjustmentApiDTO();
         cloudServiceDiscountApiDTO.setUuid(baseApiDTO.getUuid());
         cloudServiceDiscountApiDTO.setDisplayName(baseApiDTO.getDisplayName());
         cloudServiceDiscountApiDTO.setPricingModel(ServicePricingModel.ON_DEMAND);
-        final List<TemplateDiscountDTO> templateDiscountDTOS =
-                generateTemplateDiscountDTO(topologyEntityDTO.getConnectedEntityListList(), repositoryClient);
-        cloudServiceDiscountApiDTO.setTemplateDiscounts(templateDiscountDTOS);
+        final List<TemplatePriceAdjustmentDTO> templateDiscountDTOS =
+                generateTemplatePriceAdjustmentDTO(topologyEntityDTO.getConnectedEntityListList(), repositoryClient);
+        cloudServiceDiscountApiDTO.setTemplatePriceAdjustments(templateDiscountDTOS);
         return Optional.of(cloudServiceDiscountApiDTO);
     }
 
     /**
-     * Build {@link TemplateDiscountDTO}
+     * Build {@link TemplatePriceAdjustmentDTO}
      *
      * @param connectedEntityListList entity list has all the tiers owned by the service
      * @param repositoryClient        repository client
-     * @return TemplateDiscountDTOs
+     * @return TemplatePriceAdjustmentDTOs
      */
-    private List<TemplateDiscountDTO> generateTemplateDiscountDTO(@Nonnull final List<ConnectedEntity> connectedEntityListList,
+    private List<TemplatePriceAdjustmentDTO> generateTemplatePriceAdjustmentDTO(@Nonnull final List<ConnectedEntity> connectedEntityListList,
                                                                   @Nonnull final RepositoryClient repositoryClient) {
         return getTopologyEntityDTOS(connectedEntityListList, repositoryClient)
                 .stream()
                 .filter(dto -> TIER_TYPES.contains(dto.getEntityType()))
                 .map(topologyEntityDTO -> {
-                    TemplateDiscountDTO templateDiscountDTO = new TemplateDiscountDTO();
+                    TemplatePriceAdjustmentDTO templateDiscountDTO = new TemplatePriceAdjustmentDTO();
                     templateDiscountDTO.setFamily(getFamilyName(topologyEntityDTO.getDisplayName()));
                     templateDiscountDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
                     templateDiscountDTO.setDisplayName(topologyEntityDTO.getDisplayName());

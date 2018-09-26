@@ -22,10 +22,10 @@ import com.vmturbo.api.component.external.api.service.SearchService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
-import com.vmturbo.api.dto.businessunit.BusinessUnitDiscountApiDTO;
-import com.vmturbo.api.dto.businessunit.CloudServiceDiscountApiDTO;
+import com.vmturbo.api.dto.businessunit.BusinessUnitPriceAdjustmentApiDTO;
+import com.vmturbo.api.dto.businessunit.CloudServicePriceAdjustmentApiDTO;
 import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
-import com.vmturbo.api.dto.businessunit.TemplateDiscountDTO;
+import com.vmturbo.api.dto.businessunit.TemplatePriceAdjustmentDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.BusinessUnitType;
@@ -91,13 +91,13 @@ public class BusinessUnitMapperTest {
     private BusinessUnitMapper businessUnitMapper = new BusinessUnitMapper(111l);
     private ISearchService searchService = mock(SearchService.class);
 
-    private static CloudServiceDiscountApiDTO populateServiceDto() {
-        final CloudServiceDiscountApiDTO cloudServiceDiscountApiDTO = new CloudServiceDiscountApiDTO();
+    private static CloudServicePriceAdjustmentApiDTO populateServiceDto() {
+        final CloudServicePriceAdjustmentApiDTO cloudServiceDiscountApiDTO = new CloudServicePriceAdjustmentApiDTO();
         cloudServiceDiscountApiDTO.setUuid(SERVICE_DISCOUNT_UUID);
         cloudServiceDiscountApiDTO.setDisplayName("AWS RDS");
         cloudServiceDiscountApiDTO.setPricingModel(ServicePricingModel.ON_DEMAND);
         cloudServiceDiscountApiDTO.setDiscount(SERVICE_DISCOUNT);
-        TemplateDiscountDTO templateDiscountDTO = new TemplateDiscountDTO();
+        TemplatePriceAdjustmentDTO templateDiscountDTO = new TemplatePriceAdjustmentDTO();
         templateDiscountDTO.setFamily("c5d");
         templateDiscountDTO.setUuid(TIER_DISCOUNT_UUID);
         templateDiscountDTO.setDisplayName("c5d.xlarge");
@@ -108,7 +108,7 @@ public class BusinessUnitMapperTest {
         entityPriceDTO.setDisplayName("aws-EU (Ireland)");
         templateDiscountDTO.setPricesPerDatacenter(ImmutableList.of(entityPriceDTO));
 
-        cloudServiceDiscountApiDTO.setTemplateDiscounts(ImmutableList.of(templateDiscountDTO));
+        cloudServiceDiscountApiDTO.setTemplatePriceAdjustments(ImmutableList.of(templateDiscountDTO));
         return cloudServiceDiscountApiDTO;
     }
 
@@ -153,26 +153,26 @@ public class BusinessUnitMapperTest {
 
     @Test
     public void testToTierDiscountProto() {
-        BusinessUnitDiscountApiDTO businessUnitDiscountApiDTO = new BusinessUnitDiscountApiDTO();
-        businessUnitDiscountApiDTO.setServiceDiscounts(ImmutableList.of(populateServiceDto()));
+        BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO = new BusinessUnitPriceAdjustmentApiDTO();
+        businessUnitDiscountApiDTO.setServicePriceAdjustments(ImmutableList.of(populateServiceDto()));
         TierLevelDiscount tierLevelDiscount = businessUnitMapper.toTierDiscountProto(businessUnitDiscountApiDTO);
         assertEquals(TIER_DISCOUNT, tierLevelDiscount.getDiscountPercentageByTierIdMap().get(Long.parseLong(TIER_DISCOUNT_UUID)), 0.001);
     }
 
     @Test
     public void testToServiceDiscountProto() {
-        BusinessUnitDiscountApiDTO businessUnitDiscountApiDTO = new BusinessUnitDiscountApiDTO();
-        businessUnitDiscountApiDTO.setServiceDiscounts(ImmutableList.of(populateServiceDto()));
+        BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO = new BusinessUnitPriceAdjustmentApiDTO();
+        businessUnitDiscountApiDTO.setServicePriceAdjustments(ImmutableList.of(populateServiceDto()));
         ServiceLevelDiscount serviceLevelDiscount = businessUnitMapper.toServiceDiscountProto(businessUnitDiscountApiDTO);
         assertEquals(SERVICE_DISCOUNT, serviceLevelDiscount.getDiscountPercentageByServiceIdMap().get(Long.parseLong(SERVICE_DISCOUNT_UUID)), 0.001);
     }
 
     @Test
     public void testToDiscountApiDTO() throws Exception {
-        BusinessUnitDiscountApiDTO businessUnitApiDTO = businessUnitMapper.toDiscountApiDTO(discount1, repositoryClient, searchService);
-        assertEquals(1, businessUnitApiDTO.getServiceDiscounts().size());
-        assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTO.getServiceDiscounts().get(0).getUuid());
-        assertEquals(ServicePricingModel.ON_DEMAND, businessUnitApiDTO.getServiceDiscounts().get(0).getPricingModel());
+        BusinessUnitPriceAdjustmentApiDTO businessUnitApiDTO = businessUnitMapper.toDiscountApiDTO(discount1, repositoryClient, searchService);
+        assertEquals(1, businessUnitApiDTO.getServicePriceAdjustments().size());
+        assertEquals(String.valueOf(ENTITY_OID), businessUnitApiDTO.getServicePriceAdjustments().get(0).getUuid());
+        assertEquals(ServicePricingModel.ON_DEMAND, businessUnitApiDTO.getServicePriceAdjustments().get(0).getPricingModel());
     }
 
     @Test
