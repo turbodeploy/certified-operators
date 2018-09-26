@@ -178,6 +178,8 @@ import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyin
                 while (initialized != true) {
                     initializationLock.wait();
                 }
+                index_.clear();
+                oid2Dto_.clear();
                 initialized = false;
             }
             (new SavedIdsLoader(identityDatabaseStore, loadIdsInterval, loadIdsTimeUnit,

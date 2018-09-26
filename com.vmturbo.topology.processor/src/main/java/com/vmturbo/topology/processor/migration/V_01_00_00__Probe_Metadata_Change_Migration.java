@@ -37,6 +37,7 @@ import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata;
 import com.vmturbo.platform.sdk.common.IdentityMetadata.EntityIdentityMetadata.PropertyMetadata;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 import com.vmturbo.topology.processor.identity.extractor.PropertyDescriptorImpl;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
@@ -87,6 +88,8 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
 
     private final IdentityServiceUnderlyingStore identityInMemoryStore;
 
+    private final IdentityProvider identityProvider;
+
     private final Object migrationInfoLock = new Object();
 
     @GuardedBy("migrationInfoLock")
@@ -105,12 +108,14 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
     public V_01_00_00__Probe_Metadata_Change_Migration(@Nonnull ProbeStore probeStore,
                                                        @Nonnull DSLContext dslContext,
                                                        @Nonnull StatsHistoryServiceBlockingStub statsClient,
-                                                       @Nonnull IdentityServiceUnderlyingStore identityInMemoryStore) {
+                                                       @Nonnull IdentityServiceUnderlyingStore identityInMemoryStore,
+                                                       @Nonnull IdentityProvider identityProvider) {
 
         this.probeStore = Objects.requireNonNull(probeStore);
         this.dslContext = Objects.requireNonNull(dslContext);
         this.statsClient = Objects.requireNonNull(statsClient);
         this.identityInMemoryStore = Objects.requireNonNull(identityInMemoryStore);
+        this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
     public MigrationStatus getMigrationStatus() {
@@ -289,6 +294,7 @@ public class V_01_00_00__Probe_Metadata_Change_Migration implements Migration {
 
         // Reload the IdentityMetadataInMemory store so that it picks up the updated entries
         // with the dummy-values.
+        identityProvider.updateProbeInfo(newProbeInfo.build());
         identityInMemoryStore.reloadEntityDescriptors();
         return createMigrationProgressInfo(MigrationStatus.SUCCEEDED, 100,
                 "Successfully migrated the probeInfo and the" +

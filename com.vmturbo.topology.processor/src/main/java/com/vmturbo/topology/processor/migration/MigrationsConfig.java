@@ -34,6 +34,7 @@ public class MigrationsConfig {
     public MigrationsLibrary migrationsList() {
         return new MigrationsLibrary(sqlDatabaseConfig.dsl(),
                 probeConfig.probeStore(), stitchingConfig.historyClient(),
-                identityProviderConfig.underlyingStore());
+                identityProviderConfig.underlyingStore(),
+                identityProviderConfig.identityProvider());
     }
 }
