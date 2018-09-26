@@ -68,6 +68,9 @@ cp ${WORKSPACE}/build/vmtctl ${WORKSPACE}/data/images/.
 cp ${WORKSPACE}/build/prod-services.yml ${WORKSPACE}/data/images/
 cp ${WORKSPACE}/build/common-services.yml ${WORKSPACE}/data/images/
 
+# Copy the upgrade spec file
+cp ${WORKSPACE}/build/turbo_upgrade_spec.yml ${WORKSPACE}/data/images/
+
 INFO="${WORKSPACE}/data/images/turbonomic_info.txt"
 echo "Built on: $(date)" > ${INFO}
 echo "Version: XL ${VER_SHORT}" >> ${INFO}
@@ -92,6 +95,7 @@ sha256sum "common-services.yml" >> turbonomic_sums.txt
 sha256sum "turboctl.py" >> turbonomic_sums.txt
 sha256sum "turboupgrade.py" >> turbonomic_sums.txt
 sha256sum "vmtctl" >> turbonomic_sums.txt
+sha256sum "turbo_upgrade_spec.yml" >> turbonomic_sums.txt
 
 # For customers who don't allow access to remote yum repository, we would have
 # to ship the PyYAML package along with XL components.
