@@ -477,8 +477,9 @@ if __name__ == '__main__':
         LOGGER.info("No new images found")
 
     stopped_components = set()
+    total_components_to_upgrade = min(len(topological_order), len(components_to_upgrade))
     LOGGER.info("%s components to upgrade: %s"
-        %(len(components_to_upgrade),
+        %(total_components_to_upgrade,
         " ".join([component for component in topological_order
                     if component in components_to_upgrade])))
     count = 0
@@ -490,8 +491,7 @@ if __name__ == '__main__':
             # components in the docker-compose file and these may be still
             # be in the checksum file.
             LOGGER.info("(%s/%s) Upgrading component : %s"%
-                (count, min(len(topological_order), len(components_to_upgrade)),
-                component))
+                (count, total_components_to_upgrade,component))
             # Get the components which depend on this component and stop them.
             deps = get_dependencies(dep_graph_transpose, component)
             if deps:

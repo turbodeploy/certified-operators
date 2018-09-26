@@ -97,4 +97,11 @@ public interface IdentityProvider extends Diagnosable {
      * @return The OID to use to identify a topology.
      */
     long generateTopologyId();
+
+    /**
+     *  Update the probeInfo with the new value.
+     *
+     * @param probeInfo The object describing the probe.
+     */
+    void updateProbeInfo(ProbeInfo probeInfo);
 }
