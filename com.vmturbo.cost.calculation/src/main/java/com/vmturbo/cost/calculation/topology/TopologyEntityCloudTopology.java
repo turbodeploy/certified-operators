@@ -107,30 +107,6 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
 
     }
 
-    @Override
-    public Optional<TopologyEntityDTO> getDatabaseTier(long entityId) {
-        return getEntity(entityId)
-            .flatMap(entity -> {
-                final List<CommoditiesBoughtFromProvider> boughtFromDatabaseTier =
-                    entity.getCommoditiesBoughtFromProvidersList().stream()
-                        .filter(CommoditiesBoughtFromProvider::hasProviderEntityType)
-                        // for the provider to be a DATABASE_TIER, the consumer can be a
-                        // Database or a DatabaseServer
-                        .filter(commBought -> commBought.getProviderEntityType() == EntityType.DATABASE_TIER_VALUE)
-                        .collect(Collectors.toList());
-
-                if (boughtFromDatabaseTier.size() == 0) {
-                    // This shouldn't happen with a cloud VM.
-                    return Optional.empty();
-                } else if (boughtFromDatabaseTier.size() > 1) {
-                    logger.warn("Buying from multiple database tiers. Wut?");
-                }
-
-                final CommoditiesBoughtFromProvider databaseTierBought = boughtFromDatabaseTier.get(0);
-                return getEntity(databaseTierBought.getProviderId());
-            });
-    }
-
     /**
      * {@inheritDoc}
      */

@@ -41,20 +41,6 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getComputeTier(final long entityId);
 
     /**
-     * Get the database tier associated with an entity.
-     *
-     * Only finds the immediately connected database tier. For example, suppose a DATABASE is
-     * connected to a DATABASE TIER. Calling this method with the DATABASE's
-     * ID will return the associated databaseTier.
-     *
-     * @param entityId The ID of the entity.
-     * @return An optional containing the database tier entity, or an empty optional if the ID is
-     *  not found, or if there is no database tier directly associated with the entity.
-     */
-    @Nonnull
-    Optional<ENTITY_CLASS> getDatabaseTier(final long entityId);
-
-    /**
      * Get the region associated with an entity.
      *
      * This method should "pass through" availability zones. For example, suppose a VM is

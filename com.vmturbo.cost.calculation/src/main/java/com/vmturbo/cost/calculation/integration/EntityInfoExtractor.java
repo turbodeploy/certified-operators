@@ -7,12 +7,9 @@ import javax.annotation.Nonnull;
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
-import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
 
 /**
  * An interface provided by users of the cost calculation library to extract the
@@ -54,19 +51,6 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     Optional<ComputeConfig> getComputeConfig(@Nonnull ENTITY_CLASS entity);
 
     /**
-     * Get the database configuration of a particular entity.
-     *
-     * The database configuration consists of all the properties of the entity that
-     * affect the database tier price (within a specific region and service).
-     *
-     * @param entity The entity.
-     * @return An optional containing the {@link DatabaseConfig}. An empty optional if there is no
-     *         database costs associated with this entity.
-     */
-    @Nonnull
-    Optional<DatabaseConfig> getDatabaseConfig(@Nonnull ENTITY_CLASS entity);
-
-    /**
      * A wrapper class around the compute configuration of an entity.
      */
     @Immutable
@@ -92,35 +76,6 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         public boolean matchesPriceTableConfig(@Nonnull final ComputeTierConfigPrice computeTierConfigPrice) {
             return computeTierConfigPrice.getGuestOsType() == os &&
                 computeTierConfigPrice.getTenancy() == tenancy;
-        }
-    }
-
-    /**
-     * A wrapper class around the database configuration of an entity.
-     */
-    @Immutable
-    class DatabaseConfig {
-        private final DatabaseEdition edition;
-        private final DatabaseEngine engine;
-
-        public DatabaseConfig(final DatabaseEdition edition, final DatabaseEngine engine) {
-            this.engine = engine;
-            this.edition = edition;
-        }
-
-        @Nonnull
-        public DatabaseEdition getEdition() {
-            return edition;
-        }
-
-        @Nonnull
-        public DatabaseEngine getEngine() {
-            return engine;
-        }
-
-        public boolean matchesPriceTableConfig(@Nonnull final DatabaseTierConfigPrice databaseTierConfigPrice) {
-            return databaseTierConfigPrice.getDbEdition() == edition &&
-                    databaseTierConfigPrice.getDbEngine() == engine;
         }
     }
 }
