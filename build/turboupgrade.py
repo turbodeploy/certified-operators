@@ -61,7 +61,7 @@ def mkdirs(path):
 
 def exec_cmd(exit_on_error=True, *args):
     try:
-        return (0, subprocess.check_output(args))
+        return (0, subprocess.check_output(args, stderr=subprocess.STDOUT))
     except subprocess.CalledProcessError as ex:
         if not exit_on_error:
             return (ex.returncode, ex.output)
@@ -428,12 +428,9 @@ if __name__ == '__main__':
         shutil.copy2(vmtctl_loc, TURBO_VMTCTL_LOC)
 
     yaml_files_to_parse = [DOCKER_COMPOSE_FILE]
-    if (os.path.isfile(TURBO_UPGRADE_SPEC_FILE) and
-            (get_spec_file_version_number() ==
-                get_version_number(TURBO_INFO_FILE))):
-                LOGGER.info("Using upgrade spec file: %s"%(
-                    TURBO_UPGRADE_SPEC_FILE))
-                yaml_files_to_parse.append(TURBO_UPGRADE_SPEC_FILE)
+    if (os.path.isfile(TURBO_UPGRADE_SPEC_FILE)):
+        LOGGER.info("Using upgrade spec file: %s"%(TURBO_UPGRADE_SPEC_FILE))
+        yaml_files_to_parse.append(TURBO_UPGRADE_SPEC_FILE)
 
     # Mapping from vertex -> list_of_vertices
     dep_graph = {}
