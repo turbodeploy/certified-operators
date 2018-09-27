@@ -153,7 +153,7 @@ public class DiscountApplicatorTest {
                 .setType(EntityType.COMPUTE_TIER_VALUE)
                 .build(infoExtractor);
         final TestEntityClass service = TestEntityClass.newBuilder(11)
-                .setType(EntityType.CLOUD_SERVICE_VALUE)
+                .setType(EntityType.SERVICE_VALUE)
                 .build(infoExtractor);
         when(topology.getConnectedService(tier.getId())).thenReturn(Optional.of(service));
 

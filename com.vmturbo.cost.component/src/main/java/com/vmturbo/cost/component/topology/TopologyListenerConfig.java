@@ -14,6 +14,8 @@ import com.vmturbo.cost.calculation.CloudCostCalculator;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
+import com.vmturbo.cost.calculation.ReservedInstanceApplicator;
+import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
@@ -21,6 +23,7 @@ import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
 import com.vmturbo.cost.component.pricing.PricingConfig;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsConfig;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceConfig;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Subscription;
@@ -53,6 +56,9 @@ public class TopologyListenerConfig {
     @Autowired
     private DiscountConfig discountConfig;
 
+    @Autowired
+    private ReservedInstanceConfig reservedInstanceConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -76,7 +82,13 @@ public class TopologyListenerConfig {
     @Bean
     public TopologyCostCalculator topologyCostCalculator() {
         return new TopologyCostCalculator(cloudTopologyFactory(), topologyEntityInfoExtractor(),
-                cloudCostCalculatorFactory(), localCostDataProvider(), discountApplicatorFactory());
+            cloudCostCalculatorFactory(), localCostDataProvider(), discountApplicatorFactory(),
+            riApplicatorFactory());
+    }
+
+    @Bean
+    public ReservedInstanceApplicatorFactory<TopologyEntityDTO> riApplicatorFactory() {
+        return ReservedInstanceApplicator.newFactory();
     }
 
     @Bean
@@ -101,6 +113,9 @@ public class TopologyListenerConfig {
 
     @Bean
     public LocalCostDataProvider localCostDataProvider() {
-        return new LocalCostDataProvider(pricingConfig.priceTableStore(), discountConfig.discountStore());
+        return new LocalCostDataProvider(pricingConfig.priceTableStore(),
+                discountConfig.discountStore(),
+                reservedInstanceConfig.reservedInstanceBoughtStore(),
+                reservedInstanceConfig.reservedInstanceSpecStore());
     }
 }

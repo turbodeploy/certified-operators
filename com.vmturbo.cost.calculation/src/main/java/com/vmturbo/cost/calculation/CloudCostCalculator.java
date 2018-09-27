@@ -8,10 +8,13 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Preconditions;
+
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
+import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -40,15 +43,19 @@ public class CloudCostCalculator<ENTITY_CLASS> {
 
     private final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory;
 
+    private final ReservedInstanceApplicatorFactory<ENTITY_CLASS> reservedInstanceApplicatorFactory;
+
     private CloudCostCalculator(@Nonnull final CloudCostDataProvider cloudCostDataProvider,
                @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
-               @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory)
+               @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
+               @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> reservedInstanceApplicatorFactory)
             throws CloudCostDataRetrievalException {
         this.cloudCostData = Objects.requireNonNull(cloudCostDataProvider).getCloudCostData();
         this.cloudTopology = Objects.requireNonNull(cloudTopology);
         this.entityInfoExtractor = Objects.requireNonNull(entityInfoExtractor);
         this.discountApplicatorFactory = Objects.requireNonNull(discountApplicatorFactory);
+        this.reservedInstanceApplicatorFactory = Objects.requireNonNull(reservedInstanceApplicatorFactory);
     }
 
     /**
@@ -96,6 +103,16 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final CostJournal.Builder<ENTITY_CLASS> journal =
                 CostJournal.newBuilder(entity, entityInfoExtractor, region, discountApplicator);
 
+        final ReservedInstanceApplicator<ENTITY_CLASS> reservedInstanceApplicator =
+                reservedInstanceApplicatorFactory.newReservedInstanceApplicator(journal, entityInfoExtractor, cloudCostData);
+
+        // Apply the reserved instance coverage, and return the percent of the entity's compute
+        // that's covered by reserved instances.
+        // Note: We do this outside the compute cost computation block so that even if an entity
+        // doesn't have a compute config for some reason, we still take the RI costs into account.
+        final double riComputeCoveragePercent = reservedInstanceApplicator.recordRICoverage();
+        Preconditions.checkArgument(riComputeCoveragePercent >= 0.0 && riComputeCoveragePercent <= 1.0);
+
         entityInfoExtractor.getComputeConfig(entity).ifPresent(computeConfig -> {
             // Calculate on-demand prices for entities that have a compute config.
             cloudTopology.getComputeTier(entityId).ifPresent(computeTier -> {
@@ -108,9 +125,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             .get(entityInfoExtractor.getId(computeTier));
                     if (computePriceList != null) {
                         final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
-                        // TODO (roman, Aug 17 2018): When implementing RI's, amount bought will
-                        // be the fraction of the VM that's bought at on-demand prices.
-                        final double amountBought = 1;
+                        final double amountBought = 1.0 - riComputeCoveragePercent;
                         journal.recordOnDemandCost(CostCategory.COMPUTE, computeTier,
                             basePrice.getPricesList().get(0), amountBought);
                         if (computeConfig.getOs() != basePrice.getGuestOsType()) {
@@ -156,7 +171,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                 @Nonnull final CloudCostDataProvider cloudCostDataProvider,
                 @Nonnull final CloudTopology<ENTITY_CLASS> cloudTopology,
                 @Nonnull final EntityInfoExtractor<ENTITY_CLASS> entityInfoExtractor,
-                @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory)
+                @Nonnull final DiscountApplicatorFactory<ENTITY_CLASS> discountApplicatorFactory,
+                @Nonnull final ReservedInstanceApplicatorFactory<ENTITY_CLASS> riApplicatorFactory)
             throws CloudCostDataRetrievalException;
     }
 }

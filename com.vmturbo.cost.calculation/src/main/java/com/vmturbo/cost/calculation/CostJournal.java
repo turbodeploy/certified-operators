@@ -15,8 +15,11 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Preconditions;
+
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
@@ -67,7 +70,11 @@ public class CostJournal<ENTITY_CLASS> {
             double aggregateHourly = 0.0;
             logger.trace("Aggregating hourly costs for category {}", category);
             for (JournalEntry<ENTITY_CLASS> journalEntry : priceEntries) {
-                aggregateHourly += journalEntry.calculateHourlyCost(infoExtractor, discountApplicator);
+                aggregateHourly += journalEntry.calculateHourlyCost(infoExtractor, discountApplicator)
+                    // TODO (roman, Sept 22 2018): Handle currency conversion when aggregating
+                    // hourly costs - or accept the desired currency as a parameter in this function,
+                    // and convert all currencies to that.
+                    .getAmount();
             }
             logger.trace("Aggregated hourly cost for category {} is {}", category, aggregateHourly);
             summedMap.put(category, aggregateHourly);
@@ -138,13 +145,81 @@ public class CostJournal<ENTITY_CLASS> {
     /**
      * A single item contributing to the cost of an entity.
      *
-     * @param <ENTITY_CLASS_> The class used to represent entities in the topology. For example,
+     * @param <ENTITY_CLASS> The class used to represent entities in the topology. For example,
      *                      {@link TopologyEntityDTO} for the realtime topology. Extra _ at the
      *                       end of the name so that it doesn't hide the outer ENTITY_CLASS, even
      *                       though they will be the same type.
      */
+    public interface JournalEntry<ENTITY_CLASS> {
+
+        /**
+         * Calculate the hourly cost of this entry.
+         *
+         * @param infoExtractor The {@link EntityInfoExtractor}, mainly for debugging purposes.
+         * @param discountApplicator The {@link DiscountApplicator} containing the discount for
+         *                           the entity whose journal this entry belongs to.
+         * @return The hourly cost.
+         */
+        CurrencyAmount calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS> infoExtractor,
+                               @Nonnull final DiscountApplicator<ENTITY_CLASS> discountApplicator);
+    }
+
+    /**
+     * A {@link JournalEntry} for payments covered by reserved instances. One entity may have
+     * entries for several reserved instances, if multiple RI's are partially covering the entity.
+     *
+     * @param <ENTITY_CLASS_> See {@link JournalEntry}.
+     */
     @Immutable
-    public static class JournalEntry<ENTITY_CLASS_> {
+    public static class RIJournalEntry<ENTITY_CLASS_> implements JournalEntry<ENTITY_CLASS_> {
+
+        /**
+         * The data about the reserved instance.
+         */
+        private final ReservedInstanceData riData;
+
+        /**
+         * The cost of the reserved instance for this entity.
+         */
+        private final CurrencyAmount hourlyCost;
+
+        RIJournalEntry(@Nonnull final ReservedInstanceData riData,
+                       @Nonnull final CurrencyAmount hourlyCost) {
+            this.riData = riData;
+            this.hourlyCost = hourlyCost;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public CurrencyAmount calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
+                          @Nonnull final DiscountApplicator<ENTITY_CLASS_> discountApplicator) {
+            // We still want to apply discounts to RI prices.
+            // When looking up the discount for an RI we use the tier that the RI is for.
+            //
+            // It may be possible that the RI was bought by a different account than
+            // the one that owns the VM. If that account has a different discount, it's not
+            // clear which discount we should use. However, for consistency we choose to use
+            // the same discount that we use for the entity. Realistically this shouldn't be
+            // a problem, because the RI purchase and the entity the RI is applying to should
+            // be under the same master account.
+            final long providerId =
+                    riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getTierId();
+            final double discountPercentage = discountApplicator.getDiscountPercentage(providerId);
+            return hourlyCost.toBuilder()
+                .setAmount(hourlyCost.getAmount() * (1.0 - discountPercentage))
+                .build();
+        }
+    }
+
+    /**
+     * A {@link JournalEntry} for on-demand payments to entities in the topology.
+     *
+     * @param <ENTITY_CLASS_> See {@link JournalEntry}
+     */
+    @Immutable
+    public static class OnDemandJournalEntry<ENTITY_CLASS_> implements JournalEntry<ENTITY_CLASS_> {
         /**
          * The payee - i.e. the entity that's selling the item to the buyer.
          */
@@ -157,60 +232,44 @@ public class CostJournal<ENTITY_CLASS> {
         private final Price price;
 
         /**
-         * The amount of the item that the buyer is buying from the payee, in units. This can
+         * The number of units of the item that the buyer is buying from the payee. This can
          * be combined with the price to get the cost of the item to the buyer.
+         *
+         * The number can be
          */
-        private final double amount;
+        private final double unitsBought;
 
-        public JournalEntry(@Nonnull final ENTITY_CLASS_ payee,
-                            @Nonnull final Price price,
-                            final double amount) {
+        OnDemandJournalEntry(@Nonnull final ENTITY_CLASS_ payee,
+                             @Nonnull final Price price,
+                             final double unitsBought) {
+            Preconditions.checkArgument(unitsBought >= 0);
             this.payee = payee;
             this.price = price;
-            this.amount = amount;
-        }
-
-        @Nonnull
-        public ENTITY_CLASS_ getPayee() {
-            return payee;
-        }
-
-        @Nonnull
-        public Price getPrice() {
-            return price;
-        }
-
-        public double getAmountPurchased() {
-            return amount;
+            this.unitsBought = unitsBought;
         }
 
         /**
-         * Calculate the cost of this entry from the price and amount purchased.
-         *
-         * @param discountApplicator The {@link DiscountApplicator} used to calculate the discount
-         *                           for the payee.
-         * @return The cost.
+         * {@inheritDoc}
          */
-        public double calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
+        @Override
+        public CurrencyAmount calculateHourlyCost(@Nonnull final EntityInfoExtractor<ENTITY_CLASS_> infoExtractor,
                                           @Nonnull final DiscountApplicator<ENTITY_CLASS_> discountApplicator) {
             logger.trace("Calculating hourly cost for purchase from entity {} of type {}",
                     infoExtractor.getId(payee), infoExtractor.getEntityType(payee));
-            final double cost;
+            final CurrencyAmount cost;
             if (price.getUnit() == Unit.HOURS) {
                 final CurrencyAmount unitPrice = price.getPriceAmount();
-                if (unitPrice.getCurrency() == CurrencyAmount.getDefaultInstance().getCurrency()) {
-                    final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
-                    final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
-                    logger.trace("Buying {} at unit price {} with discount percentage {}",
-                            amount, unitPrice.getAmount(), discountPercentage);
-                    cost = amount * discountedUnitPrice;
-                } else {
-                    logger.warn("Unsupported currency: {}", unitPrice.getCurrency());
-                    cost = 0;
-                }
+                final double discountPercentage = discountApplicator.getDiscountPercentage(payee);
+                final double discountedUnitPrice = unitPrice.getAmount() * (1.0 - discountPercentage);
+                logger.trace("Buying {} units at unit price {} with discount percentage {}",
+                        unitsBought, unitPrice.getAmount(), discountPercentage);
+                cost = unitPrice.toBuilder()
+                    .setAmount(unitsBought * discountedUnitPrice)
+                    // Currency inherited from unit price.
+                    .build();
             } else {
                 logger.warn("Unsupported unit: {}", price.getUnit());
-                cost = 0;
+                cost = CurrencyAmount.getDefaultInstance();
             }
             logger.trace("Purchase from entity {} of type {} has cost: {}",
                     infoExtractor.getId(payee), infoExtractor.getEntityType(payee), cost);
@@ -260,6 +319,16 @@ public class CostJournal<ENTITY_CLASS> {
         }
 
         /**
+         * Get the entity the journal will be for.
+         *
+         * @return The entity reference.
+         */
+        @Nonnull
+        public ENTITY_CLASS_ getEntity() {
+            return entity;
+        }
+
+        /**
          * Record an on-demand cost for an entity.
          *
          * @param category The category for the cost.
@@ -275,9 +344,29 @@ public class CostJournal<ENTITY_CLASS> {
                 @Nonnull final Price price,
                 final double amount) {
             final List<JournalEntry<ENTITY_CLASS_>> prices = priceEntries.computeIfAbsent(category, k -> new ArrayList<>());
-            prices.add(new JournalEntry<>(payee, price, amount));
+            prices.add(new OnDemandJournalEntry<>(payee, price, amount));
             return this;
         }
+
+        /**
+         * Record a reserved instance cost for an entity. RI costs are for demands that are filled
+         * by reserved instances, instead of providers in the topology.
+         *
+         * @param category The category for the cost.
+         * @param payee Data about the RI the cost is going to.
+         * @param hourlyCost The hourly cost for using the RI.
+         * @return The builder, for method chaining.
+         */
+        @Nonnull
+        public Builder<ENTITY_CLASS_> recordRiCost(
+                @Nonnull final CostCategory category,
+                @Nonnull final ReservedInstanceData payee,
+                @Nonnull final CurrencyAmount hourlyCost) {
+            final List<JournalEntry<ENTITY_CLASS_>> prices = priceEntries.computeIfAbsent(category, k -> new ArrayList<>());
+            prices.add(new RIJournalEntry<>(payee, hourlyCost));
+            return this;
+        }
+
 
         @Nonnull
         public CostJournal<ENTITY_CLASS_> build() {

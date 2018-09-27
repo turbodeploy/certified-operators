@@ -160,8 +160,12 @@ message EntityReservedInstanceCoverage {
     // The id of entity.
     optional int64 entity_id = 1;
 
-    // The total coupons of this entity can sold.
-    optional double total_coupons = 2;
+    // The total number of coupons this entity needs.
+    // This is mainly used to calculate how much of the entity is being
+    // covered by the various reserved instances.
+    //
+    // This should be less than or equals to the sum of "coverage.covered_coupons".
+    optional double total_coupons_required = 2;
 
     // The reserved instance coverage of this entity, which one entity could use a list of reserved
     // instance.

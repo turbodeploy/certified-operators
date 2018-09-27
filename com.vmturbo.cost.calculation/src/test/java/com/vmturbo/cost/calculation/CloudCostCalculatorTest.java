@@ -3,6 +3,7 @@ package com.vmturbo.cost.calculation;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -18,6 +19,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
 import com.vmturbo.cost.calculation.CloudCostCalculator.CloudCostCalculatorFactory;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
+import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
@@ -47,6 +49,9 @@ public class CloudCostCalculatorTest {
 
     private DiscountApplicatorFactory<TestEntityClass> discountApplicatorFactory =
             (DiscountApplicatorFactory<TestEntityClass>)mock(DiscountApplicatorFactory.class);
+
+    private ReservedInstanceApplicatorFactory<TestEntityClass> reservedInstanceApplicatorFactory =
+            (ReservedInstanceApplicatorFactory<TestEntityClass>)mock(ReservedInstanceApplicatorFactory.class);
 
     /**
      * Test a simple on-demand calculation (no RI, no discount) for a VM.
@@ -80,11 +85,13 @@ public class CloudCostCalculatorTest {
                         .build())
                 .build();
 
-        final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap());
+        final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         when(dataProvider.getCloudCostData()).thenReturn(cloudCostData);
 
         final CloudCostCalculator<TestEntityClass> calculator =
-                calculatorFactory.newCalculator(dataProvider, topology, infoExtractor, discountApplicatorFactory);
+                calculatorFactory.newCalculator(dataProvider, topology, infoExtractor,
+                        discountApplicatorFactory, reservedInstanceApplicatorFactory);
 
         final TestEntityClass testEntity = TestEntityClass.newBuilder(entityId)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
@@ -106,13 +113,21 @@ public class CloudCostCalculatorTest {
         when(discountApplicatorFactory.entityDiscountApplicator(testEntity, topology, infoExtractor, cloudCostData))
             .thenReturn(discountApplicator);
 
+        final double riCoverage = 0.2;
+        final ReservedInstanceApplicator<TestEntityClass> riApplicator =
+                mock(ReservedInstanceApplicator.class);
+        when(riApplicator.recordRICoverage()).thenReturn(riCoverage);
+        when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(any(), eq(infoExtractor), eq(cloudCostData)))
+                .thenReturn(riApplicator);
+
         // act
         final CostJournal<TestEntityClass> journal = calculator.calculateCost(testEntity);
 
         // assert
-        assertThat(journal.getTotalHourlyCost(), is(basePrice + suseAdjustment));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(basePrice));
-        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(suseAdjustment));
+        // The cost of the RI isn't factored in because we mocked out the RI Applicator.
+        assertThat(journal.getTotalHourlyCost(), is((basePrice + suseAdjustment) * (1 - riCoverage)));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(basePrice * (1 - riCoverage)));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(suseAdjustment * (1 - riCoverage)));
 
         // Once for the compute, once for the license, because both costs are "paid to" the
         // compute tier.
