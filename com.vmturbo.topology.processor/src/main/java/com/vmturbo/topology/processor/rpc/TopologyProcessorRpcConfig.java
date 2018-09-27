@@ -78,7 +78,6 @@ public class TopologyProcessorRpcConfig {
             topologyConfig.topologyPipelineFactory(),
             identityProviderConfig.identityProvider(),
             entityConfig.entityStore(),
-            targetConfig.targetStore(),
             schedulerConfig.scheduler(),
             stitchingConfig.stitchingJournalFactory(),
             topologyConfig.realtimeTopologyContextId(),

@@ -75,7 +75,7 @@ public class MergeSharedDatacentersPreStitchingOperationTest {
 
     @Before
     public void setup() {
-        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(3, null);
+        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(3);
         stitchingContextBuider.addEntity(dcA,
             ImmutableMap.of(dcEntityA.getId(), dcA));
         stitchingContextBuider.addEntity(dcB,

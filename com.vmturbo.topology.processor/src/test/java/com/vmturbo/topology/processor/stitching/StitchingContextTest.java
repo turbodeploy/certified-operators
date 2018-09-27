@@ -27,7 +27,7 @@ import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 public class StitchingContextTest {
     private final StitchingContext.Builder stitchingContextBuilder =
-        StitchingContext.newBuilder(8, null);
+        StitchingContext.newBuilder(8);
     private StitchingContext stitchingContext;
 
     @BeforeClass
@@ -166,11 +166,11 @@ public class StitchingContextTest {
     // TODO: Remove this test after adding shared storage support and eliminating collision resolution.
     @Test
     public void testConstructTopologyDuplicateOids() {
-        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8, null);
+        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8);
 
         stitchingContextBuilder.addEntity(e1_1, target1Graph);
         final StitchingEntityData e1_2DuplicateOid = new StitchingEntityData(e3_2.getEntityDtoBuilder(),
-            e1_1.getTargetId() + 1, e1_1.getOid(), 0);
+            e1_1.getTargetId() + 1, e1_1.getOid(), 0, false);
 
         stitchingContextBuilder.addEntity(e1_1, target1Graph);
         stitchingContextBuilder.addEntity(e1_2DuplicateOid, topologyMapOf(e1_2DuplicateOid));

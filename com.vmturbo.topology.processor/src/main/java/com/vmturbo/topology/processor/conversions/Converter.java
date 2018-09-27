@@ -32,11 +32,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -161,10 +163,7 @@ public class Converter {
             dto.getReplacementEntityData(),
             dto.getStorageData(),
             dto.getVirtualDatacenterData(),
-            dto.getVirtualMachineData(),
-            dto.getVirtualMachineRelatedData(),
-            dto.getReservedInstanceData(),
-            dto.getBusinessAccountData()
+            dto.getVirtualMachineData()
         )
             .stream().forEach(
             data -> data.getAllFields().forEach(
@@ -214,6 +213,13 @@ public class Converter {
                         // We're not currently sending tenancy via the SDK
                         .setTenancy(Tenancy.DEFAULT)
                         .setGuestOsType(parseOsType(vmData.getGuestName()))
+                        .build());
+                break;
+            case COMPUTE_TIER_DATA:
+                final ComputeTierData ctData = sdkEntity.getComputeTierData();
+                retBuilder.setComputeTier(ComputeTierInfo.newBuilder()
+                        .setFamily(ctData.getFamily())
+                        .setDedicatedStorageNetworkState(ctData.getDedicatedStorageNetworkState())
                         .build());
                 break;
         }
@@ -310,10 +316,7 @@ public class Converter {
                 dto.getReplacementEntityData(),
                 dto.getStorageData(),
                 dto.getVirtualDatacenterData(),
-                dto.getVirtualMachineData(),
-                dto.getVirtualMachineRelatedData(),
-                dto.getReservedInstanceData(),
-                dto.getBusinessAccountData()
+                dto.getVirtualMachineData()
         )
         .stream().forEach(
                 data -> data.getAllFields().forEach(

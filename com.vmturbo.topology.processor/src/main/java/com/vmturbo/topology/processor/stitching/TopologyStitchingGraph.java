@@ -16,6 +16,7 @@ import com.google.common.base.Preconditions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -137,14 +138,15 @@ public class TopologyStitchingGraph {
     public TopologyStitchingEntity addStitchingData(@Nonnull final StitchingEntityData entityData,
                                  @Nonnull final Map<String, StitchingEntityData> entityMap) {
         final TopologyStitchingEntity entity = getOrCreateStitchingEntity(entityData);
+        final EntityDTO.Builder entityDtoBuilder = entityData.getEntityDtoBuilder();
 
-        for (CommodityBought commodityBought : entityData.getEntityDtoBuilder().getCommoditiesBoughtList()) {
+        for (CommodityBought commodityBought : entityDtoBuilder.getCommoditiesBoughtList()) {
             final String providerId = commodityBought.getProviderId();
             final StitchingEntityData providerData = entityMap.get(providerId);
             if (providerData == null) {
                 // TODO (DavidBlinn 12/1/2017): Roll back all entities provided by the target that added
                 // this entity because its data is unreliable.
-                throw new IllegalArgumentException("Entity " + entityData.getEntityDtoBuilder() +
+                throw new IllegalArgumentException("Entity " + entityDtoBuilder +
                     " is buying from entity " + providerId + " which does not exist.");
             }
 
@@ -160,13 +162,13 @@ public class TopologyStitchingGraph {
             provider.addConsumer(entity);
         }
 
-        for (CommodityDTO commoditySold : entityData.getEntityDtoBuilder().getCommoditiesSoldList()) {
+        for (CommodityDTO commoditySold : entityDtoBuilder.getCommoditiesSoldList()) {
             final TopologyStitchingEntity accessing = Converter.parseAccessKey(commoditySold).map(accessingLocalId -> {
                 final StitchingEntityData accessingData = entityMap.get(accessingLocalId);
                 if (accessingData == null) {
                     // TODO (DavidBlinn 12/1/2017): Roll back all entities provided by the target that added
                     // this entity because its data is unreliable.
-                    throw new IllegalArgumentException("Entity " + entityData.getEntityDtoBuilder() +
+                    throw new IllegalArgumentException("Entity " + entityDtoBuilder +
                         " accesses entity " + accessingLocalId + " which does not exist.");
                 }
 
@@ -179,6 +181,45 @@ public class TopologyStitchingGraph {
                 return accessEntity;
             }).orElse(null);
             entity.getTopologyCommoditiesSold().add(new CommoditySold(commoditySold.toBuilder(), accessing));
+        }
+
+        // add connected entity, this is currently only used by cloud entities (AWS/Azure)
+        // cloud entities use layeredOver to represent normal connection, and consistsOf to
+        // represent owns connection. on-prem entities may used layeredOver for other purposes,
+        // we don't want to add connected for them, so we need a check for cloud entity here.
+        // layeredOver means normal connection
+        if (entityData.isCloud()) {
+            entityDtoBuilder.getLayeredOverList().forEach(connectedEntityId -> {
+                final StitchingEntityData connectedEntityData = entityMap.get(connectedEntityId);
+                if (connectedEntityData == null) {
+                    throw new IllegalArgumentException(
+                            "Entity " + entityDtoBuilder + " is connected to entity " +
+                                    connectedEntityId + " which does not exist.");
+                }
+
+                final TopologyStitchingEntity connectedEntity = getOrCreateStitchingEntity(connectedEntityData);
+                if (!connectedEntity.getLocalId().equals(connectedEntityId)) {
+                    throw new IllegalArgumentException("Map key " + connectedEntityId +
+                            " does not match connected entity localId value: " + connectedEntity.getLocalId());
+                }
+                entity.addConnectedTo(ConnectionType.NORMAL_CONNECTION, connectedEntity);
+            });
+            // consistsOf means owns connection
+            entityDtoBuilder.getConsistsOfList().forEach(connectedEntityId -> {
+                final StitchingEntityData connectedEntityData = entityMap.get(connectedEntityId);
+                if (connectedEntityData == null) {
+                    throw new IllegalArgumentException(
+                            "Entity " + entityDtoBuilder + " is connected to entity " +
+                                    connectedEntityId + " which does not exist.");
+                }
+
+                final TopologyStitchingEntity connectedEntity = getOrCreateStitchingEntity(connectedEntityData);
+                if (!connectedEntity.getLocalId().equals(connectedEntityId)) {
+                    throw new IllegalArgumentException("Map key " + connectedEntityId +
+                            " does not match connected entity localId value: " + connectedEntity.getLocalId());
+                }
+                entity.addConnectedTo(ConnectionType.OWNS_CONNECTION, connectedEntity);
+            });
         }
 
         return entity;
@@ -233,7 +274,7 @@ public class TopologyStitchingGraph {
      *                   or created.
      * @return The retrieved or newly created {@link TopologyStitchingEntity} for the entity.
      */
-    public TopologyStitchingEntity getOrCreateStitchingEntity(@Nonnull final StitchingEntityData entityData) {
+    private TopologyStitchingEntity getOrCreateStitchingEntity(@Nonnull final StitchingEntityData entityData) {
         return getEntity(entityData.getEntityDtoBuilder()).orElseGet(() -> {
             final TopologyStitchingEntity newStitchingEntity = new TopologyStitchingEntity(entityData);
             stitchingEntities.put(newStitchingEntity.getEntityBuilder(), newStitchingEntity);

@@ -67,18 +67,17 @@ public interface StitchingEntity extends JournalableEntity<StitchingEntity> {
     Set<StitchingEntity> getConsumers();
 
     /**
-     * Get the set of {@link StitchingEntity}s that this entity is "connected to". This relationship
-     * was added to support cloud entities that are connected to other entities but do not buy or
-     * sell commodities. For example, a BusinessAccount may be connected to other BusinessAccounts,
-     * a VM may be connected to an AvailabilityZone, and so on.
-     * and may own Workload entities such as VMs, Databases, etc.
+     * Get the connected {@link StitchingEntity} instances that this entity is "connected to"
+     * grouped by connection type.
      *
-     * @return the set of {@link StitchingEntity} instances that this entity is connected to.
+     * This relationship was added to support cloud entities that are connected to other entities
+     * but do not buy or sell commodities. For example, a BusinessAccount may be connected to
+     * other BusinessAccounts, a VM may be connected to an AvailabilityZone, and so on, and may
+     * own Workload entities such as VMs, Databases, etc.
+     *
+     * @return the map from {@link ConnectionType} to set of {@link StitchingEntity} instances that
+     * this entity is connected to.
      */
-    default Set<StitchingEntity> getConnectedTo() {
-        return Collections.emptySet();
-    }
-
     default Map<ConnectionType, Set<StitchingEntity>> getConnectedToByType() {
         return Collections.emptyMap();
     }

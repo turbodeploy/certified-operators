@@ -60,7 +60,7 @@ public class RemoveNonMarketEntitiesPreStitchingOperationTest {
 
     @Before
     public void setup() {
-        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(2, null);
+        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(2);
         stitchingContextBuider.addEntity(businessAccount,
                 ImmutableMap.of(businessAccount.getLocalId(), businessAccount));
         stitchingContextBuider.addEntity(vmEntity,

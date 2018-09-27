@@ -159,7 +159,7 @@ public class SharedStorageTest {
             entityDataList.add(stitchingData);
         }
 
-        final StitchingContext.Builder builder = StitchingContext.newBuilder(entities.length, null);
+        final StitchingContext.Builder builder = StitchingContext.newBuilder(entities.length);
         entityDataList.forEach(entity -> builder.addEntity(entity, ImmutableMap.of(entity.getLocalId(), entity)));
 
         stitchingContext = builder.build();

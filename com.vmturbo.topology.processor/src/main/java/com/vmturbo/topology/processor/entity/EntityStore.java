@@ -20,22 +20,19 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.conversions.cloud.CloudEntityRewirer;
-import com.vmturbo.topology.processor.conversions.cloud.CloudTopologyConverter;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -77,21 +74,21 @@ public class EntityStore {
     private final IdentityProvider identityProvider;
 
     /**
-     * The target store is used to look up the probe id's that have discovered an entity.
-     */
-    private final TargetStore targetStore;
-
-    /**
      * The clock used to generate timestamps for when target information is updated.
      */
     private final Clock clock;
 
+    /**
+     * The target store which contains target specific information for the entity.
+     */
+    private final TargetStore targetStore;
+
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
                        @Nonnull final Clock clock) {
+        this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.clock = Objects.requireNonNull(clock);
-        this.targetStore = Objects.requireNonNull(targetStore);
         targetStore.addListener(new TargetStoreListener() {
             @Override
             public void onTargetRemoved(@Nonnull final Target target) {
@@ -179,62 +176,53 @@ public class EntityStore {
      *         individual-targets into a unified topology.
      */
     @Nonnull
-    public StitchingContext constructStitchingContext(TargetStore targetStore,
-            Map<Long, Set<EntityProfileDTO>> entityProfilesByTarget) {
-        // create a CloudTopologyConverter that will be used to handle conversion of the legacy
-        // "fake" cloud entity model into the new cloud entity model we are using in XL
-        CloudTopologyConverter cloudTopologyConverter = new CloudTopologyConverter(this,
-                targetStore, identityProvider, new CloudEntityRewirer());
-
-        final StitchingContext.Builder builder
-                = StitchingContext.newBuilder(entityMap.size(), cloudTopologyConverter);
-
+    public StitchingContext constructStitchingContext() {
+        final StitchingContext.Builder builder = StitchingContext.newBuilder(entityMap.size());
         TargetStitchingDataMap stitchingDataMap;
+
         synchronized (topologyUpdateLock) {
             stitchingDataMap = new TargetStitchingDataMap(targetEntities);
 
-            // create new cloud entities based on data from cloud probe
-            cloudTopologyConverter.createNewCloudEntities(entityProfilesByTarget)
-                    .forEach(stitchingDataMap::put);
-
-            // now create StitchingEntityData objects for the discovered entities.
-            entityMap.forEach((oid, entity)->
-                entity.getPerTargetInfo().forEach(targetInfoEntry -> {
-                    EntityDTO.Builder entityBuilder = targetInfoEntry.getValue().getEntityInfo().toBuilder();
-                    // convert the entity based on probe type, using the cloud converter on
-                    // any entities discovered by a cloud probe
-                    Optional<SDKProbeType> optionalProbeType = targetStore.getProbeTypeForTarget(
-                            targetInfoEntry.getKey());
-                    if (!optionalProbeType.isPresent()) {
-                        return;
-                    }
-
-                    SDKProbeType probeType = optionalProbeType.get();
-                    if (CloudTopologyConverter.CLOUD_PROBE_TYPES.contains(probeType)) {
-                        // this is a cloud target, use the CloudTopologyConverter on it.
-                        cloudTopologyConverter.convertCloudEntity(
-                                entityBuilder, oid, targetInfoEntry.getKey(), probeType,
-                                getTargetLastUpdatedTime(targetInfoEntry.getKey()).orElse(0L),
-                                stitchingDataMap);
-                    } else {
-                        // add to the stitching data map
-                        stitchingDataMap.put(StitchingEntityData.newBuilder
-                                (entityBuilder)
-                                .oid(oid)
-                                .targetId(targetInfoEntry.getKey())
-                                .probeType(probeType)
-                                .lastUpdatedTime(getTargetLastUpdatedTime(targetInfoEntry.getKey()).orElse(0L))
-                                .build());
-                    }
-                })
-            );
+            // This will populate the stitching data map.
+            entityMap.entrySet().stream()
+                    .forEach(entry -> {
+                        final Long oid = entry.getKey();
+                        entry.getValue().getPerTargetInfo().stream()
+                                .map(targetInfoEntry ->
+                                        StitchingEntityData.newBuilder(targetInfoEntry.getValue().getEntityInfo().toBuilder())
+                                                .oid(oid)
+                                                .targetId(targetInfoEntry.getKey())
+                                                .lastUpdatedTime(getTargetLastUpdatedTime(targetInfoEntry.getKey()).orElse(0L))
+                                                .cloud(isCloud(targetInfoEntry.getKey()))
+                                                .build())
+                                .forEach(stitchingDataMap::put);
+                    });
         }
 
-        stitchingDataMap.allStitchingData().forEach(stitchingEntityData -> builder.addEntity(
-                stitchingEntityData,
-                stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId())));
+        stitchingDataMap.allStitchingData()
+                .forEach(stitchingEntityData -> builder.addEntity(
+                        stitchingEntityData,
+                        stitchingDataMap.getTargetIdToStitchingDataMap(stitchingEntityData.getTargetId())
+                ));
 
-        return builder.buildWithCloudRewiring(stitchingDataMap);
+        return builder.build();
+    }
+
+    /**
+     * Check if the probe type of the given target is cloud (AWS/Azure) or not. This is used in
+     * {@link TopologyStitchingGraph#addStitchingData(StitchingEntityData, Map)} to add connected
+     * entity. This logic can be removed once EntityDTO itself supports connected relationship.
+     *
+     * @param targetId the id of the target
+     * @return true if the target is AWS or Azure, otherwise false
+     */
+    private boolean isCloud(long targetId) {
+        Optional<SDKProbeType> optionalProbeType = targetStore.getProbeTypeForTarget(targetId);
+        if (optionalProbeType.isPresent()) {
+            final SDKProbeType probeType = optionalProbeType.get();
+            return probeType == SDKProbeType.AWS || probeType == SDKProbeType.AZURE;
+        }
+        return false;
     }
 
     /**
@@ -526,7 +514,7 @@ public class EntityStore {
     /**
      * A helper class that retains a map of targetId -> Map<localId, StitchingEntityData>
      */
-    public static class TargetStitchingDataMap {
+    private static class TargetStitchingDataMap {
         private final Map<Long, Map<String, StitchingEntityData>> targetDataMap;
 
         /**

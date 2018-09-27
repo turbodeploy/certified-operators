@@ -11,10 +11,10 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -131,11 +131,11 @@ public class EntityStoreTest {
         Mockito.when(mockClock.millis()).thenReturn(12345L);
         entityStore = new EntityStore(targetStore, identityProvider, mockClock);
         addEntities(entities);
-        // return non-cloud probe types so it gets treated as normal probes
-        Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(
-                Optional.of(SDKProbeType.VCENTER));
-        final TopologyStitchingGraph graph = entityStore.constructStitchingContext(targetStore,
-                Collections.emptyMap()).getStitchingGraph();
+        // the probe type doesn't matter here, just return any non-cloud probe type so it gets
+        // treated as normal probe
+        when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
+        final TopologyStitchingGraph graph = entityStore.constructStitchingContext()
+                .getStitchingGraph();
 
         final TopologyStitchingEntity foo = entityByLocalId(graph, "foo");
         assertEquals(12345L, foo.getLastUpdatedTime());
@@ -179,12 +179,11 @@ public class EntityStoreTest {
 
         addEntities(firstTargetEntities, target1Id, 0L);
         addEntities(secondTargetEntities, target2Id, 1L);
-
-        // return non-cloud probe types so it gets treated as normal probes
-        Mockito.when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(
-                Optional.of(SDKProbeType.VCENTER));
-        final TopologyStitchingGraph graph = entityStore.constructStitchingContext(targetStore,
-                Collections.emptyMap()).getStitchingGraph();
+        // the probe type doesn't matter here, just return any non-cloud probe type so it gets
+        // treated as normal probe
+        when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
+        final TopologyStitchingGraph graph = entityStore.constructStitchingContext()
+                .getStitchingGraph();
 
         assertEquals(6, graph.entityCount());
         assertThat(entityByLocalId(graph, "foo")
