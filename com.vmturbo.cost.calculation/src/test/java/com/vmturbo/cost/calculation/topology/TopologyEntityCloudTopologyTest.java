@@ -9,17 +9,15 @@ import java.util.Optional;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
-import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
@@ -45,16 +43,6 @@ public class TopologyEntityCloudTopologyTest {
             .setOid(99L)
             .setDisplayName("computeTier")
             .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                    .setConnectedEntityType(REGION.getEntityType())
-                    .setConnectedEntityId(REGION.getOid())
-                    .setConnectionType(ConnectionType.NORMAL_CONNECTION))
-            .build();
-
-    private final TopologyEntityDTO DATABASE_TIER = TopologyEntityDTO.newBuilder()
-            .setOid(100L)
-            .setDisplayName("DatabaseTier")
-            .setEntityType(EntityType.DATABASE_TIER_VALUE)
             .addConnectedEntityList(ConnectedEntity.newBuilder()
                     .setConnectedEntityType(REGION.getEntityType())
                     .setConnectedEntityId(REGION.getOid())
@@ -87,22 +75,6 @@ public class TopologyEntityCloudTopologyTest {
                     .setConnectedEntityId(AZ.getOid()))
             .build();
 
-    private final TopologyEntityDTO DATABASE = TopologyEntityDTO.newBuilder()
-            .setOid(10L)
-            .setDisplayName("foo")
-            .setEntityType(EntityType.DATABASE_VALUE)
-            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderId(DATABASE_TIER.getOid())
-                    .setProviderEntityType(DATABASE_TIER.getEntityType()))
-            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                    .setDatabase(DatabaseInfo.newBuilder()
-                                    .setEdition(DatabaseEdition.SQL_SERVER_EXPRESS)
-                                    .setEngine(DatabaseEngine.MARIADB)))
-            .addConnectedEntityList(ConnectedEntity.newBuilder()
-                    .setConnectedEntityType(AZ.getEntityType())
-                    .setConnectedEntityId(AZ.getOid()))
-            .build();
-
     private final TopologyEntityDTO BUSINESS_ACCOUNT = TopologyEntityDTO.newBuilder()
             .setOid(124L)
             .setDisplayName("businessAccount")
@@ -115,9 +87,7 @@ public class TopologyEntityCloudTopologyTest {
 
     private final Map<Long, TopologyEntityDTO> topology = ImmutableMap.<Long, TopologyEntityDTO>builder()
             .put(VM.getOid(), VM)
-            .put(DATABASE.getOid(), DATABASE)
             .put(AZ.getOid(), AZ)
-            .put(DATABASE_TIER.getOid(), DATABASE_TIER)
             .put(COMPUTE_TIER.getOid(), COMPUTE_TIER)
             .put(REGION.getOid(), REGION)
             .put(BUSINESS_ACCOUNT.getOid(), BUSINESS_ACCOUNT)
@@ -138,12 +108,6 @@ public class TopologyEntityCloudTopologyTest {
     public void testGetEntityComputeTier() {
         final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
         assertThat(cloudTopology.getComputeTier(VM.getOid()), is(Optional.of(COMPUTE_TIER)));
-    }
-
-    @Test
-    public void testGetEntityDatabaseTier() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
-        assertThat(cloudTopology.getDatabaseTier(DATABASE.getOid()), is(Optional.of(DATABASE_TIER)));
     }
 
     @Test
