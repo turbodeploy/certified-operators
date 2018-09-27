@@ -22,7 +22,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
-import com.vmturbo.common.protobuf.topology.Probe;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -169,23 +168,18 @@ public class IdentityProviderImpl implements IdentityProvider {
     }
 
     /**
-     * {@inheritDoc}
+     * Get an id to use for an entity. If this entity (based on the entity matching data) already
+     * has had an oid assigned, reuse the one that was assigned. Otherwise, get a new one.
+     *
+     * @return the Long entity oid for the entity.
      */
     @Override
-    public void updateProbeInfo(ProbeInfo probeInfo) {
-        synchronized (probeIdLock) {
-            Long probeId = probeTypeToId.get(probeInfo.getProbeType());
-            if (probeId == null) {
-                logger.warn("Trying to update a non-existent probeInfo: {}", probeInfo);
-                return;
-            }
-            if (!perProbeMetadata.containsKey(probeId)) {
-                logger.warn("ProbeInfo doesn't exist in the ProbeMetadataMap: {}", probeInfo);
-                return;
-            }
-            perProbeMetadata.put(probeId,
-                    new ServiceEntityIdentityMetadataStore(probeInfo.getEntityMetadataList()));
-        }
+    public Long getIdForEntity(final long probeId, EntityDTO entity)
+            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
+        // this may be a little wasteful, but for simplicity's sake, we will re-use the
+        // getIdsForEntities method.
+        Map<Long, EntityDTO> results = getIdsForEntities(probeId, Collections.singletonList(entity));
+        return results.keySet().iterator().next();
     }
 
     /** {@inheritDoc}

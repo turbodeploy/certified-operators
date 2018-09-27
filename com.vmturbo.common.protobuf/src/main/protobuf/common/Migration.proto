@@ -6,33 +6,33 @@ option java_package = "com.vmturbo.common.protobuf.common";
 
 message MigrationRecord {
 
-    optional string migration_name = 1;
+    optional string migrationName = 1;
 
     // Information about the migration
-    optional MigrationProgressInfo progress_info = 2;
+    optional MigrationInfo info = 2;
 
-    // Time when the migration started.
-    optional string start_time = 3;
+    // Time when the migration was started.
+    optional string startTime = 3;
 
-    // Time when the migration completed.
-    optional string end_time = 4;
+    // Time when the migration finished/failed.
+    optional string endTime = 4;
 }
 
-message MigrationProgressInfo {
+message MigrationInfo {
 
     // This is a mandatory field
     optional MigrationStatus status = 1;
 
-    // How much of the migration has completed.
-    optional float completion_percentage = 2;
+    // How much of the migration has finished.
+    optional float completionPercentage = 2;
 
     // Additional Info the migrations want to expose.
-    optional string status_message = 10;
+    optional string additionalInfo = 10;
 }
 
 enum MigrationStatus {
     NOT_STARTED = 0;  // default state
     RUNNING = 1;
-    SUCCEEDED = 2;
+    FINISHED = 2;
     FAILED = 3;
 }

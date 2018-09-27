@@ -151,6 +151,14 @@ public interface TargetStore {
     Set<Long> getDerivedTargetIds(long parentTargetId);
 
     /**
+     * Given a target id, get the probe info for the probe associated with the target.
+     *
+     * @param targetId the target id to look up
+     * @return an Optional probe ID for the probe, if available.
+     */
+    Optional<Long> getProbeIdForTarget(long targetId);
+
+    /**
      * Get the probe type for a given target id.
      *
      * @param targetId the id of the target to get probe type for

@@ -13,6 +13,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -139,8 +140,7 @@ public class StitchingIntegrationTest {
         when(probeStore.getProbeIdForType(anyString())).thenReturn(Optional.<Long>empty());
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
         when(probeStore.getProbe(ucsProbeId)).thenReturn(Optional.empty());
-        // the probe type doesn't matter here, just return any non-cloud probe type so it gets
-        // treated as normal probe
+        // return non-cloud probe types so it gets treated as normal probes
         when(targetStore.getProbeTypeForTarget(Mockito.anyLong())).thenReturn(Optional.of(SDKProbeType.HYPERV));
     }
 
@@ -161,7 +161,7 @@ public class StitchingIntegrationTest {
         when(targetStore.getProbeTargets(netAppProbeId))
                 .thenReturn(Collections.singletonList(netAppTarget));
 
-        final StitchingContext stitchingContext = entityStore.constructStitchingContext();
+        final StitchingContext stitchingContext = entityStore.constructStitchingContext(targetStore, Collections.emptyMap());
         stitchingManager.stitch(stitchingContext, new StitchingJournal<>());
         final TopologyGraph topoGraph = TopologyGraph.newGraph(stitchingContext.constructTopology());
 
@@ -286,7 +286,7 @@ public class StitchingIntegrationTest {
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERVISOR))
                 .thenReturn(Collections.singletonList(vcProbeId));
 
-        final StitchingContext stitchingContext = entityStore.constructStitchingContext();
+        final StitchingContext stitchingContext = entityStore.constructStitchingContext(targetStore, Collections.emptyMap());
         final IStitchingJournal<StitchingEntity> journal = journalFactory.stitchingJournal(stitchingContext);
         stitchingManager.stitch(stitchingContext, journal);
         final Map<Long, TopologyEntity.Builder> topology = stitchingContext.constructTopology();
@@ -435,7 +435,7 @@ public class StitchingIntegrationTest {
                 .thenReturn(Collections.singletonList(ciscoVcenterProbeId));
 
         final StringBuilder journalStringBuilder = new StringBuilder(2048);
-        final StitchingContext stitchingContext = entityStore.constructStitchingContext();
+        final StitchingContext stitchingContext = entityStore.constructStitchingContext(targetStore, Collections.emptyMap());
         final ConfigurableStitchingJournalFactory journalFactory = StitchingJournalFactory
                 .configurableStitchingJournalFactory(Clock.systemUTC())
                 .addRecorder(new StringBuilderRecorder(journalStringBuilder));

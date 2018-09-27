@@ -66,7 +66,7 @@ public class StitchingOperationScopeFactoryTest {
 
     @Before
     public void setup() {
-        final Builder contextBuilder = StitchingContext.newBuilder(5);
+        final Builder contextBuilder = StitchingContext.newBuilder(5, null);
         contextBuilder.addEntity(vm1, targetGraph);
         contextBuilder.addEntity(vm2, targetGraph);
         contextBuilder.addEntity(vm3, targetGraph);

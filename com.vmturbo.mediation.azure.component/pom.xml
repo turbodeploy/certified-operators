@@ -36,11 +36,8 @@
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <!--change this to "com.vmturbo.mediation.azure" once probe is
-                                    changed to support new cloud model, and ${project.version}
-                                    should be changed to ${vmturbo.mt.branch.version}-->
-                                    <artifactId>com.vmturbo.mediation.azure.conversion</artifactId>
-                                    <version>${project.version}</version>
+                                    <artifactId>com.vmturbo.mediation.azure</artifactId>
+                                    <version>${vmturbo.mt.branch.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars</outputDirectory>

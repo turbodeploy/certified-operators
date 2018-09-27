@@ -13,7 +13,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -23,7 +26,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.conversions.cloud.CloudTopologyConverter;
 import com.vmturbo.topology.processor.conversions.Converter;
+import com.vmturbo.topology.processor.entity.EntityStore.TargetStitchingDataMap;
 import com.vmturbo.topology.processor.topology.TopologyGraph;
 
 /**
@@ -69,20 +74,29 @@ public class StitchingContext {
      *                                       Map<TargetId, List<Entities of the given type discovered by that target>>
      */
     private StitchingContext(@Nonnull final TopologyStitchingGraph stitchingGraph,
-            @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>>
-                    entitiesByEntityTypeAndTarget) {
+                             @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>>
+                                 entitiesByEntityTypeAndTarget) {
         this.stitchingGraph = Objects.requireNonNull(stitchingGraph);
         this.entitiesByEntityTypeAndTarget = Objects.requireNonNull(entitiesByEntityTypeAndTarget);
     }
 
     /**
-     * Create a new builder for constructing a {@link StitchingContext}.
+     * Create a new builder for constructing a {@link StitchingContext}. If cloud topology is
+     * involved (AWS/Azure), then a CloudTopologyConverter need to be provided, and
+     * {@link StitchingContext.Builder#buildWithCloudRewiring(TargetStitchingDataMap)} should be
+     * called at the end to get correct cloud topology.
+     *
+     * We will hopefully remove the parameter "cloudTopologyConverter" when we update the cloud
+     * probes to use the new topology structure internally. For now, we need this to facilitate
+     * the cloud probe model conversion to the new cloud topology model in XL.
      *
      * @param entityCount The number of entities to be added to the context when it is built.
+     * @param cloudTopologyConverter The {@link CloudTopologyConverter} object, used to update the
+     * "fake" cloud model.
      * @return a new builder for constructing a {@link StitchingContext}.
      */
-    public static Builder newBuilder(int entityCount) {
-        return new Builder(entityCount);
+    public static Builder newBuilder(int entityCount, @Nullable CloudTopologyConverter cloudTopologyConverter) {
+        return new Builder(entityCount, cloudTopologyConverter);
     }
 
     /**
@@ -294,16 +308,43 @@ public class StitchingContext {
      */
     public static class Builder {
         private final TopologyStitchingGraph stitchingGraph;
+        private final CloudTopologyConverter cloudTopologyConverter;
 
         private final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget;
 
-        private Builder(final int entityCount) {
+        private Builder(final int entityCount, CloudTopologyConverter cloudTopologyConverter) {
             this.stitchingGraph = new TopologyStitchingGraph(entityCount);
-            entitiesByEntityTypeAndTarget = new EnumMap<>(EntityType.class);
+            this.entitiesByEntityTypeAndTarget = new EnumMap<>(EntityType.class);
+            this.cloudTopologyConverter = cloudTopologyConverter;
         }
 
         public StitchingContext build() {
             return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget);
+        }
+
+        /**
+         * Call the builder, but give the cloud topology converter a chance to rewire cloud entities
+         * first. This uses the target local id -> entity map.
+         *
+         * @return the shiny new {@link StitchingContext}.
+         */
+        public StitchingContext buildWithCloudRewiring(TargetStitchingDataMap targetStitchingDataMap) {
+            // give the cloud converter a chance to "rewire" the cloud entities before we
+            // finalize the stitching context
+            List<TopologyStitchingEntity> entities = stitchingGraph.entities().collect(
+                    Collectors.toList());
+            List<TopologyStitchingEntity> entitiesToRemove = entities.stream()
+                    .filter(t -> CloudTopologyConverter.CLOUD_PROBE_TYPES.contains(t.getProbeType()))
+                    .filter(stitchingEntity -> {
+                        // call the cloud rewirer
+                        return cloudTopologyConverter.rewire(stitchingEntity,
+                                targetStitchingDataMap.getTargetIdToStitchingDataMap(
+                                        stitchingEntity.getTargetId()), stitchingGraph);
+                    })
+                    .collect(Collectors.toList());
+            // remove the entities flagged for removal
+            entitiesToRemove.forEach(stitchingGraph::removeEntity);
+            return build();
         }
 
         /**
@@ -319,9 +360,16 @@ public class StitchingContext {
          */
         public void addEntity(@Nonnull final StitchingEntityData stitchingEntityData,
                               @Nonnull final Map<String, StitchingEntityData> targetIdMap) {
-            final TopologyStitchingEntity stitchingEntity =
-                    stitchingGraph.addStitchingData(stitchingEntityData, targetIdMap);
 
+            final TopologyStitchingEntity stitchingEntity
+                    = stitchingGraph.addStitchingData(stitchingEntityData, targetIdMap);
+
+            // if stitchingEntity is null, this entity was not added to the graph. (this will be
+            // the case for some cloud entities). In that case, don't update the other structures
+            // based on this entity -- just return.
+            if (stitchingEntity == null) {
+                return;
+            }
             final EntityDTO.Builder stitchingBuilder = stitchingEntityData.getEntityDtoBuilder();
             final EntityType entityType = stitchingBuilder.getEntityType();
             final long targetId = stitchingEntityData.getTargetId();
@@ -338,5 +386,6 @@ public class StitchingContext {
             stitchingEntity.getEntityBuilder().clearCommoditiesSold();
             stitchingEntity.getEntityBuilder().clearCommoditiesBought();
         }
+
     }
 }

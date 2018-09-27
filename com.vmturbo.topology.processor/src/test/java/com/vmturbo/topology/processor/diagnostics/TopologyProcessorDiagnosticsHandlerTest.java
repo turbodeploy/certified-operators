@@ -78,7 +78,6 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionCap
 import com.vmturbo.platform.common.dto.ActionExecution.ActionPolicyDTO.ActionPolicyElement;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ComputeTierData.DedicatedStorageNetworkState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -102,6 +101,7 @@ import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.DBProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.LicenseMapEntry;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.PMProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO;
+import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.VMProfileDTO.DedicatedStorageNetworkState;
 import com.vmturbo.platform.common.dto.SupplyChain.ExternalEntityLink;
 import com.vmturbo.platform.common.dto.SupplyChain.ExternalEntityLink.CommodityDef;
 import com.vmturbo.platform.common.dto.SupplyChain.ExternalEntityLink.EntityPropertyDef;

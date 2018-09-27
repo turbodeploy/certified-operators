@@ -34,6 +34,12 @@ ISO_MOUNTPOINT = "/media/cdrom"
 UPGRADE_STATUS_FILE="/tmp/status/load_status"
 FREE_SPACE_THRESHOLD_PCT = 10 # If space is below this, exit upgrade
 
+# Set this timeout value to a correct value as part of OM-12900.
+# Currently XL components are started via the entrypoint script which
+# has PID 1 and the main component service is a child process of the
+# entrypoint cmd. So when docker issues a stop, the SIGTERM doesn't
+# propogate to the child. So the effect is that "docker stop" will
+# send a SIGKILL to XL components.
 CONTAINER_STOP_TIMEOUT_SECS = 30
 
 # Create logger. Add console and syslog handlers
@@ -61,7 +67,7 @@ def mkdirs(path):
 
 def exec_cmd(exit_on_error=True, *args):
     try:
-        return (0, subprocess.check_output(args, stderr=subprocess.STDOUT))
+        return (0, subprocess.check_output(args))
     except subprocess.CalledProcessError as ex:
         if not exit_on_error:
             return (ex.returncode, ex.output)
@@ -148,6 +154,7 @@ def validate_checksum_record(rec, file_checksums):
     if len(rec) != 2:
         LOGGER.error("Wrong format for checksum file %s"%fname)
         sys.exit(1)
+    # overwrite duplicates
     if rec[1] in file_checksums:
         LOGGER.error("Duplicate entries in checksum file %s"%fname)
         sys.exit(1)
@@ -287,10 +294,6 @@ def get_version_number(info_file):
 
     return ""
 
-def get_spec_file_version_number():
-    spec_yaml = load_yaml(TURBO_UPGRADE_SPEC_FILE)
-    return spec_yaml.get('version', "")
-
 def get_component_name_from_image_file_name(fname):
     comp_name, ext = os.path.splitext(fname)
     """
@@ -304,24 +307,6 @@ def get_component_name_from_image_file_name(fname):
     }
 
     return d.get(comp_name, comp_name.replace('_', '-'))
-
-"""
-Set the component data versions to "00_00_00" if it is not set.
-This will be used during data migration by the components.
-"""
-def set_component_data_versions(components):
-    for component in components:
-        # check if data version is already set for the component
-        ret, component_version = exec_cmd(False, "docker", "exec", "docker_consul_1",
-            "consul", "kv", "get", "%s-1/dataVersion"%component)
-        # if component_version doesn't exist, set it.
-        if (ret != 0):
-            LOGGER.info("Setting data version for component: %s"%component)
-            ret, component_version = exec_cmd(True, "docker", "exec", "docker_consul_1",
-                "consul", "kv", "put", "%s-1/dataVersion"%component, "00_00_00")
-        if (ret != 0):
-            LOGGER.error("Failed to set data version for component %s"%component)
-            sys.exit(1)
 
 if __name__ == '__main__':
     """
@@ -426,10 +411,10 @@ if __name__ == '__main__':
             LOGGER.error("Checksum doesn't match for %s"%vmtctl_loc)
             sys.exit(1)
         shutil.copy2(vmtctl_loc, TURBO_VMTCTL_LOC)
-
     yaml_files_to_parse = [DOCKER_COMPOSE_FILE]
-    if (os.path.isfile(TURBO_UPGRADE_SPEC_FILE)):
-        LOGGER.info("Using upgrade spec file: %s"%(TURBO_UPGRADE_SPEC_FILE))
+    if os.path.isfile(TURBO_UPGRADE_SPEC_FILE):
+        LOGGER.info("Using upgrade spec file: %s"%(
+            TURBO_UPGRADE_SPEC_FILE))
         yaml_files_to_parse.append(TURBO_UPGRADE_SPEC_FILE)
 
     # Mapping from vertex -> list_of_vertices
@@ -451,7 +436,6 @@ if __name__ == '__main__':
                 dep_graph_transpose.setdefault(k, set())
 
     topological_order = topological_sort(dep_graph)
-    set_component_data_versions(topological_order)
     components_to_upgrade = set()
     component_to_image_loc = {}
     # We start with new_checksums as we may add new components.
@@ -474,21 +458,16 @@ if __name__ == '__main__':
         LOGGER.info("No new images found")
 
     stopped_components = set()
-    total_components_to_upgrade = min(len(topological_order), len(components_to_upgrade))
     LOGGER.info("%s components to upgrade: %s"
-        %(total_components_to_upgrade,
-        " ".join([component for component in topological_order
-                    if component in components_to_upgrade])))
+        %(len(components_to_upgrade),
+        " ".join([x for x in topological_order if x in components_to_upgrade])))
     count = 0
 
     for component in topological_order:
         if component in components_to_upgrade:
             count += 1
-            # We take the min here, because we may have commented out the
-            # components in the docker-compose file and these may be still
-            # be in the checksum file.
             LOGGER.info("(%s/%s) Upgrading component : %s"%
-                (count, total_components_to_upgrade,component))
+                (count, len(components_to_upgrade), component))
             # Get the components which depend on this component and stop them.
             deps = get_dependencies(dep_graph_transpose, component)
             if deps:

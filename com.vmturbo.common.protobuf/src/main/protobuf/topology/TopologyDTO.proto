@@ -5,7 +5,6 @@ option java_package = "com.vmturbo.common.protobuf.topology";
 
 import "plan/PlanDTO.proto";
 import "CloudCostDTO.proto";
-import "CommonDTO.proto";
 
 // Different entity types may have additional configuration options that get discovered by the
 // SDK. We could represent these options as part of the loose-form entity properties, but it
@@ -14,13 +13,6 @@ import "CommonDTO.proto";
 // This message should contain all the type-specific configuration options we need to use in XL or
 // display in the UI.
 message TypeSpecificInfo {
-
-    oneof type {
-        // The field number is the index of the entity type.
-        VirtualMachineInfo virtual_machine = 10;
-        ComputeTierInfo compute_tier = 56;
-    }
-
     message VirtualMachineInfo {
         // The OS type.
         optional .common_dto.OSType guest_os_type = 1 [default = UNKNOWN_OS];
@@ -30,15 +22,9 @@ message TypeSpecificInfo {
         optional .common_dto.Tenancy tenancy = 2;
     }
 
-    // specific data for compute tier
-    message ComputeTierInfo {
-        // An identifier for matching compute tiers that belong to the same family.
-        optional string family = 1;
-
-        // Specifies the dedicated storage configuration state for the compute tier.
-        // Market uses this to decide whether or not to combine IOThroughput and NetThroughput that
-        // vm is buying and add them together as consumption, then check with compute tier.
-        optional common_dto.EntityDTO.ComputeTierData.DedicatedStorageNetworkState dedicated_storage_network_state = 2;
+    oneof type {
+        // The field number is the index of the entity type.
+        VirtualMachineInfo virtual_machine = 10;
     }
 }
 

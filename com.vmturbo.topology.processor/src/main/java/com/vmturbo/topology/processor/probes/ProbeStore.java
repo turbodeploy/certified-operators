@@ -70,16 +70,6 @@ public interface ProbeStore {
     Optional<Long> getProbeIdForType(@Nonnull final String probeTypeName);
 
     /**
-     * Retrieve probe info by probe type name.
-     *
-     * @param probeTypeName Name of the probe to retrieve.
-     * @return The ID of the probe with the given type, or an empty Optional if no probe
-     *         with the given type is registered.
-     */
-    Optional<ProbeInfo> getProbeInfoForType(@Nonnull final String probeTypeName);
-
-
-    /**
      * Retrieve probe ids for a probe category.
      *
      * @param probeCategory the category of the probe whose ids should be retrieved.
@@ -127,7 +117,7 @@ public interface ProbeStore {
      * Returns a boolean to indicate whether the probe with the given probe ID is connected.
      *
      * @param probeId Probe ID
-     * @return true if probe is connected, false otherwise.
+     * @return ture if probe is connected, false otherwise.
      */
     boolean isProbeConnected(@Nonnull Long probeId);
 
@@ -136,11 +126,4 @@ public interface ProbeStore {
      * @return {@link ProbeOrdering} for this ProbeStore
      */
     ProbeOrdering getProbeOrdering();
-
-    /**
-     * Update the existing probe with the new probe info.
-     * @param updatedProbeInfo New probeInfo for the probe.
-     *
-     */
-    void updateProbeInfo(@Nonnull ProbeInfo updatedProbeInfo) throws ProbeException;
 }

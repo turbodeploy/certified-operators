@@ -15,7 +15,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.topology.processor.identity.services.EntityProxyDescriptor;
@@ -93,7 +92,8 @@ public class IdentityService {
                 retList.add(getOidToUse(data, entriesToUpdate));
             }
         }
-        try (DataMetricTimer storeTimer = OID_ASSIGNMENT_TIME.labels("store").startTimer()) {
+
+        try (DataMetricTimer timer = OID_ASSIGNMENT_TIME.labels("store").startTimer()) {
             store_.upsertEntries(entriesToUpdate);
         }
 
@@ -159,12 +159,7 @@ public class IdentityService {
                 // Entity, and see if match is found.
                 // The match is found, return OID.
                 if (heuristicsMatcher_.locateMatch(heuristicsLast, heuristicsNow, descriptor, metadataDescriptor)) {
-                    // Update immediately. This is because, if there is a placeholder match(e.g. matching a dummy
-                    // value during upgrade) and it gets substituted with the actual value, the record has to be
-                    // updated so that subsequent entities won't match and get a new oid.
-                    HashMap<Long, EntryData> newEntry = new HashMap<>();
-                    newEntry.put(match.getOID(), entryData);
-                    store_.upsertEntries(newEntry);
+                    entriesToUpsert.put(match.getOID(), entryData);
                     return match.getOID();
                 }
             }
@@ -200,11 +195,10 @@ public class IdentityService {
      */
     public long getEntityOID(@Nonnull EntityDescriptor descriptor,
                              @Nonnull EntityMetadataDescriptor metadataDescriptor,
-                             @Nonnull EntityDTO entityDTO,
                              final long probeId)
             throws IdentityWrongSetException, IdentityServiceOperationException, IdentityUninitializedException {
         return getEntityOIDs(Collections.singletonList(
-            new EntryData(descriptor, metadataDescriptor, probeId, entityDTO))).get(0);
+            new EntryData(descriptor, metadataDescriptor, probeId, null))).get(0);
     }
 
     /**

@@ -284,14 +284,12 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
                 });
             });
         }
-        // Now copy all the bought commodities that are listed in the matching metadata from the
-        // internalEntity to the externalEntity, do not copy if commoditiesBoughtToPatch is empty
-        if (!matchingInformation.getCommoditiesBoughtToPatch().isEmpty()) {
-            resultBuilder.queueChangeRelationships(externalEntity, toUpdate ->
-                    CopyCommodities.copyCommodities(
-                            matchingInformation.getCommoditiesBoughtToPatch())
-                            .from(internalEntity).to(toUpdate));
-        }
+         // Now copy all the bought commodities that are listed in the matching metadata from the
+        // internalEntity to the externalEntity
+        resultBuilder.queueChangeRelationships(externalEntity, toUpdate ->
+                CopyCommodities.copyCommodities(
+                        matchingInformation.getCommoditiesBoughtToPatch())
+                        .from(internalEntity).to(toUpdate));
 
         // Create a MergeEntitiesDetails instance with a MergeCommoditySoldStrategy that is aware
         // of the list of sold commodities to merge from internal to external entity.

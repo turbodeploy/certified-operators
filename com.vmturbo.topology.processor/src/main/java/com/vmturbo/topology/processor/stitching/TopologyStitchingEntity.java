@@ -42,6 +42,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
 
     private final long targetId;
 
+    // type of the probe this entity comes from, this is used to check if the entity comes from
+    // cloud probe and differentiate between AWS and Azure, so entity is treated differently
+    private final SDKProbeType probeType;
+
     private long lastUpdatedTime;
 
     /**
@@ -67,18 +71,28 @@ public class TopologyStitchingEntity implements StitchingEntity {
         this(stitchingEntityData.getEntityDtoBuilder(),
             stitchingEntityData.getOid(),
             stitchingEntityData.getTargetId(),
-            stitchingEntityData.getLastUpdatedTime());
+            stitchingEntityData.getLastUpdatedTime(),
+            stitchingEntityData.getProbeType());
     }
 
     public TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
-            final long oid,
-            final long targetId,
-            final long lastUpdatedTime) {
+                                   final long oid,
+                                   final long targetId,
+                                   final long lastUpdatedTime) {
+        this(entityBuilder, oid, targetId, lastUpdatedTime, null);
+    }
+
+    private TopologyStitchingEntity(@Nonnull final EntityDTO.Builder entityBuilder,
+                                   final long oid,
+                                   final long targetId,
+                                   final long lastUpdatedTime,
+                                   final SDKProbeType probeType) {
         this.entityBuilder = Objects.requireNonNull(entityBuilder);
         this.oid = oid;
         this.targetId = targetId;
         this.lastUpdatedTime = lastUpdatedTime;
         this.mergeInformation = null;
+        this.probeType = probeType;
     }
 
     @Nonnull
@@ -147,6 +161,10 @@ public class TopologyStitchingEntity implements StitchingEntity {
         return lastUpdatedTime;
     }
 
+    public SDKProbeType getProbeType() {
+        return probeType;
+    }
+
     @Override
     public boolean updateLastUpdatedTime(final long updateTime) {
         if (updateTime > lastUpdatedTime) {
@@ -168,8 +186,13 @@ public class TopologyStitchingEntity implements StitchingEntity {
     }
 
     @Override
+    public Set<StitchingEntity> getConnectedTo() {
+        return Collections.unmodifiableSet(connectedTo.values().stream().flatMap(Set::stream)
+                .collect(Collectors.toSet()));
+    }
+
     public Map<ConnectionType, Set<StitchingEntity>> getConnectedToByType() {
-        return Collections.unmodifiableMap(connectedTo);
+        return connectedTo;
     }
 
     @Override
@@ -253,11 +276,16 @@ public class TopologyStitchingEntity implements StitchingEntity {
         commoditiesBoughtByProvider.clear();
     }
 
-    public void addConnectedTo(@Nonnull final ConnectionType connectionType,
-                               @Nonnull final StitchingEntity entity) {
+    public void addConnectedTo(@Nonnull final  ConnectionType connectionType,
+            @Nonnull final StitchingEntity entity) {
         Preconditions.checkArgument(entity instanceof TopologyStitchingEntity);
         connectedTo.computeIfAbsent(connectionType, k -> Sets.newIdentityHashSet()).add(
                 Objects.requireNonNull(entity));
+    }
+
+    public void setConnectedTo(@Nonnull final Map<ConnectionType, Set<StitchingEntity>> connectedTo) {
+        this.connectedTo.clear();
+        this.connectedTo.putAll(connectedTo);
     }
 
     @Override
