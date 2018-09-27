@@ -712,36 +712,8 @@
                 <module>../com.vmturbo.systest</module>
             </modules>
         </profile>
-        <profile>
-            <id>save</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>save:docker-save</id>
-                                <phase>integration-test</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>bash</executable>
-                                    <arguments>
-                                        <argument>${project.basedir}/../build/saveImage.sh</argument>
-                                        <argument>${artifactId}</argument>
-                                        <argument>${project.version}</argument>
-                                        <argument>${project.basedir}</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
     </profiles>
+
     <build>
         <extensions>
             <!-- Exposes OS properties in mavenized format.
