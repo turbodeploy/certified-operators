@@ -18,7 +18,6 @@ message TypeSpecificInfo {
     oneof type {
         // The field number is the index of the entity type.
         VirtualMachineInfo virtual_machine = 10;
-        DatabaseInfo database = 46;
         ComputeTierInfo compute_tier = 56;
     }
 
@@ -41,15 +40,6 @@ message TypeSpecificInfo {
         // vm is buying and add them together as consumption, then check with compute tier.
         optional common_dto.EntityDTO.ComputeTierData.DedicatedStorageNetworkState dedicated_storage_network_state = 2;
     }
-
-    message DatabaseInfo {
-        // Edition
-        optional .common_dto.DatabaseEdition edition = 1;
-
-        // Engine
-        optional .common_dto.DatabaseEngine engine = 2;
-    }
-
 }
 
 message TopologyEntityDTO {
