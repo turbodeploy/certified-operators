@@ -391,6 +391,27 @@ enum CostCategory {
     LICENSE = 3;
 }
 
+// A request containing a snapshot of cost data to be stored by the cost service.
+message UploadRIAndExpenseDataRequest {
+    // the topology id this upload is associated with. It will always be a realtime topology.
+    optional int64 topology_id = 1;
+
+    // Business Account expenses
+    repeated AccountExpenses account_expenses = 2;
+
+    // The set of Reserved Instance configurations that have been purchased or are available.
+    repeated ReservedInstanceSpec reserved_instance_specs = 3;
+
+    // The set of RI bought by the customer.
+    repeated ReservedInstanceBought reserved_instance_bought = 4;
+
+    // The entity - RI coverage data
+    repeated EntityReservedInstanceCoverage reserved_instance_coverage = 5;
+}
+
+message UploadRIAndExpenseDataResponse {
+}
+
 
 // A service responsible for getting information about cost information in Cloud.
 service CostService {
@@ -414,6 +435,11 @@ service CostService {
     //
     // Returns NOT_FOUND if the discount id or discount info is not found
     rpc UpdateDiscount(UpdateDiscountRequest) returns (UpdateDiscountResponse);
+}
+
+service RIAndExpenseUploadService {
+    // Upload cost information
+    rpc UploadRIAndExpenseData (UploadRIAndExpenseDataRequest) returns (UploadRIAndExpenseDataResponse);
 }
 
 message RegionFilter {

@@ -23,6 +23,7 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.component.entity.cost.EntityCostStore;
 import com.vmturbo.cost.component.reserved.instance.ComputeTierDemandStatsWriter;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.sql.utils.DbException;
 import com.vmturbo.topology.processor.api.EntitiesListener;
@@ -55,21 +56,25 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
      * the targetId is first referenced.
      */
     private final Map<Long, SDKProbeType> targetIdToTargetTypeMap = new HashMap<>();
-    
+
     private final TopologyCostCalculator topologyCostCalculator;
 
     private final EntityCostStore entityCostStore;
+
+    private ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate;
 
     public LiveTopologyEntitiesListener(long realtimeTopologyContextId,
                                         @Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
                                         @Nonnull final TopologyProcessor topologyProcessorClient,
                                         @Nonnull final TopologyCostCalculator topologyCostCalculator,
-                                        @Nonnull final EntityCostStore entityCostStore) {
+                                        @Nonnull final EntityCostStore entityCostStore,
+                                        @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate) {
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.computeTierDemandStatsWriter = Objects.requireNonNull(computeTierDemandStatsWriter);
         this.topologyProcessorClient = Objects.requireNonNull(topologyProcessorClient);
         this.topologyCostCalculator = Objects.requireNonNull(topologyCostCalculator);
         this.entityCostStore = Objects.requireNonNull(entityCostStore);
+        this.reservedInstanceCoverageUpdate = Objects.requireNonNull(reservedInstanceCoverageUpdate);
     }
 
     @Override
@@ -108,6 +113,10 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         } catch (DbException e) {
             logger.error("Failed to persist entity costs.", e);
         }
+
+        // update reserved instance coverage data.
+        reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyId, cloudEntities);
+
     }
 
     private Map<Long, TopologyEntityDTO> readCloudEntities(

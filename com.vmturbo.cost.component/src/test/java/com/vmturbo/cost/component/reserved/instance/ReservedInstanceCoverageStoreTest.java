@@ -3,8 +3,6 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -21,7 +19,6 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLatestRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
@@ -41,36 +38,37 @@ public class ReservedInstanceCoverageStoreTest {
 
     private Flyway flyway;
 
-    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
-
     private ReservedInstanceCoverageStore reservedInstanceCoverageStore;
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
 
     private DSLContext dsl;
 
-    private final ServiceEntityReservedInstanceCoverage firstEntity =
-            ServiceEntityReservedInstanceCoverage.newBuilder()
+    private final ServiceEntityReservedInstanceCoverageRecord firstEntity =
+            ServiceEntityReservedInstanceCoverageRecord.newBuilder()
                     .setId(123)
                     .setBusinessAccountId(12345L)
                     .setAvailabilityZoneId(100L)
                     .setRegionId(101L)
+                    .setUsedCoupons(10)
                     .setTotalCoupons(100)
                     .build();
-    private final ServiceEntityReservedInstanceCoverage secondEntity =
-            ServiceEntityReservedInstanceCoverage.newBuilder()
+    private final ServiceEntityReservedInstanceCoverageRecord secondEntity =
+            ServiceEntityReservedInstanceCoverageRecord.newBuilder()
                     .setId(124)
                     .setBusinessAccountId(12345L)
                     .setAvailabilityZoneId(100L)
                     .setRegionId(101L)
+                    .setUsedCoupons(20)
                     .setTotalCoupons(200)
                     .build();
-    private final ServiceEntityReservedInstanceCoverage thirdEntity =
-            ServiceEntityReservedInstanceCoverage.newBuilder()
+    private final ServiceEntityReservedInstanceCoverageRecord thirdEntity =
+            ServiceEntityReservedInstanceCoverageRecord.newBuilder()
                     .setId(125)
                     .setBusinessAccountId(12345L)
                     .setAvailabilityZoneId(100L)
                     .setRegionId(101L)
+                    .setUsedCoupons(30)
                     .setTotalCoupons(50)
                     .build();
 
@@ -82,11 +80,7 @@ public class ReservedInstanceCoverageStoreTest {
         flyway.migrate();
         reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
                 new IdentityProvider(0));
-        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl,
-                reservedInstanceBoughtStore);
-        reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl,
-                entityReservedInstanceMappingStore);
-        insertDefaultEntityReservedInstanceMapping();
+        reservedInstanceCoverageStore = new ReservedInstanceCoverageStore(dsl);
     }
 
     @Test
@@ -109,11 +103,11 @@ public class ReservedInstanceCoverageStoreTest {
         assertTrue(secondRecord.isPresent());
         assertTrue(thirdRecord.isPresent());
         assertEquals(100.0, firstRecord.get().getTotalCoupons(), DELTA);
-        assertEquals(30.0, firstRecord.get().getUsedCoupons(), DELTA);
+        assertEquals(10.0, firstRecord.get().getUsedCoupons(), DELTA);
         assertEquals(200.0, secondRecord.get().getTotalCoupons(), DELTA);
-        assertEquals(80.0, secondRecord.get().getUsedCoupons(), DELTA);
+        assertEquals(20.0, secondRecord.get().getUsedCoupons(), DELTA);
         assertEquals(50.0, thirdRecord.get().getTotalCoupons(), DELTA);
-        assertEquals(0.0, thirdRecord.get().getUsedCoupons(), DELTA);
+        assertEquals(30.0, thirdRecord.get().getUsedCoupons(), DELTA);
     }
 
     @Test
@@ -128,29 +122,8 @@ public class ReservedInstanceCoverageStoreTest {
         assertEquals(200L, riStatsRecord.getCapacity().getMax(), DELTA);
         assertEquals(50L, riStatsRecord.getCapacity().getMin(), DELTA);
         assertEquals(350L, riStatsRecord.getCapacity().getTotal(), DELTA);
-        assertEquals(80L, riStatsRecord.getValues().getMax(), DELTA);
-        assertEquals(0L, riStatsRecord.getValues().getMin(), DELTA);
-        assertEquals(110L, riStatsRecord.getValues().getTotal(), DELTA);
-    }
-
-    private void insertDefaultEntityReservedInstanceMapping() {
-        final LocalDateTime curTime = LocalDateTime.now(ZoneOffset.UTC);
-        final EntityToReservedInstanceMappingRecord firstRecord =
-                dsl.newRecord(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING,
-                        new EntityToReservedInstanceMappingRecord(curTime, 123L,
-                                11L, 10.0));
-        final EntityToReservedInstanceMappingRecord secondRecord =
-                dsl.newRecord(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING,
-                        new EntityToReservedInstanceMappingRecord(curTime, 123L,
-                                12L, 20.0));
-        final EntityToReservedInstanceMappingRecord thirdRecord =
-                dsl.newRecord(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING,
-                        new EntityToReservedInstanceMappingRecord(curTime, 124L,
-                                11L, 30.0));
-        final EntityToReservedInstanceMappingRecord fourthRecord =
-                dsl.newRecord(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING,
-                        new EntityToReservedInstanceMappingRecord(curTime, 124L,
-                                13L, 50.0));
-        dsl.batchInsert(Arrays.asList(firstRecord, secondRecord, thirdRecord, fourthRecord)).execute();
+        assertEquals(30L, riStatsRecord.getValues().getMax(), DELTA);
+        assertEquals(10L, riStatsRecord.getValues().getMin(), DELTA);
+        assertEquals(60L, riStatsRecord.getValues().getTotal(), DELTA);
     }
 }

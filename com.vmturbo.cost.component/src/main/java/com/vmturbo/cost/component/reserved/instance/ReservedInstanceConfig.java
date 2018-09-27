@@ -27,6 +27,9 @@ public class ReservedInstanceConfig {
     @Value("${numRetainedDays}")
     private int numRetainedDays;
 
+    @Value("${riCoverageCacheExpireMinutes:120}")
+    private int riCoverageCacheExpireMinutes;
+
     @Autowired
     private SQLDatabaseConfig databaseConfig;
 
@@ -60,8 +63,7 @@ public class ReservedInstanceConfig {
 
     @Bean
     public ReservedInstanceCoverageStore reservedInstanceCoverageStore() {
-        return new ReservedInstanceCoverageStore(databaseConfig.dsl(),
-                entityReservedInstanceMappingStore());
+        return new ReservedInstanceCoverageStore(databaseConfig.dsl());
     }
 
     @Bean
@@ -99,5 +101,11 @@ public class ReservedInstanceConfig {
     public ReservedInstanceUtilizationCoverageServiceController reservedInstanceUtilizationCoverageServiceController() {
         return new ReservedInstanceUtilizationCoverageServiceController(
                 reservedInstanceUtilizationCoverageRpcService());
+    }
+
+    public ReservedInstanceCoverageUpdate reservedInstanceCoverageUpload() {
+        return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(), entityReservedInstanceMappingStore(),
+                reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),
+                riCoverageCacheExpireMinutes);
     }
 }

@@ -243,6 +243,7 @@ cost:
   numRetainedMinutes: 130
   numRetainedHours: 72
   numRetainedDays: 60
+  riCoverageCacheExpireMinutes: 120
 
   # START - database-related properties.
   <<: *db_conn_info

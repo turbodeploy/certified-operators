@@ -56,6 +56,18 @@ public interface CloudTopology<ENTITY_CLASS> {
     Optional<ENTITY_CLASS> getConnectedRegion(final long entityId);
 
     /**
+     * Get the availability zone associated with an entity.
+     *
+     * This method should return AVAILABILITY ZONE which is directly connected with the entity.
+     *
+     * @param entityId The ID of the entity.
+     * @return An optional containing the availability zone this entity is in, or an empty optional
+     *         if the ID is not found, or there is no associated availability zone.
+     */
+    @Nonnull
+    Optional<ENTITY_CLASS> getConnectedAvailabilityZone(final long entityId);
+
+    /**
      * Get the owner of a particular entity.
      *
      * The "owner" is the entity that has an "OWNS" connection to the entity. Typically this

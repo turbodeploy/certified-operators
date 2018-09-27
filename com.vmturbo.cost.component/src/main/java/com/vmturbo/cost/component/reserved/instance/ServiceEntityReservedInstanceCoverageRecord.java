@@ -6,10 +6,10 @@ import javax.annotation.Nonnull;
  * The class wrappers the service entity information which needs for {@link ReservedInstanceCoverageStore},
  * in order to store entity level reserved instance coverage data. When cost component
  * received the latest real time topology entity, the topology entity will be converted
- * to this {@link ServiceEntityReservedInstanceCoverage}, and then will be used by
+ * to this {@link ServiceEntityReservedInstanceCoverageRecord}, and then will be used by
  * {@link ReservedInstanceCoverageStore}.
  */
-public class ServiceEntityReservedInstanceCoverage {
+public class ServiceEntityReservedInstanceCoverageRecord {
 
     private final long id;
 
@@ -19,17 +19,21 @@ public class ServiceEntityReservedInstanceCoverage {
 
     private final long businessAccountId;
 
+    private final double usedCoupons;
+
     private final double totalCoupons;
 
-    private ServiceEntityReservedInstanceCoverage(final long id,
-                                                  final long regionId,
-                                                  final long availabilityZoneId,
-                                                  final long businessAccountId,
-                                                  final double totalCoupons) {
+    private ServiceEntityReservedInstanceCoverageRecord(final long id,
+                                                        final long regionId,
+                                                        final long availabilityZoneId,
+                                                        final long businessAccountId,
+                                                        final double usedCoupons,
+                                                        final double totalCoupons) {
         this.id = id;
         this.regionId = regionId;
         this.availabilityZoneId = availabilityZoneId;
         this.businessAccountId = businessAccountId;
+        this.usedCoupons = usedCoupons;
         this.totalCoupons = totalCoupons;
     }
 
@@ -49,6 +53,10 @@ public class ServiceEntityReservedInstanceCoverage {
         return this.businessAccountId;
     }
 
+    public double getUsedCoupons() {
+        return this.usedCoupons;
+    }
+
     public double getTotalCoupons() {
         return this.totalCoupons;
     }
@@ -66,14 +74,16 @@ public class ServiceEntityReservedInstanceCoverage {
 
         private long businessAccountId;
 
+        private double usedCoupons;
+
         private double totalCoupons;
 
         private Builder() {}
 
         @Nonnull
-        public ServiceEntityReservedInstanceCoverage build() {
-            return new ServiceEntityReservedInstanceCoverage(id, regionId, availabilityZoneId,
-                    businessAccountId, totalCoupons);
+        public ServiceEntityReservedInstanceCoverageRecord build() {
+            return new ServiceEntityReservedInstanceCoverageRecord(id, regionId, availabilityZoneId,
+                    businessAccountId, usedCoupons, totalCoupons);
         }
 
         @Nonnull
@@ -101,7 +111,13 @@ public class ServiceEntityReservedInstanceCoverage {
         }
 
         @Nonnull
-        public Builder setTotalCoupons(final long totalCoupons) {
+        public Builder setUsedCoupons(final double usedCoupons) {
+            this.usedCoupons = usedCoupons;
+            return this;
+        }
+
+        @Nonnull
+        public Builder setTotalCoupons(final double totalCoupons) {
             this.totalCoupons = totalCoupons;
             return this;
         }

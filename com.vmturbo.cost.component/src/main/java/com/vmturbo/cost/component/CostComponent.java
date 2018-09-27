@@ -36,7 +36,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         SQLDatabaseConfig.class,
         PricingConfig.class,
         ReservedInstanceConfig.class,
-        CostConfig.class})
+        CostConfig.class,
+        CostServiceConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**
      * The logger.
@@ -54,6 +55,9 @@ public class CostComponent extends BaseVmtComponent {
 
     @Autowired
     private CostConfig costConfig;
+
+    @Autowired
+    private CostServiceConfig costServiceConfig;
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -95,7 +99,9 @@ public class CostComponent extends BaseVmtComponent {
                 .addService(ServerInterceptors.intercept(reservedInstanceConfig.reservedInstanceSpecRpcService(), monitoringInterceptor))
                 .addService(ServerInterceptors.intercept(costConfig.costRpcService(), monitoringInterceptor))
                 .addService(ServerInterceptors.intercept(
-                        reservedInstanceConfig.reservedInstanceUtilizationCoverageRpcService(), monitoringInterceptor));
+                        reservedInstanceConfig.reservedInstanceUtilizationCoverageRpcService(), monitoringInterceptor))
+                .addService(ServerInterceptors.intercept(costServiceConfig.riAndExpenseUploadRpcService(), monitoringInterceptor));
+
         return Optional.of(builder.build());
     }
 }

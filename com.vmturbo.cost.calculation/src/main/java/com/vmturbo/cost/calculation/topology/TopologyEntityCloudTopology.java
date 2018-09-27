@@ -153,6 +153,33 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     /**
      * {@inheritDoc}
      */
+    @Override
+    @Nonnull
+    public Optional<TopologyEntityDTO> getConnectedAvailabilityZone(final long entityId) {
+        return getEntity(entityId).flatMap(entity -> {
+            final Set<TopologyEntityDTO> connectedAZs = entity.getConnectedEntityListList().stream()
+                    .filter(connEntity -> connEntity.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                    .map(az -> getEntity(az.getConnectedEntityId()))
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toSet());
+
+            if (connectedAZs.size() == 0) {
+                logger.warn("Entity {} not connected to any availability zone!", entity.getOid());
+                return Optional.empty();
+            } else if (connectedAZs.size() > 1) {
+                logger.warn("Entity {} connected to multiple availability zone: {}! Choosing the first.",
+                        connectedAZs.stream()
+                                .map(region -> Long.toString(region.getOid()))
+                                .collect(Collectors.joining(",")));
+            }
+            return Optional.of(connectedAZs.iterator().next());
+        });
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     @Nonnull
     @Override
     public Optional<TopologyEntityDTO> getOwner(final long entityId) {

@@ -117,6 +117,12 @@ public class TopologyEntityCloudTopologyTest {
     }
 
     @Test
+    public void testGetEntityAZ() {
+        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        assertThat(cloudTopology.getConnectedAvailabilityZone(VM.getOid()), is(Optional.of(AZ)));
+    }
+
+    @Test
     public void testGetRegionDirectly() {
         final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
         assertThat(cloudTopology.getConnectedRegion(COMPUTE_TIER.getOid()), is(Optional.of(REGION)));

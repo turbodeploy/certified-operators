@@ -38,7 +38,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig.Sub
         TopologyProcessorClientConfig.class,
         PricingConfig.class,
         EntityCostConfig.class,
-        DiscountConfig.class})
+        DiscountConfig.class,
+        ReservedInstanceConfig.class})
 public class TopologyListenerConfig {
 
     @Autowired
@@ -67,7 +68,8 @@ public class TopologyListenerConfig {
         return new LiveTopologyEntitiesListener(realtimeTopologyContextId,
                 computeTierDemandStatsConfig.riDemandStatsWriter(),
                 topologyClientConfig.topologyProcessorRpcOnly(),
-                topologyCostCalculator(), entityCostConfig.entityCostStore());
+                topologyCostCalculator(), entityCostConfig.entityCostStore(),
+                reservedInstanceConfig.reservedInstanceCoverageUpload());
     }
 
     @Bean
