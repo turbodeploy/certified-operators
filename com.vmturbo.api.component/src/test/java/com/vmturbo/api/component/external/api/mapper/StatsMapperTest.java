@@ -23,10 +23,12 @@ import java.util.stream.Collectors;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.external.api.service.StatsService;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -34,6 +36,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -60,6 +63,9 @@ public class StatsMapperTest {
 
     public static final long START_DATE = 1234L;
     public static final long END_DATE = 5678L;
+    public static final String PUID = "puid-";
+    public static final String CSP = "CSP";
+    public static final String AWS = "AWS";
 
     private PaginationMapper paginationMapper = mock(PaginationMapper.class);
 
@@ -477,6 +483,116 @@ public class StatsMapperTest {
         assertThat(request.getCommodityNameList(), containsInAnyOrder(stats.toArray()));
     }
 
+    @Test
+    public void testToStatSnapshotApiDTOWithCloudData() throws Exception {
+        verifyFilters(CSP, AWS);
+        verifyFilters("target", "engineering.aws.com");
+    }
+
+    @Test
+    public void testToStatSnapshotApiDTOWithCloudService() throws Exception {
+        String[] postfixes = {"A", "B", "C"};
+        String[] relations = {RelationType.COMMODITIES.getLiteral(),
+                RelationType.COMMODITIESBOUGHT.getLiteral(),
+                RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral()};
+
+       // Arrange
+        StatSnapshot testSnapshot = StatSnapshot.newBuilder()
+                .setSnapshotDate("date-value")
+                .setStartDate(1234L)
+                .setEndDate(5678L)
+                .addAllStatRecords(buildStatRecords(postfixes, relations))
+                .build();
+
+        TargetApiDTO targetApiDTO1 = new TargetApiDTO();
+        targetApiDTO1.setUuid(PUID+"A");
+        TargetApiDTO targetApiDTO2 = new TargetApiDTO();
+        targetApiDTO2.setUuid(PUID+"B");
+
+        TargetApiDTO targetApiDTO3 = new TargetApiDTO();
+        targetApiDTO3.setUuid(PUID+"C");
+        // ImmutableList.of(targetApiDTO1, targetApiDTO2, targetApiDTO3);
+
+        BaseApiDTO apiDTO1 = new BaseApiDTO();
+        apiDTO1.setDisplayName("name1");
+        apiDTO1.setUuid(PUID+"A");
+
+        BaseApiDTO apiDTO2 = new BaseApiDTO();
+        apiDTO2.setDisplayName("name2");
+        apiDTO2.setUuid(PUID+"B");
+
+        BaseApiDTO apiDTO3 = new BaseApiDTO();
+        apiDTO3.setDisplayName("name3");
+        apiDTO3.setUuid(PUID+"C");
+
+        // Act
+        StatSnapshotApiDTO mapped = statsMapper.toStatSnapshotApiDTO(testSnapshot,
+                ImmutableList.of(targetApiDTO1, targetApiDTO2, targetApiDTO3),
+                s -> StatsService.CLOUD_SERVICE,
+                s -> StatsService.CLOUD_SERVICE,
+                ImmutableList.of(apiDTO1, apiDTO2, apiDTO3)
+        );
+        // Assert
+        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, testSnapshot.getStatRecordsCount());
+        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
+                statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
+                        statFilterApiDTO.getType().equals(StatsService.CLOUD_SERVICE))));
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO ->
+                statApiDTO.getFilters().stream().anyMatch(statFilterApiDTO ->
+                        statFilterApiDTO.getValue().equals("name1"))));
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO ->
+                statApiDTO.getFilters().stream().anyMatch(statFilterApiDTO ->
+                        statFilterApiDTO.getValue().equals("name2"))));
+        assertTrue(mapped.getStatistics().stream().anyMatch(statApiDTO ->
+                statApiDTO.getFilters().stream().anyMatch(statFilterApiDTO ->
+                        statFilterApiDTO.getValue().equals("name3"))));
+
+    }
+
+    public void verifyFilters(final String csp, final String aws) {
+        String[] postfixes = {"A", "B", "C"};
+        String[] relations = {RelationType.COMMODITIES.getLiteral(),
+                RelationType.COMMODITIESBOUGHT.getLiteral(),
+                RelationType.COMMODITIES_FROM_ATTRIBUTES.getLiteral()};
+
+        // Arrange
+        StatSnapshot testSnapshot = StatSnapshot.newBuilder()
+                .setSnapshotDate("date-value")
+                .setStartDate(1234L)
+                .setEndDate(5678L)
+                .addAllStatRecords(buildStatRecords(postfixes, relations))
+                .build();
+
+        TargetApiDTO targetApiDTO1 = new TargetApiDTO();
+        targetApiDTO1.setUuid(PUID+"A");
+        TargetApiDTO targetApiDTO2 = new TargetApiDTO();
+        targetApiDTO2.setUuid(PUID+"B");
+
+        TargetApiDTO targetApiDTO3 = new TargetApiDTO();
+        targetApiDTO3.setUuid(PUID+"C");
+        // ImmutableList.of(targetApiDTO1, targetApiDTO2, targetApiDTO3);
+
+        // Act
+        StatSnapshotApiDTO mapped = statsMapper.toStatSnapshotApiDTO(testSnapshot,
+                ImmutableList.of(targetApiDTO1, targetApiDTO2, targetApiDTO3),
+                s -> csp,
+                s -> aws,
+                Collections.EMPTY_LIST
+        );
+        // Assert
+        assertThat(testSnapshot.getSnapshotDate(), is(mapped.getDate()));
+        assertThat(testSnapshot.getStatRecordsCount(), is(mapped.getStatistics().size()));
+        assertEquals(3, testSnapshot.getStatRecordsCount());
+        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
+                statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
+                        statFilterApiDTO.getType().equals(csp))));
+        assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO ->
+                statApiDTO.getFilters().stream().allMatch(statFilterApiDTO ->
+                        statFilterApiDTO.getValue().equals(aws))));
+    }
+
     private void verifyMappedStatRecord(StatRecord test,
                                         StatApiDTO mappedStat,
                                         String relationshipType) {
@@ -548,7 +664,7 @@ public class StatsMapperTest {
     private StatRecord buildStatRecord(int index, String postfix, String relation) {
         return StatRecord.newBuilder()
             .setName("name-" + postfix)
-            .setProviderUuid("puid-" + postfix)
+            .setProviderUuid(PUID + postfix)
             .setProviderDisplayName("provider-" + postfix)
             .setCapacity(buildStatValue(1000 + index))
             .setReserved(2000 + index)

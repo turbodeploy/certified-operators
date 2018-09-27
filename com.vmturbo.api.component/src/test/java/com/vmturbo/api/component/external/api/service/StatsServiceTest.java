@@ -6,7 +6,6 @@ import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.typeCompatibleWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -42,6 +41,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
@@ -63,10 +63,14 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -99,6 +103,8 @@ import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
@@ -118,6 +124,8 @@ public class StatsServiceTest {
 
     private StatsHistoryServiceMole statsHistoryServiceSpy = spy(new StatsHistoryServiceMole());
 
+    private CostServiceMole costServiceSpy = spy(new CostServiceMole());
+
     private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
 
     private PlanServiceMole planServiceSpy = spy(new PlanServiceMole());
@@ -132,6 +140,8 @@ public class StatsServiceTest {
     private GroupExpander groupExpander = Mockito.mock(GroupExpander.class);
 
     private StatsMapper statsMapper = Mockito.mock(StatsMapper.class);
+
+    private SearchService searchService = Mockito.mock(SearchService.class);
 
     private TargetsService targetsService = Mockito.mock(TargetsService.class);
 
@@ -164,7 +174,7 @@ public class StatsServiceTest {
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy,
-            groupServiceSpy, planServiceSpy, repositoryServiceSpy);
+            groupServiceSpy, planServiceSpy, repositoryServiceSpy, costServiceSpy);
 
     @Before
     public void setUp() throws IOException {
@@ -177,10 +187,10 @@ public class StatsServiceTest {
 
         groupExpander = Mockito.mock(GroupExpander.class);
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
-
+        CostServiceBlockingStub costService = CostServiceGrpc.newBlockingStub(testServer.getChannel());
         statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
                 repositoryRpcService, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
-                targetsService, groupService, Duration.ofSeconds(60));
+                targetsService, groupService, Duration.ofSeconds(60), costService, searchService);
 
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
@@ -222,6 +232,115 @@ public class StatsServiceTest {
         verify(targetsService).getTargets(null);
 
         assertThat(resp, containsInAnyOrder(apiDto));
+    }
+
+    @Test
+    public void testGetStatsByEntityQueryWithFilteringForCostTypeCSP() throws Exception {
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.CSP));
+        inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy(StatsService.CSP).build())
+                        .build())
+                .build();
+        verifyCall(request, inputDto);
+    }
+
+    @Test
+    public void testGetStatsByEntityQueryWithFilteringForCostTarget() throws Exception {
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.TARGET));
+        inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy(StatsService.TARGET).build())
+                        .build())
+                .build();
+        verifyCall(request, inputDto);
+    }
+
+    @Test
+    public void testGetStatsByEntityQueryWithFilteringForCostCloudService() throws Exception {
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StatsService.COST_PRICE);
+        statApiInputDTO.setGroupBy(Lists.newArrayList(StatsService.CLOUD_SERVICE));
+        inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy(StatsService.CLOUD_SERVICE).build())
+                        .build())
+                .build();
+        verifyCall(request, inputDto);
+    }
+
+    @Test
+    public void testGetStatsByEntityQueryWithFilteringForCostOthers() throws Exception {
+        final StatPeriodApiInputDTO inputDto = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName("unknown");
+        statApiInputDTO.setGroupBy(Lists.newArrayList("unknown"));
+        inputDto.setStatistics(Lists.newArrayList(statApiInputDTO));
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy("unknown").build())
+                        .build())
+                .build();
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
+        when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
+                .thenReturn(request);
+
+        when(costServiceSpy.getAveragedEntityStats(any()))
+                .thenReturn(ImmutableList.of(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
+        apiDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any())).thenReturn(apiDto);
+
+        when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+
+        final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(StatsService.MARKET, inputDto);
+
+        verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
+        verify(costServiceSpy, never()).getAveragedEntityStats(any());
+    }
+
+    public void verifyCall(final GetAveragedEntityStatsRequest request, final StatPeriodApiInputDTO inputDto) throws Exception {
+
+        final Set<Long> expandedOidList = Sets.newHashSet(apiId1.oid());
+        when(groupExpander.getGroup(anyObject())).thenReturn(Optional.of(Group.getDefaultInstance()));
+        when(groupExpander.expandUuid(anyObject())).thenReturn(expandedOidList);
+
+
+        when(statsMapper.toAveragedEntityStatsRequest(expandedOidList, inputDto, Optional.empty()))
+                .thenReturn(request);
+
+        when(costServiceSpy.getAveragedEntityStats(any()))
+                .thenReturn(ImmutableList.of(STAT_SNAPSHOT));
+
+        final StatSnapshotApiDTO apiDto = new StatSnapshotApiDTO();
+        apiDto.setStatistics(Collections.emptyList());
+        when(statsMapper.toStatSnapshotApiDTO(any(), any(), any(), any(), any())).thenReturn(apiDto);
+
+        when(targetsService.getTargets(null)).thenReturn(ImmutableList.of(new TargetApiDTO()));
+
+        final List<StatSnapshotApiDTO> resp = statsService.getStatsByEntityQuery(StatsService.MARKET, inputDto);
+
+        verify(statsMapper).toAveragedEntityStatsRequest(Collections.EMPTY_SET, inputDto, Optional.empty());
+        verify(costServiceSpy).getAveragedEntityStats(any());
+        verify(statsMapper).toStatSnapshotApiDTO(any(), any(), any(), any(), any());
+        // Should have called targets service to get a list of targets.
+        verify(targetsService).getTargets(null);
+
+        assertEquals(1, resp.size());
     }
 
     /**

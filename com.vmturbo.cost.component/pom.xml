@@ -153,10 +153,6 @@
                                     <name>com.vmturbo.common.protobuf.cost.Cost.DiscountInfo</name>
                                     <converter>com.vmturbo.cost.component.discount.DiscountInfoConverter</converter>
                                 </customType>
-                                <customType>
-                                    <name>com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo</name>
-                                    <converter>com.vmturbo.cost.component.expenses.AccountExpensesInfoConverter</converter>
-                                </customType>
                             </customTypes>
                             <forcedTypes>
                                 <!-- Automatically convert timestamp fields to Java LocalDateTime-->
@@ -177,10 +173,6 @@
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.cost.Cost.DiscountInfo</name>
                                     <expression>.*\.discount\.discount_info</expression>
-                                </forcedType>
-                                <forcedType>
-                                    <name>com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo</name>
-                                    <expression>.*\.account_expenses\.account_expenses_info</expression>
                                 </forcedType>
                             </forcedTypes>
                         </database>

@@ -1,10 +1,13 @@
 package com.vmturbo.cost.component.expenses;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.sql.utils.DbException;
 
@@ -21,22 +24,9 @@ public interface AccountExpensesStore {
      * @throws DbException if anything goes wrong in the database
      */
     @Nonnull
-    Cost.AccountExpenses persistAccountExpenses(
+    void persistAccountExpenses(
             final long associatedAccountId,
             @Nonnull final AccountExpensesInfo accountExpensesInfo) throws DbException;
-
-    /**
-     * Update discount by discount id.
-     *
-     * @param associatedAccountId associated account id
-     * @param accountExpensesInfo account expense Info proto object
-     * @throws AccountExpenseNotFoundException if the account expense with associated account id doesn't exist
-     * @throws DbException                     if anything goes wrong in the database
-     */
-    void updateAccountExpenses(
-            final long associatedAccountId,
-            @Nonnull final AccountExpensesInfo accountExpensesInfo) throws AccountExpenseNotFoundException, DbException;
-
 
     /**
      * Returns all the existing account expenses.
@@ -58,6 +48,29 @@ public interface AccountExpensesStore {
     List<Cost.AccountExpenses> getAccountExpensesByAssociatedAccountId(final long associatedAccountId) throws DbException;
 
     /**
+     * Get account expenses between the start (minValue) and end (maxValue) dates.
+     * It returns Map with entry (timestamp -> (associatedAccountId -> AccountExpenses)).
+     * In a timestamp/snapshot, the account expenses with same ids will be combined to one account expense.
+     *
+     * @param startDate start date
+     * @param endDate   end date
+     * @return Map with entry (timestamp -> (associatedAccountId -> AccountExpenses))
+     * @throws DbException if anything goes wrong in the database
+     */
+    Map<Long, Map<Long, AccountExpenses>> getAccountExpenses(@Nonnull final LocalDateTime startDate,
+                                                             @Nonnull final LocalDateTime endDate) throws DbException;
+
+    /**
+     * Get the latest account expenses.
+     * It returns Map with entry (timestamp -> (associatedAccountId -> AccountExpenses)).
+     * In a timestamp/snapshot, the account expenses with same ids will be combined to one account expense.
+     *
+     * @return Map with entry (timestamp -> (associatedAccountId -> AccountExpenses))
+     * @throws DbException if anything goes wrong in the database
+     */
+    Map<Long, Map<Long, Cost.AccountExpenses>> getAccountLatestExpenses() throws DbException;
+
+        /**
      * Delete account expense by associated account id.
      *
      * @param associatedAccountId associated account id

@@ -350,7 +350,9 @@ public class ServiceConfig {
                 Clock.systemUTC(),
                 targetService(),
                 communicationConfig.groupRpcService(),
-                Duration.ofSeconds(liveStatsRetrievalWindowSeconds));
+                Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
+                communicationConfig.costServiceBlockingStub(),
+                searchService());
     }
 
     @Bean

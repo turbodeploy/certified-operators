@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -21,6 +22,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -30,6 +32,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.EntityFilter;
@@ -99,6 +102,7 @@ public class StatsMapper {
         StringConstants.PRODUCES, StringConstants.NUM_RI, StringConstants.RI_COUPON_COVERAGE,
         StringConstants.RI_COUPON_UTILIZATION, StringConstants.RI_DISCOUNT
     );
+    private static final String UNKNOWN = "UNKNOWN";
 
     private final PaginationMapper paginationMapper;
 
@@ -132,6 +136,60 @@ public class StatsMapper {
         return dto;
     }
 
+
+    /**
+     * Convert a protobuf Stats.StatSnapshot to an API DTO StatSnapshotApiDTO.
+     *
+     * A Snapshot consists of a date, a date range, and a collection of SnapshotRecords.
+     * If the date is not set in the StatSnapshot, then do not return a date in the resulting
+     * StatSnapshotApiDTO.
+     *
+     * The collection may be zero length.
+     *
+     * @param statSnapshot a {@link StatSnapshot} protobuf to be converted to a {@link StatSnapshotApiDTO} for
+     *                     return to the REST API caller (e.g. UX)
+     * @param targetApiDTOs target API DTOs
+     * @param typeFunction function to populate the statistics -> filters -> type for API DTO
+     * @param valueFunction function to populate the statistics -> filters -> value for API DTO
+     *
+     * @return a {@link StatSnapshotApiDTO} with fields initialized from the given StatSnapshot
+     *
+     **/
+    @Nonnull
+    public StatSnapshotApiDTO toStatSnapshotApiDTO(@Nonnull final StatSnapshot statSnapshot,
+                                                   @Nonnull final List<TargetApiDTO> targetApiDTOs,
+                                                   @Nonnull final Function<TargetApiDTO, String> typeFunction,
+                                                   @Nonnull final Function<TargetApiDTO, String> valueFunction,
+                                                   @Nonnull final List<BaseApiDTO> cloudServiceDTOs) {
+        final StatSnapshotApiDTO dto = new StatSnapshotApiDTO();
+        if (statSnapshot.hasSnapshotDate()) {
+            dto.setDate(statSnapshot.getSnapshotDate());
+        }
+        // for Cloud service, search for all the discovered Cloud services ,and match the expenses
+        if (!cloudServiceDTOs.isEmpty()) {
+                dto.setStatistics(statSnapshot.getStatRecordsList().stream()
+                        .map(statApiDTO -> toStatApiDtoWithTargets(statApiDTO,
+                                targetApiDTOs,
+                                typeFunction,
+                                valueFunction,
+                                cloudServiceDTOs))
+                        .collect(Collectors.toList()));
+        } else {
+            // for groupBy CSP and target
+            dto.setStatistics(statSnapshot.getStatRecordsList().stream()
+                    .filter(statRecord -> targetApiDTOs.stream()
+                            .anyMatch(target -> target.getUuid().equals(statRecord.getProviderUuid())))
+                    .map(statApiDTO ->
+                            toStatApiDtoWithTargets(statApiDTO,
+                                    targetApiDTOs,
+                                    typeFunction,
+                                    valueFunction,
+                                    Collections.emptyList()))
+                    .collect(Collectors.toList()));
+        }
+        return dto;
+    }
+
     /**
      * Convert a protobuf Stats.EntityStats to a list of StatSnapshotApiDTO.
      *
@@ -146,6 +204,41 @@ public class StatsMapper {
         return entityStats.getStatSnapshotsList().stream()
                 .map(this::toStatSnapshotApiDTO)
                 .collect(Collectors.toList());
+    }
+
+    private StatApiDTO toStatApiDtoWithTargets(@Nonnull final StatRecord statRecord,
+                                               @Nonnull final List<TargetApiDTO> targetApiDTOS,
+                                               @Nonnull final Function<TargetApiDTO, String> typeFunction,
+                                               @Nonnull final Function<TargetApiDTO, String> valueFunction,
+                                               @Nonnull final List<BaseApiDTO> cloudServiceDTOs) {
+        final StatApiDTO statApiDTO = toStatApiDto(statRecord);
+
+        // Build filters
+        final List<StatFilterApiDTO> filters = new ArrayList<>();
+        targetApiDTOS.stream().forEach(
+                dto -> {
+                    StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
+                    resultsTypeFilter.setType(typeFunction.apply(dto));
+                    resultsTypeFilter.setValue(cloudServiceDTOs.isEmpty() ?
+                            valueFunction.apply(dto) : popluateCloudServiceName(cloudServiceDTOs, statApiDTO)
+                            .orElse(UNKNOWN));
+                    filters.add(resultsTypeFilter);
+                }
+        );
+
+        if (filters.size() > 0) {
+            statApiDTO.setFilters(filters);
+        }
+        return statApiDTO;
+    }
+
+    // populate Cloud service name based on uuid match
+    private Optional<String> popluateCloudServiceName(@Nonnull final List<BaseApiDTO> finalCloudServiceOids,
+                                                      @Nonnull final StatApiDTO statApiDTO) {
+       return finalCloudServiceOids.stream()
+               .filter(service -> service.getUuid().equals(statApiDTO.getRelatedEntity().getUuid()))
+               .map(baseApiDTO -> baseApiDTO.getDisplayName())
+               .findFirst();
     }
 
     /**

@@ -9,19 +9,25 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import org.junit.Assert;
+import java.util.Map;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
+import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
+import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.Cost.DeleteDiscountResponse;
@@ -32,10 +38,19 @@ import com.vmturbo.common.protobuf.cost.Cost.DiscountQueryFilter;
 import com.vmturbo.common.protobuf.cost.Cost.CreateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.Builder;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
+import com.vmturbo.cost.component.expenses.AccountExpensesStore;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 
 @SuppressWarnings("unchecked")
@@ -46,6 +61,7 @@ public class CostRpcServiceTest {
     public static final double DISCOUNT_PERCENTAGE1 = 10.0;
     private static final long id = 1234L;
     private static final long id2 = 1235L;
+    public static final long ASSOCIATED_SERVICE_ID = 4l;
     final DiscountInfo discountInfo1 = DiscountInfo.newBuilder()
             .setAccountLevelDiscount(DiscountInfo
                     .AccountLevelDiscount
@@ -137,12 +153,25 @@ public class CostRpcServiceTest {
                     .putDiscountPercentageByTierId(id, DISCOUNT_PERCENTAGE1))
             .build();
 
+    public static final double ACCOUNT_EXPENSE1 = 10.0;
+
+    final AccountExpenses.AccountExpensesInfo accountExpensesInfo = AccountExpensesInfo.newBuilder()
+            .addServiceExpenses(ServiceExpenses
+                    .newBuilder()
+                    .setAssociatedServiceId(ASSOCIATED_SERVICE_ID)
+                    .setExpenses(CurrencyAmount.newBuilder().setAmount(ACCOUNT_EXPENSE1).build())
+                    .build())
+            .build();
+
     public DiscountStore discountStore = mock(DiscountStore.class);
+
+    public AccountExpensesStore accountExpenseStore = mock(AccountExpensesStore.class);
+
     private CostRpcService costRpcService;
 
     @Before
     public void setUp() {
-        costRpcService = new CostRpcService(discountStore);
+        costRpcService = new CostRpcService(discountStore, accountExpenseStore);
     }
 
     @Test
@@ -499,5 +528,96 @@ public class CostRpcServiceTest {
         final ArgumentCaptor<StatusException> exceptionCaptor = ArgumentCaptor.forClass(StatusException.class);
         verify(mockObserver).onError(exceptionCaptor.capture());
         assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.NOT_FOUND).anyDescription());
+    }
+
+    @Test
+    public void testGetAveragedEntityStatsGroupByCSP() throws Exception {
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy(CostRpcService.CSP).build())
+                        .build())
+                .build();
+        performTest(request,2);
+    }
+
+    @Test
+    public void testGetAveragedEntityStatsGroupByAccount() throws Exception {
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder()
+                        .setStartDate(1l)
+                        .setEndDate(2l)
+                        .addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy(CostRpcService.TARGET).build())
+                        .build())
+                .build();
+        performTest(request,2 );
+    }
+
+    @Test
+    public void testGetAveragedEntityStatsGroupByCloudService() throws Exception {
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy(CostRpcService.CLOUD_SERVICE).build())
+                        .build())
+                .build();
+        performTest(request, 4);
+    }
+
+    @Test
+    public void testGetAveragedEntityStatsGroupByUnknown() throws Exception {
+        final GetAveragedEntityStatsRequest request = GetAveragedEntityStatsRequest.newBuilder()
+                .setFilter(StatsFilter.newBuilder().addCommodityRequests(CommodityRequest.newBuilder()
+                        .addGroupBy("unknown").build())
+                        .build())
+                .build();
+
+        final StreamObserver<StatSnapshot> mockObserver =
+                mock(StreamObserver.class);
+        costRpcService.getAveragedEntityStats(request, mockObserver);
+
+        verify(mockObserver, never()).onCompleted();
+        verify(mockObserver, never()).onNext(any());
+
+        final ArgumentCaptor<StatusException> exceptionCaptor = ArgumentCaptor.forClass(StatusException.class);
+        verify(mockObserver).onError(exceptionCaptor.capture());
+        assertThat(exceptionCaptor.getValue(), GrpcExceptionMatcher.hasCode(Code.INTERNAL).anyDescription());
+    }
+
+    private void performTest(final GetAveragedEntityStatsRequest request, int providerId) throws DbException {
+        final StreamObserver<StatSnapshot> mockObserver =
+                mock(StreamObserver.class);
+        final Map<Long, AccountExpenses> accountIdToExpenseMap = ImmutableMap.of(2l,
+                AccountExpenses.newBuilder()
+                        .setAssociatedAccountId(2l)
+                        .setAccountExpensesInfo(accountExpensesInfo)
+                        .build());
+        final Map<Long, Map<Long, AccountExpenses>> snapshotToAccountExpensesMap = ImmutableMap.of(1l, accountIdToExpenseMap);
+        given(accountExpenseStore.getAccountLatestExpenses()).willReturn(snapshotToAccountExpensesMap);
+        given(accountExpenseStore.getAccountExpenses(any(), any())).willReturn(snapshotToAccountExpensesMap);
+        final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder().setName(CostRpcService.COST_PRICE);
+        final Builder snapshotBuilder = StatSnapshot.newBuilder();
+        snapshotBuilder.setSnapshotDate(DateTimeUtil.toString(1));
+
+        statRecordBuilder.setUnits("$/h");
+        statRecordBuilder.setProviderUuid(String.valueOf(providerId));
+        StatValue.Builder statValueBuilder = StatValue.newBuilder();
+
+        statValueBuilder.setAvg((float) ACCOUNT_EXPENSE1);
+
+        statValueBuilder.setTotal((float) ACCOUNT_EXPENSE1);
+
+        // currentValue
+        statRecordBuilder.setCurrentValue((float) ACCOUNT_EXPENSE1);
+
+        StatValue statValue = statValueBuilder.build();
+
+        statRecordBuilder.setValues(statValue);
+        statRecordBuilder.setUsed(statValue);
+        statRecordBuilder.setPeak(statValue);
+
+        snapshotBuilder.addStatRecords(statRecordBuilder.build());
+        costRpcService.getAveragedEntityStats(request, mockObserver);
+        verify(mockObserver).onNext(snapshotBuilder.build());
+        verify(mockObserver).onCompleted();
     }
 }

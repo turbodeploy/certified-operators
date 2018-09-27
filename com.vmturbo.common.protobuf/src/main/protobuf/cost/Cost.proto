@@ -5,6 +5,7 @@ option java_package = "com.vmturbo.common.protobuf.cost";
 
 import "CloudCostDTO.proto";
 import "common/Pagination.proto";
+import "stats/Stats.proto";
 
 // Top down Cloud account expense discovered by the billing probe, associated with a specific account
 message AccountExpenses {
@@ -389,6 +390,10 @@ enum CostCategory {
 
 // A service responsible for getting information about cost information in Cloud.
 service CostService {
+
+    //Get stats filtered by certain options and average over all entities listed in the request
+    rpc GetAveragedEntityStats(stats.GetAveragedEntityStatsRequest) returns (stream stats.StatSnapshot);
+
     // Get information about account expense
     rpc GetAccountExpense (ExpenseRequest) returns (ExpenseResponse);
 

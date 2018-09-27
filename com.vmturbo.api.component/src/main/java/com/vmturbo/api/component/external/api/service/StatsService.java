@@ -39,19 +39,24 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
+import com.vmturbo.api.pagination.SearchPaginationRequest;
+import com.vmturbo.api.pagination.SearchPaginationRequest.SearchPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
@@ -60,6 +65,7 @@ import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -93,6 +99,11 @@ import com.vmturbo.reports.db.StringConstants;
  **/
 public class StatsService implements IStatsService {
 
+    public static final String COST_PRICE = "costPrice";
+    public static final String MARKET = "Market";
+    public static final String TARGET = "target";
+    public static final String CLOUD_SERVICE = "cloudService";
+    public static final String CSP = "CSP";
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
     // the +/- threshold (relative to the current time) in which a stats request specifying a time
@@ -121,6 +132,10 @@ public class StatsService implements IStatsService {
     private final GroupServiceBlockingStub groupServiceRpc;
 
     private final TargetsService targetsService;
+
+    private final CostServiceBlockingStub costServiceRpc;
+
+    private final SearchService searchService;
 
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // this set is mostly copied from com.vmturbo.platform.gateway.util.StatsUtils.headRoomMetrics,
@@ -161,7 +176,9 @@ public class StatsService implements IStatsService {
                  @Nonnull final Clock clock,
                  @Nonnull final TargetsService targetsService,
                  @Nonnull final GroupServiceBlockingStub groupServiceRpc,
-                 @Nonnull final Duration liveStatsRetrievalWindow) {
+                 @Nonnull final Duration liveStatsRetrievalWindow,
+                 @Nonnull final CostServiceBlockingStub costService,
+                 @Nonnull final SearchService searchService) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -174,6 +191,8 @@ public class StatsService implements IStatsService {
         this.liveStatsRetrievalWindow = liveStatsRetrievalWindow;
         logger.debug("Live Stats Retrieval Window is {}sec", liveStatsRetrievalWindow.getSeconds());
         this.statsMapper = Objects.requireNonNull(statsMapper);
+        this.costServiceRpc = Objects.requireNonNull(costService);
+        this.searchService = Objects.requireNonNull(searchService);
     }
 
     /**
@@ -271,6 +290,8 @@ public class StatsService implements IStatsService {
         final List<StatSnapshotApiDTO> stats = Lists.newLinkedList();
         // If the endDate is in the future, read from the projected stats
         final long clockTimeNow = clock.millis();
+
+        List<TargetApiDTO> targets = null;
 
         // If uuid belongs to a cluster and the request is for getting VM headroom data,
         // get the stats from the cluster stats tables.
@@ -376,20 +397,82 @@ public class StatsService implements IStatsService {
                 final Optional<Integer> tempGroupEntityType = getGlobalTempGroupEntityType(groupOptional);
                 final GetAveragedEntityStatsRequest request =
                         statsMapper.toAveragedEntityStatsRequest(entityStatOids, inputDto, tempGroupEntityType);
-                final Iterable<StatSnapshot> statsIterator = () ->
-                        statsServiceRpc.getAveragedEntityStats(request);
+
+                final boolean isCostStats = isCostStats(uuid, inputDto);
+                final Iterable<StatSnapshot> statsIterator = isCostStats
+                        ? () -> costServiceRpc.getAveragedEntityStats(request)
+                        : () -> statsServiceRpc.getAveragedEntityStats(request);
 
                 // convert the stats snapshots to the desired ApiDTO and return them. Also, insert
                 // them before any projected stats in the output collection, since the UI expects
                 // the projected stats to always come last.
                 // (We are still fetching projected stats first, since we may have mutated
                 // the inputDTO in this clause that fetches live/historical stats)
-                stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
-                        .map(statsMapper::toStatSnapshotApiDTO)
-                        .collect(Collectors.toList()));
+
+                // move the get targets here, so they can be passed to building Cloud expense API dto
+                final List<TargetApiDTO> finalTargets = targets = getTargets();
+                if (isCostStats && finalTargets != null && !finalTargets.isEmpty()) {
+                    final Set<String> requestGroupBySet = parseGroupBy(inputDto);
+                    final Function<TargetApiDTO, String> valueFunction = getValueFunction(requestGroupBySet);
+                    final Function<TargetApiDTO, String> typeFunction = getTypeFunction(requestGroupBySet);
+                    // for group by Cloud services, we need to find all the services and
+                    // stitch with expenses in Cost component
+                    final List<BaseApiDTO> cloudServiceDTOs = requestGroupBySet.contains(CLOUD_SERVICE) ?
+                            getDiscoveredServiceDTO() : Collections.emptyList();
+
+                    stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
+                            .map(snapshot -> statsMapper.toStatSnapshotApiDTO(snapshot,
+                                    finalTargets,
+                                    typeFunction,
+                                    valueFunction,
+                                    cloudServiceDTOs))
+                            .collect(Collectors.toList()));
+                } else {
+                    stats.addAll(0, StreamSupport.stream(statsIterator.spliterator(), false)
+                            .map(statsMapper::toStatSnapshotApiDTO)
+                            .collect(Collectors.toList()));
+                }
             }
         }
 
+        // filter out those commodities listed in BLACK_LISTED_STATS in StatsUtils
+        return StatsUtils.filterStats(stats, targets != null ? targets : getTargets());
+    }
+
+    // Search discovered Cloud services.
+    private List<BaseApiDTO> getDiscoveredServiceDTO() {
+        try {
+            final GroupApiDTO groupApiDTO = new GroupApiDTO();
+            groupApiDTO.setClassName(UIEntityType.CLOUD_SERVICE.getValue());
+            final SearchPaginationRequest searchPaginationRequest;
+            searchPaginationRequest = new SearchPaginationRequest(null, null, false, null);
+            final SearchPaginationResponse searchResponse =
+                    searchService.getMembersBasedOnFilter("", groupApiDTO, searchPaginationRequest);
+            return searchResponse != null ? searchResponse.getRawResults() : Collections.emptyList();
+        } catch (InvalidOperationException e) {
+            logger.error("Failed to search Cloud service");
+        }
+        return Collections.emptyList();
+    }
+
+    // function to populate the statistics -> filters -> type for API DTO
+    private Function<TargetApiDTO, String> getTypeFunction(@Nonnull final Set<String> requestGroupBySet) {
+        if (requestGroupBySet.contains(TARGET)) return s -> TARGET;
+        if (requestGroupBySet.contains(CSP)) return s -> CSP;
+        if (requestGroupBySet.contains(CLOUD_SERVICE)) return s -> CLOUD_SERVICE;
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    // function to populate the statistics -> filters -> value for API DTO
+    private Function<TargetApiDTO, String> getValueFunction(@Nonnull final Set<String> requestGroupBySet) {
+        if (requestGroupBySet.contains(TARGET)) return s -> s.getDisplayName();
+        if (requestGroupBySet.contains(CSP)) return s -> s.getType();
+        if (requestGroupBySet.contains(CLOUD_SERVICE)) return s -> CLOUD_SERVICE;
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    // get all the discovered targets
+    private List<TargetApiDTO> getTargets() {
         List<TargetApiDTO> targets = null;
         try {
             targets = targetsService.getTargets(null);
@@ -397,9 +480,18 @@ public class StatsService implements IStatsService {
             logger.error("Unable to get targets list due to error: {}." +
                     " Not using targets list for stat filtering.", e.getMessage());
         }
+        return targets;
+    }
 
-        // filter out those commodities listed in BLACK_LISTED_STATS in StatsUtils
-        return StatsUtils.filterStats(stats, targets);
+    /**
+     *if the request DTO has name "costPrice", the stats will be provided by Cost component.
+     *TODO support scope
+     */
+    private boolean isCostStats(@Nonnull final String uuid,
+                                @Nonnull final StatPeriodApiInputDTO inputDto) {
+        return MARKET.equals(uuid) && inputDto.getStatistics() != null && inputDto.getStatistics()
+                .stream()
+                .anyMatch(dto -> COST_PRICE.equals(dto.getName()));
     }
 
     /**
@@ -974,5 +1066,21 @@ public class StatsService implements IStatsService {
         } else {
             return Optional.empty();
         }
+    }
+
+    // helper method to check if
+    private static boolean isGroupBy(final StatPeriodApiInputDTO inputDto, final String groupBy) {
+        return inputDto.getStatistics().stream()
+                .anyMatch(statApiInputDTO ->
+                        statApiInputDTO.getGroupBy() == null ? false :
+                                statApiInputDTO.getGroupBy().stream().anyMatch(name ->
+                                        groupBy.equalsIgnoreCase(name)));
+    }
+
+    private Set<String> parseGroupBy(final StatPeriodApiInputDTO inputDto) {
+        return inputDto.getStatistics().stream()
+                .filter(dto -> dto.getGroupBy() != null)
+                .flatMap(apiInputDTO -> apiInputDTO.getGroupBy().stream())
+                .collect(Collectors.toSet());
     }
 }
