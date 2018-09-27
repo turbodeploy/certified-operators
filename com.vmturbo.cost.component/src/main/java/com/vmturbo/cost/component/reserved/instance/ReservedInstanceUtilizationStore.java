@@ -1,5 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.SNAPSHOT_TIME;
+import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.createSelectFieldsForRIUtilizationCoverage;
+
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -12,12 +15,18 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Record;
+import org.jooq.Result;
+import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationLatestRecord;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 
 /**
  * This class is used to store reserved instance utilization information into databases. And it
@@ -75,6 +84,26 @@ public class ReservedInstanceUtilizationStore {
                                 riSpecIdToRegionMap, riUsedCouponsMap))
                         .collect(Collectors.toList());
         context.batchInsert(riUtilizationRecords).execute();
+    }
+
+    /**
+     * Get the list of {@link ReservedInstanceStatsRecord} which aggregates data from reserved instance
+     * utilization table.
+     *
+     * @param filter a {@link ReservedInstanceUtilizationFilter}.
+     * @return a list of {@link ReservedInstanceStatsRecord}.
+     */
+    public List<ReservedInstanceStatsRecord> getReservedInstanceUtilizationStatsRecords(
+            @Nonnull final ReservedInstanceUtilizationFilter filter) {
+        final Table<?> table = filter.getTableName();
+        final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table))
+                .from(table)
+                .where(filter.getConditions())
+                .groupBy(table.field(SNAPSHOT_TIME))
+                .fetch();
+        return records.stream()
+                .map(ReservedInstanceUtil::convertRIUtilizationCoverageRecordToRIStatsRecord)
+                .collect(Collectors.toList());
     }
 
     /**

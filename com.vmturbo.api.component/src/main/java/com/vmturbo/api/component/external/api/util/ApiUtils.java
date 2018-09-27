@@ -2,15 +2,19 @@ package com.vmturbo.api.component.external.api.util;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Objects;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
 import javax.servlet.http.HttpServletRequest;
 
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.auth.api.authorization.jwt.JwtCallCredential;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 
 /**
  * Utility functions in support of the XL External API implementation
@@ -92,6 +96,20 @@ public class ApiUtils {
         } catch (UnknownHostException e) {
             return LOOPBACK;
         }
+    }
+
+    /**
+     * Check if the input scope is global scope or not.
+     *
+     * @param scope the scope
+     * @param groupOptional a optional of group.
+     * @return a boolean to represent if input scope is global market or not.
+     */
+    public static boolean isGlobalScope(@Nonnull final String scope,
+                                        @Nonnull final Optional<Group> groupOptional) {
+        return Objects.isNull(scope) || UuidMapper.isRealtimeMarket(scope) ||
+                (groupOptional.isPresent() && groupOptional.get().hasTempGroup() &&
+                        groupOptional.get().getTempGroup().getIsGlobalScopeGroup());
     }
 }
 

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.service;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.DATACENTER;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType.PHYSICAL_MACHINE;
 import static com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.toServiceEntityApiDTO;
+import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -35,6 +36,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -53,6 +55,7 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.pagination.SearchPaginationRequest;
@@ -62,10 +65,18 @@ import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.StatsUtils;
 import com.vmturbo.api.utils.UrlsHelp;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.Pagination;
+import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
+import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
+import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceCoverageStatsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -91,6 +102,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reports.db.StringConstants;
 
 
@@ -137,6 +150,10 @@ public class StatsService implements IStatsService {
 
     private final SearchService searchService;
 
+    private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService;
+
+    private final ReservedInstanceMapper reservedInstanceMapper;
+
     // CLUSTER_STATS is a collection of the cluster-headroom stats calculated from nightly plans.
     // this set is mostly copied from com.vmturbo.platform.gateway.util.StatsUtils.headRoomMetrics,
     // with an extra entry for headroom vm's, which is also a cluster-level stat calculated in the
@@ -178,7 +195,9 @@ public class StatsService implements IStatsService {
                  @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                  @Nonnull final Duration liveStatsRetrievalWindow,
                  @Nonnull final CostServiceBlockingStub costService,
-                 @Nonnull final SearchService searchService) {
+                 @Nonnull final SearchService searchService,
+                 @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
+                 @Nonnull final ReservedInstanceMapper reservedInstanceMapper) {
         this.statsServiceRpc = Objects.requireNonNull(statsServiceRpc);
         this.planRpcService = planRpcService;
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -193,6 +212,8 @@ public class StatsService implements IStatsService {
         this.statsMapper = Objects.requireNonNull(statsMapper);
         this.costServiceRpc = Objects.requireNonNull(costService);
         this.searchService = Objects.requireNonNull(searchService);
+        this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
+        this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
     }
 
     /**
@@ -284,6 +305,11 @@ public class StatsService implements IStatsService {
         // Create a default Stat period, if one is not specified in the request
         if (inputDto == null) {
             inputDto = getDefaultStatPeriodApiInputDto();
+        }
+
+        // If it is a request for reserved instance coverage, then get the stats from cost component.
+        if (isRequestForReservedInstanceCoverageStats(inputDto)) {
+            return getReservedInstanceCoverageStats(uuid, inputDto);
         }
 
         // choose LinkedList to make appending more efficient. This list will only be read once.
@@ -1082,5 +1108,123 @@ public class StatsService implements IStatsService {
                 .filter(dto -> dto.getGroupBy() != null)
                 .flatMap(apiInputDTO -> apiInputDTO.getGroupBy().stream())
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * Get a list of {@link StatSnapshotApiDTO} for reserved instance coverage stats from cost component.
+     *
+     * @param scope the scope of the request.
+     * @param inputDto a {@link StatPeriodApiInputDTO}.
+     * @return a list of {@link StatSnapshotApiDTO}.
+     * @throws UnknownObjectException if scope entity is unknown.
+     */
+    private List<StatSnapshotApiDTO> getReservedInstanceCoverageStats(
+            @Nonnull final String scope,
+            @Nonnull final StatPeriodApiInputDTO inputDto) throws UnknownObjectException {
+        final Optional<Group> groupOptional = groupExpander.getGroup(scope);
+        // TODO: add the projected reserved instance utilization stats.
+        final List<ReservedInstanceStatsRecord> riStatsRecords =
+                getRiCoverageStats(Long.valueOf(inputDto.getStartDate()),
+                        Long.valueOf(inputDto.getEndDate()), scope, groupOptional);
+        return reservedInstanceMapper.convertRIStatsRecordsToStatSnapshotApiDTO(riStatsRecords, true);
+    }
+
+    /**
+     * Get a list of {@link ReservedInstanceStatsRecord} from cost component which contains the stats
+     * of reserved instance coverages.
+     *
+     * @param startDateMillis the request start date milliseconds.
+     * @param endDateMillis the request end date milliseconds.
+     * @param scope the scope of the request.
+     * @param groupOptional a optional of {@link Group}.
+     * @return a list of {@link ReservedInstanceStatsRecord}.
+     * @throws UnknownObjectException if the scope entity is unknown.
+     */
+    private List<ReservedInstanceStatsRecord> getRiCoverageStats(
+            final long startDateMillis,
+            final long endDateMillis,
+            final String scope,
+            @Nonnull final Optional<Group> groupOptional) throws UnknownObjectException {
+        if (isGlobalScope(scope, groupOptional)) {
+            return riUtilizationCoverageService.getReservedInstanceCoverageStats(
+                    GetReservedInstanceCoverageStatsRequest.newBuilder()
+                            .setStartDate(startDateMillis)
+                            .setEndDate(endDateMillis)
+                            .build())
+                    .getReservedInstanceStatsRecordsList();
+        } else if (groupOptional.isPresent()) {
+            final int groupEntityType = GroupProtoUtil.getEntityType(groupOptional.get());
+            final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
+            final GetReservedInstanceCoverageStatsRequest request =
+                    createGetReservedInstanceCoverageStatsRequest(startDateMillis, endDateMillis,
+                            expandedOidsList, groupEntityType);
+            return riUtilizationCoverageService.getReservedInstanceCoverageStats(request)
+                    .getReservedInstanceStatsRecordsList();
+        } else {
+            final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(Long.valueOf(scope));
+            final int scopeEntityType = ServiceEntityMapper.fromUIEntityType(scopeEntity.getClassName());
+            final GetReservedInstanceCoverageStatsRequest request =
+                    createGetReservedInstanceCoverageStatsRequest(startDateMillis, endDateMillis,
+                            Sets.newHashSet(Long.valueOf(scope)), scopeEntityType);
+            return riUtilizationCoverageService.getReservedInstanceCoverageStats(request)
+                    .getReservedInstanceStatsRecordsList();
+        }
+    }
+
+    /**
+     * Create a {@link GetReservedInstanceCoverageStatsRequest} based on input parameters.
+     *
+     * @param startDateMillis the request start date milliseconds.
+     * @param endDateMillis the request end date milliseconds.
+     * @param filterIds a list of filter ids.
+     * @param filterType the filter type.
+     * @return a {@link GetReservedInstanceCoverageStatsRequest}.
+     * @throws UnknownObjectException if the filter type is unknown.
+     */
+    private GetReservedInstanceCoverageStatsRequest createGetReservedInstanceCoverageStatsRequest(
+            final long startDateMillis,
+            final long endDateMillis,
+            @Nonnull final Set<Long> filterIds,
+            final int filterType) throws UnknownObjectException {
+        final GetReservedInstanceCoverageStatsRequest.Builder request =
+                GetReservedInstanceCoverageStatsRequest.newBuilder()
+                        .setStartDate(startDateMillis)
+                        .setEndDate(endDateMillis);
+        if (filterType == EntityDTO.EntityType.REGION_VALUE) {
+            request.setRegionFilter(RegionFilter.newBuilder()
+                    .addAllFilterId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
+            request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                    .addAllFilterId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
+            request.setAccountFilter(AccountFilter.newBuilder()
+                    .addAllFilterId(filterIds));
+        } else if (filterType == EntityType.VIRTUAL_MACHINE_VALUE) {
+            request.setEntityFilter(EntityFilter.newBuilder()
+                    .addAllFilterId(filterIds));
+        }
+        else {
+            throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
+        }
+        return request.build();
+    }
+
+    /**
+     * Check if the input request is for reserved instance coverage or not.
+     *
+     * @param inputDto a {@link StatPeriodApiInputDTO}.
+     * @return return true if request is for reserved instance coverage, otherwise return false;
+     */
+    private boolean isRequestForReservedInstanceCoverageStats(
+            @Nonnull final StatPeriodApiInputDTO inputDto) {
+        if (inputDto != null && inputDto.getStatistics() != null) {
+            final List<StatApiInputDTO> statApiInputDTOS = inputDto.getStatistics();
+            if (statApiInputDTOS.size() == 1
+                    && statApiInputDTOS.get(0).getName().equals(StringConstants.RI_COUPON_COVERAGE)
+                    && statApiInputDTOS.get(0).getRelatedEntityType().equals(StringConstants.VIRTUAL_MACHINE)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

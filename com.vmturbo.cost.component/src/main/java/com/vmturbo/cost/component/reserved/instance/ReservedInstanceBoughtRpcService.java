@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRespo
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 
 public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServiceImplBase {
 

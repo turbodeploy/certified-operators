@@ -1,9 +1,8 @@
-package com.vmturbo.cost.component.reserved.instance;
+package com.vmturbo.cost.component.reserved.instance.filter;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -12,18 +11,13 @@ import org.jooq.Condition;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 
 /**
  * A filter to restrict the {@link ReservedInstanceBought} from the {@link ReservedInstanceBoughtStore}.
  * It provider a easier way to define simple search over reserved instances records in the tables.
  */
-public class ReservedInstanceBoughtFilter {
-
-    private final Set<Long> regionIds;
-
-    private final Set<Long> availabilityZoneIds;
-
-    private final Set<Long> businessAccountIds;
+public class ReservedInstanceBoughtFilter extends ReservedInstanceFilter {
 
     private final List<Condition> conditions;
 
@@ -34,9 +28,7 @@ public class ReservedInstanceBoughtFilter {
                                         @Nonnull final Set<Long> availabilityZoneIds,
                                         @Nonnull final Set<Long> businessAccountIds,
                                         final boolean joinWithSpecTable) {
-        this.regionIds = Objects.requireNonNull(regionIds);
-        this.availabilityZoneIds = Objects.requireNonNull(availabilityZoneIds);
-        this.businessAccountIds = Objects.requireNonNull(businessAccountIds);
+        super(regionIds, availabilityZoneIds, businessAccountIds);
         this.joinWithSpecTable = joinWithSpecTable;
         this.conditions = generateConditions(regionIds, availabilityZoneIds, businessAccountIds);
     }
@@ -47,14 +39,15 @@ public class ReservedInstanceBoughtFilter {
      * @return The array of {@link Condition} representing the filter.
      */
     public Condition[] getConditions() {
-        return conditions.toArray(new Condition[conditions.size()]);
+        return this.conditions.toArray(new Condition[conditions.size()]);
     }
 
     public boolean isJoinWithSpecTable() {
         return this.joinWithSpecTable;
     }
 
-    private List<Condition> generateConditions(@Nonnull final Set<Long> regionIds,
+    @Override
+    protected List<Condition> generateConditions(@Nonnull final Set<Long> regionIds,
                                                @Nonnull final Set<Long> availabilityZoneIds,
                                                @Nonnull final Set<Long> businessAccountIds) {
         final List<Condition> conditions = new ArrayList<>();

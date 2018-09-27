@@ -119,7 +119,7 @@ public class MapperConfig {
 
     @Bean
     public ReservedInstanceMapper reservedInstanceMapper() {
-        return new ReservedInstanceMapper();
+        return new ReservedInstanceMapper(communicationConfig.repositoryApi());
     }
 
     @Bean

@@ -1,5 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.SNAPSHOT_TIME;
+import static com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil.createSelectFieldsForRIUtilizationCoverage;
+
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -11,11 +14,16 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
+import org.jooq.Record;
+import org.jooq.Result;
+import org.jooq.Table;
 
 import com.google.common.collect.Lists;
 
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLatestRecord;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 
 /**
  * This class is used to store entity reserved instance coupons coverage information into database.
@@ -60,6 +68,26 @@ public class ReservedInstanceCoverageStore {
                 .collect(Collectors.toList());
         Lists.partition(riCoverageRecords, chunkSize).forEach(entityChunk ->
                 context.batchInsert(entityChunk).execute());
+    }
+
+    /**
+     * Get the list of {@link ReservedInstanceStatsRecord} which aggregates data from reserved instance
+     * coverage table.
+     *
+     * @param filter a {@link ReservedInstanceCoverageFilter}.
+     * @return a list of {@link ReservedInstanceStatsRecord}.
+     */
+    public List<ReservedInstanceStatsRecord> getReservedInstanceCoverageStatsRecords(
+            @Nonnull final ReservedInstanceCoverageFilter filter) {
+        final Table<?> table = filter.getTableName();
+        final Result<Record> records = dsl.select(createSelectFieldsForRIUtilizationCoverage(table))
+                .from(table)
+                .where(filter.getConditions())
+                .groupBy(table.field(SNAPSHOT_TIME))
+                .fetch();
+        return records.stream()
+                .map(ReservedInstanceUtil::convertRIUtilizationCoverageRecordToRIStatsRecord)
+                .collect(Collectors.toList());
     }
 
     /**

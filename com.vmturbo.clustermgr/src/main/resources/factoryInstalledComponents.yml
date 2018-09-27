@@ -240,6 +240,9 @@ cost:
   grpcPingIntervalSeconds: 300
   realtimeTopologyContextId: 777777
   persistEntityCostChunkSize: 1000
+  numRetainedMinutes: 130
+  numRetainedHours: 72
+  numRetainedDays: 60
 
   # START - database-related properties.
   <<: *db_conn_info

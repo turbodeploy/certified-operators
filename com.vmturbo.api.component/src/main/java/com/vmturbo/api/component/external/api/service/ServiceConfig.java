@@ -251,6 +251,7 @@ public class ServiceConfig {
         return new ReservedInstancesService(
                 communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
                 communicationConfig.reservedInstanceSpecServiceBlockingStub(),
+                communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
                 mapperConfig.reservedInstanceMapper(),
                 communicationConfig.repositoryApi(),
                 communicationConfig.groupExpander());
@@ -352,7 +353,9 @@ public class ServiceConfig {
                 communicationConfig.groupRpcService(),
                 Duration.ofSeconds(liveStatsRetrievalWindowSeconds),
                 communicationConfig.costServiceBlockingStub(),
-                searchService());
+                searchService(),
+                communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
+                mapperConfig.reservedInstanceMapper());
     }
 
     @Bean

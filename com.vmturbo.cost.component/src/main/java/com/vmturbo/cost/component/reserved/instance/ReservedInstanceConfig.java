@@ -1,18 +1,31 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import java.time.Clock;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceSpecServiceController;
+import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
 import com.vmturbo.cost.component.IdentityProviderConfig;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 @Configuration
 @Import({SQLDatabaseConfig.class, IdentityProviderConfig.class})
 public class ReservedInstanceConfig {
+
+    @Value("${numRetainedMinutes}")
+    private int numRetainedMinutes;
+
+    @Value("${numRetainedHours}")
+    private int numRetainedHours;
+
+    @Value("${numRetainedDays}")
+    private int numRetainedDays;
 
     @Autowired
     private SQLDatabaseConfig databaseConfig;
@@ -33,6 +46,25 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
+    public EntityReservedInstanceMappingStore entityReservedInstanceMappingStore() {
+        return new EntityReservedInstanceMappingStore(databaseConfig.dsl(),
+                reservedInstanceBoughtStore());
+    }
+
+    @Bean
+    public ReservedInstanceUtilizationStore reservedInstanceUtilizationStore() {
+        return new ReservedInstanceUtilizationStore(databaseConfig.dsl(),
+                reservedInstanceBoughtStore(), reservedInstanceSpecStore(),
+                entityReservedInstanceMappingStore());
+    }
+
+    @Bean
+    public ReservedInstanceCoverageStore reservedInstanceCoverageStore() {
+        return new ReservedInstanceCoverageStore(databaseConfig.dsl(),
+                entityReservedInstanceMappingStore());
+    }
+
+    @Bean
     public ReservedInstanceBoughtRpcService reservedInstanceBoughtRpcService() {
         return new ReservedInstanceBoughtRpcService(reservedInstanceBoughtStore(), databaseConfig.dsl());
     }
@@ -43,6 +75,17 @@ public class ReservedInstanceConfig {
     }
 
     @Bean
+    public TimeFrameCalculator timeFrameCalculator() {
+        return new TimeFrameCalculator(Clock.systemUTC(), numRetainedMinutes, numRetainedHours, numRetainedDays);
+    }
+
+    @Bean
+    public ReservedInstanceUtilizationCoverageRpcService reservedInstanceUtilizationCoverageRpcService() {
+        return new ReservedInstanceUtilizationCoverageRpcService(reservedInstanceUtilizationStore(),
+                reservedInstanceCoverageStore(), timeFrameCalculator());
+    }
+
+    @Bean
     public ReservedInstanceBoughtServiceController reservedInstanceBoughtServiceController() {
         return new ReservedInstanceBoughtServiceController(reservedInstanceBoughtRpcService());
     }
@@ -50,5 +93,11 @@ public class ReservedInstanceConfig {
     @Bean
     public ReservedInstanceSpecServiceController reservedInstanceSpecServiceController() {
         return new ReservedInstanceSpecServiceController(reservedInstanceSpecRpcService());
+    }
+
+    @Bean
+    public ReservedInstanceUtilizationCoverageServiceController reservedInstanceUtilizationCoverageServiceController() {
+        return new ReservedInstanceUtilizationCoverageServiceController(
+                reservedInstanceUtilizationCoverageRpcService());
     }
 }

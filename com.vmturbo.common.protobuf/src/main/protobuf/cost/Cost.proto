@@ -431,6 +431,11 @@ message AccountFilter {
     repeated int64 filter_id = 1;
 }
 
+message EntityFilter {
+    // A list of entity ids need to filter by.
+    repeated int64 filter_id = 1;
+}
+
 // A request to get reserved instance bought by some filter condition. If provider more than one
 // different filter type, it will perform AND logic.
 message GetReservedInstanceBoughtByFilterRequest {
@@ -498,5 +503,87 @@ message GetReservedInstanceSpecByIdsResponse {
 service ReservedInstanceSpecService {
     // Get the reserved instance spec by a list of spec id.
     rpc GetReservedInstanceSpecByIds(GetReservedInstanceSpecByIdsRequest) returns (GetReservedInstanceSpecByIdsResponse);
+}
+
+// A request to get reserved instance utilization stats
+message GetReservedInstanceUtilizationStatsRequest {
+    // The start date of the request
+    optional uint64 start_date = 1;
+
+    // The end date of the request
+    optional uint64 end_date = 2;
+
+    // get reserved instance utilization stats filter by region ids.
+    optional RegionFilter region_filter = 3;
+
+    // get reserved instance utilization stats filter by availability zone ids.
+    optional AvailabilityZoneFilter availability_zone_filter = 4;
+
+    // get reserved instance utilization stats filter by account ids.
+    optional AccountFilter account_filter = 5;
+
+}
+
+// A response of reserved instance utilization stats.
+message GetReservedInstanceUtilizationStatsResponse {
+    // A list of reserved instance utilization stats records.
+    repeated ReservedInstanceStatsRecord reserved_instance_stats_records = 1;
+}
+
+// A request to get reserved instance coverage stats.
+message GetReservedInstanceCoverageStatsRequest {
+    // The start date of the request.
+    optional uint64 start_date = 1;
+
+    // The end date of the request.
+    optional uint64 end_date = 2;
+
+    // get reserved instance bought filter by region ids.
+    optional RegionFilter region_filter = 3;
+
+    // get reserved instance bought filter by availability zone ids.
+    optional AvailabilityZoneFilter availability_zone_filter = 4;
+
+    // get reserved instance bought filter by account ids.
+    optional AccountFilter account_filter = 5;
+
+    optional EntityFilter entity_filter = 6;
+}
+
+// A response of reserved instance coverage stats.
+message GetReservedInstanceCoverageStatsResponse {
+    // A list of reserved instance coverage stats records.
+    repeated ReservedInstanceStatsRecord reserved_instance_stats_records = 1;
+}
+
+// A reserved instance stats record represents the stats (avg,max,min,total) value at a timestamp point.
+message ReservedInstanceStatsRecord {
+    // The actual snapshot_date for this stats record.
+    optional int64 snapshot_date = 1;
+
+    // The capacity value of this stats record.
+    optional StatValue capacity = 2;
+
+    // The used value of this stats record.
+    optional StatValue values = 3;
+
+    // Contains the detail value of stats record, such as, max, min, avg, total value.
+    message StatValue {
+        optional float max = 1;
+        optional float min = 2;
+        optional float avg = 3;
+        optional float total = 4;
+    }
+}
+
+// A service for reserved instance utilization and coverage stats.
+service ReservedInstanceUtilizationCoverageService {
+    // Get the reserved instance utilization stats.
+    rpc GetReservedInstanceUtilizationStats(GetReservedInstanceUtilizationStatsRequest)
+        returns(GetReservedInstanceUtilizationStatsResponse);
+
+    // Get the reserved instance coverage stats.
+    rpc GetReservedInstanceCoverageStats(GetReservedInstanceCoverageStatsRequest)
+        returns(GetReservedInstanceCoverageStatsResponse);
 }
 

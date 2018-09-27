@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.service;
 
+import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,7 +26,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
-import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -43,16 +44,18 @@ import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.reports.db.StringConstants;
 
 public class ReservedInstancesService implements IReservedInstancesService {
@@ -63,6 +66,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService;
 
+    private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService;
+
     private final ReservedInstanceMapper reservedInstanceMapper;
 
     private final RepositoryApi repositoryApi;
@@ -72,11 +77,13 @@ public class ReservedInstancesService implements IReservedInstancesService {
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
             @Nonnull final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService,
+            @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
             @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final GroupExpander groupExpander) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
+        this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.groupExpander = Objects.requireNonNull(groupExpander);
@@ -128,19 +135,33 @@ public class ReservedInstancesService implements IReservedInstancesService {
         }
         //TODO: support multiple scopes.
         final String scope = inputDto.getScopes().get(0);
-
-        // TODO: support RI Utilization stats query.
-        final Map<Long, Long> reservedInstanceCountMap = getReservedInstanceCountMap(scope);
-        final Map<Long, ServiceEntityApiDTO> riServiceEntityApiDtoMap = repositoryApi.getServiceEntitiesById(
-                ServiceEntitiesRequest.newBuilder(reservedInstanceCountMap.keySet()).build())
-                .entrySet().stream()
-                .filter(entry -> entry.getValue().isPresent())
-                .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
-
-        final EntityStatsApiDTO result =
-                reservedInstanceMapper.riCountMapToEntityStatsApiDTO(reservedInstanceCountMap,
-                        riServiceEntityApiDtoMap);
-        return paginationRequest.allResultsResponse(Lists.newArrayList(result));
+        final Optional<Group> groupOptional = groupExpander.getGroup(scope);
+        // it has already checked statistics can only has one element.
+        final String riStatsName = inputDto.getPeriod().getStatistics().get(0).getName();
+        if (riStatsName.equals(StringConstants.NUM_RI)) {
+            final Map<Long, Long> reservedInstanceCountMap = getReservedInstanceCountMap(scope, groupOptional);
+            final Map<Long, ServiceEntityApiDTO> riServiceEntityApiDtoMap = repositoryApi.getServiceEntitiesById(
+                    ServiceEntitiesRequest.newBuilder(reservedInstanceCountMap.keySet()).build())
+                    .entrySet().stream()
+                    .filter(entry -> entry.getValue().isPresent())
+                    .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().get()));
+            final EntityStatsApiDTO result =
+                    reservedInstanceMapper.riCountMapToEntityStatsApiDTO(reservedInstanceCountMap,
+                            riServiceEntityApiDtoMap);
+            return paginationRequest.allResultsResponse(Lists.newArrayList(result));
+        } else if (riStatsName.equals(StringConstants.RI_COUPON_UTILIZATION)) {
+            // TODO: add the projected reserved instance utilization stats.
+            final List<ReservedInstanceStatsRecord> riStatsRecords =
+                    getRiUtilizationStats(Long.valueOf(inputDto.getPeriod().getStartDate()),
+                            Long.valueOf(inputDto.getPeriod().getEndDate()), scope, groupOptional);
+            final EntityStatsApiDTO result =
+                    reservedInstanceMapper.convertRIUtilizationStatsRecordsToEntityStatsApiDTO(riStatsRecords,
+                            scope, groupOptional);
+            return paginationRequest.allResultsResponse(Lists.newArrayList(result));
+        } else {
+            logger.error("Not support reserved instance stats type: " + riStatsName);
+            throw new UnknownObjectException(riStatsName + " is not supported query type.");
+        }
     }
 
     /**
@@ -207,12 +228,13 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * Get the reserved instance count map which belongs to the input scope.
      *
      * @param scope The scope could be global market, a group, a region, a availability zone or a account.
+     * @param groupOptional The optional of {@link Group}.
      * @return a Map which key is computer tier id, value is the count of reserved instance bought.
      * @throws UnknownObjectException if scope type is not supported.
      */
-    private Map<Long, Long> getReservedInstanceCountMap(@Nonnull final String scope)
+    private Map<Long, Long> getReservedInstanceCountMap(@Nonnull final String scope,
+                                                        @Nonnull final Optional<Group> groupOptional)
             throws UnknownObjectException {
-        final Optional<Group> groupOptional = groupExpander.getGroup(scope);
         if (isGlobalScope(scope, groupOptional)) {
             return reservedInstanceService.getReservedInstanceBoughtCount(
                     GetReservedInstanceBoughtCountRequest.newBuilder().build())
@@ -292,17 +314,78 @@ public class ReservedInstancesService implements IReservedInstancesService {
     }
 
     /**
-     * Check if the input scope is global scope or not.
+     * Get a list of {@link ReservedInstanceStatsRecord} for reserved instance utilization stats request.
      *
-     * @param scope the scope
-     * @param groupOptional a optional of group.
-     * @return a boolean to represent if input scope is global market or not.
+     * @param startDateMillis the request start date millis.
+     * @param endDateMillis the request end date millis.
+     * @param scope the scope of the request.
+     * @param groupOptional a optional of {@link Group}.
+     * @return a list of {@link ReservedInstanceStatsRecord}.
+     * @throws UnknownObjectException if the scope entity is unknown.
      */
-    private boolean isGlobalScope(@Nonnull final String scope,
-                                  @Nonnull final Optional<Group> groupOptional) {
-        return Objects.isNull(scope) || UuidMapper.isRealtimeMarket(scope) ||
-                (groupOptional.isPresent() && groupOptional.get().hasTempGroup() &&
-                        groupOptional.get().getTempGroup().getIsGlobalScopeGroup());
+    private List<ReservedInstanceStatsRecord> getRiUtilizationStats(
+            final long startDateMillis,
+            final long endDateMillis,
+            @Nonnull final String scope,
+            @Nonnull final Optional<Group> groupOptional) throws UnknownObjectException {
+        if (isGlobalScope(scope, groupOptional)) {
+            return riUtilizationCoverageService.getReservedInstanceUtilizationStats(
+                    GetReservedInstanceUtilizationStatsRequest.newBuilder()
+                            .setStartDate(startDateMillis)
+                            .setEndDate(endDateMillis)
+                            .build())
+                    .getReservedInstanceStatsRecordsList();
+        } else if (groupOptional.isPresent()) {
+            final int groupEntityType = GroupProtoUtil.getEntityType(groupOptional.get());
+            final Set<Long> expandedOidsList = groupExpander.expandUuid(scope);
+            final GetReservedInstanceUtilizationStatsRequest request =
+                    createGetReservedInstanceUtilizationStatsRequest(startDateMillis, endDateMillis,
+                            expandedOidsList, groupEntityType);
+            return riUtilizationCoverageService.getReservedInstanceUtilizationStats(request)
+                    .getReservedInstanceStatsRecordsList();
+        } else {
+            final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(Long.valueOf(scope));
+            final int scopeEntityType = ServiceEntityMapper.fromUIEntityType(scopeEntity.getClassName());
+            final GetReservedInstanceUtilizationStatsRequest request =
+                    createGetReservedInstanceUtilizationStatsRequest(startDateMillis, endDateMillis,
+                            Sets.newHashSet(Long.valueOf(scope)), scopeEntityType);
+            return riUtilizationCoverageService.getReservedInstanceUtilizationStats(request)
+                    .getReservedInstanceStatsRecordsList();
+        }
+    }
+
+    /**
+     * Create a {@link GetReservedInstanceUtilizationStatsRequest} based on input parameters.
+     *
+     * @param startDateMillis the request start date millis.
+     * @param endDateMillis the request end date millis.
+     * @param filterIds a list of filter ids.
+     * @param filterType the filter type.
+     * @return a {@link GetReservedInstanceUtilizationStatsRequest}.
+     * @throws UnknownObjectException if the filter type is unknown.
+     */
+    private GetReservedInstanceUtilizationStatsRequest createGetReservedInstanceUtilizationStatsRequest(
+            final long startDateMillis,
+            final long endDateMillis,
+            @Nonnull final Set<Long> filterIds,
+            final int filterType)  throws UnknownObjectException {
+        final GetReservedInstanceUtilizationStatsRequest.Builder request =
+                GetReservedInstanceUtilizationStatsRequest.newBuilder()
+                        .setStartDate(startDateMillis)
+                        .setEndDate(endDateMillis);
+        if (filterType == EntityDTO.EntityType.REGION_VALUE) {
+            request.setRegionFilter(RegionFilter.newBuilder()
+                    .addAllFilterId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.AVAILABILITY_ZONE_VALUE) {
+            request.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                    .addAllFilterId(filterIds));
+        } else if (filterType == EntityDTO.EntityType.BUSINESS_ACCOUNT_VALUE) {
+            request.setAccountFilter(AccountFilter.newBuilder()
+                    .addAllFilterId(filterIds));
+        } else {
+            throw new UnknownObjectException("filter type: "  + filterType + " is not supported.");
+        }
+        return request.build();
     }
 
     /**
@@ -312,15 +395,18 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * @return a true if it is valid, otherwise return false;
      */
     private boolean isValidInputArgument( @Nonnull StatScopesApiInputDTO inputDto) {
-        // TODO: right now, it only support get RI count stats, need to support RI Utilization stats
-        // query.
         if (inputDto.getScopes() != null && inputDto.getScopes().size() > 0
                 && inputDto.getPeriod() != null && inputDto.getPeriod().getStatistics() != null) {
             final List<StatApiInputDTO> statApiInputDTOS = inputDto.getPeriod().getStatistics();
-            if (statApiInputDTOS.size() == 1 && statApiInputDTOS.get(0).getName().equals(StringConstants.NUM_RI)
+            if (statApiInputDTOS.size() == 1
+                    && statApiInputDTOS.get(0).getName().equals(StringConstants.NUM_RI)
                     && statApiInputDTOS.get(0).getGroupBy() != null
                     && statApiInputDTOS.get(0).getGroupBy().size() == 1
                     && statApiInputDTOS.get(0).getGroupBy().get(0).equals(StringConstants.TEMPLATE)) {
+                return true;
+            }
+            if (statApiInputDTOS.size() == 1
+                    && statApiInputDTOS.get(0).getName().equals(StringConstants.RI_COUPON_UTILIZATION)) {
                 return true;
             }
         }

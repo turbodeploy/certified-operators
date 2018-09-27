@@ -14,9 +14,9 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider;
 import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
-import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.sql.utils.DbException;
 
 /**

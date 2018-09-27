@@ -19,10 +19,12 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceCoverageLatestRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 @RunWith(SpringJUnit4ClassRunner.class)
@@ -112,7 +114,23 @@ public class ReservedInstanceCoverageStoreTest {
         assertEquals(80.0, secondRecord.get().getUsedCoupons(), DELTA);
         assertEquals(50.0, thirdRecord.get().getTotalCoupons(), DELTA);
         assertEquals(0.0, thirdRecord.get().getUsedCoupons(), DELTA);
+    }
 
+    @Test
+    public void testGetReservedInstanceCoverageStatsRecords() {
+        reservedInstanceCoverageStore.updateReservedInstanceCoverageStore(dsl,
+                Arrays.asList(firstEntity, secondEntity, thirdEntity));
+        final ReservedInstanceCoverageFilter filer = ReservedInstanceCoverageFilter.newBuilder().build();
+        final List<ReservedInstanceStatsRecord> riStatsRecords =
+                reservedInstanceCoverageStore.getReservedInstanceCoverageStatsRecords(filer);
+        assertEquals(1L, riStatsRecords.size());
+        final ReservedInstanceStatsRecord riStatsRecord = riStatsRecords.get(0);
+        assertEquals(200L, riStatsRecord.getCapacity().getMax(), DELTA);
+        assertEquals(50L, riStatsRecord.getCapacity().getMin(), DELTA);
+        assertEquals(350L, riStatsRecord.getCapacity().getTotal(), DELTA);
+        assertEquals(80L, riStatsRecord.getValues().getMax(), DELTA);
+        assertEquals(0L, riStatsRecord.getValues().getMin(), DELTA);
+        assertEquals(110L, riStatsRecord.getValues().getTotal(), DELTA);
     }
 
     private void insertDefaultEntityReservedInstanceMapping() {

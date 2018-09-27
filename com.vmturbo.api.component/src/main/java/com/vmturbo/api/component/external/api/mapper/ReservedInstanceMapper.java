@@ -1,9 +1,15 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.mapper.UuidMapper.UI_REAL_TIME_MARKET_STR;
+import static com.vmturbo.api.component.external.api.util.ApiUtils.isGlobalScope;
+import static com.vmturbo.reports.db.StringConstants.RI_COUPON_COVERAGE;
 import static com.vmturbo.reports.db.StringConstants.RI_COUPON_UNITS;
+import static com.vmturbo.reports.db.StringConstants.RI_COUPON_UTILIZATION;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -11,9 +17,12 @@ import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import com.google.common.collect.Lists;
 
+import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
@@ -22,21 +31,28 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.PaymentOption;
 import com.vmturbo.api.enums.Platform;
 import com.vmturbo.api.enums.ReservedInstanceType;
 import com.vmturbo.api.enums.Tenancy;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.reports.db.StringConstants;
 
 public class ReservedInstanceMapper {
 
     private final Logger logger = LogManager.getLogger();
+
+    private final RepositoryApi repositoryApi;
 
     private static final String RESERVED_INSTANCE = "ReservedInstance";
 
@@ -47,6 +63,10 @@ public class ReservedInstanceMapper {
     private static final long NUM_OF_MILLISECONDS_OF_YEAR = 365L * 86400L * 1000L;
 
     private static final int NUM_OF_HOURS_OF_YEAR = 365 * 24;
+
+    public ReservedInstanceMapper(@Nonnull final RepositoryApi repositoryApi) {
+        this.repositoryApi = Objects.requireNonNull(repositoryApi);
+    }
 
     /**
      * Convert {@link ReservedInstanceBought} and {@link ReservedInstanceSpec} to {@link ReservedInstanceApiDTO}.
@@ -145,6 +165,73 @@ public class ReservedInstanceMapper {
     }
 
     /**
+     * convert a list of {@link ReservedInstanceStatsRecord} to {@link EntityStatsApiDTO}.
+     *
+     * @param records a list of {@link ReservedInstanceStatsRecord}
+     * @param scope the scope of this request.
+     * @param groupOptional a optional of {@link Group}.
+     * @return a {@link EntityStatsApiDTO}.
+     * @throws UnknownObjectException
+     */
+    public EntityStatsApiDTO convertRIUtilizationStatsRecordsToEntityStatsApiDTO(
+            @Nonnull final List<ReservedInstanceStatsRecord> records,
+            @Nonnull final String scope,
+            @Nonnull final Optional<Group> groupOptional) throws UnknownObjectException {
+        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+        final List<StatSnapshotApiDTO> statSnapshotApiDTOS =
+                convertRIStatsRecordsToStatSnapshotApiDTO(records, false);
+        entityStatsApiDTO.setStats(statSnapshotApiDTOS);
+        final String displayName = getScopeDisplayName(scope, groupOptional);
+        entityStatsApiDTO.setDisplayName(displayName);
+        return entityStatsApiDTO;
+    }
+
+    /**
+     * Convert a list of {@link ReservedInstanceStatsRecord} to a list of {@link StatSnapshotApiDTO}.
+     *
+     * @param records a list of {@link ReservedInstanceStatsRecord}.
+     * @param isRICoverage a boolean which true means it's a reserved instance coverage stats request,
+     *                     false means it's a reserved instance utilization stats request.
+     * @return a list {@link ReservedInstanceStatsRecord}.
+     */
+    public List<StatSnapshotApiDTO> convertRIStatsRecordsToStatSnapshotApiDTO(
+            @Nonnull final List<ReservedInstanceStatsRecord> records,
+            final boolean isRICoverage) {
+        return records.stream()
+                .map(record -> {
+                    final StatSnapshotApiDTO snapshotApiDTO = new StatSnapshotApiDTO();
+                    snapshotApiDTO.setDate(DateTimeUtil.toString(record.getSnapshotDate()));
+                    final StatApiDTO statApiDTO = createRIUtilizationStatApiDTO(record, isRICoverage);
+                    snapshotApiDTO.setStatistics(Lists.newArrayList(statApiDTO));
+                    return snapshotApiDTO;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get the scope display name based on input scope string and a optional of {@link Group}.
+     * if it is Market scope, then return Market, if it is a Group, return group name, otherwise
+     * it is a service entity, return the display name of the entity.
+     *
+     * @param scope the scope string.
+     * @param groupOptional a optional of {@link Group}.
+     * @return the scope name.
+     * @throws UnknownObjectException if scope is a unknown entity.
+     */
+    private String getScopeDisplayName(@Nonnull final String scope,
+                                       @Nonnull final Optional<Group> groupOptional)
+            throws UnknownObjectException {
+        if (isGlobalScope(scope, groupOptional)) {
+            return UI_REAL_TIME_MARKET_STR;
+        } else if (groupOptional.isPresent()) {
+            return GroupProtoUtil.getGroupName(groupOptional.get());
+        } else {
+            final ServiceEntityApiDTO scopeEntity = repositoryApi.getServiceEntityForUuid(Long.valueOf(scope));
+            return scopeEntity.getDisplayName();
+        }
+    }
+
+    /**
      * Convert {@link CloudCostDTO.ReservedInstanceType.PaymentOption} to {@link PaymentOption}.
      *
      * @param paymentOption a {@link CloudCostDTO.ReservedInstanceType.PaymentOption}.
@@ -215,6 +302,36 @@ public class ReservedInstanceMapper {
         }
         statsDto.setCapacity(capacityDto);
         statsDto.setUnits(units);
+        return statsDto;
+    }
+
+    /**
+     * Create a {@link StatApiDTO} from input {@link ReservedInstanceStatsRecord}.
+     *
+     * @param record a {@link ReservedInstanceStatsRecord}.
+     * @param isRICoverage a boolean which true means it's a reserved instance coverage stats request,
+     *                     false means it's a reserved instance utilization stats request.
+     * @return a {@link StatApiDTO}.
+     */
+    private StatApiDTO createRIUtilizationStatApiDTO(@Nonnull final ReservedInstanceStatsRecord record,
+                                                     final boolean isRICoverage) {
+        final String name = isRICoverage ? RI_COUPON_COVERAGE : RI_COUPON_UTILIZATION;
+        StatApiDTO statsDto = new StatApiDTO();
+        StatValueApiDTO statsValueDto = new StatValueApiDTO();
+        statsValueDto.setAvg(record.getValues().getAvg());
+        statsValueDto.setMax(record.getValues().getMax());
+        statsValueDto.setMin(record.getValues().getMin());
+        statsValueDto.setTotal(record.getValues().getTotal());
+        statsDto.setValues(statsValueDto);
+        StatValueApiDTO capacityDto = new StatValueApiDTO();
+        capacityDto.setAvg(record.getCapacity().getAvg());
+        capacityDto.setMax(record.getCapacity().getMax());
+        capacityDto.setMin(record.getCapacity().getMin());
+        capacityDto.setTotal(record.getCapacity().getTotal());
+        statsDto.setCapacity(capacityDto);
+        statsDto.setUnits(RI_COUPON_UNITS);
+        statsDto.setName(name);
+        statsDto.setValue(record.getValues().getAvg());
         return statsDto;
     }
 

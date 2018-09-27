@@ -24,6 +24,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiInputDTO;
 import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
+import com.vmturbo.api.enums.InputValueType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ISettingsService;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -64,6 +65,8 @@ public class SettingsService implements ISettingsService {
     private final StatsHistoryServiceBlockingStub statsServiceClient;
 
     public static final String PERSISTENCE_MANAGER = "persistencemanager";
+
+    public static final String RESERVED_INSTANCE_MANAGER = "reservedinstancemanager";
 
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
@@ -128,7 +131,19 @@ public class SettingsService implements ISettingsService {
 
     @Override
     public SettingApiDTO getSettingByUuidAndName(String uuid, String name) throws Exception {
-        throw ApiUtils.notImplementedInXL();
+        if (uuid.equals(RESERVED_INSTANCE_MANAGER)) {
+            final GetGlobalSettingResponse response =
+                    settingServiceBlockingStub.getGlobalSetting(
+                            GetSingleGlobalSettingRequest.newBuilder()
+                                    .setSettingSpecName(name)
+                                    .build());
+
+            return settingsMapper.toSettingApiDto(response.getSetting()).getGlobalSetting()
+                    .orElse(new SettingApiDTO());
+        } else {
+            // TODO: implement other uuid type setting query.
+            throw ApiUtils.notImplementedInXL();
+        }
     }
 
     /**

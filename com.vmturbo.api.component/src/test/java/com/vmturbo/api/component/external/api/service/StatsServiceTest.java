@@ -49,6 +49,7 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.ServiceEntitiesRequest;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
+import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
@@ -69,8 +70,10 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPagina
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
+import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCoverageServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
@@ -147,6 +150,11 @@ public class StatsServiceTest {
 
     private Clock mockClock = Mockito.mock(Clock.class);
 
+    private ReservedInstanceUtilizationCoverageServiceMole riUtilizationCoverageSpy =
+            spy(new ReservedInstanceUtilizationCoverageServiceMole());
+
+    private ReservedInstanceMapper reservedInstanceMapper = Mockito.mock(ReservedInstanceMapper.class);
+
     private final String oid1 = "1";
     private final ApiId apiId1 = mock(ApiId.class);
     private final String oid2 = "2";
@@ -174,7 +182,7 @@ public class StatsServiceTest {
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(statsHistoryServiceSpy,
-            groupServiceSpy, planServiceSpy, repositoryServiceSpy, costServiceSpy);
+            groupServiceSpy, planServiceSpy, repositoryServiceSpy, costServiceSpy, riUtilizationCoverageSpy);
 
     @Before
     public void setUp() throws IOException {
@@ -184,14 +192,18 @@ public class StatsServiceTest {
                 PlanServiceGrpc.newBlockingStub(testServer.getChannel());
         final RepositoryServiceGrpc.RepositoryServiceBlockingStub repositoryRpcService =
                 RepositoryServiceGrpc.newBlockingStub(testServer.getChannel());
+        final ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
+                riUtilizationCoverageRpcService =
+                ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(testServer.getChannel());
 
         groupExpander = Mockito.mock(GroupExpander.class);
         GroupServiceBlockingStub groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
         CostServiceBlockingStub costService = CostServiceGrpc.newBlockingStub(testServer.getChannel());
         statsService = new StatsService(statsServiceRpc, planRpcService, repositoryApi,
                 repositoryRpcService, supplyChainFetcherFactory, statsMapper, groupExpander, mockClock,
-                targetsService, groupService, Duration.ofSeconds(60), costService, searchService);
-
+                targetsService, groupService, Duration.ofSeconds(60), costService, searchService,
+                        riUtilizationCoverageRpcService,
+                        reservedInstanceMapper);
         when(uuidMapper.fromUuid(oid1)).thenReturn(apiId1);
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId1.uuid()).thenReturn(oid1);

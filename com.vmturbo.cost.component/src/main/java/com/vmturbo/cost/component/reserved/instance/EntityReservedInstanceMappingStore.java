@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Cove
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 
 /**
  * This class responsible for storing the mapping relation between entity with reserved instance about

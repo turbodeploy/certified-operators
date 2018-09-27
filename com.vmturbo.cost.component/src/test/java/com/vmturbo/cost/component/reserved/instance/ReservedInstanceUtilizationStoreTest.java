@@ -24,11 +24,13 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Cove
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceUtilizationLatestRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
@@ -163,6 +165,31 @@ public class ReservedInstanceUtilizationStoreTest {
         assertEquals(20.0, secondRI.get().getUsedCoupons(), DELTA);
         assertEquals(100.0, thirdRI.get().getTotalCoupons(), DELTA);
         assertEquals(50.0, thirdRI.get().getUsedCoupons(), DELTA);
+    }
+
+    @Test
+    public void testGetRIUtilizationStatsRecords() throws Exception {
+        final List<ReservedInstanceBoughtInfo> reservedInstancesBoughtInfo =
+                Arrays.asList(riInfoOne, riInfoTwo, riInfoThree);
+        final List<EntityReservedInstanceCoverage> entityCoverageLists =
+                Arrays.asList(coverageOne, coverageTwo);
+        reservedInstanceBoughtStore.updateReservedInstanceBought(dsl, reservedInstancesBoughtInfo);
+        entityReservedInstanceMappingStore.updateEntityReservedInstanceMapping(dsl, entityCoverageLists);
+        reservedInstanceUtilizationStore.updateReservedInstanceUtilization(dsl);
+        // get all ri utilization records
+        final ReservedInstanceUtilizationFilter filter = ReservedInstanceUtilizationFilter.newBuilder()
+                .build();
+        final List<ReservedInstanceStatsRecord> riStatsRecords =
+                reservedInstanceUtilizationStore.getReservedInstanceUtilizationStatsRecords(filter);
+        assertEquals(1L, riStatsRecords.size());
+        final ReservedInstanceStatsRecord riStatRecord = riStatsRecords.get(0);
+        assertEquals(300L, riStatRecord.getCapacity().getTotal(), DELTA);
+        assertEquals(100L, riStatRecord.getCapacity().getMax(), DELTA);
+        assertEquals(100L, riStatRecord.getCapacity().getMin(), DELTA);
+        assertEquals(100L, riStatRecord.getCapacity().getAvg(), DELTA);
+        assertEquals(110L, riStatRecord.getValues().getTotal(), DELTA);
+        assertEquals(20L, riStatRecord.getValues().getMin(), DELTA);
+        assertEquals(50L, riStatRecord.getValues().getMax(), DELTA);
     }
 
     private void insertDefaultReservedInstanceSpec() {
