@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -272,10 +273,10 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             getHealthMonitor().addHealthCheck(baseVmtComponentConfig.deadlockHealthMonitor());
         }
 
+        startGrpc();
         setStatus(ExecutionStatus.MIGRATING);
         baseVmtComponentConfig.migrationFramework().startMigrations(getMigrations(),
             false/*don't forceStart failed ones*/);
-        startGrpc();
         onStartComponent();
         setStatus(ExecutionStatus.RUNNING);
     }
@@ -707,5 +708,4 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         ConfigurableApplicationContext configure(@Nonnull ServletContextHandler servletContext)
                 throws ContextConfigurationException;
     }
-
 }

@@ -80,11 +80,6 @@
             "destination": "/etc/docker/turboupgrade.py"
         },
         {
-            "type": "file",
-            "source": "../turbo_upgrade_spec.yml",
-            "destination": "/etc/docker/turbo_upgrade_spec.yml"
-        },
-        {
             "type": "shell",
             "execute_command": "bash '{{ .Path }}'",
             "scripts": [

@@ -22,7 +22,6 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
-import com.vmturbo.common.protobuf.topology.Probe;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -181,26 +180,6 @@ public class IdentityProviderImpl implements IdentityProvider {
         // getIdsForEntities method.
         Map<Long, EntityDTO> results = getIdsForEntities(probeId, Collections.singletonList(entity));
         return results.keySet().iterator().next();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void updateProbeInfo(ProbeInfo probeInfo) {
-        synchronized (probeIdLock) {
-            Long probeId = probeTypeToId.get(probeInfo.getProbeType());
-            if (probeId == null) {
-                logger.warn("Trying to update a non-existent probeInfo: {}", probeInfo);
-                return;
-            }
-            if (!perProbeMetadata.containsKey(probeId)) {
-                logger.warn("ProbeInfo doesn't exist in the ProbeMetadataMap: {}", probeInfo);
-                return;
-            }
-            perProbeMetadata.put(probeId,
-                    new ServiceEntityIdentityMetadataStore(probeInfo.getEntityMetadataList()));
-        }
     }
 
     /** {@inheritDoc}

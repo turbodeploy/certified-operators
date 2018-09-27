@@ -23,8 +23,6 @@ import static com.vmturbo.history.schema.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.history.schema.StringConstants.UUID;
 import static com.vmturbo.history.schema.abstraction.Tables.AUDIT_LOG_RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS;
-import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_HOUR;
-import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_LATEST;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static com.vmturbo.history.schema.abstraction.Tables.SCENARIOS;
@@ -37,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -76,7 +73,6 @@ import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.common.protobuf.search.SearchREST.Entity;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
@@ -100,7 +96,6 @@ import com.vmturbo.history.stats.MarketStatsAccumulator;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.history.utils.TopologyOrganizer;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Dbio Component for use within the History Component.
@@ -1102,9 +1097,9 @@ public class HistorydbIO extends BasedbIO {
      * The stats in the db get rolled-up every 10 minutes from latest->hourly, hourly->daily.
      * So the daily table will have all the max values. Querying the daily table should suffice.
      * As the daily table stores all historic stats(until the retention period), we may return
-     * entries which may not be relevant to the current environment(because targets could be removed).
+     * entries which may not be relevant to the current enviornment(because targets could be removed).
      * We leave the filtering of the entities to the clients.
-     * The access commodities are already filtered as we store stats only for non-access commodities.
+     * The access commodities are already filtered as we store stats only for non-access commmodities.
      * TODO:karthikt - Do batch selects(paginate) from the DB.
      */
     public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityType)
@@ -1179,120 +1174,6 @@ public class HistorydbIO extends BasedbIO {
         });
 
         return maxValues;
-    }
-
-    /**
-     *  Return the mapping from EntityIds -> EntityTypes stored in
-     *  the entities table.
-     *
-     * @return Map of EntityId -> {@link EntityDTO.EntityType}
-     * @throws VmtDbException
-     */
-    public Map<Long, EntityDTO.EntityType> getEntityIdToEntityTypeMap()
-            throws VmtDbException {
-
-        // DATACENTER(DC) and VIRTUAL_APPLICATION types are filtered out,
-        // because they are mapped to PM and APPLICATION entities respectively
-        // PM stats tables store both DC and PM entities.
-        // APP stats tables store both APPLICATION and VIRTUAL_APPLICATION entities.
-        // TODO: We should have a separate mapping for DATACENTER instead of mapping to PM.
-        Map<EntityType, EntityDTO.EntityType> entityTypeToSdkEntityType =
-                HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE.entrySet()
-                    .stream()
-                    .filter(entry -> (entry.getKey() != EntityDTO.EntityType.DATACENTER
-                                && entry.getKey() != EntityDTO.EntityType.VIRTUAL_APPLICATION))
-                    .collect(Collectors.toMap(
-                            entry -> entry.getValue(),
-                            entry -> entry.getKey()));
-
-        // As PM and DC entities are stored in the same stats table, we have to
-        // run additional query to distinguish between the PM and DC entities.
-        // Since VIRTUAL_APPLICATIONS are not yet supported in XL, there
-        // is no need for filtering them.
-        Set<Long> datacenterEntities = getDatacenterEntities();
-        Map<Long, EntityDTO.EntityType> entityIdToEntityTypeMap = new HashMap<>();
-
-        try (Connection conn = connection()) {
-            final Map<Long, String> entityIdToCreationClass =
-                    using(conn)
-                        .selectFrom(Entities.ENTITIES)
-                        .fetch()
-                        .intoMap(Entities.ENTITIES.ID, Entities.ENTITIES.CREATION_CLASS);
-
-            entityIdToCreationClass.entrySet()
-                .forEach(entry -> {
-                        EntityDTO.EntityType type;
-                            if (datacenterEntities.contains(entry.getKey())) {
-                                type = EntityDTO.EntityType.DATACENTER;
-                            } else {
-                                Optional<EntityType> entityType =
-                                        EntityType.getEntityTypeByClsName(entry.getValue());
-                                if (!entityType.isPresent()) {
-                                    throw new RuntimeException("Can't find entityType for creation class" +
-                                            entry.getValue());
-                                }
-                                type = entityTypeToSdkEntityType.get(entityType.get());
-                            }
-
-                            entityIdToEntityTypeMap.put(entry.getKey(), type);
-                        });
-        } catch (SQLException e) {
-            throw new VmtDbException(VmtDbException.READ_ERR, e);
-        }
-        return entityIdToEntityTypeMap;
-    }
-
-    /*
-      Datacenter entities are stored in PM entities table. This function
-      returns all the Datacenter entities which are in the PM stats tables.
-     */
-    private Set<Long> getDatacenterEntities() throws VmtDbException {
-
-        // Look at _latest, _by_hour and _by_day tables so that we don't miss any entities.
-        // select distinct(uuid) from pm_stats_* where producer_uuid is NULL and property_type='Space'
-        // and property_subtype='used';
-        // Since PM and DC are stored in the same PM stats tables, this query helps in distinguishing
-        // the Datacenter entities from the PM entities.
-        final Set<Long> allDatacenterEntities = new HashSet<>();
-        try (Connection conn = connection()) {
-            // query from latest table.
-            using(conn)
-                    .selectDistinct(PM_STATS_LATEST.UUID)
-                    .from(PM_STATS_LATEST)
-                    .where(PM_STATS_LATEST.PRODUCER_UUID.isNull()).and(
-                    PM_STATS_LATEST.PROPERTY_TYPE.eq("Space")).and(
-                    PM_STATS_LATEST.PROPERTY_SUBTYPE.eq("used"))
-                    .fetch()
-                    .listIterator()
-                    .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
-
-            // query from hourly table
-            using(conn)
-                    .selectDistinct(PM_STATS_BY_HOUR.UUID)
-                    .from(PM_STATS_BY_HOUR)
-                    .where(PM_STATS_BY_HOUR.PRODUCER_UUID.isNull()).and(
-                    PM_STATS_BY_HOUR.PROPERTY_TYPE.eq("Space")).and(
-                    PM_STATS_BY_HOUR.PROPERTY_SUBTYPE.eq("used"))
-                    .fetch()
-                    .listIterator()
-                    .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
-
-            // query from daily table
-            using(conn)
-                    .selectDistinct(PM_STATS_BY_DAY.UUID)
-                    .from(PM_STATS_BY_DAY)
-                    .where(PM_STATS_BY_DAY.PRODUCER_UUID.isNull()).and(
-                            PM_STATS_BY_DAY.PROPERTY_TYPE.eq("Space")).and(
-                            PM_STATS_BY_DAY.PROPERTY_SUBTYPE.eq("used"))
-                    .fetch()
-                    .listIterator()
-                    .forEachRemaining(record -> allDatacenterEntities.add(Long.valueOf(record.value1())));
-
-        } catch (SQLException e) {
-            throw new VmtDbException(VmtDbException.READ_ERR, e);
-        }
-
-        return allDatacenterEntities;
     }
 
     /**

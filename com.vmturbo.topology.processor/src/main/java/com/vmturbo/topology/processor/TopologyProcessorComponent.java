@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor;
 
 import java.util.Optional;
-import java.util.SortedMap;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
@@ -24,7 +23,6 @@ import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
-import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 import com.vmturbo.topology.processor.actions.ActionsConfig;
 import com.vmturbo.topology.processor.analysis.AnalysisConfig;
@@ -35,7 +33,6 @@ import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsCo
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
-import com.vmturbo.topology.processor.migration.MigrationsConfig;
 import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.plan.PlanConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
@@ -43,7 +40,6 @@ import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.rest.RESTConfig;
 import com.vmturbo.topology.processor.rpc.TopologyProcessorRpcConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
-import com.vmturbo.topology.processor.stitching.StitchingConfig;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
@@ -59,30 +55,30 @@ import com.vmturbo.topology.processor.topology.TopologyConfig;
 @Import({
     ActionsConfig.class,
     AnalysisConfig.class,
-    ClockConfig.class,
-    EntityConfig.class,
-    GlobalConfig.class,
-    GroupConfig.class,
-    IdentityProviderConfig.class,
-    KVConfig.class,
-    MigrationsConfig.class,
-    OperationConfig.class,
-    PlanConfig.class,
-    ProbeConfig.class,
-    RepositoryConfig.class,
-    RESTConfig.class,
-    SdkServerConfig.class,
-    SupplyChainValidationConfig.class,
-    SchedulerConfig.class,
-    StitchingConfig.class,
-    SQLDatabaseConfig.class,
-    TargetConfig.class,
-    TemplateConfig.class,
-    TopologyConfig.class,
     TopologyProcessorApiConfig.class,
     TopologyProcessorApiSecurityConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
-    TopologyProcessorRpcConfig.class
+    SdkServerConfig.class,
+    EntityConfig.class,
+    GroupConfig.class,
+    SchedulerConfig.class,
+    TopologyConfig.class,
+    IdentityProviderConfig.class,
+    OperationConfig.class,
+    ProbeConfig.class,
+    RepositoryConfig.class,
+    RESTConfig.class,
+    TopologyProcessorRpcConfig.class,
+    SupplyChainValidationConfig.class,
+    SchedulerConfig.class,
+    TargetConfig.class,
+    TemplateConfig.class,
+    PlanConfig.class,
+    GlobalConfig.class,
+    KVConfig.class,
+    ClockConfig.class,
+    TopologyConfig.class,
+    SQLDatabaseConfig.class
 })
 public class TopologyProcessorComponent extends BaseVmtComponent {
 
@@ -98,7 +94,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     private ActionsConfig actionsConfig;
 
     @Autowired
-    private SQLDatabaseConfig dbConfig;
+    private SchedulerConfig schedulerConfig;
 
     @Autowired
     private EntityConfig entityConfig;
@@ -107,26 +103,16 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     private IdentityProviderConfig identityProviderConfig;
 
     @Autowired
-    private MigrationsConfig migrationsConfig;
+    private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
+
+    @Autowired
+    private SQLDatabaseConfig dbConfig;
 
     @Autowired
     private ProbeConfig probeConfig;
 
     @Autowired
-    private SdkServerConfig sdkServerConfig;
-
-    @Autowired
-    private SchedulerConfig schedulerConfig;
-
-    @Autowired
-    private StitchingConfig stitchingConfig;
-
-    @Autowired
     private TopologyProcessorApiConfig topologyProcessorApiConfig;
-
-    @Autowired
-    private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
-
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
@@ -143,11 +129,6 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
     @Override
     protected void onDumpDiags(@Nonnull final ZipOutputStream diagnosticZip) {
         diagsConfig.diagsHandler().dumpDiags(diagnosticZip);
-    }
-
-    @Override
-    public SortedMap<String, Migration> getMigrations() {
-            return migrationsConfig.migrationsList().getMigrationsList();
     }
 
     @Override
