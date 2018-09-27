@@ -12,6 +12,7 @@ import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.topology.processor.ClockConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
+import com.vmturbo.topology.processor.cost.CloudCostConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
@@ -48,7 +49,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     TargetConfig.class,
     ControllableConfig.class,
     WorkflowConfig.class,
-    HistoryClientConfig.class
+    HistoryClientConfig.class,
+    CloudCostConfig.class
 })
 public class TopologyConfig {
 
@@ -100,6 +102,9 @@ public class TopologyConfig {
     @Autowired
     private HistoryClientConfig historyClientConfig;
 
+    @Autowired
+    private CloudCostConfig cloudCostConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -139,6 +144,7 @@ public class TopologyConfig {
                 planConfig.discoveredTemplatesUploader(),
                 groupConfig.discoveredGroupUploader(),
                 workflowConfig.discoveredWorkflowUploader(),
+                cloudCostConfig.discoveredCloudCostUploader(),
                 groupConfig.settingsManager(),
                 groupConfig.entitySettingsApplicator(),
                 topologyEditor(),

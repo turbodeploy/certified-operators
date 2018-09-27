@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.communication.SdkServerConfig;
 import com.vmturbo.topology.processor.controllable.ControllableConfig;
+import com.vmturbo.topology.processor.cost.CloudCostConfig;
 import com.vmturbo.topology.processor.entity.EntityConfig;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
@@ -32,7 +33,8 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     TopologyProcessorApiConfig.class,
     PlanConfig.class,
     ControllableConfig.class,
-    WorkflowConfig.class
+    WorkflowConfig.class,
+    CloudCostConfig.class
 })
 public class OperationConfig {
 
@@ -64,6 +66,9 @@ public class OperationConfig {
     private WorkflowConfig workflowConfig;
 
     @Autowired
+    private CloudCostConfig cloudCostUploaderConfig;
+
+    @Autowired
     private PlanConfig discoveredTemplateDeploymentProfileConfig;
 
     @Value("${discoveryTimeoutSeconds}")
@@ -85,6 +90,7 @@ public class OperationConfig {
             entityConfig.entityStore(),
             groupConfig.discoveredGroupUploader(),
             workflowConfig.discoveredWorkflowUploader(),
+            cloudCostUploaderConfig.discoveredCloudCostUploader(),
             discoveredTemplateDeploymentProfileConfig.discoveredTemplatesUploader(),
             controllableConfig.entityActionDaoImp(),
             targetConfig.derivedTargetParser(),

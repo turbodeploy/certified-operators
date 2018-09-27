@@ -124,7 +124,7 @@ public class TopologyConverter {
 
             // Only set the valid provider list
             se.setProviders(commoditiesBoughtRepoFromProviderDTOList.stream().filter(
-                commoditiesBoughtRepoFromProviderDTO -> commoditiesBoughtRepoFromProviderDTO.getProviderId() != null)
+                    commoditiesBoughtRepoFromProviderDTO -> commoditiesBoughtRepoFromProviderDTO.getProviderId() != null)
                     .map(grouping -> String.valueOf(grouping.getProviderId()))
                     .collect(Collectors.toList()));
 

@@ -39,6 +39,11 @@ public class ReservedInstanceSpecStore {
         this.identityProvider = Objects.requireNonNull(identityProvider);
     }
 
+    public Map<Long, Long> updateReservedInstanceBoughtSpec(
+            @Nonnull final List<ReservedInstanceSpec> newReservedInstanceBoughtSpec) {
+        return updateReservedInstanceBoughtSpec(dsl, newReservedInstanceBoughtSpec);
+    }
+
     /**
      * For reserved instance bought spec data, when updating reserved_instance_spec table,
      * it use {@link ReservedInstanceSpecInfo} to compare with current existing reserved instance

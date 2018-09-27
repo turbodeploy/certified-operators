@@ -88,6 +88,11 @@ public class ReservedInstanceBoughtStore {
                 (riCountMap.field(RI_SUM_COUNT)).cast(Long.class));
     }
 
+    public void updateReservedInstanceBought(
+            @Nonnull final List<ReservedInstanceBoughtInfo> newReservedInstances) {
+        updateReservedInstanceBought(dsl, newReservedInstances);
+    }
+
     /**
      * Input a list of latest {@link ReservedInstanceBoughtInfo}, it will update reserved instance table
      * based on "probeReservedInstanceId" field to tell if two reserved instance bought are same or

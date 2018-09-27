@@ -54,7 +54,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.sql.utils.DbException;
 
 @SuppressWarnings("unchecked")
-public class CostRpcServiceTest {
+public class RIAndExpenseUploadRpcServiceTest {
 
     public static final long ASSOCIATED_ACCOUNT_ID = 1111l;
     public static final double DISCOUNT_PERCENTAGE2 = 20.0;

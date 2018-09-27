@@ -18,7 +18,7 @@ message AccountExpenses {
     // The timestamp at which the expense is received by Cost component.
     // Note: It should be the timestamp that the expenses were generated.
     // But currently probe doesn't have this information in it's DTO.
-    // The time is in "system time" and not necessarily UTC.
+    // The time is in epoch milliseconds.
     optional int64 expense_received_timestamp = 3;
 
     // Service and tier level account expense information. An account could have many service

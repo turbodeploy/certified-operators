@@ -14,11 +14,11 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -41,6 +41,7 @@ import com.vmturbo.stitching.journal.TopologyEntitySemanticDiffer;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyBroadcast;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
+import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntitiesValidationException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
@@ -78,6 +79,32 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
  * Since the stages are pretty small, it makes some sense to keep them in one place for now.
  */
 public class Stages {
+
+    /**
+     * This stage uploads cloud cost data to the cost component. We are doing this before the other
+     * uploads, because all of the data we need to upload is available from the stitching context,
+     * but not in the topology created from the stitching context.
+     *
+     * We could cache the data somewhere and upload it during a later stage, such as when the groups
+     * and workflows are uploaded, so that the "upload" stages can be grouped, but this will require
+     * extra coding to hand the cloud cost data between stages, or to sync the cache in the cloud
+     * cost uploader between stages. It is simpler to upload the data now rather than passing this
+     * extra data for later processing though, so we'll do the upload now.
+     */
+    public static class UploadCloudCostDataStage extends PassthroughStage<StitchingContext> {
+
+        private final DiscoveredCloudCostUploader cloudCostUploader;
+
+        public UploadCloudCostDataStage(@Nonnull final DiscoveredCloudCostUploader cloudCostUploader) {
+            this.cloudCostUploader = cloudCostUploader;
+        }
+
+        @Override
+        public void passthrough(final StitchingContext input) throws PipelineStageException {
+            // upload the cloud-related cost data to the cost component
+            cloudCostUploader.uploadCostData(getContext().getTopologyInfo(), input);
+        }
+    }
 
     /**
      * This stage uploads discovered groups (and clusters) to the group component.
@@ -219,6 +246,11 @@ public class Stages {
      * See {@link com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage}.
      *
      * This stage only happens in the live topology broadcast.
+     * <table>
+     *     <tr><th>Stage Input</th><td>{@link StitchingContext}</td></tr>
+     *     <tr><th nowrap="nowrap">Stage Output</th><td>The topology (which is a map of entity id -> Entity builder) created from the StitchingContext</td></tr>
+     * </table>
+     *
      */
     public static class ScanDiscoveredSettingPoliciesStage
         extends Stage<StitchingContext, Map<Long, TopologyEntity.Builder>> {

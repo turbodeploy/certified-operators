@@ -55,6 +55,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -95,6 +96,7 @@ public class OperationManagerTest {
 
     private final DiscoveredGroupUploader discoveredGroupUploader = Mockito.mock(DiscoveredGroupUploader.class);
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader = Mockito.mock(DiscoveredWorkflowUploader.class);
+    private final DiscoveredCloudCostUploader discoveredCloudCostUploader = Mockito.mock(DiscoveredCloudCostUploader.class);
 
     private TrackingOperationListener operationListener = Mockito.spy(new TrackingOperationListener());
 
@@ -108,8 +110,8 @@ public class OperationManagerTest {
             identityProvider, targetStore, probeStore,
             mockRemoteMediationServer, operationListener,
             entityStore, discoveredGroupUploader, discoveredWorkflowUploader,
-            discoveredTemplatesUploader, entityActionDao, derivedTargetParser,
-            10, 10, 10);
+            discoveredCloudCostUploader, discoveredTemplatesUploader, entityActionDao,
+            derivedTargetParser,10, 10, 10);
 
     private long probeId;
     private long targetId;

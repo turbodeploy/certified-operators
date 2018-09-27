@@ -61,7 +61,10 @@ public class AzureConversionContext implements CloudProviderConversionContext {
     private static Set<CloudService> AZURE_CLOUD_SERVICES = ImmutableSet.of(
             CloudService.AZURE_VIRTUAL_MACHINES,
             CloudService.AZURE_DATA_SERVICES,
-            CloudService.AZURE_STORAGE
+            CloudService.AZURE_STORAGE,
+            CloudService.AZURE_NETWORKING,
+            CloudService.AZURE_DATA_MANAGEMENT,
+            CloudService.AZURE_IDENTITY
     );
 
     // map showing which EntityType to be owned by which CloudService

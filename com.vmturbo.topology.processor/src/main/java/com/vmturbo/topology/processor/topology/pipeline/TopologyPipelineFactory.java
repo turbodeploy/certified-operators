@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.controllable.ControllableManager;
+import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -56,6 +57,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SupplyChainValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadCloudCostDataStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadGroupsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadTemplatesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.UploadWorkflowsStage;
@@ -81,6 +83,8 @@ public class TopologyPipelineFactory {
     private final DiscoveredGroupUploader discoveredGroupUploader;
 
     private final DiscoveredWorkflowUploader discoveredWorkflowUploader;
+
+    private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
 
     private final EntitySettingsApplicator settingsApplicator;
 
@@ -116,6 +120,7 @@ public class TopologyPipelineFactory {
                                    @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                                    @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                                    @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
+                                   @Nonnull final DiscoveredCloudCostUploader cloudCostUploader,
                                    @Nonnull final EntitySettingsResolver entitySettingsResolver,
                                    @Nonnull final EntitySettingsApplicator settingsApplicator,
                                    @Nonnull final TopologyEditor topologyEditor,
@@ -136,6 +141,7 @@ public class TopologyPipelineFactory {
         this.discoveredTemplateDeploymentProfileNotifier = discoveredTemplateDeploymentProfileNotifier;
         this.discoveredGroupUploader = discoveredGroupUploader;
         this.discoveredWorkflowUploader = discoveredWorkflowUploader;
+        this.discoveredCloudCostUploader = cloudCostUploader;
         this.settingsApplicator = Objects.requireNonNull(settingsApplicator);
         this.entitySettingsResolver = entitySettingsResolver;
         this.topologyEditor = Objects.requireNonNull(topologyEditor);
@@ -183,6 +189,7 @@ public class TopologyPipelineFactory {
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
+                .addStage(new UploadCloudCostDataStage(discoveredCloudCostUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))
                 .addStage(new UploadGroupsStage(discoveredGroupUploader))

@@ -529,8 +529,10 @@ public class EntityStore {
         }
 
         public void put(@Nonnull final StitchingEntityData entityData) {
-            targetDataMap.get(entityData.getTargetId())
-                .put(entityData.getEntityDtoBuilder().getId(), entityData);
+            // get or create the target's entity local id -> stitching entity map
+            Map<String,StitchingEntityData> stitchingDataByLocalId
+                    = targetDataMap.computeIfAbsent(entityData.getTargetId(), k -> new HashMap<>());
+            stitchingDataByLocalId.put(entityData.getEntityDtoBuilder().getId(), entityData);
         }
 
         public Map<String, StitchingEntityData> getTargetIdToStitchingDataMap(final Long targetId) {

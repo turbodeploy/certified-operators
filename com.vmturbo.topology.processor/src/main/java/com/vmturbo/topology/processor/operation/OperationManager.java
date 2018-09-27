@@ -47,6 +47,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.S
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ControllableRecordNotFoundException;
+import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
@@ -154,6 +155,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         .register();
     private DiscoveredWorkflowUploader discoveredWorkflowUploader;
 
+    private DiscoveredCloudCostUploader discoveredCloudCostUploader;
+
     public OperationManager(@Nonnull final IdentityProvider identityProvider,
                             @Nonnull final TargetStore targetStore,
                             @Nonnull final ProbeStore probeStore,
@@ -162,6 +165,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                             @Nonnull final EntityStore entityStore,
                             @Nonnull final DiscoveredGroupUploader discoveredGroupUploader,
                             @Nonnull final DiscoveredWorkflowUploader discoveredWorkflowUploader,
+                            @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
                             @Nonnull final DiscoveredTemplateDeploymentProfileNotifier discoveredTemplateDeploymentProfileNotifier,
                             @Nonnull final EntityActionDao entityActionDao,
                             @Nonnull final DerivedTargetParser derivedTargetParser,
@@ -182,6 +186,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         this.discoveryTimeoutMs = TimeUnit.MILLISECONDS.convert(discoveryTimeoutSeconds, TimeUnit.SECONDS);
         this.validationTimeoutMs = TimeUnit.MILLISECONDS.convert(validationTimeoutSeconds, TimeUnit.SECONDS);
         this.actionTimeoutMs = TimeUnit.MILLISECONDS.convert(actionTimeoutSeconds, TimeUnit.SECONDS);
+
+        this.discoveredCloudCostUploader = discoveredCloudCostUploader;
 
         this.probeStore.addListener(this);
         this.targetStore.addListener(this);
@@ -676,6 +682,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         discoveredGroupUploader.targetRemoved(targetId);
         discoveredTemplateDeploymentProfileNotifier.deleteTemplateDeploymentProfileByTarget(targetId);
         discoveredWorkflowUploader.targetRemoved(targetId);
+        discoveredCloudCostUploader.targetRemoved(targetId);
     }
 
     /**
@@ -733,8 +740,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 discoveredWorkflowUploader.setTargetWorkflows(targetId,
                         response.getNonMarketEntityDTOList());
                 DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOList().size());
-
                 derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
+                discoveredCloudCostUploader.recordTargetCostData(targetId, discovery,
+                        response.getNonMarketEntityDTOList(), response.getCostDTOList());
             }
             operationComplete(discovery, success, response.getErrorDTOList());
         } catch (IdentityUninitializedException | IdentityMetadataMissingException |

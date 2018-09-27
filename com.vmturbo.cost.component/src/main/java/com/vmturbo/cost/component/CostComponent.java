@@ -34,6 +34,7 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({TopologyListenerConfig.class,
         SpringSecurityConfig.class,
         SQLDatabaseConfig.class,
+        CostServiceConfig.class,
         PricingConfig.class,
         ReservedInstanceConfig.class,
         CostConfig.class,
@@ -91,6 +92,7 @@ public class CostComponent extends BaseVmtComponent {
         // gRPC JWT token interceptor
         final JwtServerInterceptor jwtInterceptor =
                 new JwtServerInterceptor(securityConfig.apiAuthKVStore());
+
         // Monitor for server metrics with prometheus.
         final MonitoringServerInterceptor monitoringInterceptor =
                 MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics());

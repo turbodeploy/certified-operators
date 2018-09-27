@@ -86,6 +86,7 @@ topology-processor:
   actionOrchestratorHost: 'action-orchestrator'
   historyHost: 'history'
   planOrchestratorHost: 'plan-orchestrator'
+  costHost: 'cost'
   <<: *repository_conn_info
   grpcPingIntervalSeconds: 300
   identityGeneratorPrefix: 1
@@ -166,6 +167,7 @@ repository:
   # Note - OM-36437 - The price index sorting doesn't actually work right now,
   # but there is no other good universally applicable default commodity.
   repositoryEntityStatsPaginationDefaultSortCommodity: 'priceIndex'
+
 
 group:
   <<: *baseVmtComponentSettings

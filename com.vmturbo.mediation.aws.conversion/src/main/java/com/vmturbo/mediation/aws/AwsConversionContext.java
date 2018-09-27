@@ -63,7 +63,18 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     private static Set<CloudService> AWS_CLOUD_SERVICES = ImmutableSet.of(
             CloudService.AWS_EC2,
             CloudService.AWS_RDS,
-            CloudService.AWS_EBS
+            CloudService.AWS_EBS,
+            CloudService.AWS_S3,
+            CloudService.AWS_DEV_SUPPORT,
+            CloudService.AWS_CLOUDTRAIL,
+            CloudService.AWS_CLOUDWATCH,
+            CloudService.AWS_QUICKSIGHT,
+            CloudService.AWS_DYNAMODB,
+            CloudService.AWS_VPC,
+            CloudService.AWS_KMS,
+            CloudService.AWS_EKS,
+            CloudService.AWS_LAMBDA,
+            CloudService.AWS_SNS
     );
 
     // map showing which EntityType to be owned by which CloudService

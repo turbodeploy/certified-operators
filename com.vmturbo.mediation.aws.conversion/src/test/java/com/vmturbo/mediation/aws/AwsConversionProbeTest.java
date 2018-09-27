@@ -49,7 +49,7 @@ public class AwsConversionProbeTest {
         assertEquals(9, entitiesByType.get(EntityType.DATABASE_SERVER).size());
         assertEquals(129, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(3, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(3, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
+        assertEquals(14, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(146, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(43, entitiesByType.get(EntityType.DATABASE_TIER).size());
         assertEquals(7, entitiesByType.get(EntityType.STORAGE_TIER).size());
@@ -86,7 +86,7 @@ public class AwsConversionProbeTest {
         assertEquals(1, entitiesByType.get(EntityType.DATABASE_SERVER).size());
         assertEquals(15, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(3, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
+        assertEquals(14, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(146, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(43, entitiesByType.get(EntityType.DATABASE_TIER).size());
         assertEquals(7, entitiesByType.get(EntityType.STORAGE_TIER).size());

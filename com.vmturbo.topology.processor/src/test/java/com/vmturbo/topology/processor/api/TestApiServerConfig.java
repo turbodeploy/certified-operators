@@ -29,6 +29,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -188,6 +189,11 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     }
 
     @Bean
+    public DiscoveredCloudCostUploader cloudCostUploadRecorder() {
+        return Mockito.mock(DiscoveredCloudCostUploader.class);
+    }
+
+    @Bean
     public DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader() {
         return Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
     }
@@ -206,8 +212,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     public OperationManager operationManager() {
         return new OperationManager(identityProvider(), targetStore(), probeStore(),
                 remoteMediation(), topologyProcessorNotificationSender(),
-                entityRepository(), groupRecorder(), workflowRecorder(), discoveredTemplatesUploader(),
-                controllableDao(), derivedTargetParser(),
+                entityRepository(), groupRecorder(), workflowRecorder(), cloudCostUploadRecorder(),
+                discoveredTemplatesUploader(), controllableDao(), derivedTargetParser(),
             1L, 1L, 1L);
     }
 

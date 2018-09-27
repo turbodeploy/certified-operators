@@ -63,6 +63,7 @@ import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
+import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -166,6 +167,11 @@ public class OperationControllerTest {
         }
 
         @Bean
+        DiscoveredCloudCostUploader discoveredCloudCostUploader() {
+            return Mockito.mock(DiscoveredCloudCostUploader.class);
+        }
+
+        @Bean
         DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader() {
             return Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
         }
@@ -195,6 +201,7 @@ public class OperationControllerTest {
                 entityRepository(),
                 groupRecorder(),
                 workflowRecorder(),
+                discoveredCloudCostUploader(),
                 discoveredTemplatesUploader(),
                 controllableDao(),
                 derivedTargetParser(),

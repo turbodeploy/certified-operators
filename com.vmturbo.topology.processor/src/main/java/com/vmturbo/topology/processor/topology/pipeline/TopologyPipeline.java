@@ -141,8 +141,8 @@ public class TopologyPipeline<PipelineInput, PipelineOutput> {
                 }
             } catch (RuntimeException e) {
                 if (!required()) {
-                    LOGGER.warn("Non-required pipeline stage {} failed with error: {}",
-                            getClass().getSimpleName(), e.getMessage());
+                    LOGGER.warn("Non-required pipeline stage {} failed with runtime Error: {}",
+                            getClass().getSimpleName(), e.getMessage(), e);
                 } else {
                     throw new PipelineStageException(e);
                 }
