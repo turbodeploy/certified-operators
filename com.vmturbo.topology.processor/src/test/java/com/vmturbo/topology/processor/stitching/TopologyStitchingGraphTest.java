@@ -539,7 +539,7 @@ public class TopologyStitchingGraphTest {
         public StitchingDataAllowingTargetChange(@Nonnull final EntityDTO.Builder entityDtoBuilder,
                                                  final long targetId,
                                                  final long oid) {
-            super(entityDtoBuilder, targetId, oid, 0);
+            super(entityDtoBuilder, targetId, oid, 0, false);
         }
 
         public StitchingEntityData forTarget(final long targetId) {

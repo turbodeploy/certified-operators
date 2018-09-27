@@ -417,16 +417,6 @@ public class KVBackedTargetStore implements TargetStore {
     }
 
     @Override
-    public Optional<Long> getProbeIdForTarget(final long targetId) {
-        Optional<Target> optionalTarget = getTarget(targetId);
-        if (optionalTarget.isPresent()) {
-            long probeId = optionalTarget.get().getProbeId();
-            return Optional.of(probeId);
-        }
-        return Optional.empty();
-    }
-
-    @Override
     public Optional<SDKProbeType> getProbeTypeForTarget(final long targetId) {
         Optional<Target> optionalTarget = getTarget(targetId);
         if (optionalTarget.isPresent()) {

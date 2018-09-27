@@ -152,8 +152,7 @@ public class TopologyConfig {
                 supplyChainValidationConfig.supplyChainValidator(),
                 groupConfig.discoveredClusterConstraintCache(),
                 controllableConfig.controllableManager(),
-                commoditiesEditor(),
-                targetConfig.targetStore()
+                commoditiesEditor()
         );
     }
 

@@ -78,7 +78,11 @@ public class ProbeStitchingDependencyTracker {
         if (!stitchBeforeMap.keySet().contains(probeCategory)) {
             return Sets.newHashSet();
         }
-        return stitchBeforeMap.get(probeCategory);
+
+        // also include itself (used by cloud shared entities, like AZs, Regions)
+        Set<ProbeCategory> probeCategories = Sets.newHashSet(probeCategory);
+        probeCategories.addAll(stitchBeforeMap.get(probeCategory));
+        return probeCategories;
     }
 
     /**

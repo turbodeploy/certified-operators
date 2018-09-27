@@ -122,11 +122,11 @@ public class StitchingManagerTest {
     @Test
     public void testStitchAloneOperation()  {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsAlone("foo", "bar");
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, null);
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = spy(contextBuilder.build());
-        when(entityStore.constructStitchingContext(targetStore, Collections.emptyMap())).thenReturn(stitchingContext);
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
@@ -146,11 +146,11 @@ public class StitchingManagerTest {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsByGuestName();
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, null);
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = spy(contextBuilder.build());
-        when(entityStore.constructStitchingContext(targetStore, Collections.emptyMap())).thenReturn(stitchingContext);
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore);
@@ -171,7 +171,7 @@ public class StitchingManagerTest {
     public void testPreStitching() {
         when(preStitchingOperationLibrary.getPreStitchingOperations()).thenReturn(
             Collections.singletonList(new EntityScopePreStitchingOperation()));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, null);
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5);
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
         final StitchingContext stitchingContext = contextBuilder.build();

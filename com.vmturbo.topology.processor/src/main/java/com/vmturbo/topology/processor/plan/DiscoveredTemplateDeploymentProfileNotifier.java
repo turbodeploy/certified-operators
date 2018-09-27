@@ -40,11 +40,4 @@ public interface DiscoveredTemplateDeploymentProfileNotifier {
      * @param targetId Id of target object.
      */
     void deleteTemplateDeploymentProfileByTarget(long targetId);
-
-    /**
-     * Get the entity profile DTOs grouped by target id.
-     *
-     * @return map from target id to set of EntityProfileDTOs.
-     */
-    Map<Long, Set<EntityProfileDTO>> getTargetToEntityProfilesMap();
 }

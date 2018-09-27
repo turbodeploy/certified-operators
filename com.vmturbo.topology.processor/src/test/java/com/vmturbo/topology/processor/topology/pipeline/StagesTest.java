@@ -21,7 +21,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import org.junit.Test;
-import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -45,7 +44,6 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupMemberCache;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredSettingPolicyScanner;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 import com.vmturbo.topology.processor.group.policy.PolicyManager;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver;
@@ -129,7 +127,6 @@ public class StagesTest {
     public void testStitchingStage() {
         final StitchingManager stitchingManager = mock(StitchingManager.class);
         final EntityStore entityStore = mock(EntityStore.class);
-        final TargetStore targetStore = mock(TargetStore.class);
         final StitchingContext stitchingContext = mock(StitchingContext.class);
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         final StitchingJournalFactory journalFactory = mock(StitchingJournalFactory.class);
@@ -138,8 +135,7 @@ public class StagesTest {
         final TopologyStitchingGraph graph = mock(TopologyStitchingGraph.class);
 
         when(journalFactory.stitchingJournal(eq(stitchingContext))).thenReturn(journal);
-        when(entityStore.constructStitchingContext(targetStore, Collections.emptyMap())).thenReturn
-                (stitchingContext);
+        when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
         when(stitchingManager.stitch(eq(stitchingContext), eq(journal))).thenReturn(stitchingContext);
         when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
         when(context.getStitchingJournalContainer()).thenReturn(container);
@@ -148,8 +144,7 @@ public class StagesTest {
         when(stitchingContext.getStitchingGraph()).thenReturn(graph);
         when(graph.entities()).thenReturn(Stream.empty());
 
-        final StitchingStage stitchingStage = new StitchingStage(stitchingManager, targetStore,
-                Collections.emptyMap(), journalFactory);
+        final StitchingStage stitchingStage = new StitchingStage(stitchingManager, journalFactory);
         stitchingStage.setContext(context);
         assertThat(stitchingStage.execute(entityStore).constructTopology(), is(Collections.emptyMap()));
         assertTrue(container.getMainStitchingJournal().isPresent());
@@ -183,7 +178,7 @@ public class StagesTest {
         when(stitchingContext.constructTopology()).thenReturn(Collections.emptyMap());
 
         final ScanDiscoveredSettingPoliciesStage scannerStage =
-            new ScanDiscoveredSettingPoliciesStage(scanner, uploader);
+                new ScanDiscoveredSettingPoliciesStage(scanner, uploader);
         assertThat(scannerStage.execute(stitchingContext), is(Collections.emptyMap()));
         verify(scanner).scanForDiscoveredSettingPolicies(eq(stitchingContext), eq(uploader));
     }
@@ -195,7 +190,7 @@ public class StagesTest {
                 .build();
         final RepositoryClient repositoryClient = mock(RepositoryClient.class);
         when(repositoryClient.retrieveTopology(eq(1L)))
-            .thenReturn(Collections.singleton(response).iterator());
+                .thenReturn(Collections.singleton(response).iterator());
 
         final TopologyAcquisitionStage acquisitionStage =
                 new TopologyAcquisitionStage(repositoryClient);
@@ -218,7 +213,7 @@ public class StagesTest {
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
         final TopologyEditStage stage =
-            new TopologyEditStage(topologyEditor, changes);
+                new TopologyEditStage(topologyEditor, changes);
         stage.setContext(context);
         stage.execute(Collections.emptyMap());
         verify(topologyEditor).editTopology(eq(Collections.emptyMap()),
@@ -261,7 +256,7 @@ public class StagesTest {
         final TopologyGraph topologyGraph = stage.execute(topology);
         assertThat(topologyGraph.size(), is(1));
         assertThat(topologyGraph.getEntity(7L).get().getTopologyEntityDtoBuilder(),
-            is(entity));
+                is(entity));
     }
 
     @Test
@@ -310,13 +305,13 @@ public class StagesTest {
         final TopoBroadcastManager broadcastManager1 = mock(TopoBroadcastManager.class);
         final TopoBroadcastManager broadcastManager2 = mock(TopoBroadcastManager.class);
         final BroadcastStage stage = new BroadcastStage(Arrays.asList(broadcastManager1,
-            broadcastManager2));
+                broadcastManager2));
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-            .setTopologyType(TopologyType.REALTIME)
-            .setTopologyContextId(1L)
-            .setTopologyId(2L)
-            .build();
+                .setTopologyType(TopologyType.REALTIME)
+                .setTopologyContextId(1L)
+                .setTopologyId(2L)
+                .build();
         final StitchingJournalContainer container = new StitchingJournalContainer();
         @SuppressWarnings("unchecked")
         final IStitchingJournal<TopologyEntity> postStitchingJournal = mock(IStitchingJournal.class);
@@ -332,9 +327,9 @@ public class StagesTest {
         when(broadcast2.finish()).thenReturn(1L);
 
         when(broadcastManager1.broadcastLiveTopology(eq(topologyInfo)))
-            .thenReturn(broadcast1);
+                .thenReturn(broadcast1);
         when(broadcastManager2.broadcastLiveTopology(eq(topologyInfo)))
-            .thenReturn(broadcast2);
+                .thenReturn(broadcast2);
 
         final TopologyBroadcastInfo broadcastInfo = stage.execute(createTopologyGraph());
         assertThat(broadcastInfo.getEntityCount(), is(1L));
@@ -356,10 +351,10 @@ public class StagesTest {
         final BroadcastStage stage = new BroadcastStage(Collections.singletonList(broadcastManager));
 
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
-            .setTopologyId(2L)
-            .setTopologyContextId(1L)
-            .setTopologyType(TopologyType.PLAN)
-            .build();
+                .setTopologyId(2L)
+                .setTopologyContextId(1L)
+                .setTopologyType(TopologyType.PLAN)
+                .build();
         final TopologyPipelineContext context = mock(TopologyPipelineContext.class);
         when(context.getTopologyInfo()).thenReturn(topologyInfo);
         when(context.getStitchingJournalContainer()).thenReturn(new StitchingJournalContainer());
@@ -403,7 +398,7 @@ public class StagesTest {
         when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
         when(topologyGraph.entities()).thenReturn(Stream.empty());
         doThrow(new EntitiesValidationException(Collections.emptyList()))
-            .when(entityValidator).validateTopologyEntities(any());
+                .when(entityValidator).validateTopologyEntities(any());
 
         final EntityValidationStage entityValidationStage = new EntityValidationStage(entityValidator);
         try {

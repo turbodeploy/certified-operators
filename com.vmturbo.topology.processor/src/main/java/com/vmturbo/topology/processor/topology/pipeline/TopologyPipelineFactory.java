@@ -31,7 +31,6 @@ import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
-import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -111,8 +110,6 @@ public class TopologyPipelineFactory {
 
     private final CommoditiesEditor commoditiesEditor;
 
-    private final TargetStore targetStore;
-
     public TopologyPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                    @Nonnull final PolicyManager policyManager,
                                    @Nonnull final StitchingManager stitchingManager,
@@ -132,8 +129,7 @@ public class TopologyPipelineFactory {
                                    @Nonnull final SupplyChainValidator supplyChainValidator,
                                    @Nonnull final DiscoveredClusterConstraintCache discoveredClusterConstraintCache,
                                    @Nonnull final ControllableManager controllableManager,
-                                   @Nonnull final CommoditiesEditor commoditiesEditor,
-                                   @Nonnull final TargetStore targetStore) {
+                                   @Nonnull final CommoditiesEditor commoditiesEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -154,7 +150,6 @@ public class TopologyPipelineFactory {
         this.supplyChainValidator = Objects.requireNonNull(supplyChainValidator);
         this.controllableManager = Objects.requireNonNull(controllableManager);
         this.commoditiesEditor = Objects.requireNonNull(commoditiesEditor);
-        this.targetStore = Objects.requireNonNull(targetStore);
     }
 
     /**
@@ -186,9 +181,7 @@ public class TopologyPipelineFactory {
         managers.addAll(additionalBroadcastManagers);
 
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
-                .addStage(new StitchingStage(stitchingManager, targetStore,
-                        discoveredTemplateDeploymentProfileNotifier.getTargetToEntityProfilesMap(),
-                        journalFactory))
+                .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
                 .addStage(new ScanDiscoveredSettingPoliciesStage(discoveredSettingPolicyScanner,
                     discoveredGroupUploader))
@@ -240,9 +233,7 @@ public class TopologyPipelineFactory {
         final TopologyPipelineContext context =
                 new TopologyPipelineContext(new GroupResolver(topologyFilterFactory), topologyInfo);
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
-                .addStage(new StitchingStage(stitchingManager, targetStore,
-                        discoveredTemplateDeploymentProfileNotifier.getTargetToEntityProfilesMap(),
-                        journalFactory))
+                .addStage(new StitchingStage(stitchingManager, journalFactory))
                 // TODO: We should fixup stitched groups but cannot because doing so would
                 // for the plan would also affect the live broadcast. See OM-31747.
                 .addStage(new ConstructTopologyFromStitchingContextStage())

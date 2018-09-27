@@ -57,13 +57,12 @@ public class TopologyRpcServiceTest {
     private final TopologyPipelineFactory topologyPipelineFactory = mock(TopologyPipelineFactory.class);
     private final IdentityProvider identityProvider = mock(IdentityProvider.class);
     private final EntityStore entityStore = mock(EntityStore.class);
-    private final TargetStore targetStore = mock(TargetStore.class);
     private final long realtimeTopologyContextId = 1234567L;
     private final Clock clock = mock(Clock.class);
     private final Scheduler scheduler = mock(Scheduler.class);
 
     private TopologyRpcService topologyRpcServiceBackend = new TopologyRpcService(topologyHandler,
-        topologyPipelineFactory, identityProvider, entityStore, targetStore, scheduler,
+        topologyPipelineFactory, identityProvider, entityStore, scheduler,
         StitchingJournalFactory.emptyStitchingJournalFactory(), realtimeTopologyContextId, clock);
 
     @Rule
