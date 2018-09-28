@@ -33,6 +33,8 @@ public class ServiceEntityRepoDTO {
 
     private List<Long> targetIds;
 
+    private VirtualMachineInfoRepoDTO virtualMachineInfo;
+
     public String getUuid() {
         return uuid;
     }
@@ -145,11 +147,19 @@ public class ServiceEntityRepoDTO {
         this.targetIds = targetIds;
     }
 
+    public VirtualMachineInfoRepoDTO getVirtualMachineInfo() {
+        return virtualMachineInfo;
+    }
+
+    public void setVirtualMachineInfo(final VirtualMachineInfoRepoDTO virtualMachineInfo) {
+        this.virtualMachineInfo = virtualMachineInfo;
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(commoditiesBoughtRepoFromProviderDTOList, commoditySoldList, displayName,
                             entityType, oid, priceIndex, priceIndexProjected, providers, severity,
-                            state, uuid, tags, connectedEntityList, targetIds);
+                            state, uuid, tags, connectedEntityList, targetIds, virtualMachineInfo);
     }
 
     @Override
@@ -160,21 +170,22 @@ public class ServiceEntityRepoDTO {
         if (!(obj instanceof ServiceEntityRepoDTO)) {
             return false;
         }
-        ServiceEntityRepoDTO that = (ServiceEntityRepoDTO)obj;
+        ServiceEntityRepoDTO that = (ServiceEntityRepoDTO) obj;
         return Objects.equals(commoditiesBoughtRepoFromProviderDTOList, that.commoditiesBoughtRepoFromProviderDTOList) &&
-               Objects.equals(commoditySoldList, that.commoditySoldList) &&
-               Objects.equals(displayName, that.displayName) &&
-               Objects.equals(entityType, that.entityType) &&
-               Objects.equals(oid, that.oid) &&
-               Objects.equals(priceIndex, that.priceIndex) &&
-               Objects.equals(priceIndexProjected, that.priceIndexProjected) &&
-               Objects.equals(providers, that.providers) &&
-               Objects.equals(severity, that.severity) &&
-               Objects.equals(state, that.state) &&
-               Objects.equals(uuid, that.uuid) &&
-               Objects.equals(tags, that.tags) &&
-               Objects.equals(connectedEntityList, that.connectedEntityList) &&
-               Objects.equals(targetIds, that.targetIds);
+                Objects.equals(commoditySoldList, that.commoditySoldList) &&
+                Objects.equals(displayName, that.displayName) &&
+                Objects.equals(entityType, that.entityType) &&
+                Objects.equals(oid, that.oid) &&
+                Objects.equals(priceIndex, that.priceIndex) &&
+                Objects.equals(priceIndexProjected, that.priceIndexProjected) &&
+                Objects.equals(providers, that.providers) &&
+                Objects.equals(severity, that.severity) &&
+                Objects.equals(state, that.state) &&
+                Objects.equals(uuid, that.uuid) &&
+                Objects.equals(tags, that.tags) &&
+                Objects.equals(connectedEntityList, that.connectedEntityList) &&
+                Objects.equals(targetIds, that.targetIds) &&
+                Objects.equals(virtualMachineInfo, that.virtualMachineInfo);
     }
 
     @Override
@@ -188,6 +199,7 @@ public class ServiceEntityRepoDTO {
                 + ", commoditySoldList=" + commoditySoldList
                 + ", connectedEntityList=" + connectedEntityList
                 + ", targetIds=" + targetIds
+                + ", virtualMachineInfo=" + virtualMachineInfo
                 + "]";
     }
 }

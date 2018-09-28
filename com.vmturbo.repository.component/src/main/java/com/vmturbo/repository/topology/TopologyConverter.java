@@ -21,13 +21,20 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.IpAddressInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.repository.constant.RepoObjectState;
 import com.vmturbo.repository.constant.RepoObjectType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
+import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
 
 /**
  * Convert topology DTOs to repository DTOs. And also convert repository DTOs to topology DTOs.
@@ -72,6 +79,37 @@ public class TopologyConverter {
                     serviceEntityDTO.getConnectedEntityList().stream()
                             .map(ConnectedEntityMapper::convert)
                             .collect(Collectors.toList()));
+
+            Optional.ofNullable(serviceEntityDTO.getVirtualMachineInfo()).ifPresent(
+                    virtualMachineInfoRepoDTO -> {
+                        VirtualMachineInfo.Builder vmBuilder = VirtualMachineInfo.newBuilder();
+                        TypeSpecificInfo.Builder typeSpecificInfoBuilder =
+                                TypeSpecificInfo.newBuilder();
+                        if (virtualMachineInfoRepoDTO.getIpAddressInfoList() != null) {
+                            virtualMachineInfoRepoDTO
+                                    .getIpAddressInfoList().stream()
+                                    .filter(ipAddressRepoDTO ->
+                                            ipAddressRepoDTO.getIpAddress() != null)
+                                    .map(ipAddressDTO -> IpAddressInfo.newBuilder()
+                                            .setIpAddress(ipAddressDTO.getIpAddress())
+                                            .setElastic(ipAddressDTO.getElastic())
+                                            .build())
+                                    .forEach(ipAddressInfo ->
+                                            vmBuilder.addIpAddresses(ipAddressInfo));
+                        }
+                        if (vmBuilder.getGuestOsType() != null) {
+                            vmBuilder.setGuestOsType(OSType.valueOf(
+                                    virtualMachineInfoRepoDTO.getGuestOsType()));
+                        }
+                        if (virtualMachineInfoRepoDTO.getTenancy() != null) {
+                            vmBuilder.setTenancy(Tenancy.valueOf(
+                                    virtualMachineInfoRepoDTO.getTenancy()));
+                        }
+                        topologyEntityBuilder
+                                .setTypeSpecificInfo(typeSpecificInfoBuilder
+                                        .setVirtualMachine(vmBuilder));
+
+                    });
 
             // set DiscoveryOrigin if any
             Optional.ofNullable(serviceEntityDTO.getTargetIds()).ifPresent(targetIds ->
@@ -137,6 +175,17 @@ public class TopologyConverter {
                 se.setTargetIds(t.getOrigin().getDiscoveryOrigin().getDiscoveringTargetIdsList());
             }
 
+            // save VirtualMachineInfo
+            if (t.hasTypeSpecificInfo() && t.getTypeSpecificInfo().hasVirtualMachine()) {
+                VirtualMachineInfo vmInfo = t.getTypeSpecificInfo().getVirtualMachine();
+                se.setVirtualMachineInfo(new VirtualMachineInfoRepoDTO(
+                        vmInfo.hasGuestOsType() ? vmInfo.getGuestOsType().toString() : null,
+                        vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null,
+                        vmInfo.getIpAddressesList().stream()
+                        .map(ipAddrInfo -> new IpAddressRepoDTO(ipAddrInfo.getIpAddress(),
+                                ipAddrInfo.getElastic()))
+                        .collect(Collectors.toList())));
+            }
             return se;
         }
 

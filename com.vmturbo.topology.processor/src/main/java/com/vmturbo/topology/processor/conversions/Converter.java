@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -31,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.IpAddressInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -217,6 +219,7 @@ public class Converter {
                         // We're not currently sending tenancy via the SDK
                         .setTenancy(Tenancy.DEFAULT)
                         .setGuestOsType(parseOsType(vmData.getGuestName()))
+                        .addAllIpAddresses(parseIpAddressInfo(vmData))
                         .build());
                 break;
             case COMPUTE_TIER_DATA:
@@ -244,6 +247,9 @@ public class Converter {
     private static OSType parseOsType(@Nonnull final String guestName) {
         // These should come from the OSType enum in com.vmturbo.mediation.hybrid.cloud.utils.
         // Really, the SDK should be setting the num.
+        // This is actually a problem for non cloud targets as the guestName coming in will
+        // not match  OSType and hence all guestNames will match OSType.OTHER.
+        // TODO Add smarter logic here to convert the guestName properly.   See OM-39287
         final String upperCaseOsName = guestName.toUpperCase();
         try {
             return OSType.valueOf(upperCaseOsName);
@@ -270,6 +276,21 @@ public class Converter {
         } catch (IllegalArgumentException e) {
             return DatabaseEngine.UNKNOWN;
         }
+    }
+
+    @Nonnull
+    private static List<IpAddressInfo> parseIpAddressInfo(VirtualMachineData vmData) {
+        int numberElasticIps = vmData.getNumElasticIps();
+        List<IpAddressInfo> returnValue = Lists.newArrayList();
+        // TODO we just randomly make numberElasticIps have elastic==true.  The probe should tell
+        // us which IpAddresses are actually elastic.
+        for (String ipAddr : vmData.getIpAddressList()) {
+            returnValue.add(IpAddressInfo.newBuilder()
+                    .setIpAddress(ipAddr)
+                    .setElastic(numberElasticIps-- > 0)
+                    .build());
+        }
+        return returnValue;
     }
 
     /**

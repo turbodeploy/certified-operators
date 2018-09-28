@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -17,13 +18,15 @@ import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableList;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.CommodityDTO.CommodityType;
 import com.vmturbo.repository.constant.RepoObjectState;
@@ -32,7 +35,9 @@ import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommodityBoughtRepoDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
+import com.vmturbo.repository.dto.IpAddressRepoDTO;
 import com.vmturbo.repository.dto.ServiceEntityRepoDTO;
+import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
 import com.vmturbo.repository.util.RepositoryTestUtil;
 
 /**
@@ -69,6 +74,20 @@ public class TopologyConverterTest {
         tagsMap.put("key1", Arrays.asList("value1", "value2"));
         tagsMap.put("key2", Arrays.asList("value1"));
         vmServiceEntity.setTags(tagsMap);
+        VirtualMachineInfoRepoDTO virtualMachineInfoRepoDTO = new VirtualMachineInfoRepoDTO();
+        IpAddressRepoDTO ipAddressRepoDTO = new IpAddressRepoDTO();
+        ipAddressRepoDTO.setElastic(false);
+        ipAddressRepoDTO.setIpAddress("10.0.1.15");
+        IpAddressRepoDTO ipAddressRepoDTO2 = new IpAddressRepoDTO();
+        ipAddressRepoDTO2.setElastic(true);
+        ipAddressRepoDTO2.setIpAddress("10.0.1.25");
+        IpAddressRepoDTO ipAddressRepoDTO3 = new IpAddressRepoDTO();
+        ipAddressRepoDTO3.setElastic(true);
+        virtualMachineInfoRepoDTO.setIpAddressInfoList(ImmutableList.of(ipAddressRepoDTO,
+                ipAddressRepoDTO2, ipAddressRepoDTO3));
+        virtualMachineInfoRepoDTO.setTenancy("DEFAULT");
+        virtualMachineInfoRepoDTO.setGuestOsType("WINDOWS");
+        vmServiceEntity.setVirtualMachineInfo(virtualMachineInfoRepoDTO);
         final CommoditySoldRepoDTO commoditySoldRepoDTO = new CommoditySoldRepoDTO();
         commoditySoldRepoDTO.setCapacity(123);
         commoditySoldRepoDTO.setKey("test-sold-key");
@@ -214,6 +233,34 @@ public class TopologyConverterTest {
         assertEquals(seRepoDTO.getTags().size(), seTopoDTO.getTagsMap().size());
         seRepoDTO.getTags().entrySet().forEach(t ->
                 assertEquals(t.getValue(), seTopoDTO.getTagsMap().get(t.getKey()).getValuesList()));
+
+        // compare virtual machine info
+        if (seRepoDTO.getVirtualMachineInfo() != null) {
+            assertTrue(seTopoDTO.hasTypeSpecificInfo());
+            assertTrue(seTopoDTO.getTypeSpecificInfo().hasVirtualMachine());
+            VirtualMachineInfo vmInfo = seTopoDTO.getTypeSpecificInfo().getVirtualMachine();
+            assertEquals(seRepoDTO.getVirtualMachineInfo().getTenancy(),
+                    vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null);
+            assertEquals(seRepoDTO.getVirtualMachineInfo().getGuestOsType(),
+                    vmInfo.hasGuestOsType() ? vmInfo.getGuestOsType().toString() : null);
+            if (seRepoDTO.getVirtualMachineInfo().getIpAddressInfoList() != null) {
+                // remove null Ip Address entries Repo DTO since those would have been skipped
+                // when converting to TopologyEntityDTO
+                List<IpAddressRepoDTO> ipAddressRepoList =
+                        seRepoDTO.getVirtualMachineInfo().getIpAddressInfoList().stream()
+                        .filter(ipAddressRepoDTO -> ipAddressRepoDTO.getIpAddress() != null)
+                        .collect(Collectors.toList());
+                assertEquals(ipAddressRepoList.size(), vmInfo.getIpAddressesCount());
+                ipAddressRepoList.forEach(ipAddressRepoDTO ->
+                        assertTrue(vmInfo.getIpAddressesList().stream()
+                                .anyMatch(ipAddressInfo ->
+                                        ipAddressRepoDTO.getIpAddress()
+                                                .equals(ipAddressInfo.getIpAddress())
+                                                &&
+                                                ipAddressInfo.getElastic() ==
+                                                        ipAddressRepoDTO.getElastic())));
+            }
+        }
 
         // check connected entity list
         assertEquals(seRepoDTO.getConnectedEntityList().size(), seTopoDTO.getConnectedEntityListCount());

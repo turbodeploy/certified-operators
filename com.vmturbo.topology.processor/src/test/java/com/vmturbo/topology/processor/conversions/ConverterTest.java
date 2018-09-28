@@ -27,6 +27,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.IpAddressInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -37,6 +40,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ProviderPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualDatacenterData;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -107,6 +112,17 @@ public class ConverterTest {
         assertEquals(3, vmCommBoughtGrouping.getCommodityBoughtCount()); // Mem, CPU, Ballooning
         assertTrue(isActive(vmCommBoughtGrouping.getCommodityBoughtList(), CommodityType.CPU_VALUE));
         assertFalse(isActive(vmCommBoughtGrouping.getCommodityBoughtList(), CommodityType.BALLOONING_VALUE));
+        TypeSpecificInfo typeSpecificInfo = vmTopologyDTO.getTypeSpecificInfo();
+        assertNotNull(typeSpecificInfo);
+        assertTrue(typeSpecificInfo.hasVirtualMachine());
+        VirtualMachineInfo vmInfo = typeSpecificInfo.getVirtualMachine();
+        assertNotNull(vmInfo);
+        assertEquals(Tenancy.DEFAULT, vmInfo.getTenancy());
+        assertEquals(OSType.LINUX, vmInfo.getGuestOsType());
+        List<IpAddressInfo> ipAddressInfo = vmInfo.getIpAddressesList();
+        assertEquals(1, ipAddressInfo.size());
+        assertEquals("10.0.1.15", ipAddressInfo.get(0).getIpAddress());
+        assertFalse(ipAddressInfo.get(0).getElastic());
 
         // check powered on pm
         TopologyEntityDTO pmPoweredOnTopologyDTO = findEntity(topologyDTOs, PM_POWEREDON_OID);

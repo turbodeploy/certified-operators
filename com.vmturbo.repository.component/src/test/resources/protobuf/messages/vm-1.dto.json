@@ -2,6 +2,18 @@
   "entityType": 10,
   "oid": 100,
   "displayName": "cirros1",
+  "typeSpecificInfo": {
+    "virtualMachine": {
+      "guestOsType": "LINUX",
+      "tenancy": "DEFAULT",
+      "ipAddresses": [
+        {
+          "ipAddress": "10.0.1.15",
+          "elastic": false
+        }
+      ]
+    }
+  },
   "tags": {
     "key1": {
       "values": [

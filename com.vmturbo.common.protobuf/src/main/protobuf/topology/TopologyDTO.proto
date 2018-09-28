@@ -22,6 +22,14 @@ message TypeSpecificInfo {
         ComputeTierInfo compute_tier = 56;
     }
 
+    message IpAddressInfo {
+        // a single IP Address for the Virtual Machine
+        optional string ip_address = 1;
+
+        // true if the ipAddress is elastic.  This is relevant for cloud targets only.
+        optional bool elastic = 2;
+    }
+
     message VirtualMachineInfo {
         // The OS type.
         optional .common_dto.OSType guest_os_type = 1 [default = UNKNOWN_OS];
@@ -29,6 +37,9 @@ message TypeSpecificInfo {
         // If set, the tenancy of the VM. This is only applicable
         // in a cloud environment (in an on-prem environment you're always on a host).
         optional .common_dto.Tenancy tenancy = 2;
+
+        // List of IP addresses for the VM.
+        repeated IpAddressInfo ip_addresses = 3;
     }
 
     // specific data for compute tier
