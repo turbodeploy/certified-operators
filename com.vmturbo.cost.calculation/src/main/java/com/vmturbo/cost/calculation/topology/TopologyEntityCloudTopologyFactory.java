@@ -149,6 +149,8 @@ public interface TopologyEntityCloudTopologyFactory {
                 final Set<ProbeInfo> probeInfos = topologyProcessorClient.getAllProbes();
                 logger.info("Loaded {} probeInfos from TP", probeInfos.size());
                 final Map<Long, SDKProbeType> probeIdToProbeTypeMap = probeInfos.stream()
+                    // May be null for non-production probes (e.g. stress probe)
+                    .filter(probeInfo -> SDKProbeType.create(probeInfo.getType()) != null)
                     .collect(Collectors.toMap(ProbeInfo::getId,
                         probeInfo -> SDKProbeType.create(probeInfo.getType())));
 
