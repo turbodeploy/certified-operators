@@ -257,7 +257,7 @@ public class TopologyConverterTest {
                                         ipAddressRepoDTO.getIpAddress()
                                                 .equals(ipAddressInfo.getIpAddress())
                                                 &&
-                                                ipAddressInfo.getElastic() ==
+                                                ipAddressInfo.getIsElastic() ==
                                                         ipAddressRepoDTO.getElastic())));
             }
         }

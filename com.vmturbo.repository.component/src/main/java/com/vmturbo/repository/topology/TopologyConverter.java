@@ -14,6 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -22,7 +23,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Discov
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.IpAddressInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -90,12 +90,12 @@ public class TopologyConverter {
                                     .getIpAddressInfoList().stream()
                                     .filter(ipAddressRepoDTO ->
                                             ipAddressRepoDTO.getIpAddress() != null)
-                                    .map(ipAddressDTO -> IpAddressInfo.newBuilder()
+                                    .map(ipAddressDTO -> IpAddress.newBuilder()
                                             .setIpAddress(ipAddressDTO.getIpAddress())
-                                            .setElastic(ipAddressDTO.getElastic())
+                                            .setIsElastic(ipAddressDTO.getElastic())
                                             .build())
-                                    .forEach(ipAddressInfo ->
-                                            vmBuilder.addIpAddresses(ipAddressInfo));
+                                    .forEach(ipAddress ->
+                                            vmBuilder.addIpAddresses(ipAddress));
                         }
                         if (vmBuilder.getGuestOsType() != null) {
                             vmBuilder.setGuestOsType(OSType.valueOf(
@@ -183,7 +183,7 @@ public class TopologyConverter {
                         vmInfo.hasTenancy() ? vmInfo.getTenancy().toString() : null,
                         vmInfo.getIpAddressesList().stream()
                         .map(ipAddrInfo -> new IpAddressRepoDTO(ipAddrInfo.getIpAddress(),
-                                ipAddrInfo.getElastic()))
+                                ipAddrInfo.getIsElastic()))
                         .collect(Collectors.toList())));
             }
             return se;

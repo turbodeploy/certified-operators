@@ -24,11 +24,11 @@ import com.google.protobuf.util.JsonFormat;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.IpAddressInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -119,10 +119,10 @@ public class ConverterTest {
         assertNotNull(vmInfo);
         assertEquals(Tenancy.DEFAULT, vmInfo.getTenancy());
         assertEquals(OSType.LINUX, vmInfo.getGuestOsType());
-        List<IpAddressInfo> ipAddressInfo = vmInfo.getIpAddressesList();
-        assertEquals(1, ipAddressInfo.size());
-        assertEquals("10.0.1.15", ipAddressInfo.get(0).getIpAddress());
-        assertFalse(ipAddressInfo.get(0).getElastic());
+        List<IpAddress> ipAddress = vmInfo.getIpAddressesList();
+        assertEquals(1, ipAddress.size());
+        assertEquals("10.0.1.15", ipAddress.get(0).getIpAddress());
+        assertFalse(ipAddress.get(0).getIsElastic());
 
         // check powered on pm
         TopologyEntityDTO pmPoweredOnTopologyDTO = findEntity(topologyDTOs, PM_POWEREDON_OID);

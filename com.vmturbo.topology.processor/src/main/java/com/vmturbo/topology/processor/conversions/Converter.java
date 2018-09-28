@@ -26,13 +26,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.IpAddressInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -279,15 +279,15 @@ public class Converter {
     }
 
     @Nonnull
-    private static List<IpAddressInfo> parseIpAddressInfo(VirtualMachineData vmData) {
+    private static List<IpAddress> parseIpAddressInfo(VirtualMachineData vmData) {
         int numberElasticIps = vmData.getNumElasticIps();
-        List<IpAddressInfo> returnValue = Lists.newArrayList();
+        List<IpAddress> returnValue = Lists.newArrayList();
         // TODO we just randomly make numberElasticIps have elastic==true.  The probe should tell
         // us which IpAddresses are actually elastic.
         for (String ipAddr : vmData.getIpAddressList()) {
-            returnValue.add(IpAddressInfo.newBuilder()
+            returnValue.add(IpAddress.newBuilder()
                     .setIpAddress(ipAddr)
-                    .setElastic(numberElasticIps-- > 0)
+                    .setIsElastic(numberElasticIps-- > 0)
                     .build());
         }
         return returnValue;

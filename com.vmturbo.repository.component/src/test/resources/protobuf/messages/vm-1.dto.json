@@ -9,7 +9,7 @@
       "ipAddresses": [
         {
           "ipAddress": "10.0.1.15",
-          "elastic": false
+          "isElastic": false
         }
       ]
     }
