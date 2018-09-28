@@ -49,16 +49,17 @@ public class TopologyProcessorConfig {
 
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
-        return new TopologyEntitiesListener(marketRunnerConfig.marketRunner(), maxPlacementsOverride(),
-            rightsizeLowerWatermark, rightsizeUpperWatermark);
+        final TopologyEntitiesListener topologyEntitiesListener = new TopologyEntitiesListener(
+                marketRunnerConfig.marketRunner(), maxPlacementsOverride(),
+                rightsizeLowerWatermark, rightsizeUpperWatermark);
+        topologyProcessor().addLiveTopologyListener(topologyEntitiesListener);
+        topologyProcessor().addPlanTopologyListener(topologyEntitiesListener);
+        return topologyEntitiesListener;
     }
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        final TopologyProcessor topologyProcessor = tpConfig.topologyProcessor(EnumSet.of(
+        return tpConfig.topologyProcessor(EnumSet.of(
                 Subscription.LiveTopologies, Subscription.PlanTopologies));
-        topologyProcessor.addLiveTopologyListener(topologyEntitiesListener());
-        topologyProcessor.addPlanTopologyListener(topologyEntitiesListener());
-        return topologyProcessor;
     }
 }

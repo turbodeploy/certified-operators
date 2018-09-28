@@ -48,6 +48,7 @@ market:
   realtimeTopologyContextId: 777777
   identityGeneratorPrefix: 2
   groupHost: 'group'
+  costHost: 'cost'
   # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from
   # making analysis take too long. If this number is <= 0, uses the default set in the market analysis codebase.
   maxPlacementIterations: -1
