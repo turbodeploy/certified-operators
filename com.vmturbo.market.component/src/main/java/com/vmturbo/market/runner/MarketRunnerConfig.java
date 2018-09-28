@@ -42,7 +42,6 @@ import com.vmturbo.market.topology.TopologyProcessorConfig;
 @Import({MarketApiConfig.class,
         GroupClientConfig.class,
         CostClientConfig.class,
-        TopologyProcessorConfig.class,
         MarketRpcConfig.class})
 public class MarketRunnerConfig {
 
@@ -55,6 +54,10 @@ public class MarketRunnerConfig {
     @Autowired
     private CostClientConfig costClientConfig;
 
+    /**
+     * No associated @Import because of the circular dependency between {@link TopologyProcessorConfig}
+     * and {@link MarketRunnerConfig}.
+     */
     @Autowired
     private TopologyProcessorConfig topologyProcessorConfig;
 
