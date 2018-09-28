@@ -325,7 +325,7 @@ public class BusinessUnitMapper {
         cloudServiceDiscountApiDTO.setPricingModel(ServicePricingModel.ON_DEMAND);
         final List<TemplatePriceAdjustmentDTO> templateDiscountDTOS =
                 generateTemplatePriceAdjustmentDTO(topologyEntityDTO.getConnectedEntityListList(), repositoryClient);
-        cloudServiceDiscountApiDTO.setTemplatePriceAdjustments(templateDiscountDTOS);
+        cloudServiceDiscountApiDTO.setTemplateDiscounts(templateDiscountDTOS);
         return Optional.of(cloudServiceDiscountApiDTO);
     }
 
