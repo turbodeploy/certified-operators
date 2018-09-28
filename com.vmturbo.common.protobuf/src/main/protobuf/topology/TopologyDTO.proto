@@ -18,6 +18,7 @@ message TypeSpecificInfo {
     oneof type {
         // The field number is the index of the entity type.
         VirtualMachineInfo virtual_machine = 10;
+        PhysicalMachineInfo physical_machine = 14;
         DatabaseInfo database = 46;
         ComputeTierInfo compute_tier = 56;
     }
@@ -40,6 +41,12 @@ message TypeSpecificInfo {
 
         // List of IP addresses for the VM.
         repeated IpAddressInfo ip_addresses = 3;
+    }
+
+    // Properties unique to a PhysicalMachine in the model
+    message PhysicalMachineInfo {
+        // The cpu_model for this machine, if known, used to scale the CPU performance
+        optional string cpu_model = 1;
     }
 
     // specific data for compute tier

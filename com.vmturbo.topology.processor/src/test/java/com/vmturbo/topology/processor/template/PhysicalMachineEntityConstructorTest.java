@@ -74,6 +74,7 @@ public class PhysicalMachineEntityConstructorTest {
             .addFields(TemplateField.newBuilder()
                 .setName("coolingSize")
                 .setValue("400")))
+        .setCpuModel("cpu-model")
         .build();
 
     private final static Template PM_TEMPLATE = Template.newBuilder()
@@ -177,6 +178,7 @@ public class PhysicalMachineEntityConstructorTest {
 
         assertTrue(topologyEntityDTO.getCommoditiesBoughtFromProviders(0).getMovable());
         assertFalse(topologyEntityDTO.getAnalysisSettings().getShopTogether());
+        assertEquals("cpu-model", topologyEntityDTO.getTypeSpecificInfo().getPhysicalMachine().getCpuModel());
     }
 
     @Test

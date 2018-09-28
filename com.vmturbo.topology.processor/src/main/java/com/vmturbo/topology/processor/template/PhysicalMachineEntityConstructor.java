@@ -24,6 +24,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -83,6 +85,13 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
         if (originalTopologyEntity != null) {
             updateRelatedEntityAccesses(originalTopologyEntity.getOid(), topologyEntityBuilder.getOid(),
                 commoditySoldConstraints, topology);
+        }
+        // if the template has a 'cpu_model' then add it to the new TopologyEntityDTO
+        if (template.hasTemplateInfo() && template.getTemplateInfo().hasCpuModel()) {
+            topologyEntityBuilder.setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder().setPhysicalMachine(PhysicalMachineInfo.newBuilder()
+                    .setCpuModel(template.getTemplateInfo().getCpuModel())
+                ));
         }
         return topologyEntityBuilder;
     }
