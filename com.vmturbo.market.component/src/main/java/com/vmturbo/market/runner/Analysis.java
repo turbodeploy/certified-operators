@@ -35,18 +35,17 @@ import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Type;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.commons.analysis.AnalysisUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.TopologyEntitiesHandler;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -65,15 +64,57 @@ import com.vmturbo.proactivesupport.DataMetricTimer;
  * Analysis execution and properties. This can be for a scoped plan or for a real-time market.
  */
 public class Analysis {
+    private static final String STORAGE_CLUSTER_WITH_GROUP = "group";
+    private static final String STORAGE_CLUSTER_ISO = "iso-";
+    private static final String FREE_STORAGE_CLUSTER = "free_storage_cluster";
+
+    private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
+            .withName("mkt_economy_scoping_duration_seconds")
+            .withHelp("Time to scope the economy for analysis.")
+            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+            .withMaxAgeSeconds(60 * 10) // 10 mins.
+            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+            .build()
+            .register();
+
+    private static final DataMetricSummary TOPOLOGY_CONVERT_TO_TRADER_SUMMARY = DataMetricSummary.builder()
+            .withName("mkt_economy_convert_to_traders_duration_seconds")
+            .withHelp("Time to convert from TopologyDTO to TraderTO before sending for analysis.")
+            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+            .withMaxAgeSeconds(60 * 10) // 10 mins.
+            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+            .build()
+            .register();
+
+    private static final DataMetricSummary TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY = DataMetricSummary.builder()
+            .withName("mkt_economy_convert_from_traders_duration_seconds")
+            .withHelp("Time to convert from TraderTO back to TopologyDTO for projected topology after analysis.")
+            .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
+            .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
+            .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
+            .withMaxAgeSeconds(60 * 10) // 10 mins.
+            .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
+            .build()
+            .register();
+
+    private final Logger logger = LogManager.getLogger();
+
     // Analysis started (kept true also when it is completed).
     private AtomicBoolean started = new AtomicBoolean();
+
     // Analysis completed (successfully or not).
     private boolean completed = false;
 
-    private final boolean includeVDC;
     private Instant startTime = Instant.EPOCH;
+
     private Instant completionTime = Instant.EPOCH;
+
     private final Map<Long, TopologyEntityDTO> topologyDTOs;
+
     private final String logPrefix;
 
     private final TopologyConverter converter;
@@ -81,78 +122,29 @@ public class Analysis {
     private Map<Long, TopologyEntityDTO> scopeEntities = Collections.emptyMap();
 
     private Collection<ProjectedTopologyEntity> projectedEntities = null;
+
     private final long projectedTopologyId;
+
     private ActionPlan actionPlan = null;
 
     private String errorMsg;
+
     private AnalysisState state;
+
     private ReplayActions realtimeReplayActions;
 
-    private final Logger logger = LogManager.getLogger();
-
     private final TopologyInfo topologyInfo;
-
-    private static final String STORAGE_CLUSTER_WITH_GROUP = "group";
-    private static final String STORAGE_CLUSTER_ISO = "iso-";
-    private static final String FREE_STORAGE_CLUSTER = "free_storage_cluster";
-
-    private static final DataMetricSummary TOPOLOGY_SCOPING_SUMMARY = DataMetricSummary.builder()
-        .withName("mkt_economy_scoping_duration_seconds")
-        .withHelp("Time to scope the economy for analysis.")
-        .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
-        .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
-        .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
-        .withMaxAgeSeconds(60 * 10) // 10 mins.
-        .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
-        .build()
-        .register();
-
-    private static final DataMetricSummary TOPOLOGY_CONVERT_TO_TRADER_SUMMARY = DataMetricSummary.builder()
-        .withName("mkt_economy_convert_to_traders_duration_seconds")
-        .withHelp("Time to convert from TopologyDTO to TraderTO before sending for analysis.")
-        .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
-        .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
-        .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
-        .withMaxAgeSeconds(60 * 10) // 10 mins.
-        .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
-        .build()
-        .register();
-
-    private static final DataMetricSummary TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY = DataMetricSummary.builder()
-        .withName("mkt_economy_convert_from_traders_duration_seconds")
-        .withHelp("Time to convert from TraderTO back to TopologyDTO for projected topology after analysis.")
-        .withQuantile(0.5, 0.05)   // Add 50th percentile (= median) with 5% tolerated error
-        .withQuantile(0.9, 0.01)   // Add 90th percentile with 1% tolerated error
-        .withQuantile(0.99, 0.001) // Add 99th percentile with 0.1% tolerated error
-        .withMaxAgeSeconds(60 * 10) // 10 mins.
-        .withAgeBuckets(5) // 5 buckets, so buckets get switched every 4 minutes.
-        .build()
-        .register();
 
     /**
      * The clock used to time market analysis.
      */
     private final Clock clock;
 
-    private final Map<String, Setting> globalSettingsMap;
-
     private final GroupServiceBlockingStub groupServiceClient;
 
-    private final Optional<Integer> maxPlacementsOverride;
+    private final AnalysisConfig config;
 
-    private final float rightsizeLowerWatermark;
-
-    private final float rightsizeUpperWatermark;
-
-    private final MarketRunnerConfigWrapper config;
-    /**
-     * The quote factor controls the aggressiveness with which the market suggests moves.
-     *
-     * It's a number between 0 and 1, so that Move actions are only generated if
-     * best-quote < quote-factor * current-quote. That means that if we only want Moves that
-     * result in at least 25% improvement we should use a quote-factor of 0.75.
-     */
-    private final float quoteFactor;
+    private final MarketPriceTable marketPriceTable;
 
     /**
      * Create and execute a context for a Market Analysis given a topology, an optional 'scope' to
@@ -163,57 +155,31 @@ public class Analysis {
      *
      * @param topologyInfo descriptive info about the topology - id, type, etc
      * @param topologyDTOs the Set of {@link TopologyEntityDTO}s that make up the topology
-     * @param includeVDC specify whether guaranteed buyers (VDC, VPod, DPod) are included in the
-     *                     market analysis
-     * @param globalSettingsMap Used to look up settings to control the behavior of market analysis.
      * @param groupServiceClient Used to look up groups to support suspension throttling
-     * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
-     *                              by the market during analysis.
      * @param clock The clock used to time market analysis.
-     * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
-     *                                it, Market could generate resize down actions.
-     * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
-     *                                it, Market could generate resize up actions.
-     * @param config configurations for market read from consul
      */
     public Analysis(@Nonnull final TopologyInfo topologyInfo,
                     @Nonnull final Set<TopologyEntityDTO> topologyDTOs,
-                    final boolean includeVDC,
-                    @Nonnull final Map<String, Setting> globalSettingsMap,
+                    @Nonnull final MarketPriceTable marketPriceTable,
                     @Nonnull final GroupServiceBlockingStub groupServiceClient,
-                    @Nonnull final Optional<Integer> maxPlacementsOverride,
                     @Nonnull final Clock clock,
-                    final float rightsizeLowerWatermark,
-                    final float rightsizeUpperWatermark,
-                    final MarketRunnerConfigWrapper config) {
+                    @Nonnull final AnalysisConfig analysisConfig) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        this.includeVDC = includeVDC;
         this.state = AnalysisState.INITIAL;
         logPrefix = topologyInfo.getTopologyType() + " Analysis " +
             topologyInfo.getTopologyContextId() + " with topology " +
             topologyInfo.getTopologyId() + " : ";
         this.projectedTopologyId = IdentityGenerator.next();
-        this.globalSettingsMap = globalSettingsMap;
         this.groupServiceClient = groupServiceClient;
         this.clock = Objects.requireNonNull(clock);
-        this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
-        this.rightsizeLowerWatermark = rightsizeLowerWatermark;
-        this.rightsizeUpperWatermark = rightsizeUpperWatermark;
-        this.quoteFactor = getQuoteFactor(topologyInfo, config);
-        this.converter = new TopologyConverter(topologyInfo, includeVDC, quoteFactor);
-        this.config = config;
+        this.converter = new TopologyConverter(topologyInfo,
+                analysisConfig.getIncludeVdc(), analysisConfig.getQuoteFactor());
+        this.config = analysisConfig;
+        this.marketPriceTable = Objects.requireNonNull(marketPriceTable);
     }
 
-    private float getQuoteFactor(TopologyInfo topologyInfo, MarketRunnerConfigWrapper config) {
-        if (topologyInfo.hasPlanInfo()) {
-            if (topologyInfo.getPlanInfo().getPlanType().equals("ALLEVIATE_PRESSURE")) {
-                return config.getAlleviatePressureQuoteFactor();
-            }
-        }
-        return AnalysisUtil.QUOTE_FACTOR;
-    }
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
             .withName("mkt_process_result_duration_seconds")
             .withHelp("Time to process the analysis results.")
@@ -245,12 +211,16 @@ public class Analysis {
             final DataMetricTimer conversionTimer = TOPOLOGY_CONVERT_TO_TRADER_SUMMARY.startTimer();
             final boolean enableThrottling = (config.getSuspensionsThrottlingConfig()
                     == SuspensionsThrottlingConfig.CLUSTER);
+
             // construct fake entities which can be used to form markets based on cluster/storage cluster
-            Map<Long, TopologyEntityDTO> fakeEntityDTOs = new HashMap<>();
+            final Map<Long, TopologyEntityDTO> fakeEntityDTOs;
             if (enableThrottling) {
                 fakeEntityDTOs = createFakeTopologyEntityDTOsForSuspensionThrottling();
-                fakeEntityDTOs.entrySet().forEach(entry -> topologyDTOs.put(entry.getKey(), entry.getValue()));
+                fakeEntityDTOs.forEach(topologyDTOs::put);
+            } else {
+                fakeEntityDTOs = Collections.emptyMap();
             }
+
             Set<TraderTO> traderTOs = converter.convertToMarket(topologyDTOs);
             // cache the traderTOs converted from fake TopologyEntityDTOs
             Set<TraderTO> fakeTraderTOs = new HashSet<>();
@@ -311,8 +281,7 @@ public class Analysis {
             }
 
             final AnalysisResults results = TopologyEntitiesHandler.performAnalysis(traderTOs,
-                topologyInfo, globalSettingsMap, maxPlacementsOverride, rightsizeLowerWatermark,
-                rightsizeUpperWatermark, config.getSuspensionsThrottlingConfig(), this);
+                topologyInfo, config, this);
 
             final DataMetricTimer processResultTime = RESULT_PROCESSING.startTimer();
             // add shoppinglist from newly provisioned trader to shoppingListOidToInfos
@@ -571,40 +540,9 @@ public class Analysis {
         return Collections.unmodifiableMap(topologyDTOs);
     }
 
-    /**
-     * Return the value of the "includeVDC" flag for this builder.
-     *
-     * @return the current value of the "includeVDC" flag for this builder
-     */
-    public boolean getIncludeVDC() {
-        return includeVDC;
-    }
-
-    /**
-     * Get the override for the number of maximum placement iterations.
-     *
-     * @return the maxPlacementsOverride.
-     */
-    public Optional<Integer> getMaxPlacementsOverride() {
-        return maxPlacementsOverride;
-    }
-
-    /**
-     * Get the minimum utilization threshold.
-     *
-     * @return the rightsizeLowerWatermark.
-     */
-    public float getRightsizeLowerWatermark() {
-        return rightsizeLowerWatermark;
-    }
-
-    /**
-     * Get the maximum utilization threshold.
-     *
-     * @return the rightsizeUpperWatermark.
-     */
-    public float getRightsizeUpperWatermark() {
-        return rightsizeUpperWatermark;
+    @Nonnull
+    public AnalysisConfig getConfig() {
+        return config;
     }
 
     /**
@@ -673,25 +611,6 @@ public class Analysis {
     @Nonnull
     public TopologyInfo getTopologyInfo() {
         return topologyInfo;
-    }
-
-    /**
-     * Get the quote factor used for this analysis.
-     *
-     * @return The quote factor.
-     */
-    public float getQuoteFactor() {
-        return quoteFactor;
-    }
-
-    /**
-     * Get the global settings map used for this analysis.
-     *
-     * @return The map of global setting values arranged by name.
-     */
-    @Nonnull
-    public Map<String, Setting> getGlobalSettingsMap() {
-        return Collections.unmodifiableMap(globalSettingsMap);
     }
 
     /**
@@ -890,167 +809,5 @@ public class Analysis {
      */
     public void setReplayActions(ReplayActions replayActions) {
         this.realtimeReplayActions = replayActions;
-    }
-
-    /**
-     * Helper for building an Analysis object. Useful since there are a number of
-     * parameters to pass to the market.
-     */
-    public static class AnalysisBuilder {
-        // basic information about this topology, including the IDs, type, timestamp, etc.
-        private TopologyInfo topologyInfo = TopologyInfo.getDefaultInstance();
-        // the Topology DTOs that make up the topology
-        private Set<TopologyEntityDTO> topologyDTOs = Collections.emptySet();
-        // specify whether the analysis should include guaranteed buyers in the market analysis
-        private boolean includeVDC = false;
-        // The clock to use when generating timestamps.
-        private Clock clock = Clock.systemUTC();
-
-        private Optional<Integer> maxPlacementsOverride = Optional.empty();
-        private Map<String, Setting> settingsMap = Collections.emptyMap();
-
-        private GroupServiceBlockingStub groupServiceClient = null;
-
-        // The minimum utilization threshold, if entity's utilization is below threshold,
-        // Market could generate resize down action.
-        private float rightsizeLowerWatermark;
-        // The maximum utilization threshold, if entity's utilization is above threshold,
-        // Market could generate resize up action.
-        private float rightsizeUpperWatermark;
-        // configuration read from consul
-        private MarketRunnerConfigWrapper config;
-
-        /**
-         * Capture the {@link TopologyInfo} describing this Analysis, including the IDs, type,
-         * timestamp, etc.
-         *
-         * @param topologyInfo the {@link TopologyInfo} for this Analysys
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setTopologyInfo(TopologyInfo topologyInfo) {
-            this.topologyInfo = topologyInfo;
-            return this;
-        }
-
-        /**
-         * Capture the Set of TopologyEntityDTOs to be analyzed.
-         *
-         * @param topologyDTOs the Set of TopologyEntityDTOs to be analyzed
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setTopologyDTOs(Set<TopologyEntityDTO> topologyDTOs) {
-            this.topologyDTOs = topologyDTOs;
-            return this;
-        }
-
-        /**
-         * Configure whether to include guaranteed buyers (VDC, VPod, DPod) in the analysis.
-         *
-         * @param includeVDC true if the guaranteed buyers (VDC, VPod, DPod) should be included
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setIncludeVDC(boolean includeVDC) {
-            this.includeVDC = includeVDC;
-            return this;
-        }
-
-        /**
-         *
-         * @param settingsMap The map of global settings retrieved from the group client.
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setSettingsMap(@Nonnull final Map<String, Setting> settingsMap) {
-            this.settingsMap = settingsMap;
-            return this;
-        }
-
-        /**
-         * Configure the Group client to get the groups.
-         *
-         * @param groupServiceClient Group Service client
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setGroupServiceClient(GroupServiceBlockingStub groupServiceClient) {
-            this.groupServiceClient  = groupServiceClient;
-            return this;
-        }
-
-        /**
-         * If present, overrides the default number of placement rounds performed by the market during analysis.
-         * If empty, uses the default value from the analysis project.
-         *
-         * @param maxPlacementsOverride the configuration store.
-         * @return this Builder to support flow style.
-         */
-        public AnalysisBuilder setMaxPlacementsOverride(@Nonnull final Optional<Integer> maxPlacementsOverride) {
-            this.maxPlacementsOverride = Objects.requireNonNull(maxPlacementsOverride);
-            return this;
-        }
-
-        /**
-         * Configure the minimum utilization threshold.
-         *
-         * @param rightsizeLowerWatermark minimum utilization threshold.
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setRightsizeLowerWatermark(@Nonnull final float rightsizeLowerWatermark) {
-            this.rightsizeLowerWatermark = rightsizeLowerWatermark;
-            return this;
-        }
-
-        /**
-         * Configure the maximum utilization threshold.
-         *
-         * @param rightsizeUpperWatermark maximum utilization threshold.
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setRightsizeUpperWatermark(@Nonnull final float rightsizeUpperWatermark) {
-            this.rightsizeUpperWatermark = rightsizeUpperWatermark;
-            return this;
-        }
-
-        /**
-         * Set the clock used to time market analysis.
-         * If not explicitly set, will use the System UTC clock.
-         *
-         * @param clock The clock used to time market analysis.
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setClock(@Nonnull final Clock clock) {
-            this.clock = Objects.requireNonNull(clock);
-            return this;
-        }
-
-        /**
-         * Set the quote factor for this round of analysis.
-         *
-         * @param quoteFactor The quote factor to be used in market analysis.
-         * @return this Builder to support flow style
-         */
-        public AnalysisBuilder setMarketRunnerConfig(final MarketRunnerConfigWrapper config) {
-            this.config = config;
-            return this;
-        }
-
-        /**
-         * Request a new Analysis object be built using the values specified.
-         *
-         * @return the newly build Analysis object initialized from the Builder fields.
-         */
-        public Analysis build() {
-            return new Analysis(topologyInfo, topologyDTOs, includeVDC, settingsMap,  groupServiceClient,
-                maxPlacementsOverride, clock, rightsizeLowerWatermark, rightsizeUpperWatermark, config);
-        }
-    }
-
-    /**
-     * Define a factory for creating new AnalysisBuilders. This will chiefly be used for testing,
-     * allowing a test to override the 'newAnalysisBuilder()' method and return an AnalysisBuilder
-     * that will build a Mock Analysis object.
-     */
-    public static class AnalysisFactory {
-        public AnalysisBuilder newAnalysisBuilder() {
-            return new AnalysisBuilder();
-        }
     }
 }

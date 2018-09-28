@@ -4,7 +4,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
@@ -23,7 +22,6 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -38,15 +36,14 @@ import com.google.protobuf.util.JsonFormat;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.runner.Analysis;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
-import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
@@ -167,10 +164,14 @@ public class TopologyEntitiesHandlerTest {
         ReplayActions replayActions = new ReplayActions();
         Analysis analysis = mock(Analysis.class);
         when(analysis.getReplayActions()).thenReturn(replayActions);
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
+                .setRightsizeLowerWatermark(rightsizeLowerWatermark)
+                .setRightsizeUpperWatermark(rightsizeUpperWatermark)
+                .setMaxPlacementsOverride(maxPlacementIterations)
+                .build();
         AnalysisResults results =
-            TopologyEntitiesHandler.performAnalysis(
-                economyDTOs, topologyInfo, Collections.emptyMap(), maxPlacementIterations,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark, SuspensionsThrottlingConfig.DEFAULT, analysis);
+            TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo, analysisConfig, analysis);
 
         // All deactivate actions should be set in analysis' replay actions.
         List<Long> deactivatedActionsTarget = results.getActionsList().stream()
@@ -424,10 +425,14 @@ public class TopologyEntitiesHandlerTest {
                 .setTopologyId(1L)
                 .build();
 
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
+                SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
+                .setRightsizeLowerWatermark(rightsizeLowerWatermark)
+                .setRightsizeUpperWatermark(rightsizeUpperWatermark)
+                .setMaxPlacementsOverride(maxPlacementIterations)
+                .build();
         AnalysisResults results =
-            TopologyEntitiesHandler.performAnalysis(
-                economyDTOs, topologyInfo, Collections.emptyMap(), maxPlacementIterations,
-                    rightsizeLowerWatermark, rightsizeUpperWatermark, SuspensionsThrottlingConfig.DEFAULT, analysis);
+            TopologyEntitiesHandler.performAnalysis(economyDTOs, topologyInfo, analysisConfig, analysis);
         return results.getActionsList();
     }
 

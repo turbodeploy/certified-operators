@@ -117,7 +117,7 @@ public class CloudCostCalculatorTest {
         when(discountApplicatorFactory.entityDiscountApplicator(testEntity, topology, infoExtractor, cloudCostData))
             .thenReturn(discountApplicator);
 
-        final double riCoverage = 0;
+        final double riCoverage = 0.2;
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
         when(riApplicator.recordRICoverage()).thenReturn(riCoverage);

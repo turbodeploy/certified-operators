@@ -5,12 +5,20 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.timeout;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.time.Clock;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -24,26 +32,28 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.google.common.collect.Sets;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.MarketNotificationSender;
-import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
 /**
  * Unit tests for the {@link MarketRunner}.
@@ -63,14 +73,9 @@ public class MarketRunnerTest {
             spy(new SettingPolicyServiceMole());
     private final SettingServiceMole testSettingService =
                  spy(new SettingServiceMole());
-    private SettingServiceBlockingStub settingServiceClient;
-    private GroupServiceBlockingStub groupServiceClient;
     private Optional<Integer> maxPlacementsOverride = Optional.empty();
     private final static float rightsizeLowerWatermark = 0.1f;
     private final static float rightsizeUpperWatermark = 0.7f;
-    private MarketRunnerConfig config = new MarketRunnerConfig();
-    MarketRunnerConfig.MarketRunnerConfigWrapper configWrapper = config
-            .new MarketRunnerConfigWrapper(0.75f,  false);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
@@ -83,18 +88,28 @@ public class MarketRunnerTest {
             .setTopologyType(TopologyType.PLAN)
             .build();
 
+    private AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
+
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0);
         threadPool = Executors.newFixedThreadPool(2);
-        AnalysisFactory analysisFactory = new AnalysisFactory();
-        settingServiceClient =
-            SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        runner = new MarketRunner(threadPool, serverApi, analysisFactory, groupServiceClient,
-                settingServiceClient, Optional.empty(), configWrapper);
+        runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty());
 
         topologyContextId += 100;
+
+        AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
+                SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap());
+        doAnswer(invocation -> {
+            TopologyInfo topologyInfo = invocation.getArgumentAt(0, TopologyInfo.class);
+            Set<TopologyEntityDTO> entities = invocation.getArgumentAt(1, Set.class);
+            AnalysisConfigCustomizer configCustomizer =
+                    invocation.getArgumentAt(2, AnalysisConfigCustomizer.class);
+            configCustomizer.customize(configBuilder);
+            return new Analysis(topologyInfo, entities, mock(MarketPriceTable.class),
+                    GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                    Clock.systemUTC(), configBuilder.build());
+        }).when(analysisFactory).newAnalysis(any(), any(), any());
     }
 
     @After
@@ -116,10 +131,10 @@ public class MarketRunnerTest {
         }
         assertSame("Plan completed with an error : " + analysis.getErrorMsg(),
             AnalysisState.SUCCEEDED, analysis.getState());
-        Mockito.verify(serverApi, Mockito.times(1)).notifyActionsRecommended(analysis.getActionPlan().get());
+        verify(serverApi, Mockito.times(1)).notifyActionsRecommended(analysis.getActionPlan().get());
         // since the IDgenerator gives us a different projectedTopoID every time, we create a
         // MockitoMatcher using anyLong to represent this parameter
-        Mockito.verify(serverApi, Mockito.times(1))
+        verify(serverApi, Mockito.times(1))
                 .notifyProjectedTopology(eq(topologyInfo), anyLong(), anySet(),
                         eq(analysis.getProjectedTopology().get()));
     }
@@ -153,14 +168,23 @@ public class MarketRunnerTest {
     @Test
     public void testBadPlan() throws InterruptedException {
         Set<TopologyEntityDTO> badDtos = dtos(false);
+        Analysis badAnalysis = mock(Analysis.class);
+        doReturn(badAnalysis).when(analysisFactory).newAnalysis(any(), any(), any());
+
+        when(badAnalysis.getContextId()).thenReturn(topologyInfo.getTopologyContextId());
+        when(badAnalysis.isDone()).thenReturn(true);
+        when(badAnalysis.getTopologyInfo()).thenReturn(topologyInfo);
+        when(badAnalysis.getState()).thenReturn(AnalysisState.FAILED);
+
         Analysis analysis =
             runner.scheduleAnalysis(topologyInfo, badDtos, true,
                     maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
-        while (!analysis.isDone()) {
-            Thread.sleep(100);
-        }
-        assertSame(AnalysisState.FAILED, analysis.getState());
-        assertNotNull(analysis.getErrorMsg());
+
+        assertSame(badAnalysis, analysis);
+
+        verify(analysis, timeout(1000)).execute();
+        verify(analysis).isDone();
+
         assertFalse(runner.getRuns().contains(analysis));
     }
 

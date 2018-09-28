@@ -1,13 +1,17 @@
 package com.vmturbo.market.runner;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -15,6 +19,8 @@ import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.time.Clock;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -35,29 +41,31 @@ import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.MarketNotificationSender;
-import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfigCustomizer;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
-import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
 @Ignore("Some tests fail intermittently on Jenkins. See issue OM-28793")
@@ -85,14 +93,10 @@ public class ScopedTopologyTest {
             spy(new SettingPolicyServiceMole());
     private final SettingServiceMole testSettingService =
                  spy(new SettingServiceMole());
-    private SettingServiceBlockingStub settingServiceClient;
-    private GroupServiceBlockingStub groupServiceClient;
-    private Optional<Integer> maxPlacementsOverride;
     private final float rightsizeLowerWatermark = 0.1f;
     private final float rightsizeUpperWatermark = 0.7f;
-    private MarketRunnerConfig config = new MarketRunnerConfig();
-    MarketRunnerConfig.MarketRunnerConfigWrapper configWrapper = config
-            .new MarketRunnerConfigWrapper(0.75f,  false);
+
+    private GroupServiceBlockingStub groupServiceClient;
     Analysis testAnalysis;
 
     @Rule
@@ -110,12 +114,18 @@ public class ScopedTopologyTest {
         topologyDTOs = Objects.requireNonNull(readTopologyFromJsonFile());
         IdentityGenerator.initPrefix(ID_GENERATOR_PREFIX);
         TopologyDTO.TopologyInfo topoogyInfo = TopologyDTO.TopologyInfo.getDefaultInstance();
-        testAnalysis = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
-                .setTopologyInfo(topoogyInfo)
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
                 .setIncludeVDC(INCLUDE_VDC)
                 .build();
-        settingServiceClient = SettingServiceGrpc.newBlockingStub(grpcServer.getChannel());
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
+        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        testAnalysis = new Analysis(topoogyInfo,
+                Collections.emptySet(),
+                marketPriceTable,
+                groupServiceClient,
+                Clock.systemUTC(),
+                analysisConfig);
     }
 
     /**
@@ -221,12 +231,10 @@ public class ScopedTopologyTest {
     public void testScopedMarketRunner() throws InterruptedException, CommunicationException {
 
         // Arrange
-        MarketNotificationSender serverApi = Mockito.mock(MarketNotificationSender.class);
+        MarketNotificationSender serverApi = mock(MarketNotificationSender.class);
         ExecutorService threadPool = Executors.newFixedThreadPool(2);
-        Analysis.AnalysisFactory analysisFactory = new Analysis.AnalysisFactory();
-        MarketRunner runner =
-                new MarketRunner(threadPool, serverApi, analysisFactory, groupServiceClient,
-                        settingServiceClient, Optional.empty(), configWrapper);
+        AnalysisFactory analysisFactory = mock(AnalysisFactory.class);
+        MarketRunner runner = new MarketRunner(threadPool, serverApi, analysisFactory, Optional.empty());
 
         long topologyContextId = 1000;
         long topologyId = 2000;
@@ -241,9 +249,25 @@ public class ScopedTopologyTest {
                 .build();
 
         // Act
+        AnalysisConfig.Builder configBuilder = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
+                SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap());
+        when(analysisFactory.newAnalysis(eq(topologyInfo), eq(topologyDTOs), any()))
+            .thenAnswer(invocation -> {
+                AnalysisConfigCustomizer configCustomizer =
+                        invocation.getArgumentAt(2, AnalysisConfigCustomizer.class);
+                configCustomizer.customize(configBuilder);
+                return new Analysis(topologyInfo, topologyDTOs, mock(MarketPriceTable.class),
+                        groupServiceClient, Clock.systemUTC(), configBuilder.build());
+            });
+
         Analysis analysis =
-            runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
-                maxPlacementsOverride, rightsizeLowerWatermark, rightsizeUpperWatermark);
+                runner.scheduleAnalysis(topologyInfo, topologyDTOs, true,
+                        Optional.empty(), rightsizeLowerWatermark, rightsizeUpperWatermark);
+
+        assertThat(analysis.getConfig().getRightsizeLowerWatermark(), is(rightsizeLowerWatermark));
+        assertThat(analysis.getConfig().getRightsizeUpperWatermark(), is(rightsizeUpperWatermark));
+        assertThat(analysis.getConfig().getIncludeVdc(), is(true));
+
         assertTrue(runner.getRuns().contains(analysis));
         while (!analysis.isDone()) {
             Thread.sleep(1000);
@@ -264,7 +288,7 @@ public class ScopedTopologyTest {
                         eq(analysis.getProjectedTopology().get()));
 
         // check the original topology size
-        assertThat(analysis.getTopology().size(), equalTo(topologyDTOs.size()));
+        assertThat(analysis.getOriginalInputTopology().size(), equalTo(topologyDTOs.size()));
 
         // check projected topology -  "Host #12", "VM #14", "App #15", "Datastore #2,4,6,8,10",
         // "DiskArray #1-10", "Datacenter #0"

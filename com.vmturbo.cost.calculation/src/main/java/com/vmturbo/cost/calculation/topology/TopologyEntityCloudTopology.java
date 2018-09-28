@@ -4,10 +4,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -23,9 +23,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 /**
  * A {@link CloudTopology} for {@link TopologyEntityDTO}, to be used when running the cost
  * library in the cost component.
- *
- * TODO (roman, Aug 16 2018): Move this to the cost component. It's provided here for illustration
- * purposes.
  */
 public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntityDTO> {
 
@@ -38,34 +35,41 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     private final Map<Long, Long> serviceForEntity;
 
     /**
-     * Do not call directly. Use {@link TopologyEntityCloudTopology#newFactory()}.
+     * Do not call directly, except in tests. Use {@link TopologyEntityCloudTopology}.
      */
-    private TopologyEntityCloudTopology(@Nonnull final Map<Long, TopologyEntityDTO> topologyEntitiesById) {
-        this.topologyEntitiesById =
-                Collections.unmodifiableMap(Objects.requireNonNull(topologyEntitiesById));
+    TopologyEntityCloudTopology(@Nonnull final Stream<TopologyEntityDTO> topologyEntitiesById) {
+        final Map<Long, TopologyEntityDTO> entitiesMap = new HashMap<>();
         final Map<Long, Long> ownedBy = new HashMap<>();
         final Map<Long, Long> connectedToService = new HashMap<>();
-        topologyEntitiesById.forEach((id, entity) -> {
-            entity.getConnectedEntityListList().forEach(connection -> {
+        topologyEntitiesById.forEach(cloudEntity -> {
+            final long id = cloudEntity.getOid();
+            entitiesMap.put(id, cloudEntity);
+            cloudEntity.getConnectedEntityListList().forEach(connection -> {
                 if (connection.getConnectionType() == ConnectionType.OWNS_CONNECTION) {
                     // We assume that an entity has at most one direct owner.
                     final Long oldOwner = ownedBy.put(connection.getConnectedEntityId(), id);
                     if (oldOwner != null) {
                         logger.error("Entity {} owned by more than one entity! " +
-                                "Previous owner: {} (type {}). New owner: {} (type {})",
+                                        "Previous owner: {}.  New owner: {} (type {})",
                                 connection.getConnectedEntityId(), oldOwner,
-                                topologyEntitiesById.get(oldOwner).getEntityType(),
-                                id, entity.getEntityType());
+                                id, cloudEntity.getEntityType());
                     }
 
-                    if (entity.getEntityType() == EntityType.CLOUD_SERVICE_VALUE) {
+                    if (cloudEntity.getEntityType() == EntityType.CLOUD_SERVICE_VALUE) {
                         connectedToService.put(connection.getConnectedEntityId(), id);
                     }
                 }
             });
         });
+        this.topologyEntitiesById = Collections.unmodifiableMap(entitiesMap);
         this.ownedBy = Collections.unmodifiableMap(ownedBy);
         this.serviceForEntity = Collections.unmodifiableMap(connectedToService);
+    }
+
+    @Nonnull
+    @Override
+    public Map<Long, TopologyEntityDTO> getEntities() {
+        return Collections.unmodifiableMap(topologyEntitiesById);
     }
 
     /**
@@ -219,24 +223,5 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     public Optional<TopologyEntityDTO> getConnectedService(final long tierId) {
         return Optional.ofNullable(serviceForEntity.get(tierId))
             .flatMap(this::getEntity);
-    }
-
-    /**
-     * Use this method to get a production {@link TopologyEntityCloudTopologyFactory}.
-     *
-     * @return A {@link TopologyEntityCloudTopologyFactory} for use in production code.
-     */
-    @Nonnull
-    public static TopologyEntityCloudTopologyFactory newFactory() {
-        return TopologyEntityCloudTopology::new;
-    }
-
-    /**
-     * A factory for {@link TopologyEntityCloudTopology}, mainly for unit testing purposes.
-     */
-    @FunctionalInterface
-    public interface TopologyEntityCloudTopologyFactory {
-        @Nonnull
-        TopologyEntityCloudTopology newCloudTopology(@Nonnull final Map<Long, TopologyEntityDTO> entities);
     }
 }

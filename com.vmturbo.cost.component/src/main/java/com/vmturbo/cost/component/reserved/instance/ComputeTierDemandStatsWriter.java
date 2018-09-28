@@ -84,8 +84,7 @@ public class ComputeTierDemandStatsWriter {
     */
     synchronized public void calculateAndStoreRIDemandStats(TopologyInfo topologyInfo,
                                  Map<Long, TopologyEntityDTO> cloudEntities,
-                                 boolean isProjectedTopology)
-                throws CommunicationException, InterruptedException, TimeoutException {
+                                 boolean isProjectedTopology) {
 
         logger.info("Calculating RI demands stats from topology {}",
                 topologyInfo);

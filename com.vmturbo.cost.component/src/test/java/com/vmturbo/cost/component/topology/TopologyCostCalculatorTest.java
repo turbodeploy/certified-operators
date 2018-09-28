@@ -19,7 +19,7 @@ import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -32,8 +32,6 @@ public class TopologyCostCalculatorTest {
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .setOid(7)
             .build();
-
-    private TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
 
     private TopologyEntityInfoExtractor topologyEntityInfoExtractor = mock(TopologyEntityInfoExtractor.class);
 
@@ -48,13 +46,12 @@ public class TopologyCostCalculatorTest {
     @Test
     public void testCalculateCosts() throws CloudCostDataRetrievalException {
         final TopologyCostCalculator topologyCostCalculator = new TopologyCostCalculator(
-                cloudTopologyFactory, topologyEntityInfoExtractor,
-                cloudCostCalculatorFactory, localCostDataProvider,
+                topologyEntityInfoExtractor, cloudCostCalculatorFactory, localCostDataProvider,
                 discountApplicatorFactory, reservedInstanceApplicatorFactory);
 
         final Map<Long, TopologyEntityDTO> cloudEntities = ImmutableMap.of(ENTITY.getOid(), ENTITY);
         final TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
-        when(cloudTopologyFactory.newCloudTopology(cloudEntities)).thenReturn(cloudTopology);
+        when(cloudTopology.getEntities()).thenReturn(cloudEntities);
 
         final CloudCostCalculator<TopologyEntityDTO> costCalculator = mock(CloudCostCalculator.class);
         final CostJournal<TopologyEntityDTO> journal = mock(CostJournal.class);
@@ -65,7 +62,7 @@ public class TopologyCostCalculatorTest {
 
 
         final Map<Long, CostJournal<TopologyEntityDTO>> costs =
-                topologyCostCalculator.calculateCosts(ImmutableMap.of(ENTITY.getOid(), ENTITY));
+                topologyCostCalculator.calculateCosts(cloudTopology);
         assertThat(costs.get(ENTITY.getOid()), is(journal));
     }
 }

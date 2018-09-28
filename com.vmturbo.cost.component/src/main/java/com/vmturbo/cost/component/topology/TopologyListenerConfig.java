@@ -16,8 +16,8 @@ import com.vmturbo.cost.calculation.DiscountApplicator;
 import com.vmturbo.cost.calculation.DiscountApplicator.DiscountApplicatorFactory;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityInfoExtractor;
 import com.vmturbo.cost.component.discount.DiscountConfig;
 import com.vmturbo.cost.component.entity.cost.EntityCostConfig;
@@ -65,25 +65,23 @@ public class TopologyListenerConfig {
 
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
-        return new LiveTopologyEntitiesListener(realtimeTopologyContextId,
+        final LiveTopologyEntitiesListener entitiesListener =
+            new LiveTopologyEntitiesListener(realtimeTopologyContextId,
                 computeTierDemandStatsConfig.riDemandStatsWriter(),
-                topologyClientConfig.topologyProcessorRpcOnly(),
-                topologyCostCalculator(), entityCostConfig.entityCostStore(),
+                cloudTopologyFactory(), topologyCostCalculator(), entityCostConfig.entityCostStore(),
                 reservedInstanceConfig.reservedInstanceCoverageUpload());
+        topologyProcessor().addLiveTopologyListener(entitiesListener);
+        return entitiesListener;
     }
 
     @Bean
     public TopologyProcessor topologyProcessor() {
-        final TopologyProcessor topologyProcessor =
-                topologyClientConfig.topologyProcessor(
-                    EnumSet.of(Subscription.LiveTopologies));
-        topologyProcessor.addLiveTopologyListener(liveTopologyEntitiesListener());
-        return topologyProcessor;
+        return topologyClientConfig.topologyProcessor(EnumSet.of(Subscription.LiveTopologies));
     }
 
     @Bean
     public TopologyCostCalculator topologyCostCalculator() {
-        return new TopologyCostCalculator(cloudTopologyFactory(), topologyEntityInfoExtractor(),
+        return new TopologyCostCalculator(topologyEntityInfoExtractor(),
             cloudCostCalculatorFactory(), localCostDataProvider(), discountApplicatorFactory(),
             riApplicatorFactory());
     }
@@ -100,7 +98,7 @@ public class TopologyListenerConfig {
 
     @Bean
     public TopologyEntityCloudTopologyFactory cloudTopologyFactory() {
-        return TopologyEntityCloudTopology.newFactory();
+        return new DefaultTopologyEntityCloudTopologyFactory(topologyProcessor());
     }
 
     @Bean

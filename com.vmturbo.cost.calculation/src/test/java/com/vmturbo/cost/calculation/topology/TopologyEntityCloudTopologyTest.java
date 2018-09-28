@@ -3,8 +3,8 @@ package com.vmturbo.cost.calculation.topology;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 
-import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.junit.Test;
 
@@ -16,7 +16,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -113,66 +112,54 @@ public class TopologyEntityCloudTopologyTest {
                 .setConnectionType(ConnectionType.OWNS_CONNECTION))
             .build();
 
-    private final Map<Long, TopologyEntityDTO> topology = ImmutableMap.<Long, TopologyEntityDTO>builder()
-            .put(VM.getOid(), VM)
-            .put(DATABASE.getOid(), DATABASE)
-            .put(AZ.getOid(), AZ)
-            .put(DATABASE_TIER.getOid(), DATABASE_TIER)
-            .put(COMPUTE_TIER.getOid(), COMPUTE_TIER)
-            .put(REGION.getOid(), REGION)
-            .put(BUSINESS_ACCOUNT.getOid(), BUSINESS_ACCOUNT)
-            .put(SERVICE.getOid(), SERVICE)
-            .build();
-
-    private final TopologyEntityCloudTopologyFactory topologyFactory =
-            TopologyEntityCloudTopology.newFactory();
-
+    private final Stream<TopologyEntityDTO> topologyStream =
+            Stream.of(VM, DATABASE, AZ, COMPUTE_TIER, DATABASE_TIER, REGION, BUSINESS_ACCOUNT, SERVICE);
 
     @Test
     public void testGetEntityOid() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getEntity(VM.getOid()), is(Optional.of(VM)));
     }
 
     @Test
     public void testGetEntityComputeTier() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getComputeTier(VM.getOid()), is(Optional.of(COMPUTE_TIER)));
     }
 
     @Test
     public void testGetEntityDatabaseTier() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getDatabaseTier(DATABASE.getOid()), is(Optional.of(DATABASE_TIER)));
     }
 
     @Test
     public void testGetEntityRegionViaAz() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getConnectedRegion(VM.getOid()), is(Optional.of(REGION)));
     }
 
     @Test
     public void testGetEntityAZ() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getConnectedAvailabilityZone(VM.getOid()), is(Optional.of(AZ)));
     }
 
     @Test
     public void testGetRegionDirectly() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getConnectedRegion(COMPUTE_TIER.getOid()), is(Optional.of(REGION)));
     }
 
     @Test
     public void testGetOwnedBy() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getOwner(VM.getOid()), is(Optional.of(BUSINESS_ACCOUNT)));
     }
 
     @Test
     public void testGetService() {
-        final TopologyEntityCloudTopology cloudTopology = topologyFactory.newCloudTopology(topology);
+        final TopologyEntityCloudTopology cloudTopology = new TopologyEntityCloudTopology(topologyStream);
         assertThat(cloudTopology.getConnectedService(COMPUTE_TIER.getOid()), is(Optional.of(SERVICE)));
     }
 }

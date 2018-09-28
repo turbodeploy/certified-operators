@@ -3,7 +3,6 @@ package com.vmturbo.market.topology;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -14,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.AnalysisUtil;
@@ -23,10 +21,10 @@ import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.analysis.UpdateFunction;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.runner.Analysis;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
-import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
@@ -98,24 +96,12 @@ public class TopologyEntitiesHandler {
      * and return the list of {@link Action}s for those TOs.
      * @param traderTOs A set of trader TOs.
      * @param topologyInfo Information about the topology, including parameters for the analysis.
-     * @param settingsMap A map of settings used to influence the behavior of the analysis.
-     * @param maxPlacementsOverride If present, overrides the default number of placement rounds performed
-     *                              by the market during analysis.
-     * @param rightsizeLowerWatermark the minimum utilization threshold, if entity utilization is below
-     *                                it, Market could generate resize down actions.
-     * @param rightsizeUpperWatermark the maximum utilization threshold, if entity utilization is above
-     *                                it, Market could generate resize up actions.
-     * @param suspensionThrottlingConfig suspension throttling configuration to be sent sent for analysis.
      * @param analysis containing reference for replay actions.
      * @return The list of actions for the TOs.
      */
     public static AnalysisResults performAnalysis(Set<TraderTO> traderTOs,
                                                   @Nonnull final TopologyDTO.TopologyInfo topologyInfo,
-                                                  @Nonnull final Map<String, Setting> settingsMap,
-                                                  @Nonnull final Optional<Integer> maxPlacementsOverride,
-                                                  final float rightsizeLowerWatermark,
-                                                  final float rightsizeUpperWatermark,
-                                                  final SuspensionsThrottlingConfig suspensionThrottlingConfig,
+                                                  final AnalysisConfig analysisConfig,
                                                   final Analysis analysis) {
         logger.info("Received TOs from marketComponent. Starting economy creation on {} traders",
                 traderTOs.size());
@@ -143,8 +129,7 @@ public class TopologyEntitiesHandler {
 
         final Economy economy = (Economy)topology.getEconomy();
         // enable estimates
-        setEconomySettings(economy.getSettings(), settingsMap, maxPlacementsOverride,
-                rightsizeLowerWatermark, rightsizeUpperWatermark);
+        setEconomySettings(economy.getSettings(), analysisConfig);
         // compute startPriceIndex
         final PriceStatement startPriceStatement = new PriceStatement();
         startPriceStatement.computePriceIndex(economy);
@@ -190,9 +175,9 @@ public class TopologyEntitiesHandler {
                                 : analysis.getReplayActions());
             }
             // trigger suspension throttling in XL
-            actions = ede.generateActions(economy, true,
-                    true, true, true, true, marketId, isRealtime, isRealtime ? suspensionThrottlingConfig
-                                    : SuspensionsThrottlingConfig.DEFAULT);
+            actions = ede.generateActions(economy, true, true, true, true,
+                    true, marketId, isRealtime,
+                    isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
             final long stop = System.nanoTime();
 
             results = AnalysisToProtobuf.analysisResults(actions, topology.getTraderOids(),
@@ -324,23 +309,19 @@ public class TopologyEntitiesHandler {
     }
 
     private static void setEconomySettings(@Nonnull EconomySettings economySettings,
-                                           @Nonnull final Map<String, Setting> settingsMap,
-                                           @Nonnull final Optional<Integer> maxPlacementsOverride,
-                                           final float rightsizeLowerWatermark,
-                                           final float rightsizeUpperWatermark) {
+                                           @Nonnull final AnalysisConfig analysisConfig) {
 
         economySettings.setEstimatesEnabled(false);
-        economySettings.setRightSizeLower(rightsizeLowerWatermark);
-        economySettings.setRightSizeUpper(rightsizeUpperWatermark);
+        economySettings.setRightSizeLower(analysisConfig.getRightsizeLowerWatermark());
+        economySettings.setRightSizeUpper(analysisConfig.getRightsizeUpperWatermark());
 
-        String rateOfResize = GlobalSettingSpecs.RateOfResize.getSettingName();
-        if (settingsMap.containsKey(rateOfResize) &&
-                settingsMap.get(rateOfResize).hasNumericSettingValue()) {
-            economySettings.setRateOfResize(
-                settingsMap.get(rateOfResize).getNumericSettingValue().getValue());
-        }
+        analysisConfig.getGlobalSetting(GlobalSettingSpecs.RateOfResize).ifPresent(rateOfResize -> {
+            if (rateOfResize.hasNumericSettingValue()) {
+                economySettings.setRateOfResize(rateOfResize.getNumericSettingValue().getValue());
+            }
+        });
 
-        maxPlacementsOverride.ifPresent(maxPlacementIterations -> {
+        analysisConfig.getMaxPlacementsOverride().ifPresent(maxPlacementIterations -> {
             logger.info("Overriding economy setting max placement iterations with value: {}",
                 maxPlacementIterations);
             economySettings.setMaxPlacementIterations(maxPlacementIterations);

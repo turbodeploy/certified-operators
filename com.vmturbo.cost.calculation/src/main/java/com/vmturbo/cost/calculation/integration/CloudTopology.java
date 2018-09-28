@@ -18,6 +18,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 public interface CloudTopology<ENTITY_CLASS> {
 
     /**
+     * Return an unmodifiable map of the entities in the topology.
+     * Note: Use this as a last resort - use the other methods on the topology whenever possible.
+     * e.g. don't get the map and look up the entity, use {@link CloudTopology#getEntity(long)}.
+     *
+     * @return A map of entities, arranged by ID.
+     */
+    @Nonnull
+    Map<Long, ENTITY_CLASS> getEntities();
+
+    /**
      * Get the entity associated with an ID.
      *
      * @param entityId The ID of the entity.

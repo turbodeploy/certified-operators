@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.integration;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -85,6 +86,19 @@ public interface CloudCostDataProvider {
         @Nonnull
         public Optional<ReservedInstanceData> getRiBoughtData(final long riBoughtId) {
             return Optional.ofNullable(riBoughtDataById.get(riBoughtId));
+        }
+
+        /**
+         * Utility method to create an empty {@link CloudCostData}. Useful in testing, mocking,
+         * or to continue operations after {@link CloudCostDataProvider#getCloudCostData()} throws
+         * an exception.
+         *
+         * @return An empty {@link CloudCostData}.
+         */
+        @Nonnull
+        public static CloudCostData empty() {
+            return new CloudCostData(PriceTable.getDefaultInstance(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         }
 
     }

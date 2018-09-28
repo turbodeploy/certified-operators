@@ -13,10 +13,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import org.junit.Before;
@@ -28,14 +26,13 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -49,7 +46,9 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -74,14 +73,15 @@ public class AnalysisTest {
             spy(new SettingPolicyServiceMole());
     private final SettingServiceMole testSettingService =
                  spy(new SettingServiceMole());
-    private SettingServiceBlockingStub settingServiceClient;
     private GroupServiceBlockingStub groupServiceClient;
-    private final Clock mockClock = mock(Clock.class);
+
     private static final Instant START_INSTANT = Instant.EPOCH.plus(90, ChronoUnit.MINUTES);
     private static final Instant END_INSTANT = Instant.EPOCH.plus(100, ChronoUnit.MINUTES);
-    private MarketRunnerConfig config = new MarketRunnerConfig();
-    MarketRunnerConfig.MarketRunnerConfigWrapper configWrapper = config
-            .new MarketRunnerConfigWrapper(0.01f,  false);
+
+    private static final float QUOTE_FACTOR = 0.77f;
+
+
+    private final Clock mockClock = mock(Clock.class);
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
@@ -90,10 +90,9 @@ public class AnalysisTest {
     @Before
     public void before() {
         IdentityGenerator.initPrefix(0L);
-
         when(mockClock.instant())
-            .thenReturn(START_INSTANT)
-            .thenReturn(END_INSTANT);
+                .thenReturn(START_INSTANT)
+                .thenReturn(END_INSTANT);
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
     }
 
@@ -109,13 +108,19 @@ public class AnalysisTest {
      */
     @Test
     public void testConstructor() {
-        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
-                .setTopologyInfo(topologyInfo)
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT,
+                    getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .setIncludeVDC(true)
-                .setSettingsMap(getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .build();
+        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+
+        final Analysis analysis = new Analysis(topologyInfo, Collections.emptySet(),
+                marketPriceTable, groupServiceClient, mockClock, analysisConfig);
+
         assertEquals(topologyContextId, analysis.getContextId());
         assertEquals(topologyId, analysis.getTopologyId());
+        assertEquals(analysisConfig, analysis.getConfig());
         assertEquals(Collections.emptyMap(), analysis.getTopology());
         assertEquals(Instant.EPOCH, analysis.getStartTime());
         assertEquals(Instant.EPOCH, analysis.getCompletionTime());
@@ -126,14 +131,14 @@ public class AnalysisTest {
      */
     @Test
     public void testExecute() {
-        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
-                .setTopologyInfo(topologyInfo)
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT,
+                    getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .setIncludeVDC(true)
-                .setClock(mockClock)
-                .setGroupServiceClient(groupServiceClient)
-                .setSettingsMap(getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
-                .setMarketRunnerConfig(configWrapper)
                 .build();
+        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        final Analysis analysis  = new Analysis(topologyInfo, Collections.emptySet(),
+                marketPriceTable, groupServiceClient, mockClock, analysisConfig);
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(analysis.getState(), AnalysisState.SUCCEEDED);
@@ -150,13 +155,15 @@ public class AnalysisTest {
     @Test
     public void testFailedAnalysis() {
         Set<TopologyEntityDTO> set = Sets.newHashSet(buyer());
-        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
-            .setIncludeVDC(true)
-            .setTopologyDTOs(set)
-            // RateOfResize negative to throw exception
-            .setSettingsMap(getRateOfResizeSettingMap(-1))
-            .setClock(mockClock)
-            .build();
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT,
+                    // RateOfResize negative to throw exception
+                    getRateOfResizeSettingMap(-1))
+                .setIncludeVDC(true)
+                .build();
+        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        final Analysis analysis  = new Analysis(topologyInfo, set,
+                marketPriceTable, groupServiceClient, mockClock, analysisConfig);
         analysis.execute();
         assertTrue(analysis.isDone());
         assertSame(AnalysisState.FAILED, analysis.getState());
@@ -187,11 +194,15 @@ public class AnalysisTest {
      */
     @Test
     public void testTwoExecutes() {
-        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
-                .setTopologyInfo(topologyInfo)
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                SuspensionsThrottlingConfig.DEFAULT,
+                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .setIncludeVDC(true)
-                .setSettingsMap(getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
                 .build();
+
+        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        final Analysis analysis  = new Analysis(topologyInfo, Collections.emptySet(),
+                marketPriceTable, groupServiceClient, mockClock, analysisConfig);
         boolean first = analysis.execute();
         boolean second = analysis.execute();
         assertTrue(first);
@@ -200,14 +211,15 @@ public class AnalysisTest {
 
     @Test
     public void testActionPlanTimestamps() {
-        Analysis analysis  = (new Analysis.AnalysisFactory()).newAnalysisBuilder()
-            .setTopologyInfo(topologyInfo)
-            .setIncludeVDC(true)
-            .setGroupServiceClient(groupServiceClient)
-            .setSettingsMap(getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
-            .setClock(mockClock)
-            .setMarketRunnerConfig(configWrapper)
-            .build();
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                SuspensionsThrottlingConfig.DEFAULT,
+                getRateOfResizeSettingMap(DEFAULT_RATE_OF_RESIZE))
+                .setIncludeVDC(true)
+                .build();
+
+        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        final Analysis analysis  = new Analysis(topologyInfo, Collections.emptySet(),
+                marketPriceTable, groupServiceClient, mockClock, analysisConfig);
 
         analysis.execute();
         final ActionPlan actionPlan = analysis.getActionPlan().get();
@@ -271,9 +283,15 @@ public class AnalysisTest {
         Set<TopologyEntityDTO> topologySet = new HashSet<>();
         topologySet.add(dsEntity1);
         topologySet.add(dsEntity2);
-        Analysis analysis = Mockito.spy(new Analysis(topologyInfo, topologySet, false,
-                new HashMap<>(), groupServiceClient, Optional.empty(), Clock.systemUTC(), 0.3f,
-                0.8f, configWrapper));
+        final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
+                .setIncludeVDC(false)
+                .setRightsizeLowerWatermark(0.3f)
+                .setRightsizeUpperWatermark(0.8f)
+                .build();
+        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        Analysis analysis = Mockito.spy(new Analysis(topologyInfo, topologySet,
+                marketPriceTable, groupServiceClient, mockClock, analysisConfig));
 
         Mockito.doReturn(topologySet).when(analysis)
                 .getEntityDTOsInCluster(Mockito.eq(ClusterInfo.Type.STORAGE));

@@ -49,6 +49,8 @@ message AnalysisInput {
     optional float quote_factor = 7;
 
     map<string, .setting.Setting> settings = 8;
+
+    optional bool suspension_throttling_per_cluster = 9;
 }
 
 // The output of a market analysis.

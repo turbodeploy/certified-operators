@@ -137,11 +137,12 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                     .get(entityInfoExtractor.getId(computeTier));
                             if (computePriceList != null) {
                                 final ComputeTierConfigPrice basePrice = computePriceList.getBasePrice();
-                                // TODO (roman, Aug 17 2018): When implementing RI's, amount bought will
-                                // be the fraction of the VM that's bought at on-demand prices.
-                                final double amountBought = 1;
+                                // For compute tiers, we're working with "hourly" costs, and the
+                                // amount of "compute" bought from the tier is the percentage
+                                // of the hour filled by on-demand coverage (i.e. 1 - % RI coverage).
+                                final double unitsBought = 1 - riComputeCoveragePercent;
                                 journal.recordOnDemandCost(CostCategory.COMPUTE, computeTier,
-                                    basePrice.getPricesList().get(0), amountBought);
+                                    basePrice.getPricesList().get(0), unitsBought);
                                 if (computeConfig.getOs() != basePrice.getGuestOsType()) {
                                     computePriceList.getPerConfigurationPriceAdjustmentsList().stream()
                                         .filter(computeConfig::matchesPriceTableConfig)
@@ -149,7 +150,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                         .ifPresent(priceAdjustmentConfig -> journal.recordOnDemandCost(
                                             CostCategory.LICENSE,
                                             computeTier,
-                                            priceAdjustmentConfig.getPricesList().get(0), amountBought));
+                                            priceAdjustmentConfig.getPricesList().get(0), unitsBought));
                                 }
                             }
                         } else {

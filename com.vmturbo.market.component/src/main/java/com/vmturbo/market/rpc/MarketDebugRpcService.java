@@ -1,7 +1,5 @@
 package com.vmturbo.market.rpc;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -20,9 +18,9 @@ import com.vmturbo.common.protobuf.market.MarketDebug.ControlAnalysisCollectionR
 import com.vmturbo.common.protobuf.market.MarketDebug.GetAnalysisInfoRequest;
 import com.vmturbo.common.protobuf.market.MarketDebug.GetAnalysisInfoResponse;
 import com.vmturbo.common.protobuf.market.MarketDebugServiceGrpc.MarketDebugServiceImplBase;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 
 public class MarketDebugRpcService extends MarketDebugServiceImplBase {
 
@@ -90,15 +88,16 @@ public class MarketDebugRpcService extends MarketDebugServiceImplBase {
         final Optional<Analysis> analysisOpt = request.getLatestRealtime() ? latestRealtimeAnalysis : latestPlanAnalysis;
         if (analysisOpt.isPresent()) {
             final Analysis analysis = analysisOpt.get();
+            final AnalysisConfig analysisConfig = analysis.getConfig();
             final AnalysisInput.Builder analysisInputBuilder = AnalysisInput.newBuilder()
                     .setTopologyInfo(analysis.getTopologyInfo())
                     .addAllEntities(analysis.getOriginalInputTopology().values())
-                    .setIncludeVdc(analysis.getIncludeVDC())
-                    .setRightSizeLowerWatermark(analysis.getRightsizeLowerWatermark())
-                    .setRightSizeUpperWatermark(analysis.getRightsizeUpperWatermark())
-                    .setQuoteFactor(analysis.getQuoteFactor())
-                    .putAllSettings(analysis.getGlobalSettingsMap());
-            analysis.getMaxPlacementsOverride().ifPresent(analysisInputBuilder::setMaxPlacementsOverride);
+                    .setIncludeVdc(analysisConfig.getIncludeVdc())
+                    .setRightSizeLowerWatermark(analysisConfig.getRightsizeLowerWatermark())
+                    .setRightSizeUpperWatermark(analysisConfig.getRightsizeUpperWatermark())
+                    .setQuoteFactor(analysisConfig.getQuoteFactor())
+                    .putAllSettings(analysisConfig.getGlobalSettingMap());
+            analysisConfig.getMaxPlacementsOverride().ifPresent(analysisInputBuilder::setMaxPlacementsOverride);
 
             final GetAnalysisInfoResponse.Builder respBuilder = GetAnalysisInfoResponse.newBuilder()
                     .setInput(analysisInputBuilder)

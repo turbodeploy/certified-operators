@@ -19,6 +19,7 @@ import com.google.common.cache.CacheBuilder;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage.Coverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -75,24 +76,20 @@ public class ReservedInstanceCoverageUpdate {
      * to match the input real time topology with cached {@link EntityReservedInstanceCoverage}.
      *
      * @param topologyId the id of topology.
-     * @param topologyEntities a Map which key is entity id, value is {@link TopologyEntityDTO}.
+     * @param cloudTopology The most recent {@link CloudTopology} received from the Topology Processor.
      */
     public void updateAllEntityRICoverageIntoDB(
             final long topologyId,
-            @Nonnull final Map<Long, TopologyEntityDTO> topologyEntities) {
+            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
         final List<EntityReservedInstanceCoverage> entityRICoverageList =
                 riCoverageEntityCache.getIfPresent(topologyId);
         if (entityRICoverageList == null) {
             logger.info("Reserved instance coverage cache doesn't have {} data.", topologyId);
             return;
         }
-        // TODO: we can reuse the cloud topology which has created in cost calculation process.
-        final TopologyEntityCloudTopology cloudTopology =
-                TopologyEntityCloudTopology.newFactory().newCloudTopology(topologyEntities);
 
         final List<ServiceEntityReservedInstanceCoverageRecord> seRICoverageRecord =
-                createServiceEntityReservedInstanceCoverageRecords(entityRICoverageList,
-                        topologyEntities, cloudTopology);
+                createServiceEntityReservedInstanceCoverageRecords(entityRICoverageList, cloudTopology);
 
         dsl.transaction(configuration -> {
             final DSLContext transactionContext = DSL.using(configuration);
@@ -113,24 +110,22 @@ public class ReservedInstanceCoverageUpdate {
      * reserved instance coverage tables.
      *
      * @param entityRICoverageList a list of {@link EntityReservedInstanceCoverage}.
-     * @param topologyEntities a Map which key is entity id, value is {@link TopologyEntityDTO}.
-     * @param cloudTopology {@link TopologyEntityCloudTopology} contains entity relationship.
+     * @param cloudTopology The most recent {@link CloudTopology} received from the Topology Processor.
      * @return a list of {@link ServiceEntityReservedInstanceCoverageRecord}.
      */
     @VisibleForTesting
     List<ServiceEntityReservedInstanceCoverageRecord>
             createServiceEntityReservedInstanceCoverageRecords(
                     @Nonnull List<EntityReservedInstanceCoverage> entityRICoverageList,
-                    @Nonnull final Map<Long, TopologyEntityDTO> topologyEntities,
-                    @Nonnull final TopologyEntityCloudTopology cloudTopology) {
+                    @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
         final Map<Long, ServiceEntityReservedInstanceCoverageRecord> seRICoverageRecords =
                 entityRICoverageList.stream()
                         .filter(entityRICoverage ->
-                                topologyEntities.containsKey(entityRICoverage.getEntityId()))
+                                cloudTopology.getEntity(entityRICoverage.getEntityId()).isPresent())
                         .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId,
                                 entityRICoverage ->
                                         createRecordFromEntityRICoverage(entityRICoverage, cloudTopology)));
-        return createAllEntityRICoverageRecord(seRICoverageRecords, topologyEntities, cloudTopology);
+        return createAllEntityRICoverageRecord(seRICoverageRecords, cloudTopology);
     }
 
     /**
@@ -138,13 +133,13 @@ public class ReservedInstanceCoverageUpdate {
      * {@link EntityReservedInstanceCoverage} and {@link TopologyEntityCloudTopology}.
      *
      * @param entityRICoverage a {@link EntityReservedInstanceCoverage}.
-     * @param cloudTopology {@link TopologyEntityCloudTopology} contains entity relationship.
+     * @param cloudTopology The most recent {@link CloudTopology} received from the Topology Processor.
      * @return a  {@link ServiceEntityReservedInstanceCoverageRecord}.
      */
     private ServiceEntityReservedInstanceCoverageRecord
         createRecordFromEntityRICoverage(
                 @Nonnull final EntityReservedInstanceCoverage entityRICoverage,
-                @Nonnull final TopologyEntityCloudTopology cloudTopology) {
+                @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
         return ServiceEntityReservedInstanceCoverageRecord.newBuilder()
                 .setId(entityRICoverage.getEntityId())
                 .setAvailabilityZoneId(
@@ -172,16 +167,14 @@ public class ReservedInstanceCoverageUpdate {
      * @param seRICoverageRecords a Map which key is entity id, value is
      *                            {@link ServiceEntityReservedInstanceCoverageRecord} which created
      *                            by {@link EntityReservedInstanceCoverage}.
-     * @param topologyEntities a Map which key is entity id, value is {@link TopologyEntityDTO}.
-     * @param cloudTopology {@link TopologyEntityCloudTopology} contains entity relationship.
+     * @param cloudTopology The most recent {@link CloudTopology} received from the Topology Processor.
      * @return a list of {@link ServiceEntityReservedInstanceCoverageRecord}.
      */
     private List<ServiceEntityReservedInstanceCoverageRecord> createAllEntityRICoverageRecord(
             @Nonnull final Map<Long, ServiceEntityReservedInstanceCoverageRecord> seRICoverageRecords,
-            @Nonnull final Map<Long, TopologyEntityDTO> topologyEntities,
-            @Nonnull final TopologyEntityCloudTopology cloudTopology) {
+            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology) {
         final List<ServiceEntityReservedInstanceCoverageRecord> allEntityRICoverageRecords =
-                topologyEntities.values().stream()
+                cloudTopology.getEntities().values().stream()
                         // only keep VM entity for now.
                          .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                          .filter(entity -> !seRICoverageRecords.containsKey(entity.getOid()))

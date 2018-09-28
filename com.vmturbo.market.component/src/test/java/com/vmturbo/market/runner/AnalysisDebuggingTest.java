@@ -3,6 +3,8 @@ package com.vmturbo.market.runner;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -23,6 +25,7 @@ import javax.annotation.Nonnull;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.google.common.collect.Sets;
@@ -33,6 +36,8 @@ import com.google.gson.stream.JsonReader;
 import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.market.MarketDebug.AnalysisInput;
 import com.vmturbo.common.protobuf.market.MarketDebug.GetAnalysisInfoResponse;
 import com.vmturbo.common.protobuf.market.MarketDebugREST;
@@ -41,11 +46,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
-import com.vmturbo.market.runner.Analysis.AnalysisBuilder;
-import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
+import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
+import com.vmturbo.market.runner.cost.MarketPriceTable;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -97,9 +103,11 @@ public class AnalysisDebuggingTest {
     private static final Predicate<EntityAnalysis> DIFF_MEM_USAGE_NO_ACTIONS =
             ORIGINAL_AND_PROJECTED.and(HAS_ACTIONS.negate()).and(entityAnalysis ->
                     !commoditiesEquivalent(entityAnalysis, CommodityType.MEM));
-    private MarketRunnerConfig config = new MarketRunnerConfig();
-    MarketRunnerConfig.MarketRunnerConfigWrapper configWrapper = config
-            .new MarketRunnerConfigWrapper(0.75f,  false);
+
+    private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
+
+    @Rule
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(groupServiceMole);
 
     /**
      * Returns a predicate matching the specified entities.
@@ -218,19 +226,24 @@ public class AnalysisDebuggingTest {
 
     @Nonnull
     private Analysis analysisFromInput(@Nonnull final AnalysisInput analysisInput) {
-        final AnalysisBuilder analysisBuilder = new AnalysisFactory().newAnalysisBuilder()
-                .setTopologyInfo(analysisInput.getTopologyInfo())
-                .setTopologyDTOs(Sets.newHashSet(analysisInput.getEntitiesList()))
+        AnalysisConfig.Builder analysisConfig = AnalysisConfig.newBuilder(analysisInput.getQuoteFactor(),
+                    analysisInput.getSuspensionThrottlingPerCluster() ? SuspensionsThrottlingConfig.CLUSTER : SuspensionsThrottlingConfig.DEFAULT,
+                    analysisInput.getSettingsMap())
                 .setIncludeVDC(analysisInput.getIncludeVdc())
-                .setSettingsMap(analysisInput.getSettingsMap())
                 .setRightsizeLowerWatermark(analysisInput.getRightSizeLowerWatermark())
-                .setRightsizeUpperWatermark(analysisInput.getRightSizeUpperWatermark())
-                .setClock(Clock.systemUTC())
-                .setMarketRunnerConfig(configWrapper);
+                .setRightsizeUpperWatermark(analysisInput.getRightSizeUpperWatermark());
         if (analysisInput.hasMaxPlacementsOverride()) {
-            analysisBuilder.setMaxPlacementsOverride(Optional.of(analysisInput.getMaxPlacementsOverride()));
+            analysisConfig.setMaxPlacementsOverride(Optional.of(analysisInput.getMaxPlacementsOverride()));
         }
-        return analysisBuilder.build();
+
+        final MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
+        final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
+                Sets.newHashSet(analysisInput.getEntitiesList()),
+                marketPriceTable,
+                GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                Clock.systemUTC(),
+                analysisConfig.build());
+        return analysis;
     }
 
     private static boolean commoditiesEquivalent(EntityAnalysis entityAnalysis, CommodityType type) {

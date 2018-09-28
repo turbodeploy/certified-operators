@@ -1,8 +1,6 @@
 package com.vmturbo.market.runner;
 
-import java.time.Clock;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -15,22 +13,12 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.Maps;
 
-import io.grpc.StatusRuntimeException;
-
-import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
-import com.vmturbo.market.runner.Analysis.AnalysisFactory;
 import com.vmturbo.market.runner.Analysis.AnalysisState;
-import com.vmturbo.market.runner.MarketRunnerConfig.MarketRunnerConfigWrapper;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
@@ -43,10 +31,7 @@ public class MarketRunner {
     private final Logger logger = LogManager.getLogger();
     private final ExecutorService runnerThreadPool;
     private final MarketNotificationSender serverApi;
-    private final GroupServiceBlockingStub groupServiceClient;
-    private final SettingServiceBlockingStub settingServiceClient;
     private final AnalysisFactory analysisFactory;
-    private final MarketRunnerConfigWrapper config;
     // This variable keeps track of actions to replay from last round of analysis.
     // For real time analysis, this is passed to Analysis object created in this class.
     private ReplayActions realtimeReplayActions = new ReplayActions();
@@ -65,17 +50,11 @@ public class MarketRunner {
     public MarketRunner(@Nonnull final ExecutorService runnerThreadPool,
             @Nonnull final MarketNotificationSender serverApi,
             @Nonnull final AnalysisFactory analysisFactory,
-            @Nonnull final GroupServiceBlockingStub groupServiceClient,
-            @Nonnull final SettingServiceBlockingStub settingServiceClient,
-            @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService,
-            @Nonnull final MarketRunnerConfigWrapper marketRunnerConfigWrapper) {
+            @Nonnull final Optional<MarketDebugRpcService> marketDebugRpcService) {
         this.runnerThreadPool = runnerThreadPool;
         this.serverApi = serverApi;
-        this.groupServiceClient = groupServiceClient;
-        this.settingServiceClient = settingServiceClient;
         this.marketDebugRpcService = marketDebugRpcService;
         this.analysisFactory = analysisFactory;
-        this.config = marketRunnerConfigWrapper;
     }
 
     /**
@@ -114,18 +93,13 @@ public class MarketRunner {
             logger.info("Received analysis {}: topology {}" +
                     " with {} topology DTOs from TopologyProcessor",
                     topologyContextId, topologyId, topologyDTOs.size());
-            analysis = analysisFactory.newAnalysisBuilder()
-                    .setTopologyInfo(topologyInfo)
-                    .setTopologyDTOs(topologyDTOs)
-                    .setIncludeVDC(includeVDC)
-                    .setSettingsMap(retrieveSettings())
-                    .setGroupServiceClient(groupServiceClient)
-                    .setClock(Clock.systemUTC())
-                    .setMaxPlacementsOverride(maxPlacementsOverride)
-                    .setRightsizeLowerWatermark(rightsizeLowerWatermark)
-                    .setRightsizeUpperWatermark(rightsizeUpperWatermark)
-                    .setMarketRunnerConfig(config)
-                    .build();
+            analysis = analysisFactory.newAnalysis(topologyInfo,
+                    topologyDTOs,
+                    configBuilder -> configBuilder
+                        .setIncludeVDC(includeVDC)
+                        .setMaxPlacementsOverride(maxPlacementsOverride)
+                        .setRightsizeLowerWatermark(rightsizeLowerWatermark)
+                        .setRightsizeUpperWatermark(rightsizeUpperWatermark));
             analysisMap.put(topologyContextId, analysis);
         }
         if (logger.isTraceEnabled()) {
@@ -189,31 +163,4 @@ public class MarketRunner {
         return analysisMap.values();
     }
 
-    /**
-     * Retrieve global settings used for analysis configuration.
-     *
-     * @return The map of setting values, arranged by name.
-     */
-    private Map<String, Setting> retrieveSettings() {
-
-        final Map<String, Setting> settingsMap = new HashMap<>();
-
-        // for now only interested in one global settings: RateOfResize
-        final GetSingleGlobalSettingRequest settingRequest =
-                GetSingleGlobalSettingRequest.newBuilder()
-                        .setSettingSpecName(GlobalSettingSpecs.RateOfResize.getSettingName())
-                        .build();
-
-        try {
-            final GetGlobalSettingResponse response =
-                    settingServiceClient.getGlobalSetting(settingRequest);
-            if (response.hasSetting()) {
-                settingsMap.put(response.getSetting().getSettingSpecName(), response.getSetting());
-            }
-        } catch (StatusRuntimeException e) {
-            logger.error("Failed to get global settings from group component. Will run analysis " +
-                    " without global settings.", e);
-        }
-        return settingsMap;
-    }
 }
