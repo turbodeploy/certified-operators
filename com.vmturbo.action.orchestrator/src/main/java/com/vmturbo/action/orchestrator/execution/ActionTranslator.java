@@ -243,7 +243,7 @@ public class ActionTranslator {
             .setActionMode(actionView.getMode())
             .setActionState(actionView.getState())
             .setIsExecutable(actionView.determineExecutability())
-            .setExplanation(ExplanationComposer.composeExplanation(recommendationForDisplay.getExplanation()))
+            .setExplanation(ExplanationComposer.composeExplanation(recommendationForDisplay))
             .setCategory(actionView.getActionCategory());
 
         actionView.getDecision()

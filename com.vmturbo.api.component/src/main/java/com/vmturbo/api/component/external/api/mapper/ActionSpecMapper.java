@@ -1,5 +1,9 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.ActionDTOUtil.TRANSLATION_PATTERN;
+import static com.vmturbo.common.protobuf.ActionDTOUtil.TRANSLATION_PREFIX;
+
+import java.beans.PropertyDescriptor;
 import java.text.MessageFormat;
 import java.util.Collection;
 import java.util.Collections;
@@ -12,12 +16,14 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -89,7 +95,7 @@ public class ActionSpecMapper {
 
     private final ExecutorService executorService;
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * The set of action states for operational actions (ie actions that have not
@@ -401,7 +407,59 @@ public class ActionSpecMapper {
                 logger.error("Failed to get placement policies", ex);
             }
         }
-        return actionSpec.getExplanation();
+        return translateExplanation(actionSpec.getExplanation(), context);
+    }
+
+    /**
+     * Translates placeholders in the input string with values from the {@link ActionSpecMappingContext}.
+     *
+     * If the string doesn't start with the TRANSLATION_PREFIX, return the original string.
+     *
+     * Otherwise, translate any translation fragments into text. Translation fragments have the
+     * syntax:
+     *     {entity:(oid):(field-name):(default-value)}
+     *
+     * Where "entity" is a static prefix, (oid) is the entity oid to look up, and (field-name) is the
+     * name of the entity property to fetch. The entity property value will be substituted into the
+     * string. If the entity is not found, or there is an error getting the property value, the
+     * (default-value) will be used instead.
+     *
+     * @param input
+     * @param context
+     * @return
+     */
+    @VisibleForTesting
+    public static String translateExplanation(String input, @Nonnull final ActionSpecMappingContext context) {
+        if (! input.startsWith(TRANSLATION_PREFIX)) {
+            // most of the time, we probably won't need to translate anything.
+            return input;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        int lastOffset = TRANSLATION_PREFIX.length(); // offset to start appending from
+        // we do need some minor translation. fill in the blanks here.
+        Matcher matcher = TRANSLATION_PATTERN.matcher(input);
+        while (matcher.find()) {
+            // append the part of the string between regions
+            sb.append(input, lastOffset, matcher.start());
+            lastOffset = matcher.end();
+            // replace the pattern
+            try {
+                long oid = Long.valueOf(matcher.group(1));
+                ServiceEntityApiDTO entity = context.getEntity(oid);
+                // invoke the getter via reflection
+                Object fieldValue = new PropertyDescriptor(matcher.group(2), ServiceEntityApiDTO.class).getReadMethod().invoke(entity);
+                sb.append(fieldValue);
+            } catch (Exception e) {
+                logger.warn("Couldn't translate entity {}:{} -- using default value {}",
+                        matcher.group(1), matcher.group(2), matcher.group(3), e);
+                // use the substitute/fallback value
+                sb.append(matcher.group(3));
+            }
+        }
+        // add the remainder of the input string
+        sb.append(input, lastOffset, input.length());
+        return sb.toString();
     }
 
     private Optional<String> tryExtractPlacementPolicyId(@Nonnull ActionDTO.Action recommendation) {
@@ -985,7 +1043,8 @@ public class ActionSpecMapper {
      * <p>Caches information stored from calls to other components to allow a single set of
      * remote calls to obtain all the information required to map a set of {@link ActionSpec}s.</p>
      */
-    private static class ActionSpecMappingContext {
+    @VisibleForTesting
+    public static class ActionSpecMappingContext {
 
         private final Logger logger = LogManager.getLogger();
 
