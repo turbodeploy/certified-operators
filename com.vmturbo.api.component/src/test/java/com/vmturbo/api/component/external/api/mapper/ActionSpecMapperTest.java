@@ -12,7 +12,6 @@ import static org.mockito.Matchers.any;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -34,7 +33,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper.UIEntityType;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -43,7 +41,6 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.ActionDTOUtil;
 import com.vmturbo.common.protobuf.UnsupportedActionException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
@@ -765,44 +762,6 @@ public class ActionSpecMapperTest {
         final ActionQueryFilter filter = mapper.createActionFilter(null, Optional.empty());
         Assert.assertThat(filter.getStatesList(),
                 containsInAnyOrder(ActionSpecMapper.OPERATIONAL_ACTION_STATES));
-    }
-
-    @Test
-    public void testTranslateExplanation() {
-        Map<Long, Optional<ServiceEntityApiDTO>> entitiesMap = new HashMap<>();
-        ServiceEntityApiDTO entity = new ServiceEntityApiDTO();
-        entity.setDisplayName("Test Entity");
-        entity.setCostPrice(1.0f);
-        entitiesMap.put(1L,Optional.of(entity));
-        ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap, Collections.emptyMap());
-
-        String noTranslationNeeded = "Simple string";
-        Assert.assertEquals("Simple string", ActionSpecMapper.translateExplanation(noTranslationNeeded, context));
-
-        // test display name
-        String translateName = ActionDTOUtil.TRANSLATION_PREFIX +"The entity name is "
-                + ActionDTOUtil.createTranslationBlock(1, "displayName", "default");
-        Assert.assertEquals("The entity name is Test Entity", ActionSpecMapper.translateExplanation(translateName, context));
-
-        // test cost (numeric field)
-        String translateCost = ActionDTOUtil.TRANSLATION_PREFIX +"The entity cost is "
-                + ActionDTOUtil.createTranslationBlock(1, "costPrice", "I dunno, must be expensive");
-        Assert.assertEquals("The entity cost is 1.0", ActionSpecMapper.translateExplanation(translateCost, context));
-
-        // test fallback value
-        String testFallback = ActionDTOUtil.TRANSLATION_PREFIX +"The entity madeup field is "
-                + ActionDTOUtil.createTranslationBlock(1, "madeup", "fallback value");
-        Assert.assertEquals("The entity madeup field is fallback value", ActionSpecMapper.translateExplanation(testFallback, context));
-        // test blank fallback value
-        String testBlankFallback = ActionDTOUtil.TRANSLATION_PREFIX +"The entity madeup field is "
-                + ActionDTOUtil.createTranslationBlock(1, "madeup", "");
-        Assert.assertEquals("The entity madeup field is ", ActionSpecMapper.translateExplanation(testBlankFallback, context));
-
-        // test block at start of string
-        String testStart = ActionDTOUtil.TRANSLATION_PREFIX
-                + ActionDTOUtil.createTranslationBlock(1, "displayName", "default") +" and stuff";
-        Assert.assertEquals("Test Entity and stuff", ActionSpecMapper.translateExplanation(testStart, context));
-
     }
 
     private ActionInfo getHostMoveActionInfo() {

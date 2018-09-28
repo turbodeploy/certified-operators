@@ -5,12 +5,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.text.WordUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,17 +44,6 @@ public class ActionDTOUtil {
     // FIXME Embed semantics in the commodity key string is an hack. We need to have a better way to
     // express those relations
     public static final String COMMODITY_KEY_SEPARATOR = "::";
-
-    // this prefix designates that the rest of the string needs to pass through a translation phase
-    // This "translation" mechanism is specific to the action explanation and is meant to be resolved
-    // in the ActionSpecMapper. We are doing this to save a round of entity service lookups when
-    // creating the action explanations, and leaving the entity data to be filled-in when the API
-    // remaps the actions to API actions. (since it will be querying the entity service anyways)
-    public static final String TRANSLATION_PREFIX = "(^_^)~";
-
-    // the syntax to use for a translatable entry: {entity:oid:field:defaultValue}
-    private static final String TRANSLATION_REGEX = "\\{entity:([^:]*?):([^:]*?):([^:]*?)\\}";
-    public static final Pattern TRANSLATION_PATTERN = Pattern.compile(TRANSLATION_REGEX);
 
     private ActionDTOUtil() {}
 
@@ -352,30 +339,5 @@ public class ActionDTOUtil {
                 "(?<=[^A-Z])(?=[A-Z])",
                 "(?<=[A-Za-z])(?=[^A-Za-z])"),
                 " ");
-    }
-
-    /**
-     * Convert a string from UPPER_UNDERSCORE format to Mixed Spaces format. e.g.:
-     *
-     *      I_AM_A_CONSTANT ==> I Am A Constant
-     *
-     * @param input
-     * @return
-     */
-    public static String upperUnderScoreToMixedSpaces(@Nonnull final String input) {
-        // replace underscores with spaces
-        return WordUtils.capitalizeFully(input.replace("_", " "));
-    }
-
-    /**
-     * Create a translation chunk using the given properties.
-     *
-     * @param entityOid
-     * @param field
-     * @param defaultValue
-     * @return
-     */
-    public static String createTranslationBlock(long entityOid, @Nonnull String field, @Nonnull String defaultValue) {
-        return "{entity:"+ entityOid +":"+ field +":"+ defaultValue +"}";
     }
 }
