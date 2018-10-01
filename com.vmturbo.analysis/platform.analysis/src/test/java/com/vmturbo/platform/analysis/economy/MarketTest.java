@@ -21,6 +21,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -40,7 +41,6 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.CostFunction;
 import com.vmturbo.platform.analysis.utility.MapTests;
-
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -354,9 +354,10 @@ public class MarketTest {
 
     @Test
     public void testBuyerSortCloud() {
-
+        BalanceAccountDTO ba = BalanceAccountDTO.newBuilder().setBudget(10000).setSpent(100).setId(1).build();
         TraderSettingsTO shoptogetherFalseTO =
                 TraderSettingsTO.newBuilder().setIsShopTogether(false)
+                        .setBalanceAccount(ba)
                         .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                                 .setSumOfCommodity(SumOfCommodity
                                         .newBuilder().build())

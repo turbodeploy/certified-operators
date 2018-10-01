@@ -24,7 +24,8 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldSetting
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeResourceBundleCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.CostTuple;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -186,11 +187,12 @@ public class PlacementIntegrationTest {
     private static final int VM_TYPE = 99999;
     private static final int PM_TYPE = 88888;
 
-    private final ComputeResourceBundleCostDTO.Builder costBundleBuilder = ComputeResourceBundleCostDTO.newBuilder()
-        .setLicenseBaseType(LICENSE_ID)
-        .setAccumulateResources(false);
+    private final ComputeTierCostDTO.Builder costBundleBuilder = ComputeTierCostDTO.newBuilder()
+        .setLicenseCommodityBaseType(LICENSE_ID);
     private final CostDTO costDTO = CostDTO.newBuilder()
-        .setPmResourceBundleCost(costBundleBuilder.setCostWithoutLicense(100.0)).build();
+            .setComputeTierCost(costBundleBuilder.addCostTupleList(CostTuple.newBuilder()
+                    .setPrice(100.0).build()))
+            .build();
     private final CostFunction costFunction = CostFunctionFactory.createCostFunction(costDTO);
 
     private static CommodityBoughtTO commodityBought(@Nonnull final CommoditySpecificationTO commSpec,

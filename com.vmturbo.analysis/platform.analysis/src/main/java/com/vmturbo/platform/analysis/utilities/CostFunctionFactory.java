@@ -1,14 +1,13 @@
 package com.vmturbo.platform.analysis.utilities;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,12 +27,13 @@ import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeResourceBundleCostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeResourceBundleCostDTO.CostPair;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceCost;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceDependency;
-import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageResourceBundleCostDTO.ResourceLimitation;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.ComputeResourceDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO.CostTuple;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceCost;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceDependency;
+import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDTO.StorageResourceLimitation;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.Quote.CommodityQuote;
 import com.vmturbo.platform.analysis.utilities.Quote.InfiniteDependentComputeCommodityQuote;
@@ -183,9 +183,9 @@ public class CostFunctionFactory {
      * @return a map for CommoditySpecification to capacity constraint
      */
     public static Map<CommoditySpecification, CapacityLimitation>
-                    translateResourceCapacityLimitation(StorageResourceBundleCostDTO costDTO) {
+                    translateResourceCapacityLimitation(StorageTierCostDTO costDTO) {
         Map<CommoditySpecification, CapacityLimitation> commCapacity = new HashMap<>();
-        for (ResourceLimitation resourceLimit : costDTO.getResourceLimitationList()) {
+        for (StorageResourceLimitation resourceLimit : costDTO.getStorageResourceLimitationList()) {
             if (!commCapacity.containsKey(resourceLimit.getResourceType())) {
                 commCapacity.put(
                                 ProtobufToAnalysis.commoditySpecification(
@@ -207,13 +207,13 @@ public class CostFunctionFactory {
      */
     @SuppressWarnings("unchecked")
     public static @NonNull Map<CommoditySpecification, List<PriceData>>
-                    translatePriceCost(List<ResourceCost> resourceCost) {
+                    translatePriceCost(List<StorageResourceCost> resourceCost) {
         Map<CommoditySpecification, List<CostFunctionFactory.PriceData>> priceDataMap =
                         new HashMap<>();
-        for (ResourceCost cost : resourceCost) {
+        for (StorageResourceCost cost : resourceCost) {
             if (!priceDataMap.containsKey(cost.getResourceType())) {
                 List<CostFunctionFactory.PriceData> priceDataList = new ArrayList<>();
-                for (CostDTOs.CostDTO.StorageResourceBundleCostDTO.PriceData priceData : cost.getPriceDataList()) {
+                for (CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData priceData : cost.getStorageTierPriceDataList()) {
                     CostFunctionFactory.PriceData newEntry = new PriceData(
                                     priceData.getUpperBound(), priceData.getPrice(),
                                     priceData.getIsUnitPrice(), priceData.getIsAccumulativeCost());
@@ -239,7 +239,7 @@ public class CostFunctionFactory {
      * @return a list of {@link DependentResourcePair}
      */
     public static List<DependentResourcePair>
-                    translateResourceDependency(List<ResourceDependency> dependencyDTOs) {
+                    translateStorageResourceDependency(List<StorageResourceDependency> dependencyDTOs) {
         List<DependentResourcePair> dependencyList = new ArrayList<>();
         dependencyDTOs.forEach(dto -> dependencyList.add(new DependentResourcePair(
                         ProtobufToAnalysis.commoditySpecification(
@@ -248,6 +248,22 @@ public class CostFunctionFactory {
                                         dto.getDependentResourceType()),
                         dto.getRatio())));
         return dependencyList;
+    }
+
+    /**
+     * A utility method to extract base and dependent commodities.
+     *
+     * @param dependencyDTOs the DTO represents the base and dependent commodity relation
+     * @return a mapping for commodities with dependency relation
+     */
+    public static Map<CommoditySpecification, CommoditySpecification>
+                    translateComputeResourceDependency(List<ComputeResourceDependency> dependencyDTOs) {
+        Map<CommoditySpecification, CommoditySpecification> dependencyMap = new HashMap<>();
+        dependencyDTOs
+                .forEach(dto -> dependencyMap
+                        .put(ProtobufToAnalysis.commoditySpecification(dto.getBaseResourceType()),
+                             ProtobufToAnalysis.commoditySpecification(dto.getDependentResourceType())));
+        return dependencyMap;
     }
 
     /**
@@ -280,7 +296,7 @@ public class CostFunctionFactory {
             double dependentCommodityLowerBoundCapacity =
                 commCapacity.get(dependency.getDependentCommodity()).getMinCapacity();
             double baseQuantity = Math.max(sl.getQuantities()[baseIndex] * dependency.maxRatio_,
-                dependentCommodityLowerBoundCapacity); 
+                dependentCommodityLowerBoundCapacity);
             if (baseQuantity < sl.getQuantities()[depIndex]) {
                 return new InfiniteDependentResourcePairQuote(dependency, baseQuantity,
                     sl.getQuantities()[depIndex]);
@@ -464,95 +480,42 @@ public class CostFunctionFactory {
      * @param seller {@link Trader} that the buyer matched to
      * @param sl is the {@link ShoppingList} that is requesting price
      * @param costDTO is the resourceBundle associated with this templateProvider
-     * @param costMap is the license based cost map where the key is the commType and the value is the cost
+     * @param costMap is a map of map which stores cost by business account and license type
      *
      * @return A quote for the cost given by {@link CostFunction}
      */
     public static MutableQuote calculateComputeCostQuote(Trader seller, ShoppingList sl,
-                                                         ComputeResourceBundleCostDTO costDTO,
-                                                         Map<Integer, Double> costMap) {
-        final int licenseBaseType = costDTO.getLicenseBaseType();
-        int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
+                                                         ComputeTierCostDTO costDTO,
+                                                         Map<Long, Map<Integer, Double>> costMap) {
+        final int licenseBaseType = costDTO.getLicenseCommodityBaseType();
+        final int licenseCommBoughtIndex = sl.getBasket().indexOfBaseType(licenseBaseType);
+        if (sl.getBuyer().getSettings() == null
+                        || sl.getBuyer().getSettings().getBalanceAccount() == null
+                        || costMap.get(sl.getBuyer().getSettings().getBalanceAccount().getId()) == null) {
+            logger.warn("Business account is not found on seller, return infinity quote");
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+        Map<Integer, Double> costByLicense = costMap.get(sl.getBuyer().getSettings().getBalanceAccount().getId());
         if (licenseCommBoughtIndex == -1) {
-            // buyer doesnt shop for license
-            return new CommodityQuote(seller, costDTO.getCostWithoutLicense());
+            // NOTE: -1 is the no license commodity type
+            return new CommodityQuote(seller, costByLicense.get(licenseCommBoughtIndex));
         }
 
-        // if the commodity exists in the basketBought, get the type of that commodity
+        // if the license commodity exists in the basketBought, get the type of that commodity
         // and lookup the costMap for that license type
         final Integer type = sl.getBasket().get(licenseCommBoughtIndex).getType();
-        final Double cost = costMap.get(type);
-        
+        final Double cost = costByLicense.get(type);
         if (cost == null) {
             logger.error("Cannot find type {} in costMap, license base type: {}", type,
                     licenseBaseType);
-            return new CommodityQuote(seller, costDTO.getCostWithoutLicense());
+            // NOTE: -1 is the no license commodity type
+            return new CommodityQuote(seller, costByLicense.get(-1));
         }
 
         return Double.isInfinite(cost) ?
             new LicenseUnavailableQuote(seller, sl.getBasket().get(licenseCommBoughtIndex)) :
             new CommodityQuote(seller, cost);
     }
-
-    /**
-     * Calculates the total cost of all resources requested by a shopping list on a seller.
-     *
-     * @param commodityPriceDataMap the map containing commodity and its pricing information
-     * on a seller
-     * @param commCapacity the information of a commodity and its minimum and maximum capacity
-     * @param sl the shopping list requests resources
-     * @return the cost given by {@link CostFunction}
-     */
-    public static double calculateStorageCost(
-                    @NonNull Map<CommoditySpecification, List<PriceData>> commodityPriceDataMap,
-                    Map<CommoditySpecification, CapacityLimitation> commCapacity,
-                    @NonNull ShoppingList sl) {
-        double cost = 0;
-        for (Entry<CommoditySpecification, List<PriceData>> commodityPrice : commodityPriceDataMap
-                        .entrySet()) {
-            int i = sl.getBasket().indexOf(commodityPrice.getKey());
-            if (i == -1) {
-                // we iterate over the price data map, which defines the seller commodity price.
-                // The sl is from the buyer, which may not buy all resources sold
-                // by the seller, e.g: some VM does not request IOPS sold by IO1. We can skip it
-                // when trying to compute cost.
-                continue;
-            }
-           // calculate cost based on amount that is adjusted due to minimum capacity constraint
-            double requestedAmount = sl.getQuantities()[i];
-            if (commCapacity.containsKey(sl.getBasket().get(i))) {
-               requestedAmount = Math.max(requestedAmount,
-                                          commCapacity.get(sl.getBasket().get(i)).getMinCapacity());
-            }
-            double previousUpperBound = 0;
-            for (PriceData priceData : commodityPrice.getValue()) {
-                // the list of priceData is sorted based on upperbound
-                double currentUpperBound = priceData.getUpperBound();
-                if (priceData.isAccumulative()) {
-                    // if the price is accumulative, we need to sum up all the cost where
-                    // requested amount is more than upperbound till we find the exact range
-                    cost += (priceData.isUnitPrice()
-                                    ? priceData.getPrice() * Math.min(
-                                                    currentUpperBound - previousUpperBound,
-                                                    requestedAmount - previousUpperBound)
-                                    : priceData.getPrice());
-                    // we find the exact range the requested amount falls
-                    if (requestedAmount <= currentUpperBound) {
-                        break;
-                    }
-                } else if (!priceData.isAccumulative() && requestedAmount > previousUpperBound
-                                && requestedAmount <= currentUpperBound) {
-                    // non accumulative cost only depends on the exact range where the requested
-                    // amount falls
-                    cost += (priceData.isUnitPrice() ? priceData.getPrice() *
-                                    requestedAmount : priceData.getPrice());
-                }
-                previousUpperBound = currentUpperBound;
-            }
-        }
-        return cost;
-    }
-
 
     /**
      * Calculate the discounted compute cost, based on available RIs discount on a cbtp.
@@ -639,10 +602,10 @@ public class CostFunctionFactory {
      */
     public static @NonNull CostFunction createCostFunction(CostDTO costDTO) {
         switch (costDTO.getCostTypeCase()) {
-            case DS_RESOURCE_BUNDLE_COST:
-                return createResourceBundleCostFunctionForStorage(costDTO.getDsResourceBundleCost());
-            case PM_RESOURCE_BUNDLE_COST:
-                return createResourceBundleCostFunctionForCompute(costDTO.getPmResourceBundleCost());
+            case STORAGE_TIER_COST:
+                return createCostFunctionForStorageTier(costDTO.getStorageTierCost());
+            case COMPUTE_TIER_COST:
+                return createCostFunctionForComputeTier(costDTO.getComputeTierCost());
             case CBTP_RESOURCE_BUNDLE:
                 return createResourceBundleCostFunctionForCbtp(costDTO.getCbtpResourceBundle());
             default:
@@ -650,76 +613,60 @@ public class CostFunctionFactory {
         }
     }
 
-
     /**
-     * Create {@link CostFunction} by extracting data from {@link StorageResourceBundleCostDTO}
+     * A utility method to construct the pricing information map.
      *
-     * @param costDTO the DTO carries the data used to construct cost function
-     * @return CostFunction
+     * @param costTupleList a list of cost data
+     * @return map The map has business account id as key and a mapping of license to price as value.
      */
-    public static @NonNull CostFunction createResourceBundleCostFunctionForStorage(StorageResourceBundleCostDTO costDTO) {
-        // the map to keep commodity to its min max capacity limitation
-        Map<CommoditySpecification, CapacityLimitation> commCapacity =
-                        translateResourceCapacityLimitation(costDTO);
-        List<ResourceCost> resourceCost = costDTO.getResourceCostList();
-        // the map to keep the commodity to its unit price
-        Map<CommoditySpecification, List<PriceData>> priceDataMap =
-                        translatePriceCost(resourceCost);
-        // the capacity constraint between commodities
-        List<DependentResourcePair> dependencyList =
-                        translateResourceDependency(costDTO.getResourceDependencyList());
-
-        CostFunction costFunction = new CostFunction() {
-            @Override
-            public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
-                                        boolean validate, UnmodifiableEconomy economy) {
-                if (seller == null) {
-                    return CommodityQuote.zero(seller);
-                }
-                final MutableQuote maxCapacityQuote = insufficientCommodityWithinMaxCapacityQuote(
-                    buyer, seller, commCapacity);
-                if (maxCapacityQuote.isInfinite()) {
-                    return maxCapacityQuote;
-                }
-
-                final MutableQuote dependentCommodityQuote =
-                    getDependentResourcePairQuote(buyer, seller, dependencyList, commCapacity);
-                if (dependentCommodityQuote.isInfinite()) {
-                    return dependentCommodityQuote;
-                }
-                return new CommodityQuote(seller, calculateStorageCost(priceDataMap, commCapacity, buyer));
+    private static Map<Long, Map<Integer, Double>>
+            translateResourceCostForComputeTier(List<CostTuple> costTupleList) {
+        Map<Long, Map<Integer, Double>> costMap = new HashMap<>();
+        for (CostTuple costTuple: costTupleList) {
+            long baId = costTuple.getBusinessAccountId();
+            if (costMap.containsKey(baId)) {
+                costMap.get(baId).put(costTuple.getLicenseCommodityType(), costTuple.getPrice());
+            } else {
+                Map<Integer, Double> priceByLicense = new HashMap<>();
+                priceByLicense.put(costTuple.getLicenseCommodityType(), costTuple.getPrice());
+                costMap.put(baId, priceByLicense);
             }
-        };
-
-        return costFunction;
+        }
+        return costMap;
     }
 
     /**
-     * Create {@link CostFunction} by extracting data from {@link ComputeResourceBundleCostDTO}
+     * Create {@link CostFunction} by extracting data from {@link ComputeTierCostDTO}
      *
      * @param costDTO the DTO carries the data used to construct cost function
      * @return CostFunction
      */
-    public static @NonNull CostFunction createResourceBundleCostFunctionForCompute(ComputeResourceBundleCostDTO costDTO) {
-        Map<Integer, Double> costMap = costDTO.getCostMapList().stream().collect(Collectors.toMap(CostPair::getLicenseType,
-                                                                                               CostPair::getLicenseCost));
+    public static @NonNull CostFunction createCostFunctionForComputeTier(ComputeTierCostDTO costDTO) {
+        Map<Long, Map<Integer, Double>> costMap =
+                translateResourceCostForComputeTier(costDTO.getCostTupleListList());
+        Map<CommoditySpecification, CommoditySpecification> dependencyMap =
+                translateComputeResourceDependency(costDTO.getComputeResourceDepedencyList());
+
         CostFunction costFunction = new CostFunction() {
             @Override
-            public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
-                                        boolean validate, UnmodifiableEconomy economy) {
+            public MutableQuote calculateCost(ShoppingList buyer, Trader seller, boolean validate,
+                    UnmodifiableEconomy economy) {
                 if (!validate) {
                     // seller is the currentSupplier. Just return cost
                     return calculateComputeCostQuote(seller, buyer, costDTO, costMap);
                 }
 
-                final MutableQuote capacityQuote = insufficientCommodityWithinSellerCapacityQuote(buyer, seller);
+                final MutableQuote capacityQuote =
+                        insufficientCommodityWithinSellerCapacityQuote(buyer, seller);
                 if (capacityQuote.isInfinite()) {
                     return capacityQuote;
                 }
 
-                if (costDTO.getAccumulateResources()) {
-                    final MutableQuote dependantComputeCommoditiesQuote = getDependantComputeCommoditiesQuote(
-                        buyer, seller, costDTO.getComm1Type(), costDTO.getComm2Type());
+                for (Entry<CommoditySpecification, CommoditySpecification> dependency
+                                : dependencyMap.entrySet()) {
+                    final MutableQuote dependantComputeCommoditiesQuote =
+                            getDependantComputeCommoditiesQuote(buyer, seller, dependency.getKey().getType(),
+                                                                dependency.getValue().getType());
                     if (dependantComputeCommoditiesQuote.isInfinite()) {
                         return dependantComputeCommoditiesQuote;
                     }
@@ -770,4 +717,154 @@ public class CostFunctionFactory {
 
         return costFunction;
     }
+
+    /**
+     * Create {@link CostFunction} by extracting data from {@link StorageTierCostDTO}
+     *
+     * @param costDTO the DTO carries the data used to construct cost function for storage
+     * @return CostFunction
+     */
+    public static @NonNull CostFunction createCostFunctionForStorageTier(StorageTierCostDTO costDTO) {
+        // the map to keep commodity to its min max capacity limitation
+        Map<CommoditySpecification, CapacityLimitation> commCapacity =
+                        translateResourceCapacityLimitation(costDTO);
+        List<StorageResourceCost> resourceCost = costDTO.getStorageResourceCostList();
+        // a map of map to keep the commodity to its price per business account
+        Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap =
+                        translateResourceCostForStorageTier(resourceCost);
+        // the capacity constraint between commodities
+        List<DependentResourcePair> dependencyList =
+                        translateStorageResourceDependency(costDTO.getStorageResourceDependencyList());
+
+        CostFunction costFunction = new CostFunction() {
+            @Override
+            public MutableQuote calculateCost(ShoppingList buyer, Trader seller,
+                                        boolean validate, UnmodifiableEconomy economy) {
+                if (seller == null) {
+                    return CommodityQuote.zero(seller);
+                }
+                final MutableQuote maxCapacityQuote = insufficientCommodityWithinMaxCapacityQuote(
+                    buyer, seller, commCapacity);
+                if (maxCapacityQuote.isInfinite()) {
+                    return maxCapacityQuote;
+                }
+
+                final MutableQuote dependentCommodityQuote =
+                    getDependentResourcePairQuote(buyer, seller, dependencyList, commCapacity);
+                if (dependentCommodityQuote.isInfinite()) {
+                    return dependentCommodityQuote;
+                }
+                return new CommodityQuote(seller, calculateStorageTierCost(priceDataMap, commCapacity, buyer));
+            }
+        };
+
+        return costFunction;
+    }
+
+    /**
+     * A utility method to construct storage pricing information.
+     *
+     * @param resourceCostList a list of cost data
+     * @return map The map has commodity specification as key and a mapping of business account to
+     * price as value.
+     */
+    private static Map<CommoditySpecification, Map<Long, List<PriceData>>>
+            translateResourceCostForStorageTier(List<StorageResourceCost> resourceCostList) {
+        Map<CommoditySpecification, Map<Long, List<CostFunctionFactory.PriceData>>> priceDataMap =
+                        new HashMap<>();
+        for (StorageResourceCost resource : resourceCostList) {
+            if (!priceDataMap.containsKey(resource.getResourceType())) {
+                Map<Long, List<CostFunctionFactory.PriceData>> priceDataPerBusinessAccount = new HashMap<>();
+                for (CostDTOs.CostDTO.StorageTierCostDTO.StorageTierPriceData priceData : resource.getStorageTierPriceDataList()) {
+                    long businessAccountId = priceData.getBusinessAccountId();
+                    CostFunctionFactory.PriceData price = new PriceData(priceData.getUpperBound(),
+                                                                           priceData.getPrice(),
+                                                                           priceData.getIsUnitPrice(),
+                                                                           priceData.getIsAccumulativeCost());
+                    if (priceDataPerBusinessAccount.containsKey(businessAccountId)) {
+                        List<CostFunctionFactory.PriceData> currentPriceDataList = priceDataPerBusinessAccount
+                            .get(businessAccountId);
+                        currentPriceDataList.add(price);
+                    } else {
+                        priceDataPerBusinessAccount.put(businessAccountId, new ArrayList<>(Arrays.asList(price)));
+                    }
+
+                }
+                // make sure price list is ascending based on upperbound, because we need to get the
+                // first resource range that can satisfy the requested amount, and the price
+                // corresponds to that range will be used as price
+                priceDataPerBusinessAccount.values().stream().forEach(list -> Collections.sort(list));
+                priceDataMap.put(ProtobufToAnalysis.commoditySpecification(resource.getResourceType()),
+                                 priceDataPerBusinessAccount);
+            } else {
+                throw new IllegalArgumentException("Duplicate entries for a commodity price");
+            }
+        }
+        return priceDataMap;
+    }
+
+    /**
+     * Calculates the total cost of all resources requested by a shopping list on a seller.
+     *
+     * @param priceDataMap the map containing commodity and its pricing information
+     * on a seller
+     * @param commCapacity the information of a commodity and its minimum and maximum capacity
+     * @param sl the shopping list requests resources
+     *
+     * @return the cost given by {@link CostFunction}
+     */
+    public static double calculateStorageTierCost(@NonNull Map<CommoditySpecification, Map<Long, List<PriceData>>> priceDataMap,
+                                              Map<CommoditySpecification, CapacityLimitation> commCapacity,
+                                              @NonNull ShoppingList sl) {
+        double cost = 0;
+        for (Entry<CommoditySpecification, Map<Long, List<PriceData>>> commodityPrice : priceDataMap.entrySet()) {
+            int i = sl.getBasket().indexOf(commodityPrice.getKey());
+            if (i == -1) {
+                // we iterate over the price data map, which defines the seller commodity price.
+                // The sl is from the buyer, which may not buy all resources sold
+                // by the seller, e.g: some VM does not request IOPS sold by IO1. We can skip it
+                // when trying to compute cost.
+                continue;
+            }
+            // calculate cost based on amount that is adjusted due to minimum capacity constraint
+            double requestedAmount = sl.getQuantities()[i];
+            if (commCapacity.containsKey(sl.getBasket().get(i))) {
+                requestedAmount = Math.max(requestedAmount,
+                                           commCapacity.get(sl.getBasket().get(i)).getMinCapacity());
+            }
+            double previousUpperBound = 0;
+            if (sl.getBuyer().getSettings() == null
+                    || sl.getBuyer().getSettings().getBalanceAccount() == null
+                    || !commodityPrice.getValue().containsKey(sl.getBuyer().getSettings().getBalanceAccount().getId())) {
+                logger.warn("Business account is not found on seller, return infinity quote");
+                return Double.POSITIVE_INFINITY;
+            }
+            for (PriceData priceData : commodityPrice.getValue().get(sl.getBuyer().getSettings().getBalanceAccount().getId())) {
+                // the list of priceData is sorted based on upperbound
+                double currentUpperBound = priceData.getUpperBound();
+                if (priceData.isAccumulative()) {
+                    // if the price is accumulative, we need to sum up all the cost where
+                    // requested amount is more than upperbound till we find the exact range
+                    cost += (priceData.isUnitPrice()
+                                    ? priceData.getPrice() * Math.min(
+                                                                      currentUpperBound - previousUpperBound,
+                                                                      requestedAmount - previousUpperBound)
+                                                    : priceData.getPrice());
+                    // we find the exact range the requested amount falls
+                    if (requestedAmount <= currentUpperBound) {
+                        break;
+                    }
+                } else if (!priceData.isAccumulative() && requestedAmount > previousUpperBound
+                                && requestedAmount <= currentUpperBound) {
+                    // non accumulative cost only depends on the exact range where the requested
+                    // amount falls
+                    cost += (priceData.isUnitPrice() ? priceData.getPrice() *
+                                    requestedAmount : priceData.getPrice());
+                }
+                previousUpperBound = currentUpperBound;
+            }
+        }
+        return cost;
+    }
+
 }

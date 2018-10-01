@@ -225,7 +225,7 @@ public interface UnmodifiableEconomy {
     /**
      * @return balance account map associates with the {@link Economy}
      */
-    Map<Integer, BalanceAccount> getBalanceAccountMap();
+    Map<Long, BalanceAccount> getBalanceAccountMap();
 
     /**
      * save the {@link Topology} associated with this {@link Economy}

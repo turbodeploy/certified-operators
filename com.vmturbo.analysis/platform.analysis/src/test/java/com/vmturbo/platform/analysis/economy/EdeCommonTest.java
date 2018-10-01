@@ -158,16 +158,19 @@ public class EdeCommonTest {
         Economy economy = new Economy();
         CostFunction io1CostFunc = TestUtils.setUpIO1CostFunction();
         CostFunction gp2CostFunc = TestUtils.setUpGP2CostFunction();
+        BalanceAccount ba = new BalanceAccount(100, 10000, 1);
         Trader gp2 = TestUtils.createTrader(economy, TestUtils.ST_TYPE, Arrays.asList(4l),
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS),
                         new double[] {16 * 1024, 10000}, true, false);
+        gp2.getSettings().setBalanceAccount(ba);
         gp2.getSettings().setQuoteFunction(
                         QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
         gp2.getSettings().setCostFunction(gp2CostFunc);
         Trader io1 = TestUtils.createStorage(economy, Arrays.asList(0l), 4, false);
+        io1.getSettings().setBalanceAccount(ba);
         io1.getSettings().setCostFunction(io1CostFunc);
         Trader vm1 = TestUtils.createVM(economy);
-        vm1.getSettings().setBalanceAccount(new BalanceAccount(200, 2000, 0));
+        vm1.getSettings().setBalanceAccount(ba);
         ShoppingList sl1 = TestUtils.createAndPlaceShoppingList(economy,
                         Arrays.asList(TestUtils.ST_AMT, TestUtils.IOPS), vm1,
                         new double[] {100, 200}, gp2);

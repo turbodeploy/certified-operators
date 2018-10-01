@@ -7,60 +7,74 @@ import "CommodityDTOs.proto";
 message CostDTO {
     // the type of cost DTO that will be used to create cost function
     oneof cost_type {
-       StorageResourceBundleCostDTO ds_resource_bundle_cost = 1;
-       ComputeResourceBundleCostDTO pm_resource_bundle_cost = 2;
-        CbtpCostDTO cbtp_resource_bundle = 3;
-    }
-    // the DTOs specifically define cost for cloud storages
-    message StorageResourceBundleCostDTO {
-        // the commodity specification to min and max capacity limitation mapping
-        message ResourceLimitation {
-            optional CommoditySpecificationTO resource_type = 1;
-            optional double min_capacity = 2;
-            optional double max_capacity = 3;
-        }
-        // the commodity specification and its price data list
-        message ResourceCost {
-            required CommoditySpecificationTO resource_type = 1;
-            repeated PriceData price_data = 2;
-        }
-        // the price information
-        message PriceData {
-            optional double upper_bound = 1; // the commodity amount upper bound
-            optional double price = 2; // the price
-            optional bool is_unit_price = 3; // if the price is unit price or total price
-            optional bool is_accumulative_cost = 4; // if the cost should be accumulated
-        }
-        // the dependency commodity and its base commodity and the max ratio between dependent
-        // commodity's capacity and base commodity's capacity
-        message ResourceDependency {
-            required CommoditySpecificationTO base_resource_type = 1;
-            required CommoditySpecificationTO dependent_resource_type = 2;
-            required int32 ratio = 3;
-        }
-        repeated ResourceCost resource_cost = 1; // a list of commodity's pricing information
-        repeated ResourceLimitation resource_limitation = 2;// a list of commodity's capacity limitation
-        repeated ResourceDependency resource_dependency = 3; // a list of dependency information
+       ComputeTierCostDTO compute_tier_cost = 1;
+       StorageTierCostDTO storage_tier_Cost = 2;
+       CbtpCostDTO cbtp_resource_bundle = 3;
     }
 
-    // the DTOs specifically define cost for cloud storages
-    message ComputeResourceBundleCostDTO {
-        message CostPair {
-            required int32 licenseType = 1;
-            required double licenseCost = 2;
-        }
-        repeated CostPair costMap = 1;
-        required int32 licenseBaseType  = 2;
-        required double costWithoutLicense = 3;
-        required bool accumulateResources = 4 [default = false];
-        optional int32 comm1Type = 5;
-        optional int32 comm2Type = 6;
-    }
-    
     // The DTOs specifically define discounted cost by AWS reserved instances
     message CbtpCostDTO {
         required int32 couponBaseType = 1;
         required double discountPercentage = 2;
     }
 
+    // The DTOs used in XL to carry the pricing information and commodity dependency constraint for
+    // compute tier service
+    message ComputeTierCostDTO {
+        // the cost tuple which will be used to construct cost table for compute tier regarding
+        // business account and license. Market needs all the price for a given compute tier in
+        // a region if given a business account and a license.
+        message CostTuple {
+            // if license does not exist, the license comm type should be -1
+            optional int32 license_commodity_type = 1;
+            optional double price = 2;
+            // some business account can be used for applying discount, id of business account
+            // maps to the discounted price of resource
+            optional int64 business_account_id = 3;
+        }
+        // the base commodity and its dependent commodity type. The sum of base and
+        // dependent commodity for a given shopping list should be within the capacity
+        // of the base commodity sold by a given seller
+        message ComputeResourceDependency {
+            required CommoditySpecificationTO base_resource_type = 1;
+            required CommoditySpecificationTO dependent_resource_type = 2;
+        }
+        repeated CostTuple cost_tuple_list = 1; // a list of cost tuple info
+        repeated ComputeResourceDependency compute_resource_depedency = 2;// a list of dependency constraint
+        optional int32 license_commodity_base_type = 3; // the base type of license commodity
+    }
+
+    message StorageTierCostDTO {
+        // the commodity specification to min and max capacity limitation mapping
+        message StorageResourceLimitation {
+            optional CommoditySpecificationTO resource_type = 1;
+            optional double min_capacity = 2;
+            optional double max_capacity = 3;
+        }
+        // the dependency commodity and its base commodity and the max ratio between dependent
+        // commodity's capacity and base commodity's capacity
+        message StorageResourceDependency {
+            required CommoditySpecificationTO base_resource_type = 1;
+            required CommoditySpecificationTO dependent_resource_type = 2;
+            required int32 ratio = 3;
+        }
+        // the price information
+        message StorageTierPriceData {
+            optional double upper_bound = 1; // the commodity amount upper bound
+            optional double price = 2; // the price after the discount is applied
+            optional bool is_unit_price = 3; // if the price is unit price or total price
+            optional bool is_accumulative_cost = 4; // if the cost should be accumulated
+            // some business account can be used for applying discount, id of business account
+            // maps to the discounted price of resource
+            optional int64 business_account_id = 5;
+        }
+        // the commodity specification and its price data list
+        message StorageResourceCost {
+            required CommoditySpecificationTO resource_type = 1;
+            repeated StorageTierPriceData storage_tier_price_data =2;
+        }
+        repeated StorageResourceCost storage_resource_cost = 1; // a list of commodity's pricing information
+        repeated StorageResourceLimitation storage_resource_limitation = 2;// a list of commodity's capacity limitation
+        repeated StorageResourceDependency storage_resource_dependency = 3; // a list of dependency information
+    }
 }
