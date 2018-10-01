@@ -216,7 +216,7 @@ api:
   targetDiscoveryPollIntervalSeconds: 2
   supplyChainFetcherTimeoutSeconds: 360
   liveStatsRetrievalWindowSeconds: 60
-  publicVersionString: 7.6.0
+  publicVersionString: 7.7.0
   groupBuildUseCaseFile: 'groupBuilderUsecases.json'
   settingManagersFile: 'settingManagers.json'
   settingStyleFile: 'settingSpecStyle.json'
