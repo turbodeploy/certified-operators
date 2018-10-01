@@ -79,8 +79,8 @@ message OnDemandPriceTable {
     // The prices for database instances in this region, arranged by instance ID.
     map<int64, common_dto.DatabaseTierPriceList> db_prices_by_instance_id = 2;
 
-    // The prices for IPs in this region, arranged by ID.
-    map<int64, common_dto.IpPriceList> ip_prices_by_id = 3;
+    // The prices for IPs in this region
+    optional common_dto.IpPriceList ip_prices = 3;
 
     // The prices for cloud storage in this region, arranged by tier ID.
     map<int64, common_dto.StorageTierPriceList> cloud_storage_prices_by_tier_id = 4;

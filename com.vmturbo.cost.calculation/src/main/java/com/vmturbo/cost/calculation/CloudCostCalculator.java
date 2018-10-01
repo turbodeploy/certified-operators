@@ -1,6 +1,5 @@
 package com.vmturbo.cost.calculation;
 
-import java.util.ArrayList;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -10,8 +9,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.api.Service;
 import com.google.common.base.Preconditions;
-
 import com.google.common.collect.ImmutableSet;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
@@ -28,6 +27,8 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList.IpConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 
 /**
  * This is the main entry point into the cost calculation library. The user is responsible for
@@ -153,6 +154,34 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                             priceAdjustmentConfig.getPricesList().get(0), unitsBought));
                                 }
                             }
+
+                            // compute IP price and add it to the compute cost
+                            entityInfoExtractor.getNetworkConfig(entity).ifPresent(networkConfigBought -> {
+                                Optional<ENTITY_CLASS> service = cloudTopology.getConnectedService(
+                                        entityInfoExtractor.getId(computeTier));
+                                // there can be only 1 entry in the priceList in the current implementation
+                                final IpConfigPrice ipPriceList = onDemandPriceTable.getIpPrices()
+                                        .getIpPriceList().get(0);
+                                // excess of Elastic IPs needed beyond the freeIPs available in the region
+                                long numElasticIps = networkConfigBought.getNumElasticIps()
+                                        - ipPriceList.getFreeIpCount();
+                                // this tracks the number of IPs in every price range that we have processed
+                                long numIpInAllPrevRanges = 0;
+                                for (Price price : ipPriceList.getPricesList()) {
+                                    // if there are no more elastic IPs needed, break
+                                    if (numElasticIps - numIpInAllPrevRanges < 0) {
+                                        break;
+                                    }
+                                    // create a journalEntry for elasticIPs purchased in every price range
+                                    journal.recordOnDemandCost(CostCategory.IP,
+                                            service.get(),
+                                            price,
+                                            // we buy as many IPs available in a price range as per demand
+                                            Math.min(numElasticIps - numIpInAllPrevRanges,
+                                                    price.getEndRangeInUnits()));
+                                    numIpInAllPrevRanges += price.getEndRangeInUnits();
+                                };
+                            });
                         } else {
                             logger.warn("Global price table has no entry for region {}. This means there" +
                                 " is some inconsistency between the topology and pricing data.", regionId);

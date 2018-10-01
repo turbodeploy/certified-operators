@@ -25,6 +25,7 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostDataRetrievalException;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -35,6 +36,8 @@ import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList.ComputeTierConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.IpPriceList.IpConfigPrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 
@@ -57,6 +60,8 @@ public class CloudCostCalculatorTest {
     private ReservedInstanceApplicatorFactory<TestEntityClass> reservedInstanceApplicatorFactory =
             (ReservedInstanceApplicatorFactory<TestEntityClass>)mock(ReservedInstanceApplicatorFactory.class);
 
+    private NetworkConfig networkConfig = (NetworkConfig)mock(NetworkConfig.class);
+
     /**
      * Test a simple on-demand calculation (no RI, no discount) for a VM.
      */
@@ -65,9 +70,13 @@ public class CloudCostCalculatorTest {
         // arrange
         final long regionId = 1;
         final long computeTierId = 2;
+        final long serviceId = 3;
         final long entityId = 7;
+        final long numElasticIpsBought = 10;
         final double basePrice = 10;
         final double suseAdjustment = 5;
+        // VM buys 5 free IPs, 3 IPs at 2 units of price and 2 IPs at 4 units of price
+        final double ipAdjustment = 3*2 + 2*4;
         final PriceTable priceTable = PriceTable.newBuilder()
                 .putOnDemandPriceByRegionId(regionId, OnDemandPriceTable.newBuilder()
                         .putComputePricesByTierId(computeTierId, ComputeTierPriceList.newBuilder()
@@ -86,8 +95,25 @@ public class CloudCostCalculatorTest {
                                                 .setPriceAmount(CurrencyAmount.newBuilder()
                                                         .setAmount(suseAdjustment))))
                                 .build())
+                        .setIpPrices(IpPriceList.newBuilder().addIpPrice(IpConfigPrice.newBuilder()
+                                        .setFreeIpCount(5)
+                                        .addPrices(Price.newBuilder()
+                                                .setUnit(Unit.HOURS)
+                                                .setEndRangeInUnits(3)
+                                                .setPriceAmount(CurrencyAmount.newBuilder()
+                                                        .setAmount(2)))
+                                        .addPrices(Price.newBuilder()
+                                                .setUnit(Unit.HOURS)
+                                                .setEndRangeInUnits(5)
+                                                .setPriceAmount(CurrencyAmount.newBuilder()
+                                                        .setAmount(4)))
+                                        .build())
+                                .build())
                         .build())
                 .build();
+
+        // configure networkConfig
+        when(networkConfig.getNumElasticIps()).thenReturn(numElasticIpsBought);
 
         final CloudCostData cloudCostData = new CloudCostData(priceTable, Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
@@ -100,15 +126,20 @@ public class CloudCostCalculatorTest {
         final TestEntityClass testEntity = TestEntityClass.newBuilder(entityId)
                 .setType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setComputeConfig(new EntityInfoExtractor.ComputeConfig(OSType.SUSE, Tenancy.DEFAULT))
+                .setNetworkConfig(networkConfig)
                 .build(infoExtractor);
 
         final TestEntityClass region = TestEntityClass.newBuilder(regionId)
+                .build(infoExtractor);
+
+        final TestEntityClass service = TestEntityClass.newBuilder(serviceId)
                 .build(infoExtractor);
 
         final TestEntityClass computeTier = TestEntityClass.newBuilder(computeTierId)
                 .build(infoExtractor);
 
         when(topology.getConnectedRegion(entityId)).thenReturn(Optional.of(region));
+        when(topology.getConnectedService(computeTierId)).thenReturn(Optional.of(service));
         when(topology.getComputeTier(entityId)).thenReturn(Optional.of(computeTier));
 
         final DiscountApplicator<TestEntityClass> discountApplicator =
@@ -129,9 +160,10 @@ public class CloudCostCalculatorTest {
 
         // assert
         // The cost of the RI isn't factored in because we mocked out the RI Applicator.
-        assertThat(journal.getTotalHourlyCost(), is((basePrice + suseAdjustment) * (1 - riCoverage)));
+        assertThat(journal.getTotalHourlyCost(), is((basePrice + suseAdjustment) * (1 - riCoverage) + ipAdjustment));
         assertThat(journal.getHourlyCostForCategory(CostCategory.COMPUTE), is(basePrice * (1 - riCoverage)));
         assertThat(journal.getHourlyCostForCategory(CostCategory.LICENSE), is(suseAdjustment * (1 - riCoverage)));
+        assertThat(journal.getHourlyCostForCategory(CostCategory.IP), is(ipAdjustment));
 
         // Once for the compute, once for the license, because both costs are "paid to" the
         // compute tier.

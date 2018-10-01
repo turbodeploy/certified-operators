@@ -51,6 +51,16 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         return Optional.empty();
     }
 
+    @Nonnull
+    @Override
+    public Optional<NetworkConfig> getNetworkConfig(@Nonnull final TopologyEntityDTO entity) {
+        if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+            return Optional.empty();
+        }
+        VirtualMachineInfo vmConfig = entity.getTypeSpecificInfo().getVirtualMachine();
+        return Optional.of(new NetworkConfig(vmConfig.getIpAddressesList()));
+    }
+
     @Override
     public Optional<DatabaseConfig> getDatabaseConfig(
             TopologyEntityDTO entity) {
@@ -72,4 +82,5 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         return Optional.empty();
 
     }
+
 }

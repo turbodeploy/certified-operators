@@ -1,5 +1,6 @@
 package com.vmturbo.cost.calculation.integration;
 
+import java.util.List;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -7,6 +8,8 @@ import javax.annotation.Nonnull;
 import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -67,6 +70,19 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     Optional<DatabaseConfig> getDatabaseConfig(@Nonnull ENTITY_CLASS entity);
 
     /**
+     * Get the network configuration of a particular entity.
+     *
+     * The network configuration consists of all the properties of the entity that
+     * affect the network tier price (within a specific region and service).
+     *
+     * @param entity The entity.
+     * @return An optional containing the {@link NetworkConfig}. An empty optional if there is no
+     *         ip costs associated with this entity.
+     */
+    @Nonnull
+    Optional<NetworkConfig> getNetworkConfig(@Nonnull ENTITY_CLASS entity);
+
+    /**
      * A wrapper class around the compute configuration of an entity.
      */
     @Immutable
@@ -123,4 +139,29 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
                     databaseTierConfigPrice.getDbEngine() == engine;
         }
     }
+
+    /**
+     * A wrapper class around the network configuration of an entity.
+     */
+    @Immutable
+    class NetworkConfig {
+        private final List<IpAddress> ipAddresses;
+
+        public NetworkConfig(final List<IpAddress> ipAddresses) {
+            this.ipAddresses = ipAddresses;
+        }
+
+        @Nonnull
+        public List<IpAddress> getIPAddresses() {
+            return ipAddresses;
+        }
+
+        /**
+         * @return the number of elastic IPs in this network configuration
+         */
+        public long getNumElasticIps() {
+            return ipAddresses.stream().filter(IpAddress::getIsElastic).count();
+        }
+    }
+
 }

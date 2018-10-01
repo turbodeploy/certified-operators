@@ -37,7 +37,7 @@ public class PriceTableMergeTest {
         final long region1Id = 7L;
         final long region2Id = 2L;
         final OnDemandPriceTable region1PriceTable = OnDemandPriceTable.newBuilder()
-            .putIpPricesById(10L, IpPriceList.getDefaultInstance())
+            .setIpPrices(IpPriceList.getDefaultInstance())
             .build();
         final OnDemandPriceTable region2PriceTable = OnDemandPriceTable.newBuilder()
             .putComputePricesByTierId(20L, ComputeTierPriceList.getDefaultInstance())
@@ -61,7 +61,7 @@ public class PriceTableMergeTest {
     public void testMergeOnDemandTablesDropDuplicateRegion() {
         final long region1Id = 7L;
         final OnDemandPriceTable region1PriceTable1 = OnDemandPriceTable.newBuilder()
-                .putIpPricesById(10L, IpPriceList.getDefaultInstance())
+                .setIpPrices(IpPriceList.getDefaultInstance())
                 .build();
         final OnDemandPriceTable region1PriceTable2 = OnDemandPriceTable.newBuilder()
                 .putComputePricesByTierId(20L, ComputeTierPriceList.getDefaultInstance())

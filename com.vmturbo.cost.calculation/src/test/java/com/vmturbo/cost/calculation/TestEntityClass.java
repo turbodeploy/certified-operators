@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 
 /**
  * The entity class to use as the template parameter in cost calculation tests.
@@ -63,6 +64,8 @@ public final class TestEntityClass {
 
         private Optional<DatabaseConfig> databaseConfig = Optional.empty();
 
+        private Optional<NetworkConfig> networkConfig = Optional.empty();
+
         private List<BiConsumer<TestEntityClass, EntityInfoExtractor<TestEntityClass>>> extractorConsumers = new ArrayList<>();
 
         @Nonnull
@@ -90,6 +93,13 @@ public final class TestEntityClass {
         public Builder setDatabaseConfig(@Nonnull final DatabaseConfig databaseConfig) {
             this.databaseConfig = Optional.of(databaseConfig);
             extractorConsumers.add((entity, infoExtractor) -> when(infoExtractor.getDatabaseConfig(entity)).thenReturn(Optional.of(databaseConfig)));
+            return this;
+        }
+
+        @Nonnull
+        public Builder setNetworkConfig(@Nonnull final NetworkConfig ipConfig) {
+            this.networkConfig = Optional.of(ipConfig);
+            extractorConsumers.add((entity, infoExtractor) -> when(infoExtractor.getNetworkConfig(entity)).thenReturn(Optional.of(ipConfig)));
             return this;
         }
 
