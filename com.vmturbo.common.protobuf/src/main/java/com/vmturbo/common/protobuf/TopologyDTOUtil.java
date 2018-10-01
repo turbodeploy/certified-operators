@@ -1,5 +1,10 @@
 package com.vmturbo.common.protobuf;
 
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
@@ -7,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 
 /**
  * Utilities for dealing with protobuf messages in topology/TopologyDTO.proto.
@@ -68,5 +75,23 @@ public final class TopologyDTOUtil {
      */
     public static boolean isAlleviatePressurePlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
        return isPlan(topologyInfo) && topologyInfo.getPlanInfo().getPlanType().equals(ALLEVIATE_PRESSURE_PLAN_TYPE);
+    }
+
+    /**
+     * Gets the TopologyEntityDTOs of type connectedEntityType which are connected to entity
+     *
+     * @param entity entity for which connected entities are retrieved
+     * @param connectedEntityType the type of connectedEntity which should be retrieved
+     * @return List of connected TopologyEntityDTOs
+     */
+    @Nonnull
+    public static List<TopologyEntityDTO> getConnectedEntitiesOfType(
+            @Nonnull final TopologyEntityDTO entity, final int connectedEntityType,
+            @Nonnull Map<Long, TopologyEntityDTO> topology) {
+        return entity.getConnectedEntityListList().stream()
+                .filter(e -> e.getConnectedEntityType() == connectedEntityType)
+                .map(e -> topology.get(e.getConnectedEntityId()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 }

@@ -1,8 +1,9 @@
 package com.vmturbo.market.topology.conversions;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -15,7 +16,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -61,6 +61,9 @@ import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.settings.EntitySettings;
 import com.vmturbo.market.settings.MarketSettings;
+import com.vmturbo.market.topology.MarketTier;
+import com.vmturbo.market.topology.OnDemandMarketTier;
+import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
@@ -70,20 +73,19 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionByDemandTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
+import com.vmturbo.platform.analysis.protobuf.BalanceAccountDTOs.BalanceAccountDTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
-import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
-import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessage;
 import com.vmturbo.platform.analysis.protobuf.PriceIndexDTOs.PriceIndexMessagePayload;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO;
 import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO.SumOfCommodity;
-import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.analysis.utilities.NumericIDAllocator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -93,8 +95,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * Convert topology DTOs to economy DTOs.
  */
 public class TopologyConverter {
-
-    private static final String BICLIQUE = "BICLIQUE";
 
     public static final Set<TopologyDTO.EntityState> SKIPPED_ENTITY_STATES = ImmutableSet.of(
             TopologyDTO.EntityState.UNKNOWN,
@@ -114,6 +114,8 @@ public class TopologyConverter {
     // TODO: In legacy this is taken from LicenseManager and is currently false
     private boolean includeGuaranteedBuyer = INCLUDE_GUARANTEED_BUYER_DEFAULT;
 
+    private CloudTopologyConverter cloudTc;
+
     /**
      * Entities that are providers of containers.
      * Populated only for plans. For realtime market, this set will be empty.
@@ -124,6 +126,9 @@ public class TopologyConverter {
      * Map from entity OID to entity.
      */
     private Map<Long, TopologyDTO.TopologyEntityDTO> entityOidToDto = Maps.newHashMap();
+
+    private Map<Long, TopologyEntityDTO> unmodifiableEntityOidToDtoMap
+            = Collections.unmodifiableMap(entityOidToDto);
 
     // Store skipped service entities which need to be added back to projected topology and price
     // index messages.
@@ -160,17 +165,19 @@ public class TopologyConverter {
     // OID)
     private BiMap<String, Long> accessesByKey = HashBiMap.create();
 
+    private final Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap = new HashMap<>();
+
+    // This map will hold VM/DB -> BusinessAccount mapping.
+    private final Map<TopologyEntityDTO, TopologyEntityDTO> cloudEntityToBusinessAccount = new HashMap<>();
+    // This will hold the set of all business accounts in the topology
+    private final Set<TopologyEntityDTO> businessAccounts = new HashSet<>();
+
     private final TopologyInfo topologyInfo;
 
     private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
     private boolean isAlleviatePressurePlan = false;
 
-    public static final float CAPACITY_FACTOR = 0.999999f;
-
-    public static final float MIN_DESIRED_UTILIZATION_VALUE = 0.0f;
-    public static final float MAX_DESIRED_UTILIZATION_VALUE = 1.0f;
-
-
+    private final CommodityConverter commodityConverter;
 
     /**
      * A non-shop-together TopologyConverter.
@@ -179,6 +186,19 @@ public class TopologyConverter {
      */
     public TopologyConverter(@Nonnull final TopologyInfo topologyInfo) {
         this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts);
+    }
+
+    public TopologyConverter(@Nonnull final TopologyInfo topologyInfo, CostLibrary costLibrary) {
+        this.topologyInfo = Objects.requireNonNull(topologyInfo);
+        this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap,
+                businessAccounts, costLibrary);
     }
 
     /**
@@ -195,6 +215,10 @@ public class TopologyConverter {
         this.includeGuaranteedBuyer = includeGuaranteedBuyer;
         this.quoteFactor  = quoteFactor;
         isAlleviatePressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(topologyInfo);
+        this.commodityConverter = new CommodityConverter(commodityTypeAllocator, commoditySpecMap,
+                includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable);
+        this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
+                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap, businessAccounts);
     }
 
     private boolean isPlan() {
@@ -230,6 +254,19 @@ public class TopologyConverter {
                         .map(CommoditiesBoughtFromProvider::getProviderId)
                         .collect(Collectors.toSet()));
                 }
+                if (entity.getEntityType() == EntityType.REGION_VALUE) {
+                    List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
+                            entity, EntityType.AVAILABILITY_ZONE_VALUE, topology);
+                    AZs.forEach(az -> azToRegionMap.put(az, entity));
+                } else if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
+                            entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);
+                    List<TopologyEntityDTO> dbs = TopologyDTOUtil.getConnectedEntitiesOfType(
+                            entity, EntityType.DATABASE_VALUE, topology);
+                    vms.forEach(vm -> cloudEntityToBusinessAccount.put(vm, entity));
+                    dbs.forEach(db -> cloudEntityToBusinessAccount.put(db, entity));
+                    businessAccounts.add(entity);
+                }
             }
         }
         return convertToMarket();
@@ -252,18 +289,30 @@ public class TopologyConverter {
         BiMap<Long, String> oidToUuidMap = HashBiMap.create();
         for (TopologyDTO.TopologyEntityDTO dto : entityOidToDto.values()) {
             dto.getCommoditySoldListList().stream()
-                .filter(comm -> isBicliqueCommodity(comm.getCommodityType()))
+                .filter(comm -> CommodityConverter.isBicliqueCommodity(comm.getCommodityType()))
                 .forEach(comm -> edge(dto, comm));
             oidToUuidMap.put(dto.getOid(), String.valueOf(dto.getOid()));
             populateCommodityConsumesTable(dto);
         }
+        // Create market tier traderTO builders
+        List<TraderTO.Builder> marketTierTraderTOBuilders =
+                cloudTc.createMarketTierTraderTOs();
+        marketTierTraderTOBuilders.forEach(t -> oidToUuidMap.put(t.getOid(), String.valueOf(t.getOid())));
         dsBasedBicliquer.compute(oidToUuidMap);
         pmBasedBicliquer.compute(oidToUuidMap);
         logger.debug("Done creating bicliques");
 
         final ImmutableSet.Builder<EconomyDTOs.TraderTO> returnBuilder = ImmutableSet.builder();
+        // Convert market tier traderTO builders to traderTOs
+        marketTierTraderTOBuilders.stream()
+                .map(t -> t.addAllCliques(pmBasedBicliquer.getBcIDs(String.valueOf(t.getOid()))))
+                .map(t -> t.addAllCommoditiesSold(commodityConverter.bcCommoditiesSold(t.getOid())))
+                .forEach(t -> returnBuilder.add(t.build()));
         entityOidToDto.values().stream()
+                .filter(t -> !TopologyConversionConstants.CLOUD_ENTITY_TYPES_TO_SKIP_CONVERSION.contains(
+                        t.getEntityType()))
                 .map(this::topologyDTOtoTraderTO)
+                .filter(Objects::nonNull)
                 .forEach(returnBuilder::add);
         logger.info("Converted topologyEntityDTOs to traderTOs");
         return returnBuilder.build();
@@ -374,7 +423,8 @@ public class TopologyConverter {
         for (EconomyDTOs.ShoppingListTO sl : traderTO.getShoppingListsList()) {
             List<TopologyDTO.CommodityBoughtDTO> commList =
                             new ArrayList<TopologyDTO.CommodityBoughtDTO>();
-            int bicliqueBaseType = commodityTypeAllocator.allocate(BICLIQUE);
+            int bicliqueBaseType = commodityTypeAllocator.allocate(
+                    TopologyConversionConstants.BICLIQUE);
             for (CommodityDTOs.CommodityBoughtTO commBought : sl.getCommoditiesBoughtList()) {
                 // if the commodity bought DTO type is biclique, create new
                 // DSPM and Datastore bought
@@ -587,9 +637,7 @@ public class TopologyConverter {
             @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
         EconomyDTOs.TraderTO traderDTO = null;
         try {
-            final boolean shopTogether = isAlleviatePressurePlan ? true
-                            : topologyDTO.getAnalysisSettings().getShopTogether();
-            final EconomyDTOs.TraderStateTO state = traderState(topologyDTO);
+            final EconomyDTOs.TraderStateTO state = TopologyConversionUtils.traderState(topologyDTO);
             final boolean active = EconomyDTOs.TraderStateTO.ACTIVE.equals(state);
             final boolean bottomOfSupplyChain = topologyDTO.getCommoditiesBoughtFromProvidersList().isEmpty();
             final boolean topOfSupplyChain = topologyDTO.getCommoditySoldListList().isEmpty();
@@ -619,22 +667,22 @@ public class TopologyConverter {
             suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
                             ? topologyDTO.getAnalysisSettings().getSuspendable()
                                             : suspendable;
-            final boolean isGuranteedBuyer = guaranteedBuyer(topologyDTO);
-            final EconomyDTOs.TraderSettingsTO settings = EconomyDTOs.TraderSettingsTO.newBuilder()
-                    .setClonable(clonable && topologyDTO.getAnalysisSettings().getControllable())
+            TraderSettingsTO.Builder settingsBuilder = TopologyConversionUtils.
+                    createCommonTraderSettingsTOBuilder(
+                            topologyDTO, unmodifiableEntityOidToDtoMap, isAlleviatePressurePlan);
+            settingsBuilder.setClonable(clonable && topologyDTO.getAnalysisSettings().getControllable())
                     .setSuspendable(suspendable)
-                    .setMinDesiredUtilization(getMinDesiredUtilization(topologyDTO))
-                    .setMaxDesiredUtilization(getMaxDesiredUtilization(topologyDTO))
-                    .setGuaranteedBuyer(isGuranteedBuyer)
                     .setCanAcceptNewCustomers(topologyDTO.getAnalysisSettings().getIsAvailableAsProvider()
                                               && topologyDTO.getAnalysisSettings().getControllable())
-                    .setIsShopTogether(shopTogether)
                     .setIsEligibleForResizeDown(isPlan() ||
                             topologyDTO.getAnalysisSettings().getIsEligibleForResizeDown())
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
-                    .setQuoteFactor(quoteFactor)
-                    .build();
+                    .setQuoteFactor(quoteFactor);
+            if (cloudEntityToBusinessAccount.get(topologyDTO) != null) {
+                settingsBuilder.setBalanceAccount(createBalanceAccountDTO(topologyDTO));
+            }
+            final EconomyDTOs.TraderSettingsTO settings = settingsBuilder.build();
 
             //compute biclique IDs for this entity, the clique list will be used only for
             // shop together placement, so pmBasedBicliquer is called
@@ -657,7 +705,7 @@ public class TopologyConverter {
                     .setSettings(settings)
                     .setTemplateForHeadroom(isTemplateForHeadroom)
                     .setDebugInfoNeverUseInCode(entityDebugInfo(topologyDTO))
-                    .addAllCommoditiesSold(commoditiesSoldList(topologyDTO))
+                    .addAllCommoditiesSold(createAllCommoditySoldTO(topologyDTO))
                     .addAllShoppingLists(createAllShoppingLists(topologyDTO))
                     .addAllCliques(allCliques)
                     .build();
@@ -667,68 +715,28 @@ public class TopologyConverter {
         return traderDTO;
     }
 
-    @VisibleForTesting
-    static float getMinDesiredUtilization(
-            @Nonnull final TopologyEntityDTO topologyDTO) {
-
-        final TopologyEntityDTO.AnalysisSettings analysisSettings =
-            topologyDTO.getAnalysisSettings();
-
-        if (analysisSettings.hasDesiredUtilizationTarget() &&
-                analysisSettings.hasDesiredUtilizationRange()) {
-
-            return limitFloatRange((analysisSettings.getDesiredUtilizationTarget()
-                    - (analysisSettings.getDesiredUtilizationRange() / 2.0f)) / 100.0f,
-                    MIN_DESIRED_UTILIZATION_VALUE, MAX_DESIRED_UTILIZATION_VALUE);
-        } else {
-            return EntitySettings.NumericKey.DESIRED_UTILIZATION_MIN.value(topologyDTO);
+    @Nullable
+    private BalanceAccountDTO createBalanceAccountDTO(TopologyEntityDTO topologyEntityDTO) {
+        TopologyEntityDTO businessAccount = cloudEntityToBusinessAccount.get(topologyEntityDTO);
+        if (businessAccount == null) {
+            return null;
         }
+        // We create default balance account
+        double defaultBudgetValue = 100000000d;
+        float spent = 0f;
+        return BalanceAccountDTO.newBuilder().setBudget(defaultBudgetValue).setSpent(spent)
+                .setId(businessAccount.getOid()).build();
     }
 
-    @VisibleForTesting
-    static float getMaxDesiredUtilization(
-            @Nonnull final TopologyEntityDTO topologyDTO) {
-
-        final TopologyEntityDTO.AnalysisSettings analysisSettings =
-            topologyDTO.getAnalysisSettings();
-
-        if (analysisSettings.hasDesiredUtilizationTarget() &&
-                analysisSettings.hasDesiredUtilizationRange()) {
-
-            return limitFloatRange((analysisSettings.getDesiredUtilizationTarget()
-                    + (analysisSettings.getDesiredUtilizationRange() / 2.0f)) / 100.0f,
-                    MIN_DESIRED_UTILIZATION_VALUE, MAX_DESIRED_UTILIZATION_VALUE);
-        } else {
-            return EntitySettings.NumericKey.DESIRED_UTILIZATION_MAX.value(topologyDTO);
+    private @Nonnull List<CommoditySoldTO> createAllCommoditySoldTO(@Nonnull TopologyEntityDTO topologyDTO) {
+        final boolean shopTogether = isAlleviatePressurePlan ? true
+                : topologyDTO.getAnalysisSettings().getShopTogether();
+        List<CommoditySoldTO> commSoldTOList = new ArrayList<>();
+        commSoldTOList.addAll(commodityConverter.commoditiesSoldList(topologyDTO));
+        if (!shopTogether) {
+            commSoldTOList.addAll(commodityConverter.bcCommoditiesSold(topologyDTO.getOid()));
         }
-    }
-
-    public static float limitFloatRange(float value, float min, float max) {
-        Preconditions.checkArgument(min <= max,
-            "Min: %s must be <= max: %s", min, max);
-        return Math.min(max, Math.max(value, min));
-    }
-
-    /**
-     * An entity is a guaranteed buyer if it is a VDC that consumes (directly) from
-     * storage or PM, or if it is a DPod.
-     *
-     * @param topologyDTO the entity to examine
-     * @return whether the entity is a guaranteed buyer
-     */
-    private boolean guaranteedBuyer(TopologyDTO.TopologyEntityDTO topologyDTO) {
-        int entityType = topologyDTO.getEntityType();
-        return (entityType == EntityType.VIRTUAL_DATACENTER_VALUE)
-                        && topologyDTO.getCommoditiesBoughtFromProvidersList()
-                            .stream()
-                            .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                            .map(CommoditiesBoughtFromProvider::getProviderId)
-                            .collect(Collectors.toSet())
-                        .stream()
-                        .map(entityOidToDto::get)
-                        .map(TopologyDTO.TopologyEntityDTO::getEntityType)
-                        .anyMatch(type -> AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(type))
-                    || entityType == EntityType.DPOD_VALUE;
+        return commSoldTOList;
     }
 
     /**
@@ -753,17 +761,6 @@ public class TopologyConverter {
                 + topologyDTO.getDisplayName();
     }
 
-    @Nonnull
-    private EconomyDTOs.TraderStateTO traderState(
-            @Nonnull final TopologyEntityDTO entity) {
-        EntityState entityState = entity.getEntityState();
-        return entityState == TopologyDTO.EntityState.POWERED_ON
-                ? EconomyDTOs.TraderStateTO.ACTIVE
-                : entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
-                    ? EconomyDTOs.TraderStateTO.IDLE
-                    : EconomyDTOs.TraderStateTO.INACTIVE;
-    }
-
     private static final String EMPTY_JSON = "{}";
 
     /**
@@ -779,16 +776,16 @@ public class TopologyConverter {
         // used for the case when a plan VM is unplaced
         Map<Long, Long> providers = oldProviders(topologyEntity);
         return topologyEntity.getCommoditiesBoughtFromProvidersList().stream()
-            // skip converting shoppinglist that buys from VDC
-            .filter(commBoughtGrouping -> includeByType(commBoughtGrouping.getProviderEntityType()))
-            .map(commBoughtGrouping -> createShoppingList(
-                    topologyEntity.getOid(),
-                    topologyEntity.getEntityType(),
-                    topologyEntity.getAnalysisSettings().getShopTogether(),
-                    getProviderId(commBoughtGrouping),
-                    commBoughtGrouping,
-                    providers))
-            .collect(Collectors.toList());
+                // skip converting shoppinglist that buys from VDC
+                .filter(commBoughtGrouping -> includeByType(commBoughtGrouping.getProviderEntityType()))
+                .map(commBoughtGrouping -> createShoppingList(
+                        topologyEntity.getOid(),
+                        topologyEntity.getEntityType(),
+                        topologyEntity.getAnalysisSettings().getShopTogether(),
+                        getProviderId(commBoughtGrouping, topologyEntity),
+                        commBoughtGrouping,
+                        providers))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -858,9 +855,19 @@ public class TopologyConverter {
         Set<CommodityDTOs.CommodityBoughtTO> values = commBoughtGrouping.getCommodityBoughtList()
             .stream()
             .filter(topoCommBought -> topoCommBought.getActive())
-            .map(topoCommBought -> convertCommodityBought(topoCommBought, providerOid, shopTogether, providers))
+            .map(topoCommBought -> convertCommodityBought(buyerOid, topoCommBought, providerOid,
+                    shopTogether, providers))
             .filter(comm -> comm != null) // Null for DSPMAccess/Datastore and shop-together
             .collect(Collectors.toSet());
+        if (cloudTc.isMarketTier(providerOid)) {
+            // For cloud buyers, add biClique comm bought because we skip them in
+            // convertCommodityBought method
+            if (!shopTogether) {
+                createBcCommodityBoughtForCloudEntity(providerOid, buyerOid).forEach(values::add);
+            }
+            // Create DC comm bought
+            createDCCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
+        }
         final long id = shoppingListId++;
         final boolean isMovable = commBoughtGrouping.hasMovable()
             ? commBoughtGrouping.getMovable()
@@ -886,6 +893,75 @@ public class TopologyConverter {
             new ShoppingListInfo(id, buyerOid, providerOid, providerEntityType,
                     commBoughtGrouping.getCommodityBoughtList()));
         return economyShoppingListBuilder.build();
+    }
+
+    /**
+     * Creates a DC Comm bought for a cloud entity which has a provider as a Compute tier.
+     *
+     * @param providerOid oid of the market tier provider oid
+     * @param buyerOid oid of the buyer of the shopping list
+     * @return The commodity bought TO
+     */
+    @Nullable
+    private Optional<CommodityBoughtTO> createDCCommodityBoughtForCloudEntity(
+            long providerOid, long buyerOid) {
+        MarketTier marketTier = cloudTc.getMarketTier(providerOid);
+        int providerEntityType = marketTier.getTier().getEntityType();
+        CommodityBoughtTO dcCommBought = null;
+        if (providerEntityType == EntityType.COMPUTE_TIER_VALUE) {
+            TopologyEntityDTO region = cloudTc.getConnectedRegion(entityOidToDto.get(buyerOid));
+            List<CommoditySoldDTO> dcCommSoldList = region.getCommoditySoldListList().stream()
+                    .filter(c -> c.getCommodityType().getType()
+                            == CommodityDTO.CommodityType.DATACENTER_VALUE
+                            && c.getCommodityType().hasKey())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+            if (dcCommSoldList.size() != 1) {
+                logger.error("{} is selling {} DC Commodities - {}", region.getDisplayName(),
+                        dcCommSoldList.size(), dcCommSoldList.stream().map(
+                                c -> c.getCommodityType().getKey())
+                                .collect(Collectors.joining(",")));
+                return Optional.empty();
+            }
+            CommoditySoldDTO dcCommSold = dcCommSoldList.get(0);
+            dcCommBought = CommodityDTOs.CommodityBoughtTO.newBuilder()
+                    .setSpecification(commodityConverter.commoditySpecification(
+                            dcCommSold.getCommodityType()))
+                    .build();
+        }
+        return Optional.ofNullable(dcCommBought);
+    }
+
+    /**
+     * Creates the BiClique commodity bought if the provider is a compute market tier
+     * or a storage market tier
+     *
+     * @param providerOid oid of the market tier provider oid
+     * @param buyerOid oid of the buyer of the shopping list
+     * @return The set of biclique commodity bought TO
+     */
+    @Nonnull
+    private Set<CommodityDTOs.CommodityBoughtTO> createBcCommodityBoughtForCloudEntity(
+            long providerOid, long buyerOid) {
+        MarketTier marketTier = cloudTc.getMarketTier(providerOid);
+        int providerEntityType = marketTier.getTier().getEntityType();
+        TopologyEntityDTO cloudBuyer = entityOidToDto.get(buyerOid);
+        Set<String> bcKeys = new HashSet<>();
+        if (providerEntityType == EntityType.COMPUTE_TIER_VALUE) {
+            Set<Long> connectedStorageMarketTierOids =
+                    cloudTc.getMarketTierProviderOidOfType(cloudBuyer, EntityType.STORAGE_TIER_VALUE);
+            connectedStorageMarketTierOids.stream().filter(Objects::nonNull)
+                    .map(stOid -> dsBasedBicliquer.getBcKey(
+                            String.valueOf(providerOid), String.valueOf(stOid)))
+                    .filter(Objects::nonNull)
+                    .forEach(bcKeys::add);
+        } else if (providerEntityType == EntityType.STORAGE_TIER_VALUE) {
+            dsBasedBicliquer.getBcKeys(String.valueOf(providerOid))
+                    .stream().filter(Objects::nonNull)
+                    .forEach(bcKeys::add);
+        }
+        return bcKeys.stream().map(bcKey -> bcCommodityBought(bcKey))
+                .filter(Objects::nonNull).collect(Collectors.toCollection(HashSet::new));
     }
 
     /**
@@ -921,10 +997,27 @@ public class TopologyConverter {
     }
 
     @Nullable
-    private Long getProviderId(CommoditiesBoughtFromProvider commodityBoughtGrouping) {
-        return commodityBoughtGrouping.hasProviderId() ?
+    private Long getProviderId(@Nonnull CommoditiesBoughtFromProvider commodityBoughtGrouping,
+                               @Nonnull TopologyEntityDTO topologyEntity) {
+        Long providerId = commodityBoughtGrouping.hasProviderId() ?
             commodityBoughtGrouping.getProviderId() :
             null;
+        if (providerId == null) {
+            return providerId;
+        }
+        // If the provider id is a compute tier / storage tier/ database tier, then it is a
+        // cloud VM / DB. In this case, get the marketTier from
+        // [tier x region] combination.
+        TopologyEntityDTO providerTopologyEntity = entityOidToDto.get(providerId);
+        if (providerTopologyEntity != null && TopologyConversionConstants.TIER_ENTITY_TYPES
+                .contains(providerTopologyEntity.getEntityType())) {
+            // Provider is a compute tier / storage tier / database tier
+            // Get the region connected to the topologyEntity
+            TopologyEntityDTO region = cloudTc.getConnectedRegion(topologyEntity);
+            providerId = cloudTc.getTraderTOOid(new OnDemandMarketTier(
+                    providerTopologyEntity, region));
+        }
+        return providerId;
     }
 
     /**
@@ -938,14 +1031,15 @@ public class TopologyConverter {
     }
 
     private CommodityDTOs.CommodityBoughtTO convertCommodityBought(
-            @Nonnull final TopologyDTO.CommodityBoughtDTO topologyCommBought,
+            long buyerOid, @Nonnull final TopologyDTO.CommodityBoughtDTO topologyCommBought,
             @Nullable final Long providerOid,
             final boolean shopTogether,
             final Map<Long, Long> providers) {
         CommodityType type = topologyCommBought.getCommodityType();
-        return isBicliqueCommodity(type)
-            ? shopTogether
+        return CommodityConverter.isBicliqueCommodity(type)
+            ? shopTogether || cloudTc.isMarketTier(providerOid)
                 // skip DSPMAcess and Datastore commodities in the case of shop-together
+                // or cloud provider
                 ? null
                 // convert them to biclique commodities if not shop-together
                 : generateBcCommodityBoughtTO(
@@ -981,7 +1075,8 @@ public class TopologyConverter {
         return CommodityDTOs.CommodityBoughtTO.newBuilder()
                 .setQuantity(usedQuantity)
                 .setPeakQuantity(peakQuantity)
-                .setSpecification(commoditySpecification(topologyCommBought.getCommodityType()))
+                .setSpecification(commodityConverter.commoditySpecification(
+                        topologyCommBought.getCommodityType()))
                 .build();
     }
 
@@ -1027,164 +1122,8 @@ public class TopologyConverter {
     private CommodityDTOs.CommodityBoughtTO bcCommodityBought(@Nonnull String bcKey) {
         return bcCommodityBoughtMap.computeIfAbsent(bcKey,
             key -> CommodityDTOs.CommodityBoughtTO.newBuilder()
-                .setSpecification(bcSpec(key))
+                .setSpecification(commodityConverter.bcSpec(key))
                 .build());
-    }
-
-    @Nonnull
-    private Collection<CommodityDTOs.CommoditySoldTO> commoditiesSoldList(
-            @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
-        // DSPMAccess and Datastore commodities are always dropped (shop-together or not)
-        final boolean shopTogether = topologyDTO.getAnalysisSettings().getShopTogether();
-        List<CommodityDTOs.CommoditySoldTO> list = topologyDTO.getCommoditySoldListList().stream()
-            .filter(commSold -> commSold.getActive())
-            .filter(commSold -> !isBicliqueCommodity(commSold.getCommodityType()))
-            .filter(commSold -> includeGuaranteedBuyer
-                || !AnalysisUtil.GUARANTEED_SELLER_TYPES.contains(topologyDTO.getEntityType())
-                || !AnalysisUtil.VDC_COMMODITY_TYPES.contains(commSold.getCommodityType().getType()))
-            .map(commSold -> commoditySold(commSold, topologyDTO))
-            .collect(Collectors.toList());
-
-        // In the case of non-shop-together, create the biclique commodities
-        if (!shopTogether) {
-            list.addAll(bcCommoditiesSold(topologyDTO));
-        }
-        return list;
-    }
-
-    /**
-     * Create biclique commodity sold for entities. The commodity sold will play a role
-     * in shop alone placement.
-     *
-     * @param topologyDTO the topologyDTO who should sell a biclique commodities
-     * @return a set of biclique commodity sold DTOs
-     */
-    @Nonnull
-    private Set<CommodityDTOs.CommoditySoldTO> bcCommoditiesSold(
-                    @Nonnull final TopologyDTO.TopologyEntityDTO topologyDTO) {
-        Set<String> bcKeys = dsBasedBicliquer.getBcKeys(String.valueOf(topologyDTO.getOid()));
-        return bcKeys != null
-                    ? bcKeys.stream()
-                        .map(this::newBiCliqueCommoditySoldDTO)
-                        .collect(Collectors.toSet())
-                    : Collections.emptySet();
-    }
-
-    @Nonnull
-    protected CommodityDTOs.CommoditySoldTO commoditySold(
-                    @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold,
-                    TopologyDTO.TopologyEntityDTO dto) {
-        final CommodityType commodityType = topologyCommSold.getCommodityType();
-        float capacity = (float)topologyCommSold.getCapacity();
-        float used = (float)topologyCommSold.getUsed();
-        final int type = commodityType.getType();
-        boolean resizable = topologyCommSold.getIsResizeable();
-        boolean capacityNaN = Double.isNaN(topologyCommSold.getCapacity());
-        boolean usedNaN = Double.isNaN(topologyCommSold.getUsed());
-        if (capacityNaN && usedNaN) {
-            resizable = true;
-            logger.warn("Setting resizable for "
-                            + commodityType + " to false");
-        }
-        if (used < 0) {
-            if (logger.isDebugEnabled() || used != -1) {
-                // We don't want to log every time we get used = -1 because mediation
-                // sets some values to -1 as default.
-                logger.warn("Setting negative used value for "
-                                + commodityType + " to 0.");
-            }
-            used = 0;
-        } else if (used > capacity) {
-            if (AnalysisUtil.COMMODITIES_TO_CAP.contains(type)) {
-                float cappedUsed = capacity * CAPACITY_FACTOR;
-                logger.error("Used > Capacity for " + commodityType
-                             + ". Used : " + used + ", Capacity : " + capacity
-                             + ", Capped used : " + cappedUsed
-                             + ". This is a mediation error and should be looked at.");
-                used = cappedUsed;
-            } else if (!(AnalysisUtil.COMMODITIES_TO_SKIP.contains(type) ||
-                            AnalysisUtil.ACCESS_COMMODITY_TYPES.contains(type))) {
-                logger.error("Used > Capacity for " + commodityType
-                             + ". Used : " + used + " and Capacity : " + capacity);
-            }
-        }
-        final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
-                        CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
-                        .setResizable(resizable && !AnalysisUtil.PROVISIONED_COMMODITIES.contains(type))
-                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
-                        .setCapacityUpperBound(capacity)
-                        .setUtilizationUpperBound(
-                            (float)(topologyCommSold.getEffectiveCapacityPercentage() / 100.0))
-                        .setPriceFunction(priceFunction(topologyCommSold))
-                        .setUpdateFunction(updateFunction(topologyCommSold))
-                        .build();
-
-        double maxQuantity = topologyCommSold.getMaxQuantity();
-        float maxQuantityFloat = (float) maxQuantity;
-        if (maxQuantity < 0) {
-            logger.warn("maxQuantity: {} is less than 0. Setting it 0.", maxQuantity);
-            maxQuantityFloat = 0;
-        } else if (maxQuantityFloat < 0) {
-            logger.warn("Float to double cast error. maxQuantity:{}. maxQuantityFloat:{}.",
-                maxQuantity, maxQuantityFloat);
-            maxQuantityFloat = 0;
-        }
-        // if entry not present, initialize to 0
-        int numConsumers = Optional.ofNullable(numConsumersOfSoldCommTable.get(dto.getOid(),
-                    topologyCommSold.getCommodityType())).map(o -> o.intValue()).orElse(0);
-        return CommodityDTOs.CommoditySoldTO.newBuilder()
-                        .setPeakQuantity((float)topologyCommSold.getPeak())
-                        .setCapacity(capacity)
-                        .setQuantity(used)
-                        // Warning: we are down casting from double to float.
-                        // Market has to change this field to double
-                        .setMaxQuantity(maxQuantityFloat)
-                        .setSettings(economyCommSoldSettings)
-                        .setSpecification(commoditySpecification(commodityType))
-                        .setThin(topologyCommSold.getIsThin())
-                        .setNumConsumers(numConsumers)
-                        .build();
-    }
-
-    private boolean isBicliqueCommodity(CommodityType commodityType) {
-        boolean isOfType = AnalysisUtil.DSPM_OR_DATASTORE.contains(commodityType.getType());
-        if (isOfType && commodityType.hasKey()) {
-            // TODO: Support for cloud targets.
-            // Exclude cloud targets imported from legacy from bicliques for the moment.
-            // For non-cloud targets the key looks like
-            // PhysicalMachine::7cd62bff-d6c8-e011-0000-00000000000f
-            // or Storage::5787bc1e-357c82ea-47c4-0025b500038f.
-            //
-            // For cloud targets the key looks like PhysicalMachine::aws::us-west-2::PM::us-west-2b
-            return StringUtils.countMatches(commodityType.getKey(), ":") < 4;
-        }
-        return false;
-    }
-
-    @Nonnull
-    private CommodityDTOs.CommoditySoldTO newBiCliqueCommoditySoldDTO(String bcKey) {
-        return CommodityDTOs.CommoditySoldTO.newBuilder()
-                        .setSpecification(bcSpec(bcKey))
-                        .setSettings(AnalysisUtil.BC_SETTING_TO)
-                        .build();
-    }
-
-    @Nonnull
-    private CommodityDTOs.CommoditySpecificationTO bcSpec(@Nonnull String bcKey) {
-        return CommodityDTOs.CommoditySpecificationTO.newBuilder()
-                        .setBaseType(bcBaseType())
-                        .setType(commodityTypeAllocator.allocate(bcKey))
-                        .setDebugInfoNeverUseInCode(BICLIQUE + " " + bcKey)
-                        .build();
-    }
-
-    private int bcBaseType = -1;
-
-    private int bcBaseType() {
-        if (bcBaseType == -1) {
-            bcBaseType = commodityTypeAllocator.allocate(BICLIQUE);
-        }
-        return bcBaseType;
     }
 
     @Nonnull
@@ -1204,76 +1143,6 @@ public class TopologyConverter {
                     .setCapacityIncrement(
                         commSoldTO.getSettings().getCapacityIncrement())
                     .build());
-    }
-
-    @Nonnull
-    private CommodityDTOs.CommoditySpecificationTO commoditySpecification(
-            @Nonnull final CommodityType topologyCommodity) {
-        final CommodityDTOs.CommoditySpecificationTO economyCommodity =
-                        CommodityDTOs.CommoditySpecificationTO.newBuilder()
-            .setType(toMarketCommodityId(topologyCommodity))
-            .setBaseType(topologyCommodity.getType())
-            .setDebugInfoNeverUseInCode(commodityDebugInfo(topologyCommodity))
-            .setCloneWithNewType(AnalysisUtil.CLONE_COMMODITIES_WITH_NEW_TYPE
-                    .contains(topologyCommodity.getType()))
-            .build();
-        commoditySpecMap.put(new EconomyCommodityId(economyCommodity), topologyCommodity);
-        return economyCommodity;
-    }
-
-    /**
-     * Select the right {@link PriceFunctionTO} based on the commodity sold type.
-     *
-     * @param topologyCommSold a commodity sold for which to add a price function
-     * @return a (reusable) instance of PriceFunctionTO to use in the commodity sold settings.
-     */
-    @Nonnull
-    private static PriceFunctionDTOs.PriceFunctionTO priceFunction(
-            @Nonnull final TopologyDTO.CommoditySoldDTO topologyCommSold) {
-        return AnalysisUtil.priceFunction(topologyCommSold.getCommodityType().getType());
-    }
-
-    /**
-     * Select the right {@link UpdatingFunctionTO} based on the commodity sold type.
-     *
-     * @param topologyCommSold a commodity sold for which to add an updating function
-     * @return a (reusable) instance of UpdatingFunctionTO to use in the commodity sold settings.
-     */
-    @Nonnull
-    private static UpdatingFunctionTO updateFunction(
-                    TopologyDTO.CommoditySoldDTO topologyCommSold) {
-        return AnalysisUtil.updateFunction(topologyCommSold.getCommodityType().getType());
-    }
-
-    /**
-     * Constructs a string that can be used for debug purposes.
-     * @param commType the description of a commodity
-     * @return a string in the format "VCPU|P1" when the specification includes a non-empty key
-     * and just "VCPU" otherwise.
-     */
-    @Nonnull
-    private static String commodityDebugInfo(
-            @Nonnull final CommodityType commType) {
-        final String key = commType.getKey();
-        return CommodityDTO.CommodityType.forNumber(commType.getType())
-                + (key == null || key.equals("") ? "" : ("|" + key));
-    }
-
-    /**
-     * Uses a {@link NumericIDAllocator} to construct an integer type to
-     * each unique combination of numeric commodity type + string key.
-     * @param commType a commodity description that contains the numeric type and the key
-     * @return and integer identifying the type
-     */
-    @VisibleForTesting
-    int toMarketCommodityId(@Nonnull final CommodityType commType) {
-        return commodityTypeAllocator.allocate(commodityTypeToString(commType));
-    }
-
-    @Nonnull
-    private String commodityTypeToString(@Nonnull final CommodityType commType) {
-        int type = commType.getType();
-        return type + (commType.hasKey() ? COMMODITY_TYPE_KEY_SEPARATOR + commType.getKey() : "");
     }
 
     @VisibleForTesting
@@ -1753,7 +1622,8 @@ public class TopologyConverter {
         final CommodityType topologyCommodity =
                 commoditySpecMap.get(new EconomyCommodityId(economyCommodity));
         if (topologyCommodity == null) {
-            if (commodityTypeAllocator.getName(economyCommodity.getBaseType()).equals(BICLIQUE)) {
+            if (commodityTypeAllocator.getName(economyCommodity.getBaseType()).equals(
+                    TopologyConversionConstants.BICLIQUE)) {
                 // this is a biclique commodity
                 return Optional.empty();
             }
@@ -1764,34 +1634,9 @@ public class TopologyConverter {
         return Optional.of(topologyCommodity);
     }
 
-    /**
-     * The {@link CommodityDTOs.CommoditySpecificationTO}s we get back from the market aren't exactly
-     * equal to the ones we pass in - for example, the debug info may be absent. We only want to
-     * compare the type and base_type.
-     */
-    private static class EconomyCommodityId {
-        final int type;
-        final int baseType;
-
-        EconomyCommodityId(@Nonnull final CommodityDTOs.CommoditySpecificationTO economyCommodity) {
-            this.type = economyCommodity.getType();
-            this.baseType = economyCommodity.getBaseType();
-        }
-
-        @Override
-        public int hashCode() {
-            return type & baseType;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (other instanceof EconomyCommodityId) {
-                final EconomyCommodityId otherId = (EconomyCommodityId)other;
-                return otherId.type == type && otherId.baseType == baseType;
-            } else {
-                return false;
-            }
-        }
+    @VisibleForTesting
+    CommodityConverter getCommodityConverter() {
+        return commodityConverter;
     }
 
     /**

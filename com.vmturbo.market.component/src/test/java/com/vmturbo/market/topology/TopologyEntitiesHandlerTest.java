@@ -4,13 +4,21 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,6 +30,8 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -30,7 +40,10 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
 import com.google.common.io.LineProcessor;
+import com.google.gson.Gson;
+import com.google.gson.stream.JsonReader;
 import com.google.protobuf.AbstractMessage;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -40,6 +53,9 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.market.runner.Analysis;
+import com.vmturbo.market.topology.conversions.CostLibrary;
+import com.vmturbo.market.topology.conversions.CostLibrary.ComputePriceBundle;
+import com.vmturbo.market.topology.conversions.CostLibrary.ComputePriceBundle.ComputePrice;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.ActionType;
@@ -54,10 +70,14 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
+import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.Converter;
 
 /**
@@ -82,6 +102,10 @@ public class TopologyEntitiesHandlerTest {
     private final static float rightsizeLowerWatermark = 0.1f;
 
     private final static float rightsizeUpperWatermark = 0.7f;
+
+    private static String SIMPLE_CLOUD_TOPOLOGY_JSON_FILE =
+            "protobuf/messages/simple-cloudTopology.json";
+    private static final Gson GSON = new Gson();
 
     /**
      * Test loading a file that was generated using the hyper-v probe.
@@ -366,7 +390,7 @@ public class TopologyEntitiesHandlerTest {
         long ddBoughtNonShopTogether = countBoughtCommodities(shopTogetherTraderDTOs, DSPM_OR_DATASTORE_PATTERN);
         assertEquals(0, ddBoughtNonShopTogether);
 
-        //No BiClique commodities sold
+        //BiClique commodities will be sold always. There is no harm.
         final long bcSoldShopTogether = countSoldCommodities(shopTogetherTraderDTOs, BC_PATTERN);
         assertEquals(0, bcSoldShopTogether);
 
@@ -397,6 +421,154 @@ public class TopologyEntitiesHandlerTest {
             topoDTOs.stream()
                 .map(TopologyEntityDTO.Builder::build)
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+    }
+
+    @Test
+    public void testMoveToCheaperComputeTier_ShopTogether() {
+        testMoveToCheaperComputeTier(true);
+    }
+
+    @Test
+    public void testMoveToCheaperComputeTier_ShopAlone() {
+        testMoveToCheaperComputeTier(false);
+    }
+
+    public void testMoveToCheaperComputeTier(boolean isVMShopTogether) {
+        try {
+            // Read file
+            Set<TopologyEntityDTO.Builder> topologyEntityDTOBuilders = readTopologyFromJsonFile();
+            TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(builder -> builder.getEntityType() ==
+                    EntityType.VIRTUAL_MACHINE_VALUE).collect(Collectors.toList()).get(0);
+            // Set the shopTogether flag
+            vm.getAnalysisSettingsBuilder().setShopTogether(isVMShopTogether);
+            Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
+                    .map(builder -> builder.build()).collect(Collectors.toSet());
+                    TopologyEntityDTO m1Medium = null;
+            // Get handle to the templates, region and BA TopologyEntityDTO
+            TopologyEntityDTO m1Large = null;
+            TopologyEntityDTO m1Small = null;
+            TopologyEntityDTO region = null;
+            TopologyEntityDTO ba = null;
+            for (TopologyEntityDTO topologyEntityDTO : topologyEntityDTOs) {
+                if (topologyEntityDTO.getDisplayName().contains("m1.large")
+                        && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                    m1Large = topologyEntityDTO;
+                } else if (topologyEntityDTO.getDisplayName().contains("m1.medium")
+                        && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                    m1Medium = topologyEntityDTO;
+                } else if (topologyEntityDTO.getDisplayName().contains("m1.small")
+                            && topologyEntityDTO.getEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+                    m1Small = topologyEntityDTO;
+                } else if (topologyEntityDTO.getEntityType() == EntityType.REGION_VALUE) {
+                    region = topologyEntityDTO;
+                } else if (topologyEntityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    ba = topologyEntityDTO;
+                }
+            }
+            // Mock the costs for the tiers
+            CostLibrary costLib = spy(CostLibrary.class);
+            Map<OSType, Double> m1LargePrices = new HashMap<>();
+            m1LargePrices.put(OSType.LINUX, 5d);
+            m1LargePrices.put(OSType.RHEL, 3d);
+            Map<OSType, Double> m1MediumPrices = new HashMap<>();
+            m1MediumPrices.put(OSType.LINUX, 4d);
+            m1MediumPrices.put(OSType.RHEL, 2d);
+            Map<OSType, Double> m1SmallPrices = new HashMap<>();
+            m1SmallPrices.put(OSType.LINUX, 0.5d);
+            m1SmallPrices.put(OSType.RHEL, 0.25d);
+            when(costLib.getComputePriceBundle(m1Large.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices, OSType.LINUX));
+            when(costLib.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices, OSType.LINUX));
+            when(costLib.getComputePriceBundle(m1Medium.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices, OSType.LINUX));
+            when(costLib.getComputePriceBundle(m1Small.getOid(), region.getOid()))
+                    .thenReturn(mockComputePriceBundle(ba.getOid(), m1SmallPrices, OSType.LINUX));
+            final TopologyConverter converter =
+                    new TopologyConverter(REALTIME_TOPOLOGY_INFO, costLib);
+            final Set<EconomyDTOs.TraderTO> traderTOs =
+                    converter.convertToMarket(topologyEntityDTOs.stream()
+                            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity())));
+            traderTOs.forEach(t -> System.out.println(t));
+            // Get handle to the traders which will be used in asserting
+            TraderTO m1MediumTrader = null;
+            TraderTO m1LargeTrader = null;
+            TraderTO testVMTrader = null;
+            ShoppingListTO slToMove = null;
+            for (TraderTO traderTO : traderTOs) {
+                if (traderTO.getType() == EntityType.COMPUTE_TIER_VALUE &&
+                        traderTO.getDebugInfoNeverUseInCode().contains("m1.medium")) {
+                    m1MediumTrader = traderTO;
+                } else if (traderTO.getType() == EntityType.COMPUTE_TIER_VALUE &&
+                        traderTO.getDebugInfoNeverUseInCode().contains("m1.large")) {
+                    m1LargeTrader = traderTO;
+                } else if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    testVMTrader = traderTO;
+                }
+            }
+            long m1LargeOid = m1LargeTrader.getOid();
+            slToMove = testVMTrader.getShoppingListsList().stream().filter(
+                    sl -> sl.getSupplier() == m1LargeOid).collect(Collectors.toList()).get(0);
+            Analysis analysis = mock(Analysis.class);
+
+            final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(AnalysisUtil.QUOTE_FACTOR,
+                    SuspensionsThrottlingConfig.DEFAULT, Collections.emptyMap())
+                    .setRightsizeLowerWatermark(rightsizeLowerWatermark)
+                    .setRightsizeUpperWatermark(rightsizeUpperWatermark)
+                    .setMaxPlacementsOverride(maxPlacementIterations)
+                    .build();
+            // Call analysis
+            AnalysisResults results =
+                    TopologyEntitiesHandler.performAnalysis(
+                            traderTOs, REALTIME_TOPOLOGY_INFO, analysisConfig, analysis);
+            System.out.println(results.getActionsList());
+
+            // Asserts
+            assertEquals(1, results.getActionsCount());
+            List<ActionTO> actions = results.getActionsList();
+            MoveTO move;
+            if (isVMShopTogether) {
+                move = actions.get(0).getCompoundMove().getMoves(0);
+            } else {
+                move = actions.get(0).getMove();
+            }
+            assertEquals(slToMove.getOid(), move.getShoppingListToMove());
+            assertEquals(m1LargeTrader.getOid(), move.getSource());
+            assertEquals(m1MediumTrader.getOid(), move.getDestination());
+        } catch(Exception e) {
+            Assert.fail(e.getMessage());
+        }
+    }
+
+    private ComputePriceBundle mockComputePriceBundle(
+            Long businessAccountId, Map<OSType, Double> osPriceMapping, OSType baseOSType) {
+        List<ComputePriceBundle.ComputePrice> prices = new ArrayList<>();
+        osPriceMapping.forEach((k,v) -> prices.add(new ComputePrice(businessAccountId, k, v)));
+        return new ComputePriceBundle(baseOSType, prices);
+    }
+
+    private Set<TopologyEntityDTO.Builder> readTopologyFromJsonFile()
+            throws FileNotFoundException, InvalidProtocolBufferException {
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        final URL topologyFileResource = classLoader.getResource(SIMPLE_CLOUD_TOPOLOGY_JSON_FILE);
+        if (topologyFileResource == null) {
+            throw new FileNotFoundException("Error reading " + SIMPLE_CLOUD_TOPOLOGY_JSON_FILE);
+        }
+        File file = new File(topologyFileResource.getFile());
+        final InputStream dtoInputStream = new FileInputStream(file);
+        InputStreamReader inputStreamReader = new InputStreamReader(dtoInputStream);
+        JsonReader topologyReader = new JsonReader(inputStreamReader);
+        List<Object> dtos = GSON.fromJson(topologyReader, List.class);
+
+        Set<TopologyEntityDTO.Builder> topologyDTOBuilders = Sets.newHashSet();
+        for (Object dto : dtos) {
+            String dtoString = GSON.toJson(dto);
+            TopologyEntityDTO.Builder entityDtoBuilder =
+                    TopologyEntityDTO.newBuilder();
+            JsonFormat.parser().merge(dtoString, entityDtoBuilder);
+            topologyDTOBuilders.add(entityDtoBuilder);
+        }
+        return topologyDTOBuilders;
     }
 
     /**

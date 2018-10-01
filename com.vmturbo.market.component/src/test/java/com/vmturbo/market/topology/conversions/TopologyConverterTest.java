@@ -789,24 +789,24 @@ public class TopologyConverterTest {
 
     @Test
     public void testLimitFloatRangeWithinRange() {
-        assertThat(TopologyConverter.limitFloatRange(1f, 0f, 1f), is(1f));
-        assertThat(TopologyConverter.limitFloatRange(0f, 0f, 1f), is(0f));
-        assertThat(TopologyConverter.limitFloatRange(0.8f, 0f, 1f), is(0.8f));
+        assertThat(TopologyConversionUtils.limitFloatRange(1f, 0f, 1f), is(1f));
+        assertThat(TopologyConversionUtils.limitFloatRange(0f, 0f, 1f), is(0f));
+        assertThat(TopologyConversionUtils.limitFloatRange(0.8f, 0f, 1f), is(0.8f));
     }
 
     @Test
     public void testLimitFloatRangeLessThanMin() {
-        assertThat(TopologyConverter.limitFloatRange(-1.2f, 0f, 1f), is(0f));
+        assertThat(TopologyConversionUtils.limitFloatRange(-1.2f, 0f, 1f), is(0f));
     }
 
     @Test
     public void testLimitFloatRangeGreaterThanMax() {
-        assertThat(TopologyConverter.limitFloatRange(100f, 0f, 1f), is(1f));
+        assertThat(TopologyConversionUtils.limitFloatRange(100f, 0f, 1f), is(1f));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void testLimitFloatRangeMinGreaterThanMax() {
-        TopologyConverter.limitFloatRange(100f, 10, 0f);
+        TopologyConversionUtils.limitFloatRange(100f, 10, 0f);
     }
 
     @Test
@@ -823,7 +823,7 @@ public class TopologyConverterTest {
                 .build();
 
         // (40 - (40/2.0))/100
-        assertThat(TopologyConverter.getMinDesiredUtilization(entityDTO),
+        assertThat(TopologyConversionUtils.getMinDesiredUtilization(entityDTO),
             is(0.2f));
     }
 
@@ -841,7 +841,7 @@ public class TopologyConverterTest {
                 .build();
 
         // (20 - (80/2.0))/100
-        assertThat(TopologyConverter.getMinDesiredUtilization(entityDTO),
+        assertThat(TopologyConversionUtils.getMinDesiredUtilization(entityDTO),
             is(0f));
     }
 
@@ -859,7 +859,7 @@ public class TopologyConverterTest {
                 .build();
 
         // (20 + (80/2.0))/100
-        assertThat(TopologyConverter.getMaxDesiredUtilization(entityDTO),
+        assertThat(TopologyConversionUtils.getMaxDesiredUtilization(entityDTO),
             is(0.6f));
     }
 
@@ -877,7 +877,7 @@ public class TopologyConverterTest {
                 .build();
 
         // (80 + (60/2.0))/100
-        assertThat(TopologyConverter.getMaxDesiredUtilization(entityDTO),
+        assertThat(TopologyConversionUtils.getMaxDesiredUtilization(entityDTO),
             is(1f));
     }
 

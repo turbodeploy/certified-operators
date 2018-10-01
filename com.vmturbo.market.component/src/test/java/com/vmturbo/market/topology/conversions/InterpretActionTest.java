@@ -104,10 +104,12 @@ public class InterpretActionTest {
             .setKey("red")
             .build();
 
-        int segmentationFooId = converter.toMarketCommodityId(segmentationFoo);
-        int segmentationBarId = converter.toMarketCommodityId(segmentationBar);
-        int cpuId = converter.toMarketCommodityId(cpu);
-        int cpuRedId = converter.toMarketCommodityId(cpuRed);
+        int segmentationFooId = converter.getCommodityConverter()
+                .toMarketCommodityId(segmentationFoo);
+        int segmentationBarId = converter.getCommodityConverter()
+                .toMarketCommodityId(segmentationBar);
+        int cpuId = converter.getCommodityConverter().toMarketCommodityId(cpu);
+        int cpuRedId = converter.getCommodityConverter().toMarketCommodityId(cpuRed);
 
         assertEquals(segmentationFoo, converter.commodityIdToCommodityType(segmentationFooId));
         assertEquals(segmentationBar, converter.commodityIdToCommodityType(segmentationBarId));
@@ -332,7 +334,8 @@ public class InterpretActionTest {
             .setKey("Foo")
             .build();
 
-        final int marketCommodityId = converter.toMarketCommodityId(expectedCommodityType);
+        final int marketCommodityId = converter.getCommodityConverter().
+                toMarketCommodityId(expectedCommodityType);
         final  CommodityDTOs.CommoditySpecificationTO economyCommodity =
             CommodityDTOs.CommoditySpecificationTO.newBuilder()
                 .setType(marketCommodityId)
