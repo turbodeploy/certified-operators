@@ -359,7 +359,16 @@ public abstract class TargetCollectionUpdate<InstanceType, SpecType> {
 
         @Override
         protected BiFunction<Group, ClusterInfo, ClusterInfo> transitAttribution() {
-            return (existingCluster, newCluster) -> newCluster;
+            return (existingCluster, newCluster) -> {
+                // If the cluster has a specified headroom template, make sure to keep it.
+                if (existingCluster.getCluster().hasClusterHeadroomTemplateId()) {
+                    return newCluster.toBuilder()
+                        .setClusterHeadroomTemplateId(existingCluster.getCluster().getClusterHeadroomTemplateId())
+                        .build();
+                } else {
+                    return newCluster;
+                }
+            };
         }
     }
 

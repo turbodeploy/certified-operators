@@ -19,6 +19,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.google.common.collect.ImmutableList;
 
+import com.vmturbo.common.protobuf.group.GroupDTO.ClusterInfo;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group;
 import com.vmturbo.common.protobuf.group.GroupDTO.Group.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupInfo;
@@ -29,6 +30,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.BindToGroupPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.group.common.TargetCollectionUpdate.TargetClusterUpdate;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.common.TargetCollectionUpdate.RemoveInstance;
 import com.vmturbo.group.common.TargetCollectionUpdate.StoreInstance;
@@ -131,6 +133,35 @@ public class TargetCollectionUpdateTest {
         // Check that the members got set.
         assertEquals(1, createdGroup.getGroup().getStaticGroupMembers().getStaticMemberOidsCount());
         assertEquals(1, createdGroup.getGroup().getStaticGroupMembers().getStaticMemberOids(0));
+    }
+
+    @Test
+    public void testClusterUpdatePreservesHeadroomTemplateId() throws Exception {
+        final TargetClusterUpdate update = new TargetClusterUpdate(targetId, identityProvider,
+            Collections.singletonList(ClusterInfo.newBuilder()
+                .setName("test")
+                // No cluster headroom template ID specified in the new ClusteInfo.
+                .build()),
+            Collections.singletonList(Group.newBuilder()
+                .setCluster(ClusterInfo.newBuilder()
+                    .setName("test")
+                    .setClusterHeadroomTemplateId(7))
+                .setId(groupId)
+                .build()));
+        update.apply(storeInstance, updateInstance, removeInstance);
+
+        verifyZeroInteractions(identityProvider);
+        verifyZeroInteractions(removeInstance);
+
+        verify(updateInstance).updateInstance(groupCaptor.capture());
+
+        final Group createdGroup = groupCaptor.getValue();
+        assertEquals(groupId, createdGroup.getId());
+        assertEquals(targetId, createdGroup.getTargetId());
+        assertEquals(Origin.DISCOVERED, createdGroup.getOrigin());
+
+        // Make sure the cluster ID got preserved.
+        assertEquals(7, createdGroup.getCluster().getClusterHeadroomTemplateId());
     }
 
     @Test
