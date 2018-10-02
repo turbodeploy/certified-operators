@@ -13,12 +13,10 @@ spec:
   resources:
     requests:
       storage: 1Gi
-status: {}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  creationTimestamp: null
   labels:
     zone: dmz
     io.kompose.service: api
@@ -30,15 +28,10 @@ spec:
   resources:
     requests:
       storage: 1Gi
-status: {}
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose --file ../docker-compose.yml.200k convert
-    kompose.version: 1.12.0 ()
-  creationTimestamp: null
   labels:
     zone: dmz
     io.kompose.service: api
@@ -100,6 +93,8 @@ spec:
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
       volumes:
       - name: api
         persistentVolumeClaim:
@@ -110,15 +105,10 @@ spec:
       - emptyDir:
           medium: Memory
         name: api-tmpfs0
-status: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    kompose.cmd: kompose convert -f docker-compose.yml
-    kompose.version: 1.12.0 ()
-  creationTimestamp: null
   labels:
     zone: dmz
     io.kompose.service: api
@@ -137,5 +127,3 @@ spec:
     targetPort: 9001
   selector:
     io.kompose.service: api
-status:
-  loadBalancer: {}
