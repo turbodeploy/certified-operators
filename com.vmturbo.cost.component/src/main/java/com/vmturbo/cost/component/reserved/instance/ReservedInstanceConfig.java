@@ -103,6 +103,7 @@ public class ReservedInstanceConfig {
                 reservedInstanceUtilizationCoverageRpcService());
     }
 
+    @Bean
     public ReservedInstanceCoverageUpdate reservedInstanceCoverageUpload() {
         return new ReservedInstanceCoverageUpdate(databaseConfig.dsl(), entityReservedInstanceMappingStore(),
                 reservedInstanceUtilizationStore(), reservedInstanceCoverageStore(),

@@ -34,7 +34,6 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
 @Import({TopologyListenerConfig.class,
         SpringSecurityConfig.class,
         SQLDatabaseConfig.class,
-        CostServiceConfig.class,
         PricingConfig.class,
         ReservedInstanceConfig.class,
         CostConfig.class,
