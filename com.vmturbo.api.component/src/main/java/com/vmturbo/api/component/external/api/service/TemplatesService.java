@@ -13,6 +13,7 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.dto.businessunit.EntityPriceDTO;
 import org.apache.commons.lang.NotImplementedException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -392,7 +393,14 @@ public class TemplatesService implements ITemplatesService {
     public Set<String> getCloudTemplatesOses(@Nonnull String scopeUuid)
             throws UnknownObjectException {
         // TODO implement as soon as cloud templates are published in XL
-        throw new NotImplementedException("Not implemented in XL");
+        throw ApiUtils.notImplementedInXL();
+    }
+
+    @Nonnull
+    @Override
+    public List<EntityPriceDTO> getTemplatePrices(@Nonnull String entityUuid, @Nonnull String uuidTemplate, @Nonnull String dcUuid)
+            throws UnknownObjectException {
+        throw ApiUtils.notImplementedInXL();
     }
 }
 

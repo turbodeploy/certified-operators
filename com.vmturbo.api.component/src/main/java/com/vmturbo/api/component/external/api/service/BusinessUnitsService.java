@@ -169,7 +169,7 @@ public class BusinessUnitsService implements IBusinessUnitsService {
      */
     @Override
     public BusinessUnitPriceAdjustmentApiDTO
-    editBusinessUnitDiscounts(@Nonnull String uuid,
+    editBusinessUnitPriceAdjustments(@Nonnull String uuid,
                               @Nonnull BusinessUnitPriceAdjustmentApiDTO businessUnitDiscountApiDTO)
             throws Exception {
         Objects.requireNonNull(uuid);
@@ -250,7 +250,8 @@ public class BusinessUnitsService implements IBusinessUnitsService {
      */
     @Override
     @Nonnull
-    public BusinessUnitPriceAdjustmentApiDTO getBusinessUnitDiscounts(@Nonnull String uuid) throws Exception {
+    public BusinessUnitPriceAdjustmentApiDTO getBusinessUnitPriceAdjustments(@Nonnull String uuid)
+            throws Exception {
         // TODO valid the uuid with validInput method
         final Iterator<Discount> discounts = costService.getDiscounts(GetDiscountRequest.newBuilder()
                 .setFilter(DiscountQueryFilter.newBuilder().addAssociatedAccountId(Long.parseLong(uuid)))

@@ -175,6 +175,6 @@ public class BusinessUnitsServiceTest {
 
     @Test(expected = MissingDiscountException.class)
     public void testGetBusinessUnitDiscounts() throws Exception {
-        businessUnitsService.getBusinessUnitDiscounts(UUID_STRING);
+        businessUnitsService.getBusinessUnitPriceAdjustments(UUID_STRING);
     }
 }
