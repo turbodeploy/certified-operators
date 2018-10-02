@@ -13,15 +13,10 @@ spec:
   resources:
     requests:
       storage: 5Gi
-status: {}
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose --file ../docker-compose.yml.200k convert
-    kompose.version: 1.12.0 ()
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: kafka
@@ -73,7 +68,7 @@ spec:
         - containerPort: 9092
         resources:
           limits:
-            memory: 20971520e3
+            memory: 20971520
         securityContext:
           capabilities:
             drop:
@@ -86,6 +81,8 @@ spec:
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
       volumes:
       - name: kafka-log
         persistentVolumeClaim:
@@ -94,15 +91,10 @@ spec:
           medium: Memory
           sizeLimit: "1Gi"
         name: kafka-tmpfs0
-status: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    kompose.cmd: kompose --file docker-compose.yml convert
-    kompose.version: 1.12.0 ()
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: kafka
@@ -115,5 +107,3 @@ spec:
     targetPort: 9092
   selector:
     io.kompose.service: kafka
-status:
-  loadBalancer: {}

@@ -1,38 +1,40 @@
 #!/bin/bash
-kubectl create -f /opt/xl/kubernetes/action/
-kubectl create -f /opt/xl/kubernetes/api/
-kubectl create -f /opt/xl/kubernetes/arangodb/
-kubectl create -f /opt/xl/kubernetes/auth/
-kubectl create -f /opt/xl/kubernetes/clustermgr/
-kubectl create -f /opt/xl/kubernetes/consul/
-kubectl create -f /opt/xl/kubernetes/cost/
-kubectl create -f /opt/xl/kubernetes/db/
-kubectl create -f /opt/xl/kubernetes/group/
-kubectl create -f /opt/xl/kubernetes/history/
-kubectl create -f /opt/xl/kubernetes/kafka/
-kubectl create -f /opt/xl/kubernetes/market/
-kubectl create -f /opt/xl/kubernetes/med-aws/
-kubectl create -f /opt/xl/kubernetes/med-awsbilling/
-kubectl create -f /opt/xl/kubernetes/med-compellent/
-kubectl create -f /opt/xl/kubernetes/med-hds/
-kubectl create -f /opt/xl/kubernetes/med-hpe3par/
-kubectl create -f /opt/xl/kubernetes/med-hyperv/
-kubectl create -f /opt/xl/kubernetes/med-netapp/
-kubectl create -f /opt/xl/kubernetes/med-openstack/
-kubectl create -f /opt/xl/kubernetes/med-pure/
-kubectl create -f /opt/xl/kubernetes/med-rhv/
-kubectl create -f /opt/xl/kubernetes/med-scaleio/
-kubectl create -f /opt/xl/kubernetes/med-ucs/
-kubectl create -f /opt/xl/kubernetes/med-ucsdirector/
-kubectl create -f /opt/xl/kubernetes/med-vcenter/
-kubectl create -f /opt/xl/kubernetes/med-vmax/
-kubectl create -f /opt/xl/kubernetes/med-vmm/
-kubectl create -f /opt/xl/kubernetes/med-vplex/
-kubectl create -f /opt/xl/kubernetes/med-xtremio/
-kubectl create -f /opt/xl/kubernetes/nginx/
-kubectl create -f /opt/xl/kubernetes/plan/
-kubectl create -f /opt/xl/kubernetes/reporting/
-kubectl create -f /opt/xl/kubernetes/repository/
-kubectl create -f /opt/xl/kubernetes/syslog/
-kubectl create -f /opt/xl/kubernetes/topology/
-kubectl create -f /opt/xl/kubernetes/zookeeper/
+#kubectl get storageclass
+#kubectl patch storageclass fast -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+kubectl create -f namespace/turbo.yaml
+kubectl create secret docker-registry turbocred -n turbonomic --docker-server=registry.turbonomic.com --docker-username=turbodeploy --docker-password=Sysdreamworks123 --docker-email=billy.oconnell@turbonomic.com
+
+# Start base components
+kubectl create -f base/auth.yaml
+kubectl create -f base/db.yaml
+kubectl create -f base/clustermgr.yaml
+kubectl create -f base/consul.yaml
+kubectl create -f base/kafka.yaml
+kubectl create -f base/rsyslog.yaml
+kubectl create -f base/zookeeper.yaml
+kubectl create -f services/group.yaml
+kubectl create -f services/plan-orchestrator.yaml
+kubectl create -f services/topology-processor.yaml
+
+# Start analytics control components
+kubectl create -f services/market.yaml
+kubectl create -f services/action-orchestrator.yaml
+
+# Start ui and api components
+kubectl create -f services/repository.yaml
+kubectl create -f base/arangodb.yaml
+kubectl create -f base/nginx.yaml
+kubectl create -f base/api.yaml
+
+# Start historical stats or reports components
+#kubectl create -f services/history.yaml
+#kubectl create -f services/reporting.yaml
+
+# Start probes
+kubectl create -f probes/mediation-vcenter.yaml
+kubectl create -f probes/mediation-aws.yaml
+#kubectl create -f probes/mediation-hyperv.yaml
+#kubectl create -f probes/mediation-netapp.yaml
+#kubectl create -f probes/mediation-ucs.yaml
+#kubectl create -f probes/mediation-vmax.yaml
+#kubectl create -f probes/mediation-vmm.yaml

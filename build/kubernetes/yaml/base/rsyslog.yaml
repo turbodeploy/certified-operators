@@ -1,7 +1,6 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: rsyslog-auditlogdata
@@ -13,12 +12,10 @@ spec:
   resources:
     requests:
       storage: 1Gi
-status: {}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: rsyslog-syslogdata
@@ -30,30 +27,21 @@ spec:
   resources:
     requests:
       storage: 1Gi
-status: {}
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose --file ../docker-compose.yml.200k convert
-    kompose.version: 1.12.0 ()
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: rsyslog
   name: rsyslog
   namespace: turbonomic
 spec:
-  #selector:
-    #matchLabels:
-      #io.kompose.service: rsyslog
   replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
-      creationTimestamp: null
       labels:
         zone: internal
         io.kompose.service: rsyslog
@@ -79,6 +67,8 @@ spec:
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
+      securityContext:
+        fsGroup: 2000
       volumes:
       - name: rsyslog-syslogdata
         persistentVolumeClaim:
@@ -89,15 +79,10 @@ spec:
       - emptyDir:
           medium: Memory
         name: rsyslog-tmpfs0
-status: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    kompose.cmd: kompose --file ../docker-compose.yml.200k convert
-    kompose.version: 1.12.0 ()
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: rsyslog
@@ -110,5 +95,3 @@ spec:
     targetPort: 2514
   selector:
     io.kompose.service: rsyslog
-status:
-  loadBalancer: {}

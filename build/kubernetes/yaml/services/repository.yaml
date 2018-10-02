@@ -1,8 +1,6 @@
----
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: repository
@@ -14,15 +12,10 @@ spec:
   resources:
     requests:
       storage: 1Gi
-status: {}
 ---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose --file ../docker-compose.yml.200k convert
-    kompose.version: 1.12.0 ()
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: repository
@@ -34,7 +27,6 @@ spec:
     type: Recreate
   template:
     metadata:
-      creationTimestamp: null
       labels:
         zone: internal
         io.kompose.service: repository
@@ -86,15 +78,10 @@ spec:
       - emptyDir:
           medium: Memory
         name: repository-tmpfs0
-status: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    kompose.cmd: kompose --file docker-compose.yml convert
-    kompose.version: 1.12.0 ()
-  creationTimestamp: null
   labels:
     zone: internal
     io.kompose.service: repository
@@ -113,5 +100,4 @@ spec:
     targetPort: 9001
   selector:
     io.kompose.service: repository
-status:
-  loadBalancer: {}
+
