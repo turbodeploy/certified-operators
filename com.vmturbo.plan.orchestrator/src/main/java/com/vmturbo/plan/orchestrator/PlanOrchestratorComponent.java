@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
+import com.vmturbo.plan.orchestrator.cpucapacity.CpuCapacityConfig;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileConfig;
 import com.vmturbo.plan.orchestrator.diagnostics.PlanOrchestratorDiagnosticsConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
@@ -49,7 +50,8 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
         PlanProjectConfig.class,
         ReservationConfig.class,
         PlanOrchestratorDiagnosticsConfig.class,
-        PlanDeletionSchedulerConfig.class})
+        PlanDeletionSchedulerConfig.class,
+        CpuCapacityConfig.class})
 public class PlanOrchestratorComponent extends BaseVmtComponent {
     private static final Logger LOGGER = LogManager.getLogger();
 
@@ -89,6 +91,9 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
     @Autowired
     private PlanOrchestratorDiagnosticsConfig diagnosticsConfig;
 
+    @Autowired
+    private CpuCapacityConfig cpuCapacityConfig;
+
     @PostConstruct
     private void setup() {
         LOGGER.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
@@ -127,6 +132,7 @@ public class PlanOrchestratorComponent extends BaseVmtComponent {
             .addService(ServerInterceptors.intercept(deploymentProfileConfig.deploymentProfileRpcService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(planProjectConfig.planProjectService(), monitoringInterceptor))
             .addService(ServerInterceptors.intercept(reservationConfig.reservationRpcService(), monitoringInterceptor))
+            .addService(ServerInterceptors.intercept(cpuCapacityConfig.cpuCapacityService(), monitoringInterceptor))
             .build());
     }
 

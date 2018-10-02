@@ -1,0 +1,58 @@
+syntax = "proto2";
+package cost;
+
+option java_package = "com.vmturbo.common.protobuf.cpucapacity";
+
+// Request to fetch all known cpu_model names from the CpuCapacity Library.
+message CpuModelListRequest {
+    // no arguments - return all the known cpu_model names - this fits
+}
+
+// Response to the CpuModelListRequest, containing the CPUInfo for all known model names
+message CpuModelListResponse {
+    // return the CPUInfo for all the known cpu models
+    repeated CPUInfo cpu_info = 1;
+
+    // The Model-specific info we track for each CPU model in the CPU Capacity library.
+    // This list of CPU models are populated periodically from SPEC benchmark performance data.
+    message CPUInfo {
+        // the unique name of the CPU Model being described
+        optional string cpu_model_name = 1;
+
+        // the number of cores in this CPU Model
+        optional int32 cores = 2;
+
+        // the clock speed of this CPU Model
+        optional int32 mhz = 3;
+
+        // the relative performance of this CPU model compared with a reference CPU model,
+        // e.g. "Intel Xeon E5405". scaling_factor > 1 means faster performance per CPU cycle than
+        // the reference; scaling_factor < 1 means slower performance per CPU cycle.
+        optional double scaling_factor = 4;
+    }
+}
+
+// Request a call to the CpuCapacity library to calculate the CPU scaling factor for each of
+// a list of cpu_models. scaling_factor > 1 means faster performance per CPU cycle than
+// the reference; scaling_factor < 1 means slower performance per CPU cycle.
+message CpuScaleFactorRequest {
+    // cpu_model names to fetch the the scale factor for
+    repeated string cpu_model_names = 1;
+}
+
+// Response to the CpuScaleFactorRequest: a map from cpu_model name to the corresponding scale_factor
+message CpuModelScaleFactorResponse {
+    // map from cpu_model name to the corresponding scale_factor
+    map<string, double> scale_factor_by_cpu_model = 1;
+}
+
+// a service for accessing the Cpu Capacity lookup:  cpu_name -> scaling_factor  - indicating
+// the performance relative a "baseline" cpu. This scaling_factor lookup is based on a heuristic
+// lookup of the SPEC benchmark data.
+service CpuCapacityService {
+    // fetch a list of all the cpu_model names on file
+    rpc GetCpuModelList(CpuModelListRequest) returns (CpuModelListResponse);
+
+    // Fetch a map of the cpu_model -> scale_factor for each of the cpu_models requested.
+    rpc GetCpuScaleFactors(CpuScaleFactorRequest) returns (CpuModelScaleFactorResponse);
+}

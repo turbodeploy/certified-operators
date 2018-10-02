@@ -400,6 +400,8 @@ plan-orchestrator:
   # Config parameter to control the time out hours for running plan.
   # If this value is changed, update defaultTimeOutHour value in PlanDaoImplTest#testCleanUpTimeOutedPlans
   planTimeOutHours: 6
+  # Time-out for the CPU Info cache; this cache is updated very infrequently.
+  cpuInfoCacheLifetimeHours: 8
 
 history:
   <<: *baseVmtComponentSettings

@@ -265,6 +265,10 @@
             <artifactId>components-api</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.turbonomic</groupId>
+            <artifactId>com.turbonomic.cpucapacity</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
         </dependency>
