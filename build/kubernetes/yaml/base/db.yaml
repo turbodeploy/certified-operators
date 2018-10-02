@@ -1,10 +1,11 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  creationTimestamp: null
   labels:
     zone: secure
-    io.kompose.service: mysql-data
-  name: mysql-data
+    io.kompose.service: mysqldata
+  name: mysqldata
   namespace: turbonomic
 spec:
   accessModes:
@@ -12,10 +13,12 @@ spec:
   resources:
     requests:
       storage: 70Gi
+status: {}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  creationTimestamp: null
   labels:
     zone: secure
     io.kompose.service: mysql-log
@@ -27,25 +30,32 @@ spec:
   resources:
     requests:
       storage: 1Gi
+status: {}
 ---
-#apiVersion: v1
-#kind: PersistentVolumeClaim
-#metadata:
-#  labels:
-#    zone: secure
-#    io.kompose.service: mysql-var
-#  name: mysql-var
-#  namespace: turbonomic
-#spec:
-#  accessModes:
-#  - ReadWriteOnce
-#  resources:
-#    requests:
-#      storage: 1Gi
-#---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  creationTimestamp: null
+  labels:
+    zone: secure
+    io.kompose.service: mysql-var
+  name: mysql-var
+  namespace: turbonomic
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+status: {}
+---
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
+  annotations:
+    kompose.cmd: kompose --file ../docker-compose.yml.200k convert
+    kompose.version: 1.12.0 ()
+  creationTimestamp: null
   labels:
     zone: secure
     io.kompose.service: db
@@ -57,10 +67,14 @@ spec:
     type: Recreate
   template:
     metadata:
+      creationTimestamp: null
       labels:
         zone: secure
         io.kompose.service: db
     spec:
+      #securityContext:
+      #  runAsUser: 101
+      #  fsGroup: 2006
       containers:
       - env:
         - name: DB_MEM_PCT_FOR_BUFFER_POOL
@@ -77,35 +91,38 @@ spec:
           privileged: true
         volumeMounts:
         - mountPath: /var/lib/mysql
-          name: mysql-data
-        - mountPath: /var/log/mysql
+          name: mysqldata
+        - mountPath: /var/log
           name: mysql-log
-#        - mountPath: /var/run
-#          name: mysql-var
+      #  - mountPath: /var/run
+      #    name: mysql-var
         - mountPath: /tmp
           name: db-tmpfs0
       imagePullSecrets:
       - name: turbocred
       restartPolicy: Always
-      securityContext:
-        fsGroup: 2000
       volumes:
-      - name: mysql-data
+      - name: mysqldata
         persistentVolumeClaim:
-          claimName: mysql-data
+          claimName: mysqldata
       - name: mysql-log
         persistentVolumeClaim:
           claimName: mysql-log
-#      - name: mysql-var
-#        persistentVolumeClaim:
-#          claimName: mysql-var
+      #- name: mysql-var
+      #  persistentVolumeClaim:
+      #    claimName: mysql-var
       - emptyDir:
           medium: Memory
         name: db-tmpfs0
+status: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    kompose.cmd: kompose --file ../docker-compose.yml.200k convert
+    kompose.version: 1.12.0 ()
+  creationTimestamp: null
   labels:
     zone: secure
     io.kompose.service: db
@@ -118,3 +135,5 @@ spec:
     targetPort: 3306
   selector:
     io.kompose.service: db
+status:
+  loadBalancer: {}

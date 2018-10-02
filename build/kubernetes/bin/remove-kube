@@ -1,43 +1,7 @@
 #!/bin/bash
 
-#kubectl delete svc kafka market mediation-delegatingprobe mediation-hyperv mediation-netapp mediation-storagestressprobe mediation-stressprobe mediation-ucs mediation-vcenter mediation-vmax mediation-vmm plan-orchestrator reporting rsyslog topology-processor zoo action-orchestrator api arangodb auth clustermgr consul db nginx repository history group mediation-hpe3par mediation-compellent mediation-hds mediation-openstack mediation-pure mediation-rhv mediation-scaleio mediation-vplex mediation-xtremio cost mediation-aws mediation-awsbilling mediation-ucsdirector
-#kubectl delete deployment  action-orchestrator api arangodb auth clustermgr consul db group history kafka market mediation-hyperv mediation-netapp mediation-ucs mediation-vcenter mediation-vmax mediation-vmm nginx plan-orchestrator reporting repository rsyslog topology-processor zoo mediation-hpe3par mediation-hds mediation-openstack mediation-pure mediation-rhv mediation-scaleio mediation-vplex mediation-xtremio cost mediation-aws mediation-awsbilling mediation-ucsdirector mediation-compellent
-#kubectl delete pvc action-orchestrator api arangodb arangodb-apps arangodb-dump auth clustermgr consuldata group history kafka-log market mediation-hyperv mediation-vcenter mysql-log mysql-var mysqldata nginx-data nginx-run plan-orchestrator reporting rsyslog-auditlogdata rsyslog-syslogdata topology-processor zoo-data api-claim1 mediation-compellent mediation-hds mediation-hpe3par mediation-netapp mediation-openstack mediation-pure mediation-rhv mediation-scaleio mediation-ucs mediation-vmax mediation-vmm mediation-vplex mediation-xtremio nginx-claim0 nginx-claim1 repository cost mediation-aws mediation-awsbilling mediation-ucsdirector
+kubectl delete svc kafka market mediation-delegatingprobe mediation-hyperv mediation-netapp mediation-storagestressprobe mediation-stressprobe mediation-ucs mediation-vcenter mediation-vmax mediation-vmm plan-orchestrator reporting rsyslog topology-processor zoo action-orchestrator api arangodb auth clustermgr consul db nginx repository history group mediation-hpe3par mediation-compellent mediation-hds mediation-openstack mediation-pure mediation-rhv mediation-scaleio mediation-vplex mediation-xtremio cost mediation-aws mediation-awsbilling mediation-ucsdirector
 
-# Delete base components
-kubectl delete -f probes/mediation-vcenter.yaml
-kubectl delete -f probes/mediation-aws.yaml
-#kubectl delete -f probes/mediation-hyperv.yaml
-#kubectl delete -f probes/mediation-netapp.yaml
-#kubectl delete -f probes/mediation-ucs.yaml
-#kubectl delete -f probes/mediation-vmax.yaml
-#kubectl delete -f probes/mediation-vmm.yaml
+kubectl delete deployment  action-orchestrator api arangodb auth clustermgr consul db group history kafka market mediation-hyperv mediation-netapp mediation-ucs mediation-vcenter mediation-vmax mediation-vmm nginx plan-orchestrator reporting repository rsyslog topology-processor zoo mediation-hpe3par mediation-hds mediation-openstack mediation-pure mediation-rhv mediation-scaleio mediation-vplex mediation-xtremio cost mediation-aws mediation-awsbilling mediation-ucsdirector mediation-compellent
 
-# Delete historical stats or reports components
-#kubectl delete -f services/reporting.yaml
-#kubectl delete -f services/history.yaml
-
-# Delete ui and api components
-kubectl delete -f base/arangodb.yaml
-kubectl delete -f services/repository.yaml
-kubectl delete -f base/nginx.yaml
-kubectl delete -f base/api.yaml
-
-# Delete analytics control components
-kubectl delete -f services/market.yaml
-kubectl delete -f services/action-orchestrator.yaml
-
-# Delete base components
-kubectl delete -f base/auth.yaml
-kubectl delete -f base/db.yaml
-kubectl delete -f services/topology-processor.yaml
-kubectl delete -f services/group.yaml
-kubectl delete -f base/clustermgr.yaml
-kubectl delete -f base/consul.yaml
-kubectl delete -f base/kafka.yaml
-kubectl delete -f base/zookeeper.yaml
-kubectl delete -f base/rsyslog.yaml
-kubectl delete -f services/plan-orchestrator.yaml
-
-kubectl delete secret turbocred -n turbonomic
-kubectl delete -f namespace/turbo.yaml
+kubectl delete pvc action-orchestrator api arangodb arangodb-apps arangodb-dump auth clustermgr consuldata group history kafka-log market mediation-hyperv mediation-vcenter mysql-log mysql-var mysqldata nginx-data nginx-run plan-orchestrator reporting rsyslog-auditlogdata rsyslog-syslogdata topology-processor zoo-data api-claim1 mediation-compellent mediation-hds mediation-hpe3par mediation-netapp mediation-openstack mediation-pure mediation-rhv mediation-scaleio mediation-ucs mediation-vmax mediation-vmm mediation-vplex mediation-xtremio nginx-claim0 nginx-claim1 repository cost mediation-aws mediation-awsbilling mediation-ucsdirector
