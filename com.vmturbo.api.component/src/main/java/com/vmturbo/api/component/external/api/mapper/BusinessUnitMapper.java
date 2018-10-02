@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -384,7 +385,8 @@ public class BusinessUnitMapper {
         final List<Long> oids = connectedEntityList.stream()
                 .map(connectedEntity -> connectedEntity.getConnectedEntityId())
                 .collect(Collectors.toList());
-        return repositoryClient.retrieveTopologyEntities(oids, realtimeTopologyContextId).getEntitiesList();
+        return oids.isEmpty() ? Collections.emptyList() :
+                repositoryClient.retrieveTopologyEntities(oids, realtimeTopologyContextId).getEntitiesList();
     }
 
 
