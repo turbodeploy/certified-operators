@@ -165,6 +165,10 @@ public class TopologyConverter {
     private float quoteFactor = AnalysisUtil.QUOTE_FACTOR;
     private boolean isAlleviatePressurePlan = false;
 
+    // Add a cost of moving from source to destination.
+    public static final float MOVE_COST_FACTOR = 0.005f;
+    public static final float PLAN_MOVE_COST_FACTOR = 0.0f;
+
     public static final float CAPACITY_FACTOR = 0.999999f;
 
     public static final float MIN_DESIRED_UTILIZATION_VALUE = 0.0f;
@@ -634,6 +638,7 @@ public class TopologyConverter {
                     .setQuoteFunction(QuoteFunctionDTO.newBuilder()
                             .setSumOfCommodity(SumOfCommodity.getDefaultInstance()))
                     .setQuoteFactor(quoteFactor)
+                    .setMoveCostFactor(isPlan() ? PLAN_MOVE_COST_FACTOR : MOVE_COST_FACTOR)
                     .build();
 
             //compute biclique IDs for this entity, the clique list will be used only for
