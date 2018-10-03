@@ -181,8 +181,17 @@ class ClusterStatsWriter {
                     final com.google.common.collect.Table<String, String, BigDecimal> clusterData)
                     throws VmtDbException {
         LocalDate today = LocalDate.now(Clock.systemUTC());
-        Date dbToday = Date.valueOf(today);
         String clusterOid = Long.toString(clusterOID);
+        Date dbToday = Date.valueOf(today);
+
+        // Delete old values for same date for this cluster.
+        historydbIO.execute(BasedbIO.Style.FORCED,
+            HistorydbIO.getJooqBuilder()
+            .delete(CLUSTER_STATS_BY_DAY)
+            .where(CLUSTER_STATS_BY_DAY.RECORDED_ON.equal(dbToday)
+                .and(CLUSTER_STATS_BY_DAY.INTERNAL_NAME.equal(String.valueOf(clusterOid)))));
+
+        // Insert new values with current date for this cluster.
         InsertSetMoreStep<?> insertStmt = (InsertSetMoreStep<?>)HistorydbIO.getJooqBuilder()
                         .insertInto(CLUSTER_STATS_BY_DAY,
                                     CLUSTER_STATS_BY_DAY.RECORDED_ON,
@@ -191,12 +200,10 @@ class ClusterStatsWriter {
                                     CLUSTER_STATS_BY_DAY.PROPERTY_SUBTYPE,
                                     CLUSTER_STATS_BY_DAY.VALUE);
 
-            // Expected size of batch is ~10 rows with 5 columns.
-            clusterData.cellSet().forEach(cell -> {
-                insertStmt.values(dbToday, clusterOid, cell.getRowKey(), cell.getColumnKey(), cell.getValue())
-                .onDuplicateKeyUpdate()
-                .set(CLUSTER_STATS_BY_DAY.VALUE, cell.getValue());
-            });
+        // Expected size of batch is ~10 rows with 5 columns.
+        clusterData.cellSet().forEach(cell -> {
+            insertStmt.values(dbToday, clusterOid, cell.getRowKey(), cell.getColumnKey(), cell.getValue());
+        });
 
         historydbIO.execute(BasedbIO.Style.FORCED, insertStmt);
     }

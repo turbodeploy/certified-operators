@@ -34,11 +34,10 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScope;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.PlanDTO.Scenario;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.PlanDTO.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template.Type;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -48,12 +47,16 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.plan.orchestrator.plan.IntegrityException;
+import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanInstanceQueue;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanPostProcessor;
+import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile;
+import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
+import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadProfileCreator;
+import com.vmturbo.plan.orchestrator.templates.IllegalTemplateOperationException;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
-
 
 /**
  * This class executes a plan project
@@ -82,6 +85,9 @@ public class PlanProjectExecutor {
     private final SettingServiceBlockingStub settingService;
 
     private final PlanInstanceQueue planInstanceQueue;
+
+    // Number of days for which system load was considered in history.
+    private static final int LOOPBACK_DAYS = 10;
 
     /**
      * The number of clones to add to a cluster headroom plan for every host that's
@@ -182,7 +188,7 @@ public class PlanProjectExecutor {
                     planInstance = createClusterPlanInstance(cluster,
                             scenario,
                             planProject.getPlanProjectInfo().getType());
-                } catch (IntegrityException e) {
+                } catch (IntegrityException | NoSuchObjectException | IllegalTemplateOperationException e) {
                     logger.error("Failed to create a plan instance for cluster {}: {}",
                             cluster.getId(), e.getMessage());
                     continue;
@@ -192,8 +198,8 @@ public class PlanProjectExecutor {
                 ProjectPlanPostProcessor planProjectPostProcessor = null;
                 if (planProject.getPlanProjectInfo().getType().equals(PlanProjectType.CLUSTER_HEADROOM)) {
                     planProjectPostProcessor = new ClusterHeadroomPlanPostProcessor(planInstance.getPlanId(),
-                            cluster, repositoryChannel, historyChannel, getNumClonesToAddForCluster(cluster),
-                            planDao, groupChannel);
+                            cluster.getId(), repositoryChannel, historyChannel, getNumClonesToAddForCluster(cluster),
+                            planDao, groupChannel, templatesDao);
                 }
                 if (planProjectPostProcessor != null) {
                     projectPlanPostProcessorRegistry.registerPlanPostProcessor(planProjectPostProcessor);
@@ -259,19 +265,21 @@ public class PlanProjectExecutor {
     }
 
     /**
-     * Creates a plan instance from a plan project scenario, and sets the cluster ID in plan scope
+     * Creates a plan instance from a plan project scenario, and sets the cluster ID in plan scope.
      *
      * @param cluster the cluster where this plan is applied
      * @param planProjectScenario the plan project scenario
-     * @param type
+     * @param type of plan project
      * @return a plan instance
-     * @throws IntegrityException
+     * @throws IntegrityException if some integrity constraints violated.
+     * @throws NoSuchObjectException if can not find system load records for this cluster or an existing template.
+     * @throws IllegalTemplateOperationException if the operation is not allowed created template.
      */
     @VisibleForTesting
     PlanInstance createClusterPlanInstance(final Group cluster,
                                                    @Nonnull final PlanProjectScenario planProjectScenario,
                                                    @Nonnull final PlanProjectType type)
-            throws IntegrityException {
+            throws IntegrityException, NoSuchObjectException, IllegalTemplateOperationException {
         final PlanScopeEntry planScopeEntry = PlanScopeEntry.newBuilder()
                 .setScopeObjectOid(cluster.getId())
                 .setClassName("Cluster")
@@ -284,41 +292,50 @@ public class PlanProjectExecutor {
                 .setScope(planScope);
 
         if (type.equals(PlanProjectType.CLUSTER_HEADROOM)) {
-
-            // Start of code by mkalath
             SystemLoadInfoRequest.Builder builder = SystemLoadInfoRequest.newBuilder();
             SystemLoadInfoResponse response = planProjectDao.getSystemLoadInfo(builder.setClusterId(cluster.getId()).build());
 
-            // End of code by mkalath, the following has to be reconsidered and changed appropriately
+            if (response == null || response.getRecordCount() == 0) {
+                throw new NoSuchObjectException("No system load records found for cluster : "
+                                + cluster.getCluster().getName());
+            }
 
+            SystemLoadProfileCreator profiles = new SystemLoadProfileCreator(cluster, response, LOOPBACK_DAYS);
+            Map<Operation, SystemLoadCalculatedProfile> profilesMap = profiles.createAllProfiles();
+            SystemLoadCalculatedProfile avgProfile = profilesMap.get(Operation.AVG);
+            Optional<TemplateInfo> headroomTemplateInfo = avgProfile.getHeadroomTemplateInfo();
 
             // TODO (roman, Dec 5 2017): Project-type-specific logic should not be in the main
             // executor class. We should refactor this to separate the general and type-specific
             // processing steps.
-            Template headroomTemplate = null;
-            boolean changeTemplateToDefaultTemplate = false;
-            if (cluster.hasCluster() && cluster.getCluster().hasClusterHeadroomTemplateId()) {
-                Optional<Template> clusterTemplate = templatesDao.getTemplate(
-                        cluster.getCluster().getClusterHeadroomTemplateId());
-                if (clusterTemplate.isPresent()) {
-                    headroomTemplate = clusterTemplate.get();
+            Template avgHeadroomTemplate = null;
+            if (headroomTemplateInfo.isPresent()) {
+                if (cluster.hasCluster() && cluster.getCluster().hasClusterHeadroomTemplateId()) {
+                    logger.debug("Updating template for : " + cluster.getCluster().getName() +
+                                    " with template id : " + cluster.getCluster().getClusterHeadroomTemplateId());
+                    // if template Id already exists, update template with new values
+                    templatesDao.editTemplate(cluster.getCluster().getClusterHeadroomTemplateId(), headroomTemplateInfo.get());
                 } else {
-                    // A headroom template ID is set in cluster object, but a template with that ID
-                    // is not found.  In this case, use the system default template instead.
-                    changeTemplateToDefaultTemplate = true;
+                    // Create template using template info and set it as headroomTemplate.
+                    avgHeadroomTemplate = templatesDao.createTemplate(headroomTemplateInfo.get());
                 }
+            } else {
+                // Set headroomTemplate  to default template
+                avgHeadroomTemplate = templatesDao.getTemplatesByName("headroomVM").stream()
+                                .filter(template -> template.getType().equals(Type.SYSTEM))
+                                .findFirst()
+                                .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
             }
-            if (headroomTemplate == null) {
-                headroomTemplate = templatesDao.getTemplatesByName("headroomVM").stream()
-                        .filter(template -> template.getType().equals(Type.SYSTEM))
-                        .findFirst()
-                        .orElseThrow(() -> new IllegalStateException("No system headroom VM found!"));
-                if (changeTemplateToDefaultTemplate) {
-                    groupRpcService.updateClusterHeadroomTemplate(
-                            UpdateClusterHeadroomTemplateRequest.newBuilder()
-                                    .setClusterHeadroomTemplateId(headroomTemplate.getId())
-                                    .build());
-                }
+
+            if (avgHeadroomTemplate != null) {
+                logger.info("Setting template for : " + cluster.getCluster().getName() +
+                                " with template id : " + avgHeadroomTemplate.getId());
+                // Update template with current headroomTemplate
+                groupRpcService.updateClusterHeadroomTemplate(
+                                UpdateClusterHeadroomTemplateRequest.newBuilder()
+                                        .setGroupId(cluster.getId())
+                                        .setClusterHeadroomTemplateId(avgHeadroomTemplate.getId())
+                                        .build());
             }
         }
 

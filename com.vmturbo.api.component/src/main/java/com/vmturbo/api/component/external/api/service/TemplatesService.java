@@ -121,6 +121,7 @@ public class TemplatesService implements ITemplatesService {
         Map<Long, TemplateSpec> templateSpecMap = StreamSupport.stream(templateSpecs.spliterator(), false)
             .collect(Collectors.toMap(entry -> entry.getId(), Function.identity()));
         return StreamSupport.stream(templates.spliterator(), false)
+            .filter(template -> template.getTemplateInfo().hasTemplateSpecId())
             .map(template -> templateMapper.mapToTemplateApiDTO(template,
                 templateSpecMap.get(template.getTemplateInfo().getTemplateSpecId())))
             .collect(Collectors.toList());
