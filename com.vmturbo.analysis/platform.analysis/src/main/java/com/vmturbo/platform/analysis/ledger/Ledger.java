@@ -465,22 +465,58 @@ public class Ledger {
                     // TODO: make indexOf return 2 values minIndex and the maxIndex.
                     // All comm's btw these indices will be of this type
                     // (needed when we have 2 comms of same type bought)
+                    boolean commBoughtExists = typeOfCommsBought.stream()
+                        .anyMatch(commType -> basketBought.indexOfBaseType(commType.intValue()) != -1);
                     for (Integer typeOfCommBought : typeOfCommsBought) {
 
                         int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.intValue());
 
                         // if the required commodity is not in the shoppingList, set small constant
-                        // expenses and skip the list
+                        // expenses and skip the list, unless it is a related commodity in the rawMaterialsMap
+                        // That does have a commodity in the shoppingList in which case we want to increase expenses.
+                        // If the required commodity is found in the shopping list, we calculate and
+                        // add the expenses to the income statement.
                         if (boughtIndex == -1) {
-                            commSoldIS.setExpenses(1.0);
-                            commSoldIS.setMaxDesiredExpenses(1.0);
-                            commSoldIS.setMinDesiredExpenses(1.0);
-                            if (logger.isTraceEnabled() || isDebugTrader) {
-                                logger.info("No raw material found for the trader "
-                                            + buyerDebugInfo + " and the commodity sold with index "
-                                            + commSoldIndex + ", thus the expenses, max desired"
-                                            + " expenses and min desired expenses are all set to"
-                                            + " 1.0.");
+                            // We expect a charged by sold commodity to have a related commodity that
+                            // is found in the shopping list to be bought by the supplier.
+                            // For example, DBMem commodity has DBCacheHitRate and VMem in the
+                            // raw materials map. VMem is found in the shopping list while
+                            // DBCacheHirate is not because it is sold just like DBMem, but DBMem
+                            // is charged by it.
+                            if (commBoughtExists && buyer.getBasketSold()
+                                .get(commSoldIndex).getBaseType() != typeOfCommBought) {
+                                Basket basketSold = buyer.getBasketSold();
+                                CommoditySold relatedCommSoldByBuyer =
+                                    commSoldList.get(basketSold.indexOfBaseType(typeOfCommBought.intValue()));
+                                double relatedCommSoldUtil = relatedCommSoldByBuyer.getQuantity()
+                                    / relatedCommSoldByBuyer.getEffectiveCapacity();
+                                double[] incomeStatementExpenses = calculateIncomeStatementExpenses(relatedCommSoldByBuyer,
+                                                shoppingList, supplier, economy, relatedCommSoldUtil, maxDesUtil, minDesUtil);
+
+                                commSoldIS.setExpenses(commSoldIS.getExpenses() + incomeStatementExpenses[0]);
+                                commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1]);
+                                commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
+                            } else if (!commBoughtExists) {
+                                // Only set expenses to 1, if all the commodities in typeOfCommsBought
+                                // are not found in the shopping list in order to not overwrite existing
+                                // expenses. For example PortChanel for switches with Mem commodity which
+                                // won't be found.
+                                // The else case is to continue because we don't want the default
+                                // to set expenses to 1.0 because for VMs for example:
+                                // VCPU relates to VCPU for containers and CPU for vm buying from
+                                // Host. CPU is found in the shopping list and we calculate the
+                                // expenses, but VCPU isn't found and we don't want to calculate/increase
+                                // expenses due to it so we just continue.
+                                commSoldIS.setExpenses(1.0);
+                                commSoldIS.setMaxDesiredExpenses(1.0);
+                                commSoldIS.setMinDesiredExpenses(1.0);
+                                if (logger.isTraceEnabled() || isDebugTrader) {
+                                    logger.info("No raw material found for the trader "
+                                                + buyerDebugInfo + " and the commodity sold with index "
+                                                + commSoldIndex + ", thus the expenses, max desired"
+                                                + " expenses and min desired expenses are all set to"
+                                                + " 1.0.");
+                                }
                             }
                             continue;
                         }
@@ -492,31 +528,20 @@ public class Ledger {
                         double commBoughtUtil = shoppingList.getQuantity(boughtIndex)
                                                         /commSoldBySeller.getEffectiveCapacity();
                         if (commBoughtUtil != 0) {
-                            PriceFunction priceFunction = commSoldBySeller.getSettings()
-                                                                          .getPriceFunction();
+                            double[] incomeStatementExpenses = calculateIncomeStatementExpenses(commSoldBySeller,
+                                shoppingList, supplier, economy, commBoughtUtil, maxDesUtil, minDesUtil);
 
-                            double expenses = commSoldIS.getExpenses() + priceFunction.unitPrice(
-                                    commSoldBySeller.getQuantity()
-                                            / commSoldBySeller.getEffectiveCapacity(), shoppingList,
-                                            supplier, commSoldBySeller, economy) * commBoughtUtil;
-                            double maxDesiredExpenses = commSoldIS.getMaxDesiredExpenses()
-                                            + priceFunction.unitPrice(maxDesUtil, shoppingList,
-                                            supplier, commSoldBySeller, economy) * commBoughtUtil;
-                            double minDesiredExpenses = commSoldIS.getMinDesiredExpenses()
-                                            + priceFunction.unitPrice(minDesUtil, shoppingList,
-                                            supplier, commSoldBySeller, economy) * commBoughtUtil;
-
-                            commSoldIS.setExpenses(expenses);
-                            commSoldIS.setMaxDesiredExpenses(maxDesiredExpenses);
-                            commSoldIS.setMinDesiredExpenses(minDesiredExpenses);
+                            commSoldIS.setExpenses(commSoldIS.getExpenses() + incomeStatementExpenses[0]);
+                            commSoldIS.setMaxDesiredExpenses(commSoldIS.getMaxDesiredExpenses() + incomeStatementExpenses[1]);
+                            commSoldIS.setMinDesiredExpenses(commSoldIS.getMinDesiredExpenses() + incomeStatementExpenses[2]);
 
                             if (logger.isTraceEnabled() || isDebugTrader) {
                                 logger.info("For the trader " + buyerDebugInfo + ", the"
                                             + " commodity sold with index " + commSoldIndex + " and"
                                             + " the raw material bought with index " + boughtIndex
-                                            + " the expenses are " + expenses + ", the max desired"
-                                            + " expenses are " + maxDesiredExpenses + " and the min"
-                                            + " desired expenses are " + minDesiredExpenses + ".");
+                                            + " the expenses are " + incomeStatementExpenses[0] + ", the max desired"
+                                            + " expenses are " + incomeStatementExpenses[1] + " and the min"
+                                            + " desired expenses are " + incomeStatementExpenses[2] + ".");
                             }
                         }
                     }
@@ -524,6 +549,31 @@ public class Ledger {
             }
         });
         return this;
+    }
+
+    /**
+     * Calculate income statement expenses to be set on the income statement
+     *
+     * @param commSold the Commodity sold
+     * @param shoppingList the shopping list
+     * @param supplier the supplier of the buyer
+     * @param economy the economy
+     * @param commUtil the commodity utilization
+     * @param maxDesUtil the max desired util for the buyer
+     * @param minDesUtil the min desired util for the buyer
+     * @return array of expenses, maxDesiredExpenses and minDesiredExpenses
+     */
+    private double[] calculateIncomeStatementExpenses(CommoditySold commSold, ShoppingList shoppingList,
+        Trader supplier, Economy economy, double commUtil, double maxDesUtil, double minDesUtil) {
+            PriceFunction commPriceFunction = commSold.getSettings().getPriceFunction();
+            double expenses = commPriceFunction.unitPrice(commSold.getQuantity()
+                / commSold.getEffectiveCapacity(), shoppingList, supplier, commSold, economy) * commUtil;
+            double maxDesiredExpenses = commPriceFunction.unitPrice(maxDesUtil, shoppingList, supplier,
+                commSold, economy) * commUtil;
+            double minDesiredExpenses = commPriceFunction.unitPrice(minDesUtil, shoppingList, supplier,
+                commSold, economy) * commUtil;
+            double[] allExpenses = {expenses, maxDesiredExpenses, minDesiredExpenses};
+            return allExpenses;
     }
 
     /**
