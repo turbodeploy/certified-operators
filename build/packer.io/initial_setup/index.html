@@ -243,6 +243,12 @@
             return false;
         }
 
+        if ("root" === user) {
+            elementToCorrect = document.forms["form"]["username"];
+            errmsg("\"root\" is reserved, please specify another user name");
+            return false;
+        }
+
         if (passwd == null || passwd.length < 1) {
             elementToCorrect = document.forms["form"]["password"];
             errmsg("Please enter valid password");
