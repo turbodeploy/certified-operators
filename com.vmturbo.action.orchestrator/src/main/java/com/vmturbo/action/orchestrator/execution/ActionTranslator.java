@@ -34,6 +34,8 @@ import com.vmturbo.common.protobuf.topology.EntityServiceGrpc;
 import com.vmturbo.common.protobuf.topology.EntityServiceGrpc.EntityServiceImplBase;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+
 
 /**
  * Translates actions from the market's domain-agnostic actions into real-world domain-specific actions.
@@ -336,7 +338,8 @@ public class ActionTranslator {
             final ActionInfo actionInfo = actionView.getRecommendation().getInfo();
             switch (actionInfo.getActionTypeCase()) {
                 case RESIZE:
-                    return (actionInfo.getResize().getCommodityType().getType() == CommodityType.VCPU_VALUE) ?
+                    return (actionInfo.getResize().getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE &&
+                            actionInfo.getResize().getCommodityType().getType() == CommodityType.VCPU_VALUE) ?
                         this.vcpuResizeTranslationMethod :
                         this.passthroughTranslationMethod;
                 default:
