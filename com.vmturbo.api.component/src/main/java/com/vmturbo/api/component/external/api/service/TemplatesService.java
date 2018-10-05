@@ -40,6 +40,9 @@ import com.vmturbo.api.dto.template.TemplateApiInputDTO;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITemplatesService;
 import com.vmturbo.api.utils.ParamStrings;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacity.CpuModelListRequest;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacity.CpuModelListResponse;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.CreateTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.DeleteTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.EditTemplateRequest;
@@ -69,9 +72,9 @@ public class TemplatesService implements ITemplatesService {
     private final TemplateSpecServiceBlockingStub templateSpecService;
 
     /**
-     * The list of known CPU Models and their performance scaling values.
+     * The service to fetch the list of known CPU Models and their performance scaling values.
      */
-    private final CPUCatalog cpuCatalog;
+    private final CpuCapacityServiceBlockingStub cpuCapacityService;
 
     /**
      * Maps between internal protobuf format of Templates an the external API
@@ -80,12 +83,7 @@ public class TemplatesService implements ITemplatesService {
     private final TemplateMapper templateMapper;
 
     /**
-     * Create a time-based cache for the CPU Catalog - a set of CpuInfo values.
-     */
-    private Supplier<Set<CPUInfo>> cpuInfoCatalogCache;
-
-    /**
-     * Maps from external api CpuModelApiDTO to internal CPUInfo protobuf.
+     * Mapper from internal CPUInfo protobuf to External API  CpuModelApiDTO.
      */
     private final CpuInfoMapper cpuInfoMapper;
 
@@ -93,17 +91,14 @@ public class TemplatesService implements ITemplatesService {
     public TemplatesService(@Nonnull final TemplateServiceBlockingStub templateService,
                             @Nonnull final TemplateMapper templateMapper,
                             @Nonnull final TemplateSpecServiceBlockingStub templateSpecService,
-                            @Nonnull final CPUCatalog cpuCatalog,
+                            @Nonnull final CpuCapacityServiceBlockingStub cpuCapacityService,
                             @Nonnull final CpuInfoMapper cpuInfoMapper,
                             final int cpuCatalogLifeHours) {
         this.templateService = Objects.requireNonNull(templateService);
         this.templateMapper = Objects.requireNonNull(templateMapper);
         this.templateSpecService = Objects.requireNonNull(templateSpecService);
-        this.cpuCatalog = Objects.requireNonNull(cpuCatalog);
+        this.cpuCapacityService = Objects.requireNonNull(cpuCapacityService);
         this.cpuInfoMapper = Objects.requireNonNull(cpuInfoMapper);
-        // create a cache for the CPU Info - it doesn't change very often
-        cpuInfoCatalogCache = Suppliers.memoizeWithExpiration(cpuCatalog::getCatalog,
-            cpuCatalogLifeHours, TimeUnit.HOURS);
     }
 
     /**
@@ -292,7 +287,9 @@ public class TemplatesService implements ITemplatesService {
 
     @Override
     public List<CpuModelApiDTO> getCpuList() {
-        return cpuInfoCatalogCache.get().stream()
+        final CpuModelListResponse cpuModelListResponse = cpuCapacityService.getCpuModelList(
+            CpuModelListRequest.getDefaultInstance());
+        return cpuModelListResponse.getCpuInfoList().stream()
                 .map(cpuInfoMapper::convertCpuDTO)
                 .collect(Collectors.toList());
     }

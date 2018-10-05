@@ -37,6 +37,8 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacityServiceGrpc.CpuCapacityServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
@@ -269,6 +271,11 @@ public class CommunicationConfig {
     @Bean
     public TemplateSpecServiceBlockingStub templateSpecServiceBlockingStub() {
         return TemplateSpecServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
+    }
+
+    @Bean
+    public CpuCapacityServiceBlockingStub cpuCapacityServiceBlockingStub() {
+        return CpuCapacityServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel());
     }
 
     @Bean

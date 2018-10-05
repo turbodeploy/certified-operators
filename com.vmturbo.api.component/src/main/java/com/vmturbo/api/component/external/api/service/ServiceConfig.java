@@ -17,10 +17,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.security.saml.userdetails.SAMLUserDetailsService;
 
-import com.turbonomic.cpucapacity.CPUCapacityEstimatorException;
-import com.turbonomic.cpucapacity.CPUCatalog;
-import com.turbonomic.cpucapacity.CPUCatalogFactory;
-
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
 import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
@@ -387,21 +383,12 @@ public class ServiceConfig {
     public TemplatesService templatesService() {
         return new TemplatesService(communicationConfig.templateServiceBlockingStub(),
             mapperConfig.templateMapper(), communicationConfig.templateSpecServiceBlockingStub(),
-            cpuCatalog(), cpuInfoMapper(), cpuCatalogLifeHours);
+            communicationConfig.cpuCapacityServiceBlockingStub(), cpuInfoMapper(), cpuCatalogLifeHours);
     }
 
     @Bean
     public CpuInfoMapper cpuInfoMapper() {
         return new CpuInfoMapper();
-    }
-
-    @Bean
-    public CPUCatalog cpuCatalog() {
-        try {
-            return new CPUCatalogFactory().makeCatalog();
-        } catch (CPUCapacityEstimatorException e) {
-            throw new BeanCreationException("Error creating CPUCatalog bean:", e);
-        }
     }
 
     @Bean

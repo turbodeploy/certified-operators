@@ -6,9 +6,9 @@ import static junit.framework.TestCase.assertTrue;
 import org.junit.Test;
 
 import com.google.common.math.DoubleMath;
-import com.turbonomic.cpucapacity.CPUInfo;
 
 import com.vmturbo.api.dto.template.CpuModelApiDTO;
+import com.vmturbo.common.protobuf.cpucapacity.CpuCapacity.CpuModelListResponse;
 
 /**
  * Test for mapping between internal CPUInfo protobuf and external CpuModelApiDTO.
@@ -32,8 +32,18 @@ public class CPUInfoMapperTest {
     public void testCpuInfoMapper() {
         // Arrange
         CpuInfoMapper mapper = new CpuInfoMapper();
-        CPUInfo cpuInfo1 = new CPUInfo(CPU_MODEL_1, CORES_1, SPEED_1, SCALING_FACTOR_1);
-        CPUInfo cpuInfo2 = new CPUInfo(CPU_MODEL_2, CORES_2, SPEED_2, SCALING_FACTOR_2);
+        CpuModelListResponse.CPUInfo cpuInfo1 = CpuModelListResponse.CPUInfo.newBuilder()
+            .setCpuModelName(CPU_MODEL_1)
+            .setCores(CORES_1)
+            .setMhz(SPEED_1)
+            .setScalingFactor(SCALING_FACTOR_1)
+            .build();
+        CpuModelListResponse.CPUInfo cpuInfo2 = CpuModelListResponse.CPUInfo.newBuilder()
+            .setCpuModelName(CPU_MODEL_2)
+            .setCores(CORES_2)
+            .setMhz(SPEED_2)
+            .setScalingFactor(SCALING_FACTOR_2)
+            .build();
         // Act
         CpuModelApiDTO cpuModelDto1 = mapper.convertCpuDTO(cpuInfo1);
         CpuModelApiDTO cpuModelDto2 = mapper.convertCpuDTO(cpuInfo2);
