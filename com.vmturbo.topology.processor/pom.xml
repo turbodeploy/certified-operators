@@ -14,13 +14,15 @@
 
     <properties>
         <swagger.component.name>Topology Processor</swagger.component.name>
+        <maven.build.timestamp.format>yyyyMMddHHmmssSSS</maven.build.timestamp.format>
 
         <!-- Properties to support generation of JOOQ objects -->
         <db.url>jdbc:mysql://localhost:3306</db.url>
         <!-- TODO: user and password configuration should NOT be checked into source control -->
         <db.username>root</db.username>
         <db.password>vmturbo</db.password>
-        <db.schema>topology_processor</db.schema>
+        <db.schema>topology_processor_build_${maven.build.timestamp}</db.schema>
+        <db.outputSchema>topology_processor</db.outputSchema>
         <db.driver>org.mariadb.jdbc.Driver</db.driver>
     </properties>
 
@@ -50,6 +52,13 @@
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>migrate</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>clean-db</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>clean</goal>
                         </goals>
                     </execution>
                 </executions>
@@ -95,12 +104,13 @@
                         <database>
                             <name>org.jooq.util.mysql.MySQLDatabase</name>
                             <!-- Retrieve schema version from Flyway info table -->
-                            <schemaVersionProvider>SELECT CONCAT_WS('_', DATABASE(), MAX(version)) from schema_version</schemaVersionProvider>
+                            <schemaVersionProvider>SELECT CONCAT_WS('_', '${db.outputSchema}', MAX(version)) from schema_version</schemaVersionProvider>
                             <includes>.*</includes>
                             <excludes>schema_version</excludes>
                             <schemata>
                                 <schema>
                                     <inputSchema>${db.schema}</inputSchema>
++                                    <outputSchema>${db.outputSchema}</outputSchema>
                                 </schema>
                             </schemata>
 

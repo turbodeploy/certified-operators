@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
-import static com.vmturbo.action.orchestrator.db.Action.ACTION;
+import static com.vmturbo.action.orchestrator.db.tables.MarketAction.MARKET_ACTION;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -310,14 +311,14 @@ public class PlanActionStoreTest {
     }
 
     private List<MarketAction> allMarketActions() {
-        return dsl.selectFrom(ACTION.MARKET_ACTION)
+        return dsl.selectFrom(MARKET_ACTION)
             .fetch()
             .into(MarketAction.class);
     }
 
     private List<MarketAction> marketActionsForContext(long contextId) {
-        return dsl.selectFrom(ACTION.MARKET_ACTION)
-            .where(ACTION.MARKET_ACTION.TOPOLOGY_CONTEXT_ID.eq(contextId))
+        return dsl.selectFrom(MARKET_ACTION)
+            .where(MARKET_ACTION.TOPOLOGY_CONTEXT_ID.eq(contextId))
             .fetch()
             .into(MarketAction.class);
     }

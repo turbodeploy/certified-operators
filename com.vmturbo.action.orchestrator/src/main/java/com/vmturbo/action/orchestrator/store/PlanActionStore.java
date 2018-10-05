@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
-import static com.vmturbo.action.orchestrator.db.Action.ACTION;
+import static com.vmturbo.action.orchestrator.db.tables.ActionPlan.ACTION_PLAN;
+import static com.vmturbo.action.orchestrator.db.tables.MarketAction.MARKET_ACTION;
 
 import java.time.LocalDateTime;
 import java.util.Collections;
@@ -146,8 +147,8 @@ public class PlanActionStore implements ActionStore {
     @Override
     public int size() {
         return actionPlanId.map(planId -> dsl.fetchCount(dsl
-                .selectFrom(ACTION.MARKET_ACTION)
-                .where(ACTION.MARKET_ACTION.ACTION_PLAN_ID.eq(planId)))
+                .selectFrom(MARKET_ACTION)
+                .where(MARKET_ACTION.ACTION_PLAN_ID.eq(planId)))
         ).orElse(0);
     }
 
@@ -310,7 +311,7 @@ public class PlanActionStore implements ActionStore {
 
                     // Store the action plan
                     transactionDsl
-                        .newRecord(ACTION.ACTION_PLAN, data)
+                        .newRecord(ACTION_PLAN, data)
                         .store();
 
                     // Store the associated actions for the plan in batches, but keep
@@ -319,11 +320,11 @@ public class PlanActionStore implements ActionStore {
                         // If we expand the Market Action table we need to modify this insert
                         // statement and the subsequent "values" bindings.
                         InsertValuesStep4<MarketActionRecord, Long, Long, Long, ActionDTO.Action> step =
-                                transactionDsl.insertInto(ACTION.MARKET_ACTION,
-                                        ACTION.MARKET_ACTION.ID,
-                                        ACTION.MARKET_ACTION.ACTION_PLAN_ID,
-                                        ACTION.MARKET_ACTION.TOPOLOGY_CONTEXT_ID,
-                                        ACTION.MARKET_ACTION.RECOMMENDATION);
+                                transactionDsl.insertInto(MARKET_ACTION,
+                                        MARKET_ACTION.ID,
+                                        MARKET_ACTION.ACTION_PLAN_ID,
+                                        MARKET_ACTION.TOPOLOGY_CONTEXT_ID,
+                                        MARKET_ACTION.RECOMMENDATION);
                         for (ActionDTO.Action action : actionBatch) {
                             step = step.values(action.getId(),
                                     data.getId(),
@@ -357,8 +358,8 @@ public class PlanActionStore implements ActionStore {
      * @return A last known {@link MarketAction}s for a the given topology context.
      */
     private List<MarketAction> loadActions(final long contextId) {
-        return dsl.selectFrom(ACTION.MARKET_ACTION)
-            .where(ACTION.MARKET_ACTION.ACTION_PLAN_ID.eq(contextId))
+        return dsl.selectFrom(MARKET_ACTION)
+            .where(MARKET_ACTION.ACTION_PLAN_ID.eq(contextId))
             .fetch()
             .into(MarketAction.class);
     }
@@ -370,8 +371,8 @@ public class PlanActionStore implements ActionStore {
      * @return A last known {@link MarketAction}s for a the given topology context.
      */
     private Optional<MarketAction> loadAction(final long actionId) {
-        return Optional.ofNullable(dsl.selectFrom(ACTION.MARKET_ACTION)
-            .where(ACTION.MARKET_ACTION.ID.eq(actionId))
+        return Optional.ofNullable(dsl.selectFrom(MARKET_ACTION)
+            .where(MARKET_ACTION.ID.eq(actionId))
             .fetchAny()
             .into(MarketAction.class));
     }
@@ -385,8 +386,8 @@ public class PlanActionStore implements ActionStore {
     private void cleanActions(@Nonnull final DSLContext context, final long actionPlanId) {
         DELETE_PLAN_ACTION_PLAN_DURATION_SUMMARY.time(() -> {
             // Deleting the action plan causes a cascading clear for all associated actions.
-            context.deleteFrom(ACTION.ACTION_PLAN)
-                .where(ACTION.ACTION_PLAN.ID.eq(actionPlanId))
+            context.deleteFrom(ACTION_PLAN)
+                .where(ACTION_PLAN.ID.eq(actionPlanId))
                 .execute();
         });
     }
@@ -425,7 +426,7 @@ public class PlanActionStore implements ActionStore {
         @Override
         public List<ActionStore> loadActionStores() {
             try {
-                return dsl.selectFrom(ACTION.ACTION_PLAN)
+                return dsl.selectFrom(ACTION_PLAN)
                     .fetch()
                     .into(com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan.class)
                     .stream()
