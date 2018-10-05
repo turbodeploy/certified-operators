@@ -5,7 +5,7 @@ SHELL ["/bin/bash", "-c"]
 
 # Install nginx and other tools
 RUN apt-get -q -y update && apt-get -q -y --no-install-recommends upgrade && \
-    apt-get install -q -y --no-install-recommends bash net-tools vim-tiny rsyslog openssl nginx && \
+    apt-get install -q -y --no-install-recommends bash net-tools vim-tiny rsyslog openssl nginx gettext-base && \
     rm -rf /var/lib/apt/lists/* && apt-get clean
 
 # Create a user and group first so the IDs get set the same way, even as
@@ -17,13 +17,15 @@ RUN addgroup nginx && \
     mkdir -p /etc/nginx/certs && \
     chown -R nginx:nginx /etc/nginx/certs && \
     mkdir -p /var/log/nginx && \
+    mkdir -p /home/nginx/conf && \
     chown -R nginx:nginx /var/log/nginx && \
     chown -R nginx:nginx /var/lib/nginx
 
 # rsyslog
 ADD rsyslog.conf /etc
 
-COPY nginx.conf /etc/nginx/
+COPY nginx.conf.template /home/nginx/conf/
+RUN chown -R nginx:nginx /home/nginx
 COPY entrypoint.sh /
 
 # copy static html resources

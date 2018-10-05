@@ -5,6 +5,8 @@ set -eo pipefail
 # rsyslog
 /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
 
+envsubst '${API} ${DNS_RESOLVER}' < /home/nginx/conf/nginx.conf.template > /home/nginx/conf/nginx.conf
+
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
 # This is generally desirable in a development setup where you want to see the output on the console when
 # starting a component, but not in production where we do not want logging to be captured by Docker
@@ -43,7 +45,7 @@ fi
 
 start_nginx() {
     echo "Starting nginx" 2>&1 | ${LOGGER_COMMAND}
-    exec nginx > >($LOGGER_COMMAND) 2>&1
+    exec nginx -c /home/nginx/conf/nginx.conf > >($LOGGER_COMMAND) 2>&1
 }
 
 start_nginx

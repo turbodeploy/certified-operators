@@ -46,7 +46,7 @@ http {
     # force nginx to re-resolve dns entries every 5 seconds, otherwise it will cache old entries
     # and fail to detect or recover from upstream server outages. To do this, we need to explicitly
     # set the resolver to the docker name resolver and set the valid time appropriately.
-    resolver 127.0.0.11 valid=5s ipv6=off;
+    resolver $DNS_RESOLVER valid=5s ipv6=off;
 
     # for websocket upgrades
     map $http_upgrade $connection_upgrade {
@@ -62,7 +62,7 @@ http {
         }
 
         location = /metrics {
-            set $api_servers api;
+            set $api_servers $API;
             proxy_pass         http://$api_servers:8080/metrics;
             proxy_set_header   Host $http_host;
         }
@@ -83,7 +83,7 @@ http {
             # we are using variables for the upstream servers instead of an upstream entry because
             # of the DNS caching problem -- only nginx plus will dynamically resolve the upstream
             # servers
-            set $api_servers api;
+            set $api_servers $API;
             proxy_pass         http://$api_servers:8080;
             proxy_set_header   Host $http_host;
             proxy_set_header   X-Real-IP $remote_addr;
@@ -103,7 +103,7 @@ http {
         }
 
         location /assets {
-            set $api_servers api;
+            set $api_servers $API;
             proxy_pass         http://$api_servers:8080;
             proxy_set_header   Host $http_host;
             proxy_set_header   X-Real-IP $remote_addr;
@@ -115,7 +115,7 @@ http {
         # are no requests to this path. But in a local development environment with an
         # un-compressed UI we need to support this route or else the UI won't work.
         location /doc {
-            set $api_servers api;
+            set $api_servers $API;
             proxy_pass         http://$api_servers:8080;
             proxy_set_header   Host $http_host;
             proxy_set_header   X-Real-IP $remote_addr;
@@ -125,7 +125,7 @@ http {
 
         # For proxying websockets
         location = /vmturbo/messages {
-            set $api_servers api;
+            set $api_servers $API;
 
             # For proxying of websockets to API SSL port
             #proxy_pass         https://$api_servers:9443/vmturbo/messages;
