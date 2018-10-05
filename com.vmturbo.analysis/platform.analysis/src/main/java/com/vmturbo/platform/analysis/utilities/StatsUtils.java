@@ -51,6 +51,7 @@ public class StatsUtils {
     private boolean enabled_ = true;
 
     public StatsUtils(@NonNull String filename, boolean isEnabled) {
+        enabled_ = isEnabled;
         if (!isEnabled()) {
             return;
         }
@@ -70,8 +71,9 @@ public class StatsUtils {
         file.setReadable(true, false);
         file.setWritable(true, false);
         if (!file.canWrite()) {
-            logger.error("Could not set write permission for M2 Stats File");
-            setEnabled(false);
+            // Even though stats writing has been disabled, log warning when called from unit test
+            logger.warn("Could not set write permission for M2 Stats File");
+            enabled_ = false;
             return;
         }
         if (file.getParentFile() != null) {
