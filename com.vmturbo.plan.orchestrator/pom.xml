@@ -94,7 +94,7 @@
                         <apiSource>
                             <locations>
                                 <location>com.vmturbo.common.protobuf.plan</location>
-                                <location>com.vmturbo.plan.orchestrator.api</location>
+                                <location>com.vmturbo.plan.orchestrator</location>
                                 <location>com.vmturbo.components.common</location>
                             </locations>
                         </apiSource>
