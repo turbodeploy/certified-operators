@@ -40,7 +40,7 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import com.vmturbo.components.api.test.IntegrationTestServer;
 import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.BaseVmtComponentConfig;
-import com.vmturbo.components.common.ConsulRegistrationConfig;
+import com.vmturbo.components.common.ConsulDiscoveryManualConfig;
 import com.vmturbo.components.common.migration.MigrationFramework;
 import com.vmturbo.mediation.client.MediationComponentConfig;
 import com.vmturbo.mediation.client.MediationComponentMain;
@@ -151,7 +151,7 @@ public abstract class AbstractIntegrationTest {
         environment.setProperty("server.grpcPort", "0");
         environment.setProperty("consul_port", "0");
         environment.setProperty("consul_host", "consul");
-        environment.setProperty(ConsulRegistrationConfig.DISABLE_CONSUL_REGISTRATION, "true");
+        environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
 
         applicationContext = new AnnotationConfigWebApplicationContext();
         applicationContext.setEnvironment(environment);
@@ -319,7 +319,7 @@ public abstract class AbstractIntegrationTest {
             };
             environment.setProperty(TestMediationCommonConfig.FIELD_TEST_NAME,
                     testName.getMethodName());
-            environment.setProperty(ConsulRegistrationConfig.DISABLE_CONSUL_REGISTRATION, "true");
+            environment.setProperty(ConsulDiscoveryManualConfig.DISABLE_CONSUL_REGISTRATION, "true");
             environment.setProperty("consul_host", "consul");
             environment.setProperty("consul_port", "0");
             environment.setProperty("spring.application.name", "the-component");

@@ -50,7 +50,7 @@ public class ConsulDiscoveryManualConfig {
         final NewService svc = new NewService();
         svc.setName(componentType);
         svc.setId(instanceId);
-        svc.setAddress(InetAddress.getLocalHost().getHostName());
+        svc.setAddress(componentType);
         svc.setPort(serverPort);
         client.agentServiceRegister(svc);
         final NewCheck healthCheck = new NewCheck();
