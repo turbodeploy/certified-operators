@@ -247,6 +247,10 @@ cost:
   numRetainedHours: 72
   numRetainedDays: 60
   riCoverageCacheExpireMinutes: 120
+  # This first time interval to trigger buy RI analysis.
+  initialBuyRIAnalysisIntervalHours: 24
+  # The normal interval to trigger buy RI analysis after first time run.
+  normalBuyRIAnalysisIntervalHours: 336
 
   # START - database-related properties.
   <<: *db_conn_info

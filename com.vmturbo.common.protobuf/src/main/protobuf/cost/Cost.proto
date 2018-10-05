@@ -613,3 +613,23 @@ service ReservedInstanceUtilizationCoverageService {
         returns(GetReservedInstanceCoverageStatsResponse);
 }
 
+// A request to set a new interval for buy RI scheduler.
+message SetBuyRIAnalysisScheduleRequest {
+    // The new interval in hours.
+    optional uint64 interval_hours = 1;
+}
+
+// A response of setting a new interval of buy RI scheduler.
+message BuyRIAnalysisScheduleResponse {
+    // The new interval in hours.
+    optional uint64 interval_hours = 1;
+}
+
+// A service for buy reserved instance analysis.
+service BuyRIAnalysisService {
+    // Set a new interval for buy RI analysis chedule. Note that after call this function, it will
+    // trigger buy RI analysis immediately.
+    rpc SetBuyRIAnalysisSchedule(SetBuyRIAnalysisScheduleRequest)
+        returns (BuyRIAnalysisScheduleResponse);
+}
+

@@ -79,7 +79,7 @@ public class Scheduler implements TargetStoreListener {
 
     /**
      * Create a {@link Scheduler} for scheduling discoveries on a per-target basis.
-     *  @param operationManager The {@link OperationManager} for performing scheduled discoveries.
+     * @param operationManager The {@link OperationManager} for performing scheduled discoveries.
      * @param targetStore The {@link TargetStore} to use to find targets.
      * @param topologyHandler The {@link TopologyHandler} to use for broadcasting topologies to other services.
      * @param scheduleStore The store used for saving and loading data data from/to persistent storage.

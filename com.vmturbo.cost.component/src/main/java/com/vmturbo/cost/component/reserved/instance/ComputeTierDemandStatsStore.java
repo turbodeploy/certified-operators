@@ -1,18 +1,24 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK;
+import static org.jooq.impl.DSL.select;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Objects;
+import java.util.TimeZone;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.jooq.BatchBindStep;
 import org.jooq.DSLContext;
 import org.jooq.Query;
@@ -65,6 +71,25 @@ public class ComputeTierDemandStatsStore {
                         .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.eq(day)))
                 .fetchSize(statsRecordsQueryBatchSize)
                 .stream();
+    }
+
+    /**
+     * Check if the table has already contains over one week data, the current logic is try to check
+     * if next 2 hour record has already exists in table.
+     *
+     * @return true if table has already contains over one week data, otherwise return false.
+     */
+    public boolean containsDataOverWeek() {
+        // get next two hour milliseconds.
+        final long nextTwoHourMillis = new DateTime(DateTimeZone.UTC).plusHours(2).getMillis();
+        final Calendar calendar = GregorianCalendar.getInstance(TimeZone.getTimeZone("UTC"));
+        calendar.setTimeInMillis(nextTwoHourMillis);
+        final int hourOfDay = calendar.get(Calendar.HOUR_OF_DAY);
+        final int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
+        // check if next hour record exists in table
+        return dslContext.fetchExists(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK,
+                COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR.eq((byte)hourOfDay)
+                        .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY.eq((byte)dayOfWeek)));
     }
 
     public void persistComputeTierDemandStats(
