@@ -280,6 +280,7 @@ public class SearchService implements ISearchService {
     private List<BaseApiDTO> populateSeverity(@Nonnull final Collection<GroupApiDTO> groups) {
         return groups
                 .stream()
+                .filter(group -> group.getSeverity() == null)
                 .map(group -> {
                     final Set<Long> expandedOids = groupExpander.expandUuid(group.getUuid());
                     SeverityPopulator
@@ -322,13 +323,13 @@ public class SearchService implements ISearchService {
         final List<? extends BaseApiDTO> result;
         if (GroupMapper.GROUP.equals(inputDTO.getClassName())) {
             // this is a search for a group
-            result = groupsService.getGroupsByFilter(inputDTO.getCriteriaList());
+            result = populateSeverity(groupsService.getGroupsByFilter(inputDTO.getCriteriaList()));
         } else if (CLUSTER.equals(inputDTO.getClassName())) {
-            // this is a search for a Cluster
-            result = groupsService.getComputeClusters(inputDTO.getCriteriaList());
+            // this is a search for a compute Cluster
+            result = populateSeverity(groupsService.getComputeClusters(inputDTO.getCriteriaList()));
         } else if (STORAGE_CLUSTER.equals(inputDTO.getClassName())) {
-            // this is a search for a Cluster
-            result = groupsService.getStorageClusters(inputDTO.getCriteriaList());
+            // this is a search for a storage Cluster
+            result = populateSeverity(groupsService.getStorageClusters(inputDTO.getCriteriaList()));
         } else {
             return searchEntitiesByParameters(inputDTO, query, paginationRequest);
         }
