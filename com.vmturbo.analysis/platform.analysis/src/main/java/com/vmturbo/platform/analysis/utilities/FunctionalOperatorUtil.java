@@ -176,14 +176,18 @@ public class FunctionalOperatorUtil {
                             }
                             // The cost of vm placed on a cbtp is the discounted cost
                             buyer.setCost(discountedCost);
-                            if (logger.isTraceEnabled() || buyer.getBuyer().isDebugEnabled()) {
-                                logger.info(buyer.getBuyer().getDebugInfoNeverUseInCode() + " migrated to CBTP "
-                                             + seller.getDebugInfoNeverUseInCode() + " offering a dicount of "
-                                             + cbtpResourceBundle.getDiscountPercentage() + " on TP "
-                                             + matchingTP.getDebugInfoNeverUseInCode() + " at a discountCoeff of"
-                                             + discountCoefficient + " with a final discount of "
-                                             + discountedCost + " requests " + requestedCoupons + " coupons, allowed "
-                                             + allocatedCoupons + " coupons");
+                            if (logger.isDebugEnabled() || buyer.getBuyer().isDebugEnabled()) {
+                                logger.info(buyer.getBuyer().getDebugInfoNeverUseInCode()
+                                             + " migrated to CBTP "
+                                             + seller.getDebugInfoNeverUseInCode()
+                                             + " offering a dicount of "
+                                             + cbtpResourceBundle.getDiscountPercentage()
+                                             + " on TP " + matchingTP.getDebugInfoNeverUseInCode()
+                                             + " with a templateCost of " + templateCost
+                                             + " at a discountCoeff of" + discountCoefficient
+                                             + " with a final discount of " + discountedCost
+                                             + " requests " + requestedCoupons 
+                                             + " coupons, allowed " + allocatedCoupons + " coupons");
                             }
                             /** Increase the used value of coupon commodity sold by cbtp accordingly.
                              * Increase the value by what was allocated to the buyer and not
