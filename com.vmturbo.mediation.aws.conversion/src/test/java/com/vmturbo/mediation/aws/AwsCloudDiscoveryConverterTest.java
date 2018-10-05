@@ -100,6 +100,12 @@ public class AwsCloudDiscoveryConverterTest {
                     .filter(commodityDTO -> commodityDTO.getCommodityType() == CommodityType.LICENSE_ACCESS)
                     .count());
 
+            // check 'active' for VM bought commodities not set to false
+            newVM.getCommoditiesBoughtList().stream()
+                    .flatMap(commodityBought -> commodityBought.getBoughtList().stream())
+                    .filter(VirtualMachineConverter.COMMODITIES_TO_CLEAR_ACTIVE::contains)
+                    .forEach(commodityDTO -> assertTrue(commodityDTO.getActive()));
+
             // check providers changed (vm may consumes multiple storages, convert each to new type)
             verifyProvidersChanged(oldVM, newVM, ImmutableMap.of(
                     EntityType.STORAGE, EntityType.STORAGE_TIER,

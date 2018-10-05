@@ -36,6 +36,12 @@ public class VirtualMachineConverter implements IEntityConverter {
             CommodityType.DATASTORE
     );
 
+    // set of commodities that the active field should be cleared (set back to true by default)
+    public static Set<CommodityType> COMMODITIES_TO_CLEAR_ACTIVE = ImmutableSet.of(
+            CommodityType.MEM_PROVISIONED,
+            CommodityType.CPU_PROVISIONED
+    );
+
     private SDKProbeType probeType;
 
     public VirtualMachineConverter(@Nonnull SDKProbeType probeType) {
@@ -59,6 +65,12 @@ public class VirtualMachineConverter implements IEntityConverter {
                     cbBuilder.addAllBought(commodityBought.getBoughtList().stream()
                             .filter(commodityDTO -> !ACCESS_COMMODITY_TYPES_TO_REMOVE.contains(
                                     commodityDTO.getCommodityType()))
+                            .map(commodityDTO ->
+                                    // clear active field (active is true by default) for some
+                                    // commodities since they are set to false in probe, we can't
+                                    // change probe since it will affect classic
+                                    COMMODITIES_TO_CLEAR_ACTIVE.contains(commodityDTO.getCommodityType()) ?
+                                            commodityDTO.toBuilder().clearActive().build() : commodityDTO)
                             .collect(Collectors.toList()));
 
                     // change provider
