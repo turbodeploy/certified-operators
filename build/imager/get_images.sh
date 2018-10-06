@@ -7,7 +7,10 @@ fi
 VER_SHORT="${VER_SHORT}"
 POM_VERSION="${POM_VERSION}"
 storage_dir="/opt/storage/xl/${VER_SHORT}/images"
-mkdir -p ${storage_dir}
+if [ ! -z "${POM_VERSION}" ]
+then
+  sudo -n mkdir -p ${storage_dir}
+fi
 mkdir -p ${WORKSPACE}/data
 cd ${WORKSPACE}/data
 rm -rf images >/dev/null 2>&1
