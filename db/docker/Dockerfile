@@ -24,7 +24,6 @@ mkdir -p /var/log/mysql && \
 chown -R mysql:mysql /var/log/mysql && \
 chmod 755 /entrypoint.sh && passwd -l root
 
-USER mysql
 
 # The Database port
 EXPOSE 3306
