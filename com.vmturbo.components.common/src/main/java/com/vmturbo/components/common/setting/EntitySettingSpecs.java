@@ -115,7 +115,8 @@ public enum EntitySettingSpecs {
      */
     StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
             Collections.singletonList("utilizationThresholds"), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.STORAGE_CONTROLLER), numeric(0f, 100f, 90f),
+            EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.STORAGE_CONTROLLER),
+            numeric(0f, 100f, 90f),
             true),
     /**
      * IOPS utilization threshould.

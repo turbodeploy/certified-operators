@@ -301,6 +301,9 @@ public class EntitySettingsApplicatorTest {
         testUtilizationSettings(EntityType.STORAGE, CommodityType.STORAGE_LATENCY,
                 EntitySettingSpecs.LatencyUtilization);
 
+        testUtilizationSettings(EntityType.DISK_ARRAY, CommodityType.STORAGE_AMOUNT,
+            EntitySettingSpecs.StorageAmountUtilization);
+
         testUtilizationSettings(EntityType.STORAGE_CONTROLLER, CommodityType.STORAGE_AMOUNT,
                 EntitySettingSpecs.StorageAmountUtilization);
         testUtilizationSettings(EntityType.STORAGE_CONTROLLER, CommodityType.CPU,
