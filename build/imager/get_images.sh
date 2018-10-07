@@ -47,7 +47,7 @@ do
         if [ ! -z "${POM_VERSION}" ]
         then
             docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
-            docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
+            sudo -n docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
         fi
     fi
 done
@@ -82,7 +82,7 @@ echo "Build #: ${RELEASE_REV}" >> ${INFO}
 
 if [ ! -z "${POM_VERSION}" ]
 then
-  cp ${INFO} ${storage_dir}/turbonomic_info.txt 
+  sudo -n cp ${INFO} ${storage_dir}/turbonomic_info.txt 
 fi
 
 # Cleanup and create the ISO
@@ -132,7 +132,7 @@ do
     if [ ! -z "${POM_VERSION}" ]
     then
       docker tag ${img}:${POM_VERSION} localhost:5000/${img}:${POM_VERSION}
-      docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
+      sudo -n docker save localhost:5000/${img}:${POM_VERSION} | xz -T0 -9 > ${storage_dir}/${img_res}.tgz
     fi
 done
 cd ${WORKSPACE}/data
@@ -141,8 +141,8 @@ pushd images
 for file in `ls *tgz`; do sha256sum $file > turbonomic_sums.txt; done
 if [ ! -z "${POM_VERSION}" ]
 then
-  rm -rf ${storage_dir}/turbonomic_sums.txt
-  for file in `ls ${storage_dir}/*tgz`; do sha256sum $file >> ${storage_dir}/turbonomic_sums.txt; done
+  sudo -n rm -rf ${storage_dir}/turbonomic_sums.txt
+  for file in `ls ${storage_dir}/*tgz`; do sudo -n sha256sum $file >> ${storage_dir}/turbonomic_sums.txt; done
 fi
 popd
 mkisofs -l -iso-level 4 -o docker_diags_${RELEASE_REV}.iso images/
