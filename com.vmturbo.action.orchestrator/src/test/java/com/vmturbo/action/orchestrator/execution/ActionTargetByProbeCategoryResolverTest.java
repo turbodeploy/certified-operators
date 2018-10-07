@@ -61,11 +61,11 @@ public class ActionTargetByProbeCategoryResolverTest {
         final TargetInfo target3 = createTarget(ID_3);
         final TargetInfo unknownCategoryTarget = createTarget(UNKNOWN_CATEGORY_PROBE);
         // Curently STORAGE has priority 2
-        final ProbeInfo probe1 = createProbe("STORAGE", ID_1);
+        final ProbeInfo probe1 = createProbe("CLOUD NATIVE", ID_1);
         // It has 1 priority
-        final ProbeInfo probe2 = createProbe("LOAD BALANCER", ID_2);
+        final ProbeInfo probe2 = createProbe("STORAGE", ID_2);
         // It has 8 priority
-        final ProbeInfo probe3 = createProbe("FLOW", ID_3);
+        final ProbeInfo probe3 = createProbe("HYPERVISOR", ID_3);
         final ProbeInfo unknownCategoryProbe = createProbe("UNKNOWN", 0); // We haven't this
         // category
         Mockito.when(topologyProcessor.getTarget(ID_1)).thenReturn(target1);
@@ -106,7 +106,7 @@ public class ActionTargetByProbeCategoryResolverTest {
         final ActionDTO.Action action = createAction();
         final long resolvedTarget = targetResolver.resolveExecutantTarget(action,
                 ImmutableSet.of(ID_1, ID_2, ID_3));
-        Assert.assertEquals(ID_2, resolvedTarget);
+        Assert.assertEquals(ID_1, resolvedTarget);
     }
 
     /**
@@ -120,7 +120,7 @@ public class ActionTargetByProbeCategoryResolverTest {
         final ActionDTO.Action action = createAction();
         final long resolvedTarget = targetResolver.resolveExecutantTarget(action,
                 ImmutableSet.of(ID_1, ID_2, ID_3, NOT_EXISTTING_TARGET));
-        Assert.assertEquals(ID_2, resolvedTarget);
+        Assert.assertEquals(ID_1, resolvedTarget);
     }
 
     /**

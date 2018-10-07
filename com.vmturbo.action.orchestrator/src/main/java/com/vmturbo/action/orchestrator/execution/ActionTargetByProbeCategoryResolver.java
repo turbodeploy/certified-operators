@@ -52,15 +52,13 @@ public class ActionTargetByProbeCategoryResolver implements ActionTargetResolver
      **/
     private static final List<String> PROBE_CATEGORY_PRIORITIES =
             ImmutableList.of(
+                    "CLOUD NATIVE",
                     "CLOUD MANAGEMENT",
-                    "LOAD BALANCER",
                     "STORAGE",
                     "FABRIC",
                     "HYPERVISOR",
-                    "OPERATION MANAGER APPLIANCE",
                     "APPLICATION SERVER",
                     "DATABASE SERVER",
-                    "FLOW",
                     "CUSTOM",
                     "GUEST OS PROCESSES");
 
