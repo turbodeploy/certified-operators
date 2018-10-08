@@ -23,13 +23,6 @@
         <db.schema>plan_build_${maven.build.timestamp}</db.schema>
         <db.outputSchema>plan</db.outputSchema>
         <db.driver>org.mariadb.jdbc.Driver</db.driver>
-
-        <cpu.capacity.dependency.jar>
-            ${project.build.directory}/dependency/com.turbonomic.cpucapacity-${cpu.capacity.version}.jar
-        </cpu.capacity.dependency.jar>
-        <cpu.capacity.lib.jar>
-            ${project.build.directory}/lib/com.turbonomic.cpucapacity-${cpu.capacity.version}.jar
-        </cpu.capacity.lib.jar>
     </properties>
 
     <build>
@@ -37,57 +30,6 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <!-- fetch the cpucapacity .jar into the target/depdendency/ folder so we can
-                     delete the log4j2.xml file (in the next maven step) -->
-                <executions>
-                    <execution>
-                        <id>fetch-cpu-library</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>copy</goal>
-                        </goals>
-                        <configuration>
-                            <artifactItems>
-                                <artifactItem>
-                                    <groupId>com.turbonomic</groupId>
-                                    <artifactId>com.turbonomic.cpucapacity</artifactId>
-                                    <version>${cpu.capacity.version}</version>
-                                    <type>jar</type>
-                                    <overWrite>true</overWrite>
-                                    <excludes>log4j2.xml</excludes>
-                                </artifactItem>
-                            </artifactItems>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <!-- copy the jar from dependency/ to lib/, deleting log4j2.xml -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>re-pack-cpu-library</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <echo message="pack cpu library jar file" />
-                                <zip destfile="${cpu.capacity.lib.jar}">
-                                    <zipfileset src="${cpu.capacity.dependency.jar}"
-                                                excludes="log4j2.xml"/>
-                                </zip>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
-
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -153,7 +95,6 @@
                             <locations>
                                 <location>com.vmturbo.common.protobuf.plan</location>
                                 <location>com.vmturbo.plan.orchestrator</location>
-                                <location>com.vmturbo.common.protobuf.cpucapacity</location>
                                 <location>com.vmturbo.components.common</location>
                             </locations>
                         </apiSource>
