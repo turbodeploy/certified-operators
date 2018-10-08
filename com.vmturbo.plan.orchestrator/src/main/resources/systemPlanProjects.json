@@ -37,7 +37,7 @@
               "settingOverride" : {
                 "setting" : {
                   "settingSpecName" : "resize",
-                  "enumSettingValue" : { "value" : "ENABLED" }
+                  "enumSettingValue" : { "value" : "DISABLED" }
                 }
               }
             },
