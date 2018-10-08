@@ -3,16 +3,6 @@
 DEFAULT_MYSQL_CONF=/etc/mysql/my.cnf
 MYSQL_CONF=/var/lib/mysql/my.cnf
 
-# Create directory if it does not exist
-if [ ! -d /var/log/mysql ]
-then
-  mkdir -p /var/log/mysql
-  chown -R mysql:mysql /var/log/mysql
-fi
-
-# Start services as mysql user
-su - mysql
-
 # rsyslog and touch the log
 touch /var/log/mysql/mariadb-slow.log
 /usr/sbin/rsyslogd -f /etc/rsyslog.conf -i /tmp/rsyslog.pid
