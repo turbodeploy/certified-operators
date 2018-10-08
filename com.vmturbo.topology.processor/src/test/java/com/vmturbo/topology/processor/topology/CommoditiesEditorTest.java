@@ -529,4 +529,55 @@ public class CommoditiesEditorTest {
         Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList()
                         .get(0).getCommodityBoughtList().get(0).getPeak(), 0.0001);
     }
+
+    @Test
+    public void testEditCommoditiesForCommSoldByVM() throws IOException {
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        // Set virtual machine with commodities sold.
+        // Sets commodity value as - Used : 70, Peak : 80
+        topology.put(1L, buildTopologyEntityWithCommSold(1L, CommodityDTO.CommodityType.VMEM.getNumber(),
+                        EntityType.VIRTUAL_MACHINE_VALUE));
+        final TopologyGraph g = TopologyGraph.newGraph(topology);
+        // Check values before calling CommoditiesEditor.
+        // Compare used
+        TopologyEntity vm = g.getEntity(1L).get();
+        Assert.assertEquals(70, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+                        .get(0).getUsed(), 0.0001);
+        Assert.assertEquals(80, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+                        .get(0).getPeak(), 0.0001);
+
+        SystemLoadInfoResponse response = SystemLoadInfoResponse.newBuilder()
+                        .addRecord(SystemLoadRecord.newBuilder()
+                            .setPropertyType(CommodityDTO.CommodityType.VMEM.name())
+                            .setAvgValue(50)
+                            .setMaxValue(100)
+                            .setUuid(1L) // uuid of VM
+                            .build())
+                        .build();
+
+        Mockito.when(statsHistoryService.getSystemLoadInfo(Mockito.any())).thenReturn(response);
+
+        PlanScope scope = PlanScope.newBuilder()
+            .addScopeEntries(PlanScopeEntry.newBuilder()
+                .setScopeObjectOid(10L)
+                .build())
+            .build();
+
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()
+                .setPlanProjectType(com.vmturbo.common.protobuf.plan.PlanDTO.PlanProjectType.CLUSTER_HEADROOM)
+                .build())
+            .build();
+
+        CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
+        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope);
+
+        // Check values after calling CommoditiesEditor.
+        // Compare used and peak
+        // Expected value used for VM : as fetched from SystemLoad : 50
+        Assert.assertEquals(50, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+                        .get(0).getUsed(), 0.0001);
+        Assert.assertEquals(100, vm.getTopologyEntityDtoBuilder().getCommoditySoldListList()
+                        .get(0).getPeak(), 0.0001);
+    }
+
 }

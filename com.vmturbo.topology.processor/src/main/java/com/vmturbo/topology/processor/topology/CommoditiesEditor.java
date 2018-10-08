@@ -176,7 +176,7 @@ public class CommoditiesEditor {
     }
 
     /**
-     * Update current used/peak commodity bought values for VMs and its provider.
+     * Update current used/peak commodity values for VMs and its provider.
      * Example : Expected value used for provider : used/peak - currValueForVM + valueFromStatRecord.
      * Example : Expected value used for VM : as fetched from database (i.e StatRecord values).
      * @param vm and its providers for which commodity values are updated.
@@ -191,62 +191,72 @@ public class CommoditiesEditor {
                     final Map<Integer, Queue<Long>> providerIdsByCommodityType,
                     final double peak,
                     final double used) {
-        // We skip access commodities and commodities sold by VM.
-        // We are only interested in commodities bought by VM and we check that via commodityProviderMap.
-        if (commType == null || ACCESS_COMMODITIES.contains(commType)
-                    || !providerIdsByCommodityType.containsKey(commType.getNumber())) {
+        // We skip access commodities
+        if (commType == null || ACCESS_COMMODITIES.contains(commType)) {
             return;
         }
 
+        // W.r.t legacy for baseline and headroom we want to update VMs, Hosts and Storages.
+        // May be we might need to update VM's consumers (containers) in future but that will be an improvement.
+        // handle commodity sold by VM
+        Optional<CommoditySoldDTO.Builder> commoditySold = vm.getTopologyEntityDtoBuilder()
+                .getCommoditySoldListBuilderList().stream()
+                .filter(comm -> comm.getCommodityType().getType() == commType.getNumber())
+                .findFirst();
+        if (commoditySold.isPresent()) {
+            commoditySold.get().setUsed(used);
+            commoditySold.get().setPeak(peak);
+        // Otherwise, handle commodity bought by VM
+        } else if (providerIdsByCommodityType.containsKey(commType.getNumber())) {
+            // Get first provider and add it to the end because we want
+            // to apply commodities' update across VM providers if we have multiple commodities of same type.
+            // For example : If we have a VM consuming from multiple storages currently as well as
+            // on baseline date we want to update providers in round robin fashion.
+            // Let's say, on baseline date VM was consuming from ST1 and ST2 and is currently consuming from
+            // ST3 and ST4. Queue will contain ST3 and ST4 and we will update ST3 and ST4
+            // because we will get two stat entries from db. For first stat entry we remove first element from
+            // queue(ST3) and add it to end and in next stat entry we will update ST4.
+            Queue<Long> providers = providerIdsByCommodityType.get(commType.getNumber());
+            long providerOid = providers.remove();
+            providers.add(providerOid);
 
-        // Get first provider and add it to the end because we want
-        // to apply commodities' update across VM providers if we have multiple commodities of same type.
-        // For example : If we have a VM consuming from multiple storages currently as well as
-        // on baseline date we want to update providers in round robin fashion.
-        // Let's say, on baseline date VM was consuming from ST1 and ST2 and is currently consuming from
-        // ST3 and ST4. Queue will contain ST3 and ST4 and we will update ST3 and ST4
-        // because we will get two stat entries from db. For first stat entry we remove first element from
-        // queue(ST3) and add it to end and in next stat entry we will update ST4.
-        Queue<Long> providers = providerIdsByCommodityType.get(commType.getNumber());
-        long providerOid = providers.remove();
-        providers.add(providerOid);
-
-        graph.getEntity(providerOid).ifPresent(provider -> {
-         // Find commodity bought relevant to current provider.
-            Optional<CommodityBoughtDTO.Builder> commBought = vm.getTopologyEntityDtoBuilder()
-                            .getCommoditiesBoughtFromProvidersBuilderList().stream()
-                            .filter(commsFromProvider -> commsFromProvider.getProviderId() == providerOid)
-                            .flatMap(c -> c.getCommodityBoughtBuilderList().stream())
-                            .filter(g -> g.getCommodityType().getType() == commType.getNumber())
-                            .findFirst();
-
-             commBought.ifPresent(commodityBought -> {
-                // Set values of provider
-                Optional<CommoditySoldDTO.Builder> commSoldByProvider =
-                                provider.getTopologyEntityDtoBuilder()
-                                .getCommoditySoldListBuilderList()
-                                .stream()
-                                .filter(c -> c.getCommodityType().getType() == commType.getNumber() )
+            graph.getEntity(providerOid).ifPresent(provider -> {
+             // Find commodity bought relevant to current provider.
+                Optional<CommodityBoughtDTO.Builder> commBought = vm.getTopologyEntityDtoBuilder()
+                                .getCommoditiesBoughtFromProvidersBuilderList().stream()
+                                .filter(commsFromProvider -> commsFromProvider.getProviderId() == providerOid)
+                                .flatMap(c -> c.getCommodityBoughtBuilderList().stream())
+                                .filter(g -> g.getCommodityType().getType() == commType.getNumber())
                                 .findFirst();
 
-                if (commSoldByProvider.isPresent()) {
-                    CommoditySoldDTO.Builder commSold = commSoldByProvider.get();
-                    // Subtract current value and add fetched value from database.
-                    commSold.setPeak(Math.max(commSold.getPeak() - commodityBought.getPeak(), 0)
-                                    + peak);
-                    commSold.setUsed(Math.max(commSold.getUsed() - commodityBought.getUsed(), 0)
-                                    + used);
-                }
+                 commBought.ifPresent(commodityBought -> {
+                    // Set values of provider
+                    Optional<CommoditySoldDTO.Builder> commSoldByProvider =
+                                    provider.getTopologyEntityDtoBuilder()
+                                    .getCommoditySoldListBuilderList()
+                                    .stream()
+                                    .filter(c -> c.getCommodityType().getType() == commType.getNumber() )
+                                    .findFirst();
 
-                // Set value for consumer.
-                // Note : If we have multiple providers on baseline date and one provider currently
-                // we will set value for commodity bought from last record. It is not a problem because
-                // price in market is calculated by providers based on commodity sold. Mismatch in commodity
-                // bought and sold values will be reflected as overhead.
-               commodityBought.setPeak(peak);
-               commodityBought.setUsed(used);
+                    if (commSoldByProvider.isPresent()) {
+                        CommoditySoldDTO.Builder commSold = commSoldByProvider.get();
+                        // Subtract current value and add fetched value from database.
+                        commSold.setPeak(Math.max(commSold.getPeak() - commodityBought.getPeak(), 0)
+                                        + peak);
+                        commSold.setUsed(Math.max(commSold.getUsed() - commodityBought.getUsed(), 0)
+                                        + used);
+                    }
+
+                    // Set value for consumer.
+                    // Note : If we have multiple providers on baseline date and one provider currently
+                    // we will set value for commodity bought from last record. It is not a problem because
+                    // price in market is calculated by providers based on commodity sold. Mismatch in commodity
+                    // bought and sold values will be reflected as overhead.
+                   commodityBought.setPeak(peak);
+                   commodityBought.setUsed(used);
+                });
             });
-        });
+        }
     }
 
     /**
